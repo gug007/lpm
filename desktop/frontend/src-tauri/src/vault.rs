@@ -120,14 +120,26 @@ fn cf_const(s: CFStringRef) -> CFType {
 /// Fetch the 32-byte key. Err(NotFound) when absent; Err(Other) carries OSStatus.
 fn fetch_key() -> Result<[u8; KEY_LEN], VaultError> {
     let pairs = [
-        (cf_const(unsafe { kSecClass }), cf_const(unsafe { kSecClassGenericPassword })),
-        (cf_const(unsafe { kSecAttrService }), CFString::new(SERVICE).as_CFType()),
-        (cf_const(unsafe { kSecAttrAccount }), CFString::new(ACCOUNT).as_CFType()),
+        (
+            cf_const(unsafe { kSecClass }),
+            cf_const(unsafe { kSecClassGenericPassword }),
+        ),
+        (
+            cf_const(unsafe { kSecAttrService }),
+            CFString::new(SERVICE).as_CFType(),
+        ),
+        (
+            cf_const(unsafe { kSecAttrAccount }),
+            CFString::new(ACCOUNT).as_CFType(),
+        ),
         (
             cf_const(unsafe { kSecAttrSynchronizable }),
             cf_const(unsafe { kSecAttrSynchronizableAny }),
         ),
-        (cf_const(unsafe { kSecReturnData }), CFBoolean::true_value().as_CFType()),
+        (
+            cf_const(unsafe { kSecReturnData }),
+            CFBoolean::true_value().as_CFType(),
+        ),
     ];
     let query = CFDictionary::from_CFType_pairs(&pairs);
 
@@ -140,7 +152,9 @@ fn fetch_key() -> Result<[u8; KEY_LEN], VaultError> {
         if is_access_denied(status) {
             return Err(VaultError::Denied);
         }
-        return Err(VaultError::Other(format!("vault: read keychain: status {status}")));
+        return Err(VaultError::Other(format!(
+            "vault: read keychain: status {status}"
+        )));
     }
     if result.is_null() {
         return Err(VaultError::NotFound);
@@ -148,9 +162,12 @@ fn fetch_key() -> Result<[u8; KEY_LEN], VaultError> {
     // With kSecReturnData and the default match limit (one), the result is CFData.
     if unsafe { CFGetTypeID(result) } != CFData::type_id() {
         unsafe { core_foundation_sys::base::CFRelease(result) };
-        return Err(VaultError::Other("vault: keychain returned non-data".into()));
+        return Err(VaultError::Other(
+            "vault: keychain returned non-data".into(),
+        ));
     }
-    let data = unsafe { CFData::wrap_under_create_rule(result as core_foundation_sys::data::CFDataRef) };
+    let data =
+        unsafe { CFData::wrap_under_create_rule(result as core_foundation_sys::data::CFDataRef) };
     let bytes = data.bytes();
     if bytes.len() != KEY_LEN {
         return Err(VaultError::Other(format!(
@@ -171,13 +188,34 @@ fn add_item(key: &[u8], accessible: CFStringRef, synchronizable: bool) -> OSStat
         CFBoolean::false_value()
     };
     let pairs = [
-        (cf_const(unsafe { kSecClass }), cf_const(unsafe { kSecClassGenericPassword })),
-        (cf_const(unsafe { kSecAttrService }), CFString::new(SERVICE).as_CFType()),
-        (cf_const(unsafe { kSecAttrAccount }), CFString::new(ACCOUNT).as_CFType()),
-        (cf_const(unsafe { kSecAttrLabel }), CFString::new(LABEL).as_CFType()),
-        (cf_const(unsafe { kSecValueData }), CFData::from_buffer(key).as_CFType()),
-        (cf_const(unsafe { kSecAttrAccessible }), cf_const(accessible)),
-        (cf_const(unsafe { kSecAttrSynchronizable }), sync.as_CFType()),
+        (
+            cf_const(unsafe { kSecClass }),
+            cf_const(unsafe { kSecClassGenericPassword }),
+        ),
+        (
+            cf_const(unsafe { kSecAttrService }),
+            CFString::new(SERVICE).as_CFType(),
+        ),
+        (
+            cf_const(unsafe { kSecAttrAccount }),
+            CFString::new(ACCOUNT).as_CFType(),
+        ),
+        (
+            cf_const(unsafe { kSecAttrLabel }),
+            CFString::new(LABEL).as_CFType(),
+        ),
+        (
+            cf_const(unsafe { kSecValueData }),
+            CFData::from_buffer(key).as_CFType(),
+        ),
+        (
+            cf_const(unsafe { kSecAttrAccessible }),
+            cf_const(accessible),
+        ),
+        (
+            cf_const(unsafe { kSecAttrSynchronizable }),
+            sync.as_CFType(),
+        ),
     ];
     let attrs = CFDictionary::from_CFType_pairs(&pairs);
     let mut result: CFTypeRef = std::ptr::null();
@@ -194,12 +232,18 @@ fn add_item(key: &[u8], accessible: CFStringRef, synchronizable: bool) -> OSStat
 fn write_key(key: &[u8]) -> Result<(), VaultError> {
     let mut status = add_item(key, unsafe { kSecAttrAccessibleWhenUnlocked }, true);
     if status == ERR_MISSING_ENTITLEMENT {
-        status = add_item(key, unsafe { kSecAttrAccessibleWhenUnlockedThisDeviceOnly }, false);
+        status = add_item(
+            key,
+            unsafe { kSecAttrAccessibleWhenUnlockedThisDeviceOnly },
+            false,
+        );
     }
     match status {
         0 => Ok(()),
         s if s == errSecDuplicateItem => Err(VaultError::Denied),
-        s => Err(VaultError::Other(format!("vault: write keychain item: status {s}"))),
+        s => Err(VaultError::Other(format!(
+            "vault: write keychain item: status {s}"
+        ))),
     }
 }
 
@@ -247,9 +291,18 @@ struct Enc {
     ciphertext: String,
 }
 
-fn argon2_kek(passphrase: &str, salt: &[u8], m: u32, t: u32, p: u32, l: u32) -> Result<[u8; KEY_LEN], VaultError> {
+fn argon2_kek(
+    passphrase: &str,
+    salt: &[u8],
+    m: u32,
+    t: u32,
+    p: u32,
+    l: u32,
+) -> Result<[u8; KEY_LEN], VaultError> {
     if l as usize != KEY_LEN {
-        return Err(VaultError::Other(format!("vault: unsupported key length {l}")));
+        return Err(VaultError::Other(format!(
+            "vault: unsupported key length {l}"
+        )));
     }
     let params = argon2::Params::new(m, t, p, Some(KEY_LEN))
         .map_err(|e| VaultError::Other(format!("vault: argon2 params: {e}")))?;
@@ -262,9 +315,15 @@ fn argon2_kek(passphrase: &str, salt: &[u8], m: u32, t: u32, p: u32, l: u32) -> 
 
 fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError> {
     let mut salt = [0u8; SALT_LEN];
-    getrandom::fill(&mut salt)
-        .map_err(|e| VaultError::Other(format!("vault: rand salt: {e}")))?;
-    let mut kek = argon2_kek(passphrase, &salt, ARGON2_MEMORY, ARGON2_TIME, ARGON2_PAR, KEY_LEN as u32)?;
+    getrandom::fill(&mut salt).map_err(|e| VaultError::Other(format!("vault: rand salt: {e}")))?;
+    let mut kek = argon2_kek(
+        passphrase,
+        &salt,
+        ARGON2_MEMORY,
+        ARGON2_TIME,
+        ARGON2_PAR,
+        KEY_LEN as u32,
+    )?;
 
     let cipher = Aes256Gcm::new_from_slice(&kek)
         .map_err(|_| VaultError::Other("vault: new cipher".into()))?;
@@ -275,7 +334,10 @@ fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError>
     let ciphertext = cipher
         .encrypt(
             &Nonce::try_from(nonce.as_slice()).expect("nonce is 12 bytes"),
-            Payload { msg: key, aad: AAD_PREFIX },
+            Payload {
+                msg: key,
+                aad: AAD_PREFIX,
+            },
         )
         .map_err(|_| VaultError::Other("vault: seal export".into()))?;
 
@@ -296,29 +358,49 @@ fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError>
             ciphertext: B64.encode(ciphertext),
         },
     };
-    serde_json::to_string_pretty(&out).map_err(|e| VaultError::Other(format!("vault: marshal export: {e}")))
+    serde_json::to_string_pretty(&out)
+        .map_err(|e| VaultError::Other(format!("vault: marshal export: {e}")))
 }
 
 fn unwrap_key(passphrase: &str, data: &[u8]) -> Result<[u8; KEY_LEN], VaultError> {
     let ek: ExportedKey = serde_json::from_slice(data)
         .map_err(|e| VaultError::Other(format!("vault: parse export: {e}")))?;
     if ek.v != EXPORT_VERSION {
-        return Err(VaultError::Other(format!("vault: unsupported export version {}", ek.v)));
+        return Err(VaultError::Other(format!(
+            "vault: unsupported export version {}",
+            ek.v
+        )));
     }
     if ek.kind != EXPORT_KIND {
-        return Err(VaultError::Other(format!("vault: unexpected export kind {:?}", ek.kind)));
+        return Err(VaultError::Other(format!(
+            "vault: unexpected export kind {:?}",
+            ek.kind
+        )));
     }
     if ek.kdf.alg != KDF_ALGO {
-        return Err(VaultError::Other(format!("vault: unsupported kdf {:?}", ek.kdf.alg)));
+        return Err(VaultError::Other(format!(
+            "vault: unsupported kdf {:?}",
+            ek.kdf.alg
+        )));
     }
     if ek.enc.alg != ENC_ALGO {
-        return Err(VaultError::Other(format!("vault: unsupported cipher {:?}", ek.enc.alg)));
+        return Err(VaultError::Other(format!(
+            "vault: unsupported cipher {:?}",
+            ek.enc.alg
+        )));
     }
     if ek.kdf.l as usize != KEY_LEN {
-        return Err(VaultError::Other(format!("vault: unsupported key length {}", ek.kdf.l)));
+        return Err(VaultError::Other(format!(
+            "vault: unsupported key length {}",
+            ek.kdf.l
+        )));
     }
-    let salt = B64.decode(ek.kdf.salt.as_bytes()).map_err(|e| VaultError::Other(format!("vault: bad salt: {e}")))?;
-    let nonce = B64.decode(ek.enc.nonce.as_bytes()).map_err(|e| VaultError::Other(format!("vault: bad nonce: {e}")))?;
+    let salt = B64
+        .decode(ek.kdf.salt.as_bytes())
+        .map_err(|e| VaultError::Other(format!("vault: bad salt: {e}")))?;
+    let nonce = B64
+        .decode(ek.enc.nonce.as_bytes())
+        .map_err(|e| VaultError::Other(format!("vault: bad nonce: {e}")))?;
     let ciphertext = B64
         .decode(ek.enc.ciphertext.as_bytes())
         .map_err(|e| VaultError::Other(format!("vault: bad ciphertext: {e}")))?;
@@ -330,11 +412,17 @@ fn unwrap_key(passphrase: &str, data: &[u8]) -> Result<[u8; KEY_LEN], VaultError
     let plain = cipher
         .decrypt(
             &Nonce::try_from(nonce.as_slice()).expect("nonce is 12 bytes"),
-            Payload { msg: &ciphertext, aad: AAD_PREFIX },
+            Payload {
+                msg: &ciphertext,
+                aad: AAD_PREFIX,
+            },
         )
         .map_err(|_| VaultError::WrongPassphrase)?;
     if plain.len() != KEY_LEN {
-        return Err(VaultError::Other(format!("vault: decrypted key has wrong length {}", plain.len())));
+        return Err(VaultError::Other(format!(
+            "vault: decrypted key has wrong length {}",
+            plain.len()
+        )));
     }
     let mut key = [0u8; KEY_LEN];
     key.copy_from_slice(&plain);
@@ -391,7 +479,15 @@ mod tests {
     #[test]
     fn argon2_matches_go_golden() {
         const GOLDEN: &str = "b8a64b68dea6b88ca8c8862be706aac37cbecda0db7bd68b48f8fa2e7feb6f3e";
-        let kek = argon2_kek("password", b"0123456789abcdef", ARGON2_MEMORY, ARGON2_TIME, ARGON2_PAR, 32).unwrap();
+        let kek = argon2_kek(
+            "password",
+            b"0123456789abcdef",
+            ARGON2_MEMORY,
+            ARGON2_TIME,
+            ARGON2_PAR,
+            32,
+        )
+        .unwrap();
         assert_eq!(hex::encode(kek), GOLDEN);
     }
 

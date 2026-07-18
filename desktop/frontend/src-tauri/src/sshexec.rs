@@ -78,7 +78,10 @@ fn resolve_program(ssh: &SshSettings, program: &str) -> String {
         return found.clone();
     }
     let resolved = lookup_program(ssh, program).unwrap_or_else(|| program.to_string());
-    program_cache().lock().unwrap().insert(key, resolved.clone());
+    program_cache()
+        .lock()
+        .unwrap()
+        .insert(key, resolved.clone());
     resolved
 }
 
@@ -120,7 +123,12 @@ mod tests {
 
     #[test]
     fn build_exec_quotes_dir_program_and_args() {
-        let script = build_remote_exec("/srv/app", "/usr/bin/git", &["status", "--porcelain=v1"], &[]);
+        let script = build_remote_exec(
+            "/srv/app",
+            "/usr/bin/git",
+            &["status", "--porcelain=v1"],
+            &[],
+        );
         assert_eq!(
             script,
             "cd '/srv/app' && exec '/usr/bin/git' 'status' '--porcelain=v1'"

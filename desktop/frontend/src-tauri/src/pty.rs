@@ -211,7 +211,13 @@ fn spawn_io_threads(
 /// dropped too so the result reads cleanly as an id segment.
 fn event_safe(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -222,7 +228,9 @@ fn event_safe(s: &str) -> String {
 /// UTF-8 default — same fallback Terminal.app applies, mirrors the LC_CTYPE
 /// override in clipboard.rs. Any inherited locale is left untouched.
 fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I) -> bool {
-    !vars.into_iter().any(|(k, _)| k == "LANG" || k == "LC_ALL" || k == "LC_CTYPE")
+    !vars
+        .into_iter()
+        .any(|(k, _)| k == "LANG" || k == "LC_ALL" || k == "LC_CTYPE")
 }
 
 /// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
@@ -367,7 +375,10 @@ fn spawn_with_builder(
             pixel_height: 0,
         })
         .map_err(|e| e.to_string())?;
-    let child = pair.slave.spawn_command(builder).map_err(|e| e.to_string())?;
+    let child = pair
+        .slave
+        .spawn_command(builder)
+        .map_err(|e| e.to_string())?;
     drop(pair.slave); // close slave in parent so EOF propagates on child exit
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
@@ -377,7 +388,11 @@ fn spawn_with_builder(
         remote: is_remote,
         ssh,
         project_name: project_name.to_string(),
-        declared: if is_remote { config::declared_service_ports(project_name) } else { HashSet::new() },
+        declared: if is_remote {
+            config::declared_service_ports(project_name)
+        } else {
+            HashSet::new()
+        },
         writer: Mutex::new(writer),
         master: Mutex::new(pair.master),
         child: Mutex::new(child),
@@ -390,7 +405,11 @@ fn spawn_with_builder(
         cols: AtomicU16::new(80),
         rows: AtomicU16::new(24),
     });
-    state.sessions.lock().unwrap().insert(id.clone(), sess.clone());
+    state
+        .sessions
+        .lock()
+        .unwrap()
+        .insert(id.clone(), sess.clone());
     spawn_io_threads(app.clone(), sess, state.sessions.clone(), reader);
     Ok(id)
 }
@@ -576,7 +595,12 @@ pub fn write_terminal(state: State<'_, PtyState>, id: String, data: String) -> R
         None => data.into_bytes(),
     };
     // Bind to a statement so the writer guard drops before `sess`.
-    let r = sess.writer.lock().unwrap().write_all(&buf).map_err(|e| e.to_string());
+    let r = sess
+        .writer
+        .lock()
+        .unwrap()
+        .write_all(&buf)
+        .map_err(|e| e.to_string());
     r
 }
 
@@ -610,7 +634,11 @@ pub fn resize_terminal(
 }
 
 #[tauri::command]
-pub fn ack_terminal_data(state: State<'_, PtyState>, id: String, char_count: i64) -> Result<(), String> {
+pub fn ack_terminal_data(
+    state: State<'_, PtyState>,
+    id: String,
+    char_count: i64,
+) -> Result<(), String> {
     let sess = state.sessions.lock().unwrap().get(&id).cloned();
     if let Some(sess) = sess {
         let mut f = sess.flow.lock().unwrap();
@@ -706,7 +734,12 @@ pub fn remote_write(state: &PtyState, id: &str, data: &str) -> Result<(), String
         Some(hexpart) => hex::decode(hexpart).map_err(|e| format!("decode hex: {e}"))?,
         None => data.as_bytes().to_vec(),
     };
-    let r = sess.writer.lock().unwrap().write_all(&buf).map_err(|e| e.to_string());
+    let r = sess
+        .writer
+        .lock()
+        .unwrap()
+        .write_all(&buf)
+        .map_err(|e| e.to_string());
     r
 }
 
@@ -721,7 +754,12 @@ pub fn remote_resize(state: &PtyState, id: &str, cols: u16, rows: u16) -> Result
     sess.master
         .lock()
         .unwrap()
-        .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+        .resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
         .map_err(|e| e.to_string())?;
     sess.cols.store(cols, Ordering::Relaxed);
     sess.rows.store(rows, Ordering::Relaxed);
@@ -730,7 +768,12 @@ pub fn remote_resize(state: &PtyState, id: &str, cols: u16, rows: u16) -> Result
 
 /// Current geometry of a terminal, so a joining mobile client renders correctly.
 pub fn remote_dims(state: &PtyState, id: &str) -> Option<(u16, u16)> {
-    session(state, id).map(|s| (s.cols.load(Ordering::Relaxed), s.rows.load(Ordering::Relaxed)))
+    session(state, id).map(|s| {
+        (
+            s.cols.load(Ordering::Relaxed),
+            s.rows.load(Ordering::Relaxed),
+        )
+    })
 }
 
 /// Every live terminal belonging to `project` (what the phone lists per project).
@@ -766,12 +809,18 @@ mod tests {
     }
 
     fn env(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
     fn detects_missing_locale() {
-        assert!(env_lacks_locale(env(&[("PATH", "/usr/bin"), ("TERM", "xterm")])));
+        assert!(env_lacks_locale(env(&[
+            ("PATH", "/usr/bin"),
+            ("TERM", "xterm")
+        ])));
         assert!(env_lacks_locale(env(&[])));
     }
 

@@ -13,8 +13,7 @@ use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
 
-const LPM_ACTION_REFERENCE: &str =
-    include_str!("../../../../lpm-config/references/actions.md");
+const LPM_ACTION_REFERENCE: &str = include_str!("../../../../lpm-config/references/actions.md");
 const MAX_OUTPUT: usize = 4 * 1024 * 1024;
 const MAX_DIFF: usize = 30_000;
 const MAX_BRANCH_DIFF: usize = 6_000;
@@ -49,7 +48,9 @@ fn detect(cli: &str) -> Result<(), String> {
     if is_supported_cli(cli) && crate::sys::which(cli) {
         Ok(())
     } else if is_supported_cli(cli) {
-        Err(format!("{cli} CLI not found in PATH. Install it or pick another"))
+        Err(format!(
+            "{cli} CLI not found in PATH. Install it or pick another"
+        ))
     } else {
         Err(format!("unsupported AI CLI {cli:?}"))
     }
@@ -62,7 +63,7 @@ fn detect(cli: &str) -> Result<(), String> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCommand {
-    pub name: String,          // no leading "/", e.g. "review" or "prompts:draftpr"
+    pub name: String, // no leading "/", e.g. "review" or "prompts:draftpr"
     pub description: String,
     pub argument_hint: String, // frontmatter argument-hint, "" when absent
     pub source: String,        // "builtin" | "project" | "user"
@@ -72,16 +73,28 @@ pub struct AgentCommand {
 // by plan/platform at runtime), so we seed only the stable core and lean on the
 // disk scan for the long tail.
 const CLAUDE_BUILTINS: &[(&str, &str, &str)] = &[
-    ("add-dir", "Add a working directory for file access", "<path>"),
+    (
+        "add-dir",
+        "Add a working directory for file access",
+        "<path>",
+    ),
     ("agents", "Manage subagent configurations", ""),
     ("clear", "Start a new conversation with empty context", ""),
-    ("compact", "Summarize the conversation to free context", "[instructions]"),
+    (
+        "compact",
+        "Summarize the conversation to free context",
+        "[instructions]",
+    ),
     ("config", "Open settings", ""),
     ("context", "Visualize context usage", ""),
     ("cost", "Show token cost and usage", ""),
     ("diff", "Open the diff viewer", ""),
     ("doctor", "Diagnose the install and settings", ""),
-    ("effort", "Set the model effort level", "[low|medium|high|xhigh|max|auto]"),
+    (
+        "effort",
+        "Set the model effort level",
+        "[low|medium|high|xhigh|max|auto]",
+    ),
     ("exit", "Exit the CLI", ""),
     ("help", "Show help and available commands", ""),
     ("init", "Initialize the project with a CLAUDE.md guide", ""),
@@ -96,16 +109,44 @@ const CLAUDE_BUILTINS: &[(&str, &str, &str)] = &[
     // Skills bundled with Claude Code (embedded in the binary, not on disk, so
     // they can't be discovered by the filesystem scan). Seeded so the menu
     // matches the CLI's own /-menu for the common everyday ones.
-    ("claude-api", "Reference for the Claude API and Anthropic SDK", ""),
-    ("code-review", "Review the current diff for bugs and cleanups", "[level] [PR]"),
-    ("fewer-permission-prompts", "Reduce permission prompts via an allowlist", ""),
+    (
+        "claude-api",
+        "Reference for the Claude API and Anthropic SDK",
+        "",
+    ),
+    (
+        "code-review",
+        "Review the current diff for bugs and cleanups",
+        "[level] [PR]",
+    ),
+    (
+        "fewer-permission-prompts",
+        "Reduce permission prompts via an allowlist",
+        "",
+    ),
     ("keybindings-help", "Customize keyboard shortcuts", ""),
-    ("loop", "Run a prompt or command on a recurring interval", "[interval] [prompt]"),
+    (
+        "loop",
+        "Run a prompt or command on a recurring interval",
+        "[interval] [prompt]",
+    ),
     ("run", "Launch and drive the app to see a change", ""),
-    ("schedule", "Create or manage scheduled cloud agents", "[description]"),
+    (
+        "schedule",
+        "Create or manage scheduled cloud agents",
+        "[description]",
+    ),
     ("security-review", "Security-review the pending changes", ""),
-    ("simplify", "Clean up changed code for reuse and simplicity, then apply fixes", "[target]"),
-    ("update-config", "Configure the Claude Code harness via settings.json", ""),
+    (
+        "simplify",
+        "Clean up changed code for reuse and simplicity, then apply fixes",
+        "[target]",
+    ),
+    (
+        "update-config",
+        "Configure the Claude Code harness via settings.json",
+        "",
+    ),
     ("verify", "Run the app to confirm a change works", ""),
 ];
 
@@ -147,14 +188,21 @@ fn builtins(cli: &str) -> Vec<AgentCommand> {
 }
 
 fn yaml_str(v: &serde_yaml::Value, k: &str) -> String {
-    v.get(k).and_then(|x| x.as_str()).unwrap_or("").trim().to_string()
+    v.get(k)
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string()
 }
 
 // Split a markdown file into (frontmatter yaml head, body). Recognizes a leading
 // `---` fence closed by a `---` at the start of a later line.
 fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
     let trimmed = content.trim_start_matches('\u{feff}');
-    let rest = match trimmed.strip_prefix("---\n").or_else(|| trimmed.strip_prefix("---\r\n")) {
+    let rest = match trimmed
+        .strip_prefix("---\n")
+        .or_else(|| trimmed.strip_prefix("---\r\n"))
+    {
         Some(r) => r,
         None => return (None, content),
     };
@@ -220,7 +268,12 @@ fn read_to_string(path: &std::path::Path) -> String {
 // Claude command: name is the filename stem.
 fn claude_command_entry(name: &str, contents: &str, source: &str) -> AgentCommand {
     let (description, argument_hint, _) = parse_frontmatter(contents);
-    AgentCommand { name: name.to_string(), description, argument_hint, source: source.to_string() }
+    AgentCommand {
+        name: name.to_string(),
+        description,
+        argument_hint,
+        source: source.to_string(),
+    }
 }
 
 // Claude skill: name is the skill directory name. `user-invocable: false` skills
@@ -230,7 +283,12 @@ fn claude_skill_entry(name: &str, contents: &str, source: &str) -> Option<AgentC
     if !user_invocable {
         return None;
     }
-    Some(AgentCommand { name: name.to_string(), description, argument_hint, source: source.to_string() })
+    Some(AgentCommand {
+        name: name.to_string(),
+        description,
+        argument_hint,
+        source: source.to_string(),
+    })
 }
 
 // Codex prompt: surfaced as `prompts:<name>` (the canonical invocation form),
@@ -248,21 +306,27 @@ fn codex_prompt_entry(name: &str, contents: &str) -> AgentCommand {
 // Claude `.claude/commands/**/*.md` — command name is the filename stem.
 fn scan_claude_commands(dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
     for path in glob_md(dir, true) {
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
         out.push(claude_command_entry(stem, &read_to_string(&path), source));
     }
 }
 
 // Claude `.claude/skills/<name>/SKILL.md` — command name is the directory name.
 fn scan_claude_skills(skills_dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
-    let Ok(entries) = std::fs::read_dir(skills_dir) else { return };
+    let Ok(entries) = std::fs::read_dir(skills_dir) else {
+        return;
+    };
     for entry in entries.filter_map(|e| e.ok()) {
         let dir = entry.path();
         let skill_md = dir.join("SKILL.md");
         if !skill_md.is_file() {
             continue;
         }
-        let Some(name) = dir.file_name().and_then(|s| s.to_str()) else { continue };
+        let Some(name) = dir.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
         if let Some(cmd) = claude_skill_entry(name, &read_to_string(&skill_md), source) {
             out.push(cmd);
         }
@@ -272,7 +336,9 @@ fn scan_claude_skills(skills_dir: &std::path::Path, source: &str, out: &mut Vec<
 // Codex `${CODEX_HOME:-~/.codex}/prompts/*.md` (top-level only).
 fn scan_codex_prompts(prompts_dir: &std::path::Path, out: &mut Vec<AgentCommand>) {
     for path in glob_md(prompts_dir, false) {
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
         out.push(codex_prompt_entry(stem, &read_to_string(&path)));
     }
 }
@@ -325,7 +391,11 @@ fn dedup_and_sort(items: Vec<AgentCommand>) -> Vec<AgentCommand> {
             _ => 2,
         }
     }
-    out.sort_by(|a, b| rank(&a.source).cmp(&rank(&b.source)).then_with(|| a.name.cmp(&b.name)));
+    out.sort_by(|a, b| {
+        rank(&a.source)
+            .cmp(&rank(&b.source))
+            .then_with(|| a.name.cmp(&b.name))
+    });
     out
 }
 
@@ -400,7 +470,9 @@ fn parse_remote_scan(bytes: &[u8]) -> Vec<AgentCommand> {
     let mut i = 0;
     let mut count = 0;
     while i < bytes.len() && count < REMOTE_SCAN_FILE_CAP {
-        let Some(nl) = bytes[i..].iter().position(|&b| b == b'\n') else { break };
+        let Some(nl) = bytes[i..].iter().position(|&b| b == b'\n') else {
+            break;
+        };
         let header = &bytes[i..i + nl];
         i += nl + 1;
         let fields: Vec<&[u8]> = header.split(|&b| b == 0x1f).collect();
@@ -410,7 +482,9 @@ fn parse_remote_scan(bytes: &[u8]) -> Vec<AgentCommand> {
         let kind = String::from_utf8_lossy(fields[0]);
         let scope = String::from_utf8_lossy(fields[1]);
         let name = String::from_utf8_lossy(fields[2]).into_owned();
-        let Some(len) = std::str::from_utf8(fields[3]).ok().and_then(|s| s.trim().parse::<usize>().ok())
+        let Some(len) = std::str::from_utf8(fields[3])
+            .ok()
+            .and_then(|s| s.trim().parse::<usize>().ok())
         else {
             break;
         };
@@ -420,8 +494,16 @@ fn parse_remote_scan(bytes: &[u8]) -> Vec<AgentCommand> {
         let contents = String::from_utf8_lossy(&bytes[i..i + len]).into_owned();
         i += len;
         count += 1;
-        let source = if scope == "project" { "project" } else { "user" };
-        let bucket = if scope == "project" { &mut project } else { &mut user };
+        let source = if scope == "project" {
+            "project"
+        } else {
+            "user"
+        };
+        let bucket = if scope == "project" {
+            &mut project
+        } else {
+            &mut user
+        };
         match kind.as_ref() {
             "command" => bucket.push(claude_command_entry(&name, &contents, source)),
             "skill" => {
@@ -492,8 +574,17 @@ fn build_args(cli: &str, prompt: &str, o: &RunOptions) -> Vec<String> {
             a
         }
         "codex" => {
-            let sandbox = if o.writes { "workspace-write" } else { "read-only" };
-            let mut a = vec![s("exec"), s("--sandbox"), s(sandbox), s("--skip-git-repo-check")];
+            let sandbox = if o.writes {
+                "workspace-write"
+            } else {
+                "read-only"
+            };
+            let mut a = vec![
+                s("exec"),
+                s("--sandbox"),
+                s(sandbox),
+                s("--skip-git-repo-check"),
+            ];
             if !o.model.is_empty() {
                 a.push(s("--model"));
                 a.push(o.model.clone());
@@ -555,7 +646,10 @@ struct GenGuard(String);
 impl GenGuard {
     fn register(gen_id: &str, pid: i32) -> Self {
         if !gen_id.is_empty() {
-            active_gens().lock().unwrap().insert(gen_id.to_string(), pid);
+            active_gens()
+                .lock()
+                .unwrap()
+                .insert(gen_id.to_string(), pid);
         }
         Self(gen_id.to_string())
     }
@@ -675,7 +769,9 @@ fn run_ai(
     }
 
     let status = child.wait().map_err(|e| e.to_string())?;
-    let stderr_text = stderr_handle.and_then(|h| h.join().ok()).unwrap_or_default();
+    let stderr_text = stderr_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
     let canceled = take_canceled(gen_id);
     if !status.success() {
         if canceled {
@@ -742,11 +838,19 @@ fn format_tool_use(cm: &serde_json::Value) -> String {
             .and_then(|v| v.as_str())
     };
     match name {
-        "Read" => inp("file_path").map_or("Reading file".into(), |p| format!("Reading {}", basename(p))),
-        "Grep" => inp("pattern").map_or("Searching".into(), |p| format!("Searching: {}", truncate(p, 60))),
+        "Read" => inp("file_path").map_or("Reading file".into(), |p| {
+            format!("Reading {}", basename(p))
+        }),
+        "Grep" => inp("pattern").map_or("Searching".into(), |p| {
+            format!("Searching: {}", truncate(p, 60))
+        }),
         "Glob" => inp("pattern").map_or("Listing files".into(), |p| format!("Matching: {p}")),
-        "LS" => inp("path").map_or("Listing directory".into(), |p| format!("Listing {}", basename(p))),
-        "Bash" => inp("command").map_or("Running shell".into(), |c| format!("Running: {}", truncate(c, 60))),
+        "LS" => inp("path").map_or("Listing directory".into(), |p| {
+            format!("Listing {}", basename(p))
+        }),
+        "Bash" => inp("command").map_or("Running shell".into(), |c| {
+            format!("Running: {}", truncate(c, 60))
+        }),
         "" => String::new(),
         other => format!("Using {other}"),
     }
@@ -758,8 +862,16 @@ fn codex_progress_line(line: &str) -> String {
         return String::new();
     }
     const DROP_PREFIX: &[&str] = &[
-        "model:", "sandbox:", "session id:", "workdir:", "approval:", "provider:", "reasoning",
-        "OpenAI Codex", "Reading additional input", "Shell cwd was reset",
+        "model:",
+        "sandbox:",
+        "session id:",
+        "workdir:",
+        "approval:",
+        "provider:",
+        "reasoning",
+        "OpenAI Codex",
+        "Reading additional input",
+        "Shell cwd was reset",
     ];
     const DROP_EXACT: &[&str] = &["--------", "user", "codex", "tokens used"];
     if DROP_EXACT.contains(&t) || DROP_PREFIX.iter().any(|p| t.starts_with(p)) {
@@ -913,7 +1025,9 @@ Rules:
 fn build_pr_prompt(base: &str, instructions: &str, diff: &str, commit_log: &str) -> String {
     let mut p = base.to_string();
     if !instructions.is_empty() {
-        p.push_str(&format!("Additional instructions from the user:\n{instructions}\n\n"));
+        p.push_str(&format!(
+            "Additional instructions from the user:\n{instructions}\n\n"
+        ));
     }
     if !commit_log.is_empty() {
         p.push_str(&format!("Commits:\n{commit_log}\n"));
@@ -964,7 +1078,9 @@ pub fn generate_commit_message(
     let instr = crate::templates::resolve_instructions(&project_name, "commit");
     let mut prompt = COMMIT_MSG_PROMPT.to_string();
     if !instr.is_empty() {
-        prompt.push_str(&format!("Additional instructions from the user:\n{instr}\n\n"));
+        prompt.push_str(&format!(
+            "Additional instructions from the user:\n{instr}\n\n"
+        ));
     }
     let task = task_description.trim();
     if !task.is_empty() {
@@ -973,7 +1089,15 @@ pub fn generate_commit_message(
         ));
     }
     prompt.push_str(&diff);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "commit-msg-progress", &gen_id)
+    run_ai(
+        &app,
+        &cli,
+        &cwd,
+        &prompt,
+        ropts(Some(&project_name), model, effort, fast, false),
+        "commit-msg-progress",
+        &gen_id,
+    )
 }
 
 #[tauri::command(async)]
@@ -991,7 +1115,15 @@ pub fn generate_pr_title(
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
     let instr = crate::templates::resolve_instructions(&project_name, "pr-title");
     let prompt = build_pr_prompt(PR_TITLE_PROMPT, &instr, &diff, &log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-title-progress", &gen_id)
+    run_ai(
+        &app,
+        &cli,
+        &cwd,
+        &prompt,
+        ropts(Some(&project_name), model, effort, fast, false),
+        "pr-title-progress",
+        &gen_id,
+    )
 }
 
 #[tauri::command(async)]
@@ -1009,7 +1141,15 @@ pub fn generate_pr_description(
     let (diff, log) = pr_diff_and_log(&cwd, &base)?;
     let instr = crate::templates::resolve_instructions(&project_name, "pr-description");
     let prompt = build_pr_prompt(PR_DESCRIPTION_PROMPT, &instr, &diff, &log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "pr-description-progress", &gen_id)
+    run_ai(
+        &app,
+        &cli,
+        &cwd,
+        &prompt,
+        ropts(Some(&project_name), model, effort, fast, false),
+        "pr-description-progress",
+        &gen_id,
+    )
 }
 
 #[tauri::command(async)]
@@ -1040,7 +1180,15 @@ pub fn generate_branch_name(
     let diff = truncate_diff(&diff, MAX_BRANCH_DIFF);
     let instr = crate::templates::resolve_instructions(&project_name, "branch-name");
     let prompt = build_pr_prompt(BRANCH_NAME_PROMPT, &instr, &diff, &commit_log);
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "branch-name-progress", &gen_id)
+    run_ai(
+        &app,
+        &cli,
+        &cwd,
+        &prompt,
+        ropts(Some(&project_name), model, effort, fast, false),
+        "branch-name-progress",
+        &gen_id,
+    )
 }
 
 #[tauri::command(async)]
@@ -1057,7 +1205,15 @@ pub fn resolve_merge_conflicts_with_ai(
     if crate::git::git_merge_conflicts(cwd.clone()).is_empty() {
         return Err("no merge conflicts to resolve".into());
     }
-    run_ai(&app, &cli, &cwd, MERGE_CONFLICT_PROMPT, ropts(project_name.as_deref(), model, effort, fast, true), "merge-conflict-progress", &gen_id)
+    run_ai(
+        &app,
+        &cli,
+        &cwd,
+        MERGE_CONFLICT_PROMPT,
+        ropts(project_name.as_deref(), model, effort, fast, true),
+        "merge-conflict-progress",
+        &gen_id,
+    )
 }
 
 #[tauri::command(async)]
@@ -1077,9 +1233,22 @@ pub fn generate_action_yaml(
         return Err("describe what the action should do".into());
     }
     let (root, is_remote) = config::project_root(&project_name)?;
-    let prompt = build_action_yaml_prompt(&project_name, &root, is_remote, user_prompt, &current_yaml);
-    let cwd = if root.is_empty() { ".".to_string() } else { root };
-    run_ai(&app, &cli, &cwd, &prompt, ropts(Some(&project_name), model, effort, fast, false), "action-yaml-progress", &gen_id)
+    let prompt =
+        build_action_yaml_prompt(&project_name, &root, is_remote, user_prompt, &current_yaml);
+    let cwd = if root.is_empty() {
+        ".".to_string()
+    } else {
+        root
+    };
+    run_ai(
+        &app,
+        &cli,
+        &cwd,
+        &prompt,
+        ropts(Some(&project_name), model, effort, fast, false),
+        "action-yaml-progress",
+        &gen_id,
+    )
 }
 
 const TRANSFORM_OUTPUT_RULES: &str = r#"
@@ -1115,8 +1284,20 @@ pub fn transform_text(
         return Err("nothing to transform".into());
     }
     let prompt = format!("{instruction}{TRANSFORM_OUTPUT_RULES}{text}");
-    let dir = if cwd.trim().is_empty() { ".".to_string() } else { cwd };
-    run_ai(&app, &cli, &dir, &prompt, ropts(project_name.as_deref(), model, effort, fast, false), "composer-transform-progress", &gen_id)
+    let dir = if cwd.trim().is_empty() {
+        ".".to_string()
+    } else {
+        cwd
+    };
+    run_ai(
+        &app,
+        &cli,
+        &dir,
+        &prompt,
+        ropts(project_name.as_deref(), model, effort, fast, false),
+        "composer-transform-progress",
+        &gen_id,
+    )
 }
 
 #[tauri::command(async)]
@@ -1140,7 +1321,21 @@ pub fn generate_project_config(
             "\nAdditional user instructions (follow these precisely, they override defaults):\n{extra}\n"
         ));
     }
-    let result = run_ai(&app, &cli, &root, &prompt, ropts(Some(&project_name), String::new(), String::new(), false, false), "ai-generate-output", &gen_id)?;
+    let result = run_ai(
+        &app,
+        &cli,
+        &root,
+        &prompt,
+        ropts(
+            Some(&project_name),
+            String::new(),
+            String::new(),
+            false,
+            false,
+        ),
+        "ai-generate-output",
+        &gen_id,
+    )?;
     let yaml = extract_yaml(&result);
     if yaml.is_empty() {
         return Err(format!("no YAML found in {cli} output"));
@@ -1201,8 +1396,12 @@ fn build_action_yaml_prompt(
     task.push_str("Produce the YAML body for a SINGLE lpm action (the value of one `actions:` entry), not a whole config file.\n\n");
     task.push_str("Output rules:\n");
     task.push_str("- Output ONLY the action's YAML fields at indent 0 — no surrounding `name:` key, no `actions:` wrapper, no code fences, no comments, no prose.\n");
-    task.push_str("- Omit fields you don't need; do not invent fields outside the skill's schema.\n");
-    task.push_str("- Children go under `actions:` with the same field set (no `display:` on children).\n");
+    task.push_str(
+        "- Omit fields you don't need; do not invent fields outside the skill's schema.\n",
+    );
+    task.push_str(
+        "- Children go under `actions:` with the same field set (no `display:` on children).\n",
+    );
     task.push_str("- The wizard already handles `display:` and `position:` — omit them.\n");
     task.push_str("- `cwd:` is relative to the project root (or `ssh.dir` for SSH projects). Use relative paths; only use absolute paths when there's a clear reason.\n\n");
     if current_yaml.trim().is_empty() {
@@ -1210,7 +1409,9 @@ fn build_action_yaml_prompt(
         task.push_str(&format!("User's request:\n{user_prompt}\n"));
     } else {
         task.push_str("Modify the current action to satisfy the user's instruction. Return the FULL updated YAML body — not a diff. Preserve fields the user didn't ask to change.\n\n");
-        task.push_str(&format!("User's instruction:\n{user_prompt}\n\nCurrent action YAML:\n{current_yaml}\n"));
+        task.push_str(&format!(
+            "User's instruction:\n{user_prompt}\n\nCurrent action YAML:\n{current_yaml}\n"
+        ));
     }
 
     format!("{ctx}\n# Reference: lpm action schema\n\n{LPM_ACTION_REFERENCE}\n\n{task}")
@@ -1271,7 +1472,9 @@ mod remote_scan_tests {
     // 0x1f, then a newline, then exactly `contents.len()` bytes.
     fn record(kind: &str, scope: &str, name: &str, contents: &str) -> Vec<u8> {
         let mut v = Vec::new();
-        v.extend_from_slice(format!("{kind}\u{1f}{scope}\u{1f}{name}\u{1f}{}\n", contents.len()).as_bytes());
+        v.extend_from_slice(
+            format!("{kind}\u{1f}{scope}\u{1f}{name}\u{1f}{}\n", contents.len()).as_bytes(),
+        );
         v.extend_from_slice(contents.as_bytes());
         v
     }
@@ -1279,7 +1482,12 @@ mod remote_scan_tests {
     #[test]
     fn parses_multiple_files_and_scopes() {
         let mut stream = Vec::new();
-        stream.extend(record("command", "user", "review", "---\ndescription: Review it\n---\nbody"));
+        stream.extend(record(
+            "command",
+            "user",
+            "review",
+            "---\ndescription: Review it\n---\nbody",
+        ));
         stream.extend(record("command", "project", "deploy", "just the body line"));
         let cmds = parse_remote_scan(&stream);
         assert_eq!(cmds.len(), 2);
@@ -1305,8 +1513,18 @@ mod remote_scan_tests {
     #[test]
     fn skill_user_invocable_false_is_skipped() {
         let mut stream = Vec::new();
-        stream.extend(record("skill", "user", "shown", "---\ndescription: A\n---\n"));
-        stream.extend(record("skill", "project", "hidden", "---\ndescription: B\nuser-invocable: false\n---\n"));
+        stream.extend(record(
+            "skill",
+            "user",
+            "shown",
+            "---\ndescription: A\n---\n",
+        ));
+        stream.extend(record(
+            "skill",
+            "project",
+            "hidden",
+            "---\ndescription: B\nuser-invocable: false\n---\n",
+        ));
         let cmds = parse_remote_scan(&stream);
         assert_eq!(cmds.len(), 1);
         assert_eq!(cmds[0].name, "shown");
@@ -1314,7 +1532,12 @@ mod remote_scan_tests {
 
     #[test]
     fn codex_prompts_get_prefix_and_user_source() {
-        let cmds = parse_remote_scan(&record("codex", "user", "draftpr", "---\ndescription: Draft a PR\n---\n"));
+        let cmds = parse_remote_scan(&record(
+            "codex",
+            "user",
+            "draftpr",
+            "---\ndescription: Draft a PR\n---\n",
+        ));
         assert_eq!(cmds[0].name, "prompts:draftpr");
         assert_eq!(cmds[0].source, "user");
     }

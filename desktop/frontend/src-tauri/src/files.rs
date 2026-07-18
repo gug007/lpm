@@ -35,10 +35,7 @@ fn resolve_existing(abs: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn browse_folder(
-    app: AppHandle,
-    default_dir: Option<String>,
-) -> Result<String, String> {
+pub async fn browse_folder(app: AppHandle, default_dir: Option<String>) -> Result<String, String> {
     let start = default_dir
         .map(|d| expand_home(&d))
         .filter(|d| !d.is_empty() && std::path::Path::new(d).is_dir());
@@ -76,7 +73,11 @@ pub struct DirListing {
 #[tauri::command(async)]
 pub fn list_dirs(path: String) -> Result<DirListing, String> {
     let trimmed = path.trim();
-    let raw = if trimmed.is_empty() { expand_home("~") } else { expand_home(trimmed) };
+    let raw = if trimmed.is_empty() {
+        expand_home("~")
+    } else {
+        expand_home(trimmed)
+    };
     let canon = std::fs::canonicalize(&raw).map_err(|e| format!("cannot open {raw}: {e}"))?;
     if !canon.is_dir() {
         return Err(format!("not a directory: {}", canon.display()));
@@ -130,10 +131,7 @@ pub async fn save_text_file(
         return Err(format!("content too large ({} bytes)", content.len()));
     }
     let Some(path) = pick_path(app, move |app| {
-        let mut builder = app
-            .dialog()
-            .file()
-            .set_file_name(&default_name);
+        let mut builder = app.dialog().file().set_file_name(&default_name);
         if let Ok(dir) = app.path().download_dir() {
             builder = builder.set_directory(dir);
         }
@@ -253,7 +251,15 @@ pub fn list_dir_files(root: String) -> Result<Vec<DirFileEntry>, String> {
 /// matching the local read_dir file_type. Any failure degrades to an empty list
 /// so the mention picker never errors out.
 fn remote_dir_files(ssh: &crate::config::SshSettings, dir: &str) -> Vec<DirFileEntry> {
-    let mut prune: Vec<String> = vec![".".into(), "-mindepth".into(), "1".into(), "(".into(), "-type".into(), "d".into(), "(".into()];
+    let mut prune: Vec<String> = vec![
+        ".".into(),
+        "-mindepth".into(),
+        "1".into(),
+        "(".into(),
+        "-type".into(),
+        "d".into(),
+        "(".into(),
+    ];
     for (i, name) in MENTION_SKIP_DIRS.iter().enumerate() {
         if i > 0 {
             prune.push("-o".into());
@@ -268,17 +274,28 @@ fn remote_dir_files(ssh: &crate::config::SshSettings, dir: &str) -> Vec<DirFileE
 
     let mut out: Vec<DirFileEntry> = Vec::new();
     for p in remote_find(ssh, dir, &prune, &["-type", "d", "-print0"]) {
-        out.push(DirFileEntry { path: p, is_dir: true });
+        out.push(DirFileEntry {
+            path: p,
+            is_dir: true,
+        });
     }
     for p in remote_find(ssh, dir, &prune, &["!", "-type", "d", "-print0"]) {
-        out.push(DirFileEntry { path: p, is_dir: false });
+        out.push(DirFileEntry {
+            path: p,
+            is_dir: false,
+        });
     }
     out.sort_by(|a, b| a.path.cmp(&b.path));
     out.truncate(MENTION_FILE_CAP);
     out
 }
 
-fn remote_find(ssh: &crate::config::SshSettings, dir: &str, prune: &[String], tail: &[&str]) -> Vec<String> {
+fn remote_find(
+    ssh: &crate::config::SshSettings,
+    dir: &str,
+    prune: &[String],
+    tail: &[&str],
+) -> Vec<String> {
     let mut args: Vec<&str> = prune.iter().map(String::as_str).collect();
     args.extend_from_slice(tail);
     let Some(out) = crate::sshexec::remote_command(ssh, dir, "find", &args, &[])

@@ -25,7 +25,11 @@ pub fn play_status_sound(value: &str) {
         return;
     };
     let settings = config::load_settings();
-    if !settings.get("soundNotifications").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if !settings
+        .get("soundNotifications")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         return;
     }
     let spec = settings
@@ -85,7 +89,9 @@ fn chime_path(event: &str) -> Option<PathBuf> {
     let bytes = chime_bytes(event)?;
     let dir = config::lpm_dir().join("sounds");
     let path = dir.join(format!("{event}.wav"));
-    let stale = std::fs::metadata(&path).map(|m| m.len() as usize != bytes.len()).unwrap_or(true);
+    let stale = std::fs::metadata(&path)
+        .map(|m| m.len() as usize != bytes.len())
+        .unwrap_or(true);
     if stale {
         let _ = std::fs::create_dir_all(&dir);
         if std::fs::write(&path, bytes).is_err() {
@@ -130,7 +136,10 @@ pub async fn pick_audio_file(app: AppHandle) -> Result<String, String> {
         app.dialog()
             .file()
             .set_title("Choose a notification sound")
-            .add_filter("Audio", &["wav", "aiff", "aif", "mp3", "m4a", "aac", "caf", "flac"])
+            .add_filter(
+                "Audio",
+                &["wav", "aiff", "aif", "mp3", "m4a", "aac", "caf", "flac"],
+            )
             .blocking_pick_file()
     })
     .await?;
@@ -147,7 +156,10 @@ mod tests {
     #[test]
     fn status_meta_maps_notifying_statuses_only() {
         assert_eq!(status_meta(STATUS_DONE), Some(("doneSound", "done")));
-        assert_eq!(status_meta(STATUS_WAITING), Some(("waitingSound", "waiting")));
+        assert_eq!(
+            status_meta(STATUS_WAITING),
+            Some(("waitingSound", "waiting"))
+        );
         assert_eq!(status_meta(STATUS_ERROR), Some(("errorSound", "error")));
         assert_eq!(status_meta("Running"), None);
     }

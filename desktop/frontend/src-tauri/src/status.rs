@@ -215,9 +215,18 @@ mod tests {
     #[test]
     fn set_dedups_unchanged() {
         let s = StatusStore::new();
-        assert!(s.set("p", entry("k", "Running", 0, 1, "p-1")), "first set changes");
-        assert!(!s.set("p", entry("k", "Running", 0, 999, "p-1")), "same value/icon/color/priority dedups");
-        assert!(s.set("p", entry("k", "Done", 0, 2, "p-1")), "value change replaces");
+        assert!(
+            s.set("p", entry("k", "Running", 0, 1, "p-1")),
+            "first set changes"
+        );
+        assert!(
+            !s.set("p", entry("k", "Running", 0, 999, "p-1")),
+            "same value/icon/color/priority dedups"
+        );
+        assert!(
+            s.set("p", entry("k", "Done", 0, 2, "p-1")),
+            "value change replaces"
+        );
     }
 
     #[test]
@@ -240,7 +249,10 @@ mod tests {
         assert!(s.clear_by_pane_value("p", "p-1", "Done"));
         let keys: Vec<String> = s.list("p").into_iter().map(|e| e.key).collect();
         assert_eq!(keys, ["done2", "wait1"]); // p-1 Done gone; Waiting survives (persist rule); p-2 Done untouched
-        assert!(!s.clear_by_pane_value("p", "p-1", "Done"), "second clear is a no-op");
+        assert!(
+            !s.clear_by_pane_value("p", "p-1", "Done"),
+            "second clear is a no-op"
+        );
     }
 
     #[test]

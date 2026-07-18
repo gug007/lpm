@@ -28,30 +28,120 @@ struct Target {
 
 // Display order = this order.
 const TARGETS: &[Target] = &[
-    Target { id: "cursor", label: "Cursor", icon: "cursor.png", file_only: false, remote_capable: true },
-    Target { id: "vscode", label: "Visual Studio Code", icon: "vscode.png", file_only: false, remote_capable: true },
-    Target { id: "vscode-insiders", label: "Visual Studio Code - Insiders", icon: "vscode-insiders.png", file_only: false, remote_capable: true },
-    Target { id: "windsurf", label: "Windsurf", icon: "windsurf.png", file_only: false, remote_capable: true },
-    Target { id: "zed", label: "Zed", icon: "zed.png", file_only: false, remote_capable: false },
-    Target { id: "xcode", label: "Xcode", icon: "xcode.png", file_only: false, remote_capable: false },
-    Target { id: "sublime-text", label: "Sublime Text", icon: "sublime-text.png", file_only: false, remote_capable: false },
-    Target { id: "webstorm", label: "WebStorm", icon: "", file_only: false, remote_capable: false },
-    Target { id: "typora", label: "Typora", icon: "typora.png", file_only: true, remote_capable: false },
-    Target { id: "terminal", label: "Terminal", icon: "terminal.png", file_only: false, remote_capable: false },
-    Target { id: "iterm2", label: "iTerm", icon: "iterm2.png", file_only: false, remote_capable: false },
-    Target { id: "ghostty", label: "Ghostty", icon: "ghostty.png", file_only: false, remote_capable: false },
-    Target { id: "warp", label: "Warp", icon: "warp.png", file_only: false, remote_capable: false },
-    Target { id: "finder", label: "Finder", icon: "finder.png", file_only: false, remote_capable: false },
+    Target {
+        id: "cursor",
+        label: "Cursor",
+        icon: "cursor.png",
+        file_only: false,
+        remote_capable: true,
+    },
+    Target {
+        id: "vscode",
+        label: "Visual Studio Code",
+        icon: "vscode.png",
+        file_only: false,
+        remote_capable: true,
+    },
+    Target {
+        id: "vscode-insiders",
+        label: "Visual Studio Code - Insiders",
+        icon: "vscode-insiders.png",
+        file_only: false,
+        remote_capable: true,
+    },
+    Target {
+        id: "windsurf",
+        label: "Windsurf",
+        icon: "windsurf.png",
+        file_only: false,
+        remote_capable: true,
+    },
+    Target {
+        id: "zed",
+        label: "Zed",
+        icon: "zed.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "xcode",
+        label: "Xcode",
+        icon: "xcode.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "sublime-text",
+        label: "Sublime Text",
+        icon: "sublime-text.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "webstorm",
+        label: "WebStorm",
+        icon: "",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "typora",
+        label: "Typora",
+        icon: "typora.png",
+        file_only: true,
+        remote_capable: false,
+    },
+    Target {
+        id: "terminal",
+        label: "Terminal",
+        icon: "terminal.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "iterm2",
+        label: "iTerm",
+        icon: "iterm2.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "ghostty",
+        label: "Ghostty",
+        icon: "ghostty.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "warp",
+        label: "Warp",
+        icon: "warp.png",
+        file_only: false,
+        remote_capable: false,
+    },
+    Target {
+        id: "finder",
+        label: "Finder",
+        icon: "finder.png",
+        file_only: false,
+        remote_capable: false,
+    },
 ];
 
 fn home() -> String {
-    dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned()
+    dirs::home_dir()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// `/Applications/X.app` also checks `~/Applications/X.app`.
 fn app_candidates(path: &str) -> Vec<String> {
     match path.strip_prefix("/Applications/") {
-        Some(rest) => vec![path.to_string(), format!("{}/Applications/{}", home(), rest)],
+        Some(rest) => vec![
+            path.to_string(),
+            format!("{}/Applications/{}", home(), rest),
+        ],
         None => vec![path.to_string()],
     }
 }
@@ -69,7 +159,10 @@ pub(crate) fn detect_by_paths(paths: &[&str]) -> Option<String> {
 
 fn detect_by_prefix(prefix: &str) -> Option<String> {
     let pl = prefix.to_lowercase();
-    for dir in ["/Applications".to_string(), format!("{}/Applications", home())] {
+    for dir in [
+        "/Applications".to_string(),
+        format!("{}/Applications", home()),
+    ] {
         if let Ok(rd) = std::fs::read_dir(&dir) {
             for e in rd.flatten() {
                 let name = e.file_name().to_string_lossy().to_lowercase();
@@ -85,9 +178,15 @@ fn detect_by_prefix(prefix: &str) -> Option<String> {
 /// Detected app bundle path, or None when not installed.
 fn detect(id: &str) -> Option<String> {
     match id {
-        "cursor" => detect_by_paths(&["/Applications/Cursor.app", "/Applications/Cursor Nightly.app"])
-            .or_else(|| detect_by_prefix("Cursor")),
-        "vscode" => detect_by_paths(&["/Applications/Visual Studio Code.app", "/Applications/Code.app"]),
+        "cursor" => detect_by_paths(&[
+            "/Applications/Cursor.app",
+            "/Applications/Cursor Nightly.app",
+        ])
+        .or_else(|| detect_by_prefix("Cursor")),
+        "vscode" => detect_by_paths(&[
+            "/Applications/Visual Studio Code.app",
+            "/Applications/Code.app",
+        ]),
         "vscode-insiders" => detect_by_paths(&[
             "/Applications/Visual Studio Code - Insiders.app",
             "/Applications/Code - Insiders.app",
@@ -96,7 +195,8 @@ fn detect(id: &str) -> Option<String> {
         "zed" => detect_by_paths(&["/Applications/Zed.app", "/Applications/Zed Preview.app"]),
         "xcode" => detect_by_paths(&["/Applications/Xcode.app"]),
         "sublime-text" => detect_by_paths(&["/Applications/Sublime Text.app"]),
-        "webstorm" => detect_by_paths(&["/Applications/WebStorm.app"]).or_else(|| detect_by_prefix("WebStorm")),
+        "webstorm" => detect_by_paths(&["/Applications/WebStorm.app"])
+            .or_else(|| detect_by_prefix("WebStorm")),
         "typora" => detect_by_paths(&["/Applications/Typora.app"]),
         "terminal" => detect_by_paths(&[
             "/System/Applications/Utilities/Terminal.app",
@@ -202,7 +302,12 @@ pub fn open_in(target_id: String, project_path: String) -> Result<(), String> {
 /// handed to the app's embedded CLI as a `vscode-remote://ssh-remote+…` folder
 /// URI. Preferring the embedded CLI over `open -a --args` is what makes this
 /// reliable when the app is already running.
-fn open_remote(t: &Target, app_path: &str, ssh: &crate::config::SshSettings, project_dir: &str) -> Result<(), String> {
+fn open_remote(
+    t: &Target,
+    app_path: &str,
+    ssh: &crate::config::SshSettings,
+    project_dir: &str,
+) -> Result<(), String> {
     let abs = resolve_remote_abs(ssh, project_dir)?;
     let uri = remote_folder_uri(&ssh.user, &ssh.host, &abs);
     match embedded_cli(app_path) {
@@ -233,7 +338,11 @@ fn resolve_remote_abs(ssh: &crate::config::SshSettings, dir: &str) -> Result<Str
         .map_err(|e| e.to_string())?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        return Err(if err.is_empty() { "could not resolve remote path".into() } else { err });
+        return Err(if err.is_empty() {
+            "could not resolve remote path".into()
+        } else {
+            err
+        });
     }
     let abs = String::from_utf8_lossy(&out.stdout).trim().to_string();
     if abs.is_empty() {
@@ -256,7 +365,10 @@ fn embedded_cli(app_path: &str) -> Option<String> {
         .filter(|n| !n.ends_with("-tunnel"))
         .collect();
     names.sort();
-    names.into_iter().next().map(|n| bin.join(n).to_string_lossy().into_owned())
+    names
+        .into_iter()
+        .next()
+        .map(|n| bin.join(n).to_string_lossy().into_owned())
 }
 
 #[tauri::command(async)]
@@ -310,11 +422,24 @@ fn open_file_with(
 ) -> Result<(), String> {
     let spec = format_path_spec(abs, line, col);
     match id {
-        "cursor" => run(Command::new(format!("{app_path}/Contents/Resources/app/bin/cursor")).args(["-g", &spec])),
-        "vscode" => run(Command::new(format!("{app_path}/Contents/Resources/app/bin/code")).args(["-g", &spec])),
-        "vscode-insiders" => run(Command::new(format!("{app_path}/Contents/Resources/app/bin/code-insiders")).args(["-g", &spec])),
-        "windsurf" => run(Command::new(format!("{app_path}/Contents/Resources/app/bin/windsurf")).args(["-g", &spec])),
-        "sublime-text" => run(Command::new(format!("{app_path}/Contents/SharedSupport/bin/subl")).arg(&spec)),
+        "cursor" => run(
+            Command::new(format!("{app_path}/Contents/Resources/app/bin/cursor"))
+                .args(["-g", &spec]),
+        ),
+        "vscode" => run(
+            Command::new(format!("{app_path}/Contents/Resources/app/bin/code")).args(["-g", &spec]),
+        ),
+        "vscode-insiders" => run(Command::new(format!(
+            "{app_path}/Contents/Resources/app/bin/code-insiders"
+        ))
+        .args(["-g", &spec])),
+        "windsurf" => run(
+            Command::new(format!("{app_path}/Contents/Resources/app/bin/windsurf"))
+                .args(["-g", &spec]),
+        ),
+        "sublime-text" => {
+            run(Command::new(format!("{app_path}/Contents/SharedSupport/bin/subl")).arg(&spec))
+        }
         "zed" => run(Command::new(format!("{app_path}/Contents/MacOS/cli")).arg(&spec)),
         "webstorm" => {
             let mut c = Command::new(format!("{app_path}/Contents/MacOS/webstorm"));
@@ -364,13 +489,23 @@ mod tests {
         // ssh.dir "~/code/app" resolves (remotely) to an absolute path, which the
         // URI carries verbatim after the user@host authority.
         let uri = remote_folder_uri("dev", "example.com", "/Users/dev/code/app");
-        assert_eq!(uri, "vscode-remote://ssh-remote+dev@example.com/Users/dev/code/app");
+        assert_eq!(
+            uri,
+            "vscode-remote://ssh-remote+dev@example.com/Users/dev/code/app"
+        );
     }
 
     #[test]
     fn remote_capable_set_is_exactly_the_vscode_family() {
-        let capable: Vec<&str> = TARGETS.iter().filter(|t| t.remote_capable).map(|t| t.id).collect();
-        assert_eq!(capable, vec!["cursor", "vscode", "vscode-insiders", "windsurf"]);
+        let capable: Vec<&str> = TARGETS
+            .iter()
+            .filter(|t| t.remote_capable)
+            .map(|t| t.id)
+            .collect();
+        assert_eq!(
+            capable,
+            vec!["cursor", "vscode", "vscode-insiders", "windsurf"]
+        );
     }
 
     #[test]

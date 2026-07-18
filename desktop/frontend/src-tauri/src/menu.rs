@@ -27,7 +27,8 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
     let feedback = MenuItemBuilder::with_id(ID_FEEDBACK, "Help Improve lpm…").build(app)?;
-    let check_updates = MenuItemBuilder::with_id(ID_CHECK_UPDATES, "Check for Updates…").build(app)?;
+    let check_updates =
+        MenuItemBuilder::with_id(ID_CHECK_UPDATES, "Check for Updates…").build(app)?;
 
     let app_menu = SubmenuBuilder::new(app, "lpm")
         .about(Some(about))

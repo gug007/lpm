@@ -52,7 +52,11 @@ mod imp {
         // The ObjC side copies these into NSArrays synchronously before its async
         // dispatch, so the buffers are safe to drop when this returns.
         unsafe {
-            updateDockMenuProjects(name_ptrs.as_ptr(), running.as_ptr(), projects.len() as c_int);
+            updateDockMenuProjects(
+                name_ptrs.as_ptr(),
+                running.as_ptr(),
+                projects.len() as c_int,
+            );
         }
     }
 
@@ -61,7 +65,9 @@ mod imp {
         if name.is_null() {
             return;
         }
-        let name = unsafe { CStr::from_ptr(name) }.to_string_lossy().into_owned();
+        let name = unsafe { CStr::from_ptr(name) }
+            .to_string_lossy()
+            .into_owned();
         let Some(app) = APP.get() else { return };
         if let Some(win) = app.get_webview_window("main") {
             let _ = win.show();

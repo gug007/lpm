@@ -69,12 +69,17 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restr
 /// Verbs a remote host is allowed to send on the restricted socket: status
 /// reporting only, never project control.
 fn remote_allowed(command: &str) -> bool {
-    matches!(command, "ping" | "set_status" | "clear_status" | "list_status")
+    matches!(
+        command,
+        "ping" | "set_status" | "clear_status" | "list_status"
+    )
 }
 
 fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restricted: bool) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
-    let Ok(mut writer) = stream.try_clone() else { return };
+    let Ok(mut writer) = stream.try_clone() else {
+        return;
+    };
     let reader = BufReader::new(stream);
     for line in reader.lines() {
         let Ok(line) = line else { break };
@@ -83,7 +88,11 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
         }
         // `duplicate_project` streams its own PROGRESS lines + final JSON; every
         // other verb maps one request line to exactly one reply line.
-        let first = shell_split(&line).into_iter().next().unwrap_or_default().to_lowercase();
+        let first = shell_split(&line)
+            .into_iter()
+            .next()
+            .unwrap_or_default()
+            .to_lowercase();
         let write_result = if restricted && !remote_allowed(&first) {
             writeln!(writer, "ERROR: not allowed on remote socket")
         } else if first == "duplicate_project" {
@@ -231,13 +240,22 @@ fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std
         .clamp(1, 50) as u32;
 
     let settings = crate::config::load_settings();
-    let sb = |k: &str, d: bool| settings.get(k).and_then(serde_json::Value::as_bool).unwrap_or(d);
+    let sb = |k: &str, d: bool| {
+        settings
+            .get(k)
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(d)
+    };
     let exclude_uncommitted = bool_opt(
         &options,
         "exclude-uncommitted",
         sb("duplicateExcludeUncommitted", false),
     );
-    let reinstall_deps = bool_opt(&options, "reinstall-deps", sb("duplicateReinstallDeps", false));
+    let reinstall_deps = bool_opt(
+        &options,
+        "reinstall-deps",
+        sb("duplicateReinstallDeps", false),
+    );
     let pull_latest = bool_opt(&options, "pull-latest", sb("duplicatePullLatest", true));
 
     let group_name = options.get("group").cloned().unwrap_or_default();
@@ -246,8 +264,14 @@ fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std
         .and_then(|value| serde_json::from_str(value).ok())
         .unwrap_or_default();
     let run_action = options.get("run-action").cloned().filter(|s| !s.is_empty());
-    let run_command = options.get("run-command").cloned().filter(|s| !s.is_empty());
-    let prompt = options.get("prompt").cloned().filter(|p| !p.trim().is_empty());
+    let run_command = options
+        .get("run-command")
+        .cloned()
+        .filter(|s| !s.is_empty());
+    let prompt = options
+        .get("prompt")
+        .cloned()
+        .filter(|p| !p.trim().is_empty());
 
     let mut created: Vec<String> = Vec::new();
     let mut err: Option<String> = None;
@@ -337,17 +361,23 @@ fn cmd_remove_project(args: &[String], app: &AppHandle) -> String {
 fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
     if positional.is_empty() {
-        return "ERROR: usage: run_task <project> [--action=X | --command=X] [--prompt=TEXT]".into();
+        return "ERROR: usage: run_task <project> [--action=X | --command=X] [--prompt=TEXT]"
+            .into();
     }
     let action = options.get("action").cloned().filter(|s| !s.is_empty());
     let command = options.get("command").cloned().filter(|s| !s.is_empty());
-    let prompt = options.get("prompt").cloned().filter(|p| !p.trim().is_empty());
+    let prompt = options
+        .get("prompt")
+        .cloned()
+        .filter(|p| !p.trim().is_empty());
     let task = match (action, command) {
         (Some(_), Some(_)) => {
             return "ERROR: run_task takes exactly one of --action / --command".into()
         }
         (None, None) => return "ERROR: run_task needs --action=X or --command=X".into(),
-        (Some(a), None) => serde_json::json!({ "kind": "action", "actionName": a, "prompt": prompt }),
+        (Some(a), None) => {
+            serde_json::json!({ "kind": "action", "actionName": a, "prompt": prompt })
+        }
         (None, Some(c)) => serde_json::json!({ "kind": "command", "command": c, "prompt": prompt }),
     };
     if app.get_webview_window("main").is_none() {
@@ -474,9 +504,11 @@ fn cmd_set_job_enabled(args: &[String]) -> String {
         return serde_json::json!({ "ok": false, "error": "enabled must be true or false" })
             .to_string();
     };
-    job_result(ensure_job_exists(&positional[0], &positional[1]).and_then(|_| {
-        crate::jobs::set_job_enabled(positional[0].clone(), positional[1].clone(), enabled)
-    }))
+    job_result(
+        ensure_job_exists(&positional[0], &positional[1]).and_then(|_| {
+            crate::jobs::set_job_enabled(positional[0].clone(), positional[1].clone(), enabled)
+        }),
+    )
 }
 
 fn cmd_job_history(args: &[String]) -> String {
@@ -570,7 +602,10 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
         value: value.clone(),
         icon: options.get("icon").cloned().unwrap_or_default(),
         color: options.get("color").cloned().unwrap_or_default(),
-        priority: options.get("priority").and_then(|p| p.parse().ok()).unwrap_or(0),
+        priority: options
+            .get("priority")
+            .and_then(|p| p.parse().ok())
+            .unwrap_or(0),
         timestamp: now_millis(),
         agent_pid: options.get("pid").and_then(|p| p.parse().ok()).unwrap_or(0),
         pane_id: options.get("pane").cloned().unwrap_or_default(),
@@ -660,15 +695,28 @@ mod tests {
 
     #[test]
     fn shell_split_quotes() {
-        assert_eq!(shell_split("set_status 'a b' k Running"), ["set_status", "a b", "k", "Running"]);
+        assert_eq!(
+            shell_split("set_status 'a b' k Running"),
+            ["set_status", "a b", "k", "Running"]
+        );
         assert_eq!(shell_split(r#"x "y z" w"#), ["x", "y z", "w"]);
         assert_eq!(shell_split("   "), Vec::<String>::new());
     }
 
     #[test]
     fn parse_options_forms() {
-        let a: Vec<String> = ["p", "k", "Running", "--icon=bolt", "--color", "#fff", "--pane=p-1"]
-            .iter().map(|s| s.to_string()).collect();
+        let a: Vec<String> = [
+            "p",
+            "k",
+            "Running",
+            "--icon=bolt",
+            "--color",
+            "#fff",
+            "--pane=p-1",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         let (pos, opts) = parse_options(&a);
         assert_eq!(pos, ["p", "k", "Running"]);
         assert_eq!(opts.get("icon").unwrap(), "bolt");
@@ -678,7 +726,10 @@ mod tests {
 
     #[test]
     fn flag_without_value_is_empty() {
-        let a: Vec<String> = ["--color", "--pane=x"].iter().map(|s| s.to_string()).collect();
+        let a: Vec<String> = ["--color", "--pane=x"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let (_, opts) = parse_options(&a);
         assert_eq!(opts.get("color").unwrap(), "");
         assert_eq!(opts.get("pane").unwrap(), "x");
@@ -698,15 +749,35 @@ mod tests {
     #[test]
     fn restricted_socket_allows_only_status_verbs() {
         for ok in ["ping", "set_status", "clear_status", "list_status"] {
-            assert!(remote_allowed(ok), "{ok} should be allowed on the remote socket");
+            assert!(
+                remote_allowed(ok),
+                "{ok} should be allowed on the remote socket"
+            );
         }
         for bad in [
-            "start_project", "stop_project", "start_service", "stop_service",
-            "restart_service", "remove_project", "run_task", "duplicate_project",
-            "set_resume", "list_jobs", "list_all_jobs", "run_job", "stop_job",
-            "set_job_enabled", "job_history", "job_live_output", "send_job_followup", "unknown",
+            "start_project",
+            "stop_project",
+            "start_service",
+            "stop_service",
+            "restart_service",
+            "remove_project",
+            "run_task",
+            "duplicate_project",
+            "set_resume",
+            "list_jobs",
+            "list_all_jobs",
+            "run_job",
+            "stop_job",
+            "set_job_enabled",
+            "job_history",
+            "job_live_output",
+            "send_job_followup",
+            "unknown",
         ] {
-            assert!(!remote_allowed(bad), "{bad} must be refused on the remote socket");
+            assert!(
+                !remote_allowed(bad),
+                "{bad} must be refused on the remote socket"
+            );
         }
     }
 

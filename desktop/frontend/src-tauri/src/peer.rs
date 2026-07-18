@@ -79,8 +79,8 @@ pub(crate) struct PeerDevice {
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct HostConfig {
     pub enabled: bool,
-    pub lan: bool, // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1 (loopback only)
-    pub port: u16, // 0 => DEFAULT_PORT
+    pub lan: bool,            // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1 (loopback only)
+    pub port: u16,            // 0 => DEFAULT_PORT
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
     pub devices: Vec<PeerDevice>,
 }
@@ -458,7 +458,9 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     let _ = ws.get_ref().set_read_timeout(Some(POLL));
 
     'main: loop {
-        if hub.inner.generation.load(Ordering::SeqCst) != generation || !hub.device_exists(&device_id) {
+        if hub.inner.generation.load(Ordering::SeqCst) != generation
+            || !hub.device_exists(&device_id)
+        {
             break;
         }
         loop {
@@ -499,7 +501,10 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     // Release any terminal control this peer held so ownership transfers back to a
     // host window (or another presenter) instead of stranding on a gone client.
     let owner = peer_owner(&hub, &device_id);
-    for (id, new_owner) in app.state::<crate::control::ControlState>().drop_surface(&owner) {
+    for (id, new_owner) in app
+        .state::<crate::control::ControlState>()
+        .drop_surface(&owner)
+    {
         crate::control::broadcast(&app, &id, &new_owner);
     }
     let _ = ws.close(None);
@@ -541,7 +546,10 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -
             }
         }
         Some("auth") => {
-            let id = v.get("deviceId").and_then(Value::as_str).unwrap_or_default();
+            let id = v
+                .get("deviceId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(
@@ -562,7 +570,10 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -
 }
 
 fn normalize_code(s: &str) -> String {
-    s.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_uppercase()
+    s.chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_uppercase()
 }
 
 fn pair_device(hub: &PeerHub, code: &str, name: &str) -> Option<(String, String, String)> {
@@ -640,7 +651,10 @@ fn handle_msg(
                 if changed {
                     crate::control::broadcast(app, &id, &Some(owner));
                 }
-                send(ws, json!({ "t": "seed", "id": id, "d": hub.ring_text(&id) }))?;
+                send(
+                    ws,
+                    json!({ "t": "seed", "id": id, "d": hub.ring_text(&id) }),
+                )?;
             }
         }
         "unsub" => {
@@ -682,7 +696,12 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
         }
         "syncFetch" => {
             let mut fetched = Vec::new();
-            for it in v.get("items").and_then(Value::as_array).cloned().unwrap_or_default() {
+            for it in v
+                .get("items")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+            {
                 let kind = it.get("kind").and_then(Value::as_str).unwrap_or_default();
                 let name = it.get("name").and_then(Value::as_str).unwrap_or_default();
                 if let Ok(w) = crate::peersync::read_item(kind, name) {
@@ -712,7 +731,11 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
                 }
                 Err(e) => errors.push(format!("backup failed: {e}")),
             }
-            let _ = out.try_send(result_frame(&req_id, true, json!({ "applied": applied, "errors": errors })));
+            let _ = out.try_send(result_frame(
+                &req_id,
+                true,
+                json!({ "applied": applied, "errors": errors }),
+            ));
         }
         _ => {}
     }
@@ -739,12 +762,21 @@ fn dispatch_invoke(
     // round-tripping the whole payload through the host webview. Args arrive with
     // the frontend's camelCase keys on this direct path.
     if cmd == "upload_clipboard_image_for_terminal" {
-        let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+        let s = |k: &str| {
+            args.get(k)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
         let terminal_id = s("terminalId");
         let b64 = s("b64Data");
         let mime = {
             let m = s("mimeType");
-            if m.is_empty() { "image/png".to_string() } else { m }
+            if m.is_empty() {
+                "image/png".to_string()
+            } else {
+                m
+            }
         };
         let (app, out) = (app.clone(), out.clone());
         std::thread::spawn(move || {
@@ -798,7 +830,10 @@ fn dispatch_invoke(
             deadline: Instant::now() + DISPATCH_TIMEOUT,
         },
     );
-    let _ = app.emit("peer-invoke", json!({ "reqId": did, "cmd": cmd, "args": args }));
+    let _ = app.emit(
+        "peer-invoke",
+        json!({ "reqId": did, "cmd": cmd, "args": args }),
+    );
 }
 
 /// One long-lived thread that fails any webview dispatch whose reply never came
@@ -816,7 +851,9 @@ fn spawn_dispatch_reaper(hub: PeerHub) {
                 .filter(|(_, p)| p.deadline <= now)
                 .map(|(k, _)| *k)
                 .collect();
-            ids.into_iter().filter_map(|id| pending.remove(&id)).collect()
+            ids.into_iter()
+                .filter_map(|id| pending.remove(&id))
+                .collect()
         };
         for p in expired {
             let _ = p.out.try_send(result_frame(
@@ -833,13 +870,20 @@ fn spawn_dispatch_reaper(hub: PeerHub) {
 /// for any other command so dispatch falls through to the webview path.
 fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, String>> {
     let state = app.state::<pty::PtyState>();
-    let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
+    let s = |k: &str| {
+        args.get(k)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string()
+    };
     let u16f = |k: &str| args.get(k).and_then(Value::as_u64).unwrap_or(0) as u16;
     match cmd {
-        "write_terminal" => Some(pty::remote_write(&state, &s("id"), &s("data")).map(|_| Value::Null)),
-        "resize_terminal" => {
-            Some(pty::remote_resize(&state, &s("id"), u16f("cols"), u16f("rows")).map(|_| Value::Null))
+        "write_terminal" => {
+            Some(pty::remote_write(&state, &s("id"), &s("data")).map(|_| Value::Null))
         }
+        "resize_terminal" => Some(
+            pty::remote_resize(&state, &s("id"), u16f("cols"), u16f("rows")).map(|_| Value::Null),
+        ),
         "ack_terminal_data" => {
             // Args arrive with the frontend's camelCase keys — they bypass Tauri's
             // snake_case conversion on this direct path (unlike the webview tier).
@@ -988,7 +1032,10 @@ fn host_state_value(hub: &PeerHub) -> Value {
 /// Combined host+client state for the Connect Macs pane. Client peer rows carry
 /// their live connection status from peerclient.rs.
 #[tauri::command]
-pub fn peer_state(hub: State<'_, PeerHub>, client: State<'_, crate::peerclient::PeerClientHub>) -> Value {
+pub fn peer_state(
+    hub: State<'_, PeerHub>,
+    client: State<'_, crate::peerclient::PeerClientHub>,
+) -> Value {
     json!({ "host": host_state_value(&hub), "peers": client.peers_state() })
 }
 
@@ -1017,7 +1064,10 @@ pub async fn peer_host_set_config(
 /// Start (or refresh) a single-use pairing code, force-enabling the server on the
 /// LAN so the pairing Mac can reach it, and return the code + candidate addresses.
 #[tauri::command]
-pub async fn peer_host_start_pairing(app: AppHandle, hub: State<'_, PeerHub>) -> Result<Value, String> {
+pub async fn peer_host_start_pairing(
+    app: AppHandle,
+    hub: State<'_, PeerHub>,
+) -> Result<Value, String> {
     let code = gen_pairing_code();
     let (hosts, port) = {
         let mut cfg = hub.inner.config.lock().unwrap();
@@ -1036,7 +1086,10 @@ pub async fn peer_host_start_pairing(app: AppHandle, hub: State<'_, PeerHub>) ->
 }
 
 #[tauri::command]
-pub async fn peer_host_cancel_pairing(app: AppHandle, hub: State<'_, PeerHub>) -> Result<Value, String> {
+pub async fn peer_host_cancel_pairing(
+    app: AppHandle,
+    hub: State<'_, PeerHub>,
+) -> Result<Value, String> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.host.pairing_code.clear();
@@ -1063,7 +1116,11 @@ pub async fn peer_host_revoke_device(
     }
     // Drop any live connection for the revoked device (the poll loop also self-
     // exits on its next tick via device_exists).
-    hub.inner.clients.lock().unwrap().retain(|_, c| c.device_id != id);
+    hub.inner
+        .clients
+        .lock()
+        .unwrap()
+        .retain(|_, c| c.device_id != id);
     let _ = app.emit("peer-state-changed", ());
     Ok(host_state_value(&hub))
 }
@@ -1127,7 +1184,10 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
 /// This Mac's user-facing name (System Settings → Sharing), for the client's peer
 /// list. Falls back to the network hostname, then a generic label.
 pub(crate) fn machine_name() -> String {
-    if let Ok(out) = std::process::Command::new("scutil").args(["--get", "ComputerName"]).output() {
+    if let Ok(out) = std::process::Command::new("scutil")
+        .args(["--get", "ComputerName"])
+        .output()
+    {
         if out.status.success() {
             let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
             if !s.is_empty() {
@@ -1262,10 +1322,15 @@ mod tests {
 
     #[test]
     fn slug_is_8_lowercase_hex_and_unique() {
-        let existing = vec![PeerDevice { slug_assigned: "00000000".into(), ..Default::default() }];
+        let existing = vec![PeerDevice {
+            slug_assigned: "00000000".into(),
+            ..Default::default()
+        }];
         let s = gen_slug(&existing);
         assert_eq!(s.len(), 8);
-        assert!(s.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(s
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
         assert_ne!(s, "00000000");
     }
 
@@ -1367,7 +1432,10 @@ mod tests {
         *TEST_CONFIG_PATH.lock().unwrap() = None;
         let _ = std::fs::remove_file(&tmp);
 
-        assert!(paired.is_some(), "pair_device returned None through a non-blocking listener");
+        assert!(
+            paired.is_some(),
+            "pair_device returned None through a non-blocking listener"
+        );
         let text = reply.to_text().unwrap();
         assert!(text.contains("paired"), "expected paired, got: {text}");
         assert!(text.contains("slug"), "paired reply must carry a slug");

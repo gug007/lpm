@@ -152,7 +152,10 @@ pub fn repo_path_for_project(name: &str) -> Result<PathBuf, String> {
 /// Mirrors config.ExpandHome: leading `~` resolves to the home directory.
 pub fn expand_home(p: &str) -> String {
     if p == "~" {
-        return dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned();
+        return dirs::home_dir()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
     }
     if let Some(rest) = p.strip_prefix("~/") {
         return dirs::home_dir()
@@ -264,7 +267,10 @@ fn claude_account_ids(v: &Value) -> Vec<String> {
 /// Ids become directory names under ~/.lpm/claude-accounts, so only allow
 /// filename-safe characters.
 fn valid_claude_account_id(id: &str) -> bool {
-    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 pub fn save_claude_accounts(v: &Value) -> Result<(), String> {
@@ -286,7 +292,14 @@ fn ensure_claude_account_dir(id: &str) -> Result<(), String> {
     let dir = claude_account_dir(id);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let main = dirs::home_dir().unwrap_or_default().join(".claude");
-    for name in ["settings.json", "CLAUDE.md", "skills", "agents", "commands", "plugins"] {
+    for name in [
+        "settings.json",
+        "CLAUDE.md",
+        "skills",
+        "agents",
+        "commands",
+        "plugins",
+    ] {
         let src = main.join(name);
         let dst = dir.join(name);
         if src.exists() && std::fs::symlink_metadata(&dst).is_err() {
@@ -304,7 +317,10 @@ pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
     if !valid_claude_account_id(id) {
         return None;
     }
-    if !claude_account_ids(&load_claude_accounts()).iter().any(|a| a == id) {
+    if !claude_account_ids(&load_claude_accounts())
+        .iter()
+        .any(|a| a == id)
+    {
         return None;
     }
     // Re-link on every resolve so assets added to ~/.claude after the account
@@ -365,7 +381,9 @@ fn claude_account_of(y: &ProjectYaml) -> Option<String> {
     if y.parent_name.is_empty() {
         return None;
     }
-    parse_project_yaml(&y.parent_name).ok().and_then(|p| p.claude_account)
+    parse_project_yaml(&y.parent_name)
+        .ok()
+        .and_then(|p| p.claude_account)
 }
 
 /// The effective account for spawning, `None` for remote projects (which run on
@@ -461,7 +479,11 @@ pub fn claude_account_usage() -> Value {
         };
         if let Some(id) = effective_claude_account(&y) {
             if !id.is_empty() {
-                let display = if y.name.is_empty() { file.clone() } else { y.name.clone() };
+                let display = if y.name.is_empty() {
+                    file.clone()
+                } else {
+                    y.name.clone()
+                };
                 usage.entry(id).or_default().push(display);
             }
         }
@@ -522,7 +544,10 @@ pub struct ServiceFull {
 impl ServiceDef {
     fn into_full(self) -> ServiceFull {
         match self {
-            ServiceDef::Cmd(cmd) => ServiceFull { cmd, ..Default::default() },
+            ServiceDef::Cmd(cmd) => ServiceFull {
+                cmd,
+                ..Default::default()
+            },
             ServiceDef::Full(f) => f,
         }
     }
@@ -681,7 +706,10 @@ struct ActionFull {
 impl ActionDef {
     fn into_full(self) -> ActionFull {
         match self {
-            ActionDef::Cmd(cmd) => ActionFull { cmd, ..Default::default() },
+            ActionDef::Cmd(cmd) => ActionFull {
+                cmd,
+                ..Default::default()
+            },
             ActionDef::Full(f) => f,
         }
     }
@@ -1051,7 +1079,10 @@ pub fn socket_path() -> String {
 /// `ssh -R` forward. Only status verbs are served here — never the project
 /// control verbs — so a remote host can't drive the Mac (socketsrv.rs).
 pub fn remote_socket_path() -> String {
-    lpm_dir().join("lpm-remote.sock").to_string_lossy().into_owned()
+    lpm_dir()
+        .join("lpm-remote.sock")
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// (expanded root, is_remote) for a project, for terminal spawning.
@@ -1076,10 +1107,7 @@ pub struct TerminalSpawn {
 /// `parent:child` composite (a nested action) — same lookup as
 /// action_ports_and_conflict / resolve_action_full. Returns None when the name resolves to a non-terminal
 /// action or doesn't exist at all (callers fall back to a plain shell).
-pub fn resolve_terminal_action(
-    project: &str,
-    name: &str,
-) -> Result<Option<TerminalSpawn>, String> {
+pub fn resolve_terminal_action(project: &str, name: &str) -> Result<Option<TerminalSpawn>, String> {
     // Use the fully resolved map so global/extends terminal entries launch too.
     let map = resolve_action_map(project);
     Ok(lookup_action(&map, name)
@@ -1210,7 +1238,10 @@ fn build_layer(y: &ActionsYaml) -> BTreeMap<String, ActionFull> {
 
 /// `dst` (higher precedence) wins; missing keys come from `src`, present keys
 /// inherit only zero-valued `dst` fields.
-fn merge_action_fallback(dst: &mut BTreeMap<String, ActionFull>, src: BTreeMap<String, ActionFull>) {
+fn merge_action_fallback(
+    dst: &mut BTreeMap<String, ActionFull>,
+    src: BTreeMap<String, ActionFull>,
+) {
     for (k, s) in src {
         match dst.get_mut(&k) {
             None => {
@@ -1301,10 +1332,28 @@ fn resolve_action_map(file_name: &str) -> BTreeMap<String, ActionFull> {
 /// Working-tree dirs never worth watching/syncing (build output, deps, editor
 /// state). Shared by the git file-watcher (git.rs) and the sshsync rsync mirror.
 pub const IGNORED_WATCH_DIRS: &[&str] = &[
-    "node_modules", "dist", "build", "out", "target", "vendor", ".next", ".nuxt",
-    ".svelte-kit", ".turbo", ".cache", ".parcel-cache", ".yarn", ".pnpm-store",
-    ".venv", "venv", "__pycache__", ".mypy_cache", ".pytest_cache", ".gradle",
-    ".idea", ".vscode",
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    "target",
+    "vendor",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".turbo",
+    ".cache",
+    ".parcel-cache",
+    ".yarn",
+    ".pnpm-store",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".gradle",
+    ".idea",
+    ".vscode",
 ];
 
 /// Build outputs and compiler/tool caches: regenerable and tied to the source's
@@ -1313,8 +1362,20 @@ pub const IGNORED_WATCH_DIRS: &[&str] = &[
 /// copy's first run, which saturates CPU. Dependency dirs (node_modules, .venv,
 /// …) are deliberately absent so a duplicate still runs without a reinstall.
 pub const DUPLICATE_SKIP_DIRS: &[&str] = &[
-    ".next", ".nuxt", ".svelte-kit", ".turbo", ".swc", ".cache", ".parcel-cache",
-    "dist", "build", "out", "target", "__pycache__", ".mypy_cache", ".pytest_cache",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".turbo",
+    ".swc",
+    ".cache",
+    ".parcel-cache",
+    "dist",
+    "build",
+    "out",
+    "target",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
     ".gradle",
 ];
 
@@ -1330,7 +1391,9 @@ pub fn declared_service_ports_of(info: &SpawnInfo) -> std::collections::HashSet<
 
 /// As above, by project name (re-loads config). Empty on error.
 pub fn declared_service_ports(name: &str) -> std::collections::HashSet<u16> {
-    spawn_info(name).map(|i| declared_service_ports_of(&i)).unwrap_or_default()
+    spawn_info(name)
+        .map(|i| declared_service_ports_of(&i))
+        .unwrap_or_default()
 }
 
 /// config.mergeService: project fields win; empty ones fall back to the repo.
@@ -1569,7 +1632,11 @@ pub fn services_for_profile(
     all_names: &[String],
     profile: &str,
 ) -> Vec<String> {
-    let p = if profile.is_empty() { "default" } else { profile };
+    let p = if profile.is_empty() {
+        "default"
+    } else {
+        profile
+    };
     match profiles.get(p) {
         Some(names) => names.clone(),
         None => all_names.to_vec(),
@@ -1671,7 +1738,12 @@ fn match_profile(
 
 /// Builds a ProjectInfo JSON object (camelCase, matching desktop/projects.go).
 /// Arrays are always present so the frontend's `.length`/`.map` calls are safe.
-fn to_project_info(file_name: &str, mut yaml: ProjectYaml, running: bool, state: &RunState) -> Value {
+fn to_project_info(
+    file_name: &str,
+    mut yaml: ProjectYaml,
+    running: bool,
+    state: &RunState,
+) -> Value {
     let session = if yaml.name.is_empty() {
         file_name.to_string()
     } else {
@@ -1830,7 +1902,9 @@ pub fn frontend_root(root: &str, ssh: &SshSettings) -> String {
 fn scan_remote_project_roots() -> Vec<(String, SshSettings)> {
     let mut out = Vec::new();
     for name in project_names() {
-        let Ok(y) = parse_project_yaml(&name) else { continue };
+        let Ok(y) = parse_project_yaml(&name) else {
+            continue;
+        };
         let ssh = y.ssh.clone().unwrap_or_default();
         if !ssh.is_remote() {
             continue;
@@ -1871,7 +1945,11 @@ fn project_order() -> Vec<String> {
     load_settings()
         .get("projectOrder")
         .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -1957,8 +2035,14 @@ pub fn get_project(name: &str, run: &HashMap<String, RunState>) -> Result<Option
 /// reading from disk (a disk read would fail and break new-terminal + the
 /// Global Actions row in the Terminals view).
 fn global_root() -> String {
-    let home = dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned();
-    if let Some(dir) = load_settings().get("defaultProjectDirectory").and_then(Value::as_str) {
+    let home = dirs::home_dir()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    if let Some(dir) = load_settings()
+        .get("defaultProjectDirectory")
+        .and_then(Value::as_str)
+    {
         let expanded = expand_home(dir);
         if !expanded.is_empty() && std::path::Path::new(&expanded).is_dir() {
             return expanded;
@@ -2024,8 +2108,11 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     let is_remote = ssh.is_remote();
     let root = expand_home(&y.root);
     let claude_account = effective_claude_account(&y);
-    let mut services: BTreeMap<String, ServiceFull> =
-        y.services.into_iter().map(|(n, d)| (n, d.into_full())).collect();
+    let mut services: BTreeMap<String, ServiceFull> = y
+        .services
+        .into_iter()
+        .map(|(n, d)| (n, d.into_full()))
+        .collect();
     let mut profiles = y.profiles;
     // Repo .lpm.yml services/profiles must also feed the start path, else a
     // shown Start button would have nothing to launch.
@@ -2046,10 +2133,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
 /// The resolved port list + `portConflict` policy for an action (or
 /// `parent:child`), from a single config resolve. None when the action doesn't
 /// exist; an empty vec / empty policy when unset (callers treat "" as "ask").
-pub fn action_ports_and_conflict(
-    file_name: &str,
-    action_name: &str,
-) -> Option<(Vec<i64>, String)> {
+pub fn action_ports_and_conflict(file_name: &str, action_name: &str) -> Option<(Vec<i64>, String)> {
     let map = resolve_action_map(file_name);
     let act = lookup_action(&map, action_name)?;
     Some((act.port.to_vec(), act.port_conflict))
@@ -2138,12 +2222,7 @@ mod service_deps_tests {
 
     #[test]
     fn diamond_includes_shared_dep_once() {
-        let svcs = services(&[
-            ("d", &[]),
-            ("b", &["d"]),
-            ("c", &["d"]),
-            ("a", &["b", "c"]),
-        ]);
+        let svcs = services(&[("d", &[]), ("b", &["d"]), ("c", &["d"]), ("a", &["b", "c"])]);
         assert_eq!(
             expand_service_deps(&svcs, &req(&["a"])).unwrap(),
             req(&["d", "b", "c", "a"]),
@@ -2181,11 +2260,9 @@ mod service_deps_tests {
 
     #[test]
     fn depends_on_alias_parses() {
-        let svc: ServiceFull =
-            serde_yaml::from_str("cmd: go run .\ndepends_on: [db]\n").unwrap();
+        let svc: ServiceFull = serde_yaml::from_str("cmd: go run .\ndepends_on: [db]\n").unwrap();
         assert_eq!(svc.depends_on, req(&["db"]));
-        let camel: ServiceFull =
-            serde_yaml::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
+        let camel: ServiceFull = serde_yaml::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
         assert_eq!(camel.depends_on, req(&["db"]));
     }
 }
@@ -2254,7 +2331,13 @@ mod repo_merge_tests {
 
         // Project pre-defines `web` with only a cwd; repo should fill cmd+port.
         let mut services = BTreeMap::new();
-        services.insert("web".to_string(), ServiceFull { cwd: "frontend".into(), ..Default::default() });
+        services.insert(
+            "web".to_string(),
+            ServiceFull {
+                cwd: "frontend".into(),
+                ..Default::default()
+            },
+        );
         let mut profiles: BTreeMap<String, Vec<String>> = BTreeMap::new();
 
         merge_repo_services_profiles(&root, false, &mut services, &mut profiles);
@@ -2267,7 +2350,10 @@ mod repo_merge_tests {
         assert_eq!(web.cmd, "npm run dev");
         assert_eq!(web.port, 3000);
         // profile pulled from the repo.
-        assert_eq!(profiles.get("default").unwrap(), &vec!["web".to_string(), "db".to_string()]);
+        assert_eq!(
+            profiles.get("default").unwrap(),
+            &vec!["web".to_string(), "db".to_string()]
+        );
     }
 
     #[test]
@@ -2276,8 +2362,16 @@ mod repo_merge_tests {
         std::fs::write(dir.path().join(".lpm.yml"), "services:\n  web: cmd\n").unwrap();
         let mut services = BTreeMap::new();
         let mut profiles = BTreeMap::new();
-        merge_repo_services_profiles(&dir.path().to_string_lossy(), true, &mut services, &mut profiles);
-        assert!(services.is_empty(), "remote repo file lives on the remote; never merged locally");
+        merge_repo_services_profiles(
+            &dir.path().to_string_lossy(),
+            true,
+            &mut services,
+            &mut profiles,
+        );
+        assert!(
+            services.is_empty(),
+            "remote repo file lives on the remote; never merged locally"
+        );
     }
 }
 
@@ -2291,14 +2385,20 @@ mod claude_account_tests {
 
     #[test]
     fn explicit_id_is_pinned() {
-        assert_eq!(account_of("claudeAccount: work\n"), Some("work".to_string()));
+        assert_eq!(
+            account_of("claudeAccount: work\n"),
+            Some("work".to_string())
+        );
     }
 
     #[test]
     fn explicit_empty_is_default_login_not_inherited() {
         // Some("") means "explicitly the default login"; must not fall through
         // to the parent even when parent_name is set.
-        assert_eq!(account_of("claudeAccount: ''\nparent_name: base\n"), Some(String::new()));
+        assert_eq!(
+            account_of("claudeAccount: ''\nparent_name: base\n"),
+            Some(String::new())
+        );
     }
 
     #[test]
@@ -2355,7 +2455,11 @@ mod action_lookup_tests {
     use super::*;
 
     fn terminal_action(cmd: &str) -> ActionFull {
-        ActionFull { cmd: cmd.into(), kind: "terminal".into(), ..Default::default() }
+        ActionFull {
+            cmd: cmd.into(),
+            kind: "terminal".into(),
+            ..Default::default()
+        }
     }
 
     fn parent_with_child(child_name: &str, child: ActionFull) -> BTreeMap<String, ActionFull> {
@@ -2364,7 +2468,9 @@ mod action_lookup_tests {
             cwd: "app".into(),
             ..Default::default()
         };
-        parent.actions.insert(child_name.into(), ActionDef::Full(child));
+        parent
+            .actions
+            .insert(child_name.into(), ActionDef::Full(child));
         let mut map = BTreeMap::new();
         map.insert("Run".to_string(), parent);
         map
@@ -2383,7 +2489,10 @@ mod action_lookup_tests {
     fn missing_parent_or_child_returns_none() {
         let map = parent_with_child("hellphone", terminal_action("make run"));
         assert!(lookup_action(&map, "Run:ghost").is_none(), "unknown child");
-        assert!(lookup_action(&map, "Ghost:hellphone").is_none(), "unknown parent");
+        assert!(
+            lookup_action(&map, "Ghost:hellphone").is_none(),
+            "unknown parent"
+        );
         assert!(lookup_action(&map, "ghost").is_none(), "unknown top-level");
     }
 
@@ -2391,13 +2500,22 @@ mod action_lookup_tests {
     fn nested_child_inherits_terminal_kind_from_parent() {
         // Parent under `terminals:` has kind defaulted to "terminal"; a child
         // with no explicit type must inherit it (else it'd launch a bare shell).
-        let mut parent = ActionFull { kind: "terminal".into(), cwd: "app".into(), ..Default::default() };
-        parent.actions.insert("hellphone".into(), ActionDef::Cmd("make run".into()));
+        let mut parent = ActionFull {
+            kind: "terminal".into(),
+            cwd: "app".into(),
+            ..Default::default()
+        };
+        parent
+            .actions
+            .insert("hellphone".into(), ActionDef::Cmd("make run".into()));
         let mut map = BTreeMap::new();
         map.insert("Run".to_string(), parent);
 
         let got = lookup_action(&map, "Run:hellphone").expect("child resolves");
-        assert_eq!(got.kind, "terminal", "empty-kind child inherits parent terminal kind");
+        assert_eq!(
+            got.kind, "terminal",
+            "empty-kind child inherits parent terminal kind"
+        );
         assert_eq!(got.cmd, "make run");
     }
 
@@ -2410,10 +2528,22 @@ mod action_lookup_tests {
 
     #[test]
     fn resolves_three_levels_with_inheritance_chain() {
-        let release = ActionFull { cmd: "build:ios:release".into(), ..Default::default() };
-        let mut ios = ActionFull { kind: "terminal".into(), cwd: "ios".into(), ..Default::default() };
-        ios.actions.insert("Release".into(), ActionDef::Full(release));
-        let mut build = ActionFull { kind: "terminal".into(), cwd: "app".into(), ..Default::default() };
+        let release = ActionFull {
+            cmd: "build:ios:release".into(),
+            ..Default::default()
+        };
+        let mut ios = ActionFull {
+            kind: "terminal".into(),
+            cwd: "ios".into(),
+            ..Default::default()
+        };
+        ios.actions
+            .insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull {
+            kind: "terminal".into(),
+            cwd: "app".into(),
+            ..Default::default()
+        };
         build.actions.insert("iOS".into(), ActionDef::Full(ios));
         let mut map = BTreeMap::new();
         map.insert("Build".to_string(), build);
@@ -2426,24 +2556,39 @@ mod action_lookup_tests {
 
     #[test]
     fn grandchild_inherits_through_empty_middle() {
-        let release = ActionFull { cmd: "r".into(), ..Default::default() };
+        let release = ActionFull {
+            cmd: "r".into(),
+            ..Default::default()
+        };
         let mut ios = ActionFull::default(); // no cwd, no kind
-        ios.actions.insert("Release".into(), ActionDef::Full(release));
-        let mut build = ActionFull { kind: "terminal".into(), cwd: "app".into(), ..Default::default() };
+        ios.actions
+            .insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull {
+            kind: "terminal".into(),
+            cwd: "app".into(),
+            ..Default::default()
+        };
         build.actions.insert("iOS".into(), ActionDef::Full(ios));
         let mut map = BTreeMap::new();
         map.insert("Build".to_string(), build);
 
         let got = lookup_action(&map, "Build:iOS:Release").expect("resolves");
-        assert_eq!(got.cwd, "app", "cwd chains down through the empty middle level");
+        assert_eq!(
+            got.cwd, "app",
+            "cwd chains down through the empty middle level"
+        );
         assert_eq!(got.kind, "terminal", "kind chains down too");
     }
 
     #[test]
     fn unknown_deep_segment_returns_none() {
-        let release = ActionFull { cmd: "r".into(), ..Default::default() };
+        let release = ActionFull {
+            cmd: "r".into(),
+            ..Default::default()
+        };
         let mut ios = ActionFull::default();
-        ios.actions.insert("Release".into(), ActionDef::Full(release));
+        ios.actions
+            .insert("Release".into(), ActionDef::Full(release));
         let mut build = ActionFull::default();
         build.actions.insert("iOS".into(), ActionDef::Full(ios));
         let mut map = BTreeMap::new();
@@ -2458,10 +2603,20 @@ mod resolve_actions_tests {
 
     #[test]
     fn build_action_info_nests_grandchildren_with_full_path_ids() {
-        let release = ActionFull { cmd: "r".into(), ..Default::default() };
-        let mut ios = ActionFull { cmd: "i".into(), ..Default::default() };
-        ios.actions.insert("Release".into(), ActionDef::Full(release));
-        let mut build = ActionFull { cmd: "b".into(), ..Default::default() };
+        let release = ActionFull {
+            cmd: "r".into(),
+            ..Default::default()
+        };
+        let mut ios = ActionFull {
+            cmd: "i".into(),
+            ..Default::default()
+        };
+        ios.actions
+            .insert("Release".into(), ActionDef::Full(release));
+        let mut build = ActionFull {
+            cmd: "b".into(),
+            ..Default::default()
+        };
         build.actions.insert("iOS".into(), ActionDef::Full(ios));
 
         let info = build_action_info("Build", "Build", &build);
@@ -2491,7 +2646,10 @@ mod ssh_exec_tests {
     #[test]
     fn ssh_exec_args_never_allocate_a_tty() {
         let args = ssh_exec_args(&remote("~/proj"));
-        assert!(!args.iter().any(|a| a == "-t"), "exec must be tty-less: {args:?}");
+        assert!(
+            !args.iter().any(|a| a == "-t"),
+            "exec must be tty-less: {args:?}"
+        );
         assert!(args.iter().any(|a| a == "ControlMaster=auto"));
         assert_eq!(args.last().unwrap(), "dev@example.com");
     }
@@ -2509,7 +2667,10 @@ mod ssh_exec_tests {
         assert!(args.windows(2).any(|w| w == ["-p", "2222"]));
         assert!(args.iter().any(|a| a == "-i"));
         // default port 22 is omitted
-        let d = ssh_exec_args(&SshSettings { port: 22, ..ssh.clone() });
+        let d = ssh_exec_args(&SshSettings {
+            port: 22,
+            ..ssh.clone()
+        });
         assert!(!d.iter().any(|a| a == "-p"));
     }
 
@@ -2539,12 +2700,27 @@ mod ssh_exec_tests {
         let inner = "export LPM_SOCKET_PATH=\"$HOME/.lpm/fwd/status-x.sock\" && exec \"$SHELL\" -l";
         let script = build_remote_script("", &env, inner);
         // Env exports are single-quoted, so a project name with a space is safe.
-        assert!(script.contains("export LPM_PROJECT_NAME='My app'"), "{script}");
+        assert!(
+            script.contains("export LPM_PROJECT_NAME='My app'"),
+            "{script}"
+        );
         assert!(script.contains("export LPM_PANE_ID='p-1'"), "{script}");
         // The socket path's $HOME survives verbatim for remote expansion.
-        assert!(script.contains("export LPM_SOCKET_PATH=\"$HOME/.lpm/fwd/status-x.sock\""), "{script}");
+        assert!(
+            script.contains("export LPM_SOCKET_PATH=\"$HOME/.lpm/fwd/status-x.sock\""),
+            "{script}"
+        );
         // ssh_command_argv wraps the same script for the login shell.
-        let ssh = SshSettings { host: "h".into(), user: "u".into(), port: 0, key: String::new(), dir: String::new() };
-        assert!(ssh_command_argv(&ssh, "", &env, inner).pop().unwrap().contains("LPM_SOCKET_PATH"));
+        let ssh = SshSettings {
+            host: "h".into(),
+            user: "u".into(),
+            port: 0,
+            key: String::new(),
+            dir: String::new(),
+        };
+        assert!(ssh_command_argv(&ssh, "", &env, inner)
+            .pop()
+            .unwrap()
+            .contains("LPM_SOCKET_PATH"));
     }
 }

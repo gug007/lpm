@@ -43,21 +43,28 @@ fn claude_hooks_status_at(path: &Path) -> ClaudeHooksStatus {
         return ClaudeHooksStatus::default();
     };
     let Ok(settings) = serde_json::from_slice::<Value>(&data) else {
-        return ClaudeHooksStatus { settings_exists: true, hooks_installed: false };
+        return ClaudeHooksStatus {
+            settings_exists: true,
+            hooks_installed: false,
+        };
     };
     let hooks_installed = settings
         .get("hooks")
         .filter(|h| h.is_object())
         .map(has_marker)
         .unwrap_or(false);
-    ClaudeHooksStatus { settings_exists: true, hooks_installed }
+    ClaudeHooksStatus {
+        settings_exists: true,
+        hooks_installed,
+    }
 }
 
 fn reset_claude_hooks_at(path: &Path) -> Result<(), String> {
     // Validate for a real UI error, then reinstall (which strips+re-adds lpm hooks,
     // keeping the user's own — unlike removing the whole `hooks` key).
     let data = std::fs::read(path).map_err(|e| format!("cannot read Claude settings: {e}"))?;
-    serde_json::from_slice::<Value>(&data).map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
+    serde_json::from_slice::<Value>(&data)
+        .map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
     install_claude_hooks_at(path)
 }
 
@@ -93,7 +100,11 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
 
     append_hook(hooks, "UserPromptSubmit", claude_hook(&set_running, ""));
     append_hook(hooks, "PreToolUse", claude_hook(&set_running, ""));
-    append_hook(hooks, "Notification", claude_hook(&set_waiting, "permission_prompt"));
+    append_hook(
+        hooks,
+        "Notification",
+        claude_hook(&set_waiting, "permission_prompt"),
+    );
     append_hook(hooks, "Stop", claude_hook(&set_done, ""));
     append_hook(hooks, "StopFailure", claude_hook(&set_error, ""));
     append_hook(hooks, "SessionEnd", claude_hook(&clear, ""));
@@ -101,7 +112,9 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
     if settings == original {
         return None;
     }
-    serde_json::to_string_pretty(&settings).ok().map(String::into_bytes)
+    serde_json::to_string_pretty(&settings)
+        .ok()
+        .map(String::into_bytes)
 }
 
 fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
@@ -133,7 +146,9 @@ pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) {
     if !out.status.success() || out.stdout.is_empty() {
         return; // missing/unreadable settings — never create
     }
-    let Some(merged) = merge_claude_hooks(&out.stdout) else { return };
+    let Some(merged) = merge_claude_hooks(&out.stdout) else {
+        return;
+    };
     write_remote_claude_settings(ssh, &merged);
 }
 
@@ -159,7 +174,11 @@ pub fn install_remote_claude_hooks_once(ssh: &crate::config::SshSettings) {
     use std::sync::{Mutex, OnceLock};
     static DONE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     let key = format!("{}@{}:{}", ssh.user, ssh.host, ssh.port);
-    let first = DONE.get_or_init(Default::default).lock().unwrap().insert(key);
+    let first = DONE
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap()
+        .insert(key);
     if !first {
         return;
     }
@@ -190,7 +209,10 @@ fn install_codex_hooks_at(codex_dir: &Path) {
     // two: the status ping plus the resume-capture hook that reports Codex's
     // real session id back to the socket (Codex has no --session-id-at-launch).
     let new_events: Vec<(&str, Vec<Value>)> = vec![
-        ("SessionStart", vec![codex_entry(&set_running), codex_entry(&set_resume)]),
+        (
+            "SessionStart",
+            vec![codex_entry(&set_running), codex_entry(&set_resume)],
+        ),
         ("UserPromptSubmit", vec![codex_entry(&set_running)]),
         ("PreToolUse", vec![codex_entry(&set_running)]),
         // Abstains from the allow/deny decision (no stdout), so approvals still
@@ -274,7 +296,9 @@ fn capture_resume_cmd() -> String {
 }
 
 fn has_marker(hooks: &Value) -> bool {
-    serde_json::to_string(hooks).map(|s| s.contains(MARKER)).unwrap_or(false)
+    serde_json::to_string(hooks)
+        .map(|s| s.contains(MARKER))
+        .unwrap_or(false)
 }
 
 /// Remove lpm-installed hook entries (command carries MARKER), keeping the user's own.
@@ -323,7 +347,14 @@ mod tests {
         assert_eq!(v["permissions"]["x"], 1);
         // all six events present, marker installed
         let hooks = v["hooks"].as_object().unwrap();
-        for ev in ["UserPromptSubmit", "PreToolUse", "Notification", "Stop", "StopFailure", "SessionEnd"] {
+        for ev in [
+            "UserPromptSubmit",
+            "PreToolUse",
+            "Notification",
+            "Stop",
+            "StopFailure",
+            "SessionEnd",
+        ] {
             assert!(hooks.contains_key(ev), "missing {ev}");
         }
         assert!(has_marker(&v["hooks"]));
@@ -336,10 +367,20 @@ mod tests {
         let path = settings_at(dir.path(), "{}");
         install_claude_hooks_at(&path).unwrap();
         let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        for ev in ["UserPromptSubmit", "PreToolUse", "Notification", "Stop", "StopFailure", "SessionEnd"] {
+        for ev in [
+            "UserPromptSubmit",
+            "PreToolUse",
+            "Notification",
+            "Stop",
+            "StopFailure",
+            "SessionEnd",
+        ] {
             for e in v["hooks"][ev].as_array().unwrap() {
                 let cmd = e["hooks"][0]["command"].as_str().unwrap();
-                assert!(cmd.contains("claude_code_$LPM_PANE_ID"), "{ev} not per-pane: {cmd}");
+                assert!(
+                    cmd.contains("claude_code_$LPM_PANE_ID"),
+                    "{ev} not per-pane: {cmd}"
+                );
             }
         }
     }
@@ -364,12 +405,17 @@ mod tests {
         let stop = v["hooks"]["Stop"].as_array().unwrap();
 
         // user hook preserved
-        assert!(stop.iter().any(|e| e["hooks"][0]["command"] == "my-own-hook"));
+        assert!(stop
+            .iter()
+            .any(|e| e["hooks"][0]["command"] == "my-own-hook"));
         // exactly one lpm hook in Stop — old one replaced, not duplicated — and per-pane
         let lpm: Vec<&Value> = stop.iter().filter(|e| has_marker(e)).collect();
         assert_eq!(lpm.len(), 1, "stale lpm hook replaced, not duplicated");
         let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
-        assert!(cmd.contains("claude_code_$LPM_PANE_ID"), "migrated to per-pane key: {cmd}");
+        assert!(
+            cmd.contains("claude_code_$LPM_PANE_ID"),
+            "migrated to per-pane key: {cmd}"
+        );
     }
 
     #[test]
@@ -379,7 +425,11 @@ mod tests {
         install_claude_hooks_at(&path).unwrap();
         let first = std::fs::read_to_string(&path).unwrap();
         install_claude_hooks_at(&path).unwrap(); // second run: marker present -> no-op
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), first, "no duplicate hooks");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            first,
+            "no duplicate hooks"
+        );
     }
 
     #[test]
@@ -411,7 +461,11 @@ mod tests {
         let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(v["model"], "opus");
         assert!(has_marker(&v["hooks"]), "reinstalled after reset");
-        assert_eq!(v["hooks"]["Stop"].as_array().unwrap().len(), 1, "no duplication");
+        assert_eq!(
+            v["hooks"]["Stop"].as_array().unwrap().len(),
+            1,
+            "no duplication"
+        );
     }
 
     #[test]
@@ -422,7 +476,10 @@ mod tests {
         let v: Value = serde_json::from_slice(&first).unwrap();
         assert_eq!(v["model"], "opus");
         assert!(has_marker(&v["hooks"]));
-        assert!(merge_claude_hooks(&first).is_none(), "second merge is a no-op");
+        assert!(
+            merge_claude_hooks(&first).is_none(),
+            "second merge is a no-op"
+        );
         // Invalid JSON never rewritten.
         assert!(merge_claude_hooks(b"{ not json").is_none());
     }
@@ -458,13 +515,22 @@ mod tests {
 
         let v = codex_hooks(dir.path());
         let hooks = v["hooks"].as_object().unwrap();
-        for ev in ["SessionStart", "UserPromptSubmit", "PreToolUse", "PermissionRequest", "Stop"] {
+        for ev in [
+            "SessionStart",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PermissionRequest",
+            "Stop",
+        ] {
             assert!(hooks.contains_key(ev), "missing {ev}");
         }
         let waiting = v["hooks"]["PermissionRequest"][0]["hooks"][0]["command"]
             .as_str()
             .unwrap();
-        assert!(waiting.contains("codex_$LPM_PANE_ID Waiting"), "PermissionRequest must set Waiting: {waiting}");
+        assert!(
+            waiting.contains("codex_$LPM_PANE_ID Waiting"),
+            "PermissionRequest must set Waiting: {waiting}"
+        );
         // SessionStart holds the status ping AND the resume-capture hook.
         let start = v["hooks"]["SessionStart"].as_array().unwrap();
         assert_eq!(start.len(), 2, "SessionStart should carry two lpm hooks");
@@ -474,7 +540,10 @@ mod tests {
                 .map(|c| c.contains("set_resume") && c.contains("session_id"))
                 .unwrap_or(false)
         });
-        assert!(has_resume, "SessionStart missing set_resume hook: {start:?}");
+        assert!(
+            has_resume,
+            "SessionStart missing set_resume hook: {start:?}"
+        );
         assert!(has_marker(&v["hooks"]));
     }
 
@@ -521,7 +590,9 @@ mod tests {
         let v = codex_hooks(dir.path());
         let start = v["hooks"]["SessionStart"].as_array().unwrap();
         assert!(
-            start.iter().any(|e| e["hooks"][0]["command"] == "my-own-codex-hook"),
+            start
+                .iter()
+                .any(|e| e["hooks"][0]["command"] == "my-own-codex-hook"),
             "user hook must survive install"
         );
         assert!(

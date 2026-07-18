@@ -31,14 +31,22 @@ impl Default for ServiceState {
 
 impl ServiceState {
     pub fn get(&self, name: &str) -> RunState {
-        self.running.lock().unwrap().get(name).cloned().unwrap_or_default()
+        self.running
+            .lock()
+            .unwrap()
+            .get(name)
+            .cloned()
+            .unwrap_or_default()
     }
     fn get_known(&self, name: &str) -> Option<RunState> {
         self.running.lock().unwrap().get(name).cloned()
     }
     pub fn get_for_project(&self, name: &str, info: &config::SpawnInfo) -> RunState {
         if let Some(state) = run_state_from_tmux(&info.session, info.services.keys()) {
-            self.running.lock().unwrap().insert(name.to_string(), state.clone());
+            self.running
+                .lock()
+                .unwrap()
+                .insert(name.to_string(), state.clone());
             state
         } else {
             self.get_known(name).unwrap_or_default()
@@ -66,15 +74,25 @@ fn tuples_for(info: &config::SpawnInfo, names: &[String]) -> Vec<tmux::ServiceTu
         .collect()
 }
 
-pub fn run_state_from_tmux<'a>(session: &str, configured_services: impl Iterator<Item = &'a String>) -> Option<RunState> {
+pub fn run_state_from_tmux<'a>(
+    session: &str,
+    configured_services: impl Iterator<Item = &'a String>,
+) -> Option<RunState> {
     let configured: HashSet<&str> = configured_services.map(String::as_str).collect();
     let panes = tmux::list_service_panes(session)?;
     let services: Vec<String> = panes.into_iter().map(|pane| pane.service).collect();
     let unique: HashSet<&str> = services.iter().map(String::as_str).collect();
-    if unique.len() != services.len() || services.iter().any(|name| !configured.contains(name.as_str())) {
+    if unique.len() != services.len()
+        || services
+            .iter()
+            .any(|name| !configured.contains(name.as_str()))
+    {
         return None;
     }
-    Some(RunState { profile: String::new(), services })
+    Some(RunState {
+        profile: String::new(),
+        services,
+    })
 }
 
 fn resolve_pane_id(session: &str, pane_index: usize) -> Result<String, String> {
@@ -84,7 +102,11 @@ fn resolve_pane_id(session: &str, pane_index: usize) -> Result<String, String> {
         .ok_or_else(|| format!("pane index {pane_index} out of range"))
 }
 
-fn resolve_service_pane_id(session: &str, service: &str, pane_index: usize) -> Result<String, String> {
+fn resolve_service_pane_id(
+    session: &str,
+    service: &str,
+    pane_index: usize,
+) -> Result<String, String> {
     let Some(panes) = tmux::list_service_panes(session) else {
         return resolve_pane_id(session, pane_index);
     };
@@ -119,8 +141,19 @@ fn do_start_with_services(
         }
     }
     let services = config::expand_service_deps(&info.services, &services)?;
-    tmux::start_project_services(&info.session, &info.root, &tuples_for(&info, &services), ssh_of(&info))?;
-    state.set(name, RunState { profile: String::new(), services });
+    tmux::start_project_services(
+        &info.session,
+        &info.root,
+        &tuples_for(&info, &services),
+        ssh_of(&info),
+    )?;
+    state.set(
+        name,
+        RunState {
+            profile: String::new(),
+            services,
+        },
+    );
     crate::portforward::start_port_poller(app, name); // remote-only, idempotent
     let _ = app.emit("projects-changed", ());
     Ok(())
@@ -165,8 +198,19 @@ pub fn start_project(
         return Err(format!("no services to start for profile {profile:?}"));
     }
     let services = config::expand_service_deps(&info.services, &services)?;
-    tmux::start_project_services(&info.session, &info.root, &tuples_for(&info, &services), ssh_of(&info))?;
-    state.set(&name, RunState { profile, services: vec![] });
+    tmux::start_project_services(
+        &info.session,
+        &info.root,
+        &tuples_for(&info, &services),
+        ssh_of(&info),
+    )?;
+    state.set(
+        &name,
+        RunState {
+            profile,
+            services: vec![],
+        },
+    );
     crate::portforward::start_port_poller(&app, &name); // remote-only, idempotent
     let _ = app.emit("projects-changed", ());
     Ok(())
@@ -183,7 +227,11 @@ pub fn start_project_with_services(
 }
 
 #[tauri::command(async)]
-pub fn stop_project(app: AppHandle, state: State<'_, ServiceState>, name: String) -> Result<(), String> {
+pub fn stop_project(
+    app: AppHandle,
+    state: State<'_, ServiceState>,
+    name: String,
+) -> Result<(), String> {
     do_stop_project(&app, &state, &name)
 }
 
@@ -218,7 +266,9 @@ pub fn set_service_running(
 ) -> Result<(), String> {
     let info = config::spawn_info(name)?;
     if !info.services.contains_key(service_name) {
-        return Err(format!("service {service_name:?} not found in project {name:?}"));
+        return Err(format!(
+            "service {service_name:?} not found in project {name:?}"
+        ));
     }
 
     if !tmux::session_exists(&info.session) {
@@ -240,7 +290,12 @@ pub fn set_service_running(
         // splitting a pane for each in dependency order (the target last).
         let want = config::expand_service_deps(&info.services, &[service_name.to_string()])?;
         let missing: Vec<String> = want.into_iter().filter(|s| !running.contains(s)).collect();
-        tmux::split_session_services(&info.session, &info.root, &tuples_for(&info, &missing), ssh_of(&info))?;
+        tmux::split_session_services(
+            &info.session,
+            &info.root,
+            &tuples_for(&info, &missing),
+            ssh_of(&info),
+        )?;
         let mut next = running.clone();
         next.extend(missing);
         next
@@ -255,7 +310,13 @@ pub fn set_service_running(
         running.into_iter().filter(|s| s != service_name).collect()
     };
 
-    state.set(name, RunState { profile: String::new(), services: next });
+    state.set(
+        name,
+        RunState {
+            profile: String::new(),
+            services: next,
+        },
+    );
     let _ = app.emit("projects-changed", ());
     Ok(())
 }
@@ -282,11 +343,20 @@ fn restart_service_at(
     running: &[String],
     idx: usize,
 ) -> Result<(), String> {
-    let svc_name = running.get(idx).ok_or_else(|| format!("pane index {idx} out of range"))?;
+    let svc_name = running
+        .get(idx)
+        .ok_or_else(|| format!("pane index {idx} out of range"))?;
     let svc = info.services.get(svc_name).cloned().unwrap_or_default();
     let pane_id = resolve_service_pane_id(&info.session, svc_name, idx)?;
     // build_command lives in tmux; reuse split's command form via a fresh send.
-    tmux::restart_service_pane(&pane_id, &info.root, &svc.cwd, &svc.env, &svc.cmd, ssh_of(info))
+    tmux::restart_service_pane(
+        &pane_id,
+        &info.root,
+        &svc.cwd,
+        &svc.env,
+        &svc.cmd,
+        ssh_of(info),
+    )
 }
 
 #[tauri::command(async)]
@@ -296,7 +366,8 @@ pub fn start_service(
     pane_index: i64,
 ) -> Result<(), String> {
     let info = config::spawn_info(&project_name)?;
-    let running = config::resolve_running_services(&info, &state.get_for_project(&project_name, &info));
+    let running =
+        config::resolve_running_services(&info, &state.get_for_project(&project_name, &info));
     let idx = usize::try_from(pane_index).map_err(|_| "invalid pane index".to_string())?;
     restart_service_at(&info, &running, idx)
 }
@@ -314,7 +385,8 @@ pub fn restart_service_by_name(
             "service {service_name:?} not found in project {project_name:?}"
         ));
     }
-    let running = config::resolve_running_services(&info, &state.get_for_project(project_name, &info));
+    let running =
+        config::resolve_running_services(&info, &state.get_for_project(project_name, &info));
     let idx = running
         .iter()
         .position(|s| s == service_name)
@@ -330,8 +402,11 @@ pub fn stop_service(
 ) -> Result<(), String> {
     let info = config::spawn_info(&project_name)?;
     let idx = usize::try_from(pane_index).map_err(|_| "invalid pane index".to_string())?;
-    let running = config::resolve_running_services(&info, &state.get_for_project(&project_name, &info));
-    let service = running.get(idx).ok_or_else(|| format!("pane index {idx} out of range"))?;
+    let running =
+        config::resolve_running_services(&info, &state.get_for_project(&project_name, &info));
+    let service = running
+        .get(idx)
+        .ok_or_else(|| format!("pane index {idx} out of range"))?;
     let pane_id = resolve_service_pane_id(&info.session, service, idx)?;
     tmux::stop_service_pane(&pane_id)
 }

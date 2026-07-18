@@ -16,8 +16,13 @@ const EXTRA_PATHS: [&str; 2] = ["/opt/homebrew/bin", "/usr/local/bin"];
 
 // Home-relative bin dirs a Finder-launched app never sees on PATH: claude's
 // native installer drops into ~/.local/bin; cargo/bun/npm-global/pnpm are similar.
-const HOME_BIN_DIRS: [&str; 5] =
-    [".local/bin", ".cargo/bin", ".bun/bin", ".npm-global/bin", "Library/pnpm"];
+const HOME_BIN_DIRS: [&str; 5] = [
+    ".local/bin",
+    ".cargo/bin",
+    ".bun/bin",
+    ".npm-global/bin",
+    "Library/pnpm",
+];
 
 pub fn ensure_path() {
     ensure_path_hardcoded();
@@ -180,7 +185,10 @@ mod tests {
         let with_bin = home.join(".nvm/versions/node/v20.0.0/bin");
         std::fs::create_dir_all(&with_bin).unwrap();
         std::fs::create_dir_all(home.join(".nvm/versions/node/v18.0.0")).unwrap();
-        assert_eq!(nvm_node_bins(home), vec![with_bin.to_string_lossy().into_owned()]);
+        assert_eq!(
+            nvm_node_bins(home),
+            vec![with_bin.to_string_lossy().into_owned()]
+        );
     }
 
     #[test]

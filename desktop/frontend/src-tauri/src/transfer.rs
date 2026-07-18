@@ -93,22 +93,26 @@ fn build_archive(path: &Path) -> Result<(), String> {
 
     let projects = config::projects_dir();
     if projects.is_dir() {
-        tw.append_dir_all("projects", &projects).map_err(|e| e.to_string())?;
+        tw.append_dir_all("projects", &projects)
+            .map_err(|e| e.to_string())?;
     }
     let zdot = root.join("zdotdir");
     if zdot.is_dir() {
-        tw.append_dir_all("zdotdir", &zdot).map_err(|e| e.to_string())?;
+        tw.append_dir_all("zdotdir", &zdot)
+            .map_err(|e| e.to_string())?;
     }
     for name in TOP_LEVEL_FILES {
         let p = root.join(name);
         if p.is_file() {
-            tw.append_path_with_name(&p, name).map_err(|e| e.to_string())?;
+            tw.append_path_with_name(&p, name)
+                .map_err(|e| e.to_string())?;
         }
     }
     // Not in TOP_LEVEL_FILES: import merges accounts by id instead of clobbering.
     let accounts = config::accounts_path();
     if accounts.is_file() {
-        tw.append_path_with_name(&accounts, "accounts.json").map_err(|e| e.to_string())?;
+        tw.append_path_with_name(&accounts, "accounts.json")
+            .map_err(|e| e.to_string())?;
     }
     if let Some(data) = sanitized_settings()? {
         let mut h = tar::Header::new_gnu();
@@ -143,7 +147,10 @@ fn sanitized_settings() -> Result<Option<Vec<u8>>, String> {
 // ---- import ----------------------------------------------------------------
 
 #[tauri::command]
-pub async fn import_config(app: AppHandle, overwrite: bool) -> Result<Option<ImportReport>, String> {
+pub async fn import_config(
+    app: AppHandle,
+    overwrite: bool,
+) -> Result<Option<ImportReport>, String> {
     use tauri_plugin_dialog::DialogExt;
     // Clone: the original `app` is still needed for the projects-changed emit below.
     let Some(archive) = crate::files::pick_path(app.clone(), |app| {
@@ -196,7 +203,7 @@ fn extract_tar_gz(src: &Path, dst: &Path) -> Result<(), String> {
         let raw = entry.path().map_err(|e| e.to_string())?.into_owned();
         let rel = match safe_relative(&raw) {
             Some(r) if !r.as_os_str().is_empty() => r,
-            Some(_) => continue,                                        // "." / empty
+            Some(_) => continue, // "." / empty
             None => return Err(format!("unsafe archive entry {:?}", raw.to_string_lossy())),
         };
         let target = dst.join(&rel);
@@ -270,11 +277,14 @@ pub(crate) fn snapshot_backup() -> Result<String, String> {
 /// the backup, and only exact `.lpm.backup-*` siblings are ever touched.
 fn prune_backups(keep: usize) {
     let lpm = config::lpm_dir();
-    let (Some(parent), Some(base)) = (lpm.parent(), lpm.file_name().and_then(|s| s.to_str())) else {
+    let (Some(parent), Some(base)) = (lpm.parent(), lpm.file_name().and_then(|s| s.to_str()))
+    else {
         return;
     };
     let prefix = format!("{base}.backup-");
-    let Ok(entries) = std::fs::read_dir(parent) else { return };
+    let Ok(entries) = std::fs::read_dir(parent) else {
+        return;
+    };
     let mut backups: Vec<PathBuf> = entries
         .flatten()
         .map(|e| e.path())
@@ -338,8 +348,7 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
         let mut names: Vec<String> = entries
             .flatten()
             .filter(|e| {
-                e.path().extension().and_then(|x| x.to_str()) == Some("yml")
-                    && e.path().is_file()
+                e.path().extension().and_then(|x| x.to_str()) == Some("yml") && e.path().is_file()
             })
             .filter_map(|e| e.file_name().to_str().map(String::from))
             .collect();
@@ -386,7 +395,10 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
             if exists {
                 std::fs::remove_dir_all(&zdot_dst).map_err(|e| e.to_string())?;
             }
-            let mode = std::fs::metadata(&zdot_src).map_err(|e| e.to_string())?.permissions().mode();
+            let mode = std::fs::metadata(&zdot_src)
+                .map_err(|e| e.to_string())?
+                .permissions()
+                .mode();
             copy_tree(&zdot_src, &zdot_dst, mode)?;
         }
     }
@@ -404,8 +416,13 @@ fn merge_accounts_file(src: &Path) -> Result<(), String> {
         .unwrap_or_default();
     if let Some(list) = incoming.get("accounts").and_then(Value::as_array) {
         for acc in list {
-            let Some(id) = acc.get("id").and_then(Value::as_str) else { continue };
-            match merged.iter_mut().find(|a| a.get("id").and_then(Value::as_str) == Some(id)) {
+            let Some(id) = acc.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            match merged
+                .iter_mut()
+                .find(|a| a.get("id").and_then(Value::as_str) == Some(id))
+            {
                 Some(existing) => *existing = acc.clone(),
                 None => merged.push(acc.clone()),
             }
@@ -424,7 +441,8 @@ fn merge_settings_file(src: &Path, dst: &Path) -> Result<(), String> {
 /// Merge settings.json bytes: every incoming key wins, except the per-machine keys
 /// which keep their existing local values. Shared by config import and peer sync.
 pub(crate) fn merge_settings_bytes(incoming: &[u8], current: &[u8]) -> Result<Vec<u8>, String> {
-    let incoming: Map<String, Value> = serde_json::from_slice(incoming).map_err(|e| e.to_string())?;
+    let incoming: Map<String, Value> =
+        serde_json::from_slice(incoming).map_err(|e| e.to_string())?;
     let mut current: Map<String, Value> = if current.is_empty() {
         Map::new()
     } else {
@@ -455,7 +473,10 @@ fn detect_import_issues() -> (Vec<MissingRoot>, Vec<String>) {
     for name in config::project_names() {
         if let Ok((root, is_remote)) = config::project_root(&name) {
             if !is_remote && !root.is_empty() && !Path::new(&root).is_dir() {
-                missing_roots.push(MissingRoot { project: name.clone(), root });
+                missing_roots.push(MissingRoot {
+                    project: name.clone(),
+                    root,
+                });
             }
         }
         for cmd in config::project_cmd_strings(&name) {
@@ -539,7 +560,10 @@ mod tests {
 
     #[test]
     fn safe_relative_blocks_traversal() {
-        assert_eq!(safe_relative(Path::new("projects/a.yml")), Some(PathBuf::from("projects/a.yml")));
+        assert_eq!(
+            safe_relative(Path::new("projects/a.yml")),
+            Some(PathBuf::from("projects/a.yml"))
+        );
         assert_eq!(safe_relative(Path::new("./x")), Some(PathBuf::from("x")));
         assert_eq!(safe_relative(Path::new(".")), Some(PathBuf::new())); // empty -> skipped by caller
         assert_eq!(safe_relative(Path::new("../etc/passwd")), None);
@@ -555,7 +579,10 @@ mod tests {
             let f = std::fs::File::create(&archive).unwrap();
             let gz = flate2::write::GzEncoder::new(f, flate2::Compression::default());
             let mut tw = tar::Builder::new(gz);
-            for (name, body) in [("global.yml", &b"root: ~/x"[..]), ("projects/a.yml", &b"hi"[..])] {
+            for (name, body) in [
+                ("global.yml", &b"root: ~/x"[..]),
+                ("projects/a.yml", &b"hi"[..]),
+            ] {
                 let mut h = tar::Header::new_gnu();
                 h.set_mode(0o644);
                 h.set_size(body.len() as u64);
@@ -567,17 +594,31 @@ mod tests {
         let out = dir.path().join("extracted");
         std::fs::create_dir_all(&out).unwrap();
         extract_tar_gz(&archive, &out).unwrap();
-        assert_eq!(std::fs::read_to_string(out.join("global.yml")).unwrap(), "root: ~/x");
-        assert_eq!(std::fs::read_to_string(out.join("projects/a.yml")).unwrap(), "hi"); // nested dir created
+        assert_eq!(
+            std::fs::read_to_string(out.join("global.yml")).unwrap(),
+            "root: ~/x"
+        );
+        assert_eq!(
+            std::fs::read_to_string(out.join("projects/a.yml")).unwrap(),
+            "hi"
+        ); // nested dir created
     }
 
     #[test]
     fn merge_settings_preserves_per_machine_and_incoming_wins() {
         let dir = tempfile::tempdir().unwrap();
         let dst = dir.path().join("settings.json");
-        std::fs::write(&dst, r#"{"windowWidth":1,"theme":"dark","sidebarWidth":250}"#).unwrap();
+        std::fs::write(
+            &dst,
+            r#"{"windowWidth":1,"theme":"dark","sidebarWidth":250}"#,
+        )
+        .unwrap();
         let src = dir.path().join("incoming.json");
-        std::fs::write(&src, r#"{"theme":"light","model":"opus","windowWidth":9999}"#).unwrap();
+        std::fs::write(
+            &src,
+            r#"{"theme":"light","model":"opus","windowWidth":9999}"#,
+        )
+        .unwrap();
         merge_settings_file(&src, &dst).unwrap();
         let v: Value = serde_json::from_slice(&std::fs::read(&dst).unwrap()).unwrap();
         assert_eq!(v["theme"], "light"); // incoming wins

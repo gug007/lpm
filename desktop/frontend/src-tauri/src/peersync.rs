@@ -62,8 +62,8 @@ pub struct DigestMap {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncItem {
-    pub kind: String,   // "project" | "global" | "template"
-    pub name: String,   // project/template name, or global relative path
+    pub kind: String,      // "project" | "global" | "template"
+    pub name: String,      // project/template name, or global relative path
     pub direction: String, // "toLocal" | "toRemote"
     pub local_mtime: i64,
     pub remote_mtime: i64,
@@ -90,18 +90,34 @@ pub fn local_digest_map() -> DigestMap {
 
     for name in config::project_names() {
         let path = config::project_path(&name);
-        let Ok(bytes) = std::fs::read(&path) else { continue };
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
         if let Ok(hash) = project_digest(&bytes) {
-            dm.projects.insert(name.clone(), ItemDigest { hash, mtime: mtime_millis(&path) });
+            dm.projects.insert(
+                name.clone(),
+                ItemDigest {
+                    hash,
+                    mtime: mtime_millis(&path),
+                },
+            );
             dm.project_extends.insert(name.clone(), extends_of(&bytes));
         }
     }
 
     for f in GLOBAL_FILES {
         let path = lpm.join(f);
-        let Ok(bytes) = std::fs::read(&path) else { continue };
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
         if let Ok(hash) = global_digest(f, &bytes) {
-            dm.globals.insert(f.to_string(), ItemDigest { hash, mtime: mtime_millis(&path) });
+            dm.globals.insert(
+                f.to_string(),
+                ItemDigest {
+                    hash,
+                    mtime: mtime_millis(&path),
+                },
+            );
         }
     }
     for d in GLOBAL_DIRS {
@@ -118,10 +134,19 @@ pub fn local_digest_map() -> DigestMap {
             if !is_yaml {
                 continue;
             }
-            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else { continue };
-            let Ok(bytes) = std::fs::read(&path) else { continue };
-            dm.templates
-                .insert(stem.to_string(), ItemDigest { hash: sha256_hex(&bytes), mtime: mtime_millis(&path) });
+            let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            dm.templates.insert(
+                stem.to_string(),
+                ItemDigest {
+                    hash: sha256_hex(&bytes),
+                    mtime: mtime_millis(&path),
+                },
+            );
         }
     }
 
@@ -132,12 +157,16 @@ pub fn local_digest_map() -> DigestMap {
 /// relative to `lpm` (posix-style, matching the wire naming).
 fn collect_global_dir(lpm: &Path, rel: &Path, out: &mut BTreeMap<String, ItemDigest>) {
     let dir = lpm.join(rel);
-    let Ok(entries) = std::fs::read_dir(&dir) else { return };
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
     for e in entries.flatten() {
         let name = e.file_name();
         let child_rel = rel.join(&name);
         let path = e.path();
-        let Ok(meta) = std::fs::symlink_metadata(&path) else { continue };
+        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
         if meta.file_type().is_symlink() {
             continue;
         }
@@ -146,7 +175,13 @@ fn collect_global_dir(lpm: &Path, rel: &Path, out: &mut BTreeMap<String, ItemDig
         } else if meta.is_file() {
             if let Ok(bytes) = std::fs::read(&path) {
                 let key = child_rel.to_string_lossy().replace('\\', "/");
-                out.insert(key, ItemDigest { hash: sha256_hex(&bytes), mtime: mtime_millis(&path) });
+                out.insert(
+                    key,
+                    ItemDigest {
+                        hash: sha256_hex(&bytes),
+                        mtime: mtime_millis(&path),
+                    },
+                );
             }
         }
     }
@@ -175,7 +210,7 @@ fn project_digest(bytes: &[u8]) -> Result<String, String> {
 
 /// settings.json digest with the per-machine keys removed, so window bounds /
 /// last-selected-project never make two Macs look out of sync.
-fn settings_digest(bytes: &[u8]) -> Result<String, String> {
+pub(crate) fn settings_digest(bytes: &[u8]) -> Result<String, String> {
     let mut j: Json = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     if let Json::Object(map) = &mut j {
         for k in crate::transfer::PER_MACHINE_KEYS {
@@ -192,7 +227,9 @@ struct ExtendsOnly {
 }
 
 fn extends_of(bytes: &[u8]) -> Vec<String> {
-    serde_yaml::from_slice::<ExtendsOnly>(bytes).map(|e| e.extends).unwrap_or_default()
+    serde_yaml::from_slice::<ExtendsOnly>(bytes)
+        .map(|e| e.extends)
+        .unwrap_or_default()
 }
 
 // ---- diff --------------------------------------------------------------------
@@ -240,7 +277,11 @@ pub fn compute_plan(local: &DigestMap, remote: &DigestMap) -> Vec<SyncItem> {
 }
 
 fn make_item(kind: &str, name: &str, local_mtime: i64, remote_mtime: i64) -> SyncItem {
-    let direction = if remote_mtime > local_mtime { "toLocal" } else { "toRemote" };
+    let direction = if remote_mtime > local_mtime {
+        "toLocal"
+    } else {
+        "toRemote"
+    };
     SyncItem {
         kind: kind.to_string(),
         name: name.to_string(),
@@ -277,11 +318,20 @@ pub fn read_item(kind: &str, name: &str) -> Result<WireItem, String> {
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     let mtime = mtime_millis(&path);
     let binary = kind == "global" && name.starts_with("generator-icons/");
-    let (enc, content) = match (!binary).then(|| std::str::from_utf8(&bytes).ok()).flatten() {
+    let (enc, content) = match (!binary)
+        .then(|| std::str::from_utf8(&bytes).ok())
+        .flatten()
+    {
         Some(s) => ("text".to_string(), s.to_string()),
         None => ("b64".to_string(), base64_encode(&bytes)),
     };
-    Ok(WireItem { kind: kind.to_string(), name: name.to_string(), enc, content, mtime })
+    Ok(WireItem {
+        kind: kind.to_string(),
+        name: name.to_string(),
+        enc,
+        content,
+        mtime,
+    })
 }
 
 fn read_path(kind: &str, name: &str) -> Result<PathBuf, String> {
@@ -401,12 +451,7 @@ fn safe_global_rel(name: &str) -> Result<PathBuf, String> {
 }
 
 fn validate_simple_name(name: &str) -> Result<(), String> {
-    if name.is_empty()
-        || name.contains('/')
-        || name.contains('\\')
-        || name == "."
-        || name == ".."
-    {
+    if name.is_empty() || name.contains('/') || name.contains('\\') || name == "." || name == ".." {
         return Err(format!("invalid name: {name:?}"));
     }
     Ok(())
@@ -469,7 +514,9 @@ fn yaml_to_json(y: &serde_yaml::Value) -> Json {
             } else if let Some(u) = n.as_u64() {
                 Json::from(u)
             } else if let Some(f) = n.as_f64() {
-                serde_json::Number::from_f64(f).map(Json::Number).unwrap_or(Json::Null)
+                serde_json::Number::from_f64(f)
+                    .map(Json::Number)
+                    .unwrap_or(Json::Null)
             } else {
                 Json::Null
             }
@@ -481,7 +528,10 @@ fn yaml_to_json(y: &serde_yaml::Value) -> Json {
             for (k, val) in m {
                 let key = match k {
                     serde_yaml::Value::String(s) => s.clone(),
-                    other => serde_yaml::to_string(other).unwrap_or_default().trim().to_string(),
+                    other => serde_yaml::to_string(other)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string(),
                 };
                 obj.insert(key, yaml_to_json(val));
             }
@@ -498,7 +548,9 @@ fn base64_encode(bytes: &[u8]) -> String {
 
 fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
     use base64::Engine as _;
-    base64::engine::general_purpose::STANDARD.decode(s.as_bytes()).map_err(|e| e.to_string())
+    base64::engine::general_purpose::STANDARD
+        .decode(s.as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -513,21 +565,33 @@ mod tests {
     fn project_digest_ignores_machine_local_keys() {
         let a = "name: web\nroot: /Users/alice/web\nservices:\n  api:\n    cmd: go run .\n";
         let b = "name: web\nroot: /Users/bob/projects/web\nssh:\n  host: h\n  user: u\nclaudeAccount: work\nparent_name: base\nservices:\n  api:\n    cmd: go run .\n";
-        assert_eq!(digest(a), digest(b), "only root/ssh/claudeAccount/parent_name differ");
+        assert_eq!(
+            digest(a),
+            digest(b),
+            "only root/ssh/claudeAccount/parent_name differ"
+        );
     }
 
     #[test]
     fn project_digest_changes_with_portable_content() {
         let a = "name: web\nroot: /x\nservices:\n  api:\n    cmd: go run .\n";
         let b = "name: web\nroot: /x\nservices:\n  api:\n    cmd: cargo run\n";
-        assert_ne!(digest(a), digest(b), "a service change must change the digest");
+        assert_ne!(
+            digest(a),
+            digest(b),
+            "a service change must change the digest"
+        );
     }
 
     #[test]
     fn project_digest_independent_of_key_order() {
         let a = "name: web\nroot: /x\nservices:\n  api:\n    cmd: run\n";
         let b = "services:\n  api:\n    cmd: run\nroot: /y\nname: web\n";
-        assert_eq!(digest(a), digest(b), "key order and root value must not matter");
+        assert_eq!(
+            digest(a),
+            digest(b),
+            "key order and root value must not matter"
+        );
     }
 
     #[test]
@@ -580,10 +644,19 @@ mod tests {
         }
         let out: serde_yaml::Value =
             serde_yaml::from_str(&serde_yaml::to_string(&inc).unwrap()).unwrap();
-        assert_eq!(out.get("root").and_then(|v| v.as_str()), Some("/Users/local/web"));
-        assert_eq!(out.get("claudeAccount").and_then(|v| v.as_str()), Some("personal"));
         assert_eq!(
-            out.get("services").and_then(|s| s.get("api")).and_then(|a| a.get("cmd")).and_then(|c| c.as_str()),
+            out.get("root").and_then(|v| v.as_str()),
+            Some("/Users/local/web")
+        );
+        assert_eq!(
+            out.get("claudeAccount").and_then(|v| v.as_str()),
+            Some("personal")
+        );
+        assert_eq!(
+            out.get("services")
+                .and_then(|s| s.get("api"))
+                .and_then(|a| a.get("cmd"))
+                .and_then(|c| c.as_str()),
             Some("new"),
         );
     }
@@ -592,13 +665,43 @@ mod tests {
     fn compute_plan_directions_follow_mtime() {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
-        local.projects.insert("web".into(), ItemDigest { hash: "a".into(), mtime: 200 });
-        remote.projects.insert("web".into(), ItemDigest { hash: "b".into(), mtime: 100 });
+        local.projects.insert(
+            "web".into(),
+            ItemDigest {
+                hash: "a".into(),
+                mtime: 200,
+            },
+        );
+        remote.projects.insert(
+            "web".into(),
+            ItemDigest {
+                hash: "b".into(),
+                mtime: 100,
+            },
+        );
         // Present on both, local newer -> push local to remote.
-        local.projects.insert("api".into(), ItemDigest { hash: "a".into(), mtime: 100 });
-        remote.projects.insert("api".into(), ItemDigest { hash: "b".into(), mtime: 300 });
+        local.projects.insert(
+            "api".into(),
+            ItemDigest {
+                hash: "a".into(),
+                mtime: 100,
+            },
+        );
+        remote.projects.insert(
+            "api".into(),
+            ItemDigest {
+                hash: "b".into(),
+                mtime: 300,
+            },
+        );
         // Present only locally -> not synced (projects are intersection-only).
-        local.projects.insert("solo".into(), ItemDigest { hash: "a".into(), mtime: 1 });
+        local.projects.insert(
+            "solo".into(),
+            ItemDigest {
+                hash: "a".into(),
+                mtime: 1,
+            },
+        );
 
         let plan = compute_plan(&local, &remote);
         let web = plan.iter().find(|i| i.name == "web").unwrap();
@@ -612,9 +715,21 @@ mod tests {
     fn compute_plan_globals_union_and_settings_special() {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
-        local.globals.insert("global.yml".into(), ItemDigest { hash: "x".into(), mtime: 5 });
+        local.globals.insert(
+            "global.yml".into(),
+            ItemDigest {
+                hash: "x".into(),
+                mtime: 5,
+            },
+        );
         // Only remote has groups.json -> created locally.
-        remote.globals.insert("groups.json".into(), ItemDigest { hash: "y".into(), mtime: 9 });
+        remote.globals.insert(
+            "groups.json".into(),
+            ItemDigest {
+                hash: "y".into(),
+                mtime: 9,
+            },
+        );
         let plan = compute_plan(&local, &remote);
         let g = plan.iter().find(|i| i.name == "groups.json").unwrap();
         assert_eq!(g.direction, "toLocal");
@@ -628,13 +743,37 @@ mod tests {
     fn referenced_templates_only_from_matched_projects() {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
-        local.projects.insert("web".into(), ItemDigest { hash: "a".into(), mtime: 1 });
-        remote.projects.insert("web".into(), ItemDigest { hash: "a".into(), mtime: 1 });
-        local.project_extends.insert("web".into(), vec!["base".into()]);
-        remote.project_extends.insert("web".into(), vec!["node".into()]);
+        local.projects.insert(
+            "web".into(),
+            ItemDigest {
+                hash: "a".into(),
+                mtime: 1,
+            },
+        );
+        remote.projects.insert(
+            "web".into(),
+            ItemDigest {
+                hash: "a".into(),
+                mtime: 1,
+            },
+        );
+        local
+            .project_extends
+            .insert("web".into(), vec!["base".into()]);
+        remote
+            .project_extends
+            .insert("web".into(), vec!["node".into()]);
         // Not matched (local only), its extends must be ignored.
-        local.projects.insert("solo".into(), ItemDigest { hash: "a".into(), mtime: 1 });
-        local.project_extends.insert("solo".into(), vec!["ignored".into()]);
+        local.projects.insert(
+            "solo".into(),
+            ItemDigest {
+                hash: "a".into(),
+                mtime: 1,
+            },
+        );
+        local
+            .project_extends
+            .insert("solo".into(), vec!["ignored".into()]);
         let refs = referenced_templates(&local, &remote);
         assert!(refs.contains("base") && refs.contains("node"));
         assert!(!refs.contains("ignored"));

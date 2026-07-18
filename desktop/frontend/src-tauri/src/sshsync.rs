@@ -20,8 +20,8 @@ const PULL_TTL: Duration = Duration::from_secs(5); // skip re-pull within this w
 const SYNC_DEBOUNCE: Duration = Duration::from_millis(1500); // coalesce fs bursts
 
 struct ProjectSync {
-    path: String,             // ~/.lpm/sync/<project>
-    inner: Mutex<SyncInner>,  // serializes pull/push (Go's per-project mu)
+    path: String,            // ~/.lpm/sync/<project>
+    inner: Mutex<SyncInner>, // serializes pull/push (Go's per-project mu)
 }
 struct SyncInner {
     last_pull: Option<Instant>,
@@ -85,7 +85,11 @@ fn rsync_available() -> bool {
 /// Pull the remote dir into the local cache (skipping if pulled within the TTL),
 /// start the watcher, and return the local cache path. Called from action
 /// resolution for `mode: sync`.
-pub fn ensure_project_sync(app: &AppHandle, project: &str, ssh: &SshSettings) -> Result<String, String> {
+pub fn ensure_project_sync(
+    app: &AppHandle,
+    project: &str,
+    ssh: &SshSettings,
+) -> Result<String, String> {
     if ssh.dir.trim().is_empty() {
         return Err("sync-mode actions require a remote directory (ssh.dir) to be set".into());
     }
@@ -109,7 +113,10 @@ pub fn ensure_project_sync(app: &AppHandle, project: &str, ssh: &SshSettings) ->
 
     {
         let mut inner = entry.inner.lock().unwrap();
-        let fresh = inner.last_pull.map(|t| t.elapsed() < PULL_TTL).unwrap_or(false);
+        let fresh = inner
+            .last_pull
+            .map(|t| t.elapsed() < PULL_TTL)
+            .unwrap_or(false);
         if !fresh {
             let src = format!("{}/", remote_ref(ssh));
             let dst = format!("{}/", entry.path);
@@ -135,7 +142,10 @@ fn push_project_sync(app: &AppHandle, ssh: &SshSettings, entry: &Arc<ProjectSync
     let _guard = entry.inner.lock().unwrap();
     let src = format!("{}/", entry.path);
     let dst = format!("{}/", remote_ref(ssh));
-    match Command::new("rsync").args(rsync_args(ssh, &src, &dst)).output() {
+    match Command::new("rsync")
+        .args(rsync_args(ssh, &src, &dst))
+        .output()
+    {
         Ok(out) if out.status.success() => {}
         Ok(out) => {
             let tail = config::trim_tail(&out.stderr, 500);
@@ -180,7 +190,10 @@ fn start_watcher(app: &AppHandle, project: &str, entry: &Arc<ProjectSync>) {
         Ok(w) => w,
         Err(_) => return, // matches Go: watch error is non-fatal, just no live sync
     };
-    if watcher.watch(Path::new(&entry.path), RecursiveMode::Recursive).is_err() {
+    if watcher
+        .watch(Path::new(&entry.path), RecursiveMode::Recursive)
+        .is_err()
+    {
         return;
     }
 
@@ -273,7 +286,9 @@ pub fn stop_all_sync_watchers(app: &AppHandle) {
 /// Mirrors Go pruneOrphanSyncDirs.
 pub fn prune_orphan_sync_dirs(existing: &std::collections::HashSet<String>) {
     let base = config::lpm_dir().join("sync");
-    let Ok(entries) = std::fs::read_dir(&base) else { return };
+    let Ok(entries) = std::fs::read_dir(&base) else {
+        return;
+    };
     for e in entries.flatten() {
         if let Some(name) = e.file_name().to_str() {
             if !existing.contains(name) {

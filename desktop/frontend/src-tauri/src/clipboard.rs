@@ -70,7 +70,11 @@ pub fn reap_stale_clipboard_images() {
         Err(_) => return,
     };
     for entry in entries.flatten() {
-        if !entry.file_name().to_string_lossy().starts_with("clipboard-") {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with("clipboard-")
+        {
             continue;
         }
         let stale = entry

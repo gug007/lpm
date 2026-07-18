@@ -104,7 +104,10 @@ impl Store {
         conn.query_row("SELECT count(*) FROM sqlite_master", [], |_| Ok(()))
             .map_err(|e| format!("notes: ping db (bad key or corrupted file?): {e}"))?;
 
-        let store = Store { conn: Mutex::new(conn), dir: dir.to_path_buf() };
+        let store = Store {
+            conn: Mutex::new(conn),
+            dir: dir.to_path_buf(),
+        };
         store.migrate()?;
         Ok(store)
     }
@@ -185,7 +188,11 @@ impl Store {
     fn backfill_default_chat(&self) -> Result<(), String> {
         let mut conn = self.conn.lock().unwrap();
         let unassigned: i64 = conn
-            .query_row("SELECT COUNT(*) FROM messages WHERE chat_id IS NULL", [], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM messages WHERE chat_id IS NULL",
+                [],
+                |r| r.get(0),
+            )
             .map_err(|e| format!("notes: count unassigned messages: {e}"))?;
         if unassigned == 0 {
             return Ok(());
@@ -198,8 +205,11 @@ impl Store {
             params![id, DEFAULT_CHAT_TITLE, now, now],
         )
         .map_err(|e| format!("notes: create default chat: {e}"))?;
-        tx.execute("UPDATE messages SET chat_id = ? WHERE chat_id IS NULL", params![id])
-            .map_err(|e| format!("notes: backfill chat_id: {e}"))?;
+        tx.execute(
+            "UPDATE messages SET chat_id = ? WHERE chat_id IS NULL",
+            params![id],
+        )
+        .map_err(|e| format!("notes: backfill chat_id: {e}"))?;
         tx.commit().map_err(|e| e.to_string())
     }
 
@@ -229,7 +239,9 @@ impl Store {
     pub fn list_chats(&self) -> Result<Vec<Chat>, String> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn
-            .prepare("SELECT id, title, created_ts, updated_ts FROM chats ORDER BY updated_ts DESC, id")
+            .prepare(
+                "SELECT id, title, created_ts, updated_ts FROM chats ORDER BY updated_ts DESC, id",
+            )
             .map_err(|e| format!("notes: list chats: {e}"))?;
         let rows = stmt
             .query_map([], |r| {
@@ -255,7 +267,10 @@ impl Store {
         }
         let conn = self.conn.lock().unwrap();
         let n = conn
-            .execute("UPDATE chats SET title = ? WHERE id = ?", params![title, id])
+            .execute(
+                "UPDATE chats SET title = ? WHERE id = ?",
+                params![title, id],
+            )
             .map_err(|e| format!("notes: rename chat: {e}"))?;
         if n == 0 {
             return Err(NO_ROWS.into());
@@ -266,7 +281,11 @@ impl Store {
     pub fn chat_exists(&self, id: &str) -> Result<bool, String> {
         let conn = self.conn.lock().unwrap();
         let n: i64 = conn
-            .query_row("SELECT COUNT(*) FROM chats WHERE id = ?", params![id], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM chats WHERE id = ?",
+                params![id],
+                |r| r.get(0),
+            )
             .map_err(|e| format!("notes: chat exists: {e}"))?;
         Ok(n > 0)
     }
@@ -324,7 +343,10 @@ impl Store {
         let tx = conn.transaction().map_err(|e| e.to_string())?;
         // UPDATE doubles as existence check (0 rows ⇒ no such chat).
         let n = tx
-            .execute("UPDATE chats SET updated_ts = ? WHERE id = ?", params![now, chat_id])
+            .execute(
+                "UPDATE chats SET updated_ts = ? WHERE id = ?",
+                params![now, chat_id],
+            )
             .map_err(|e| format!("notes: bump chat: {e}"))?;
         if n == 0 {
             return Err(NO_ROWS.into());
@@ -369,7 +391,11 @@ impl Store {
         if chat_id.is_empty() {
             return Err("notes: chat id is empty".into());
         }
-        let limit = if limit <= 0 || limit > 500 { 100 } else { limit };
+        let limit = if limit <= 0 || limit > 500 {
+            100
+        } else {
+            limit
+        };
 
         let conn = self.conn.lock().unwrap();
         let mut msgs: Vec<Message> = Vec::new();
@@ -379,7 +405,11 @@ impl Store {
                     "SELECT id, chat_id, ts, text, edited_ts FROM messages \
                      WHERE chat_id = ? AND seq < (SELECT seq FROM messages WHERE id = ?) \
                      ORDER BY seq DESC LIMIT ?",
-                    vec![chat_id.to_string().into(), before_id.to_string().into(), limit.into()],
+                    vec![
+                        chat_id.to_string().into(),
+                        before_id.to_string().into(),
+                        limit.into(),
+                    ],
                 )
             } else {
                 (
@@ -388,7 +418,9 @@ impl Store {
                     vec![chat_id.to_string().into(), limit.into()],
                 )
             };
-            let mut stmt = conn.prepare(sql).map_err(|e| format!("notes: list messages: {e}"))?;
+            let mut stmt = conn
+                .prepare(sql)
+                .map_err(|e| format!("notes: list messages: {e}"))?;
             let rows = stmt
                 .query_map(params_from_iter(bound.iter()), |r| {
                     Ok(Message {
@@ -501,7 +533,9 @@ impl Store {
         );
 
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(&sql).map_err(|e| format!("notes: search: {e}"))?;
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|e| format!("notes: search: {e}"))?;
         let first = tokens[0];
         let rows = stmt
             .query_map(params_from_iter(args.iter()), |r| {
@@ -533,7 +567,9 @@ fn load_attachments(conn: &Connection, msgs: &mut [Message]) -> Result<(), Strin
     let sql = format!(
         "SELECT message_id, hash, name, size, mime_type FROM attachments WHERE message_id IN ({placeholders})"
     );
-    let mut stmt = conn.prepare(&sql).map_err(|e| format!("notes: load attachments: {e}"))?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|e| format!("notes: load attachments: {e}"))?;
     let rows = stmt
         .query_map(params_from_iter(ids.iter()), |r| {
             let msg_id: String = r.get(0)?;
@@ -567,8 +603,11 @@ fn orphans_among(tx: &rusqlite::Transaction, candidates: &[String]) -> Result<Ve
     let sql = format!("SELECT DISTINCT hash FROM attachments WHERE hash IN ({placeholders})");
     let mut still_ref = std::collections::HashSet::new();
     {
-        let mut stmt = tx.prepare(&sql).map_err(|e| format!("notes: count orphan refs: {e}"))?;
-        let args: Vec<rusqlite::types::Value> = candidates.iter().map(|h| h.clone().into()).collect();
+        let mut stmt = tx
+            .prepare(&sql)
+            .map_err(|e| format!("notes: count orphan refs: {e}"))?;
+        let args: Vec<rusqlite::types::Value> =
+            candidates.iter().map(|h| h.clone().into()).collect();
         let rows = stmt
             .query_map(params_from_iter(args.iter()), |r| r.get::<_, String>(0))
             .map_err(|e| format!("notes: count orphan refs: {e}"))?;
@@ -585,7 +624,9 @@ fn orphans_among(tx: &rusqlite::Transaction, candidates: &[String]) -> Result<Ve
 
 /// Backslash escapes itself because the SQL uses ESCAPE '\'.
 fn escape_like(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 fn build_snippet(text: &str, term: &str) -> String {
@@ -765,7 +806,10 @@ mod tests {
     #[test]
     fn wrong_key_is_rejected() {
         let dir = tempfile::tempdir().unwrap();
-        Store::open(dir.path(), &k()).unwrap().create_chat("x").unwrap();
+        Store::open(dir.path(), &k())
+            .unwrap()
+            .create_chat("x")
+            .unwrap();
         let bad = Store::open(dir.path(), &[1u8; 32]);
         assert!(bad.is_err(), "a different key must fail to open");
     }
@@ -804,7 +848,11 @@ mod tests {
                 .iter()
                 .map(|c| s.list_messages(&c.id, 500, "").unwrap().len())
                 .sum();
-            println!("OK <project>: {} chats, {} messages decrypted", chats.len(), total);
+            println!(
+                "OK <project>: {} chats, {} messages decrypted",
+                chats.len(),
+                total
+            );
 
             // Decrypt one real blob (if any) and verify content-addressing.
             let blobs_dir = proj_dir.join("blobs");

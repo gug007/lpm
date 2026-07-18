@@ -138,10 +138,15 @@ const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
 
 #[derive(Clone, Debug, PartialEq)]
 enum Schedule {
-    Interval { secs: u64 },
+    Interval {
+        secs: u64,
+    },
     /// `at_min` is minutes since local midnight; `days` are weekday numbers
     /// (0 = Mon .. 6 = Sun), empty meaning every day.
-    Calendar { at_min: u32, days: Vec<u8> },
+    Calendar {
+        at_min: u32,
+        days: Vec<u8>,
+    },
     /// Never fires automatically; runs only when started by hand.
     Manual,
 }
@@ -153,7 +158,13 @@ enum RunTarget {
     /// `full_access` grants the agent its autonomous mode (edit files, run
     /// commands); without it a headless run can only read and report — any
     /// "may I proceed?" question it asks has no one to answer it.
-    Prompt { prompt: String, agent: String, model: String, effort: String, full_access: bool },
+    Prompt {
+        prompt: String,
+        agent: String,
+        model: String,
+        effort: String,
+        full_access: bool,
+    },
 }
 
 struct JobResolved {
@@ -184,8 +195,11 @@ fn parse_every_secs(v: &EveryValue) -> Result<u64, String> {
             } else {
                 (s.as_str(), 3600u64)
             };
-            let n: u64 = num.parse().map_err(|_| "The interval isn't a valid length.".to_string())?;
-            n.checked_mul(mult).ok_or_else(|| "The interval is too large.".to_string())?
+            let n: u64 = num
+                .parse()
+                .map_err(|_| "The interval isn't a valid length.".to_string())?;
+            n.checked_mul(mult)
+                .ok_or_else(|| "The interval is too large.".to_string())?
         }
     };
     if secs < MIN_INTERVAL_SECS {
@@ -256,7 +270,9 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     }
     if !action.is_empty() {
         if config::resolve_action_full(project, action).is_none() {
-            return Err(format!("The action \"{action}\" doesn't exist in this project."));
+            return Err(format!(
+                "The action \"{action}\" doesn't exist in this project."
+            ));
         }
         return Ok(RunTarget::Action(action.to_string()));
     }
@@ -274,7 +290,10 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
     // OpenCode's non-interactive mode runs tools unconditionally — there is no
     // read-only to give, so pretending would be worse than refusing.
     if agent == "opencode" && access == "read" {
-        return Err("OpenCode always runs with full access — pick another agent for a read-only job.".into());
+        return Err(
+            "OpenCode always runs with full access — pick another agent for a read-only job."
+                .into(),
+        );
     }
     Ok(RunTarget::Prompt {
         prompt: prompt.to_string(),
@@ -286,13 +305,23 @@ fn resolve_run(project: &str, run: &RunDef) -> Result<RunTarget, String> {
 }
 
 fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, String> {
-    let sched = def.schedule.as_ref().ok_or_else(|| "Give this job a schedule.".to_string())?;
+    let sched = def
+        .schedule
+        .as_ref()
+        .ok_or_else(|| "Give this job a schedule.".to_string())?;
     let schedule = resolve_schedule(sched)?;
-    let run = def.run.as_ref().ok_or_else(|| "Give this job something to run.".to_string())?;
+    let run = def
+        .run
+        .as_ref()
+        .ok_or_else(|| "Give this job something to run.".to_string())?;
     let run = resolve_run(project, run)?;
     Ok(JobResolved {
         id: id.to_string(),
-        label: if def.label.trim().is_empty() { id.to_string() } else { def.label.clone() },
+        label: if def.label.trim().is_empty() {
+            id.to_string()
+        } else {
+            def.label.clone()
+        },
         emoji: def.emoji.clone(),
         schedule,
         check: def.check.trim().to_string(),
@@ -319,8 +348,10 @@ fn merge_job_defs(
     repo: BTreeMap<String, JobDef>,
     global: BTreeMap<String, JobDef>,
 ) -> BTreeMap<String, (JobDef, &'static str)> {
-    let mut out: BTreeMap<String, (JobDef, &'static str)> =
-        global.into_iter().map(|(k, v)| (k, (v, SOURCE_GLOBAL))).collect();
+    let mut out: BTreeMap<String, (JobDef, &'static str)> = global
+        .into_iter()
+        .map(|(k, v)| (k, (v, SOURCE_GLOBAL)))
+        .collect();
     for (k, v) in repo {
         out.insert(k, (v, SOURCE_REPO));
     }
@@ -385,13 +416,19 @@ fn resolve_standalone_jobs() -> Vec<(String, Result<JobResolved, String>)> {
 }
 
 fn home_dir() -> String {
-    dirs::home_dir().unwrap_or_default().to_string_lossy().into_owned()
+    dirs::home_dir()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
 }
 
 // ---- scheduling math --------------------------------------------------------
 
 fn now_secs() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// A stable 0–5 minute offset per job so jobs sharing a fire point (e.g. every
@@ -497,9 +534,17 @@ struct JobState {
     running: Option<RunningLock>,
     #[serde(default, rename = "activeRun", skip_serializing_if = "Option::is_none")]
     active_run: Option<ActiveRun>,
-    #[serde(default, rename = "pendingTask", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "pendingTask",
+        skip_serializing_if = "Option::is_none"
+    )]
     pending_task: Option<Value>,
-    #[serde(default, rename = "enabledOverride", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "enabledOverride",
+        skip_serializing_if = "Option::is_none"
+    )]
     enabled_override: Option<bool>,
 }
 
@@ -517,7 +562,11 @@ struct HistoryEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     output: Option<String>,
     /// Spawn-to-exit length of a captured run.
-    #[serde(default, rename = "durationSecs", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "durationSecs",
+        skip_serializing_if = "Option::is_none"
+    )]
     duration_secs: Option<u64>,
     /// What the run cost, when the agent reports it (Claude's result JSON).
     #[serde(default, rename = "costUsd", skip_serializing_if = "Option::is_none")]
@@ -637,14 +686,22 @@ fn load_job_state(key: &str) -> JobState {
 /// blocked job re-skips every tick, and a quiet check-gated job would
 /// otherwise fill the whole history with "nothing to do" between real runs.
 fn is_collapsible(result: &str) -> bool {
-    matches!(result, SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | NOTHING_TO_DO)
+    matches!(
+        result,
+        SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | NOTHING_TO_DO
+    )
 }
 
 /// Append a history entry, capped at the newest `HISTORY_CAP`.
 fn push_history(st: &mut JobState, at: u64, result: &str, copy: Option<String>) {
     push_entry(
         st,
-        HistoryEntry { at, result: result.to_string(), copy, ..HistoryEntry::default() },
+        HistoryEntry {
+            at,
+            result: result.to_string(),
+            copy,
+            ..HistoryEntry::default()
+        },
     );
 }
 
@@ -692,7 +749,11 @@ fn inflight() -> &'static Mutex<HashMap<String, u64>> {
 }
 
 fn mark_inflight(key: &str) -> bool {
-    inflight().lock().unwrap().insert(key.to_string(), now_secs()).is_none()
+    inflight()
+        .lock()
+        .unwrap()
+        .insert(key.to_string(), now_secs())
+        .is_none()
 }
 
 fn clear_inflight(key: &str) {
@@ -727,8 +788,8 @@ fn take_canceled(key: &str) -> bool {
 /// actually running in this process — otherwise a stray flag would mark the
 /// *next* run as stopped the moment it starts.
 fn request_cancel(key: &str) -> bool {
-    let running =
-        inflight().lock().unwrap().contains_key(key) || active_runs().lock().unwrap().contains_key(key);
+    let running = inflight().lock().unwrap().contains_key(key)
+        || active_runs().lock().unwrap().contains_key(key);
     if running {
         canceled_keys().lock().unwrap().insert(key.to_string());
     }
@@ -756,7 +817,12 @@ struct Outcome {
 }
 
 fn err_outcome(note: impl Into<String>) -> Outcome {
-    Outcome { result: ERROR, copy: None, advance: true, note: Some(note.into()) }
+    Outcome {
+        result: ERROR,
+        copy: None,
+        advance: true,
+        note: Some(note.into()),
+    }
 }
 
 enum Dispatch {
@@ -783,7 +849,9 @@ fn shell_command(cwd: &str, cmd: &str) -> Command {
     let script = format!("cd {} && {}", config::shell_quote(cwd), cmd);
     let mut c = Command::new(shell);
     c.arg("-ilc").arg(script).current_dir(cwd);
-    c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    c.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     unsafe {
         c.pre_exec(|| {
             if libc::setsid() == -1 {
@@ -840,10 +908,20 @@ fn wait_or_kill(
 /// pin the worker thread and its in-process inflight slot forever. `key` (the
 /// scheduler passes it, the editor's dry-run doesn't) makes the check child
 /// visible to Stop.
-fn run_check(root: &str, check: &str, timeout: Duration, key: Option<&str>) -> Result<bool, String> {
-    let mut child = shell_command(root, check).spawn().map_err(|e| e.to_string())?;
+fn run_check(
+    root: &str,
+    check: &str,
+    timeout: Duration,
+    key: Option<&str>,
+) -> Result<bool, String> {
+    let mut child = shell_command(root, check)
+        .spawn()
+        .map_err(|e| e.to_string())?;
     if let Some(k) = key {
-        active_runs().lock().unwrap().insert(k.to_string(), now_secs());
+        active_runs()
+            .lock()
+            .unwrap()
+            .insert(k.to_string(), now_secs());
     }
     let verdict = wait_or_kill(&mut child, std::time::Instant::now() + timeout, key);
     if let Some(k) = key {
@@ -887,21 +965,34 @@ fn default_ai_cli() -> String {
 /// With `full_access` the agent gets its unattended mode — there is nobody at a
 /// headless run to answer a permission prompt, so without it the agent can only
 /// read and report.
-fn agent_prompt_cmdline(agent: &str, model: &str, effort: &str, full_access: bool, prompt: &str) -> String {
+fn agent_prompt_cmdline(
+    agent: &str,
+    model: &str,
+    effort: &str,
+    full_access: bool,
+    prompt: &str,
+) -> String {
     let q = config::shell_quote(prompt);
     let m = config::shell_quote(model);
     let e = config::shell_quote(effort);
     match agent {
         // Codex takes reasoning effort as a `-c model_reasoning_effort=…` config.
         "codex" => {
-            let model_arg = if model.is_empty() { String::new() } else { format!(" -m {m}") };
+            let model_arg = if model.is_empty() {
+                String::new()
+            } else {
+                format!(" -m {m}")
+            };
             let effort_arg = if effort.is_empty() {
                 String::new()
             } else {
                 format!(" -c model_reasoning_effort={e}")
             };
-            let access_arg =
-                if full_access { " --dangerously-bypass-approvals-and-sandbox" } else { "" };
+            let access_arg = if full_access {
+                " --dangerously-bypass-approvals-and-sandbox"
+            } else {
+                ""
+            };
             // Codex refuses to start outside a git repository by default;
             // scheduled runs must work in any project folder.
             format!("codex exec --skip-git-repo-check{model_arg}{effort_arg}{access_arg} {q}")
@@ -947,9 +1038,21 @@ fn claude_cmdline(
         Some(sid) => format!(" --resume {}", config::shell_quote(sid)),
         None => String::new(),
     };
-    let model_arg = if model.is_empty() { String::new() } else { format!(" --model {m}") };
-    let effort_arg = if effort.is_empty() { String::new() } else { format!(" --effort {e}") };
-    let access_arg = if full_access { " --dangerously-skip-permissions" } else { "" };
+    let model_arg = if model.is_empty() {
+        String::new()
+    } else {
+        format!(" --model {m}")
+    };
+    let effort_arg = if effort.is_empty() {
+        String::new()
+    } else {
+        format!(" --effort {e}")
+    };
+    let access_arg = if full_access {
+        " --dangerously-skip-permissions"
+    } else {
+        ""
+    };
     // stream-json (which requires --verbose in print mode) writes an event per
     // message as the run progresses, so the log can be tailed live; its final
     // `result` event carries the same fields the plain json mode did.
@@ -1076,7 +1179,9 @@ fn render_claude_stream(raw: &str) -> Option<String> {
             push_line(line);
             continue;
         }
-        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
         if v.get("type").and_then(Value::as_str) != Some("assistant") {
             continue;
         }
@@ -1084,8 +1189,11 @@ fn render_claude_stream(raw: &str) -> Option<String> {
         for block in blocks.into_iter().flatten() {
             match block.get("type").and_then(Value::as_str) {
                 Some("text") => {
-                    if let Some(t) =
-                        block.get("text").and_then(Value::as_str).map(str::trim).filter(|t| !t.is_empty())
+                    if let Some(t) = block
+                        .get("text")
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|t| !t.is_empty())
                     {
                         push_line(t);
                     }
@@ -1108,9 +1216,10 @@ fn render_claude_stream(raw: &str) -> Option<String> {
 /// (failures live at the end).
 fn fallback_output(agent: Option<&str>, raw: &str) -> String {
     match agent {
-        Some("claude") => {
-            render_claude_stream(raw).map_or_else(|| tail_chars(raw, OUTPUT_CAP_CHARS), |r| tail_chars(&r, OUTPUT_CAP_CHARS))
-        }
+        Some("claude") => render_claude_stream(raw).map_or_else(
+            || tail_chars(raw, OUTPUT_CAP_CHARS),
+            |r| tail_chars(&r, OUTPUT_CAP_CHARS),
+        ),
         _ => tail_chars(raw, OUTPUT_CAP_CHARS),
     }
 }
@@ -1156,7 +1265,10 @@ fn thread_groups(history: &[HistoryEntry]) -> Vec<Vec<usize>> {
 fn thread_entries<'a>(history: &'a [HistoryEntry], session: &str) -> Vec<&'a HistoryEntry> {
     thread_groups(history)
         .into_iter()
-        .find(|g| g.iter().any(|&i| history[i].session.as_deref() == Some(session)))
+        .find(|g| {
+            g.iter()
+                .any(|&i| history[i].session.as_deref() == Some(session))
+        })
         .map(|g| g.into_iter().map(|i| &history[i]).collect())
         .unwrap_or_default()
 }
@@ -1192,7 +1304,10 @@ fn remove_history_entries(
     if !whole_thread {
         return vec![history.remove(pos)];
     }
-    let Some(group) = thread_groups(history).into_iter().find(|g| g.contains(&pos)) else {
+    let Some(group) = thread_groups(history)
+        .into_iter()
+        .find(|g| g.contains(&pos))
+    else {
         return Vec::new();
     };
     let doomed: HashSet<usize> = group.into_iter().collect();
@@ -1222,7 +1337,11 @@ fn tail_chars(s: &str, max: usize) -> String {
     if count <= max {
         return s.trim_end().to_string();
     }
-    s.chars().skip(count - max).collect::<String>().trim_end().to_string()
+    s.chars()
+        .skip(count - max)
+        .collect::<String>()
+        .trim_end()
+        .to_string()
 }
 
 /// The last `max_bytes` of a file, starting at a line boundary so a chopped
@@ -1336,7 +1455,10 @@ fn reap_run(
 }
 
 fn captured_shell_line(cmdline: &str, log_path: &Path) -> String {
-    format!("{{ {cmdline} ; }} > {} 2>&1", config::shell_quote(&log_path.to_string_lossy()))
+    format!(
+        "{{ {cmdline} ; }} > {} 2>&1",
+        config::shell_quote(&log_path.to_string_lossy())
+    )
 }
 
 /// Run a command headless in `root` with output streamed to a log file under
@@ -1360,14 +1482,25 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
     if std::fs::create_dir_all(&logs).is_err() {
         return Dispatch::Error;
     }
-    let CaptureSpec { cmdline, agent, copy, question, resumed, follows, fallback, compacted } =
-        spec;
+    let CaptureSpec {
+        cmdline,
+        agent,
+        copy,
+        question,
+        resumed,
+        follows,
+        fallback,
+        compacted,
+    } = spec;
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
     match shell_command(root, &captured_shell_line(&cmdline, &log_path)).spawn() {
         Ok(mut child) => {
             let started = now_secs();
-            active_runs().lock().unwrap().insert(key.to_string(), started);
+            active_runs()
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), started);
             let _ = with_state(|f| {
                 f.jobs.entry(key.to_string()).or_default().active_run = Some(ActiveRun {
                     pid: child.id() as i32,
@@ -1399,12 +1532,13 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                         if let Ok(mut retry) =
                             shell_command(&root2, &captured_shell_line(&fb, &log2)).spawn()
                         {
-                            active_runs().lock().unwrap().insert(key2.clone(), now_secs());
+                            active_runs()
+                                .lock()
+                                .unwrap()
+                                .insert(key2.clone(), now_secs());
                             let _ = with_state(|f| {
-                                if let Some(ar) = f
-                                    .jobs
-                                    .get_mut(&key2)
-                                    .and_then(|st| st.active_run.as_mut())
+                                if let Some(ar) =
+                                    f.jobs.get_mut(&key2).and_then(|st| st.active_run.as_mut())
                                 {
                                     ar.pid = retry.id() as i32;
                                     ar.log_path = log2.to_string_lossy().into_owned();
@@ -1480,7 +1614,12 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 .map(|a| a.kind == "terminal")
                 .unwrap_or(false);
             if terminal {
-                emit_or_park(app, key, target, json!({ "kind": "action", "actionName": id }))
+                emit_or_park(
+                    app,
+                    key,
+                    target,
+                    json!({ "kind": "action", "actionName": id }),
+                )
             } else {
                 let app2 = app.clone();
                 let target2 = target.to_string();
@@ -1498,12 +1637,22 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 Dispatch::Ran
             }
         }
-        RunTarget::Prompt { prompt, agent, model, effort, full_access } => {
+        RunTarget::Prompt {
+            prompt,
+            agent,
+            model,
+            effort,
+            full_access,
+        } => {
             let root = match dispatch_root(target) {
                 Some(r) => r,
                 None => return Dispatch::Error,
             };
-            let agent = if agent.is_empty() { default_ai_cli() } else { agent.clone() };
+            let agent = if agent.is_empty() {
+                default_ai_cli()
+            } else {
+                agent.clone()
+            };
             spawn_captured(
                 app,
                 key,
@@ -1522,7 +1671,12 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
     let st = load_job_state(key);
     if let Some(prev) = st.history.iter().rev().find_map(|h| h.copy.clone()) {
         if config::project_exists(&prev) {
-            return Outcome { result: SKIPPED_PENDING_COPY, copy: None, advance: false, note: None };
+            return Outcome {
+                result: SKIPPED_PENDING_COPY,
+                copy: None,
+                advance: false,
+                note: None,
+            };
         }
     }
 
@@ -1539,7 +1693,12 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
         match run_check(&root, &job.check, CHECK_TIMEOUT, Some(key)) {
             Ok(true) => {}
             Ok(false) => {
-                return Outcome { result: NOTHING_TO_DO, copy: None, advance: true, note: None }
+                return Outcome {
+                    result: NOTHING_TO_DO,
+                    copy: None,
+                    advance: true,
+                    note: None,
+                }
             }
             Err(e) if e == "check timed out" => {
                 return err_outcome("The check ran too long and was stopped.")
@@ -1568,12 +1727,27 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
     // A Stop that lands during the check or the duplicate step must not still
     // launch the agent.
     if is_cancel_requested(key) {
-        return Outcome { result: CANCELED, copy, advance: true, note: None };
+        return Outcome {
+            result: CANCELED,
+            copy,
+            advance: true,
+            note: None,
+        };
     }
 
     match dispatch_run(app, key, &target, job) {
-        Dispatch::Ran => Outcome { result: FOUND_WORK, copy, advance: true, note: None },
-        Dispatch::Parked => Outcome { result: PENDING_WINDOW, copy, advance: true, note: None },
+        Dispatch::Ran => Outcome {
+            result: FOUND_WORK,
+            copy,
+            advance: true,
+            note: None,
+        },
+        Dispatch::Parked => Outcome {
+            result: PENDING_WINDOW,
+            copy,
+            advance: true,
+            note: None,
+        },
         Dispatch::Error => Outcome {
             result: ERROR,
             copy,
@@ -1597,13 +1771,24 @@ fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy:
 /// outcomes worth interrupting for also go out as a system notification. Quiet
 /// days and skips stay silent everywhere.
 fn notify_if_unattended(app: &AppHandle, project: &str, job_id: &str, result: &str) {
-    let at = if project.is_empty() { String::new() } else { format!(" in {project}") };
+    let at = if project.is_empty() {
+        String::new()
+    } else {
+        format!(" in {project}")
+    };
     let (title, body) = match result {
-        COMPLETED => ("Scheduled job finished", format!("\"{job_id}\"{at} is done.")),
-        FOUND_WORK => {
-            ("Scheduled job found work", format!("\"{job_id}\"{at} started working."))
-        }
-        ERROR => ("Scheduled job hit a problem", format!("\"{job_id}\"{at} needs a look.")),
+        COMPLETED => (
+            "Scheduled job finished",
+            format!("\"{job_id}\"{at} is done."),
+        ),
+        FOUND_WORK => (
+            "Scheduled job found work",
+            format!("\"{job_id}\"{at} started working."),
+        ),
+        ERROR => (
+            "Scheduled job hit a problem",
+            format!("\"{job_id}\"{at} needs a look."),
+        ),
         TIMED_OUT => (
             "Scheduled job stopped",
             format!("\"{job_id}\"{at} ran too long and was stopped."),
@@ -1637,7 +1822,9 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
             match evaluate_lock(&st.running, now_secs()) {
                 LockDecision::Busy => LockDecision::Busy,
                 LockDecision::Acquire => {
-                    st.running = Some(RunningLock { started_at: now_secs() });
+                    st.running = Some(RunningLock {
+                        started_at: now_secs(),
+                    });
                     LockDecision::Acquire
                 }
                 LockDecision::Stale => {
@@ -1653,7 +1840,9 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
                             ..HistoryEntry::default()
                         },
                     );
-                    st.running = Some(RunningLock { started_at: now_secs() });
+                    st.running = Some(RunningLock {
+                        started_at: now_secs(),
+                    });
                     LockDecision::Stale
                 }
             }
@@ -1663,7 +1852,12 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
 
     if let LockDecision::Busy = decision {
         let _ = with_state(|f| {
-            push_history(f.jobs.entry(key.clone()).or_default(), now_secs(), SKIPPED_OVERLAP, None);
+            push_history(
+                f.jobs.entry(key.clone()).or_default(),
+                now_secs(),
+                SKIPPED_OVERLAP,
+                None,
+            );
         });
         emit_status(app, project, &job.id, SKIPPED_OVERLAP, &None);
         return;
@@ -1674,7 +1868,12 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
     // The found-work path hands the cancel flag to the agent watcher; every
     // other exit consumes it here so a Stop pressed mid-pipeline is recorded.
     if outcome.result != FOUND_WORK && take_canceled(&key) {
-        outcome = Outcome { result: CANCELED, copy: outcome.copy, advance: true, note: None };
+        outcome = Outcome {
+            result: CANCELED,
+            copy: outcome.copy,
+            advance: true,
+            note: None,
+        };
     }
     let at = now_secs();
     let _ = with_state(|f| {
@@ -1718,7 +1917,10 @@ fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved) {
 /// When this machine booted, from the monotonic clock. A persisted pid is only
 /// trusted when it was spawned in this boot.
 fn boot_epoch() -> u64 {
-    let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    let mut ts = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
     unsafe {
         libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts);
     }
@@ -1793,7 +1995,14 @@ fn orphan_entry(
     }
 }
 
-fn finish_orphan(app: &AppHandle, key: &str, run: &ActiveRun, canceled: bool, timed_out: bool, ended_at: Option<u64>) {
+fn finish_orphan(
+    app: &AppHandle,
+    key: &str,
+    run: &ActiveRun,
+    canceled: bool,
+    timed_out: bool,
+    ended_at: Option<u64>,
+) {
     let log = std::fs::read_to_string(&run.log_path).unwrap_or_default();
     let at = now_secs();
     let entry = orphan_entry(run, &log, canceled, timed_out, at, ended_at);
@@ -1813,7 +2022,10 @@ fn finish_orphan(app: &AppHandle, key: &str, run: &ActiveRun, canceled: bool, ti
 /// the pid until it exits, is stopped, or crosses the run timeout measured
 /// from its ORIGINAL start.
 fn adopt_orphan(app: AppHandle, key: String, run: ActiveRun) {
-    active_runs().lock().unwrap().insert(key.clone(), run.started_at);
+    active_runs()
+        .lock()
+        .unwrap()
+        .insert(key.clone(), run.started_at);
     std::thread::spawn(move || {
         let deadline = run.started_at + RUN_TIMEOUT.as_secs();
         let mut timed_out = false;
@@ -1997,14 +2209,19 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
     let existing: HashSet<&str> = projects.iter().map(String::as_str).collect();
     let targets: Vec<String> = match job_targets(def) {
         JobTargets::Every => projects.to_vec(),
-        JobTargets::Projects(list) => {
-            list.into_iter().filter(|p| existing.contains(p.as_str())).collect()
-        }
+        JobTargets::Projects(list) => list
+            .into_iter()
+            .filter(|p| existing.contains(p.as_str()))
+            .collect(),
         JobTargets::Standalone => Vec::new(),
     };
     // The folders the job actually runs in: a standalone job's is the sentinel
     // "" (home dir); everything else is its targets.
-    let run_targets: Vec<String> = if standalone { vec![String::new()] } else { targets.clone() };
+    let run_targets: Vec<String> = if standalone {
+        vec![String::new()]
+    } else {
+        targets.clone()
+    };
 
     // Resolve against a representative project so validity and run details are
     // known — prompt and command jobs resolve the same everywhere, and shared
@@ -2073,7 +2290,13 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
                 "targets": targets,
                 "standalone": standalone,
             });
-            if let RunTarget::Prompt { agent, model, effort, .. } = &job.run {
+            if let RunTarget::Prompt {
+                agent,
+                model,
+                effort,
+                ..
+            } = &job.run
+            {
                 row["agent"] = json!(agent);
                 row["model"] = json!(model);
                 row["effort"] = json!(effort);
@@ -2157,7 +2380,13 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "running": since.is_some(),
                         "runningSince": since,
                     });
-                    if let RunTarget::Prompt { agent, model, effort, .. } = &job.run {
+                    if let RunTarget::Prompt {
+                        agent,
+                        model,
+                        effort,
+                        ..
+                    } = &job.run
+                    {
                         row["agent"] = json!(agent);
                         row["model"] = json!(model);
                         row["effort"] = json!(effort);
@@ -2275,7 +2504,11 @@ pub fn send_job_followup(
     };
     let agent = {
         let chosen = agent.trim().to_lowercase();
-        if chosen.is_empty() { default_ai_cli() } else { chosen }
+        if chosen.is_empty() {
+            default_ai_cli()
+        } else {
+            chosen
+        }
     };
     if !KNOWN_AGENTS.contains(&agent.as_str()) {
         return Err(format!("\"{agent}\" isn't an agent lpm knows how to run."));
@@ -2305,7 +2538,10 @@ pub fn send_job_followup(
     // Resuming is only sound when the newest message itself carries the
     // session — a thread that continued past it (another agent answered)
     // would lose that exchange.
-    let resume = tail.session.clone().filter(|_| agent == "claude" && !thread_full);
+    let resume = tail
+        .session
+        .clone()
+        .filter(|_| agent == "claude" && !thread_full);
     let spec = match resume {
         Some(sid) => CaptureSpec {
             cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, &message),
@@ -2314,7 +2550,13 @@ pub fn send_job_followup(
             question: Some(message),
             resumed: Some(sid),
             follows: Some(tail.at),
-            fallback: Some(claude_cmdline(None, &model, &effort, full_access, &condensed)),
+            fallback: Some(claude_cmdline(
+                None,
+                &model,
+                &effort,
+                full_access,
+                &condensed,
+            )),
             compacted: false,
         },
         None => CaptureSpec {
@@ -2454,7 +2696,9 @@ pub fn clear_job_state(
 /// `job_id`. Project names can't contain '/', so splitting at the first one is
 /// exact — a suffix match would let job "nightly" swallow "review/nightly".
 fn state_key_project<'a>(key: &'a str, job_id: &str) -> Option<&'a str> {
-    key.split_once('/').filter(|(_, id)| *id == job_id).map(|(project, _)| project)
+    key.split_once('/')
+        .filter(|(_, id)| *id == job_id)
+        .map(|(project, _)| project)
 }
 
 #[tauri::command(async)]
@@ -2548,7 +2792,12 @@ pub fn drain_pending_job_tasks(app: AppHandle) -> Result<(), String> {
         let _ = app.emit("remote-run-task", payload);
         let at = now_secs();
         let _ = with_state(|f| {
-            push_history(f.jobs.entry(key.clone()).or_default(), at, FOUND_WORK, copy.clone());
+            push_history(
+                f.jobs.entry(key.clone()).or_default(),
+                at,
+                FOUND_WORK,
+                copy.clone(),
+            );
         });
         emit_status(&app, project, job_id, FOUND_WORK, &copy);
     }
@@ -2636,9 +2885,18 @@ mod tests {
 
     #[test]
     fn every_parsing() {
-        assert_eq!(parse_every_secs(&EveryValue::Str("6h".into())).unwrap(), 6 * 3600);
-        assert_eq!(parse_every_secs(&EveryValue::Str("2d".into())).unwrap(), 2 * 86_400);
-        assert_eq!(parse_every_secs(&EveryValue::Str(" 3H ".into())).unwrap(), 3 * 3600);
+        assert_eq!(
+            parse_every_secs(&EveryValue::Str("6h".into())).unwrap(),
+            6 * 3600
+        );
+        assert_eq!(
+            parse_every_secs(&EveryValue::Str("2d".into())).unwrap(),
+            2 * 86_400
+        );
+        assert_eq!(
+            parse_every_secs(&EveryValue::Str(" 3H ".into())).unwrap(),
+            3 * 3600
+        );
         assert_eq!(parse_every_secs(&EveryValue::Int(4)).unwrap(), 4 * 3600);
         assert!(parse_every_secs(&EveryValue::Str("30m".into())).is_err());
         assert!(parse_every_secs(&EveryValue::Str("0h".into())).is_err());
@@ -2669,7 +2927,10 @@ mod tests {
     fn schedule_resolution() {
         assert_eq!(
             resolve_schedule(&sched("09:00", &["mon", "thu"], None)).unwrap(),
-            Schedule::Calendar { at_min: 540, days: vec![0, 3] },
+            Schedule::Calendar {
+                at_min: 540,
+                days: vec![0, 3]
+            },
         );
         assert_eq!(
             resolve_schedule(&sched("", &[], Some(EveryValue::Str("6h".into())))).unwrap(),
@@ -2678,7 +2939,10 @@ mod tests {
         // days default to all
         assert_eq!(
             resolve_schedule(&sched("07:30", &[], None)).unwrap(),
-            Schedule::Calendar { at_min: 450, days: vec![] },
+            Schedule::Calendar {
+                at_min: 450,
+                days: vec![]
+            },
         );
         // both / neither are errors
         assert!(resolve_schedule(&sched("09:00", &[], Some(EveryValue::Int(6)))).is_err());
@@ -2690,11 +2954,25 @@ mod tests {
     #[test]
     fn run_resolution() {
         assert_eq!(
-            resolve_run("p", &RunDef { cmd: "make".into(), ..Default::default() }).unwrap(),
+            resolve_run(
+                "p",
+                &RunDef {
+                    cmd: "make".into(),
+                    ..Default::default()
+                }
+            )
+            .unwrap(),
             RunTarget::Cmd("make".into()),
         );
         assert_eq!(
-            resolve_run("p", &RunDef { prompt: "upgrade".into(), ..Default::default() }).unwrap(),
+            resolve_run(
+                "p",
+                &RunDef {
+                    prompt: "upgrade".into(),
+                    ..Default::default()
+                }
+            )
+            .unwrap(),
             RunTarget::Prompt {
                 prompt: "upgrade".into(),
                 agent: String::new(),
@@ -2725,12 +3003,20 @@ mod tests {
         );
         assert!(resolve_run(
             "p",
-            &RunDef { prompt: "x".into(), agent: "cursor".into(), ..Default::default() }
+            &RunDef {
+                prompt: "x".into(),
+                agent: "cursor".into(),
+                ..Default::default()
+            }
         )
         .is_err());
         assert!(resolve_run(
             "p",
-            &RunDef { prompt: "x".into(), access: "sometimes".into(), ..Default::default() }
+            &RunDef {
+                prompt: "x".into(),
+                access: "sometimes".into(),
+                ..Default::default()
+            }
         )
         .is_err());
         // read-only can't be honored by opencode, so it's refused up front
@@ -2748,7 +3034,11 @@ mod tests {
         assert!(resolve_run("p", &RunDef::default()).is_err());
         assert!(resolve_run(
             "p",
-            &RunDef { cmd: "make".into(), prompt: "x".into(), ..Default::default() }
+            &RunDef {
+                cmd: "make".into(),
+                prompt: "x".into(),
+                ..Default::default()
+            }
         )
         .is_err());
     }
@@ -2768,13 +3058,21 @@ mod tests {
     #[test]
     fn calendar_due_coalesces_and_never_fires_at_init() {
         // Midnight every day. Its most-recent occurrence is always <= now.
-        let s = Schedule::Calendar { at_min: 0, days: vec![] };
+        let s = Schedule::Calendar {
+            at_min: 0,
+            days: vec![],
+        };
         let now = 1_700_000_000i64;
         let occ = most_recent_calendar_occurrence(0, &[], now).unwrap();
         assert!(occ <= now);
 
         // A long gap (last run 30 days ago) collapses to a single due=true.
-        assert!(is_due(&s, (occ as u64).saturating_sub(30 * 86_400), now as u64, 0));
+        assert!(is_due(
+            &s,
+            (occ as u64).saturating_sub(30 * 86_400),
+            now as u64,
+            0
+        ));
         // Once last_run has caught up to the occurrence, it is no longer due —
         // this is exactly the "anchor lastRunAt = now, never fire at init" case.
         assert!(!is_due(&s, occ as u64, now as u64, 0));
@@ -2793,7 +3091,10 @@ mod tests {
 
     #[test]
     fn resolve_manual_schedule() {
-        let sched = ScheduleDef { manual: true, ..Default::default() };
+        let sched = ScheduleDef {
+            manual: true,
+            ..Default::default()
+        };
         assert_eq!(resolve_schedule(&sched), Ok(Schedule::Manual));
     }
 
@@ -2863,8 +3164,11 @@ mod tests {
         push_history(&mut st, 4, NOTHING_TO_DO, None);
         push_history(&mut st, 5, NOTHING_TO_DO, None);
         push_history(&mut st, 6, NOTHING_TO_DO, None);
-        let got: Vec<(u64, &str, Option<u32>)> =
-            st.history.iter().map(|h| (h.at, h.result.as_str(), h.count)).collect();
+        let got: Vec<(u64, &str, Option<u32>)> = st
+            .history
+            .iter()
+            .map(|h| (h.at, h.result.as_str(), h.count))
+            .collect();
         assert_eq!(
             got,
             [
@@ -2881,7 +3185,10 @@ mod tests {
         let start = std::time::Instant::now();
         let res = run_check(&root, "sleep 5", Duration::from_secs(1), None);
         assert!(res.is_err(), "a check that outlives its timeout must error");
-        assert!(start.elapsed() < Duration::from_secs(4), "the check should be killed, not waited out");
+        assert!(
+            start.elapsed() < Duration::from_secs(4),
+            "the check should be killed, not waited out"
+        );
     }
 
     #[test]
@@ -2889,9 +3196,16 @@ mod tests {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
         let mut child = shell_command(&root, "sleep 30").spawn().unwrap();
         let start = std::time::Instant::now();
-        let verdict = wait_or_kill(&mut child, std::time::Instant::now() + Duration::from_millis(300), None);
+        let verdict = wait_or_kill(
+            &mut child,
+            std::time::Instant::now() + Duration::from_millis(300),
+            None,
+        );
         assert!(matches!(verdict, Ok(WaitVerdict::TimedOut)));
-        assert!(start.elapsed() < Duration::from_secs(4), "the run should be killed, not waited out");
+        assert!(
+            start.elapsed() < Duration::from_secs(4),
+            "the run should be killed, not waited out"
+        );
     }
 
     #[test]
@@ -2901,21 +3215,37 @@ mod tests {
         let mut child = shell_command(&root, "sleep 30").spawn().unwrap();
         canceled_keys().lock().unwrap().insert(key.to_string());
         let start = std::time::Instant::now();
-        let verdict = wait_or_kill(&mut child, std::time::Instant::now() + Duration::from_secs(60), Some(key));
+        let verdict = wait_or_kill(
+            &mut child,
+            std::time::Instant::now() + Duration::from_secs(60),
+            Some(key),
+        );
         assert!(matches!(verdict, Ok(WaitVerdict::Canceled)));
-        assert!(start.elapsed() < Duration::from_secs(4), "a stopped run should be killed promptly");
-        assert!(take_canceled(key), "the flag stays for the caller to consume");
+        assert!(
+            start.elapsed() < Duration::from_secs(4),
+            "a stopped run should be killed promptly"
+        );
+        assert!(
+            take_canceled(key),
+            "the flag stays for the caller to consume"
+        );
         assert!(!take_canceled(key), "consuming the flag clears it");
     }
 
     #[test]
     fn stop_only_flags_running_jobs() {
         let key = "test-stop/idle";
-        assert!(!request_cancel(key), "a job with no live run must not be flagged");
+        assert!(
+            !request_cancel(key),
+            "a job with no live run must not be flagged"
+        );
         assert!(!is_cancel_requested(key));
 
         assert!(mark_inflight(key));
-        assert!(request_cancel(key), "an inflight pipeline accepts a stop request");
+        assert!(
+            request_cancel(key),
+            "an inflight pipeline accepts a stop request"
+        );
         assert!(is_cancel_requested(key));
         clear_inflight(key);
         assert!(take_canceled(key));
@@ -2991,7 +3321,10 @@ mod tests {
             LockDecision::Busy
         ));
         assert!(matches!(
-            evaluate_lock(&Some(RunningLock { started_at: 100 }), 100 + STALE_LOCK_SECS + 1),
+            evaluate_lock(
+                &Some(RunningLock { started_at: 100 }),
+                100 + STALE_LOCK_SECS + 1
+            ),
             LockDecision::Stale
         ));
     }
@@ -3022,8 +3355,14 @@ mod tests {
             agent_prompt_cmdline("claude", "", "max", false, "fix it"),
             "claude --effort 'max' -p --verbose --output-format stream-json 'fix it'"
         );
-        assert_eq!(agent_prompt_cmdline("gemini", "", "", false, "fix"), "gemini -o json -p 'fix'");
-        assert_eq!(agent_prompt_cmdline("opencode", "", "", false, "fix"), "opencode run 'fix'");
+        assert_eq!(
+            agent_prompt_cmdline("gemini", "", "", false, "fix"),
+            "gemini -o json -p 'fix'"
+        );
+        assert_eq!(
+            agent_prompt_cmdline("opencode", "", "", false, "fix"),
+            "opencode run 'fix'"
+        );
     }
 
     #[test]
@@ -3044,13 +3383,20 @@ mod tests {
             agent_prompt_cmdline("gemini", "", "", true, "fix"),
             "gemini --yolo -o json -p 'fix'"
         );
-        assert_eq!(agent_prompt_cmdline("opencode", "", "", true, "fix"), "opencode run 'fix'");
+        assert_eq!(
+            agent_prompt_cmdline("opencode", "", "", true, "fix"),
+            "opencode run 'fix'"
+        );
     }
 
     #[test]
     fn context_limit_error_is_recognized() {
-        assert!(hit_context_limit(Some("API Error: 400 … Prompt is too long")));
-        assert!(hit_context_limit(Some("prompt is too long: 210000 tokens > 200000 maximum")));
+        assert!(hit_context_limit(Some(
+            "API Error: 400 … Prompt is too long"
+        )));
+        assert!(hit_context_limit(Some(
+            "prompt is too long: 210000 tokens > 200000 maximum"
+        )));
         assert!(!hit_context_limit(Some("some other failure")));
         assert!(!hit_context_limit(None));
     }
@@ -3130,9 +3476,15 @@ mod tests {
         assert_eq!(got, "Looking at the tests.\n→ Bash\nhook: Stop\nDone.");
         assert_eq!(render_claude_stream(""), None);
         // A log with only unparseable JSON renders to nothing → raw tail wins.
-        assert_eq!(render_claude_stream("{\"type\":\"user\",\"message\":{}}"), None);
+        assert_eq!(
+            render_claude_stream("{\"type\":\"user\",\"message\":{}}"),
+            None
+        );
         // Plain stderr (an API failure) is kept — it's why the run died.
-        assert_eq!(render_claude_stream("API Error: overloaded").unwrap(), "API Error: overloaded");
+        assert_eq!(
+            render_claude_stream("API Error: overloaded").unwrap(),
+            "API Error: overloaded"
+        );
     }
 
     #[test]
@@ -3141,7 +3493,10 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("t.log");
         std::fs::write(&path, "first line\nsecond line\nthird line\n").unwrap();
-        assert_eq!(read_log_tail(&path, 1024), "first line\nsecond line\nthird line\n");
+        assert_eq!(
+            read_log_tail(&path, 1024),
+            "first line\nsecond line\nthird line\n"
+        );
         // A capped read drops the chopped first line instead of garbling it.
         assert_eq!(read_log_tail(&path, 17), "third line\n");
         assert_eq!(read_log_tail(&dir.join("missing.log"), 64), "");
@@ -3168,7 +3523,10 @@ mod tests {
             "codex exec 'fix' --output-last-message '/tmp/logs/proj_job-5.last'"
         );
         // Every other runner's command line passes through untouched.
-        assert_eq!(capture_cmdline(Some("claude"), "claude -p 'x'", log), "claude -p 'x'");
+        assert_eq!(
+            capture_cmdline(Some("claude"), "claude -p 'x'", log),
+            "claude -p 'x'"
+        );
         assert_eq!(capture_cmdline(None, "make build", log), "make build");
     }
 
@@ -3197,10 +3555,24 @@ mod tests {
             entry(1, COMPLETED, Some("run A"), Some("a1"), None, None),
             entry(2, NOTHING_TO_DO, None, None, None, None),
             entry(3, COMPLETED, Some("run B"), Some("b1"), None, None),
-            entry(4, COMPLETED, Some("re A"), Some("a2"), Some("why?"), Some("a1")),
+            entry(
+                4,
+                COMPLETED,
+                Some("re A"),
+                Some("a2"),
+                Some("why?"),
+                Some("a1"),
+            ),
             // A sessionless exchange (another agent answered) still belongs to
             // thread A via its resume link.
-            entry(5, COMPLETED, Some("codex says"), None, Some("ask codex"), Some("a2")),
+            entry(
+                5,
+                COMPLETED,
+                Some("codex says"),
+                None,
+                Some("ask codex"),
+                Some("a2"),
+            ),
         ];
         let a = thread_entries(&history, "a1");
         assert_eq!(a.iter().map(|e| e.at).collect::<Vec<_>>(), vec![1, 4, 5]);
@@ -3214,11 +3586,20 @@ mod tests {
         assert!(!digest.contains("run B"));
 
         let is_full = |h: &[HistoryEntry], s: &str| {
-            thread_entries(h, s).iter().any(|e| e.result == CONTEXT_FULL)
+            thread_entries(h, s)
+                .iter()
+                .any(|e| e.result == CONTEXT_FULL)
         };
         assert!(!is_full(&history, "a1"));
         let mut full = history.clone();
-        full.push(entry(6, CONTEXT_FULL, None, None, Some("more?"), Some("a2")));
+        full.push(entry(
+            6,
+            CONTEXT_FULL,
+            None,
+            None,
+            Some("more?"),
+            Some("a2"),
+        ));
         assert!(is_full(&full, "a1"));
         assert!(!is_full(&full, "b1"));
     }
@@ -3262,7 +3643,10 @@ mod tests {
         // A job id containing '/' matches exactly, never as a suffix of a
         // longer id — "nightly" must not swallow "review/nightly".
         assert_eq!(state_key_project("web/review/nightly", "nightly"), None);
-        assert_eq!(state_key_project("web/review/nightly", "review/nightly"), Some("web"));
+        assert_eq!(
+            state_key_project("web/review/nightly", "review/nightly"),
+            Some("web")
+        );
         assert_eq!(state_key_project("web/other", "nightly"), None);
         assert_eq!(state_key_project("no-slash", "nightly"), None);
     }
@@ -3310,22 +3694,44 @@ mod tests {
     #[test]
     fn latest_session_entry_wins_for_replies() {
         let mut st = JobState::default();
-        push_entry(&mut st, entry(1, COMPLETED, Some("old"), Some("sid-old"), None, None));
+        push_entry(
+            &mut st,
+            entry(1, COMPLETED, Some("old"), Some("sid-old"), None, None),
+        );
         push_history(&mut st, 2, NOTHING_TO_DO, None);
         push_entry(
             &mut st,
-            entry(3, COMPLETED, Some("new"), Some("sid-new"), Some("go on"), Some("sid-old")),
+            entry(
+                3,
+                COMPLETED,
+                Some("new"),
+                Some("sid-new"),
+                Some("go on"),
+                Some("sid-old"),
+            ),
         );
-        let by_session =
-            st.history.iter().rev().find(|h| h.session.as_deref() == Some("sid-old")).unwrap();
+        let by_session = st
+            .history
+            .iter()
+            .rev()
+            .find(|h| h.session.as_deref() == Some("sid-old"))
+            .unwrap();
         assert_eq!(by_session.output.as_deref(), Some("old"));
-        let reply = st.history.iter().rev().find(|h| h.resumed.is_some()).unwrap();
+        let reply = st
+            .history
+            .iter()
+            .rev()
+            .find(|h| h.resumed.is_some())
+            .unwrap();
         assert_eq!(reply.resumed.as_deref(), Some("sid-old"));
     }
 
     #[test]
     fn job_layers_merge_with_registry_winning() {
-        let job = |label: &str| JobDef { label: label.into(), ..Default::default() };
+        let job = |label: &str| JobDef {
+            label: label.into(),
+            ..Default::default()
+        };
         let registry = BTreeMap::from([("a".to_string(), job("reg-a"))]);
         let repo = BTreeMap::from([
             ("a".to_string(), job("repo-a")),
@@ -3361,7 +3767,10 @@ mod tests {
     #[test]
     fn job_targets_reads_the_projects_field() {
         assert_eq!(job_targets(&def_with_projects(None)), JobTargets::Every);
-        assert_eq!(job_targets(&def_with_projects(Some(vec![]))), JobTargets::Standalone);
+        assert_eq!(
+            job_targets(&def_with_projects(Some(vec![]))),
+            JobTargets::Standalone
+        );
         assert_eq!(
             job_targets(&def_with_projects(Some(vec!["web", "api"]))),
             JobTargets::Projects(vec!["web".into(), "api".into()]),
@@ -3377,6 +3786,9 @@ mod tests {
         assert!(global_resolves_for(&scoped, "web"));
         assert!(!global_resolves_for(&scoped, "api"));
         // A standalone job never resolves under a real project.
-        assert!(!global_resolves_for(&def_with_projects(Some(vec![])), "web"));
+        assert!(!global_resolves_for(
+            &def_with_projects(Some(vec![])),
+            "web"
+        ));
     }
 }

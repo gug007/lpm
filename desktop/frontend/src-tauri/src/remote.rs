@@ -117,8 +117,8 @@ struct PushPreferences {
 #[serde(default)]
 struct RemoteConfig {
     enabled: bool,
-    lan: bool,  // bind 0.0.0.0 (reachable on LAN/tailnet) vs 127.0.0.1 (loopback only)
-    port: u16,  // 0 => DEFAULT_PORT
+    lan: bool, // bind 0.0.0.0 (reachable on LAN/tailnet) vs 127.0.0.1 (loopback only)
+    port: u16, // 0 => DEFAULT_PORT
     pairing_code: String, // non-empty while an unused pairing code is outstanding
     tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
@@ -173,7 +173,11 @@ fn server_name() -> String {
     static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     NAME.get_or_init(|| {
         for key in ["ComputerName", "LocalHostName"] {
-            if let Ok(out) = std::process::Command::new("scutil").arg("--get").arg(key).output() {
+            if let Ok(out) = std::process::Command::new("scutil")
+                .arg("--get")
+                .arg(key)
+                .output()
+            {
                 if out.status.success() {
                     let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
                     if !name.is_empty() {
@@ -299,7 +303,13 @@ impl RemoteHub {
     }
 
     fn device_exists(&self, id: &str) -> bool {
-        self.inner.config.lock().unwrap().devices.iter().any(|d| d.id == id)
+        self.inner
+            .config
+            .lock()
+            .unwrap()
+            .devices
+            .iter()
+            .any(|d| d.id == id)
     }
 
     /// Recent scrollback for a terminal, dropping a partial leading line when the
@@ -407,7 +417,10 @@ pub fn push_control(app: &AppHandle, id: &str, owner: &Option<crate::control::Ow
         return;
     }
     let owner = crate::control::owner_json(owner);
-    broadcast(hub.inner(), json!({ "t": "control", "id": id, "owner": owner }));
+    broadcast(
+        hub.inner(),
+        json!({ "t": "control", "id": id, "owner": owner }),
+    );
 }
 
 /// The control surface for a paired phone.
@@ -554,7 +567,9 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
 
     'main: loop {
         // Retire on server restart or when this device is revoked.
-        if hub.inner.generation.load(Ordering::SeqCst) != generation || !hub.device_exists(&device_id) {
+        if hub.inner.generation.load(Ordering::SeqCst) != generation
+            || !hub.device_exists(&device_id)
+        {
             break;
         }
         // Flush any queued output/broadcasts to the socket.
@@ -579,7 +594,18 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
                         let txt = txt.to_string();
-                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id, &out, &mut watches).is_err() {
+                        if handle_msg(
+                            &mut ws,
+                            &txt,
+                            &hub,
+                            &app,
+                            &subs,
+                            &device_id,
+                            &out,
+                            &mut watches,
+                        )
+                        .is_err()
+                        {
                             break;
                         }
                     }
@@ -603,7 +629,10 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     // a desktop window (or another presenter) instead of stranding on a gone
     // client.
     let owner = mobile_owner(&hub, &device_id);
-    for (id, new_owner) in app.state::<crate::control::ControlState>().drop_surface(&owner) {
+    for (id, new_owner) in app
+        .state::<crate::control::ControlState>()
+        .drop_surface(&owner)
+    {
         crate::control::broadcast(&app, &id, &new_owner);
     }
     let _ = ws.close(None);
@@ -666,7 +695,10 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOu
             }
         }
         Some("auth") => {
-            let id = v.get("deviceId").and_then(Value::as_str).unwrap_or_default();
+            let id = v
+                .get("deviceId")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(
@@ -690,7 +722,10 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOu
 }
 
 fn normalize_code(s: &str) -> String {
-    s.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_uppercase()
+    s.chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_uppercase()
 }
 
 fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, String)> {
@@ -785,8 +820,16 @@ fn git_ai_opts() -> (String, String, String, bool) {
         .filter(|c| !c.is_empty())
         .unwrap_or("claude")
         .to_string();
-    let model = s.get("aiModel").and_then(Value::as_str).unwrap_or("").to_string();
-    let effort = s.get("aiEffort").and_then(Value::as_str).unwrap_or("").to_string();
+    let model = s
+        .get("aiModel")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let effort = s
+        .get("aiEffort")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let fast = s.get("aiFast").and_then(Value::as_bool).unwrap_or(false);
     (cli, model, effort, fast)
 }
@@ -795,7 +838,10 @@ fn git_ai_opts() -> (String, String, String, bool) {
 /// empty object when unset — the base for the flag builders below, which mirror
 /// the desktop's gitOptions.ts so the phone's Pull/Fetch/Push behave identically.
 fn git_settings(key: &str) -> Value {
-    config::load_settings().get(key).cloned().unwrap_or_else(|| json!({}))
+    config::load_settings()
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| json!({}))
 }
 
 /// Pull strategy + flags from `gitPull`, mirroring normalizeGitPull/pullFlags:
@@ -892,7 +938,11 @@ struct RemoteWatch {
 /// start_watching_project (same should_ignore filter + DEBOUNCE coalescing), but
 /// delivers over the wire instead of the app event bus. The push carries no
 /// payload beyond the project — the phone re-requests `git` + the diffs it wants.
-fn start_git_watch(cwd: &str, project: &str, out: &SyncSender<String>) -> Result<RemoteWatch, String> {
+fn start_git_watch(
+    cwd: &str,
+    project: &str,
+    out: &SyncSender<String>,
+) -> Result<RemoteWatch, String> {
     use notify::{RecursiveMode, Watcher};
 
     // FSEvents delivers canonical paths; canonicalize so should_ignore's strip_prefix matches.
@@ -977,7 +1027,10 @@ fn handle_msg(
 
     match t {
         "ping" => send(ws, json!({ "t": "pong" }))?,
-        "projects" => send(ws, json!({ "t": "projects", "projects": list_projects_json(app) }))?,
+        "projects" => send(
+            ws,
+            json!({ "t": "projects", "projects": list_projects_json(app) }),
+        )?,
         "sidebar" => {
             let sb = sidebar_json();
             send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
@@ -1007,20 +1060,32 @@ fn handle_msg(
             let project = str_field("project").unwrap_or_default();
             let job_id = str_field("jobId").unwrap_or_default();
             match crate::jobs::job_history(project.clone(), job_id.clone()) {
-                Ok(entries) => send(ws, json!({ "t": "jobHistory", "project": project,
-                    "jobId": job_id, "ok": true, "entries": entries }))?,
-                Err(e) => send(ws, json!({ "t": "jobHistory", "project": project,
-                    "jobId": job_id, "ok": false, "error": e }))?,
+                Ok(entries) => send(
+                    ws,
+                    json!({ "t": "jobHistory", "project": project,
+                    "jobId": job_id, "ok": true, "entries": entries }),
+                )?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "jobHistory", "project": project,
+                    "jobId": job_id, "ok": false, "error": e }),
+                )?,
             }
         }
         "jobLiveOutput" => {
             let project = str_field("project").unwrap_or_default();
             let job_id = str_field("jobId").unwrap_or_default();
             match crate::jobs::job_live_output(project.clone(), job_id.clone()) {
-                Ok(live) => send(ws, json!({ "t": "jobLiveOutput", "project": project,
-                    "jobId": job_id, "ok": true, "live": live }))?,
-                Err(e) => send(ws, json!({ "t": "jobLiveOutput", "project": project,
-                    "jobId": job_id, "ok": false, "error": e }))?,
+                Ok(live) => send(
+                    ws,
+                    json!({ "t": "jobLiveOutput", "project": project,
+                    "jobId": job_id, "ok": true, "live": live }),
+                )?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "jobLiveOutput", "project": project,
+                    "jobId": job_id, "ok": false, "error": e }),
+                )?,
             }
         }
         "runJob" => {
@@ -1107,9 +1172,18 @@ fn handle_msg(
                     let label = labels.get(&t.id).cloned().unwrap_or_else(|| t.id.clone());
                     if let Some(m) = o.as_object_mut() {
                         m.insert("label".into(), json!(label));
-                        m.insert("pinned".into(), json!(pinned.get(&t.id).copied().unwrap_or(false)));
-                        m.insert("emoji".into(), json!(emojis.get(&t.id).cloned().unwrap_or_default()));
-                        m.insert("cli".into(), json!(clis.get(&t.id).cloned().unwrap_or_default()));
+                        m.insert(
+                            "pinned".into(),
+                            json!(pinned.get(&t.id).copied().unwrap_or(false)),
+                        );
+                        m.insert(
+                            "emoji".into(),
+                            json!(emojis.get(&t.id).cloned().unwrap_or_default()),
+                        );
+                        m.insert(
+                            "cli".into(),
+                            json!(clis.get(&t.id).cloned().unwrap_or_default()),
+                        );
                     }
                     o
                 })
@@ -1118,7 +1192,10 @@ fn handle_msg(
             drop(pinned);
             drop(emojis);
             drop(clis);
-            send(ws, json!({ "t": "terminals", "project": project, "terminals": terms }))?;
+            send(
+                ws,
+                json!({ "t": "terminals", "project": project, "terminals": terms }),
+            )?;
         }
         "slash" => {
             // Slash-command autocomplete for a terminal: the frontend registered
@@ -1126,11 +1203,20 @@ fn handle_msg(
             // scan that CLI's built-ins + the project's custom commands.
             let id = str_field("id").unwrap_or_default();
             let project = str_field("project").unwrap_or_default();
-            let cli = hub.inner.clis.lock().unwrap().get(&id).cloned().unwrap_or_default();
+            let cli = hub
+                .inner
+                .clis
+                .lock()
+                .unwrap()
+                .get(&id)
+                .cloned()
+                .unwrap_or_default();
             let commands = if cli.is_empty() {
                 json!([])
             } else {
-                let cwd = config::project_root(&project).map(|(r, _)| r).unwrap_or_default();
+                let cwd = config::project_root(&project)
+                    .map(|(r, _)| r)
+                    .unwrap_or_default();
                 match crate::aigen::list_agent_commands(cli, cwd) {
                     Ok(cmds) => serde_json::to_value(cmds).unwrap_or_else(|_| json!([])),
                     Err(_) => json!([]),
@@ -1143,7 +1229,9 @@ fn handle_msg(
             // agent resolves), with git working-tree changes flagged and surfaced
             // first. The phone fetches once and filters locally.
             let project = str_field("project").unwrap_or_default();
-            let cwd = config::project_root(&project).map(|(r, _)| r).unwrap_or_default();
+            let cwd = config::project_root(&project)
+                .map(|(r, _)| r)
+                .unwrap_or_default();
             let changed: HashSet<String> = if cwd.is_empty() {
                 HashSet::new()
             } else {
@@ -1170,7 +1258,10 @@ fn handle_msg(
                     entries.push(json!({ "path": p, "dir": false, "changed": true }));
                 }
             }
-            send(ws, json!({ "t": "mentions", "project": project, "entries": entries }))?;
+            send(
+                ws,
+                json!({ "t": "mentions", "project": project, "entries": entries }),
+            )?;
         }
         "history" => {
             // Recall: recent sent prompts for this project (scoped by project, not
@@ -1194,7 +1285,10 @@ fn handle_msg(
             )
             .unwrap_or_default();
             let rows = serde_json::to_value(rows).unwrap_or_else(|_| json!([]));
-            send(ws, json!({ "t": "history", "project": project, "rows": rows }))?;
+            send(
+                ws,
+                json!({ "t": "history", "project": project, "rows": rows }),
+            )?;
         }
         "historyAdd" => {
             // Record a prompt the phone sent so it joins the shared history (and
@@ -1254,7 +1348,10 @@ fn handle_msg(
         "status" => {
             let project = str_field("project").unwrap_or_default();
             let list = app.state::<Arc<StatusStore>>().list(&project);
-            send(ws, json!({ "t": "status", "project": project, "status": list }))?;
+            send(
+                ws,
+                json!({ "t": "status", "project": project, "status": list }),
+            )?;
         }
         // Register (or refresh) this device's push identity: the APNs device token,
         // its environment, and the phone's AES key the sealed payload is encrypted
@@ -1366,7 +1463,8 @@ fn handle_msg(
         }
         "stop" => {
             let name = str_field("name").unwrap_or_default();
-            let r = services::stop_project_internal(app, &app.state::<services::ServiceState>(), &name);
+            let r =
+                services::stop_project_internal(app, &app.state::<services::ServiceState>(), &name);
             send(ws, result_reply("stop", r))?;
         }
         "toggleService" => {
@@ -1398,13 +1496,24 @@ fn handle_msg(
             let labels: Vec<String> = v
                 .get("labels")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().map(|x| x.as_str().unwrap_or_default().to_string()).collect())
+                .map(|a| {
+                    a.iter()
+                        .map(|x| x.as_str().unwrap_or_default().to_string())
+                        .collect()
+                })
                 .unwrap_or_default();
-            let exclude_uncommitted =
-                v.get("excludeUncommitted").and_then(Value::as_bool).unwrap_or(false);
-            let reinstall_deps =
-                v.get("reinstallDeps").and_then(Value::as_bool).unwrap_or(false);
-            let pull_latest = v.get("pullLatest").and_then(Value::as_bool).unwrap_or(false);
+            let exclude_uncommitted = v
+                .get("excludeUncommitted")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let reinstall_deps = v
+                .get("reinstallDeps")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let pull_latest = v
+                .get("pullLatest")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             let group_name = str_field("groupName").unwrap_or_default();
             let run_mode = str_field("runMode").unwrap_or_default();
 
@@ -1413,7 +1522,10 @@ fn handle_msg(
             let mut created: Vec<String> = Vec::new();
             let mut err: Option<String> = None;
             for i in 0..count as usize {
-                let label = labels.get(i).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+                let label = labels
+                    .get(i)
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
                 match crate::projects_crud::duplicate_project(
                     app.clone(),
                     name.clone(),
@@ -1424,16 +1536,25 @@ fn handle_msg(
                 ) {
                     Ok(n) => {
                         created.push(n.clone());
-                        send(ws, json!({ "t": "duplicateProgress",
-                            "done": created.len(), "total": count, "name": n }))?;
+                        send(
+                            ws,
+                            json!({ "t": "duplicateProgress",
+                            "done": created.len(), "total": count, "name": n }),
+                        )?;
                     }
-                    Err(e) => { err = Some(e); break; }
+                    Err(e) => {
+                        err = Some(e);
+                        break;
+                    }
                 }
             }
 
             if created.is_empty() {
-                send(ws, json!({ "t": "duplicate", "ok": false,
-                    "error": err.unwrap_or_else(|| "Couldn't duplicate the project.".into()) }))?;
+                send(
+                    ws,
+                    json!({ "t": "duplicate", "ok": false,
+                    "error": err.unwrap_or_else(|| "Couldn't duplicate the project.".into()) }),
+                )?;
             } else {
                 if !group_name.trim().is_empty() {
                     let _ = group_copies_into_folder(&name, group_name.trim(), &created);
@@ -1449,7 +1570,8 @@ fn handle_msg(
                             json!({ "kind": "command", "command": str_field("command").unwrap_or_default(), "prompt": prompt })
                         };
                         for copy in &created {
-                            let _ = app.emit("remote-run-task", json!({ "project": copy, "task": task }));
+                            let _ = app
+                                .emit("remote-run-task", json!({ "project": copy, "task": task }));
                         }
                     } else {
                         warning = Some(
@@ -1475,12 +1597,15 @@ fn handle_msg(
         "duplicateDefaults" => {
             let s = config::load_settings();
             let b = |k: &str, d: bool| s.get(k).and_then(Value::as_bool).unwrap_or(d);
-            send(ws, json!({
-                "t": "duplicateDefaults",
-                "excludeUncommitted": b("duplicateExcludeUncommitted", false),
-                "reinstallDeps": b("duplicateReinstallDeps", false),
-                "pullLatest": b("duplicatePullLatest", true),
-            }))?;
+            send(
+                ws,
+                json!({
+                    "t": "duplicateDefaults",
+                    "excludeUncommitted": b("duplicateExcludeUncommitted", false),
+                    "reinstallDeps": b("duplicateReinstallDeps", false),
+                    "pullLatest": b("duplicatePullLatest", true),
+                }),
+            )?;
         }
         // Remove a project (the phone only offers this for duplicates, whose
         // folders are deleted from disk). Also a direct config/disk op;
@@ -1499,8 +1624,11 @@ fn handle_msg(
             let project = str_field("project").unwrap_or_default();
             let action = str_field("action").unwrap_or_default();
             if app.get_webview_window("main").is_none() {
-                send(ws, json!({ "t": "runAction", "ok": false, "project": project,
-                    "error": "Open the lpm app on your Mac to run actions." }))?;
+                send(
+                    ws,
+                    json!({ "t": "runAction", "ok": false, "project": project,
+                    "error": "Open the lpm app on your Mac to run actions." }),
+                )?;
             } else {
                 if !project.is_empty() && !action.is_empty() {
                     queue_run_action(hub, app, json!({ "project": project, "action": action }));
@@ -1511,8 +1639,11 @@ fn handle_msg(
         "newTerminal" => {
             let project = str_field("project").unwrap_or_default();
             if app.get_webview_window("main").is_none() {
-                send(ws, json!({ "t": "newTerminal", "ok": false, "project": project,
-                    "error": "Open the lpm app on your Mac to open a new terminal." }))?;
+                send(
+                    ws,
+                    json!({ "t": "newTerminal", "ok": false, "project": project,
+                    "error": "Open the lpm app on your Mac to open a new terminal." }),
+                )?;
             } else {
                 if !project.is_empty() {
                     queue_run_action(hub, app, json!({ "project": project }));
@@ -1551,7 +1682,11 @@ fn handle_msg(
             let order: Vec<String> = v
                 .get("order")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default();
             if !project.is_empty() && !order.is_empty() {
                 let _ = app.emit(
@@ -1577,9 +1712,12 @@ fn handle_msg(
                 Ok((cwd, _)) => {
                     let st = crate::git::git_status(cwd.clone());
                     if !st.is_git_repo {
-                        send(ws, json!({ "t": "git", "project": project, "ok": true, "isRepo": false,
+                        send(
+                            ws,
+                            json!({ "t": "git", "project": project, "ok": true, "isRepo": false,
                             "branch": "", "detached": false, "hasUpstream": false, "ahead": 0, "behind": 0,
-                            "defaultBranch": "", "ghCli": false, "files": [] }))?;
+                            "defaultBranch": "", "ghCli": false, "files": [] }),
+                        )?;
                     } else {
                         // Enrich each ChangedFile with a `stamp` (a working-tree
                         // fingerprint) so the phone can skip refetching diffs of
@@ -1594,14 +1732,20 @@ fn handle_msg(
                                 o
                             })
                             .collect();
-                        send(ws, json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
+                        send(
+                            ws,
+                            json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
                             "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
                             "ahead": st.ahead, "behind": st.behind,
                             "defaultBranch": crate::git::git_default_branch(cwd),
-                            "ghCli": crate::git::check_ghcli(), "files": files }))?;
+                            "ghCli": crate::git::check_ghcli(), "files": files }),
+                        )?;
                     }
                 }
-                Err(e) => send(ws, json!({ "t": "git", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "git", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitDiff" => {
@@ -1613,21 +1757,33 @@ fn handle_msg(
                         // git renders a binary change as a `Binary files … differ`
                         // / `GIT binary patch` line rather than hunks — surface it
                         // as binary with no diff body instead of shipping the marker.
-                        let binary = diff
-                            .lines()
-                            .any(|l| l.starts_with("Binary files ") || l.starts_with("GIT binary patch"));
+                        let binary = diff.lines().any(|l| {
+                            l.starts_with("Binary files ") || l.starts_with("GIT binary patch")
+                        });
                         if binary {
-                            send(ws, json!({ "t": "gitDiff", "project": project, "path": path,
-                                "ok": true, "diff": "", "binary": true, "truncated": false }))?;
+                            send(
+                                ws,
+                                json!({ "t": "gitDiff", "project": project, "path": path,
+                                "ok": true, "diff": "", "binary": true, "truncated": false }),
+                            )?;
                         } else {
                             let (diff, truncated) = cap_git_diff(&diff);
-                            send(ws, json!({ "t": "gitDiff", "project": project, "path": path,
-                                "ok": true, "diff": diff, "binary": false, "truncated": truncated }))?;
+                            send(
+                                ws,
+                                json!({ "t": "gitDiff", "project": project, "path": path,
+                                "ok": true, "diff": diff, "binary": false, "truncated": truncated }),
+                            )?;
                         }
                     }
-                    Err(e) => send(ws, json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }))?,
+                    Err(e) => send(
+                        ws,
+                        json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }),
+                    )?,
                 },
-                Err(e) => send(ws, json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitCommit" => {
@@ -1636,14 +1792,21 @@ fn handle_msg(
             let files: Vec<String> = v
                 .get("files")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default();
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
                     let r = crate::git::git_commit(cwd, message, files);
                     send(ws, git_result_reply("gitCommit", &project, r))?;
                 }
-                Err(e) => send(ws, json!({ "t": "gitCommit", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitCommit", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitPush" => {
@@ -1657,7 +1820,10 @@ fn handle_msg(
                         let _ = out.try_send(git_result_reply("gitPush", &project, r).to_string());
                     });
                 }
-                Err(e) => send(ws, json!({ "t": "gitPush", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitPush", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitPull" => {
@@ -1671,7 +1837,10 @@ fn handle_msg(
                         let _ = out.try_send(git_result_reply("gitPull", &project, r).to_string());
                     });
                 }
-                Err(e) => send(ws, json!({ "t": "gitPull", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitPull", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitFetch" => {
@@ -1685,7 +1854,10 @@ fn handle_msg(
                         let _ = out.try_send(git_result_reply("gitFetch", &project, r).to_string());
                     });
                 }
-                Err(e) => send(ws, json!({ "t": "gitFetch", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitFetch", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitBranches" => {
@@ -1696,14 +1868,24 @@ fn handle_msg(
                         // `Branch` serializes camelCase and omits `remote` when empty
                         // (serde skip_serializing_if), so a local branch carries no
                         // `remote` field at all.
-                        let branches = serde_json::to_value(&branches).unwrap_or_else(|_| json!([]));
+                        let branches =
+                            serde_json::to_value(&branches).unwrap_or_else(|_| json!([]));
                         let current = crate::git::git_status(cwd).branch;
-                        send(ws, json!({ "t": "gitBranches", "project": project, "ok": true,
-                            "current": current, "branches": branches }))?;
+                        send(
+                            ws,
+                            json!({ "t": "gitBranches", "project": project, "ok": true,
+                            "current": current, "branches": branches }),
+                        )?;
                     }
-                    Err(e) => send(ws, json!({ "t": "gitBranches", "project": project, "ok": false, "error": e }))?,
+                    Err(e) => send(
+                        ws,
+                        json!({ "t": "gitBranches", "project": project, "ok": false, "error": e }),
+                    )?,
                 },
-                Err(e) => send(ws, json!({ "t": "gitBranches", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitBranches", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitCheckout" => {
@@ -1715,7 +1897,10 @@ fn handle_msg(
                     let r = crate::git::checkout_branch(cwd, branch, remote);
                     send(ws, git_result_reply("gitCheckout", &project, r))?;
                 }
-                Err(e) => send(ws, json!({ "t": "gitCheckout", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitCheckout", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitDiscardAll" => {
@@ -1725,7 +1910,10 @@ fn handle_msg(
                     let r = crate::git::git_discard_all(cwd);
                     send(ws, git_result_reply("gitDiscardAll", &project, r))?;
                 }
-                Err(e) => send(ws, json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitDiscardAll", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         // Live review: watch a project's working tree for this connection and push a
@@ -1737,17 +1925,29 @@ fn handle_msg(
         "gitWatch" => {
             let project = str_field("project").unwrap_or_default();
             if watches.contains_key(&project) {
-                send(ws, json!({ "t": "gitWatch", "project": project, "ok": true }))?;
+                send(
+                    ws,
+                    json!({ "t": "gitWatch", "project": project, "ok": true }),
+                )?;
             } else {
                 match config::project_root(&project) {
                     Ok((cwd, _)) => match start_git_watch(&cwd, &project, out) {
                         Ok(w) => {
                             watches.insert(project.clone(), w);
-                            send(ws, json!({ "t": "gitWatch", "project": project, "ok": true }))?;
+                            send(
+                                ws,
+                                json!({ "t": "gitWatch", "project": project, "ok": true }),
+                            )?;
                         }
-                        Err(e) => send(ws, json!({ "t": "gitWatch", "project": project, "ok": false, "error": e }))?,
+                        Err(e) => send(
+                            ws,
+                            json!({ "t": "gitWatch", "project": project, "ok": false, "error": e }),
+                        )?,
                     },
-                    Err(e) => send(ws, json!({ "t": "gitWatch", "project": project, "ok": false, "error": e }))?,
+                    Err(e) => send(
+                        ws,
+                        json!({ "t": "gitWatch", "project": project, "ok": false, "error": e }),
+                    )?,
                 }
             }
         }
@@ -1756,14 +1956,21 @@ fn handle_msg(
             if let Some(w) = watches.remove(&project) {
                 w.stop.store(true, Ordering::SeqCst);
             }
-            send(ws, json!({ "t": "gitUnwatch", "project": project, "ok": true }))?;
+            send(
+                ws,
+                json!({ "t": "gitUnwatch", "project": project, "ok": true }),
+            )?;
         }
         "gitGenMessage" => {
             let project = str_field("project").unwrap_or_default();
             let files: Vec<String> = v
                 .get("files")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
                 .unwrap_or_default();
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
@@ -1771,16 +1978,31 @@ fn handle_msg(
                     let (app, out) = (app.clone(), out.clone());
                     std::thread::spawn(move || {
                         let reply = match crate::aigen::generate_commit_message(
-                            app, project.clone(), cwd, cli, model, effort, fast, files, String::new(),
+                            app,
+                            project.clone(),
+                            cwd,
+                            cli,
+                            model,
+                            effort,
+                            fast,
+                            files,
+                            String::new(),
                             String::new(),
                         ) {
-                            Ok(message) => json!({ "t": "gitGenMessage", "project": project, "ok": true, "message": message }),
-                            Err(e) => json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e }),
+                            Ok(message) => {
+                                json!({ "t": "gitGenMessage", "project": project, "ok": true, "message": message })
+                            }
+                            Err(e) => {
+                                json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e })
+                            }
                         };
                         let _ = out.try_send(reply.to_string());
                     });
                 }
-                Err(e) => send(ws, json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitGenMessage", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitGenPr" => {
@@ -1792,22 +2014,45 @@ fn handle_msg(
                     std::thread::spawn(move || {
                         let base = crate::git::git_default_branch(cwd.clone());
                         let reply = match crate::aigen::generate_pr_title(
-                            app.clone(), project.clone(), cwd.clone(), cli.clone(), model.clone(), effort.clone(), fast, base.clone(),
+                            app.clone(),
+                            project.clone(),
+                            cwd.clone(),
+                            cli.clone(),
+                            model.clone(),
+                            effort.clone(),
+                            fast,
+                            base.clone(),
                             String::new(),
                         ) {
                             Ok(title) => match crate::aigen::generate_pr_description(
-                                app, project.clone(), cwd, cli, model, effort, fast, base,
+                                app,
+                                project.clone(),
+                                cwd,
+                                cli,
+                                model,
+                                effort,
+                                fast,
+                                base,
                                 String::new(),
                             ) {
-                                Ok(body) => json!({ "t": "gitGenPr", "project": project, "ok": true, "title": title, "body": body }),
-                                Err(e) => json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }),
+                                Ok(body) => {
+                                    json!({ "t": "gitGenPr", "project": project, "ok": true, "title": title, "body": body })
+                                }
+                                Err(e) => {
+                                    json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e })
+                                }
                             },
-                            Err(e) => json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }),
+                            Err(e) => {
+                                json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e })
+                            }
                         };
                         let _ = out.try_send(reply.to_string());
                     });
                 }
-                Err(e) => send(ws, json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitGenPr", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         "gitCreatePr" => {
@@ -1820,19 +2065,29 @@ fn handle_msg(
                     std::thread::spawn(move || {
                         let base = crate::git::git_default_branch(cwd.clone());
                         let reply = match crate::git::create_pull_request(cwd, title, body, base) {
-                            Ok(url) => json!({ "t": "gitCreatePr", "project": project, "ok": true, "url": url }),
-                            Err(e) => json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e }),
+                            Ok(url) => {
+                                json!({ "t": "gitCreatePr", "project": project, "ok": true, "url": url })
+                            }
+                            Err(e) => {
+                                json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e })
+                            }
                         };
                         let _ = out.try_send(reply.to_string());
                     });
                 }
-                Err(e) => send(ws, json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e }))?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitCreatePr", "project": project, "ok": false, "error": e }),
+                )?,
             }
         }
         // The user's enabled composer AI actions (~/.lpm/composer-actions.json),
         // so the phone can offer the same rewrite buttons the desktop composer does.
         "composerActions" => {
-            send(ws, json!({ "t": "composerActions", "actions": composer_actions_enabled() }))?;
+            send(
+                ws,
+                json!({ "t": "composerActions", "actions": composer_actions_enabled() }),
+            )?;
         }
         // Headless AI rewrite of the composer text, mirroring desktop's
         // transform_text. `variants` (1..=5) fan out as parallel worker-thread runs;
@@ -1845,11 +2100,19 @@ fn handle_msg(
             let project = str_field("project").unwrap_or_default();
             let instruction = str_field("instruction").unwrap_or_default();
             let text = str_field("text").unwrap_or_default();
-            let variants = v.get("variants").and_then(Value::as_u64).unwrap_or(1).clamp(1, 5) as usize;
+            let variants = v
+                .get("variants")
+                .and_then(Value::as_u64)
+                .unwrap_or(1)
+                .clamp(1, 5) as usize;
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
                     let (cli, model, effort, fast) = git_ai_opts();
-                    let project_opt = if project.is_empty() { None } else { Some(project.clone()) };
+                    let project_opt = if project.is_empty() {
+                        None
+                    } else {
+                        Some(project.clone())
+                    };
                     let remaining = Arc::new(AtomicUsize::new(variants));
                     let any_ok = Arc::new(AtomicBool::new(false));
                     for idx in 0..variants {
@@ -1861,18 +2124,29 @@ fn handle_msg(
                         let (app, out) = (app.clone(), out.clone());
                         let (cwd, cli, model, effort) =
                             (cwd.clone(), cli.clone(), model.clone(), effort.clone());
-                        let (text, project_opt, req_id) = (text.clone(), project_opt.clone(), req_id.clone());
+                        let (text, project_opt, req_id) =
+                            (text.clone(), project_opt.clone(), req_id.clone());
                         let (remaining, any_ok) = (remaining.clone(), any_ok.clone());
                         std::thread::spawn(move || {
                             let reply = match crate::aigen::transform_text(
-                                app, project_opt, cwd, cli, model, effort, fast, instr, text,
+                                app,
+                                project_opt,
+                                cwd,
+                                cli,
+                                model,
+                                effort,
+                                fast,
+                                instr,
+                                text,
                                 String::new(),
                             ) {
                                 Ok(t) => {
                                     any_ok.store(true, Ordering::SeqCst);
                                     json!({ "t": "transform", "reqId": req_id, "idx": idx, "ok": true, "text": t })
                                 }
-                                Err(e) => json!({ "t": "transform", "reqId": req_id, "idx": idx, "ok": false, "error": e }),
+                                Err(e) => {
+                                    json!({ "t": "transform", "reqId": req_id, "idx": idx, "ok": false, "error": e })
+                                }
                             };
                             let _ = out.try_send(reply.to_string());
                             if remaining.fetch_sub(1, Ordering::SeqCst) == 1 {
@@ -1885,8 +2159,14 @@ fn handle_msg(
                     }
                 }
                 Err(e) => {
-                    send(ws, json!({ "t": "transform", "reqId": req_id, "idx": 0, "ok": false, "error": e }))?;
-                    send(ws, json!({ "t": "transformDone", "reqId": req_id, "ok": false }))?;
+                    send(
+                        ws,
+                        json!({ "t": "transform", "reqId": req_id, "idx": 0, "ok": false, "error": e }),
+                    )?;
+                    send(
+                        ws,
+                        json!({ "t": "transformDone", "reqId": req_id, "ok": false }),
+                    )?;
                 }
             }
         }
@@ -1903,7 +2183,8 @@ fn handle_msg(
                     Ok(info) => {
                         let running = crate::tmux::running_sessions().contains(&info.session);
                         let run_state = if running {
-                            services::run_state_from_tmux(&info.session, info.services.keys()).unwrap_or(run_state)
+                            services::run_state_from_tmux(&info.session, info.services.keys())
+                                .unwrap_or(run_state)
                         } else {
                             run_state
                         };
@@ -1924,7 +2205,9 @@ fn handle_msg(
                         json!({ "t": "services", "project": project, "ok": true,
                             "running": running, "services": services })
                     }
-                    Err(e) => json!({ "t": "services", "project": project, "ok": false, "error": e }),
+                    Err(e) => {
+                        json!({ "t": "services", "project": project, "ok": false, "error": e })
+                    }
                 };
                 let _ = out.try_send(reply.to_string());
             });
@@ -1935,14 +2218,26 @@ fn handle_msg(
         "serviceLogs" => {
             let project = str_field("project").unwrap_or_default();
             let pane_index = v.get("paneIndex").and_then(Value::as_i64).unwrap_or(0);
-            let lines = v.get("lines").and_then(Value::as_i64).unwrap_or(200).clamp(1, 200);
+            let lines = v
+                .get("lines")
+                .and_then(Value::as_i64)
+                .unwrap_or(200)
+                .clamp(1, 200);
             let out = out.clone();
             std::thread::spawn(move || {
-                let reply = match crate::log_streaming::get_service_logs(project.clone(), pane_index, lines) {
-                    Ok(text) => json!({ "t": "serviceLogs", "project": project, "paneIndex": pane_index,
-                        "ok": true, "text": text }),
-                    Err(e) => json!({ "t": "serviceLogs", "project": project, "paneIndex": pane_index,
-                        "ok": false, "error": e }),
+                let reply = match crate::log_streaming::get_service_logs(
+                    project.clone(),
+                    pane_index,
+                    lines,
+                ) {
+                    Ok(text) => {
+                        json!({ "t": "serviceLogs", "project": project, "paneIndex": pane_index,
+                        "ok": true, "text": text })
+                    }
+                    Err(e) => {
+                        json!({ "t": "serviceLogs", "project": project, "paneIndex": pane_index,
+                        "ok": false, "error": e })
+                    }
                 };
                 let _ = out.try_send(reply.to_string());
             });
@@ -1959,7 +2254,10 @@ fn handle_msg(
             } else {
                 ("project".to_string(), project.clone())
             };
-            let favorites_only = v.get("favoritesOnly").and_then(Value::as_bool).unwrap_or(false);
+            let favorites_only = v
+                .get("favoritesOnly")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             let folder = str_field("folder").unwrap_or_default();
             let collection = if favorites_only {
                 "favorites".to_string()
@@ -2001,14 +2299,22 @@ fn handle_msg(
                     })
                 })
                 .collect();
-            send(ws, json!({ "t": "historyQuery", "items": items, "hasMore": has_more }))?;
+            send(
+                ws,
+                json!({ "t": "historyQuery", "items": items, "hasMore": has_more }),
+            )?;
         }
         // Save the composer's current text as an unsent draft (kept in shared
         // history, badged as a draft). `message` is the draft text; project/id/label/
         // images are optional context.
         "historySaveDraft" => {
             let text = str_field("message")
-                .or_else(|| v.get("message").and_then(|m| m.get("text")).and_then(Value::as_str).map(str::to_string))
+                .or_else(|| {
+                    v.get("message")
+                        .and_then(|m| m.get("text"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
                 .unwrap_or_default();
             if !text.trim().is_empty() {
                 let images = v
@@ -2040,8 +2346,14 @@ fn handle_msg(
                 app.state::<crate::message_history::MessageHistoryState>(),
                 &id,
             ) {
-                Ok(fav) => send(ws, json!({ "t": "historyToggleFavorite", "id": id, "ok": true, "favorite": fav }))?,
-                Err(e) => send(ws, json!({ "t": "historyToggleFavorite", "id": id, "ok": false, "error": e }))?,
+                Ok(fav) => send(
+                    ws,
+                    json!({ "t": "historyToggleFavorite", "id": id, "ok": true, "favorite": fav }),
+                )?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "historyToggleFavorite", "id": id, "ok": false, "error": e }),
+                )?,
             }
         }
         // Move a message into a folder, or omit `folder` to remove it from its folder.
@@ -2077,9 +2389,15 @@ fn handle_msg(
                 app.state::<crate::message_history::MessageHistoryState>(),
                 name,
             ) {
-                Ok(f) => send(ws, json!({ "t": "historyCreateFolder", "ok": true,
-                    "folder": serde_json::to_value(f).unwrap_or_else(|_| json!({})) }))?,
-                Err(e) => send(ws, json!({ "t": "historyCreateFolder", "ok": false, "error": e }))?,
+                Ok(f) => send(
+                    ws,
+                    json!({ "t": "historyCreateFolder", "ok": true,
+                    "folder": serde_json::to_value(f).unwrap_or_else(|_| json!({})) }),
+                )?,
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "historyCreateFolder", "ok": false, "error": e }),
+                )?,
             }
         }
         // Delete a folder (its messages are un-filed, not deleted). Accepts the
@@ -2106,7 +2424,10 @@ fn handle_msg(
                     );
                     send(ws, result_reply("historyDeleteFolder", r))?;
                 }
-                None => send(ws, json!({ "t": "historyDeleteFolder", "ok": false, "error": "folder not found" }))?,
+                None => send(
+                    ws,
+                    json!({ "t": "historyDeleteFolder", "ok": false, "error": "folder not found" }),
+                )?,
             }
         }
         _ => {}
@@ -2132,7 +2453,10 @@ fn composer_actions_enabled() -> Vec<Value> {
     list.iter()
         .filter(|a| a.get("enabled").and_then(Value::as_bool).unwrap_or(false))
         .filter_map(|a| {
-            let id = a.get("id").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+            let id = a
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())?;
             Some(json!({
                 "id": id,
                 "icon": a.get("icon").and_then(Value::as_str).unwrap_or("sparkles"),
@@ -2221,17 +2545,28 @@ pub(crate) fn group_copies_into_folder(
         .ok_or("groups.json malformed")?;
 
     let name_matches = |g: &Value, ci: bool| {
-        g.get("name").and_then(Value::as_str).map(|n| {
-            let n = n.trim();
-            if ci { n.eq_ignore_ascii_case(group_name) } else { n == group_name }
-        }).unwrap_or(false)
+        g.get("name")
+            .and_then(Value::as_str)
+            .map(|n| {
+                let n = n.trim();
+                if ci {
+                    n.eq_ignore_ascii_case(group_name)
+                } else {
+                    n == group_name
+                }
+            })
+            .unwrap_or(false)
     };
     let existing = groups
         .iter()
         .position(|g| name_matches(g, false))
         .or_else(|| groups.iter().position(|g| name_matches(g, true)));
     let group_id = match existing {
-        Some(i) => groups[i].get("id").and_then(Value::as_str).unwrap_or_default().to_string(),
+        Some(i) => groups[i]
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         None => {
             let id = uuid::Uuid::new_v4().to_string();
             groups.push(json!({ "id": id, "name": group_name, "members": [] }));
@@ -2280,7 +2615,10 @@ fn top_level_index_of(order: &[Value], groups: &[Value], name: &str) -> usize {
     }) {
         if let Some(id) = g.get("id").and_then(Value::as_str) {
             let token = format!("group:{}", id);
-            if let Some(i) = order.iter().position(|t| t.as_str() == Some(token.as_str())) {
+            if let Some(i) = order
+                .iter()
+                .position(|t| t.as_str() == Some(token.as_str()))
+            {
                 return i;
             }
         }
@@ -2295,7 +2633,10 @@ fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
     for token in order {
         let Some(s) = token.as_str() else { continue };
         if let Some(id) = s.strip_prefix("group:") {
-            if let Some(g) = groups.iter().find(|g| g.get("id").and_then(Value::as_str) == Some(id)) {
+            if let Some(g) = groups
+                .iter()
+                .find(|g| g.get("id").and_then(Value::as_str) == Some(id))
+            {
                 if let Some(members) = g.get("members").and_then(Value::as_array) {
                     for m in members {
                         if let Some(ms) = m.as_str() {
@@ -2549,7 +2890,9 @@ fn clear_payload(server_id: &str, project: &str, keys: &[String]) -> String {
 /// Decode a device into a `PushDevice`, or None when its push key isn't a valid
 /// 32-byte AES key (so nothing could be sealed to it anyway).
 fn make_push_device(d: &Device) -> Option<PushDevice> {
-    let bytes = base64::engine::general_purpose::STANDARD.decode(&d.push_key).ok()?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&d.push_key)
+        .ok()?;
     let key: [u8; 32] = bytes.try_into().ok()?;
     Some(PushDevice {
         id: d.id.clone(),
@@ -2610,13 +2953,22 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     let entries: Vec<(String, String, i64, String)> = store
         .list(project)
         .into_iter()
-        .filter(|e| matches!(e.value.as_str(), STATUS_WAITING | STATUS_DONE | STATUS_ERROR))
+        .filter(|e| {
+            matches!(
+                e.value.as_str(),
+                STATUS_WAITING | STATUS_DONE | STATUS_ERROR
+            )
+        })
         .map(|e| (e.key, e.value, e.timestamp, e.pane_id))
         .collect();
-    let pane_of: HashMap<String, String> =
-        entries.iter().map(|(k, _, _, p)| (k.clone(), p.clone())).collect();
-    let plain: Vec<(String, String, i64)> =
-        entries.iter().map(|(k, v, t, _)| (k.clone(), v.clone(), *t)).collect();
+    let pane_of: HashMap<String, String> = entries
+        .iter()
+        .map(|(k, _, _, p)| (k.clone(), p.clone()))
+        .collect();
+    let plain: Vec<(String, String, i64)> = entries
+        .iter()
+        .map(|(k, v, t, _)| (k.clone(), v.clone(), *t))
+        .collect();
 
     // Update the dedup map on every event (a transition fact, independent of who's
     // connected): the new/changed entries to alert on, and the keys that vanished
@@ -2635,7 +2987,13 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     // already got the `status-changed` frame); clears don't, since a foregrounded
     // phone's already-delivered notifications still need pruning.
     let connected: HashSet<String> = if want_alert {
-        hub.inner.clients.lock().unwrap().values().map(|c| c.device_id.clone()).collect()
+        hub.inner
+            .clients
+            .lock()
+            .unwrap()
+            .values()
+            .map(|c| c.device_id.clone())
+            .collect()
     } else {
         HashSet::new()
     };
@@ -2655,8 +3013,11 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     } else {
         Vec::new()
     };
-    let clear_recipients: Vec<PushDevice> =
-        if want_clear { clear_recipients(&cfg.devices) } else { Vec::new() };
+    let clear_recipients: Vec<PushDevice> = if want_clear {
+        clear_recipients(&cfg.devices)
+    } else {
+        Vec::new()
+    };
     if recipients.is_empty() && clear_recipients.is_empty() {
         return;
     }
@@ -2674,7 +3035,13 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                     .and_then(|pane| labels.get(pane).cloned())
                     .unwrap_or_default();
                 let collapse_id = push_collapse_id(&server_id, project, &key);
-                PushJob { terminal, value, ts, key, collapse_id }
+                PushJob {
+                    terminal,
+                    value,
+                    ts,
+                    key,
+                    collapse_id,
+                }
             })
             .collect()
     };
@@ -2749,8 +3116,14 @@ fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, re
         _ => return,
     };
 
-    let connected: HashSet<String> =
-        hub.inner.clients.lock().unwrap().values().map(|c| c.device_id.clone()).collect();
+    let connected: HashSet<String> = hub
+        .inner
+        .clients
+        .lock()
+        .unwrap()
+        .values()
+        .map(|c| c.device_id.clone())
+        .collect();
     let cfg = load_config();
     let relay = cfg.effective_relay();
     let server_id = cfg.server_id.clone().unwrap_or_default();
@@ -2851,9 +3224,18 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
         let Ok(payload) = serde_json::from_str::<Value>(event.payload()) else {
             return;
         };
-        let project = payload.get("project").and_then(Value::as_str).unwrap_or_default();
-        let job_id = payload.get("jobId").and_then(Value::as_str).unwrap_or_default();
-        let result = payload.get("result").and_then(Value::as_str).unwrap_or_default();
+        let project = payload
+            .get("project")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let job_id = payload
+            .get("jobId")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let result = payload
+            .get("result")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         push_automation_notification(&h, project, job_id, result);
     });
 }
@@ -3027,7 +3409,10 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, la
         );
         emoji_map.insert(
             id.to_string(),
-            item.get("emoji").and_then(Value::as_str).unwrap_or("").to_string(),
+            item.get("emoji")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
         );
     }
     if !project.is_empty() && !ids.is_empty() {
@@ -3079,8 +3464,8 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
         (candidate_hosts(snapshot.tailscale), port)
     };
     apply(&hub, &app); // ensure the listener is up so the phone can connect
-    // Every candidate address as a repeated `h=` param; the phone tries each and
-    // keeps the one it can reach (LAN at home, Tailscale away from home).
+                       // Every candidate address as a repeated `h=` param; the phone tries each and
+                       // keeps the one it can reach (LAN at home, Tailscale away from home).
     let host_params: String = hosts.iter().map(|h| format!("&h={h}")).collect();
     let url = format!("lpm://pair?p={port}&c={code}{host_params}");
     Ok(json!({
@@ -3104,7 +3489,11 @@ pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Val
     }
     // Drop any live connection for the revoked device (the poll loop also self-
     // exits on its next tick via device_exists).
-    hub.inner.clients.lock().unwrap().retain(|_, c| c.device_id != id);
+    hub.inner
+        .clients
+        .lock()
+        .unwrap()
+        .retain(|_, c| c.device_id != id);
     Ok(state_value(&hub))
 }
 
@@ -3154,8 +3543,14 @@ mod tests {
         *TEST_CONFIG_PATH.lock().unwrap() = None;
         let _ = std::fs::remove_file(&tmp);
 
-        assert!(auth.is_some(), "authenticate returned None through a non-blocking listener");
-        assert!(reply.to_text().unwrap().contains("paired"), "expected paired, got: {reply:?}");
+        assert!(
+            auth.is_some(),
+            "authenticate returned None through a non-blocking listener"
+        );
+        assert!(
+            reply.to_text().unwrap().contains("paired"),
+            "expected paired, got: {reply:?}"
+        );
     }
 
     #[test]
@@ -3164,7 +3559,6 @@ mod tests {
         assert!(!ct_eq(b"abc", b"abd"));
         assert!(!ct_eq(b"abc", b"ab"));
     }
-
 
     #[test]
     fn code_normalization_ignores_dashes_and_case() {
@@ -3208,7 +3602,10 @@ mod tests {
                 ..Default::default()
             },
             // The freshly re-paired record that now registers "deadbeef".
-            Device { id: "new".into(), ..Default::default() },
+            Device {
+                id: "new".into(),
+                ..Default::default()
+            },
             // A different physical device — must be left untouched.
             Device {
                 id: "other".into(),
@@ -3228,13 +3625,23 @@ mod tests {
             automation_done: false,
             automation_error: true,
         };
-        assert!(apply_apns_token(&mut devices, "new", "deadbeef", "sandbox", &key, prefs));
+        assert!(apply_apns_token(
+            &mut devices,
+            "new",
+            "deadbeef",
+            "sandbox",
+            &key,
+            prefs
+        ));
 
         let new = devices.iter().find(|d| d.id == "new").unwrap();
         assert_eq!(new.apns_token, "deadbeef");
         assert_eq!(new.apns_env, "sandbox");
         assert_eq!(new.push_key, key);
-        assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
+        assert_eq!(
+            (new.push_waiting, new.push_done, new.push_error),
+            (true, false, true)
+        );
         assert_eq!(
             (
                 new.push_automation_started,
@@ -3260,10 +3667,20 @@ mod tests {
 
         // An unknown device id reports not-paired and mutates nothing — not even
         // other records holding the same token.
-        assert!(!apply_apns_token(&mut devices, "ghost", "deadbeef", "sandbox", &key, prefs));
+        assert!(!apply_apns_token(
+            &mut devices,
+            "ghost",
+            "deadbeef",
+            "sandbox",
+            &key,
+            prefs
+        ));
         let new = devices.iter().find(|d| d.id == "new").unwrap();
         assert_eq!(new.apns_token, "deadbeef");
-        assert_eq!((new.push_waiting, new.push_done, new.push_error), (true, false, true));
+        assert_eq!(
+            (new.push_waiting, new.push_done, new.push_error),
+            (true, false, true)
+        );
     }
 
     #[test]
@@ -3303,12 +3720,19 @@ mod tests {
 
         let connected: HashSet<String> = ["connected".to_string()].into_iter().collect();
 
-        let alert_ids: Vec<String> =
-            alert_recipients(&devices, &connected).into_iter().map(|d| d.id).collect();
-        assert_eq!(alert_ids, vec!["opted".to_string(), "automation".to_string()]);
+        let alert_ids: Vec<String> = alert_recipients(&devices, &connected)
+            .into_iter()
+            .map(|d| d.id)
+            .collect();
+        assert_eq!(
+            alert_ids,
+            vec!["opted".to_string(), "automation".to_string()]
+        );
 
-        let mut clear_ids: Vec<String> =
-            clear_recipients(&devices).into_iter().map(|d| d.id).collect();
+        let mut clear_ids: Vec<String> = clear_recipients(&devices)
+            .into_iter()
+            .map(|d| d.id)
+            .collect();
         clear_ids.sort();
         assert_eq!(
             clear_ids,
@@ -3403,13 +3827,28 @@ mod tests {
         let key = base64::engine::general_purpose::STANDARD.encode([1u8; 32]);
         assert!(validate_apns("abc123", "production", &key).is_ok());
         assert!(validate_apns("ABCDEF", "sandbox", &key).is_ok());
-        assert!(validate_apns("", "production", &key).is_err(), "empty token");
-        assert!(validate_apns("xyz", "production", &key).is_err(), "non-hex token");
-        assert!(validate_apns(&"a".repeat(201), "production", &key).is_err(), "over-long token");
+        assert!(
+            validate_apns("", "production", &key).is_err(),
+            "empty token"
+        );
+        assert!(
+            validate_apns("xyz", "production", &key).is_err(),
+            "non-hex token"
+        );
+        assert!(
+            validate_apns(&"a".repeat(201), "production", &key).is_err(),
+            "over-long token"
+        );
         assert!(validate_apns("ab", "staging", &key).is_err(), "bad env");
         let short = base64::engine::general_purpose::STANDARD.encode([1u8; 16]);
-        assert!(validate_apns("ab", "production", &short).is_err(), "16-byte key");
-        assert!(validate_apns("ab", "production", "not base64!!").is_err(), "bad base64");
+        assert!(
+            validate_apns("ab", "production", &short).is_err(),
+            "16-byte key"
+        );
+        assert!(
+            validate_apns("ab", "production", "not base64!!").is_err(),
+            "bad base64"
+        );
     }
 
     #[test]
@@ -3418,17 +3857,26 @@ mod tests {
         let e = |k: &str, v: &str, ts: i64| (k.to_string(), v.to_string(), ts);
 
         // First sighting of both -> both push, nothing vanished yet.
-        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 1), e("b", "Done", 1)]);
+        let (out, vanished) = dedup_status_pushes(
+            &mut seen,
+            "proj",
+            &[e("a", "Waiting", 1), e("b", "Done", 1)],
+        );
         assert_eq!(out.len(), 2);
         assert!(vanished.is_empty());
 
         // Identical re-report -> nothing.
-        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Waiting", 2), e("b", "Done", 2)]);
+        let (out, vanished) = dedup_status_pushes(
+            &mut seen,
+            "proj",
+            &[e("a", "Waiting", 2), e("b", "Done", 2)],
+        );
         assert!(out.is_empty(), "unchanged values dedup");
         assert!(vanished.is_empty());
 
         // a's value changed -> only a pushes.
-        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 3), e("b", "Done", 3)]);
+        let (out, vanished) =
+            dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 3), e("b", "Done", 3)]);
         assert_eq!(out, vec![e("a", "Error", 3)]);
         assert!(vanished.is_empty());
 
@@ -3437,9 +3885,17 @@ mod tests {
         let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 4)]);
         assert!(out.is_empty());
         assert_eq!(vanished, vec!["b".to_string()], "b's vanish reported once");
-        let (out, vanished) = dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 5), e("b", "Done", 5)]);
-        assert_eq!(out, vec![e("b", "Done", 5)], "b re-notifies after vanishing");
-        assert!(vanished.is_empty(), "b's vanish not re-reported on the next event");
+        let (out, vanished) =
+            dedup_status_pushes(&mut seen, "proj", &[e("a", "Error", 5), e("b", "Done", 5)]);
+        assert_eq!(
+            out,
+            vec![e("b", "Done", 5)],
+            "b re-notifies after vanishing"
+        );
+        assert!(
+            vanished.is_empty(),
+            "b's vanish not re-reported on the next event"
+        );
 
         // A different project's key with the same name is independent.
         let (out, vanished) = dedup_status_pushes(&mut seen, "other", &[e("a", "Error", 6)]);
@@ -3452,10 +3908,26 @@ mod tests {
         let id = push_collapse_id("srv-a", "web-app", "pane-1");
         assert_eq!(id.len(), 60);
         assert!(id.chars().all(|c| c.is_ascii_hexdigit()));
-        assert_eq!(id, push_collapse_id("srv-a", "web-app", "pane-1"), "deterministic");
-        assert_ne!(id, push_collapse_id("srv-a", "web-app", "pane-2"), "key participates");
-        assert_ne!(id, push_collapse_id("srv-a", "other", "pane-1"), "project participates");
-        assert_ne!(id, push_collapse_id("srv-b", "web-app", "pane-1"), "server participates");
+        assert_eq!(
+            id,
+            push_collapse_id("srv-a", "web-app", "pane-1"),
+            "deterministic"
+        );
+        assert_ne!(
+            id,
+            push_collapse_id("srv-a", "web-app", "pane-2"),
+            "key participates"
+        );
+        assert_ne!(
+            id,
+            push_collapse_id("srv-a", "other", "pane-1"),
+            "project participates"
+        );
+        assert_ne!(
+            id,
+            push_collapse_id("srv-b", "web-app", "pane-1"),
+            "server participates"
+        );
     }
 
     #[test]
@@ -3466,7 +3938,11 @@ mod tests {
         let first = cfg.server_id.clone().unwrap();
         assert!(!first.is_empty());
         assert!(!cfg.ensure_server_id(), "second call is a no-op");
-        assert_eq!(cfg.server_id.as_deref(), Some(first.as_str()), "stable across calls");
+        assert_eq!(
+            cfg.server_id.as_deref(),
+            Some(first.as_str()),
+            "stable across calls"
+        );
     }
 
     #[test]
@@ -3506,7 +3982,9 @@ mod tests {
         let blob = seal_push(&key, plaintext).expect("seal");
 
         // Decrypt the combined SealedBox exactly as the phone's extension would.
-        let raw = base64::engine::general_purpose::STANDARD.decode(&blob).unwrap();
+        let raw = base64::engine::general_purpose::STANDARD
+            .decode(&blob)
+            .unwrap();
         assert!(raw.len() > 12 + 16, "nonce + ciphertext + tag");
         let (nonce, sealed) = raw.split_at(12);
         let cipher = Aes256Gcm::new_from_slice(&key).unwrap();

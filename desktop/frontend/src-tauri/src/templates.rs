@@ -62,7 +62,8 @@ pub fn read_template(name: String) -> Result<String, String> {
 
 #[tauri::command]
 pub fn save_template(app: AppHandle, name: String, content: String) -> Result<(), String> {
-    serde_yaml::from_str::<serde_yaml::Value>(&content).map_err(|e| format!("invalid YAML: {e}"))?;
+    serde_yaml::from_str::<serde_yaml::Value>(&content)
+        .map_err(|e| format!("invalid YAML: {e}"))?;
     config::ensure_dirs()?;
     let path = config::templates_dir().join(format!("{name}.yml"));
     config::write_config_file(&path, &content)?;

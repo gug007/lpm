@@ -29,7 +29,10 @@ fn host_key(ssh: &SshSettings) -> String {
 }
 
 fn socket_basename() -> String {
-    format!("status-{}.sock", config::sanitize_host(&config::hostname_or_mac()))
+    format!(
+        "status-{}.sock",
+        config::sanitize_host(&config::hostname_or_mac())
+    )
 }
 
 /// LPM_SOCKET_PATH as a shell expression the remote LOGIN shell expands, so a
@@ -41,7 +44,11 @@ pub fn remote_socket_env_expr() -> String {
 }
 
 fn remote_socket_abs(home: &str) -> String {
-    format!("{}/.lpm/fwd/{}", home.trim_end_matches('/'), socket_basename())
+    format!(
+        "{}/.lpm/fwd/{}",
+        home.trim_end_matches('/'),
+        socket_basename()
+    )
 }
 
 /// `ssh -N -R <remote.sock>:<local.sock>` over the shared mux (ssh_args minus
@@ -67,7 +74,9 @@ fn forward_argv(ssh: &SshSettings, remote_sock: &str, local_sock: &str) -> Vec<S
 
 /// Spawn a command, capture stdout, SIGKILL it if it overruns `timeout`.
 fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Vec<u8>> {
-    cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
     let mut child = cmd.spawn().ok()?;
     let mut stdout = child.stdout.take()?;
     let pid = child.id() as i32;
@@ -143,7 +152,9 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
     if forward_alive(&state, ssh) {
         return;
     }
-    let Some(home) = remote_home(&state, ssh) else { return };
+    let Some(home) = remote_home(&state, ssh) else {
+        return;
+    };
     let remote_sock = remote_socket_abs(&home);
     if !prep_remote_dir(ssh, &remote_sock) {
         return;
@@ -191,7 +202,13 @@ mod tests {
     use super::*;
 
     fn ssh() -> SshSettings {
-        SshSettings { host: "host".into(), user: "dev".into(), port: 0, key: String::new(), dir: String::new() }
+        SshSettings {
+            host: "host".into(),
+            user: "dev".into(),
+            port: 0,
+            key: String::new(),
+            dir: String::new(),
+        }
     }
 
     #[test]
@@ -200,9 +217,15 @@ mod tests {
         assert!(base.starts_with("status-") && base.ends_with(".sock"));
         let expr = remote_socket_env_expr();
         assert_eq!(expr, format!("\"$HOME/.lpm/fwd/{base}\""));
-        assert_eq!(remote_socket_abs("/Users/dev"), format!("/Users/dev/.lpm/fwd/{base}"));
+        assert_eq!(
+            remote_socket_abs("/Users/dev"),
+            format!("/Users/dev/.lpm/fwd/{base}")
+        );
         // Trailing slash on home doesn't double up.
-        assert_eq!(remote_socket_abs("/Users/dev/"), format!("/Users/dev/.lpm/fwd/{base}"));
+        assert_eq!(
+            remote_socket_abs("/Users/dev/"),
+            format!("/Users/dev/.lpm/fwd/{base}")
+        );
     }
 
     #[test]

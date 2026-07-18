@@ -71,7 +71,10 @@ fn parse_ssh_config(path: &Path, home: &Path, depth: usize) -> Result<Vec<SshCon
                     current = None;
                     continue;
                 }
-                blocks.push(Block { names, ..Block::default() });
+                blocks.push(Block {
+                    names,
+                    ..Block::default()
+                });
                 current = Some(blocks.len() - 1);
             }
             "match" => {

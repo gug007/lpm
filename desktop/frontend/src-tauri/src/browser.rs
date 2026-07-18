@@ -9,7 +9,9 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewBuilder, WebviewUrl};
+use tauri::{
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewBuilder, WebviewUrl,
+};
 
 /// A full page navigation reverts the webview to the window (app) appearance, so
 /// the chosen light/dark is kept here and re-asserted on each navigation.
@@ -32,14 +34,22 @@ struct UrlChanged {
 }
 
 fn place(wv: &tauri::Webview, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
-    wv.set_position(LogicalPosition::new(x, y)).map_err(|e| e.to_string())?;
-    wv.set_size(LogicalSize::new(width.max(1.0), height.max(1.0))).map_err(|e| e.to_string())?;
+    wv.set_position(LogicalPosition::new(x, y))
+        .map_err(|e| e.to_string())?;
+    wv.set_size(LogicalSize::new(width.max(1.0), height.max(1.0)))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 fn parse_url(url: &str) -> Result<tauri::Url, String> {
-    let target = if url.trim().is_empty() { "about:blank" } else { url.trim() };
-    target.parse().map_err(|e| format!("invalid URL {target:?}: {e}"))
+    let target = if url.trim().is_empty() {
+        "about:blank"
+    } else {
+        url.trim()
+    };
+    target
+        .parse()
+        .map_err(|e| format!("invalid URL {target:?}: {e}"))
 }
 
 #[tauri::command(async)]
@@ -66,12 +76,25 @@ pub fn open_browser(
         // Main-frame loads only, so the address bar follows the page itself — not
         // the iframes/widgets a site embeds (Google's account switcher, etc.).
         .on_page_load(move |_wv, payload| {
-            let _ = app_pl.emit("browser-url-changed", UrlChanged { id: id_pl.clone(), url: payload.url().to_string() });
+            let _ = app_pl.emit(
+                "browser-url-changed",
+                UrlChanged {
+                    id: id_pl.clone(),
+                    url: payload.url().to_string(),
+                },
+            );
         })
         .on_navigation(move |_u| {
             // Re-assert appearance on a worker thread: apply_webview_appearance →
             // with_webview blocks the main thread, and this callback runs on main.
-            if let Some(dark) = app2.state::<BrowserState>().theme.lock().unwrap().get(&id2).copied() {
+            if let Some(dark) = app2
+                .state::<BrowserState>()
+                .theme
+                .lock()
+                .unwrap()
+                .get(&id2)
+                .copied()
+            {
                 let (app3, id3) = (app2.clone(), id2.clone());
                 std::thread::spawn(move || {
                     if let Some(wv) = app3.get_webview(&id3) {
@@ -91,7 +114,14 @@ pub fn open_browser(
 }
 
 #[tauri::command(async)]
-pub fn set_browser_bounds(app: AppHandle, id: String, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
+pub fn set_browser_bounds(
+    app: AppHandle,
+    id: String,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
     match app.get_webview(&id) {
         Some(wv) => place(&wv, x, y, width, height),
         None => Ok(()),
@@ -101,7 +131,8 @@ pub fn set_browser_bounds(app: AppHandle, id: String, x: f64, y: f64, width: f64
 #[tauri::command(async)]
 pub fn hide_browser(app: AppHandle, id: String) -> Result<(), String> {
     if let Some(wv) = app.get_webview(&id) {
-        wv.set_position(LogicalPosition::new(OFFSCREEN, OFFSCREEN)).map_err(|e| e.to_string())?;
+        wv.set_position(LogicalPosition::new(OFFSCREEN, OFFSCREEN))
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -137,7 +168,11 @@ fn eval(app: &AppHandle, id: &str, js: &str) -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-pub fn close_browser(app: AppHandle, state: State<'_, BrowserState>, id: String) -> Result<(), String> {
+pub fn close_browser(
+    app: AppHandle,
+    state: State<'_, BrowserState>,
+    id: String,
+) -> Result<(), String> {
     state.theme.lock().unwrap().remove(&id);
     if let Some(wv) = app.get_webview(&id) {
         wv.close().map_err(|e| e.to_string())?;
@@ -168,14 +203,19 @@ fn apply_webview_appearance(wv: &tauri::Webview, dark: bool) {
     use objc2_foundation::NSString;
     // NSAppearanceName values are plain NSStrings; built by literal to avoid
     // objc2-app-kit's per-type feature gates.
-    let name = if dark { "NSAppearanceNameDarkAqua" } else { "NSAppearanceNameAqua" };
+    let name = if dark {
+        "NSAppearanceNameDarkAqua"
+    } else {
+        "NSAppearanceNameAqua"
+    };
     let _ = wv.with_webview(move |pv| unsafe {
         let view: *mut AnyObject = pv.inner().cast();
         if view.is_null() {
             return;
         }
         let ns_name = NSString::from_str(name);
-        let appearance: *mut AnyObject = msg_send![class!(NSAppearance), appearanceNamed: &*ns_name];
+        let appearance: *mut AnyObject =
+            msg_send![class!(NSAppearance), appearanceNamed: &*ns_name];
         let _: () = msg_send![view, setAppearance: appearance];
     });
 }

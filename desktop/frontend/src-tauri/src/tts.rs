@@ -85,7 +85,11 @@ pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Re
         return Err("text is empty".into());
     }
     let s = config::load_settings();
-    let mut voice = s.get("ttsVoice").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let mut voice = s
+        .get("ttsVoice")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
     let mut speed = s.get("ttsSpeed").and_then(|v| v.as_f64()).unwrap_or(0.0);
     if voice.is_empty() {
         voice = "af_heart".into();
@@ -123,7 +127,10 @@ pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Re
     std::thread::spawn(move || {
         // BufRead::lines grows unbounded, so base64 WAV chunks aren't truncated
         // (Go needed an explicit 10 MB scanner buffer; here it's automatic).
-        for line in std::io::BufReader::new(stdout).lines().map_while(Result::ok) {
+        for line in std::io::BufReader::new(stdout)
+            .lines()
+            .map_while(Result::ok)
+        {
             let Ok(chunk) = serde_json::from_str::<TtsChunk>(&line) else {
                 continue;
             };

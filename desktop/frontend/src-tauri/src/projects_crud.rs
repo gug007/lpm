@@ -128,13 +128,18 @@ fn validate_clone_request(
     let meta = std::fs::metadata(parent)
         .map_err(|_| format!("destination parent does not exist: {dest_parent}"))?;
     if !meta.is_dir() {
-        return Err(format!("destination parent is not a directory: {dest_parent}"));
+        return Err(format!(
+            "destination parent is not a directory: {dest_parent}"
+        ));
     }
     check_writable(parent)?;
 
     let dest = parent.join(name);
     if dest.exists() {
-        return Err(format!("destination folder: {} already exists", dest.display()));
+        return Err(format!(
+            "destination folder: {} already exists",
+            dest.display()
+        ));
     }
     Ok((branch, dest))
 }
@@ -142,7 +147,13 @@ fn validate_clone_request(
 /// Run the (network-blocking) clone into `dest`; on success write the project
 /// config and emit `projects-changed`, otherwise clean up the partial clone.
 /// `branch` empty means the repository's default branch.
-fn run_clone(app: &AppHandle, name: &str, url: &str, branch: &str, dest: &Path) -> Result<(), String> {
+fn run_clone(
+    app: &AppHandle,
+    name: &str,
+    url: &str,
+    branch: &str,
+    dest: &Path,
+) -> Result<(), String> {
     let mut argv: Vec<String> = vec!["clone".into(), "--progress".into()];
     if !branch.is_empty() {
         argv.push("--branch".into());
@@ -167,7 +178,11 @@ fn run_clone(app: &AppHandle, name: &str, url: &str, branch: &str, dest: &Path) 
 
     let write = write_project_yaml(name, |m| {
         yset(m, "name", name);
-        yset(m, "root", config::collapse_home(&dest.to_string_lossy()).as_str());
+        yset(
+            m,
+            "root",
+            config::collapse_home(&dest.to_string_lossy()).as_str(),
+        );
         m.insert(Yaml::from("services"), dev_services());
     });
     if let Err(e) = write {
@@ -255,7 +270,10 @@ fn random_id6() -> String {
         .collect()
 }
 
-fn next_available_duplicate(original: &str, parent_dir: &Path) -> Result<(String, PathBuf), String> {
+fn next_available_duplicate(
+    original: &str,
+    parent_dir: &Path,
+) -> Result<(String, PathBuf), String> {
     for _ in 0..10 {
         let candidate = format!("{original}-{}", random_id6());
         let root = parent_dir.join(&candidate);
@@ -273,7 +291,9 @@ fn is_prunable(name: &std::ffi::OsStr, skip_node_modules: bool) -> bool {
 }
 
 fn subtree_has_prunable(dir: &Path, skip_node_modules: bool) -> bool {
-    let Ok(rd) = std::fs::read_dir(dir) else { return false; };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return false;
+    };
     let mut subdirs = Vec::new();
     for entry in rd.flatten() {
         let name = entry.file_name();
@@ -288,7 +308,9 @@ fn subtree_has_prunable(dir: &Path, skip_node_modules: bool) -> bool {
             subdirs.push(entry.path());
         }
     }
-    subdirs.iter().any(|d| subtree_has_prunable(d, skip_node_modules))
+    subdirs
+        .iter()
+        .any(|d| subtree_has_prunable(d, skip_node_modules))
 }
 
 fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
@@ -324,7 +346,10 @@ fn cp_clone(src: &Path, dst: &Path, skip_node_modules: bool) -> Result<(), Strin
         let from = entry.path();
         let to = dst.join(&name);
         let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
-        if is_dir && name.to_str() != Some("node_modules") && subtree_has_prunable(&from, skip_node_modules) {
+        if is_dir
+            && name.to_str() != Some("node_modules")
+            && subtree_has_prunable(&from, skip_node_modules)
+        {
             cp_clone(&from, &to, skip_node_modules)?;
         } else {
             cp_c_r(&from, &to)?;
@@ -439,7 +464,11 @@ fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
     let text = String::from_utf8_lossy(&out.stdout);
     let mut tail: Vec<&str> = text.lines().rev().take(20).collect();
     tail.reverse();
-    Err(format!("{} failed:\n{}", pm.install_cmd(), tail.join("\n").trim()))
+    Err(format!(
+        "{} failed:\n{}",
+        pm.install_cmd(),
+        tail.join("\n").trim()
+    ))
 }
 
 /// The reserved name and resolved paths for one duplicate, produced by the fast
@@ -512,7 +541,11 @@ fn run_duplicate(
 
     let write = write_project_yaml(&plan.new_name, |m| {
         yset(m, "name", plan.new_name.as_str());
-        yset(m, "root", config::collapse_home(&new_root.to_string_lossy()).as_str());
+        yset(
+            m,
+            "root",
+            config::collapse_home(&new_root.to_string_lossy()).as_str(),
+        );
         yset(m, "parent_name", plan.original.as_str());
         if let Some(l) = label {
             yset(m, "label", l);
@@ -541,7 +574,14 @@ fn duplicate_one(
     pull_latest: bool,
 ) -> Result<String, String> {
     let plan = prepare_duplicate(name)?;
-    run_duplicate(app, &plan, label, exclude_uncommitted, reinstall_deps, pull_latest)?;
+    run_duplicate(
+        app,
+        &plan,
+        label,
+        exclude_uncommitted,
+        reinstall_deps,
+        pull_latest,
+    )?;
     Ok(plan.new_name)
 }
 
@@ -754,13 +794,16 @@ fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, Str
         // On case-insensitive volumes a case-only change resolves to the source.
         if std::fs::canonicalize(dest_path).ok().as_deref() == Some(old_canon.as_path()) {
             return Err(
-                "Renaming only the capitalization isn't supported — choose a different name.".into(),
+                "Renaming only the capitalization isn't supported — choose a different name."
+                    .into(),
             );
         }
         return Err("A folder already exists at that location.".into());
     }
 
-    let parent = dest_path.parent().ok_or("That path has no parent folder.")?;
+    let parent = dest_path
+        .parent()
+        .ok_or("That path has no parent folder.")?;
     let parent_canon = std::fs::canonicalize(parent)
         .map_err(|_| "The destination folder's parent doesn't exist.".to_string())?;
     if !parent_canon.is_dir() {
@@ -812,7 +855,8 @@ pub fn move_project_root(
         );
     }
 
-    if crate::tmux::session_exists(&name) || crate::pty::project_has_live_sessions(pty.inner(), &name)
+    if crate::tmux::session_exists(&name)
+        || crate::pty::project_has_live_sessions(pty.inner(), &name)
     {
         return Err("Stop this project and close its terminals before moving its folder.".into());
     }
@@ -929,10 +973,14 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
 pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
     let (root, is_remote) = config::project_root(&name)?;
     if is_remote {
-        return Err(format!("cannot remove {name:?} from disk: it has no local folder"));
+        return Err(format!(
+            "cannot remove {name:?} from disk: it has no local folder"
+        ));
     }
     if root.trim().is_empty() {
-        return Err(format!("cannot remove {name:?} from disk: no source folder"));
+        return Err(format!(
+            "cannot remove {name:?} from disk: no source folder"
+        ));
     }
     move_to_trash(Path::new(&root))?;
     cascade_remove(&app, &name)
@@ -980,9 +1028,15 @@ pub fn remove_projects(app: AppHandle, names: Vec<String>) -> Result<Vec<String>
 /// project reusing the name doesn't restore this one's pane tree.
 fn clean_terminals_entry(name: &str) {
     let path = config::lpm_dir().join("terminals.json");
-    let Ok(bytes) = std::fs::read(&path) else { return };
-    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
-    let Some(projects) = v.get_mut("projects").and_then(|p| p.as_object_mut()) else { return };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return;
+    };
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return;
+    };
+    let Some(projects) = v.get_mut("projects").and_then(|p| p.as_object_mut()) else {
+        return;
+    };
     if projects.remove(name).is_none() {
         return;
     }
@@ -1019,9 +1073,15 @@ fn clean_settings_references(name: &str) {
 /// groups.json. Empty folders are kept (the user can refill them).
 fn clean_group_references(name: &str) {
     let path = config::groups_path();
-    let Ok(bytes) = std::fs::read(&path) else { return };
-    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return };
-    let Some(groups) = v.get_mut("groups").and_then(|g| g.as_array_mut()) else { return };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return;
+    };
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+        return;
+    };
+    let Some(groups) = v.get_mut("groups").and_then(|g| g.as_array_mut()) else {
+        return;
+    };
     let mut changed = false;
     for group in groups {
         if let Some(members) = group.get_mut("members").and_then(|m| m.as_array_mut()) {
@@ -1100,8 +1160,7 @@ fn validate_branch_name(b: &str) -> Result<(), String> {
 
 fn check_writable(dir: &Path) -> Result<(), String> {
     let probe = dir.join(format!(".lpm-write-test-{}", uuid::Uuid::new_v4()));
-    std::fs::write(&probe, b"")
-        .map_err(|_| "destination parent is not writable".to_string())?;
+    std::fs::write(&probe, b"").map_err(|_| "destination parent is not writable".to_string())?;
     let _ = std::fs::remove_file(&probe);
     Ok(())
 }
@@ -1133,7 +1192,11 @@ fn clean_git_output(s: &str) -> String {
 fn clone_cleanup(dest: &Path) {
     if dest.join(".git").exists() {
         let _ = std::fs::remove_dir_all(dest);
-    } else if dest.read_dir().map(|mut d| d.next().is_none()).unwrap_or(false) {
+    } else if dest
+        .read_dir()
+        .map(|mut d| d.next().is_none())
+        .unwrap_or(false)
+    {
         let _ = std::fs::remove_dir(dest);
     }
 }
@@ -1175,7 +1238,10 @@ mod tests {
         write_file(&root.join(".next/cache.txt"), "cache");
         write_file(&root.join("website/app/page.tsx"), "export default null");
         write_file(&root.join("website/.next/foo.txt"), "stale");
-        write_file(&root.join("website/node_modules/somepkg/dist/x.js"), "bundled");
+        write_file(
+            &root.join("website/node_modules/somepkg/dist/x.js"),
+            "bundled",
+        );
     }
 
     fn run_clone(skip_node_modules: bool) -> tempfile::TempDir {

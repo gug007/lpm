@@ -100,7 +100,10 @@ fn resolve_action_command(
             let cwd = if sub.is_empty() {
                 local
             } else {
-                std::path::Path::new(&local).join(sub).to_string_lossy().into_owned()
+                std::path::Path::new(&local)
+                    .join(sub)
+                    .to_string_lossy()
+                    .into_owned()
             };
             let app2 = app.clone();
             let project2 = project.to_string();
@@ -110,7 +113,9 @@ fn resolve_action_command(
                 ports: a.ports,
                 login_shell: false,
                 claude_env: config::ClaudeEnv::Inherit,
-                on_exit: Some(Box::new(move || crate::sshsync::push_after_action(&app2, &project2))),
+                on_exit: Some(Box::new(move || {
+                    crate::sshsync::push_after_action(&app2, &project2)
+                })),
             });
         }
         Ok(ActionPlan {
@@ -190,7 +195,10 @@ pub fn run_action(
     cmd.stdout(Stdio::piped());
     merge_stderr_into_stdout(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let stdout = child.stdout.take().ok_or("failed to capture action output")?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("failed to capture action output")?;
 
     let app2 = app.clone();
     std::thread::spawn(move || {
@@ -206,7 +214,11 @@ pub fn run_action(
         }
         let status = child.wait().ok();
         let success = status.map(|s| s.success()).unwrap_or(false);
-        let error = if success { String::new() } else { exit_status_string(status) };
+        let error = if success {
+            String::new()
+        } else {
+            exit_status_string(status)
+        };
         let _ = app2.emit("action-done", ActionDone { success, error });
         if let Some(f) = on_exit {
             f(); // e.g. push the sync mirror back to the remote
@@ -231,12 +243,12 @@ pub fn run_action_background(
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     merge_stderr_into_stdout(&mut cmd); // stdout carries combined output
-    // New session: own group so a cancel can signal the whole tree without
-    // touching us, and — unlike process_group(0) — no controlling terminal.
-    // With one (app launched from a terminal, e.g. `tauri dev`) the interactive
-    // login shell sees its group in the background and self-stops with SIGTTIN
-    // before running the command; it opens /dev/tty directly, so a null stdin
-    // alone doesn't prevent that.
+                                        // New session: own group so a cancel can signal the whole tree without
+                                        // touching us, and — unlike process_group(0) — no controlling terminal.
+                                        // With one (app launched from a terminal, e.g. `tauri dev`) the interactive
+                                        // login shell sees its group in the background and self-stops with SIGTTIN
+                                        // before running the command; it opens /dev/tty directly, so a null stdin
+                                        // alone doesn't prevent that.
     unsafe {
         cmd.pre_exec(|| {
             if libc::setsid() == -1 {
@@ -246,11 +258,17 @@ pub fn run_action_background(
         });
     }
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
-    let stdout = child.stdout.take().ok_or("failed to capture action output")?;
-    background_runs()
-        .lock()
-        .unwrap()
-        .insert(run_id.clone(), BackgroundRun { pid: child.id() as i32, cancelled: false });
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or("failed to capture action output")?;
+    background_runs().lock().unwrap().insert(
+        run_id.clone(),
+        BackgroundRun {
+            pid: child.id() as i32,
+            cancelled: false,
+        },
+    );
 
     // Stream lines so the run toast can preview output live; keep a bounded
     // tail for the failure message.
@@ -263,7 +281,13 @@ pub fn run_action_background(
             let cut = tail.len() - 2048;
             tail.drain(..cut);
         }
-        let _ = app.emit("action-bg-output", ActionBgOutput { run_id: run_id.clone(), line: l });
+        let _ = app.emit(
+            "action-bg-output",
+            ActionBgOutput {
+                run_id: run_id.clone(),
+                line: l,
+            },
+        );
     }
     let status = child.wait();
     let cancelled = background_runs()
@@ -282,7 +306,11 @@ pub fn run_action_background(
     if !status.success() {
         let run_err = exit_status_string(Some(status));
         let tail = config::trim_tail(&tail, 500);
-        return Err(if tail.is_empty() { run_err } else { format!("{run_err}: {tail}") });
+        return Err(if tail.is_empty() {
+            run_err
+        } else {
+            format!("{run_err}: {tail}")
+        });
     }
     Ok(())
 }

@@ -61,15 +61,15 @@ fn open() -> Result<Connection, String> {
     // Migrate DBs created before these columns existed (each errors if already
     // present, which is fine). The folder_id index is created AFTER the column
     // so it doesn't reference a missing column on an older DB.
-    let _ = conn.execute_batch(
-        "ALTER TABLE message_history ADD COLUMN images TEXT NOT NULL DEFAULT '{}';",
-    );
+    let _ = conn
+        .execute_batch("ALTER TABLE message_history ADD COLUMN images TEXT NOT NULL DEFAULT '{}';");
     let _ = conn.execute_batch("ALTER TABLE message_history ADD COLUMN folder_id TEXT;");
     // Drafts are saved-but-unsent prompts. They live in the same table (so they
     // surface in the history popover alongside sent messages) but are flagged so
     // the UI can badge them and "clear history" can spare them.
-    let _ = conn
-        .execute_batch("ALTER TABLE message_history ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;");
+    let _ = conn.execute_batch(
+        "ALTER TABLE message_history ADD COLUMN is_draft INTEGER NOT NULL DEFAULT 0;",
+    );
     // The "this project" scope filters by project_name, so the old per-terminal
     // index is dead weight; drop it on DBs that still carry it.
     let _ = conn.execute_batch("DROP INDEX IF EXISTS idx_mh_terminal;");
@@ -158,7 +158,9 @@ pub struct Folder {
 
 // Escape LIKE wildcards so a literal % or _ in the query matches itself.
 fn escape_like(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
 
 #[tauri::command(async)]
@@ -357,8 +359,15 @@ pub fn message_history_clear(
             "DELETE FROM message_history WHERE favorite = 0 AND folder_id IS NULL AND is_draft = 0",
         );
         let mut args: Vec<SqlValue> = Vec::new();
-        sql.push_str(scope_clause(&scope, &terminal_id, &project_name, &terminal_label, &mut args));
-        conn.execute(&sql, params_from_iter(args)).map_err(|e| e.to_string())?;
+        sql.push_str(scope_clause(
+            &scope,
+            &terminal_id,
+            &project_name,
+            &terminal_label,
+            &mut args,
+        ));
+        conn.execute(&sql, params_from_iter(args))
+            .map_err(|e| e.to_string())?;
         Ok(())
     })
 }
@@ -377,7 +386,11 @@ pub fn message_history_folders(state: State<MessageHistoryState>) -> Result<Vec<
             .map_err(|e| e.to_string())?;
         let rows = stmt
             .query_map([], |r| {
-                Ok(Folder { id: r.get(0)?, name: r.get(1)?, count: r.get(2)? })
+                Ok(Folder {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    count: r.get(2)?,
+                })
             })
             .map_err(|e| e.to_string())?;
         let mut out = Vec::new();
@@ -416,8 +429,11 @@ pub fn message_history_delete_folder(
     id: String,
 ) -> Result<(), String> {
     state.with_conn(|conn| {
-        conn.execute("UPDATE message_history SET folder_id = NULL WHERE folder_id = ?1", params![id])
-            .map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE message_history SET folder_id = NULL WHERE folder_id = ?1",
+            params![id],
+        )
+        .map_err(|e| e.to_string())?;
         conn.execute("DELETE FROM message_folders WHERE id = ?1", params![id])
             .map_err(|e| e.to_string())?;
         Ok(())

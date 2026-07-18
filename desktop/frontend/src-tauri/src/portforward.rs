@@ -24,7 +24,7 @@ const POLL_SLEEP: Duration = Duration::from_millis(75);
 // --- poller (port discovery over ssh) + PTY-output sniff --------------------
 const POLL_INTERVAL: Duration = Duration::from_secs(3); // portpoller.go portPollInterval
 const POLL_TIMEOUT: Duration = Duration::from_secs(6); // portpoller.go portPollTimeout
-// ss (preferred) or netstat: list TCP listeners, address in field 4. Header-less.
+                                                       // ss (preferred) or netstat: list TCP listeners, address in field 4. Header-less.
 const LISTING_CMD: &str = "(command -v ss >/dev/null 2>&1 && ss -tlnH) || (command -v netstat >/dev/null 2>&1 && netstat -tln 2>/dev/null | tail -n +3)";
 
 #[derive(Serialize, Clone)]
@@ -137,7 +137,10 @@ fn forward_impl(
         let f = state.forwards.lock().unwrap();
         if let Some(v) = f.get(project) {
             if let Some(e) = v.iter().find(|e| e.remote_port == remote_port) {
-                return Ok(PortForward { local_port: e.local_port, remote_port });
+                return Ok(PortForward {
+                    local_port: e.local_port,
+                    remote_port,
+                });
             }
         }
     }
@@ -197,7 +200,11 @@ fn forward_impl(
         unsafe { libc::kill(pid, libc::SIGKILL) };
         wait_done(&done);
         let tail = config::trim_tail(&stderr_buf.lock().unwrap(), 200);
-        return Err(if tail.is_empty() { err } else { format!("{err}: {tail}") });
+        return Err(if tail.is_empty() {
+            err
+        } else {
+            format!("{err}: {tail}")
+        });
     }
 
     let id = state.counter.fetch_add(1, Ordering::SeqCst);
@@ -207,12 +214,21 @@ fn forward_impl(
         .unwrap()
         .entry(project.to_string())
         .or_default()
-        .push(Forward { id, local_port, remote_port, pid });
+        .push(Forward {
+            id,
+            local_port,
+            remote_port,
+            pid,
+        });
 
     // Lifecycle: when the ssh child dies, drop the entry and refetch the UI.
     {
-        let (done, forwards, app2, project2) =
-            (done.clone(), state.forwards.clone(), app.clone(), project.to_string());
+        let (done, forwards, app2, project2) = (
+            done.clone(),
+            state.forwards.clone(),
+            app.clone(),
+            project.to_string(),
+        );
         std::thread::spawn(move || {
             wait_done(&done);
             let mut f = forwards.lock().unwrap();
@@ -229,7 +245,10 @@ fn forward_impl(
 
     mark_port_suggested(&state.suggestions, project, remote_port);
     let _ = app.emit("ports-changed", project);
-    Ok(PortForward { local_port, remote_port })
+    Ok(PortForward {
+        local_port,
+        remote_port,
+    })
 }
 
 fn wait_for_local_listen(local: u16, done: &Arc<(Mutex<bool>, Condvar)>) -> Result<(), String> {
@@ -240,7 +259,9 @@ fn wait_for_local_listen(local: u16, done: &Arc<(Mutex<bool>, Condvar)>) -> Resu
             return Err("ssh exited before listener was ready".into());
         }
         if Instant::now() >= deadline {
-            return Err(format!("timed out waiting for local listener on 127.0.0.1:{local}"));
+            return Err(format!(
+                "timed out waiting for local listener on 127.0.0.1:{local}"
+            ));
         }
         if TcpStream::connect_timeout(&addr, DIAL_TIMEOUT).is_ok() {
             return Ok(());
@@ -290,7 +311,10 @@ pub fn list_port_forwards(state: State<'_, PortFwdState>, project: String) -> Ve
         .get(&project)
         .map(|v| {
             v.iter()
-                .map(|e| PortForward { local_port: e.local_port, remote_port: e.remote_port })
+                .map(|e| PortForward {
+                    local_port: e.local_port,
+                    remote_port: e.remote_port,
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -358,7 +382,11 @@ pub fn clear_port_suggestions(
 ) -> Result<(), String> {
     {
         let mut s = state.suggestions.lock().unwrap();
-        let ports: Vec<u16> = s.suggested.get(&project).map(|set| set.iter().copied().collect()).unwrap_or_default();
+        let ports: Vec<u16> = s
+            .suggested
+            .get(&project)
+            .map(|set| set.iter().copied().collect())
+            .unwrap_or_default();
         let d = s.dismissed.entry(project.clone()).or_default();
         for p in ports {
             d.insert(p);
@@ -387,7 +415,9 @@ pub fn stop_project_forwards(app: &AppHandle, project: &str) {
     stop_poller(&state, project);
     let pids: Vec<i32> = {
         let mut f = state.forwards.lock().unwrap();
-        f.remove(project).map(|v| v.into_iter().map(|e| e.pid).collect()).unwrap_or_default()
+        f.remove(project)
+            .map(|v| v.into_iter().map(|e| e.pid).collect())
+            .unwrap_or_default()
     };
     for pid in pids {
         unsafe { libc::kill(pid, libc::SIGKILL) };
@@ -500,13 +530,19 @@ fn fetch_listening_ports(ssh: &config::SshSettings, declared: &HashSet<u16>) -> 
         return Vec::new();
     }
     // ssh connection args minus -t (we're capturing output, not on a tty).
-    let mut args: Vec<String> = config::ssh_args(ssh).into_iter().filter(|a| a != "-t").collect();
+    let mut args: Vec<String> = config::ssh_args(ssh)
+        .into_iter()
+        .filter(|a| a != "-t")
+        .collect();
     args.push("-o".into());
     args.push("ConnectTimeout=6".into());
     args.push(LISTING_CMD.into());
 
     let mut cmd = Command::new("ssh");
-    cmd.args(&args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    cmd.args(&args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
     match run_with_timeout(cmd, POLL_TIMEOUT) {
         Some(out) => parse_listening_ports(&out, ssh, declared),
         None => Vec::new(),
@@ -538,7 +574,11 @@ fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Vec<u8>> {
 }
 
 /// Parse `ss -tlnH` / `netstat -tln` output: local address is whitespace field 4.
-fn parse_listening_ports(out: &[u8], ssh: &config::SshSettings, declared: &HashSet<u16>) -> Vec<u16> {
+fn parse_listening_ports(
+    out: &[u8],
+    ssh: &config::SshSettings,
+    declared: &HashSet<u16>,
+) -> Vec<u16> {
     let text = String::from_utf8_lossy(out);
     let mut seen: HashSet<u16> = HashSet::new();
     let mut ports: Vec<u16> = Vec::new();
@@ -547,7 +587,9 @@ fn parse_listening_ports(out: &[u8], ssh: &config::SshSettings, declared: &HashS
         if fields.len() < 4 {
             continue;
         }
-        let Some((host, port)) = split_listen_addr(fields[3]) else { continue };
+        let Some((host, port)) = split_listen_addr(fields[3]) else {
+            continue;
+        };
         if !is_local_listen_addr(&host) {
             continue;
         }
@@ -567,7 +609,11 @@ fn split_listen_addr(addr: &str) -> Option<(String, u16)> {
     let (host, port_str) = addr.rsplit_once(':')?;
     let port: u16 = port_str.parse().ok()?;
     let host = host.trim_start_matches('[').trim_end_matches(']');
-    let host = if host.is_empty() || host == "*" { "0.0.0.0" } else { host };
+    let host = if host.is_empty() || host == "*" {
+        "0.0.0.0"
+    } else {
+        host
+    };
     Some((host.to_string(), port))
 }
 
@@ -630,13 +676,21 @@ fn auto_forward(app: &AppHandle, project: &str, remote_port: u16) {
             Ok(pf) => {
                 let _ = app.emit(
                     "port-auto-forwarded",
-                    AutoForwarded { project: project.clone(), remote_port, local_port: pf.local_port },
+                    AutoForwarded {
+                        project: project.clone(),
+                        remote_port,
+                        local_port: pf.local_port,
+                    },
                 );
             }
             Err(e) => {
                 let _ = app.emit(
                     "port-forward-failed",
-                    ForwardFailed { project: project.clone(), remote_port, error: e },
+                    ForwardFailed {
+                        project: project.clone(),
+                        remote_port,
+                        error: e,
+                    },
                 );
             }
         }
@@ -695,10 +749,17 @@ fn pre_dismiss(suggestions: &Arc<Mutex<SuggestionState>>, project: &str, port: u
 /// Mark a port suggested; returns false if it was dismissed or already present.
 fn mark_if_new(suggestions: &Arc<Mutex<SuggestionState>>, project: &str, port: u16) -> bool {
     let mut s = suggestions.lock().unwrap();
-    if s.dismissed.get(project).map(|d| d.contains(&port)).unwrap_or(false) {
+    if s.dismissed
+        .get(project)
+        .map(|d| d.contains(&port))
+        .unwrap_or(false)
+    {
         return false;
     }
-    s.suggested.entry(project.to_string()).or_default().insert(port)
+    s.suggested
+        .entry(project.to_string())
+        .or_default()
+        .insert(port)
 }
 
 /// Drop suggestions for ports that stopped listening (never touches dismissed).

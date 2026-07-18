@@ -8,6 +8,7 @@ mod clipboard;
 mod commands_real;
 mod config;
 mod config_cmds;
+mod configwatch;
 mod control;
 mod detached;
 mod dockmenu;
@@ -24,10 +25,10 @@ mod notes_blobs;
 mod notes_cmds;
 mod notes_store;
 mod openin;
-mod portforward;
 mod peer;
 mod peerclient;
 mod peersync;
+mod portforward;
 mod ports;
 mod proctree;
 mod projects_crud;
@@ -67,6 +68,8 @@ use config_cmds::*;
 use control::*;
 use detached::*;
 use files::*;
+#[allow(unused_imports)]
+use generated_commands::*;
 use git::*;
 use hooks::*;
 use jobs::*;
@@ -93,14 +96,12 @@ use sound::*;
 use sshconfig::*;
 use status::*;
 use tauri::Manager;
+use templates::*;
 use transfer::*;
 use tts::*;
 use updates::*;
 use upload::*;
-use templates::*;
 use voicetotext::*;
-#[allow(unused_imports)]
-use generated_commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -169,12 +170,24 @@ pub fn run() {
 
             // Status socket server (agents in panes report status here) + the
             // dead-PID sweep. Both run on background threads.
-            let store = app.state::<std::sync::Arc<status::StatusStore>>().inner().clone();
+            let store = app
+                .state::<std::sync::Arc<status::StatusStore>>()
+                .inner()
+                .clone();
             socketsrv::start(config::socket_path(), store.clone(), handle.clone(), false);
             // Second, restricted socket that SSH hosts reach over `ssh -R` — status
             // verbs only, so a remote host can never control the Mac.
-            socketsrv::start(config::remote_socket_path(), store.clone(), handle.clone(), true);
+            socketsrv::start(
+                config::remote_socket_path(),
+                store.clone(),
+                handle.clone(),
+                true,
+            );
             status::start_pid_sweep(store, handle.clone());
+
+            // Watch ~/.lpm so config edits by another lpm instance or an external
+            // editor re-emit projects-changed / templates-changed here.
+            configwatch::start(handle.clone());
 
             // Mobile remote-control server (the phone app connects here). Reads
             // its own ~/.lpm/remote.json; a no-op until enabled + paired.
@@ -242,7 +255,10 @@ pub fn run() {
             // Dock-icon click with no visible window restores the hidden main
             // window — otherwise it would stay hidden after the close button.
             #[cfg(target_os = "macos")]
-            tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+            tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } => {
                 if !has_visible_windows {
                     if let Some(win) = app.get_webview_window("main") {
                         let _ = win.show();

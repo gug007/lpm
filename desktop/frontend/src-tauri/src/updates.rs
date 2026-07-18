@@ -120,7 +120,9 @@ pub fn start_auto_check(app: AppHandle) {
 fn run_off_worker<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
-    std::thread::spawn(f).join().map_err(|_| "background thread panicked".to_string())?
+    std::thread::spawn(f)
+        .join()
+        .map_err(|_| "background thread panicked".to_string())?
 }
 
 fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {
@@ -135,7 +137,10 @@ fn do_check(state: &UpdateState) -> Result<UpdateInfo, String> {
             .send()
             .map_err(|e| format!("failed to check for updates: {e}"))?;
         if !resp.status().is_success() {
-            return Err(format!("GitHub API returned status {}", resp.status().as_u16()));
+            return Err(format!(
+                "GitHub API returned status {}",
+                resp.status().as_u16()
+            ));
         }
         resp.text().map_err(|e| e.to_string())
     })?;
@@ -185,7 +190,11 @@ fn ensure_app_dir_writable(app_dir: &Path) -> Result<(), String> {
 fn command_failure(out: &std::process::Output) -> String {
     let stderr = String::from_utf8_lossy(&out.stderr);
     let stderr = stderr.trim();
-    if stderr.is_empty() { out.status.to_string() } else { stderr.to_string() }
+    if stderr.is_empty() {
+        out.status.to_string()
+    } else {
+        stderr.to_string()
+    }
 }
 
 /// Walk up from the current executable to the enclosing `*.app` bundle.
@@ -201,7 +210,10 @@ fn app_bundle_path() -> Result<PathBuf, String> {
         }
         dir = d.parent();
     }
-    Err(format!("could not determine .app bundle path from {}", exe.display()))
+    Err(format!(
+        "could not determine .app bundle path from {}",
+        exe.display()
+    ))
 }
 
 #[tauri::command(async)]
@@ -221,7 +233,10 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
     }
     let url = state.pending_url.lock().unwrap().clone();
     if url.is_empty() {
-        return Err("The download for this version isn't available yet — try again in a few minutes.".into());
+        return Err(
+            "The download for this version isn't available yet — try again in a few minutes."
+                .into(),
+        );
     }
     let _ = app.emit("update-available", info);
 
@@ -255,7 +270,10 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
             .send()
             .map_err(|e| format!("failed to download update: {e}"))?;
         if !resp.status().is_success() {
-            return Err(format!("download returned status {}", resp.status().as_u16()));
+            return Err(format!(
+                "download returned status {}",
+                resp.status().as_u16()
+            ));
         }
         let total = resp.content_length().unwrap_or(0);
         copy_with_progress(&mut resp, &mut out_file, total, &|pct| {
@@ -282,7 +300,10 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .output()
         .map_err(|e| e.to_string())?;
     if !attach.status.success() {
-        return Err(format!("failed to open the update package: {}", command_failure(&attach)));
+        return Err(format!(
+            "failed to open the update package: {}",
+            command_failure(&attach)
+        ));
     }
     // Always detach the DMG, even on the error paths below.
     let _detach_guard = DetachGuard(mount_point.clone());
@@ -306,7 +327,10 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
         .map_err(|e| e.to_string())?;
     if !copy.status.success() {
         let _ = std::fs::remove_dir_all(&staging);
-        return Err(format!("failed to copy new app: {}", command_failure(&copy)));
+        return Err(format!(
+            "failed to copy new app: {}",
+            command_failure(&copy)
+        ));
     }
     if let Err(e) = std::fs::remove_dir_all(&dst_app) {
         let _ = std::fs::remove_dir_all(&staging);
@@ -317,7 +341,11 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
     // Detach + temp cleanup now (process is about to exit; Drop guards won't run
     // after process::exit).
     drop(_detach_guard);
-    let _ = Command::new("hdiutil").args(["detach"]).arg(&mount_point).arg("-quiet").status();
+    let _ = Command::new("hdiutil")
+        .args(["detach"])
+        .arg(&mount_point)
+        .arg("-quiet")
+        .status();
 
     // Relaunch via a detached process that waits for THIS pid to die, then opens
     // the new app — avoids two instances fighting over the socket/dock icon.
@@ -339,7 +367,11 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
 struct DetachGuard(PathBuf);
 impl Drop for DetachGuard {
     fn drop(&mut self) {
-        let _ = Command::new("hdiutil").args(["detach"]).arg(&self.0).arg("-quiet").status();
+        let _ = Command::new("hdiutil")
+            .args(["detach"])
+            .arg(&self.0)
+            .arg("-quiet")
+            .status();
     }
 }
 
@@ -380,7 +412,8 @@ fn spawn_detached_bash(script: &str) -> Result<(), String> {
             Ok(())
         });
     }
-    cmd.spawn().map_err(|e| format!("failed to schedule relaunch: {e}"))?;
+    cmd.spawn()
+        .map_err(|e| format!("failed to schedule relaunch: {e}"))?;
     Ok(())
 }
 
@@ -463,8 +496,7 @@ mod tests {
         assert!(std::fs::read_dir(writable.path()).unwrap().next().is_none());
 
         let read_only = tempfile::tempdir().unwrap();
-        std::fs::set_permissions(read_only.path(), std::fs::Permissions::from_mode(0o555))
-            .unwrap();
+        std::fs::set_permissions(read_only.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
         let err = ensure_app_dir_writable(read_only.path()).unwrap_err();
         assert!(err.contains("Applications"), "unexpected message: {err}");
     }

@@ -122,7 +122,10 @@ fn sweep_unreferenced_blobs(b: &NotesBundle) {
 
 /// Decode + store each attachment's bytes, preserving order. On error, blobs
 /// written so far stay as orphans until the next delete GCs them (matches Go).
-fn stash_attachments(b: &NotesBundle, inputs: &[NotesAttachmentInput]) -> Result<Vec<Attachment>, String> {
+fn stash_attachments(
+    b: &NotesBundle,
+    inputs: &[NotesAttachmentInput],
+) -> Result<Vec<Attachment>, String> {
     let mut out = Vec::with_capacity(inputs.len());
     for input in inputs {
         let raw = B64
@@ -154,7 +157,10 @@ pub fn notes_create_chat(
 }
 
 #[tauri::command(async)]
-pub fn notes_list_chats(state: State<'_, NotesState>, project: String) -> Result<Vec<Chat>, String> {
+pub fn notes_list_chats(
+    state: State<'_, NotesState>,
+    project: String,
+) -> Result<Vec<Chat>, String> {
     state.open(&project)?.store.list_chats()
 }
 
@@ -365,7 +371,9 @@ pub async fn vault_import_key(
 fn read_file_capped(path: &Path, cap: u64) -> Result<Vec<u8>, String> {
     let f = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut data = Vec::new();
-    f.take(cap + 1).read_to_end(&mut data).map_err(|e| e.to_string())?;
+    f.take(cap + 1)
+        .read_to_end(&mut data)
+        .map_err(|e| e.to_string())?;
     if data.len() as u64 > cap {
         let name = path
             .file_name()
@@ -404,4 +412,3 @@ fn sniff_mime(data: &[u8]) -> String {
     }
     .to_string()
 }
-

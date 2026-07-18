@@ -53,7 +53,7 @@ struct PeerConn {
     pending: Mutex<HashMap<u64, Arc<Pending>>>,
     enabled: AtomicBool,
     supports_sync: AtomicBool, // host advertised the configSync feature in `ready`
-    generation: AtomicU64, // bump to retire the current connection thread
+    generation: AtomicU64,     // bump to retire the current connection thread
 }
 
 impl PeerConn {
@@ -73,7 +73,9 @@ impl PeerConn {
 
     fn send(&self, frame: String) -> Result<(), String> {
         match self.out.lock().unwrap().as_ref() {
-            Some(tx) => tx.try_send(frame).map_err(|_| "peer send queue full".to_string()),
+            Some(tx) => tx
+                .try_send(frame)
+                .map_err(|_| "peer send queue full".to_string()),
             None => Err("peer not connected".to_string()),
         }
     }
@@ -142,9 +144,15 @@ impl PeerClientHub {
             .iter()
             .map(|p| {
                 let conn = conns.get(&p.slug);
-                let connected = conn.map(|c| c.connected.load(Ordering::Relaxed)).unwrap_or(false);
-                let supports_sync = conn.map(|c| c.supports_sync.load(Ordering::Relaxed)).unwrap_or(false);
-                let last_error = conn.map(|c| c.last_error.lock().unwrap().clone()).unwrap_or_default();
+                let connected = conn
+                    .map(|c| c.connected.load(Ordering::Relaxed))
+                    .unwrap_or(false);
+                let supports_sync = conn
+                    .map(|c| c.supports_sync.load(Ordering::Relaxed))
+                    .unwrap_or(false);
+                let last_error = conn
+                    .map(|c| c.last_error.lock().unwrap().clone())
+                    .unwrap_or_default();
                 json!({
                     "slug": p.slug,
                     "alias": p.alias,
@@ -164,7 +172,10 @@ impl PeerClientHub {
     /// (Re)start the connection thread for a peer, retiring any current one.
     fn start_conn(&self, slug: &str) {
         let mut conns = self.inner.conns.lock().unwrap();
-        let conn = conns.entry(slug.to_string()).or_insert_with(|| Arc::new(PeerConn::new(slug))).clone();
+        let conn = conns
+            .entry(slug.to_string())
+            .or_insert_with(|| Arc::new(PeerConn::new(slug)))
+            .clone();
         conn.enabled.store(true, Ordering::SeqCst);
         let generation = conn.generation.fetch_add(1, Ordering::SeqCst) + 1;
         drop(conns);
@@ -185,9 +196,11 @@ impl PeerClientHub {
     }
 
     fn invoke_blocking(&self, slug: &str, cmd: &str, args: Value) -> Result<Value, String> {
-        self.request_blocking(slug, INVOKE_TIMEOUT, |req| {
-            json!({ "t": "invoke", "reqId": req, "cmd": cmd, "args": args })
-        })
+        self.request_blocking(
+            slug,
+            INVOKE_TIMEOUT,
+            |req| json!({ "t": "invoke", "reqId": req, "cmd": cmd, "args": args }),
+        )
     }
 
     /// Send one correlated request frame and block on its `result` reply (or a
@@ -264,9 +277,11 @@ impl PeerClientHub {
     /// last-sync time.
     fn sync_status(&self, slug: &str) -> Result<Value, String> {
         self.require_sync_peer(slug)?;
-        let remote_v = self.request_blocking(slug, SYNC_TIMEOUT, |req| {
-            json!({ "t": "syncDigest", "v": 1, "reqId": req })
-        })?;
+        let remote_v = self.request_blocking(
+            slug,
+            SYNC_TIMEOUT,
+            |req| json!({ "t": "syncDigest", "v": 1, "reqId": req }),
+        )?;
         let remote: crate::peersync::DigestMap =
             serde_json::from_value(remote_v).map_err(|e| format!("bad digest reply: {e}"))?;
         let local = crate::peersync::local_digest_map();
@@ -291,9 +306,11 @@ impl PeerClientHub {
                 .iter()
                 .map(|i| json!({ "kind": i.kind, "name": i.name }))
                 .collect();
-            let resp = self.request_blocking(slug, SYNC_TIMEOUT, |req| {
-                json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": req_items })
-            })?;
+            let resp = self.request_blocking(
+                slug,
+                SYNC_TIMEOUT,
+                |req| json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": req_items }),
+            )?;
             let fetched: Vec<crate::peersync::WireItem> =
                 serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
                     .map_err(|e| format!("bad fetch reply: {e}"))?;
@@ -328,9 +345,11 @@ impl PeerClientHub {
                 }
             }
             if !wire.is_empty() {
-                let resp = self.request_blocking(slug, SYNC_APPLY_TIMEOUT, |req| {
-                    json!({ "t": "syncApply", "v": 1, "reqId": req, "items": wire })
-                })?;
+                let resp = self.request_blocking(
+                    slug,
+                    SYNC_APPLY_TIMEOUT,
+                    |req| json!({ "t": "syncApply", "v": 1, "reqId": req, "items": wire }),
+                )?;
                 pushed += resp.get("applied").and_then(Value::as_u64).unwrap_or(0);
                 if let Some(errs) = resp.get("errors").and_then(Value::as_array) {
                     for e in errs {
@@ -352,7 +371,9 @@ impl PeerClientHub {
             let _ = peer::save_config(&snapshot);
         }
         emit_state_changed(self);
-        Ok(json!({ "applied": applied, "pushed": pushed, "errors": errors, "backupPath": backup_path }))
+        Ok(
+            json!({ "applied": applied, "pushed": pushed, "errors": errors, "backupPath": backup_path }),
+        )
     }
 }
 
@@ -429,7 +450,11 @@ fn connect_ws(host: &str, port: u16) -> Result<WebSocket<TcpStream>, String> {
 /// Like `connect_ws` but caps the TCP connect at `timeout` (via connect_timeout),
 /// so a dead candidate address fails fast instead of blocking on the OS default.
 /// Used when pairing, where several candidate addresses are tried in turn.
-fn connect_ws_timeout(host: &str, port: u16, timeout: Duration) -> Result<WebSocket<TcpStream>, String> {
+fn connect_ws_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+) -> Result<WebSocket<TcpStream>, String> {
     let addr = (host, port)
         .to_socket_addrs()
         .map_err(|e| e.to_string())?
@@ -472,13 +497,19 @@ fn connect_session(
     };
     let rv: Value = serde_json::from_str(&ready).unwrap_or(Value::Null);
     if rv.get("t").and_then(Value::as_str) != Some("ready") {
-        let err = rv.get("error").and_then(Value::as_str).unwrap_or("authentication failed");
+        let err = rv
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("authentication failed");
         return Err(err.to_string());
     }
     let supports_sync = rv
         .get("features")
         .and_then(Value::as_array)
-        .map(|a| a.iter().any(|f| f.as_str() == Some(crate::peersync::SYNC_FEATURE)))
+        .map(|a| {
+            a.iter()
+                .any(|f| f.as_str() == Some(crate::peersync::SYNC_FEATURE))
+        })
         .unwrap_or(false);
     conn.supports_sync.store(supports_sync, Ordering::Relaxed);
 
@@ -490,9 +521,7 @@ fn connect_session(
     // Re-subscribe every terminal the frontend currently has open, so a reconnect
     // transparently reseeds them.
     for id in conn.attached.lock().unwrap().iter() {
-        let _ = ws.write(Message::text(
-            json!({ "t": "sub", "id": id }).to_string(),
-        ));
+        let _ = ws.write(Message::text(json!({ "t": "sub", "id": id }).to_string()));
     }
     let _ = ws.flush();
     emit_state_changed(hub);
@@ -519,7 +548,10 @@ fn connect_session(
             }
         }
         if last_ping.elapsed() >= PING_INTERVAL {
-            if ws.write(Message::text(json!({ "t": "ping" }).to_string())).is_err() {
+            if ws
+                .write(Message::text(json!({ "t": "ping" }).to_string()))
+                .is_err()
+            {
                 break;
             }
             last_ping = Instant::now();
@@ -566,7 +598,10 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
             let result = if ok {
                 Ok(value)
             } else {
-                Err(value.as_str().map(str::to_string).unwrap_or_else(|| value.to_string()))
+                Err(value
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| value.to_string()))
             };
             if let Some(p) = conn.pending.lock().unwrap().get(&req).cloned() {
                 *p.done.lock().unwrap() = Some(result);
@@ -600,7 +635,10 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
             if let Some(app) = app {
                 let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
                 let payload = v.get("payload").cloned().unwrap_or(Value::Null);
-                let _ = app.emit(&format!("peer-evt-{slug}"), json!({ "name": name, "payload": payload }));
+                let _ = app.emit(
+                    &format!("peer-evt-{slug}"),
+                    json!({ "name": name, "payload": payload }),
+                );
             }
         }
         _ => {}
@@ -646,7 +684,11 @@ pub async fn peer_add(
         let port = if port == 0 { 8766 } else { port };
         let (host, device_id, token, slug, host_name) =
             first_successful(&hosts, |h| dial_pair(h, port, &code))?;
-        let alias = if alias.trim().is_empty() { host_name } else { alias };
+        let alias = if alias.trim().is_empty() {
+            host_name
+        } else {
+            alias
+        };
         {
             let mut cfg = hub.inner.config.lock().unwrap();
             cfg.peers.retain(|p| p.slug != slug);
@@ -696,7 +738,11 @@ where
 }
 
 /// One-shot pairing handshake, returning (deviceId, token, slug, hostName).
-fn dial_pair(host: &str, port: u16, code: &str) -> Result<(String, String, String, String), String> {
+fn dial_pair(
+    host: &str,
+    port: u16,
+    code: &str,
+) -> Result<(String, String, String, String), String> {
     let mut ws = connect_ws_timeout(host, port, CONNECT_TIMEOUT)?;
     ws.send(Message::text(
         json!({ "t": "pair", "code": code, "name": local_name() }).to_string(),
@@ -714,13 +760,32 @@ fn dial_pair(host: &str, port: u16, code: &str) -> Result<(String, String, Strin
     let _ = ws.flush();
     let v: Value = serde_json::from_str(&reply).map_err(|e| e.to_string())?;
     if v.get("t").and_then(Value::as_str) != Some("paired") {
-        let err = v.get("error").and_then(Value::as_str).unwrap_or("pairing rejected");
+        let err = v
+            .get("error")
+            .and_then(Value::as_str)
+            .unwrap_or("pairing rejected");
         return Err(err.to_string());
     }
-    let device_id = v.get("deviceId").and_then(Value::as_str).unwrap_or_default().to_string();
-    let token = v.get("token").and_then(Value::as_str).unwrap_or_default().to_string();
-    let slug = v.get("slug").and_then(Value::as_str).unwrap_or_default().to_string();
-    let host_name = v.get("hostName").and_then(Value::as_str).unwrap_or("Mac").to_string();
+    let device_id = v
+        .get("deviceId")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let token = v
+        .get("token")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let slug = v
+        .get("slug")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let host_name = v
+        .get("hostName")
+        .and_then(Value::as_str)
+        .unwrap_or("Mac")
+        .to_string();
     if device_id.is_empty() || token.is_empty() || slug.len() != 8 {
         return Err("host sent an incomplete pairing reply".to_string());
     }
@@ -784,7 +849,10 @@ pub async fn peer_invoke(
 /// and return the items that differ (each with its newest-wins direction) plus
 /// the last successful sync time. Off the UI thread — it does blocking WS IO.
 #[tauri::command]
-pub async fn peer_sync_status(hub: State<'_, PeerClientHub>, slug: String) -> Result<Value, String> {
+pub async fn peer_sync_status(
+    hub: State<'_, PeerClientHub>,
+    slug: String,
+) -> Result<Value, String> {
     let hub = hub.inner().clone();
     tauri::async_runtime::spawn_blocking(move || hub.sync_status(&slug))
         .await
@@ -891,16 +959,27 @@ mod tests {
     #[test]
     fn invoke_on_unknown_peer_errors() {
         let hub = PeerClientHub::default();
-        assert!(hub.invoke_blocking("nope", "list_projects", json!({})).is_err());
+        assert!(hub
+            .invoke_blocking("nope", "list_projects", json!({}))
+            .is_err());
     }
 
     fn paired(host_name: &str) -> Result<(String, String, String, String), String> {
-        Ok(("dev".into(), "tok".into(), "abcd1234".into(), host_name.into()))
+        Ok((
+            "dev".into(),
+            "tok".into(),
+            "abcd1234".into(),
+            host_name.into(),
+        ))
     }
 
     #[test]
     fn first_successful_picks_earliest_working_host() {
-        let hosts = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
+        let hosts = vec![
+            "10.0.0.1".to_string(),
+            "10.0.0.2".to_string(),
+            "10.0.0.3".to_string(),
+        ];
         // The first two are dead; the third pairs — so it wins, and its address is
         // the one persisted.
         let (host, _, _, slug, name) = first_successful(&hosts, |h| {

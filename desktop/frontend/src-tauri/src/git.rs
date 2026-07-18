@@ -42,7 +42,9 @@ fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
 
 /// Like `git_out`, with extra environment variables set on the git process.
 fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
-    let out = git_command(cwd, args, envs).output().map_err(|e| e.to_string())?;
+    let out = git_command(cwd, args, envs)
+        .output()
+        .map_err(|e| e.to_string())?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
         if !stderr.is_empty() {
@@ -85,8 +87,11 @@ fn resolve_branch_ref(cwd: &str, name: &str) -> String {
     }
     let heads = format!("refs/heads/{name}");
     let remotes = format!("refs/remotes/*/{name}");
-    let out = git_out(cwd, &["for-each-ref", "--format=%(refname)", &heads, &remotes])
-        .unwrap_or_default();
+    let out = git_out(
+        cwd,
+        &["for-each-ref", "--format=%(refname)", &heads, &remotes],
+    )
+    .unwrap_or_default();
     let origin = format!("refs/remotes/origin/{name}");
     let mut first_remote = String::new();
     for line in out.lines() {
@@ -273,7 +278,10 @@ pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
     // --untracked-files=all lists each untracked file individually; without it
     // git collapses a wholly-untracked directory into one `dir/` entry, which
     // renders as a blank (no filename) row.
-    let raw = git_raw(&cwd, &[STATUS_PORCELAIN, &["--untracked-files=all"]].concat());
+    let raw = git_raw(
+        &cwd,
+        &[STATUS_PORCELAIN, &["--untracked-files=all"]].concat(),
+    );
     let entries: Vec<&str> = raw.split('\u{0}').collect();
     let mut files = Vec::new();
     let mut i = 0;
@@ -330,8 +338,11 @@ pub fn git_diff(cwd: String, files: Vec<String>) -> Result<String, String> {
     let mut largs: Vec<&str> = vec!["ls-files", "--"];
     largs.extend(files.iter().map(String::as_str));
     let ls = git_out(&cwd, &largs).unwrap_or_default();
-    let tracked_set: HashSet<&str> =
-        ls.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let tracked_set: HashSet<&str> = ls
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
 
     let mut out = String::new();
     out.push_str(&tracked);
@@ -421,7 +432,9 @@ fn parse_name_status_z(raw: &str, staged: bool) -> Vec<ChangedFile> {
         let code = parts[i].as_bytes().first().copied().unwrap_or(b'M');
         let is_rename = matches!(code, b'R' | b'C');
         let path_idx = if is_rename { i + 2 } else { i + 1 };
-        let Some(path) = parts.get(path_idx) else { break };
+        let Some(path) = parts.get(path_idx) else {
+            break;
+        };
         files.push(ChangedFile {
             path: (*path).to_string(),
             status: status_label(code).into(),
@@ -464,7 +477,13 @@ pub fn git_changed_files_ref(cwd: String, base: String) -> Result<Vec<ChangedFil
     let base = resolve_base(&cwd, &base)?;
     let raw = git_raw(
         &cwd,
-        &["diff", "--name-status", "-z", "-M", &format!("{base}...HEAD")],
+        &[
+            "diff",
+            "--name-status",
+            "-z",
+            "-M",
+            &format!("{base}...HEAD"),
+        ],
     );
     Ok(parse_name_status_z(&raw, false))
 }
@@ -527,7 +546,10 @@ fn cat_file_blob(
     if !cat_file_spec_ok(spec) {
         return Vec::new();
     }
-    if writeln!(stdin, "{spec}").and_then(|_| stdin.flush()).is_err() {
+    if writeln!(stdin, "{spec}")
+        .and_then(|_| stdin.flush())
+        .is_err()
+    {
         return Vec::new();
     }
     let mut header = String::new();
@@ -621,11 +643,22 @@ pub fn git_discard_files(cwd: String, files: Vec<String>) -> Result<(), String> 
     let mut largs: Vec<&str> = vec!["ls-files", "--"];
     largs.extend(files.iter().map(String::as_str));
     let ls = git_out(&cwd, &largs).unwrap_or_default();
-    let tracked_set: HashSet<&str> =
-        ls.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let tracked_set: HashSet<&str> = ls
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
 
-    let tracked: Vec<&str> = files.iter().map(String::as_str).filter(|f| tracked_set.contains(f)).collect();
-    let untracked: Vec<&str> = files.iter().map(String::as_str).filter(|f| !tracked_set.contains(f)).collect();
+    let tracked: Vec<&str> = files
+        .iter()
+        .map(String::as_str)
+        .filter(|f| tracked_set.contains(f))
+        .collect();
+    let untracked: Vec<&str> = files
+        .iter()
+        .map(String::as_str)
+        .filter(|f| !tracked_set.contains(f))
+        .collect();
 
     if !tracked.is_empty() {
         let mut a: Vec<&str> = vec!["checkout", "HEAD", "--"];
@@ -833,7 +866,11 @@ pub fn git_log_branch(cwd: String, base: String) -> Result<Vec<BranchCommit>, St
     let base = resolve_base(&cwd, &base)?;
     let out = git_out(
         &cwd,
-        &["log", "--format=%h%x00%s%x00%an%x00%ar", &format!("{base}..HEAD")],
+        &[
+            "log",
+            "--format=%h%x00%s%x00%an%x00%ar",
+            &format!("{base}..HEAD"),
+        ],
     )?;
     if out.is_empty() {
         return Ok(vec![]);
@@ -912,7 +949,10 @@ pub fn git_prune_remotes(cwd: String) -> Result<(), String> {
         &["fetch", "--all", "--prune"],
         &[
             ("GIT_TERMINAL_PROMPT", "0"),
-            ("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=10"),
+            (
+                "GIT_SSH_COMMAND",
+                "ssh -o BatchMode=yes -o ConnectTimeout=10",
+            ),
         ],
     )
     .map(|_| ())
@@ -1019,8 +1059,15 @@ struct GitChangedPayload {
 
 // .git entries worth a refresh (commit/checkout/merge/rebase markers).
 const GIT_FILE_ALLOW: &[&str] = &[
-    "HEAD", "index", "packed-refs", "ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD",
-    "REBASE_HEAD", "REVERT_HEAD", "BISECT_HEAD",
+    "HEAD",
+    "index",
+    "packed-refs",
+    "ORIG_HEAD",
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REBASE_HEAD",
+    "REVERT_HEAD",
+    "BISECT_HEAD",
 ];
 
 /// Whether a filesystem event path is irrelevant to a git working-tree refresh
@@ -1044,7 +1091,8 @@ pub(crate) fn should_ignore(root: &str, full: &str) -> bool {
         }
         return true;
     }
-    segs.iter().any(|s| crate::config::IGNORED_WATCH_DIRS.contains(s))
+    segs.iter()
+        .any(|s| crate::config::IGNORED_WATCH_DIRS.contains(s))
 }
 
 struct ActiveWatch {
@@ -1104,7 +1152,11 @@ pub fn start_watching_project(
     if let Some(ssh) = remote {
         let stop = Arc::new(AtomicBool::new(false));
         spawn_remote_poll(app, ssh, path.clone(), stop.clone());
-        *guard = Some(ActiveWatch { path, stop, _watcher: None });
+        *guard = Some(ActiveWatch {
+            path,
+            stop,
+            _watcher: None,
+        });
         return Ok(());
     }
 

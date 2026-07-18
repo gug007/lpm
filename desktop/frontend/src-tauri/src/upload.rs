@@ -108,10 +108,16 @@ fn upload_files(ssh: &config::SshSettings, locals: &[String]) -> Result<Vec<Stri
         .output()
         .map_err(|e| format!("scp: {e}"))?;
     if !scp.status.success() {
-        return Err(format!("scp: {}", trim_output(&String::from_utf8_lossy(&scp.stderr))));
+        return Err(format!(
+            "scp: {}",
+            trim_output(&String::from_utf8_lossy(&scp.stderr))
+        ));
     }
 
-    Ok(locals.iter().map(|p| format!("{remote_dir}/{}", basename(p))).collect())
+    Ok(locals
+        .iter()
+        .map(|p| format!("{remote_dir}/{}", basename(p)))
+        .collect())
 }
 
 fn basename(p: &str) -> String {
@@ -151,9 +157,11 @@ fn format_paste_paths(paths: &[String]) -> String {
 // IMAGE_EXT_RE in InteractivePane.tsx, case-insensitive.
 fn is_image_path(s: &str) -> bool {
     let l = s.to_ascii_lowercase();
-    [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif"]
-        .iter()
-        .any(|e| l.ends_with(e))
+    [
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif",
+    ]
+    .iter()
+    .any(|e| l.ends_with(e))
 }
 
 // safePathChars in shellQuote (terminal-io.ts): ^[A-Za-z0-9_./:~-]+$
@@ -186,9 +194,15 @@ mod tests {
     #[test]
     fn multiple_or_nonimage_quoted_when_unsafe() {
         // safe single non-image stays unquoted
-        assert_eq!(format_paste_paths(&["/tmp/notes.txt".into()]), "/tmp/notes.txt");
+        assert_eq!(
+            format_paste_paths(&["/tmp/notes.txt".into()]),
+            "/tmp/notes.txt"
+        );
         // space in a path -> quoted
-        assert_eq!(format_paste_paths(&["/tmp/a b.txt".into()]), "'/tmp/a b.txt'");
+        assert_eq!(
+            format_paste_paths(&["/tmp/a b.txt".into()]),
+            "'/tmp/a b.txt'"
+        );
         // two images -> both quoted+joined (not the single-image bypass)
         assert_eq!(
             format_paste_paths(&["/a.png".into(), "/b.png".into()]),

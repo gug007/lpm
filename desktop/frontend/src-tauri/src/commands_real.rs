@@ -56,25 +56,39 @@ pub fn save_settings(s: Value) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn load_generators() -> Value { config::load_generators() }
+pub fn load_generators() -> Value {
+    config::load_generators()
+}
 
 #[tauri::command]
-pub fn save_generators(g: Value) -> Result<(), String> { config::save_generators(&g) }
+pub fn save_generators(g: Value) -> Result<(), String> {
+    config::save_generators(&g)
+}
 
 #[tauri::command]
-pub fn load_claude_accounts() -> Value { config::load_claude_accounts() }
+pub fn load_claude_accounts() -> Value {
+    config::load_claude_accounts()
+}
 
 #[tauri::command]
-pub fn save_claude_accounts(a: Value) -> Result<(), String> { config::save_claude_accounts(&a) }
+pub fn save_claude_accounts(a: Value) -> Result<(), String> {
+    config::save_claude_accounts(&a)
+}
 
 #[tauri::command]
-pub fn remove_claude_account(id: String) -> Result<(), String> { config::remove_claude_account(&id) }
+pub fn remove_claude_account(id: String) -> Result<(), String> {
+    config::remove_claude_account(&id)
+}
 
 #[tauri::command]
-pub fn claude_accounts_status() -> Value { config::claude_accounts_status() }
+pub fn claude_accounts_status() -> Value {
+    config::claude_accounts_status()
+}
 
 #[tauri::command]
-pub fn claude_account_usage() -> Value { config::claude_account_usage() }
+pub fn claude_account_usage() -> Value {
+    config::claude_account_usage()
+}
 
 #[tauri::command]
 pub fn save_generator_icon(src_path: String, id: String) -> Result<String, String> {
@@ -176,7 +190,10 @@ pub fn list_projects(
         .iter()
         .map(|p| {
             (
-                p.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string(),
+                p.get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
                 p.get("running").and_then(|v| v.as_bool()).unwrap_or(false),
             )
         })

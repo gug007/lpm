@@ -196,7 +196,9 @@ fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String>
 /// order. `is_file()` follows symlinks, so a dangling symlink — which the shell
 /// skips during exec resolution — does not count as a hit.
 fn first_lpm_in(dirs: &[String]) -> Option<PathBuf> {
-    dirs.iter().map(|d| Path::new(d).join(LINK_NAME)).find(|p| p.is_file())
+    dirs.iter()
+        .map(|d| Path::new(d).join(LINK_NAME))
+        .find(|p| p.is_file())
 }
 
 /// When our symlink alone reads as "installed", check whether an earlier `lpm`
@@ -227,7 +229,10 @@ fn parse_cli_version(raw: &str) -> String {
 /// Run the on-PATH CLI binary and read its reported version, or None when it
 /// can't be executed. `bin` is the executable to run.
 fn read_cli_version(bin: &Path) -> Option<String> {
-    let out = std::process::Command::new(bin).arg("--version").output().ok()?;
+    let out = std::process::Command::new(bin)
+        .arg("--version")
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -500,7 +505,10 @@ mod tests {
     fn version_probe_bin_picks_link_when_installed() {
         assert_eq!(version_probe_bin("installed", &expected()), link_path());
         assert_eq!(version_probe_bin("shadowed", &expected()), link_path());
-        assert_eq!(version_probe_bin("points-elsewhere", &expected()), expected());
+        assert_eq!(
+            version_probe_bin("points-elsewhere", &expected()),
+            expected()
+        );
     }
 
     #[test]
@@ -560,7 +568,10 @@ mod tests {
         let dirs = vec![INSTALL_DIR.to_string()];
         let state = PathState::OurSymlink(expected());
         assert_eq!(shadowed_by(&state, &expected(), &dirs), None);
-        assert_eq!(status_value_in(&state, &expected(), &dirs)["status"], "installed");
+        assert_eq!(
+            status_value_in(&state, &expected(), &dirs)["status"],
+            "installed"
+        );
     }
 
     #[test]

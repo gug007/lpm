@@ -23,17 +23,50 @@ struct SkillFile {
 }
 
 const SKILL_FILES: &[SkillFile] = &[
-    SkillFile { rel_path: "lpm-config/SKILL.md", content: LPM_CONFIG_SKILL },
-    SkillFile { rel_path: "lpm-config/references/core.md", content: LPM_CONFIG_CORE },
-    SkillFile { rel_path: "lpm-config/references/actions.md", content: LPM_CONFIG_ACTIONS },
-    SkillFile { rel_path: "lpm-config/references/sharing.md", content: LPM_CONFIG_SHARING },
-    SkillFile { rel_path: "lpm-config/references/ssh.md", content: LPM_CONFIG_SSH },
-    SkillFile { rel_path: "lpm-config/references/validation.md", content: LPM_CONFIG_VALIDATION },
-    SkillFile { rel_path: "lpm-config/agents/openai.yaml", content: LPM_CONFIG_OPENAI },
-    SkillFile { rel_path: "lpm-cli/SKILL.md", content: LPM_CLI_SKILL },
-    SkillFile { rel_path: "lpm-cli/agents/openai.yaml", content: LPM_CLI_OPENAI },
-    SkillFile { rel_path: "lpm/SKILL.md", content: LPM_SHORTCUT_SKILL },
-    SkillFile { rel_path: "lpm/agents/openai.yaml", content: LPM_SHORTCUT_OPENAI },
+    SkillFile {
+        rel_path: "lpm-config/SKILL.md",
+        content: LPM_CONFIG_SKILL,
+    },
+    SkillFile {
+        rel_path: "lpm-config/references/core.md",
+        content: LPM_CONFIG_CORE,
+    },
+    SkillFile {
+        rel_path: "lpm-config/references/actions.md",
+        content: LPM_CONFIG_ACTIONS,
+    },
+    SkillFile {
+        rel_path: "lpm-config/references/sharing.md",
+        content: LPM_CONFIG_SHARING,
+    },
+    SkillFile {
+        rel_path: "lpm-config/references/ssh.md",
+        content: LPM_CONFIG_SSH,
+    },
+    SkillFile {
+        rel_path: "lpm-config/references/validation.md",
+        content: LPM_CONFIG_VALIDATION,
+    },
+    SkillFile {
+        rel_path: "lpm-config/agents/openai.yaml",
+        content: LPM_CONFIG_OPENAI,
+    },
+    SkillFile {
+        rel_path: "lpm-cli/SKILL.md",
+        content: LPM_CLI_SKILL,
+    },
+    SkillFile {
+        rel_path: "lpm-cli/agents/openai.yaml",
+        content: LPM_CLI_OPENAI,
+    },
+    SkillFile {
+        rel_path: "lpm/SKILL.md",
+        content: LPM_SHORTCUT_SKILL,
+    },
+    SkillFile {
+        rel_path: "lpm/agents/openai.yaml",
+        content: LPM_SHORTCUT_OPENAI,
+    },
 ];
 
 const ENTRY_SKILLS: &[&str] = &["lpm-config/SKILL.md", "lpm-cli/SKILL.md"];
@@ -203,7 +236,10 @@ mod tests {
 
     #[test]
     fn none_when_no_frontmatter() {
-        assert_eq!(parse_skill_version("# lpm-cli\n\nno frontmatter here"), None);
+        assert_eq!(
+            parse_skill_version("# lpm-cli\n\nno frontmatter here"),
+            None
+        );
     }
 
     #[test]
@@ -229,7 +265,11 @@ mod tests {
         install_at(dir.path()).unwrap();
         assert_eq!(status_at(dir.path()), "installed");
         for f in SKILL_FILES {
-            assert!(dir.path().join(f.rel_path).exists(), "missing {}", f.rel_path);
+            assert!(
+                dir.path().join(f.rel_path).exists(),
+                "missing {}",
+                f.rel_path
+            );
         }
     }
 

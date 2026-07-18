@@ -45,7 +45,10 @@ impl BlobStore {
             .cipher
             .encrypt(
                 &Nonce::try_from(nonce.as_slice()).expect("nonce is 12 bytes"),
-                Payload { msg: data, aad: hash.as_bytes() },
+                Payload {
+                    msg: data,
+                    aad: hash.as_bytes(),
+                },
             )
             .map_err(|_| "notes: seal blob".to_string())?;
 
@@ -56,10 +59,13 @@ impl BlobStore {
             .suffix(".tmp")
             .tempfile_in(&self.dir)
             .map_err(|e| format!("notes: temp file: {e}"))?;
-        tmp.write_all(&nonce).map_err(|e| format!("notes: write nonce: {e}"))?;
-        tmp.write_all(&sealed).map_err(|e| format!("notes: write cipher: {e}"))?;
+        tmp.write_all(&nonce)
+            .map_err(|e| format!("notes: write nonce: {e}"))?;
+        tmp.write_all(&sealed)
+            .map_err(|e| format!("notes: write cipher: {e}"))?;
         tmp.flush().map_err(|e| format!("notes: flush tmp: {e}"))?;
-        tmp.persist(&path).map_err(|e| format!("notes: rename tmp: {e}"))?;
+        tmp.persist(&path)
+            .map_err(|e| format!("notes: rename tmp: {e}"))?;
         Ok((hash, size))
     }
 
@@ -82,7 +88,10 @@ impl BlobStore {
         self.cipher
             .decrypt(
                 &Nonce::try_from(nonce).expect("nonce is 12 bytes"),
-                Payload { msg: sealed, aad: hash.as_bytes() },
+                Payload {
+                    msg: sealed,
+                    aad: hash.as_bytes(),
+                },
             )
             .map_err(|_| format!("notes: decrypt {hash}: authentication failed"))
     }
@@ -115,7 +124,9 @@ impl BlobStore {
             }
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            let Some(hash) = name.strip_suffix(BLOB_EXT) else { continue };
+            let Some(hash) = name.strip_suffix(BLOB_EXT) else {
+                continue;
+            };
             if !valid_hash(hash) || referenced.contains(hash) {
                 continue;
             }
@@ -132,7 +143,9 @@ impl BlobStore {
 
 /// Guards against path traversal: exactly 64 lowercase hex chars.
 fn valid_hash(h: &str) -> bool {
-    h.len() == 64 && h.bytes().all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
+    h.len() == 64
+        && h.bytes()
+            .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
 }
 
 #[cfg(test)]
@@ -164,7 +177,10 @@ mod tests {
         let last = bytes.len() - 1;
         bytes[last] ^= 0xff; // corrupt the GCM tag
         std::fs::write(&path, &bytes).unwrap();
-        assert!(bs.read(&h).is_err(), "tag mismatch must fail authentication");
+        assert!(
+            bs.read(&h).is_err(),
+            "tag mismatch must fail authentication"
+        );
     }
 
     #[test]

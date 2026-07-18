@@ -16,7 +16,9 @@ pub fn attach(win: &WebviewWindow) {
     win.on_window_event(move |event| {
         if matches!(
             event,
-            WindowEvent::Moved(_) | WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }
+            WindowEvent::Moved(_)
+                | WindowEvent::Resized(_)
+                | WindowEvent::ScaleFactorChanged { .. }
         ) {
             let _ = bounds_tx.try_send(());
         }

@@ -295,8 +295,8 @@ mod tests {
         s.present("a", w("main"));
         s.present("a", w("detached"));
         s.present("b", w("detached")); // detached owns b (sole presenter)
-        // main owns a, detached owns b. Drop detached: a's owner unchanged,
-        // b transfers to nobody.
+                                       // main owns a, detached owns b. Drop detached: a's owner unchanged,
+                                       // b transfers to nobody.
         let mut changed = s.drop_surface(&w("detached"));
         changed.sort_by(|x, y| x.0.cmp(&y.0));
         assert_eq!(changed.len(), 1);

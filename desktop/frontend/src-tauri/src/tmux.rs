@@ -98,14 +98,24 @@ fn parse_service_panes(output: &str) -> Option<Vec<ServicePane>> {
             if id.is_empty() || service.is_empty() {
                 return None;
             }
-            Some(ServicePane { id: id.to_string(), service: service.to_string() })
+            Some(ServicePane {
+                id: id.to_string(),
+                service: service.to_string(),
+            })
         })
         .collect();
     panes.filter(|panes| !panes.is_empty())
 }
 
 pub fn list_service_panes(session: &str) -> Option<Vec<ServicePane>> {
-    let output = run(&["list-panes", "-t", session, "-F", "#{pane_id}\t#{@lpm_service}"]).ok()?;
+    let output = run(&[
+        "list-panes",
+        "-t",
+        session,
+        "-F",
+        "#{pane_id}\t#{@lpm_service}",
+    ])
+    .ok()?;
     parse_service_panes(&output)
 }
 
@@ -366,7 +376,10 @@ mod tests {
 
     impl SessionGuard {
         fn new() -> Self {
-            let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+            let nonce = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
             Self(format!("lpm-test-{}-{nonce}", std::process::id()))
         }
     }
@@ -386,8 +399,14 @@ mod tests {
         assert_eq!(
             parse_service_panes("%3\tdb\n%7\tweb\n"),
             Some(vec![
-                ServicePane { id: "%3".into(), service: "db".into() },
-                ServicePane { id: "%7".into(), service: "web".into() },
+                ServicePane {
+                    id: "%3".into(),
+                    service: "db".into()
+                },
+                ServicePane {
+                    id: "%7".into(),
+                    service: "web".into()
+                },
             ])
         );
     }
@@ -401,7 +420,10 @@ mod tests {
     #[test]
     fn stores_service_identity_on_each_pane() {
         let session = SessionGuard::new();
-        let services = vec![service("db", "sleep 30".into()), service("web", "sleep 30".into())];
+        let services = vec![
+            service("db", "sleep 30".into()),
+            service("web", "sleep 30".into()),
+        ];
         start_project_services(&session.0, ".", &services, None).unwrap();
         let names: Vec<String> = list_service_panes(&session.0)
             .unwrap()
@@ -410,10 +432,13 @@ mod tests {
             .collect();
         assert_eq!(names, ["db", "web"]);
         let configured = vec!["api".to_string(), "db".to_string(), "web".to_string()];
-        let recovered = crate::services::run_state_from_tmux(&session.0, configured.iter()).unwrap();
+        let recovered =
+            crate::services::run_state_from_tmux(&session.0, configured.iter()).unwrap();
         assert_eq!(recovered.services, ["db", "web"]);
         let incomplete_config = vec!["db".to_string()];
-        assert!(crate::services::run_state_from_tmux(&session.0, incomplete_config.iter()).is_none());
+        assert!(
+            crate::services::run_state_from_tmux(&session.0, incomplete_config.iter()).is_none()
+        );
     }
 
     #[test]

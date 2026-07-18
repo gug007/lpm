@@ -212,19 +212,30 @@ fn attach_events(app: &AppHandle, project_name: &str, label: &str, win: &tauri::
         }
         WindowEvent::CloseRequested { .. } => {
             persist_current_bounds(&app, &name, &label);
-            app.state::<DetachedState>().labels.lock().unwrap().remove(&name);
+            app.state::<DetachedState>()
+                .labels
+                .lock()
+                .unwrap()
+                .remove(&name);
             persist_detached_flag(&name, false);
             let _ = app.emit(EVENT_CHANGED, ());
         }
         WindowEvent::Destroyed => {
-            app.state::<DetachedState>().labels.lock().unwrap().remove(&name);
+            app.state::<DetachedState>()
+                .labels
+                .lock()
+                .unwrap()
+                .remove(&name);
             // Release any terminal control this window held, so a closed
             // detached window never strands ownership (its React unmount may not
             // run when the webview is torn down abruptly). Ownership transfers to
             // a remaining presenter (e.g. the main window).
             let realm =
                 crate::control::Owner::new("window", crate::control::detached_window_id(&name), "");
-            for (id, owner) in app.state::<crate::control::ControlState>().drop_surface(&realm) {
+            for (id, owner) in app
+                .state::<crate::control::ControlState>()
+                .drop_surface(&realm)
+            {
                 crate::control::broadcast(&app, &id, &owner);
             }
         }
@@ -270,7 +281,11 @@ fn persist_detached_bounds(name: &str, x: f64, y: f64, w: f64, h: f64) {
     let (xi, yi, wi, hi) = (x as i64, y as i64, w as i64, h as i64);
     mutate_entry(name, |e| {
         let g = |k: &str| e.get(k).and_then(|v| v.as_i64());
-        if g("x") == Some(xi) && g("y") == Some(yi) && g("width") == Some(wi) && g("height") == Some(hi) {
+        if g("x") == Some(xi)
+            && g("y") == Some(yi)
+            && g("width") == Some(wi)
+            && g("height") == Some(hi)
+        {
             return false;
         }
         e.insert("x".into(), xi.into());
@@ -298,7 +313,9 @@ fn mutate_entry(
     f: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>) -> bool,
 ) {
     let mut s = config::load_settings();
-    let Some(root) = s.as_object_mut() else { return };
+    let Some(root) = s.as_object_mut() else {
+        return;
+    };
     let dw = root
         .entry("detachedWindows")
         .or_insert_with(|| serde_json::Value::Object(Default::default()));
@@ -306,7 +323,9 @@ fn mutate_entry(
     let entry = dw
         .entry(name.to_string())
         .or_insert_with(|| serde_json::Value::Object(Default::default()));
-    let Some(entry) = entry.as_object_mut() else { return };
+    let Some(entry) = entry.as_object_mut() else {
+        return;
+    };
     if f(entry) {
         let _ = config::save_settings(&s);
     }

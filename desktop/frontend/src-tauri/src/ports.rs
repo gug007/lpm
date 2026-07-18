@@ -23,7 +23,11 @@ pub struct PortConflictInfo {
     pub description: String,
     /// The owning entry's portConflict policy ("" | "ask" | "free" | "fail"),
     /// so the frontend can resolve each conflict per its own policy.
-    #[serde(rename = "portConflict", default, skip_serializing_if = "String::is_empty")]
+    #[serde(
+        rename = "portConflict",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub port_conflict: String,
 }
 
@@ -56,7 +60,8 @@ fn holder_phrase(h: &Holder, lpm_project: &str) -> String {
 // ---- lsof holder lookup -----------------------------------------------------
 
 fn port_from_addr(addr: &str) -> Option<i64> {
-    addr.rsplit_once(':').and_then(|(_, p)| p.parse::<i64>().ok())
+    addr.rsplit_once(':')
+        .and_then(|(_, p)| p.parse::<i64>().ok())
 }
 
 fn parse_lsof(s: &str) -> HashMap<i64, Holder> {
@@ -70,7 +75,10 @@ fn parse_lsof(s: &str) -> HashMap<i64, Holder> {
         match tag {
             b'p' => {
                 if let Ok(pid) = rest.parse::<i64>() {
-                    current = Holder { pid, command: String::new() };
+                    current = Holder {
+                        pid,
+                        command: String::new(),
+                    };
                 }
             }
             b'c' => current.command = rest.to_string(),
@@ -223,7 +231,11 @@ fn walk_to_owner<T: Clone>(
     None
 }
 
-fn walk_to_project(pid: i64, pane_idx: &HashMap<i64, String>, parents: &HashMap<i64, i64>) -> String {
+fn walk_to_project(
+    pid: i64,
+    pane_idx: &HashMap<i64, String>,
+    parents: &HashMap<i64, i64>,
+) -> String {
     walk_to_owner(pid, pane_idx, parents).unwrap_or_default()
 }
 
@@ -329,7 +341,10 @@ pub fn format_action_port(action: &str, ports: &[i64]) -> Result<(), String> {
         msg.push('s');
     }
     for c in &conflicts {
-        msg.push_str(&format!("\n  • {} ({}) — used by {}", c.port, c.service, c.description));
+        msg.push_str(&format!(
+            "\n  • {} ({}) — used by {}",
+            c.port, c.service, c.description
+        ));
         if !c.lpm_project.is_empty() {
             msg.push_str(&format!(" (stop the '{}' project in lpm)", c.lpm_project));
         } else if c.pid > 0 {
@@ -342,7 +357,10 @@ pub fn format_action_port(action: &str, ports: &[i64]) -> Result<(), String> {
 // ---- commands ---------------------------------------------------------------
 
 #[tauri::command(async)]
-pub fn check_port_conflicts(name: String, profile: String) -> Result<Vec<PortConflictInfo>, String> {
+pub fn check_port_conflicts(
+    name: String,
+    profile: String,
+) -> Result<Vec<PortConflictInfo>, String> {
     let info = config::spawn_info(&name)?;
     let all: Vec<String> = info.services.keys().cloned().collect();
     let svc_names = config::services_for_profile(&info.profiles, &all, &profile);
