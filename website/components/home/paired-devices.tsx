@@ -124,7 +124,11 @@ function TerminalLine({ line, size }: { line: Line; size: string }) {
 
 type Step = { wait: number; apply: () => void };
 
-export function PairedDevices() {
+export function PairedDevices({
+  companionLink = true,
+}: {
+  companionLink?: boolean;
+}) {
   const [tab, setTab] = useState(0);
   const [revealed, setRevealed] = useState(0);
   const [typed, setTyped] = useState("");
@@ -435,22 +439,6 @@ export function PairedDevices() {
                     )}
                   </div>
 
-                  {/* Terminal switcher — mirrors the Mac's active tab */}
-                  <div className="flex items-center gap-1 px-3 pb-1">
-                    {SESSIONS.map((s, i) => (
-                      <span
-                        key={s.key}
-                        className={`rounded-full px-2 py-0.5 font-mono text-[8px] transition-colors ${
-                          i === tabView
-                            ? "bg-white/10 text-gray-100"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {s.label}
-                      </span>
-                    ))}
-                  </div>
-
                   {/* Mirrored transcript; right edge fades so the narrow phone
                       mirror clips long lines gracefully. */}
                   <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 pb-2 font-mono text-[10px] leading-5 [mask-image:linear-gradient(to_right,#000_84%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_84%,transparent)]">
@@ -492,15 +480,17 @@ export function PairedDevices() {
           </div>
         </div>
 
-        <div className="mt-10 text-center">
-          <a
-            href={MOBILE_PATH}
-            className="inline-flex items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            See the iPhone companion
-            <ArrowRight className="h-3.5 w-3.5" />
-          </a>
-        </div>
+        {companionLink && (
+          <div className="mt-10 text-center">
+            <a
+              href={MOBILE_PATH}
+              className="inline-flex items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+            >
+              See the iPhone companion
+              <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -19,7 +19,7 @@ const ENTRIES: Record<Exclude<Platform, null>, Entry> = {
   },
 };
 
-const FALLBACK: Entry = { href: "#download", label: "Download for macOS" };
+const FALLBACK: Entry = { href: "/#download", label: "Download for macOS" };
 
 export function HeroDownload() {
   const platform = usePlatform();

@@ -1,10 +1,12 @@
 import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { HeroDownload } from "@/components/home/hero-download";
 import { REPO_URL } from "@/lib/links";
+import AppStoreButton from "./app-store-button";
 
 export default function Hero() {
   return (
-    <section className="pt-28 sm:pt-40 pb-12 sm:pb-20 text-center">
+    <section className="pt-28 sm:pt-40 pb-8 sm:pb-10 text-center">
       <div className="max-w-4xl mx-auto px-6">
         <p className="text-xs font-medium uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500 mb-6">
           The lpm companion for iPhone &amp; iPad
@@ -20,12 +22,22 @@ export default function Hero() {
           comes with you.
         </p>
 
-        <div className="mt-10 flex justify-center">
-          <HeroDownload />
+        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:items-start">
+          <AppStoreButton />
+          <div className="hidden sm:block">
+            <HeroDownload />
+          </div>
         </div>
+        <Link
+          href="/#download"
+          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white sm:hidden"
+        >
+          Get lpm for your Mac
+          <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
         <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
-          Install lpm on your Mac, then scan one QR code to pair your iPhone or
-          iPad.
+          Install lpm on your Mac and the lpm link app on your iPhone or iPad,
+          then scan one QR code to pair.
         </p>
 
         <div className="mt-8">

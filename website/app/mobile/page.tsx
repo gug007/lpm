@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PairedDevices } from "@/components/home/paired-devices";
 import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
@@ -76,6 +77,7 @@ export default function MobilePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
+      <PairedDevices companionLink={false} />
       <Problem />
       <Features />
       <Composer />

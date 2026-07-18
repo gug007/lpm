@@ -17,6 +17,8 @@ export const SSH_TERMINAL_MAC_PATH = "/ssh-terminal-for-mac";
 export const REVIEW_CHANGES_PATH = "/review-changes-in-terminal";
 export const CONNECT_AGENTS_PATH = "/connect-ai-agents";
 export const MOBILE_PATH = "/mobile";
+export const APP_STORE_URL =
+  "https://apps.apple.com/us/app/lpm-link/id6788396977";
 export const VS_BASE_PATH = "/vs";
 export const VS_SLUGS = [
   "foreman",
