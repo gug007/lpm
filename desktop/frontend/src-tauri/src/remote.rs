@@ -79,6 +79,12 @@ struct Device {
     push_automation_started: bool,
     push_automation_done: bool,
     push_automation_error: bool,
+    // The flavor-aware server id of the instance that completed this pairing (dev
+    // vs prod). None on legacy entries — treated as prod — so the dev instance
+    // never pushes to them and their pushes keep flowing. Scopes push delivery so a
+    // phone paired with only one flavor gets no phantom pushes from the other.
+    #[serde(default)]
+    paired_server_id: Option<String>,
 }
 
 // Manual Default (not derived) so `..Default::default()` agrees with serde: agent
@@ -99,6 +105,7 @@ impl Default for Device {
             push_automation_started: false,
             push_automation_done: false,
             push_automation_error: false,
+            paired_server_id: None,
         }
     }
 }
@@ -126,6 +133,11 @@ struct RemoteConfig {
     // phone so it can distinguish and label multiple paired Macs, and mixed into
     // the push collapse id so same-named projects on different Macs don't collide.
     server_id: Option<String>,
+    // The dev instance's own stable id, so a dev and a prod build sharing this
+    // config present as two distinct Macs to the phone. Prod uses `server_id`,
+    // dev uses this; each mints its own lazily. Absent in legacy configs.
+    #[serde(default)]
+    dev_server_id: Option<String>,
     devices: Vec<Device>,
 }
 
@@ -139,6 +151,7 @@ impl Default for RemoteConfig {
             tailscale: true, // away-from-home works out of the box; the toggle opts out
             push_relay: String::new(),
             server_id: None,
+            dev_server_id: None,
             devices: Vec::new(),
         }
     }
@@ -155,15 +168,38 @@ impl RemoteConfig {
         }
     }
 
-    /// Fill in a stable server id if absent, returning whether one was minted (so
-    /// the caller knows to persist).
+    /// Fill in this flavor's stable server id if absent, returning whether one was
+    /// minted (so the caller knows to persist). Dev mints/owns `dev_server_id`,
+    /// prod mints/owns `server_id`, so both coexist under one shared config.
     fn ensure_server_id(&mut self) -> bool {
-        if self.server_id.as_deref().unwrap_or_default().is_empty() {
-            self.server_id = Some(uuid::Uuid::new_v4().to_string());
+        let slot = if is_dev_instance() {
+            &mut self.dev_server_id
+        } else {
+            &mut self.server_id
+        };
+        if slot.as_deref().unwrap_or_default().is_empty() {
+            *slot = Some(uuid::Uuid::new_v4().to_string());
             true
         } else {
             false
         }
+    }
+
+    /// This flavor's server id (may be empty until `ensure_server_id` mints one).
+    /// Every wire/push use of the server id must go through this, never the raw
+    /// field, so dev and prod stay distinguishable.
+    fn flavor_server_id(&self) -> String {
+        if is_dev_instance() {
+            self.dev_server_id.clone().unwrap_or_default()
+        } else {
+            self.server_id.clone().unwrap_or_default()
+        }
+    }
+
+    /// The prod (non-dev) server id — the default owner assumed for legacy device
+    /// records that predate per-flavor push scoping.
+    fn prod_server_id(&self) -> String {
+        self.server_id.clone().unwrap_or_default()
     }
 }
 
@@ -172,6 +208,7 @@ impl RemoteConfig {
 fn server_name() -> String {
     static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     NAME.get_or_init(|| {
+        let mut base = "Mac".to_string();
         for key in ["ComputerName", "LocalHostName"] {
             if let Ok(out) = std::process::Command::new("scutil")
                 .arg("--get")
@@ -181,22 +218,44 @@ fn server_name() -> String {
                 if out.status.success() {
                     let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
                     if !name.is_empty() {
-                        return name;
+                        base = name;
+                        break;
                     }
                 }
             }
         }
-        "Mac".to_string()
+        // Suffix the dev build so the phone's switcher shows two distinct entries
+        // when a dev and a prod instance run on the same Mac.
+        if is_dev_instance() {
+            base.push_str(" (dev)");
+        }
+        base
     })
     .clone()
 }
 
-fn effective_port(p: u16) -> u16 {
-    if p == 0 {
-        DEFAULT_PORT
+// Dev/prod discriminator for coexisting on one Mac with a shared ~/.lpm: the
+// `npm run tauri dev` build compiles a debug binary; the shipped app is release.
+// This drives the per-flavor port, server id, name suffix, and push scoping so a
+// dev and a prod instance never fight over the same identity or port.
+fn is_dev_instance() -> bool {
+    cfg!(debug_assertions)
+}
+
+/// The listen port for a configured value and flavor. The dev instance sits at the
+/// prod effective port + 2 (8766 is the Mac-to-Mac peer host) so the two instances
+/// can never collide through the shared remote.json, including a user-set port.
+fn effective_port_for(p: u16, dev: bool) -> u16 {
+    let base = if p == 0 { DEFAULT_PORT } else { p };
+    if dev {
+        base + 2
     } else {
-        p
+        base
     }
+}
+
+fn effective_port(p: u16) -> u16 {
+    effective_port_for(p, is_dev_instance())
 }
 
 // Test-only override so a test exercising the real pair path (which persists on
@@ -297,9 +356,9 @@ impl RemoteHub {
             let snapshot = cfg.clone();
             drop(cfg);
             let _ = save_config(&snapshot);
-            return snapshot.server_id.unwrap_or_default();
+            return snapshot.flavor_server_id();
         }
-        cfg.server_id.clone().unwrap_or_default()
+        cfg.flavor_server_id()
     }
 
     fn device_exists(&self, id: &str) -> bool {
@@ -735,11 +794,17 @@ fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, Strin
         return None;
     }
     let token = gen_token();
+    // Stamp the pairing flavor's server id so push scoping later routes only this
+    // flavor's alerts to this device; ensure the id exists first (start() normally
+    // minted it, but be robust if pairing races startup).
+    cfg.ensure_server_id();
+    let paired_server_id = Some(cfg.flavor_server_id());
     let device = Device {
         id: uuid::Uuid::new_v4().to_string(),
         name: name.chars().take(64).collect(),
         token_hash: sha256_hex(token.as_bytes()),
         created_at: crate::status::now_millis(),
+        paired_server_id,
         ..Default::default()
     };
     let id = device.id.clone();
@@ -2908,6 +2973,30 @@ fn make_push_device(d: &Device) -> Option<PushDevice> {
     })
 }
 
+/// Whether a device is in this flavor's push scope. `paired_server_id` is the id
+/// of the instance that paired the device; None/empty (legacy, pre-scoping) counts
+/// as prod. So the dev instance pushes only to devices it paired, and prod pushes
+/// to its own plus all legacy devices — no phantom pushes across flavors.
+fn device_in_push_scope(paired_server_id: Option<&str>, instance_id: &str, prod_id: &str) -> bool {
+    let owner = match paired_server_id {
+        Some(id) if !id.is_empty() => id,
+        _ => prod_id,
+    };
+    owner == instance_id
+}
+
+/// This flavor's push recipients from the shared devices list: those whose
+/// `paired_server_id` scopes to this instance (see `device_in_push_scope`).
+fn scoped_devices(cfg: &RemoteConfig) -> Vec<Device> {
+    let instance_id = cfg.flavor_server_id();
+    let prod_id = cfg.prod_server_id();
+    cfg.devices
+        .iter()
+        .filter(|d| device_in_push_scope(d.paired_server_id.as_deref(), &instance_id, &prod_id))
+        .cloned()
+        .collect()
+}
+
 /// Devices eligible for alerts: a registered token, not currently connected,
 /// opted in to at least one alert kind, and a valid push key.
 fn alert_recipients(devices: &[Device], connected: &HashSet<String>) -> Vec<PushDevice> {
@@ -3004,9 +3093,10 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     // concurrent in-memory registration.
     let cfg = load_config();
     let relay = cfg.effective_relay();
-    let server_id = cfg.server_id.clone().unwrap_or_default();
+    let server_id = cfg.flavor_server_id();
+    let scoped = scoped_devices(&cfg);
     let recipients: Vec<PushDevice> = if want_alert {
-        alert_recipients(&cfg.devices, &connected)
+        alert_recipients(&scoped, &connected)
             .into_iter()
             .filter(|device| deltas.iter().any(|(_, value, _)| device.wants(value)))
             .collect()
@@ -3014,7 +3104,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         Vec::new()
     };
     let clear_recipients: Vec<PushDevice> = if want_clear {
-        clear_recipients(&cfg.devices)
+        clear_recipients(&scoped)
     } else {
         Vec::new()
     };
@@ -3126,8 +3216,8 @@ fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, re
         .collect();
     let cfg = load_config();
     let relay = cfg.effective_relay();
-    let server_id = cfg.server_id.clone().unwrap_or_default();
-    let recipients: Vec<PushDevice> = alert_recipients(&cfg.devices, &connected)
+    let server_id = cfg.flavor_server_id();
+    let recipients: Vec<PushDevice> = alert_recipients(&scoped_devices(&cfg), &connected)
         .into_iter()
         .filter(|device| device.wants_automation(result))
         .collect();
@@ -3584,8 +3674,32 @@ mod tests {
 
     #[test]
     fn effective_port_defaults_zero() {
-        assert_eq!(effective_port(0), DEFAULT_PORT);
-        assert_eq!(effective_port(9000), 9000);
+        // Explicit non-dev flavor so the test doesn't depend on the compile profile
+        // (unit tests build in debug, where is_dev_instance() is true).
+        assert_eq!(effective_port_for(0, false), DEFAULT_PORT);
+        assert_eq!(effective_port_for(9000, false), 9000);
+    }
+
+    #[test]
+    fn effective_port_dev_offset() {
+        // Dev sits at prod + 2 (8766 is the Mac-to-Mac peer host) for any base.
+        assert_eq!(effective_port_for(0, true), DEFAULT_PORT + 2);
+        assert_eq!(effective_port_for(9000, true), 9002);
+        assert_ne!(effective_port_for(0, true), 8766);
+    }
+
+    #[test]
+    fn device_push_scope_matches_flavor() {
+        // Legacy entry (None/empty paired id) belongs to prod.
+        assert!(device_in_push_scope(None, "prod", "prod"));
+        assert!(!device_in_push_scope(None, "dev", "prod"));
+        assert!(device_in_push_scope(Some(""), "prod", "prod"));
+        assert!(!device_in_push_scope(Some(""), "dev", "prod"));
+        // Explicitly paired entries match only their own instance.
+        assert!(device_in_push_scope(Some("dev"), "dev", "prod"));
+        assert!(!device_in_push_scope(Some("dev"), "prod", "prod"));
+        assert!(device_in_push_scope(Some("prod"), "prod", "prod"));
+        assert!(!device_in_push_scope(Some("prod"), "dev", "prod"));
     }
 
     #[test]
@@ -3755,6 +3869,7 @@ mod tests {
             tailscale: true,
             push_relay: "http://localhost:3000/api/push".into(),
             server_id: Some("srv-1".into()),
+            dev_server_id: Some("dev-1".into()),
             devices: vec![Device {
                 id: "d1".into(),
                 name: "iPhone".into(),
@@ -3769,6 +3884,7 @@ mod tests {
                 push_automation_started: false,
                 push_automation_done: true,
                 push_automation_error: false,
+                paired_server_id: Some("srv-1".into()),
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -3776,6 +3892,8 @@ mod tests {
         assert_eq!(back.port, 9000);
         assert!(back.enabled && back.lan);
         assert_eq!(back.server_id.as_deref(), Some("srv-1"));
+        assert_eq!(back.dev_server_id.as_deref(), Some("dev-1"));
+        assert_eq!(back.devices[0].paired_server_id.as_deref(), Some("srv-1"));
         assert_eq!(back.push_relay, "http://localhost:3000/api/push");
         assert_eq!(back.effective_relay(), "http://localhost:3000/api/push");
         assert_eq!(back.devices.len(), 1);
@@ -3809,8 +3927,11 @@ mod tests {
         let cfg: RemoteConfig = serde_json::from_str(json).unwrap();
         assert!(cfg.push_relay.is_empty());
         assert!(cfg.server_id.is_none());
+        // Per-flavor fields added later must default in from a legacy config.
+        assert!(cfg.dev_server_id.is_none());
         assert_eq!(cfg.effective_relay(), DEFAULT_PUSH_RELAY);
         assert_eq!(cfg.devices.len(), 1);
+        assert!(cfg.devices[0].paired_server_id.is_none());
         assert!(cfg.devices[0].apns_token.is_empty());
         assert!(cfg.devices[0].apns_env.is_empty());
         assert!(cfg.devices[0].push_key.is_empty());
@@ -3932,17 +4053,16 @@ mod tests {
 
     #[test]
     fn ensure_server_id_mints_once_and_is_stable() {
+        // Flavor-agnostic: ensure_server_id mints this build's flavor slot
+        // (dev_server_id under test's debug profile, server_id in release), so the
+        // test asserts through flavor_server_id() rather than a specific field.
         let mut cfg = RemoteConfig::default();
-        assert!(cfg.server_id.is_none());
+        assert!(cfg.flavor_server_id().is_empty());
         assert!(cfg.ensure_server_id(), "first call mints");
-        let first = cfg.server_id.clone().unwrap();
+        let first = cfg.flavor_server_id();
         assert!(!first.is_empty());
         assert!(!cfg.ensure_server_id(), "second call is a no-op");
-        assert_eq!(
-            cfg.server_id.as_deref(),
-            Some(first.as_str()),
-            "stable across calls"
-        );
+        assert_eq!(cfg.flavor_server_id(), first, "stable across calls");
     }
 
     #[test]

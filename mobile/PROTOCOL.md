@@ -385,3 +385,31 @@ d = "<utf-8 text>"              // sent as-is
   created, and starts/stops projects and services. Spawning new terminals and
   changing the desktop pane layout from the phone are deferred (they need the
   owner-window action relay so the desktop store stays authoritative).
+
+## Dev/prod coexistence (shared ~/.lpm)
+
+A developer can run a debug build (`npm run tauri dev`) and the installed release
+app at the same time on one Mac. Both read the same `~/.lpm/remote.json`, so each
+build takes a distinct identity to avoid colliding — no phone-side changes are
+needed, each build simply looks like a separate Mac:
+
+- **Port.** The dev build listens on the prod effective port **+ 2**
+  (`8765 → 8767`; `+2` because `8766` is the Mac-to-Mac peer host). A user-set
+  port shifts the same way (`9000 → 9002`), so the two builds never bind the same
+  port through the shared config. The pairing QR / `state` already advertise the
+  build's own port, so the phone connects to the right one automatically.
+- **serverId.** The dev build mints and persists its own id in `dev_server_id`
+  (prod keeps using `server_id`). Every wire `serverId` (in `paired` / `ready`
+  and every push payload) is the build's own id, so the phone stores dev and prod
+  as two separate saved-Mac records (it dedupes by `serverId`) and switches
+  between them.
+- **serverName.** The dev build appends `" (dev)"` to the computer name in
+  `paired` / `ready`, so the phone's Mac switcher shows two distinguishable
+  entries.
+- **Push scoping.** Paired devices live in the shared `devices` list, so both
+  builds can see a phone's APNs token even if it paired with only one. Each device
+  record carries `paired_server_id` (the flavor-aware `serverId` of the build
+  that completed the pairing); a build sends pushes only to devices whose
+  `paired_server_id` matches its own id. A missing/legacy `paired_server_id`
+  (paired before this field existed) is treated as **prod**, so existing users
+  keep their pushes and the dev build never sends them phantom notifications.
