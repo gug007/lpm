@@ -11,6 +11,7 @@ import {
   normalizeService,
   normalizeTerminal,
   sortByPosition,
+  terminalFromAction,
 } from "./normalize";
 import { RunningView } from "./running-view";
 import type {
@@ -61,28 +62,31 @@ export function PlaygroundPreview({
         : [],
     [config],
   );
-  const actions = useMemo<Action[]>(
+  const allActions = useMemo<Action[]>(
     () =>
       config?.actions
-        ? sortByPosition(
-            Object.entries(config.actions).map(([k, v]) =>
-              normalizeAction(k, v),
-            ),
-          )
+        ? Object.entries(config.actions).map(([k, v]) => normalizeAction(k, v))
         : [],
     [config],
   );
-  const terminals = useMemo<TerminalItem[]>(
-    () =>
-      config?.terminals
-        ? sortByPosition(
-            Object.entries(config.terminals).map(([k, v]) =>
-              normalizeTerminal(k, v),
-            ),
-          )
-        : [],
-    [config],
+  const actions = useMemo<Action[]>(
+    () => sortByPosition(allActions.filter((a) => a.type !== "terminal")),
+    [allActions],
   );
+  const terminals = useMemo<TerminalItem[]>(() => {
+    const byKey = new Map<string, TerminalItem>();
+    if (config?.terminals) {
+      for (const [k, v] of Object.entries(config.terminals)) {
+        byKey.set(k, normalizeTerminal(k, v));
+      }
+    }
+    for (const action of allActions) {
+      if (action.type === "terminal") {
+        byKey.set(action.key, terminalFromAction(action));
+      }
+    }
+    return sortByPosition([...byKey.values()]);
+  }, [config, allActions]);
   const profileEntries = useMemo<[string, string[]][]>(
     () =>
       config?.profiles
@@ -108,8 +112,8 @@ export function PlaygroundPreview({
     [terminals, openTerminalKeys],
   );
   const panes = useMemo(
-    () => buildPanes(runningServices, openTerminals, config),
-    [runningServices, openTerminals, config],
+    () => buildPanes(runningServices, openTerminals),
+    [runningServices, openTerminals],
   );
   const visiblePanes = useMemo(
     () =>

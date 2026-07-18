@@ -2,7 +2,6 @@ import type {
   Action,
   ActionDef,
   Pane,
-  RawConfig,
   Service,
   ServiceDef,
   TerminalDef,
@@ -50,13 +49,24 @@ export function normalizeAction(key: string, def: ActionDef): Action {
 
 export function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
   if (typeof def === "string") {
-    return { key, label: key, display: "header" };
+    return { key, cmd: def, label: key, display: "header" };
   }
   return {
     key,
+    cmd: def?.cmd ?? "",
     label: def?.label ?? key,
     display: normalizeDisplay(def?.display),
     position: typeof def?.position === "number" ? def.position : undefined,
+  };
+}
+
+export function terminalFromAction(action: Action): TerminalItem {
+  return {
+    key: action.key,
+    cmd: action.cmd ?? "",
+    label: action.label,
+    display: action.display,
+    position: action.position,
   };
 }
 
@@ -75,19 +85,9 @@ export function sortByPosition<T extends { key: string; position?: number }>(
   });
 }
 
-export function resolveTerminalCmd(
-  config: RawConfig | null,
-  key: string,
-): string {
-  const def = config?.terminals?.[key];
-  if (typeof def === "string") return def;
-  return def?.cmd ?? "";
-}
-
 export function buildPanes(
   runningServices: Service[],
   openTerminals: TerminalItem[],
-  config: RawConfig | null,
 ): Pane[] {
   const servicePanes: Pane[] = runningServices.map((s) => ({
     type: "service",
@@ -101,7 +101,7 @@ export function buildPanes(
     id: `t:${t.key}`,
     key: t.key,
     label: t.label,
-    cmd: resolveTerminalCmd(config, t.key),
+    cmd: t.cmd,
   }));
   return [...servicePanes, ...terminalPanes];
 }

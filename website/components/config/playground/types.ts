@@ -64,6 +64,7 @@ export type Action = {
 
 export type TerminalItem = {
   key: string;
+  cmd: string;
   label: string;
   display: "header" | "menu" | "footer";
   position?: number;

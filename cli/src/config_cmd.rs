@@ -233,6 +233,12 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
         allow_sync,
         &mut report,
     );
+    if root.get(Value::String("terminals".into())).is_some() {
+        report.warning(
+            "config.terminals",
+            "the terminals section is deprecated; declare terminals under actions with type: terminal",
+        );
+    }
     validate_profiles(root, &mut report);
     report
 }
@@ -1016,6 +1022,27 @@ mod tests {
         let value: Value = serde_yaml::from_str("root: /tmp\nservices:\n  dev: npm run dev\nactions:\n  test:\n    cmd: npm test\n    madeUp: true\n").unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &value);
         assert!(report.errors.iter().any(|error| error.contains("madeUp")));
+    }
+
+    #[test]
+    fn validator_warns_on_deprecated_terminals_section() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = ctx.project_path("web");
+        let source = format!(
+            "root: {}\nservices:\n  web: run-web\nterminals:\n  db: psql\n",
+            root.display()
+        );
+        std::fs::write(&path, &source).unwrap();
+        let value: Value = serde_yaml::from_str(&source).unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &value);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert!(
+            report.warnings.iter().any(|w| w.contains("deprecated")),
+            "{:?}",
+            report.warnings
+        );
     }
 
     #[test]

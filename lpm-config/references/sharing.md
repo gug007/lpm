@@ -14,7 +14,7 @@ Higher layers win by field. Within `extends: [a, b, c]`, earlier templates win o
 
 ## Repo config
 
-Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, `terminals`, and `profiles`. Do not put `name`, `root`, `parent_name`, or `ssh` in this file.
+Write team-shared configuration to `<root>/.lpm.yml`. It supports `extends`, `services`, `actions`, and `profiles` (declare terminals as actions with `type: terminal`). Do not put `name`, `root`, `parent_name`, or `ssh` in this file.
 
 ```yaml
 services:
@@ -30,7 +30,7 @@ Repo config applies only to local projects and sits below the personal project f
 
 ## Global config
 
-Write personal actions and terminals available to every project to `~/.lpm/global.yml`. It supports `extends`, `actions`, and `terminals`.
+Write personal actions and terminals available to every project to `~/.lpm/global.yml`. It supports `extends` and `actions` (including `type: terminal` shells).
 
 ```yaml
 actions:
@@ -57,7 +57,7 @@ Reference a template by bare name:
 extends: [web-tools]
 ```
 
-Templates contribute only actions and terminals. Template loading is one level deep; a template’s own `extends` is not followed.
+Templates contribute only actions. Template loading is one level deep; a template’s own `extends` is not followed.
 
 ## Sparse overrides
 

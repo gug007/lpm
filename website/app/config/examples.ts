@@ -136,24 +136,35 @@ export const TERMINALS_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 services:
   web: npm run dev
-terminals:
-  codex: codex                # shorthand — key becomes the label
+actions:
+  codex:                      # minimal — key becomes the label
+    cmd: codex
+    type: terminal
 
   claude:                     # full form
     cmd: claude
     label: Claude Code        # nicer name than the key
     display: header           # pin to the toolbar, one click away (default)
+    type: terminal
 `;
 
 export const TERMINALS_AGENTS_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 services:
   web: npm run dev
-terminals:
-  claude: claude              # AI pair programmer
-  codex: codex                # another AI agent, swap at will
-  node: node                  # quick REPL for poking at things
-  logs: tail -f ./logs/dev.log  # live-tail your dev server logs
+actions:
+  claude:
+    cmd: claude              # AI pair programmer
+    type: terminal
+  codex:
+    cmd: codex               # another AI agent, swap at will
+    type: terminal
+  node:
+    cmd: node                # quick REPL for poking at things
+    type: terminal
+  logs:
+    cmd: tail -f ./logs/dev.log  # live-tail your dev server logs
+    type: terminal
 `;
 
 export const PROFILES_EXAMPLE = `name: myapp
@@ -193,8 +204,9 @@ export const GLOBAL_CONFIG_EXAMPLE = `actions:
     label: Docker Prune
     confirm: true             # asks before wiping images and caches
 
-terminals:
-  htop: htop                  # live system monitor, one click away
+  htop:
+    cmd: htop                 # live system monitor, one click away
+    type: terminal
 `;
 
 export const GLOBAL_UTILITIES_EXAMPLE = `actions:
@@ -206,10 +218,15 @@ export const GLOBAL_UTILITIES_EXAMPLE = `actions:
     cmd: brew update && brew upgrade
     label: Brew upgrade       # keep Homebrew packages fresh
 
-terminals:
-  htop: htop                  # live CPU and memory
-  btop: btop                  # prettier process viewer
-  ncdu: ncdu ~                # explore what's eating your disk
+  htop:
+    cmd: htop                 # live CPU and memory
+    type: terminal
+  btop:
+    cmd: btop                 # prettier process viewer
+    type: terminal
+  ncdu:
+    cmd: ncdu ~               # explore what's eating your disk
+    type: terminal
 `;
 
 export const RECIPE_MINIMAL = `name: blog
@@ -241,8 +258,9 @@ actions:
   deploy:
     cmd: ./scripts/deploy.sh
     confirm: true # ask before shipping
-terminals:
-  logs: tail -f ./logs/server.log # keep server logs one click away
+  logs:
+    cmd: tail -f ./logs/server.log # keep server logs one click away
+    type: terminal
 `;
 
 export const RECIPE_ENV = `name: webapp

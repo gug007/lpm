@@ -288,6 +288,9 @@ struct ProjectYaml {
 struct ActionsYaml {
     #[serde(default)]
     extends: Vec<String>,
+    /// DEPRECATED: alias for `actions` entries with `type: terminal`. Still
+    /// parsed for backward compatibility; new configs should declare terminals
+    /// under `actions`.
     #[serde(default)]
     terminals: BTreeMap<String, ActionDef>,
     #[serde(default)]

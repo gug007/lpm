@@ -69,7 +69,7 @@ actions:
 - Use `type: command` to submit the command into the currently focused terminal.
 - Use `type: background` for hidden finite work that only needs a completion notification.
 
-Use `terminals:` for always-available interactive shells. Terminal entries accept the same fields and default to `type: terminal`.
+Declare always-available interactive shells as actions with `type: terminal`. A standalone `terminals:` section is a deprecated alias that still loads, but new configs should use `type: terminal` under `actions:`.
 
 ## Inputs
 

@@ -27,10 +27,10 @@ services:
 | `root` | Local project root. Set this or `ssh`, never both. |
 | `label` | Optional display name. |
 | `parent_name` | Existing project inherited by a duplicate. |
-| `extends` | Template names that provide actions and terminals. |
+| `extends` | Template names that provide actions. |
 | `services` | Long-running commands. |
 | `actions` | One-shot commands and buttons. |
-| `terminals` | Persistent interactive shells. |
+| `terminals` | Deprecated alias for `actions` with `type: terminal`; still supported. |
 | `profiles` | Named service subsets. |
 
 Use short lowercase hyphenated keys such as `web`, `api-worker`, and `db-migrate`.
@@ -92,7 +92,7 @@ root: ~/Projects/myapp-feature
 parent_name: myapp
 ```
 
-The parent must exist and load successfully. A duplicate inherits the parent’s services, actions, terminals, and profiles without per-entry overrides.
+The parent must exist and load successfully. A duplicate inherits the parent’s services, actions, and profiles without per-entry overrides.
 
 ## Project detection
 
@@ -105,4 +105,4 @@ When creating a config, inspect:
 - `mise.toml`
 - framework-specific server, worker, test, lint, build, migration, and console commands
 
-Classify long-running servers and workers as services. Classify finite commands as actions. Add interactive database consoles, REPLs, and shells as terminals.
+Classify long-running servers and workers as services. Classify finite commands as actions. Add interactive database consoles, REPLs, and shells as actions with `type: terminal`.

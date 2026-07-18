@@ -264,8 +264,8 @@ const actionFields: Field[] = [
       <>
         How the action runs. The default pops open a modal and streams output
         while the command runs. <code className="font-mono">terminal</code>{" "}
-        opens a persistent interactive pane (see the{" "}
-        <code className="font-mono">terminals:</code> section).{" "}
+        opens a persistent interactive pane (see the Terminals section
+        below).{" "}
         <code className="font-mono">background</code>{" "}runs the command hidden
         and shows a toast when it finishes — perfect for slow, boring commands
         whose only interesting signal is &ldquo;did it succeed.&rdquo;
@@ -300,6 +300,18 @@ const terminalFields: Field[] = [
         <code className="font-mono">node</code>, or{" "}
         <code className="font-mono">tail -f ./logs/dev.log</code>. lpm opens it
         in a real PTY so prompts, colors, and arrow keys all work.
+      </>
+    ),
+  },
+  {
+    name: "type",
+    type: "string",
+    required: true,
+    description: (
+      <>
+        Must be <code className="font-mono">terminal</code> — this is what makes
+        the entry open in a persistent pane and stay open, instead of running
+        once like a plain action.
       </>
     ),
   },
@@ -675,33 +687,30 @@ export default function ConfigPage() {
                     left off until you close it.
                     <br />
                     <br />
-                    Under the hood, the{" "}
-                    <code className="font-mono">terminals</code> section is{" "}
+                    A terminal is just an{" "}
                     <strong className="font-medium text-gray-700 dark:text-gray-200">
-                      shorthand for actions with{" "}
-                      <code className="font-mono">type: terminal</code>
-                    </strong>
-                    . Same fields, same features — entries just default to{" "}
-                    <code className="font-mono">type: terminal</code> so they
-                    open in a pane and stay open. Use{" "}
-                    <code className="font-mono">terminals:</code> to keep them
-                    grouped, or drop a{" "}
-                    <code className="font-mono">type: terminal</code> entry
-                    inside <code className="font-mono">actions:</code> when you
-                    want to mix one-shots and persistent shells together.
+                      action with <code className="font-mono">type: terminal</code>
+                    </strong>{" "}
+                    — same fields as any action, it simply opens in a pane and
+                    stays open instead of running once. A standalone{" "}
+                    <code className="font-mono">terminals:</code> section still
+                    works as a deprecated alias, but new configs should use{" "}
+                    <code className="font-mono">type: terminal</code>.
                   </>
                 }
               >
                 <p className="mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                   <strong className="font-medium text-gray-700 dark:text-gray-200">
-                    Shorthand vs. full form.
+                    Declaring a terminal.
                   </strong>{" "}
-                  If the command is all you need, a single line is enough — the
-                  key becomes the label. Reach for the full form when you want
-                  a friendlier label, tuck a terminal into the footer with{" "}
+                  Give the entry a <code className="font-mono">cmd</code> and set{" "}
+                  <code className="font-mono">type: terminal</code> so it opens
+                  in a pane and stays open instead of running once. Reach for a
+                  friendlier <code className="font-mono">label</code>, tuck it
+                  into the footer with{" "}
                   <code className="font-mono">display: footer</code>, or set a{" "}
                   <code className="font-mono">cwd</code> or{" "}
-                  <code className="font-mono">env</code>:
+                  <code className="font-mono">env</code> when you need them:
                 </p>
                 <ConfigPlayground
                   filename="terminals.yml"
@@ -827,8 +836,8 @@ export default function ConfigPage() {
                     <strong className="font-medium text-gray-700 dark:text-gray-200">
                       every project
                     </strong>{" "}
-                    automatically. If a project defines an action or terminal
-                    with the same name, the{" "}
+                    automatically. If a project defines an action with the
+                    same name, the{" "}
                     <strong className="font-medium text-gray-700 dark:text-gray-200">
                       project-level entry wins
                     </strong>
@@ -869,13 +878,14 @@ export default function ConfigPage() {
 
                 <div className="mt-6 mb-4 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40 px-4 py-3 text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                   <p className="font-medium text-gray-700 dark:text-gray-200 mb-1">
-                    Only actions and terminals
+                    Only actions
                   </p>
                   <p>
                     Global config supports{" "}
-                    <code className="font-mono">actions</code> and{" "}
-                    <code className="font-mono">terminals</code>{" "}— that&rsquo;s
-                    it. No <code className="font-mono">services</code>, no{" "}
+                    <code className="font-mono">actions</code> — including{" "}
+                    <code className="font-mono">type: terminal</code> shells —
+                    and nothing else. No{" "}
+                    <code className="font-mono">services</code>, no{" "}
                     <code className="font-mono">profiles</code>. Long-running
                     processes and profile groupings always belong to a specific
                     project, so they have to live in a project file.
@@ -893,8 +903,8 @@ export default function ConfigPage() {
                     <strong className="font-medium text-gray-700 dark:text-gray-200">
                       one concept in isolation
                     </strong>
-                    ; the recipes here stitch services, actions, and terminals
-                    together into configs that mirror how a real project looks on
+                    ; the recipes here stitch services and actions together
+                    into configs that mirror how a real project looks on
                     day one. Find the recipe closest to your stack, paste it into
                     a new project, and tweak from there.
                   </>

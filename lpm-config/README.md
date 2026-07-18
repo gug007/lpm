@@ -46,10 +46,9 @@ The skill guides the agent to write correct lpm YAML configs at `~/.lpm/projects
 - **Active-terminal actions** — actions that submit a command into the currently focused terminal (`type: command`)
 - **Action groups** — nested sub-actions under a parent with inherited cwd/env
 - **Action inputs** — prompt users for parameters before running (text, password, radio); `persist: true` remembers the last value chosen
-- **Terminals** — interactive shells (database consoles, REPLs)
 - **Profiles** — named subsets of services
 - **Duplicate projects** — inherit config from a parent project (`parent_name`)
-- **Global config** — shared actions/terminals across all projects
+- **Global config** — shared actions across all projects
 - **Repo and template layers** — `.lpm.yml`, reusable templates, and sparse overrides
 - **Deterministic validation** — target resolution and semantic checks through `lpm config`
 

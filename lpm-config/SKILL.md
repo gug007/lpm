@@ -43,7 +43,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files directl
 |---|---|
 | Long-running process started with the project | `services` |
 | One-shot command or button | `actions` |
-| Persistent interactive shell | `terminals` |
+| Persistent interactive shell | `actions` with `type: terminal` |
 | Start prerequisites first | service `dependsOn` |
 | Ask for parameters | action `inputs` |
 | Default action plus alternatives | parent `cmd` plus nested `actions` |
