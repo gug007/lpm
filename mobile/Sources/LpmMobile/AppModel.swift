@@ -154,6 +154,9 @@ final class AppModel: ObservableObject {
     // project -> desired running state while a Start/Stop is in flight, so the UI
     // can spin until the projects push confirms it (or a timeout gives up).
     @Published var pendingRun: [String: Bool] = [:]
+    // project -> service -> desired running state while a toggle is in flight,
+    // cleared the same way as pendingRun.
+    @Published var pendingServiceToggle: [String: [String: Bool]] = [:]
     // Projects with a new-terminal/run-action in flight: the desktop creates the
     // terminal asynchronously, so show a placeholder row until it appears.
     @Published var creatingTerminals: Set<String> = []
@@ -590,6 +593,7 @@ final class AppModel: ObservableObject {
         controlOwner = [:]
         actionError = nil
         pendingRun = [:]
+        pendingServiceToggle = [:]
         creatingTerminals = []
         creatingBaseline = [:]
         creatingGen = [:]
@@ -778,7 +782,20 @@ final class AppModel: ObservableObject {
     /// Remove a project — offered only for duplicates, whose folder is deleted from
     /// disk. The list refreshes off the projects-changed push.
     func removeProject(_ p: Project) { client?.removeProject(p.name) }
-    func toggleService(_ project: String, service: String) { client?.toggleService(project, service: service) }
+    /// Start/stop one service. Mirrors markRunPending: the row spins until the
+    /// projects push confirms the desired state (or a timeout gives up).
+    func toggleService(_ project: String, service: String) {
+        let running = projects.first(where: { $0.name == project })?
+            .services.contains(where: { $0.name == service }) ?? false
+        let desired = !running
+        pendingServiceToggle[project, default: [:]][service] = desired
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            if self?.pendingServiceToggle[project]?[service] == desired {
+                self?.pendingServiceToggle[project]?[service] = nil
+            }
+        }
+        client?.toggleService(project, service: service)
+    }
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
 
     func loadAutomations() { client?.requestJobs() }
@@ -1547,6 +1564,13 @@ final class AppModel: ObservableObject {
             self.projectsLoaded = true
             for proj in p where self.pendingRun[proj.name] == proj.running {
                 self.pendingRun[proj.name] = nil
+            }
+            for proj in p {
+                guard let pending = self.pendingServiceToggle[proj.name], !pending.isEmpty else { continue }
+                let runningNow = Set(proj.services.map(\.name))
+                for (svc, desired) in pending where runningNow.contains(svc) == desired {
+                    self.pendingServiceToggle[proj.name]?[svc] = nil
+                }
             }
             self.reconcileNotifications(p)
         }
