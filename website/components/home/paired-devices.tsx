@@ -431,9 +431,13 @@ export function PairedDevices({
                         </span>
                       ))}
                     </div>
-                    <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 py-2.5 font-mono text-[10.5px] leading-5 [mask-image:linear-gradient(to_right,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_92%,transparent)]">
+                    <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 py-2.5 font-mono text-[9px] leading-5 sm:text-[10.5px] [mask-image:linear-gradient(to_right,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_92%,transparent)]">
                       {visible.map((l, i) => (
-                        <TerminalLine key={i} line={l} size="text-[10.5px]" />
+                        <TerminalLine
+                          key={i}
+                          line={l}
+                          size="text-[9px] sm:text-[10.5px]"
+                        />
                       ))}
                       {status}
                     </div>
@@ -447,7 +451,7 @@ export function PairedDevices({
                               : "border-[#6b6b70]"
                           }`}
                         >
-                          <div className="flex items-center gap-1.5 text-[10.5px]">
+                          <div className="flex items-center gap-1.5 text-[9px] sm:text-[10.5px]">
                             <span className="text-gray-300">❯</span>
                             {isTyping ? (
                               <>
@@ -466,7 +470,7 @@ export function PairedDevices({
                             )}
                           </div>
                         </div>
-                        <div className="flex justify-between pt-1 text-[8px]">
+                        <div className="flex justify-between pt-1 text-[7px] sm:text-[8px]">
                           <span className="text-gray-600">
                             {working ? "esc to interrupt" : "? for shortcuts"}
                           </span>
@@ -479,13 +483,13 @@ export function PairedDevices({
                     {/* Real codex composer: › prompt, model + cwd footer */}
                     {session.key === "codex" && (
                       <div className="shrink-0 px-3 pb-2 font-mono">
-                        <div className="flex items-center text-[10.5px]">
+                        <div className="flex items-center text-[9px] sm:text-[10.5px]">
                           <span className="font-semibold text-gray-100">›</span>
                           <span className="pl-1.5 text-gray-600">
                             Ask Codex to do anything
                           </span>
                         </div>
-                        <div className="flex justify-between pt-1 text-[8px]">
+                        <div className="flex justify-between pt-1 text-[7px] sm:text-[8px]">
                           <span>
                             <span className="text-[#f6e2b7]">
                               gpt-5.6-sol high
