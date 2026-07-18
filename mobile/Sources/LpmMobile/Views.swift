@@ -683,6 +683,7 @@ struct TerminalScreen: View {
     @StateObject private var keyboard = KeyboardObserver()
     // Flips when the first screen snapshot renders, hiding the loading spinner.
     @State private var hasContent = false
+    @State private var showSettings = false
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalTheme.default.rawValue
@@ -716,7 +717,8 @@ struct TerminalScreen: View {
                 }
             }
             if controlled {
-                TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label))
+                TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
+                                 terminalBackground: theme.backgroundColor)
                     .environmentObject(model)
             }
         }
@@ -726,6 +728,18 @@ struct TerminalScreen: View {
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("Terminal Settings", systemImage: "textformat.size")
+                    }
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                TerminalSettingsSheet()
+            }
             // Fallback: never leave the spinner up if no snapshot ever arrives
             // (e.g. the link drops mid-open).
             .task {

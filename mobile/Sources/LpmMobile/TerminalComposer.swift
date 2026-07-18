@@ -20,14 +20,19 @@ struct TerminalComposer: View {
     private let terminalTools: Bool
     private let disabled: Bool
     private let placeholder: String
+    /// The terminal theme background, so the composer ground matches the terminal
+    /// it sits under (used only in terminal-tools mode).
+    private let terminalBackground: SwiftUI.Color
 
     init(store: ComposerStore, onSend: ((String) -> Void)? = nil,
-         terminalTools: Bool = true, disabled: Bool = false, placeholder: String = "Message") {
+         terminalTools: Bool = true, disabled: Bool = false, placeholder: String = "Message",
+         terminalBackground: SwiftUI.Color = .black) {
         _store = ObservedObject(wrappedValue: store)
         self.onSend = onSend
         self.terminalTools = terminalTools
         self.disabled = disabled
         self.placeholder = placeholder
+        self.terminalBackground = terminalBackground
     }
 
     @State private var showPhotoPicker = false
@@ -59,7 +64,7 @@ struct TerminalComposer: View {
     private var label: String { store.label }
 
     private var ground: SwiftUI.Color {
-        terminalTools ? SwiftUI.Color.black : SwiftUI.Color(.systemGroupedBackground)
+        terminalTools ? terminalBackground : SwiftUI.Color(.systemGroupedBackground)
     }
     private var fieldGround: SwiftUI.Color {
         terminalTools ? SwiftUI.Color.white.opacity(0.08) : SwiftUI.Color(.secondarySystemGroupedBackground)

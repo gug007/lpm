@@ -22,8 +22,10 @@ for line in parts[1].strip().splitlines():
     if not match:
         raise SystemExit(f"{skill_file}: invalid frontmatter line: {line}")
     fields[match.group(1)] = match.group(2).strip().strip('"')
-if set(fields) != {"name", "description"}:
-    raise SystemExit(f"{skill_file}: frontmatter must contain only name and description")
+if set(fields) != {"name", "version", "description"}:
+    raise SystemExit(f"{skill_file}: frontmatter must contain only name, version, and description")
+if not re.fullmatch(r"\d+\.\d+\.\d+", fields["version"]):
+    raise SystemExit(f"{skill_file}: version must be X.Y.Z")
 if fields["name"] != folder.name:
     raise SystemExit(f"{skill_file}: name must match folder")
 if not re.fullmatch(r"[a-z0-9-]{1,63}", fields["name"]):
