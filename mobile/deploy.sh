@@ -24,6 +24,32 @@ fi
 # so stamp each upload with a unique timestamp unless overridden.
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 
+# Bump the marketing version's minor component (1.3 -> 1.4) so each upload is a
+# fresh version train, unless one is pinned via MARKETING_VERSION. project.yml is
+# the source of truth (xcodegen bakes it into the project below) and holds it in
+# two targets — app + notification-service extension — which must stay in sync, so
+# rewrite both. Persisting to the file is what makes the bump monotonic across
+# deploys; commit the change afterward.
+CURRENT_VERSION=$(sed -nE 's/^[[:space:]]*MARKETING_VERSION:[[:space:]]*"([0-9.]+)".*/\1/p' project.yml | head -1)
+if [ -z "$CURRENT_VERSION" ]; then
+  echo "Couldn't read MARKETING_VERSION from project.yml." >&2
+  exit 1
+fi
+if [ -n "${MARKETING_VERSION:-}" ]; then
+  NEW_VERSION="$MARKETING_VERSION"
+else
+  MAJOR="${CURRENT_VERSION%%.*}"
+  MINOR="${CURRENT_VERSION#*.}"
+  MINOR="${MINOR%%.*}"
+  NEW_VERSION="$MAJOR.$((MINOR + 1))"
+fi
+if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
+  sed -i '' -E "s/(MARKETING_VERSION:[[:space:]]*)\"[0-9.]+\"/\1\"$NEW_VERSION\"/" project.yml
+  echo "▸ Version $CURRENT_VERSION → $NEW_VERSION"
+else
+  echo "▸ Version $NEW_VERSION (unchanged)"
+fi
+
 # Upload auth: App Store Connect API key via env, else the Apple ID
 # logged into Xcode (Settings → Accounts) with -allowProvisioningUpdates.
 AUTH_ARGS=()
@@ -38,7 +64,7 @@ fi
 echo "▸ Regenerating project…"
 xcodegen generate
 
-echo "▸ Archiving $SCHEME (build $BUILD_NUMBER, team $TEAM)…"
+echo "▸ Archiving $SCHEME (v$NEW_VERSION build $BUILD_NUMBER, team $TEAM)…"
 xcodebuild \
   -project LpmMobile.xcodeproj \
   -scheme "$SCHEME" \
@@ -71,4 +97,4 @@ xcodebuild \
   -allowProvisioningUpdates \
   ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"}
 
-echo "▸ Done. Build $BUILD_NUMBER will appear in TestFlight after processing (~5–15 min)."
+echo "▸ Done. v$NEW_VERSION build $BUILD_NUMBER will appear in TestFlight after processing (~5–15 min)."
