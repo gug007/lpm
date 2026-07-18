@@ -44,6 +44,18 @@ use tauri::{AppHandle, Emitter, Manager};
 /// reaches over `ssh -R`); every control verb is refused so a remote host can
 /// never drive the Mac.
 pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restricted: bool) {
+    // Probe before stealing: `remove_file` can't tell a stale socket (unclean
+    // exit) from a live one owned by another lpm instance. Only a definitive
+    // PONG proves an owner is alive — decline in that case so first-wins is
+    // deterministic and the owner keeps working. A probe that connects but never
+    // answers (wedged peer) is treated as not-alive so a hung socket can't stall
+    // startup; we proceed to steal it.
+    if socket_is_live(&socket_path) {
+        eprintln!(
+            "warning: another lpm instance already owns {socket_path}; this instance will not receive agent status on it"
+        );
+        return;
+    }
     let _ = std::fs::remove_file(&socket_path); // clear a stale socket from an unclean exit
     let listener = match UnixListener::bind(&socket_path) {
         Ok(l) => l,
@@ -64,6 +76,28 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restr
             std::thread::spawn(move || handle_client(stream, &store, &app, restricted));
         }
     });
+}
+
+/// Probe an existing socket path: connect, send `ping\n`, read one line, and
+/// return `true` only on an exact `PONG` reply within a short timeout. A missing
+/// file, connection refusal (stale socket / dead peer), or a read that times out
+/// without a clean PONG all return `false`, so only a definitively-alive owner
+/// blocks us from binding.
+fn socket_is_live(path: &str) -> bool {
+    let timeout = Duration::from_millis(400);
+    let Ok(mut stream) = UnixStream::connect(path) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    if stream.write_all(b"ping\n").is_err() {
+        return false;
+    }
+    let mut reply = String::new();
+    if BufReader::new(stream).read_line(&mut reply).is_err() {
+        return false;
+    }
+    reply.trim_end() == "PONG"
 }
 
 /// Verbs a remote host is allowed to send on the restricted socket: status
@@ -818,5 +852,101 @@ mod tests {
     fn followup_hex_preserves_message_text() {
         assert_eq!(hex_decode("646f6e2774").as_deref(), Some("don't"));
         assert!(hex_decode("xyz").is_none());
+    }
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    /// A unique temp path (never ~/.lpm) so socket tests stay hermetic and can
+    /// run in parallel without colliding.
+    fn temp_sock_path(tag: &str) -> std::path::PathBuf {
+        static N: AtomicU32 = AtomicU32::new(0);
+        let n = N.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "lpm-socktest-{}-{}-{}.sock",
+            std::process::id(),
+            tag,
+            n
+        ))
+    }
+
+    /// Accept one connection and answer `PONG` to a `ping` line, mirroring the
+    /// real `process_command` reply. `reply` gates whether we answer at all so a
+    /// test can simulate a wedged peer that accepts but never responds.
+    fn spawn_ping_server(path: std::path::PathBuf, reply: bool) -> std::thread::JoinHandle<()> {
+        let listener = UnixListener::bind(&path).unwrap();
+        std::thread::spawn(move || {
+            if let Some(Ok(stream)) = listener.incoming().next() {
+                if !reply {
+                    // Hold the connection open briefly without replying so the
+                    // prober's read timeout fires.
+                    std::thread::sleep(Duration::from_millis(700));
+                    return;
+                }
+                let mut w = stream.try_clone().unwrap();
+                let mut line = String::new();
+                let _ = BufReader::new(stream).read_line(&mut line);
+                if line.trim_end() == "ping" {
+                    let _ = writeln!(w, "PONG");
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn socket_is_live_true_for_ponging_server() {
+        let path = temp_sock_path("live");
+        let handle = spawn_ping_server(path.clone(), true);
+        assert!(socket_is_live(path.to_str().unwrap()));
+        let _ = handle.join();
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn socket_is_live_false_for_missing_file() {
+        let path = temp_sock_path("missing");
+        assert!(!socket_is_live(path.to_str().unwrap()));
+    }
+
+    #[test]
+    fn socket_is_live_false_for_dead_socket_file() {
+        // Bind then drop the listener, leaving the file behind: connect() now
+        // gets ECONNREFUSED, so the path looks stale, not live.
+        let path = temp_sock_path("dead");
+        {
+            let _listener = UnixListener::bind(&path).unwrap();
+        }
+        assert!(!socket_is_live(path.to_str().unwrap()));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn socket_is_live_false_for_plain_file() {
+        let path = temp_sock_path("plainfile");
+        std::fs::write(&path, b"not a socket").unwrap();
+        assert!(!socket_is_live(path.to_str().unwrap()));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn socket_is_live_false_when_peer_never_replies() {
+        // A peer that accepts but stays silent must resolve to false within the
+        // probe timeout — the whole test is guarded so it can't hang CI.
+        let path = temp_sock_path("wedged");
+        let handle = spawn_ping_server(path.clone(), false);
+        let probe = {
+            let p = path.clone();
+            std::thread::spawn(move || socket_is_live(p.to_str().unwrap()))
+        };
+        let started = std::time::Instant::now();
+        while !probe.is_finished() {
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "socket_is_live hung on a silent peer"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert!(!probe.join().unwrap());
+        let _ = handle.join();
+        let _ = std::fs::remove_file(&path);
     }
 }
