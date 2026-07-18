@@ -21,7 +21,6 @@ struct ProjectDetail: View {
     // nil vs [] tells "still loading" apart from "no terminals".
     private var terminalsLoaded: Bool { model.terminals[project.name] != nil }
     private var creating: Bool { model.creatingTerminals.contains(project.name) }
-    private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
     private var bgRuns: [BackgroundRunInfo] { model.backgroundRunList(for: project.name) }
     // `services` is the resolved running list; display gates on `running`.
     private var runningServices: Set<String> {
@@ -130,37 +129,7 @@ struct ProjectDetail: View {
         .navigationTitle(project.label)
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitleCompat(live.running ? "Running" : "Stopped")
-        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0) }
-        .navigationDestination(isPresented: $showChanges) { GitReviewView(project: live) }
-        .sheet(isPresented: $showBranchSheet) {
-            GitBranchSheet(project: live).environmentObject(model)
-        }
-        .sheet(isPresented: $showPrSheet) {
-            GitPrSheet(project: live).environmentObject(model)
-        }
-        .confirmationDialog(
-            "Discard all changes?",
-            isPresented: $confirmingDiscard,
-            titleVisibility: .visible
-        ) {
-            Button("Discard changes", role: .destructive) { model.gitDiscardAll(live.name) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This permanently discards every uncommitted change in this project. This can't be undone.")
-        }
-        // Presented only while the review screen (which owns its own copy of this
-        // alert) is closed, so a single gitOpError can't fire two alerts at once.
-        .alert(
-            "Something went wrong",
-            isPresented: Binding(
-                get: { !showChanges && model.gitOpError[live.name] != nil },
-                set: { if !$0 { model.gitOpError[live.name] = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) { model.gitOpError[live.name] = nil }
-        } message: {
-            Text(model.gitOpError[live.name] ?? "")
-        }
+        .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
         .alert("Rename terminal", isPresented: Binding(
             get: { renaming != nil },
             set: { if !$0 { renaming = nil } }
@@ -175,41 +144,14 @@ struct ProjectDetail: View {
                 renaming = nil
             }
         }
-        .sheet(item: $runInputsFor) { action in
-            ActionInputsSheet(action: action) { values in afterInputs(action, values) }
-        }
         .sheet(item: $activeBgRun) { run in
             BackgroundRunSheet(run: run).environmentObject(model)
         }
         .sheet(item: $logsForService) { s in
             ServiceLogsSheet(project: live.name, service: s).environmentObject(model)
         }
-        .alert(
-            runConfirmFor.map { "Run \($0.label)?" } ?? "Run action?",
-            isPresented: Binding(
-                get: { runConfirmFor != nil },
-                set: { if !$0 { runConfirmFor = nil; pendingInputValues = [:] } }
-            ),
-            presenting: runConfirmFor
-        ) { action in
-            Button("Run") { runConfirmed(action) }
-            Button("Cancel", role: .cancel) {}
-        }
+        .projectMenuToolbar(project: live)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                ProjectRunControl(project: live,
-                                  pending: model.pendingRun[live.name] != nil,
-                                  actions: actions,
-                                  changedCount: changedCount,
-                                  onStart: { profile in model.startProject(live, profile: profile) },
-                                  onStop: { model.stopProject(live) },
-                                  onRunAction: { beginRun($0) },
-                                  onReviewChanges: { showChanges = true },
-                                  onSwitchBranch: { showBranchSheet = true },
-                                  onCreatePr: { showPrSheet = true },
-                                  onDiscard: { confirmingDiscard = true })
-                    .environmentObject(model)
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     model.newTerminal(project.name)
@@ -221,7 +163,6 @@ struct ProjectDetail: View {
         }
         .onAppear {
             model.loadTerminals(project.name)
-            model.loadGit(project.name)
             model.loadBackgroundRuns(project.name)
         }
         // Keep the background-runs section fresh while it's on screen: poll any run
@@ -234,45 +175,6 @@ struct ProjectDetail: View {
                 }
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
             }
-        }
-    }
-
-    // Action run flow — mirrors the desktop gauntlet (inputs → confirm → dispatch).
-    // Non-terminal actions run headlessly on the Mac with logs streamed back;
-    // terminal/command actions relay to the Mac's terminal flow (confirmed:true so
-    // the Mac doesn't re-prompt).
-    private func beginRun(_ action: Action) {
-        if !action.inputs.isEmpty { runInputsFor = action; return }
-        if action.confirm { runConfirmFor = action; return }
-        dispatch(action, inputValues: [:], deferred: false)
-    }
-    private func afterInputs(_ action: Action, _ values: [String: String]) {
-        if action.confirm {
-            pendingInputValues = values
-            // The inputs sheet is dismissing in this same update; presenting the
-            // alert now can be swallowed (one presentation at a time), so let the
-            // sheet settle first — same guard as dispatch(deferred:).
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { runConfirmFor = action }
-            return
-        }
-        dispatch(action, inputValues: values, deferred: true)
-    }
-    private func runConfirmed(_ action: Action) {
-        let values = pendingInputValues
-        pendingInputValues = [:]
-        dispatch(action, inputValues: values, deferred: true)
-    }
-    private func dispatch(_ action: Action, inputValues: [String: String], deferred: Bool) {
-        if action.runsInBackground {
-            let runId = model.startBackgroundAction(project: live.name, action: action.name,
-                                                    label: action.label, inputValues: inputValues)
-            let present = { activeBgRun = model.backgroundRunInfo[runId] }
-            // A run reached from a dismissing sheet/alert waits for it to settle
-            // before this sheet is presented (SwiftUI can't stack two at once).
-            if deferred { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: present) }
-            else { present() }
-        } else {
-            model.runAction(live.name, action: action.name, inputValues: inputValues, confirmed: true)
         }
     }
 
