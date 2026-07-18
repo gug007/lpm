@@ -395,20 +395,20 @@ export function PairedDevices() {
 
           {/* iPhone 17 Pro — mirrors the same session, then drives it */}
           <div className="shrink-0">
-            <div className="relative w-[14.5rem] rounded-[2.9rem] bg-gradient-to-b from-[#48484c] via-[#2b2b2e] to-[#48484c] p-[2px] shadow-xl shadow-gray-400/25 dark:shadow-black/70">
+            <div className="relative aspect-[71.9/150] w-[14.5rem] rounded-[2.6rem] bg-gradient-to-b from-[#48484c] via-[#2b2b2e] to-[#48484c] p-[2px] shadow-xl shadow-gray-400/25 dark:shadow-black/70">
               {/* Side buttons */}
-              <span className="absolute -left-[2px] top-20 h-5 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
-              <span className="absolute -left-[2px] top-[7.5rem] h-9 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
-              <span className="absolute -left-[2px] top-[10.25rem] h-9 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
-              <span className="absolute -right-[2px] top-[8.5rem] h-12 w-[2px] rounded-r-sm bg-[#3a3a3c]" />
-              <div className="rounded-[2.8rem] bg-black p-1">
-                <div className="relative flex flex-col overflow-hidden rounded-[2.55rem] bg-[#1a1a1a]">
+              <span className="absolute -left-[2px] top-24 h-5 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
+              <span className="absolute -left-[2px] top-[8.5rem] h-9 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
+              <span className="absolute -left-[2px] top-[11.25rem] h-9 w-[2px] rounded-l-sm bg-[#3a3a3c]" />
+              <span className="absolute -right-[2px] top-[10rem] h-12 w-[2px] rounded-r-sm bg-[#3a3a3c]" />
+              <div className="h-full rounded-[2.5rem] bg-black p-1">
+                <div className="relative flex h-full flex-col overflow-hidden rounded-[2.3rem] bg-[#1a1a1a]">
                   {/* iOS status bar + Dynamic Island */}
                   <div className="relative flex items-center justify-between px-5 pb-1 pt-2.5">
                     <span className="text-[10px] font-semibold tabular-nums text-gray-100">
                       9:41
                     </span>
-                    <span className="absolute left-1/2 top-2 flex h-[1.1rem] w-14 -translate-x-1/2 items-center justify-end rounded-full bg-black pr-1.5">
+                    <span className="absolute left-1/2 top-1.5 flex h-5 w-16 -translate-x-1/2 items-center justify-end rounded-full bg-black pr-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-[#16222e]" />
                     </span>
                     <span className="flex items-center gap-1 text-gray-100">
@@ -453,7 +453,7 @@ export function PairedDevices() {
 
                   {/* Mirrored transcript; right edge fades so the narrow phone
                       mirror clips long lines gracefully. */}
-                  <div className="flex h-[16.5rem] flex-col justify-end overflow-hidden px-3 pb-2 font-mono text-[10px] leading-5 [mask-image:linear-gradient(to_right,#000_84%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_84%,transparent)]">
+                  <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 pb-2 font-mono text-[10px] leading-5 [mask-image:linear-gradient(to_right,#000_84%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_84%,transparent)]">
                     {visible.map((line, i) => (
                       <TerminalLine key={i} line={line} size="text-[10px]" />
                     ))}
