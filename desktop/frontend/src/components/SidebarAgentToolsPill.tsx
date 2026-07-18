@@ -4,13 +4,13 @@ import {
   agentToolsAction,
   fetchStatuses,
   installAgentTools,
-  type CliStatus,
-  type SkillStatus,
+  type CliResult,
+  type SkillResult,
 } from "./SkillInstallControl";
 
 export function SidebarAgentToolsPill() {
-  const [skill, setSkill] = useState<SkillStatus>("loading");
-  const [cli, setCli] = useState<CliStatus>("loading");
+  const [skill, setSkill] = useState<SkillResult>({ status: "loading" });
+  const [cli, setCli] = useState<CliResult>({ status: "loading" });
   const [installing, setInstalling] = useState(false);
 
   const refresh = async () => {
@@ -23,7 +23,7 @@ export function SidebarAgentToolsPill() {
     refresh();
   }, []);
 
-  const action = agentToolsAction(skill, cli);
+  const action = agentToolsAction(skill.status, cli.status);
   if (!action && !installing) return null;
 
   const handleInstall = async () => {

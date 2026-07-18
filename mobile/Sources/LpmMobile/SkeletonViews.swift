@@ -100,12 +100,14 @@ struct TerminalRowSkeleton: View {
     }
 }
 
-/// Black-ground spinner shown over a just-opened terminal until its first
+/// Themed-ground spinner shown over a just-opened terminal until its first
 /// screen snapshot renders.
 struct TerminalLoadingView: View {
+    var background: Color = .black
+
     var body: some View {
         ZStack {
-            SwiftUI.Color.black
+            background
             VStack(spacing: 12) {
                 ProgressView()
                     .tint(.white)

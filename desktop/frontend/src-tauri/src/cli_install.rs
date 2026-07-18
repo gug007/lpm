@@ -192,19 +192,90 @@ fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String>
     }
 }
 
+/// First `lpm` executable in PATH order, or None. `dirs` is in shell-resolution
+/// order. `is_file()` follows symlinks, so a dangling symlink — which the shell
+/// skips during exec resolution — does not count as a hit.
+fn first_lpm_in(dirs: &[String]) -> Option<PathBuf> {
+    dirs.iter().map(|d| Path::new(d).join(LINK_NAME)).find(|p| p.is_file())
+}
+
+/// When our symlink alone reads as "installed", check whether an earlier `lpm`
+/// on the user's shell PATH shadows it. Returns the shadowing path when the first
+/// `lpm` in PATH order exists and is not our link.
+fn shadowed_by(state: &PathState, expected: &Path, dirs: &[String]) -> Option<PathBuf> {
+    if status_for(state, expected) != "installed" {
+        return None;
+    }
+    match first_lpm_in(dirs) {
+        Some(hit) if hit != link_path() => Some(hit),
+        _ => None,
+    }
+}
+
+/// Parse `lpm --version` output ("lpm X.Y.Z") down to "X.Y.Z". Falls back to the
+/// trimmed raw output when it doesn't match the expected shape.
+fn parse_cli_version(raw: &str) -> String {
+    let trimmed = raw.trim();
+    trimmed
+        .strip_prefix("lpm ")
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .unwrap_or(trimmed)
+        .to_string()
+}
+
+/// Run the on-PATH CLI binary and read its reported version, or None when it
+/// can't be executed. `bin` is the executable to run.
+fn read_cli_version(bin: &Path) -> Option<String> {
+    let out = std::process::Command::new(bin).arg("--version").output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let raw = String::from_utf8_lossy(&out.stdout);
+    let v = parse_cli_version(&raw);
+    if v.is_empty() {
+        None
+    } else {
+        Some(v)
+    }
+}
+
+/// Which binary to probe for the version: the installed link when it's the one
+/// the shell would run, else the bundled sidecar.
+fn version_probe_bin(status: &str, expected: &Path) -> PathBuf {
+    match status {
+        "installed" | "shadowed" => link_path(),
+        _ => expected.to_path_buf(),
+    }
+}
+
 fn status_value(state: &PathState, expected: &Path) -> Value {
-    let status = status_for(state, expected);
+    let mut value = status_value_in(state, expected, &crate::sys::shell_path_dirs());
+    let status = value["status"].as_str().unwrap_or_default().to_string();
+    let version = read_cli_version(&version_probe_bin(&status, expected));
+    value["cliVersion"] = json!(version);
+    value
+}
+
+/// Testable core of `status_value`: `dirs` is the shell-resolution-order PATH.
+fn status_value_in(state: &PathState, expected: &Path, dirs: &[String]) -> Value {
+    let mut status = status_for(state, expected);
     let target = match state {
         PathState::OurSymlink(t) | PathState::ForeignSymlink(t) => {
             Some(t.to_string_lossy().into_owned())
         }
         _ => None,
     };
+    let shadowed = shadowed_by(state, expected, dirs);
+    if shadowed.is_some() {
+        status = "shadowed";
+    }
     json!({
         "status": status,
         "linkPath": link_path().to_string_lossy(),
         "expected": expected.to_string_lossy(),
         "target": target,
+        "shadowedBy": shadowed.map(|p| p.to_string_lossy().into_owned()),
     })
 }
 
@@ -411,6 +482,99 @@ mod tests {
         std::fs::write(&expected, b"x").unwrap();
         repair_at(&expected, &link);
         assert!(std::fs::symlink_metadata(&link).is_err());
+    }
+
+    #[test]
+    fn parse_cli_version_strips_prefix() {
+        assert_eq!(parse_cli_version("lpm 0.4.100\n"), "0.4.100");
+        assert_eq!(parse_cli_version("  lpm 1.2.3  "), "1.2.3");
+    }
+
+    #[test]
+    fn parse_cli_version_falls_back_to_raw() {
+        assert_eq!(parse_cli_version("weird-output"), "weird-output");
+        assert_eq!(parse_cli_version("lpm-cli 2.0.0"), "lpm-cli 2.0.0");
+    }
+
+    #[test]
+    fn version_probe_bin_picks_link_when_installed() {
+        assert_eq!(version_probe_bin("installed", &expected()), link_path());
+        assert_eq!(version_probe_bin("shadowed", &expected()), link_path());
+        assert_eq!(version_probe_bin("points-elsewhere", &expected()), expected());
+    }
+
+    #[test]
+    fn first_lpm_none_for_empty_dirs() {
+        assert_eq!(first_lpm_in(&[]), None);
+    }
+
+    #[test]
+    fn first_lpm_finds_earliest_executable() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("a");
+        let b = dir.path().join("b");
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(a.join("lpm"), b"x").unwrap();
+        std::fs::write(b.join("lpm"), b"y").unwrap();
+        let dirs = vec![
+            a.to_string_lossy().into_owned(),
+            b.to_string_lossy().into_owned(),
+        ];
+        assert_eq!(first_lpm_in(&dirs), Some(a.join("lpm")));
+    }
+
+    #[test]
+    fn first_lpm_skips_dangling_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let early = dir.path().join("early");
+        std::fs::create_dir_all(&early).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("missing"), early.join("lpm")).unwrap();
+        let dirs = vec![early.to_string_lossy().into_owned()];
+        // Dangling link: is_file() follows and finds nothing, matching the shell.
+        assert_eq!(first_lpm_in(&dirs), None);
+    }
+
+    #[test]
+    fn shadowed_when_earlier_dir_has_lpm() {
+        let dir = tempfile::tempdir().unwrap();
+        let early = dir.path().join("early");
+        std::fs::create_dir_all(&early).unwrap();
+        let shadow = early.join("lpm");
+        std::fs::write(&shadow, b"stale").unwrap();
+        let dirs = vec![early.to_string_lossy().into_owned()];
+        let state = PathState::OurSymlink(expected());
+        assert_eq!(
+            shadowed_by(&state, &expected(), &dirs),
+            Some(shadow.clone())
+        );
+        let v = status_value_in(&state, &expected(), &dirs);
+        assert_eq!(v["status"], "shadowed");
+        assert_eq!(v["shadowedBy"], shadow.to_string_lossy().into_owned());
+    }
+
+    #[test]
+    fn not_shadowed_when_first_hit_is_link_path() {
+        // The only PATH dir is INSTALL_DIR, so the sole `lpm` reachable is our own
+        // link_path() (or none) — never a shadowing binary.
+        let dirs = vec![INSTALL_DIR.to_string()];
+        let state = PathState::OurSymlink(expected());
+        assert_eq!(shadowed_by(&state, &expected(), &dirs), None);
+        assert_eq!(status_value_in(&state, &expected(), &dirs)["status"], "installed");
+    }
+
+    #[test]
+    fn not_shadowed_when_not_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        let early = dir.path().join("early");
+        std::fs::create_dir_all(&early).unwrap();
+        std::fs::write(early.join("lpm"), b"stale").unwrap();
+        let dirs = vec![early.to_string_lossy().into_owned()];
+        // Symlink absent → "not-installed" → shadow check does not apply.
+        assert_eq!(shadowed_by(&PathState::Absent, &expected(), &dirs), None);
+        let v = status_value_in(&PathState::Absent, &expected(), &dirs);
+        assert_eq!(v["status"], "not-installed");
+        assert!(v["shadowedBy"].is_null());
     }
 
     #[test]

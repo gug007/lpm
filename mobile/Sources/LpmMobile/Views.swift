@@ -683,6 +683,11 @@ struct TerminalScreen: View {
     @StateObject private var keyboard = KeyboardObserver()
     // Flips when the first screen snapshot renders, hiding the loading spinner.
     @State private var hasContent = false
+    // Phone-local terminal preferences (Settings → Terminal).
+    @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
+    @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalTheme.default.rawValue
+
+    private var theme: TerminalTheme { TerminalPrefs.theme(themeRaw) }
 
     var body: some View {
         // A terminal is shown live in exactly one place at a time. When the
@@ -698,13 +703,14 @@ struct TerminalScreen: View {
             ZStack {
                 WebTerminalView(term: term, onFirstContent: {
                     withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
-                })
+                }, fontSize: fontSize, theme: theme)
                     .environmentObject(model)
                 if controlled && !hasContent {
-                    TerminalLoadingView()
+                    TerminalLoadingView(background: theme.backgroundColor)
                 }
                 if !controlled {
-                    ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id)) {
+                    ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id),
+                                       background: theme.backgroundColor) {
                         model.claimControl(term.id)
                     }
                 }
@@ -715,7 +721,7 @@ struct TerminalScreen: View {
             }
         }
             .padding(.bottom, keyboard.height)
-            .background(SwiftUI.Color.black.ignoresSafeArea(.all, edges: .all))
+            .background(theme.backgroundColor.ignoresSafeArea(.all, edges: .all))
             .animation(.easeOut(duration: keyboard.duration), value: keyboard.height)
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
@@ -726,11 +732,11 @@ struct TerminalScreen: View {
                 try? await Task.sleep(nanoseconds: 5_000_000_000)
                 withAnimation { hasContent = true }
             }
-            // Solid black bar matching the terminal ground, scoped to this screen —
-            // the terminal sits below it (safe area), so the bar reads as one
-            // continuous black surface with the terminal instead of letting the
-            // light background show through. `.dark` keeps title/back white.
-            .toolbarBackground(SwiftUI.Color.black, for: .navigationBar)
+            // Solid bar matching the terminal ground, scoped to this screen — the
+            // terminal sits below it (safe area), so the bar reads as one continuous
+            // surface with the terminal instead of letting the light background show
+            // through. `.dark` keeps title/back white (every theme has a dark bg).
+            .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
     }
@@ -740,13 +746,14 @@ struct TerminalScreen: View {
 /// another phone) currently owns it. "Take control" moves ownership here.
 struct ControlHandoffView: View {
     let ownerLabel: String
+    var background: Color = .black
     let onTakeControl: () -> Void
     @State private var taking = false
 
     var body: some View {
         ZStack {
-            // Match the terminal's black ground so there's no flash behind it.
-            SwiftUI.Color.black
+            // Match the terminal's ground so there's no flash behind it.
+            background
             ContentUnavailableView {
                 Label("Active on \(ownerLabel)", systemImage: "terminal.fill")
             } description: {

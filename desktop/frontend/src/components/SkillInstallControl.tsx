@@ -4,16 +4,44 @@ import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } fro
 import { BTN_SECONDARY } from "./ui/buttons";
 
 export type SkillStatus = "loading" | "not-installed" | "outdated" | "installed";
-export type CliStatus = "loading" | "unavailable" | "not-installed" | "installed" | "points-elsewhere";
+export type CliStatus =
+  | "loading"
+  | "unavailable"
+  | "not-installed"
+  | "installed"
+  | "points-elsewhere"
+  | "shadowed";
 
-export function fetchStatuses(): Promise<[SkillStatus, CliStatus]> {
+export type SkillResult = {
+  status: SkillStatus;
+  installedVersion?: string;
+  bundledVersion?: string;
+};
+
+export type CliResult = {
+  status: CliStatus;
+  shadowedBy?: string;
+  linkPath?: string;
+  version?: string;
+};
+
+export function fetchStatuses(): Promise<[SkillResult, CliResult]> {
   return Promise.all([
     AgentSkillStatus()
-      .then((r) => r.status as SkillStatus)
-      .catch((): SkillStatus => "not-installed"),
+      .then((r): SkillResult => ({
+        status: r.status as SkillStatus,
+        installedVersion: r.installedVersion ?? undefined,
+        bundledVersion: r.bundledVersion ?? undefined,
+      }))
+      .catch((): SkillResult => ({ status: "not-installed" })),
     CliInstallStatus()
-      .then((r) => r.status as CliStatus)
-      .catch((): CliStatus => "unavailable"),
+      .then((r): CliResult => ({
+        status: r.status as CliStatus,
+        shadowedBy: r.shadowedBy ?? undefined,
+        linkPath: r.linkPath ?? undefined,
+        version: r.cliVersion ?? undefined,
+      }))
+      .catch((): CliResult => ({ status: "unavailable" })),
   ]);
 }
 
@@ -50,6 +78,32 @@ function CheckIcon() {
   );
 }
 
+function WarningIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[var(--accent-amber)]">
+      <path
+        d="M12 3.5l9 15.5H3l9-15.5z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 10v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M12 17h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function VersionLine({ cliVersion, skillVersion }: { cliVersion?: string; skillVersion?: string }) {
+  const parts: string[] = [];
+  if (cliVersion) parts.push(`CLI ${cliVersion}`);
+  if (skillVersion) parts.push(`Skills ${skillVersion}`);
+  if (parts.length === 0) return null;
+  return (
+    <span className="text-[10px] tabular-nums text-[var(--text-muted)]">{parts.join(" · ")}</span>
+  );
+}
+
 async function installCliIfNeeded() {
   try {
     const cli = await CliInstallStatus();
@@ -66,14 +120,16 @@ async function installCliIfNeeded() {
 }
 
 export function SkillInstallControl() {
-  const [skillStatus, setSkillStatus] = useState<SkillStatus>("loading");
-  const [cliStatus, setCliStatus] = useState<CliStatus>("loading");
+  const [skill, setSkill] = useState<SkillResult>({ status: "loading" });
+  const [cli, setCli] = useState<CliResult>({ status: "loading" });
   const [installing, setInstalling] = useState(false);
+  const skillStatus = skill.status;
+  const cliStatus = cli.status;
 
   const refresh = async () => {
-    const [skill, cli] = await fetchStatuses();
-    setSkillStatus(skill);
-    setCliStatus(cli);
+    const [skillResult, cliResult] = await fetchStatuses();
+    setSkill(skillResult);
+    setCli(cliResult);
   };
 
   useEffect(() => {
@@ -121,10 +177,33 @@ export function SkillInstallControl() {
     );
   }
 
+  const skillVersion = skill.installedVersion ?? skill.bundledVersion;
+  const versionLine = <VersionLine cliVersion={cli.version} skillVersion={skillVersion} />;
+
+  if (cliStatus === "shadowed") {
+    const other = cli.shadowedBy ?? "another location";
+    const managed = cli.linkPath ?? "/usr/local/bin/lpm";
+    return (
+      <div className="flex flex-col items-end gap-0.5">
+        <span
+          className="flex items-center gap-1.5 text-xs text-[var(--accent-amber)]"
+          title={`Another lpm at ${other} takes precedence over ${managed}. Remove it to use the app-managed CLI.`}
+        >
+          <WarningIcon />
+          Shadowed
+        </span>
+        {versionLine}
+      </div>
+    );
+  }
+
   return (
-    <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-      <CheckIcon />
-      Installed
-    </span>
+    <div className="flex flex-col items-end gap-0.5">
+      <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+        <CheckIcon />
+        Installed
+      </span>
+      {versionLine}
+    </div>
   );
 }

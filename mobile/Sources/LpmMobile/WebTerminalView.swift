@@ -43,6 +43,10 @@ struct WebTerminalView: UIViewRepresentable {
     var onFirstContent: (() -> Void)? = nil
     /// Top safe-area inset so xterm's content clears the translucent nav bar.
     var topInset: CGFloat = 0
+    /// Phone-local terminal preferences (Settings → Terminal). SwiftUI re-runs
+    /// updateUIView when these change, which pushes them into the page.
+    var fontSize: Int = TerminalPrefs.defaultFontSize
+    var theme: TerminalTheme = .default
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
 
@@ -56,9 +60,10 @@ struct WebTerminalView: UIViewRepresentable {
         config.userContentController = controller
         config.allowsInlineMediaPlayback = true
 
-        // True-black ground so there's no color mismatch behind the page while it
-        // loads (matches terminal.html's #000000 for a clean OLED look).
-        let ground = UIColor.black
+        // Ground matches the selected terminal theme's background, so there's no
+        // color mismatch behind the page while it loads and the safe-area padding
+        // reads as one continuous surface with the terminal.
+        let ground = theme.uiBackground
         let web = WKWebView(frame: .zero, configuration: config)
         web.isOpaque = false
         web.backgroundColor = ground
@@ -74,6 +79,8 @@ struct WebTerminalView: UIViewRepresentable {
         web.loadFileURL(dir.appendingPathComponent("terminal.html"), allowingReadAccessTo: dir)
 
         context.coordinator.topInset = topInset
+        context.coordinator.fontSize = fontSize
+        context.coordinator.theme = theme
         context.coordinator.onFirstContent = onFirstContent
         // Capture only the coordinator, not `context` — these closures outlive this
         // call (held by the subscription until unsubscribe), and closing over the
@@ -93,6 +100,8 @@ struct WebTerminalView: UIViewRepresentable {
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
+        context.coordinator.applyFontSize(fontSize)
+        context.coordinator.applyTheme(theme)
         context.coordinator.applyTopInset(topInset)
         // Re-assert the PTY size when this phone becomes the owner: taking control
         // triggers no new xterm sizeChanged on its own, so without this the PTY
@@ -113,6 +122,8 @@ struct WebTerminalView: UIViewRepresentable {
         let termId: String
         weak var web: WKWebView?
         var topInset: CGFloat = 0
+        var fontSize = TerminalPrefs.defaultFontSize
+        var theme: TerminalTheme = .default
         var onFirstContent: (() -> Void)?
         private var ready = false
         private var announcedContent = false
@@ -132,6 +143,10 @@ struct WebTerminalView: UIViewRepresentable {
         // The top inset last pushed to the page, so an unchanged inset (the common
         // updateUIView case) skips a redundant cross-process evaluateJavaScript.
         private var lastAppliedInset = Int.min
+        // Last font size / theme pushed to the page, so unchanged values (the
+        // common updateUIView case) skip a redundant cross-process evaluateJavaScript.
+        private var lastAppliedFontSize = Int.min
+        private var lastAppliedThemeKey: String?
 
         init(model: AppModel, termId: String) { self.model = model; self.termId = termId }
 
@@ -216,6 +231,26 @@ struct WebTerminalView: UIViewRepresentable {
             web?.evaluateJavaScript("window.lpmSetTopInset(\(px))")
         }
 
+        func applyFontSize(_ px: Int) {
+            fontSize = px
+            guard ready, px != lastAppliedFontSize else { return }
+            lastAppliedFontSize = px
+            web?.evaluateJavaScript("window.lpmSetFontSize(\(px))")
+        }
+
+        /// Push the theme both to the page (xterm colors + page ground) and to the
+        /// web view's own background, so the surface behind the page matches too.
+        func applyTheme(_ theme: TerminalTheme) {
+            self.theme = theme
+            web?.backgroundColor = theme.uiBackground
+            web?.scrollView.backgroundColor = theme.uiBackground
+            guard ready, theme.rawValue != lastAppliedThemeKey else { return }
+            lastAppliedThemeKey = theme.rawValue
+            web?.evaluateJavaScript(
+                "window.lpmSetTheme('\(theme.background)','\(theme.foreground)','\(theme.cursor)','\(theme.selection)')"
+            )
+        }
+
         func userContentController(_ c: WKUserContentController, didReceive msg: WKScriptMessage) {
             switch msg.name {
             case "input":
@@ -231,6 +266,9 @@ struct WebTerminalView: UIViewRepresentable {
                 ready = true
                 lastAppliedInset = Int(topInset)
                 web?.evaluateJavaScript("window.lpmSetTopInset(\(Int(topInset)))")
+                // Apply font/theme before the seed so the first paint uses them.
+                applyFontSize(fontSize)
+                applyTheme(theme)
                 // Seed first (full snapshot), then any output that arrived after it.
                 // No auto-focus: opening a terminal shouldn't raise the keyboard —
                 // the user taps the terminal when they want to type.

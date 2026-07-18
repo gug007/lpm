@@ -181,6 +181,21 @@
   window.lpmSeed = b64 => { lastOutputAt = performance.now(); term.reset(); term.write(b64ToBytes(b64)); refit(); };
   window.lpmSetTopInset = px => document.documentElement.style.setProperty('--top-inset', px + 'px');
 
+  // Font size / theme, pushed from Swift (Settings → Terminal). Changing the font
+  // reflows the grid, so refit afterwards to re-report geometry. Theme keeps the
+  // shared ANSI palette (above) and only swaps the four dynamic colors; the page
+  // ground is set too so the padding around xterm matches the terminal background.
+  window.lpmSetFontSize = px => {
+    if (px > 0 && term.options.fontSize !== px) { term.options.fontSize = px; refit(); }
+  };
+  window.lpmSetTheme = (bg, fg, cursor, selection) => {
+    term.options.theme = Object.assign({}, theme, {
+      background: bg, foreground: fg, cursor, cursorAccent: bg, selectionBackground: selection,
+    });
+    document.documentElement.style.background = bg;
+    document.body.style.background = bg;
+  };
+
   // Return the last `n` lines of the terminal buffer (viewport + scrollback) as
   // plain text, for the composer's "@ terminal output" mention. Trailing blank
   // lines are trimmed so a mostly-empty screen doesn't inject a wall of newlines.

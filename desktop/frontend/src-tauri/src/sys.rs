@@ -4,7 +4,13 @@
 // locations. Run once at startup.
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::time::Duration;
+
+/// Raw login-shell PATH captured once at startup, in the user's shell-resolution
+/// order. Stashed so shadow detection can reason about the same PATH the user's
+/// shell would use, not the (reordered, augmented) process PATH.
+static LOGIN_PATH: OnceLock<String> = OnceLock::new();
 
 const EXTRA_PATHS: [&str; 2] = ["/opt/homebrew/bin", "/usr/local/bin"];
 
@@ -56,6 +62,7 @@ fn merge_login_shell_path() {
     let Some(captured) = capture_login_path() else {
         return;
     };
+    let _ = LOGIN_PATH.set(captured.clone());
     let current = std::env::var("PATH").unwrap_or_default();
     let mut existing: std::collections::HashSet<&str> = current.split(':').collect();
     let mut prefix: Vec<&str> = Vec::new();
@@ -135,6 +142,20 @@ fn nvm_node_bins(home: &Path) -> Vec<String> {
         .map(|e| e.path().join("bin"))
         .filter(|p| p.is_dir())
         .map(|p| p.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// PATH in the user's shell-resolution order: the login-shell capture when we
+/// got one, else the process PATH. Split on ':', empties skipped.
+pub fn shell_path_dirs() -> Vec<String> {
+    let raw = LOGIN_PATH
+        .get()
+        .cloned()
+        .or_else(|| std::env::var("PATH").ok())
+        .unwrap_or_default();
+    raw.split(':')
+        .filter(|d| !d.is_empty())
+        .map(String::from)
         .collect()
 }
 

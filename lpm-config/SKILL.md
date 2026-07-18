@@ -1,5 +1,6 @@
 ---
 name: lpm-config
+version: 1.0.0
 description: Create and edit lpm YAML configs for projects, services, actions, terminals, profiles, SSH projects, and shared config layers. Use when the user explicitly asks to configure lpm, add an lpm service/action/button/terminal, edit `.lpm.yml`, or manage lpm templates or global config. For operating running projects, use `lpm-cli`.
 ---
 

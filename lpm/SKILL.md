@@ -1,5 +1,6 @@
 ---
 name: lpm
+version: 1.0.0
 description: "Shortcut that loads the two lpm skills — `lpm-cli` (control projects: start/stop services, logs, agent status, duplicate into parallel copies) and `lpm-config` (create/edit project YAML configs). Use when the user types /lpm or asks about lpm without a clearly scoped task; when the task clearly fits one skill, invoke `lpm-cli` or `lpm-config` directly instead."
 ---
 

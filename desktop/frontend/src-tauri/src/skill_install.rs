@@ -39,6 +39,28 @@ const SKILL_FILES: &[SkillFile] = &[
 const ENTRY_SKILLS: &[&str] = &["lpm-config/SKILL.md", "lpm-cli/SKILL.md"];
 const REMOVED_SKILL_FILES: &[&str] = &["lpm-config/references/yaml-schema.md"];
 
+/// Parse the `version:` field from a SKILL.md YAML frontmatter block, or None.
+/// Scans only the leading `---`…`---` block; no YAML dependency needed.
+fn parse_skill_version(content: &str) -> Option<String> {
+    let mut lines = content.lines();
+    if lines.next().map(str::trim) != Some("---") {
+        return None;
+    }
+    for line in lines {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+        if let Some(rest) = trimmed.strip_prefix("version:") {
+            let v = rest.trim().trim_matches('"').trim_matches('\'').trim();
+            if !v.is_empty() {
+                return Some(v.to_string());
+            }
+        }
+    }
+    None
+}
+
 fn targets() -> [PathBuf; 2] {
     let home = dirs::home_dir().unwrap_or_default();
     [
@@ -127,7 +149,18 @@ pub fn refresh_if_outdated() {
 
 #[tauri::command(async)]
 pub fn agent_skill_status() -> Result<Value, String> {
-    Ok(json!({ "status": overall_status(&targets()) }))
+    let dirs = targets();
+    // lpm-cli is the anchor skill; the entry skills share one version.
+    let bundled_version = parse_skill_version(LPM_CLI_SKILL);
+    let installed_version = dirs
+        .first()
+        .and_then(|d| std::fs::read_to_string(d.join("lpm-cli/SKILL.md")).ok())
+        .and_then(|c| parse_skill_version(&c));
+    Ok(json!({
+        "status": overall_status(&dirs),
+        "bundledVersion": bundled_version,
+        "installedVersion": installed_version,
+    }))
 }
 
 #[tauri::command(async)]
@@ -148,6 +181,40 @@ mod tests {
 
     fn is_empty(dir: &std::path::Path) -> bool {
         std::fs::read_dir(dir).unwrap().next().is_none()
+    }
+
+    #[test]
+    fn parses_version_from_frontmatter() {
+        let md = "---\nname: lpm-cli\nversion: 1.2.3\ndescription: x\n---\n\nbody";
+        assert_eq!(parse_skill_version(md), Some("1.2.3".to_string()));
+    }
+
+    #[test]
+    fn parses_quoted_version() {
+        let md = "---\nname: lpm-cli\nversion: \"2.0.0\"\n---\n";
+        assert_eq!(parse_skill_version(md), Some("2.0.0".to_string()));
+    }
+
+    #[test]
+    fn none_when_no_version_field() {
+        let md = "---\nname: lpm-cli\ndescription: x\n---\n\nbody";
+        assert_eq!(parse_skill_version(md), None);
+    }
+
+    #[test]
+    fn none_when_no_frontmatter() {
+        assert_eq!(parse_skill_version("# lpm-cli\n\nno frontmatter here"), None);
+    }
+
+    #[test]
+    fn ignores_version_outside_frontmatter_block() {
+        let md = "---\nname: lpm-cli\n---\n\nversion: 9.9.9 in the body";
+        assert_eq!(parse_skill_version(md), None);
+    }
+
+    #[test]
+    fn bundled_skill_has_a_parsable_version() {
+        assert!(parse_skill_version(LPM_CLI_SKILL).is_some());
     }
 
     #[test]
