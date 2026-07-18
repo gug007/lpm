@@ -11,28 +11,82 @@ import {
 import { SectionHeader } from "@/components/section-header";
 import { MOBILE_PATH } from "@/lib/links";
 
-type Tone = "prompt" | "agent" | "detail" | "ok" | "meta";
+type Tone =
+  | "prompt"
+  | "agent"
+  | "detail"
+  | "ok"
+  | "meta"
+  | "claudeTitle"
+  | "codexTitle";
 type Line = { text: string; tone: Tone };
+// preamble = launch-header lines already on screen when the tab activates
+type Session = { key: string; label: string; preamble: number; lines: Line[] };
 
-const TRANSCRIPT: Line[] = [
+const CLAUDE_LINES: Line[] = [
+  { text: "✳ Claude Code v2.1.214", tone: "claudeTitle" },
+  { text: "  Fable 5 with high effort · Claude Max", tone: "meta" },
+  { text: "  ~/Projects/auth-service", tone: "meta" },
   { text: "> tighten the login rate limiter", tone: "prompt" },
-  { text: "● Reading src/auth/rateLimiter.ts", tone: "agent" },
-  { text: "● Editing src/auth/rateLimiter.ts", tone: "agent" },
-  { text: "  ⎿ +18 −4", tone: "detail" },
-  { text: "● Running tests…", tone: "agent" },
-  { text: "  ✓ blocks after 5 attempts", tone: "ok" },
-  { text: "  ✓ resets window on success", tone: "ok" },
-  { text: "  8 passed · 0 failed", tone: "meta" },
-  { text: "● Ready to ship. Commit and open a PR?", tone: "agent" },
+  { text: "● Read(src/auth/rateLimiter.ts)", tone: "agent" },
+  { text: "  ⎿ Read 84 lines", tone: "detail" },
+  { text: "● Update(src/auth/rateLimiter.ts)", tone: "agent" },
+  { text: "  ⎿ Updated with 18 additions and 4 removals", tone: "detail" },
+  { text: "● Bash(npm test -- rateLimiter)", tone: "agent" },
+  { text: "  ⎿ 8 passed, 0 failed (2.1s)", tone: "ok" },
+  { text: "● The limiter now blocks after 5 attempts and", tone: "agent" },
+  { text: "  resets on success. Commit and open a PR?", tone: "agent" },
   { text: "> yes — commit & open the PR", tone: "prompt" },
-  { text: "● Pushed feat/rate-limit · PR #204 opened", tone: "agent" },
+  { text: "● Bash(git push && gh pr create)", tone: "agent" },
+  { text: "  ⎿ PR #204 opened", tone: "ok" },
 ];
 
-// index 9 is the prompt the phone types during the "take control" beat.
-const CONTROL_INDEX = 9;
+const CODEX_LINES: Line[] = [
+  { text: "$ codex", tone: "prompt" },
+  { text: ">_ OpenAI Codex (v0.144.5)", tone: "codexTitle" },
+  { text: "  model: gpt-5.6-sol high · /model to change", tone: "meta" },
+  { text: "  directory: ~/Projects/auth-service", tone: "meta" },
+  { text: "▌ add cursor pagination to GET /users", tone: "prompt" },
+  { text: "• Explored", tone: "agent" },
+  { text: "  └ routes/users.ts, models/user.ts", tone: "detail" },
+  { text: "• Edited routes/users.ts (+24 -6)", tone: "agent" },
+  { text: "• Ran npm test", tone: "agent" },
+  { text: "  └ 14 passed (1.2s)", tone: "ok" },
+  { text: "• Added ?limit & ?cursor with stable ordering", tone: "agent" },
+  { text: "  Worked for 9s", tone: "meta" },
+];
+
+const ZSH_LINES: Line[] = [
+  { text: "$ ls", tone: "prompt" },
+  { text: "README.md  package.json  routes  src  tests", tone: "agent" },
+  { text: "$ git status -s", tone: "prompt" },
+  { text: " M src/auth/rateLimiter.ts", tone: "detail" },
+  { text: " M routes/users.ts", tone: "detail" },
+  { text: "$ lpm start", tone: "prompt" },
+  { text: "  ✓ api :4000 · web :3000", tone: "ok" },
+];
+
+const SESSIONS: Session[] = [
+  { key: "claude", label: "claude", preamble: 3, lines: CLAUDE_LINES },
+  { key: "codex", label: "codex", preamble: 4, lines: CODEX_LINES },
+  { key: "zsh", label: "zsh", preamble: 0, lines: ZSH_LINES },
+];
+
+const PROJECTS = [
+  { name: "auth-service", running: true, active: true },
+  { name: "storefront", running: false, active: false },
+  { name: "ml-pipeline", running: false, active: false },
+];
+
+// index 12 of the claude session is the prompt the phone types during the
+// "take control" beat.
+const CONTROL_INDEX = 12;
 const CONTROL_TEXT = "yes — commit & open the PR";
 
-const TONE_CLASS: Record<Exclude<Tone, "prompt">, string> = {
+const TONE_CLASS: Record<
+  Exclude<Tone, "prompt" | "claudeTitle" | "codexTitle">,
+  string
+> = {
   agent: "text-gray-100",
   detail: "text-gray-500",
   ok: "text-emerald-400",
@@ -44,8 +98,24 @@ function TerminalLine({ line, size }: { line: Line; size: string }) {
   if (line.tone === "prompt") {
     return (
       <div className={base}>
-        <span className="text-gray-600">{"> "}</span>
+        <span className="text-gray-600">{line.text.slice(0, 2)}</span>
         <span className="text-gray-300">{line.text.slice(2)}</span>
+      </div>
+    );
+  }
+  if (line.tone === "claudeTitle" || line.tone === "codexTitle") {
+    return (
+      <div className={base}>
+        <span
+          className={
+            line.tone === "claudeTitle" ? "text-[#d97757]" : "text-gray-500"
+          }
+        >
+          {line.text.slice(0, 2)}
+        </span>
+        <span className="font-semibold text-gray-100">
+          {line.text.slice(2)}
+        </span>
       </div>
     );
   }
@@ -55,6 +125,7 @@ function TerminalLine({ line, size }: { line: Line; size: string }) {
 type Step = { wait: number; apply: () => void };
 
 export function PairedDevices() {
+  const [tab, setTab] = useState(0);
   const [revealed, setRevealed] = useState(0);
   const [typed, setTyped] = useState("");
   const [typing, setTyping] = useState(false);
@@ -73,17 +144,32 @@ export function PairedDevices() {
     if (reduced) return;
 
     const steps: Step[] = [];
+    const goTab = (t: number, wait: number) =>
+      steps.push({
+        wait,
+        apply: () => {
+          setTab(t);
+          setRevealed(SESSIONS[t].preamble);
+        },
+      });
+    const reveal = (n: number, wait: number) =>
+      steps.push({ wait, apply: () => setRevealed(n) });
+    const hold = (wait: number) => steps.push({ wait, apply: () => {} });
+
+    // claude — the agent works, then the phone takes control
+    const claudeStart = SESSIONS[0].preamble + 1;
     steps.push({
       wait: 450,
       apply: () => {
-        setRevealed(0);
+        setTab(0);
+        setRevealed(SESSIONS[0].preamble);
         setTyped("");
         setTyping(false);
         setControl(false);
       },
     });
-    for (let i = 1; i <= CONTROL_INDEX; i += 1) {
-      steps.push({ wait: i === 1 ? 520 : 620, apply: () => setRevealed(i) });
+    for (let i = claudeStart; i <= CONTROL_INDEX; i += 1) {
+      reveal(i, i === claudeStart ? 720 : 620);
     }
     steps.push({
       wait: 780,
@@ -104,9 +190,26 @@ export function PairedDevices() {
         setTyping(false);
       },
     });
-    steps.push({ wait: 850, apply: () => setRevealed(TRANSCRIPT.length) });
+    for (let i = CONTROL_INDEX + 2; i <= CLAUDE_LINES.length; i += 1) {
+      reveal(i, i === CONTROL_INDEX + 2 ? 850 : 620);
+    }
     steps.push({ wait: 720, apply: () => setControl(false) });
-    steps.push({ wait: 1600, apply: () => {} });
+    hold(1400);
+
+    // codex — a second agent on its own tab
+    goTab(1, 400);
+    const codexStart = SESSIONS[1].preamble + 1;
+    for (let i = codexStart; i <= CODEX_LINES.length; i += 1) {
+      reveal(i, i === codexStart ? 720 : 620);
+    }
+    hold(1600);
+
+    // zsh — plain shell commands, output lands instantly
+    goTab(2, 400);
+    ZSH_LINES.forEach((line, i) =>
+      reveal(i + 1, line.tone === "prompt" ? 900 : 350),
+    );
+    hold(1800);
 
     let idx = 0;
     let timer: ReturnType<typeof setTimeout>;
@@ -122,11 +225,13 @@ export function PairedDevices() {
     return () => clearTimeout(timer);
   }, [reduced]);
 
-  const visible = reduced ? TRANSCRIPT : TRANSCRIPT.slice(0, revealed);
+  const tabView = reduced ? 0 : tab;
+  const session = SESSIONS[tabView];
+  const visible = reduced ? session.lines : session.lines.slice(0, revealed);
   const isTyping = typing && !reduced;
   const isControl = control && !reduced;
   const streaming =
-    !reduced && !isTyping && revealed > 0 && revealed < TRANSCRIPT.length;
+    !reduced && !isTyping && revealed > 0 && revealed < session.lines.length;
 
   return (
     <section className="py-16 sm:py-20 overflow-x-clip">
@@ -150,11 +255,13 @@ export function PairedDevices() {
         />
 
         <p className="sr-only">
-          An illustration of one AI coding session — tightening a login rate
-          limiter — mirrored in real time on a Mac terminal window and an iPhone.
-          Both screens stream the identical transcript in sync; the phone then
-          takes control and sends &ldquo;yes — commit &amp; open the PR&rdquo;,
-          which appears on both devices at once.
+          An illustration of one project&rsquo;s terminals mirrored in real time
+          between a Mac window and an iPhone: a Claude Code agent tightening a
+          login rate limiter, a Codex agent adding pagination, and a zsh shell
+          running commands like ls. Both screens always show the identical
+          active terminal; the phone takes control of the Claude session and
+          sends &ldquo;yes — commit &amp; open the PR&rdquo;, which appears on
+          both devices at once.
         </p>
 
         <div
@@ -162,34 +269,87 @@ export function PairedDevices() {
           className="relative flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-0"
         >
           <div className="pointer-events-none absolute -inset-x-8 -inset-y-10 bg-grid" />
-          {/* Mac window — shows the full running transcript */}
-          <div className="relative w-full min-w-0 max-w-[30rem]">
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-[#1a1a1a] shadow-2xl shadow-gray-300/50 dark:border-[#2e2e2e] dark:shadow-black/60">
-              <div className="relative flex items-center border-b border-[#2d2d2d] px-4 py-2.5">
-                <div className="flex gap-1.5">
-                  <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                  <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-                  <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-                </div>
-                <span className="absolute left-1/2 -translate-x-1/2 text-[11px] text-gray-400">
-                  claude — auth-service
-                </span>
-                <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-emerald-400">
-                  <span className="relative inline-flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          {/* MacBook running lpm — sidebar, terminal tabs, streaming pane */}
+          <div className="relative w-full min-w-0 max-w-[32rem]">
+            <div className="mx-auto w-[94%] overflow-hidden rounded-t-xl bg-[#111113] p-1.5 pb-0 shadow-2xl shadow-gray-300/60 ring-1 ring-black/15 dark:shadow-black/60 dark:ring-[#3a3a3c]">
+              <div className="flex h-[20rem] flex-col overflow-hidden rounded-t-md bg-[#1a1a1a]">
+                <div className="relative flex h-7 shrink-0 items-center border-b border-[#2d2d2d] px-2.5">
+                  <div className="flex gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-[#ff5f57]" />
+                    <span className="h-2 w-2 rounded-full bg-[#febc2e]" />
+                    <span className="h-2 w-2 rounded-full bg-[#28c840]" />
+                  </div>
+                  <span className="absolute left-1/2 -translate-x-1/2 text-[10px] text-gray-400">
+                    lpm
                   </span>
-                  Live
-                </span>
+                  <span className="ml-auto flex items-center gap-1.5 text-[9px] font-medium text-emerald-400">
+                    <span className="relative inline-flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    </span>
+                    Live
+                  </span>
+                </div>
+                <div className="flex min-h-0 flex-1">
+                  {/* Projects sidebar */}
+                  <div className="flex w-[7rem] shrink-0 flex-col gap-0.5 border-r border-[#262626] bg-[#161616] p-1.5">
+                    <span className="px-1.5 pb-1 pt-0.5 text-[7px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+                      Projects
+                    </span>
+                    {PROJECTS.map((p) => (
+                      <span
+                        key={p.name}
+                        className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[9px] ${
+                          p.active
+                            ? "bg-white/[0.07] text-gray-200"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        <span
+                          className={`h-[5px] w-[5px] shrink-0 rounded-full ${
+                            p.running
+                              ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.7)]"
+                              : "border border-[#454545]"
+                          }`}
+                        />
+                        {p.name}
+                      </span>
+                    ))}
+                  </div>
+                  {/* Terminal pane */}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex items-center gap-0.5 border-b border-[#2d2d2d] bg-[#222222] px-1.5 py-1">
+                      {SESSIONS.map((s, i) => (
+                        <span
+                          key={s.key}
+                          className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-[10px] transition-colors ${
+                            i === tabView
+                              ? "bg-white/[0.1] text-gray-200"
+                              : "text-[#8e8e8e]"
+                          }`}
+                        >
+                          {i === tabView && (
+                            <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                          )}
+                          {s.label}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 py-2.5 font-mono text-[10.5px] leading-5 [mask-image:linear-gradient(to_right,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_92%,transparent)]">
+                      {visible.map((line, i) => (
+                        <TerminalLine key={i} line={line} size="text-[10.5px]" />
+                      ))}
+                      {streaming && (
+                        <span className="mt-0.5 inline-block h-3 w-1.5 bg-gray-300 [animation:pd-blink_1.05s_steps(1)_infinite]" />
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex h-64 flex-col justify-end px-4 py-3 font-mono text-[11px] leading-5">
-                {visible.map((line, i) => (
-                  <TerminalLine key={i} line={line} size="text-[11px]" />
-                ))}
-                {streaming && (
-                  <span className="mt-0.5 inline-block h-3 w-1.5 bg-gray-300 [animation:pd-blink_1.05s_steps(1)_infinite]" />
-                )}
-              </div>
+            </div>
+            {/* Aluminum deck */}
+            <div className="relative h-2.5 w-full rounded-b-lg bg-gradient-to-b from-[#e7e8ea] via-[#c9cbcd] to-[#9fa1a4] shadow-lg shadow-gray-400/30 dark:from-[#48484c] dark:via-[#333336] dark:to-[#1f1f22] dark:shadow-black/60">
+              <span className="absolute left-1/2 top-0 h-[5px] w-14 -translate-x-1/2 rounded-b-md bg-[#b7b9bc] dark:bg-[#28282b]" />
             </div>
           </div>
 
@@ -255,9 +415,25 @@ export function PairedDevices() {
                     )}
                   </div>
 
+                  {/* Terminal switcher — mirrors the Mac's active tab */}
+                  <div className="flex items-center gap-1 px-3 pb-1">
+                    {SESSIONS.map((s, i) => (
+                      <span
+                        key={s.key}
+                        className={`rounded-full px-2 py-0.5 font-mono text-[8px] transition-colors ${
+                          i === tabView
+                            ? "bg-white/10 text-gray-100"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                    ))}
+                  </div>
+
                   {/* Mirrored transcript; right edge fades so the narrow phone
                       mirror clips long lines gracefully. */}
-                  <div className="flex h-[18.5rem] flex-col justify-end px-3 pb-2 font-mono text-[10px] leading-5 [mask-image:linear-gradient(to_right,#000_84%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_84%,transparent)]">
+                  <div className="flex h-[16.5rem] flex-col justify-end overflow-hidden px-3 pb-2 font-mono text-[10px] leading-5 [mask-image:linear-gradient(to_right,#000_84%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_84%,transparent)]">
                     {visible.map((line, i) => (
                       <TerminalLine key={i} line={line} size="text-[10px]" />
                     ))}
