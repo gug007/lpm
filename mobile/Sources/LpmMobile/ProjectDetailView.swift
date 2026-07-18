@@ -20,6 +20,7 @@ struct ProjectDetail: View {
     @State private var runConfirmFor: Action?
     @State private var pendingInputValues: [String: String] = [:]
     @State private var activeBgRun: BackgroundRunInfo?
+    @State private var logsForService: Service?
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -30,6 +31,10 @@ struct ProjectDetail: View {
     private var creating: Bool { model.creatingTerminals.contains(project.name) }
     private var actions: [Action] { live.actions.flatMap { $0.runnableLeaves } }
     private var bgRuns: [BackgroundRunInfo] { model.backgroundRunList(for: project.name) }
+    // `services` is the resolved running list; display gates on `running`.
+    private var runningServices: Set<String> {
+        live.running ? Set(live.services.map(\.name)) : []
+    }
     // Changed-file count for the Review Changes menu item; nil until the snapshot
     // loads (or when the project isn't a git repo).
     private var changedCount: Int? {

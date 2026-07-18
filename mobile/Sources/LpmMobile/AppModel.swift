@@ -785,8 +785,9 @@ final class AppModel: ObservableObject {
     /// Start/stop one service. Mirrors markRunPending: the row spins until the
     /// projects push confirms the desired state (or a timeout gives up).
     func toggleService(_ project: String, service: String) {
-        let running = projects.first(where: { $0.name == project })?
-            .services.contains(where: { $0.name == service }) ?? false
+        let proj = projects.first(where: { $0.name == project })
+        let running = (proj?.running ?? false)
+            && (proj?.services.contains(where: { $0.name == service }) ?? false)
         let desired = !running
         pendingServiceToggle[project, default: [:]][service] = desired
         DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
@@ -1567,7 +1568,7 @@ final class AppModel: ObservableObject {
             }
             for proj in p {
                 guard let pending = self.pendingServiceToggle[proj.name], !pending.isEmpty else { continue }
-                let runningNow = Set(proj.services.map(\.name))
+                let runningNow = proj.running ? Set(proj.services.map(\.name)) : []
                 for (svc, desired) in pending where runningNow.contains(svc) == desired {
                     self.pendingServiceToggle[proj.name]?[svc] = nil
                 }
