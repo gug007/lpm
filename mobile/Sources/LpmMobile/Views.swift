@@ -720,7 +720,19 @@ struct TerminalScreen: View {
                         model.claimControl(term.id)
                     }
                 }
+                // Without this the terminal just freezes silently while the link
+                // is down — keystrokes and scroll are live traffic, dropped by
+                // design, so the user needs to see WHY nothing responds.
+                if model.connection != .ready {
+                    TerminalConnectionBanner(state: model.connection) {
+                        model.retryConnection()
+                    }
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: model.connection == .ready)
             if controlled {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
                                  terminalBackground: theme.backgroundColor)
@@ -758,6 +770,42 @@ struct TerminalScreen: View {
             .toolbarBackground(theme.backgroundColor, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+}
+
+/// Floating capsule over the terminal while the Mac link is down. Keystrokes and
+/// scroll are dropped (not queued) during a gap, so this is the only signal that
+/// the frozen screen is a connection problem and not a hung app.
+struct TerminalConnectionBanner: View {
+    let state: LpmClient.State
+    let onRetry: () -> Void
+
+    private var reconnecting: Bool {
+        if case .connecting = state { return true }
+        return false
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if reconnecting {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.white)
+                Text("Reconnecting…")
+            } else {
+                Image(systemName: "wifi.slash")
+                Text("Offline")
+                Button("Retry", action: onRetry)
+                    .fontWeight(.semibold)
+            }
+        }
+        .font(.footnote)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.black.opacity(0.6), in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
+        .environment(\.colorScheme, .dark)
     }
 }
 

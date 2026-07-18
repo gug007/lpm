@@ -388,7 +388,10 @@ final class AppModel: ObservableObject {
     }
 
     func reconnectIfNeeded() {
-        if case .ready = connection { return }
+        // Even a `.ready` state can be stale after backgrounding (half-open
+        // socket) — probe it instead of trusting it, so a dead link is noticed
+        // now rather than on the next heartbeat.
+        if case .ready = connection { client?.verifyNow(); return }
         // Reuse the live client when we have one — it re-auths and re-subscribes
         // to the terminals this phone was watching. Only rebuild (and re-probe
         // for a reachable address) on a cold start with no client.
@@ -712,6 +715,10 @@ final class AppModel: ObservableObject {
         onTerminalOutput[id] = nil
         client?.unsubscribe(id)
     }
+    /// Ask the server for a fresh seed on an already-subscribed terminal — used
+    /// when the terminal web view reloads (WebContent process death) and its
+    /// emulator restarts empty. Re-sending `sub` replays the current screen.
+    func reseed(_ id: String) { client?.subscribe(id) }
     func input(_ id: String, _ data: String) { client?.sendInput(id, data) }
     func resize(_ id: String, cols: Int, rows: Int) {
         // Only the owner drives the single shared PTY size; a non-owning phone

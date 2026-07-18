@@ -71,6 +71,7 @@ struct WebTerminalView: UIViewRepresentable {
         web.scrollView.contentInsetAdjustmentBehavior = .never
         // xterm owns scrolling inside the page; the webview itself must not bounce.
         web.scrollView.isScrollEnabled = false
+        web.navigationDelegate = context.coordinator
         context.coordinator.web = web
 
         // Assets ship as a preserved "web/" folder; grant read access to the whole
@@ -117,7 +118,7 @@ struct WebTerminalView: UIViewRepresentable {
         coordinator.model?.unsubscribe(coordinator.termId)
     }
 
-    final class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         weak var model: AppModel?
         let termId: String
         weak var web: WKWebView?
@@ -220,6 +221,23 @@ struct WebTerminalView: UIViewRepresentable {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 self?.submit(prompt)
             }
+        }
+
+        /// iOS killed the WebContent process (usually memory pressure while
+        /// backgrounded). The view keeps showing its last rendered frame but all
+        /// JS — touch handlers, keystroke wiring, rendering — is gone, so without
+        /// this the terminal stays frozen until the screen is closed and reopened.
+        /// Reload the page and re-drive the ready → seed flow to self-heal.
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            ready = false
+            feedBuffer.removeAll(keepingCapacity: true)
+            pendingSeed = nil
+            lastAppliedInset = Int.min
+            lastAppliedFontSize = Int.min
+            lastAppliedThemeKey = nil
+            let dir = TerminalWebPool.webDir
+            webView.loadFileURL(dir.appendingPathComponent("terminal.html"), allowingReadAccessTo: dir)
+            model?.reseed(termId)
         }
 
         func applyTopInset(_ inset: CGFloat) {

@@ -120,8 +120,10 @@ final class LpmClient: NSObject {
     private var reconnectWork: DispatchWorkItem?
     private var connectWatchdog: DispatchWorkItem?
     private var heartbeat: DispatchSourceTimer?
+    private var probeDeadline: DispatchWorkItem?
     private let connectTimeout: TimeInterval = 10
     private let heartbeatInterval: TimeInterval = 20
+    private let probeTimeout: TimeInterval = 4
     private let baseBackoff: TimeInterval = 1.5
     private let maxBackoff: TimeInterval = 20
     // After a few quick retries fail, stop pretending and surface an honest error
@@ -172,6 +174,33 @@ final class LpmClient: NSObject {
         cancelReconnect()
         wantConnected = true
         startAttempt()
+    }
+
+    /// Foreground probe: a `.ready` state after the app was backgrounded is often
+    /// stale — iOS kills the socket within seconds, and a half-open cellular path
+    /// even accepts sends — so a plain "already ready" check would leave the UI
+    /// frozen until the next heartbeat notices. Ping now, with a short deadline of
+    /// its own (on a dead path the ping itself can hang far longer than the user
+    /// will wait), and hand a failure to the normal reconnect loop.
+    func verifyNow() {
+        guard case .ready = state, let t = task, probeDeadline == nil else { return }
+        let deadline = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.probeDeadline = nil
+            guard t === self.task else { return }
+            self.transientFailure("probe timeout")
+        }
+        probeDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + probeTimeout, execute: deadline)
+        t.sendPing { [weak self] err in
+            self?.main {
+                guard let self else { return }
+                self.probeDeadline?.cancel()
+                self.probeDeadline = nil
+                guard t === self.task else { return }
+                if err != nil { self.transientFailure("probe failed") }
+            }
+        }
     }
 
     func disconnect() {
@@ -291,6 +320,7 @@ final class LpmClient: NSObject {
 
     private func teardownTask() {
         connectWatchdog?.cancel(); connectWatchdog = nil
+        probeDeadline?.cancel(); probeDeadline = nil
         stopHeartbeat()
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
