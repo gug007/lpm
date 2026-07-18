@@ -16,6 +16,7 @@ struct GitReviewView: View {
     @State private var showPrSheet = false
     @State private var asking: AskContext?
     @State private var openTerminal: TerminalInfo?
+    @State private var isVisible = false
 
     private var name: String { project.name }
     private var snapshot: GitSnapshot? { model.gitSnapshots[name] }
@@ -78,10 +79,14 @@ struct GitReviewView: View {
                 }
             }
             .onAppear {
+                isVisible = true
                 if snapshot == nil { model.loadGit(name) }
                 model.watchGit(name)
             }
-            .onDisappear { model.unwatchGit(name) }
+            .onDisappear {
+                isVisible = false
+                model.unwatchGit(name)
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { model.refreshWatchedGit(name) }
             }
@@ -95,9 +100,12 @@ struct GitReviewView: View {
                 message = ""
                 deselected = []
             }
+            // Gated on isVisible: a terminal pushed from this screen hosts the
+            // project menu, whose git ops report into the same gitOpError slot —
+            // without the gate both screens would try to present this alert.
             .alert(
                 "Something went wrong",
-                isPresented: Binding(get: { model.gitOpError[name] != nil },
+                isPresented: Binding(get: { isVisible && model.gitOpError[name] != nil },
                                      set: { if !$0 { model.gitOpError[name] = nil } })
             ) {
                 Button("OK", role: .cancel) { model.gitOpError[name] = nil }
