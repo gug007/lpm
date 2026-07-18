@@ -15,6 +15,7 @@ export interface SyncRunResult {
   applied: number;
   pushed: number;
   errors: string[];
+  backupPath?: string;
 }
 
 const KIND_ORDER: { kind: SyncItem["kind"]; label: string }[] = [
@@ -148,6 +149,14 @@ export function SyncPreviewModal({
                   ))}
                 </ul>
               </div>
+            )}
+            {result.applied > 0 && result.backupPath && (
+              <p className="text-[11px] leading-snug text-[var(--text-muted)]">
+                A backup of this Mac's previous config was saved to{" "}
+                <span className="break-all font-mono text-[var(--text-secondary)]">
+                  {result.backupPath}
+                </span>
+              </p>
             )}
           </div>
         ) : (

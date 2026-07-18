@@ -33,7 +33,8 @@ use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
-use tungstenite::{accept, Error as WsError, Message, WebSocket};
+use tungstenite::handshake::server::{ErrorResponse, Request, Response};
+use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
 const DEFAULT_PORT: u16 = 8766; // mobile owns 8765
 const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining peer
@@ -414,7 +415,19 @@ fn accept_loop(listener: TcpListener, hub: PeerHub, app: AppHandle, generation: 
 fn accept_ws(stream: TcpStream) -> Option<WebSocket<TcpStream>> {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
-    accept(stream).ok()
+    // Refuse any handshake that carries an Origin header. The native peer client
+    // never sends one; a browser always does — so this rejects DNS-rebinding /
+    // drive-by JavaScript trying to reach the pairing endpoint on a LAN-bound
+    // socket, without affecting the real client.
+    accept_hdr(stream, |req: &Request, resp: Response| {
+        if req.headers().contains_key("origin") {
+            let mut deny = ErrorResponse::new(Some("origin not allowed".to_string()));
+            *deny.status_mut() = tungstenite::http::StatusCode::FORBIDDEN;
+            return Err(deny);
+        }
+        Ok(resp)
+    })
+    .ok()
 }
 
 fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64) {

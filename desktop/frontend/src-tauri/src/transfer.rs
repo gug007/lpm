@@ -33,6 +33,9 @@ pub(crate) const PER_MACHINE_KEYS: [&str; 6] = [
 // Hardening Go lacks: bound extraction so a crafted archive can't exhaust disk.
 const MAX_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
+// Newest pre-mutation snapshots kept; older `~/.lpm.backup-*` dirs are pruned so
+// they don't accumulate without bound.
+const BACKUP_KEEP: usize = 10;
 
 #[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -257,7 +260,39 @@ pub(crate) fn snapshot_backup() -> Result<String, String> {
         chrono::Local::now().format("%Y%m%d-%H%M%S")
     );
     snapshot_lpm(&config::lpm_dir(), Path::new(&backup))?;
+    prune_backups(BACKUP_KEEP);
     Ok(backup)
+}
+
+/// Keep only the newest `keep` `~/.lpm.backup-*` snapshots, deleting older ones.
+/// The suffix is a zero-padded timestamp, so lexical name order is chronological.
+/// Best-effort: a prune failure must never fail the sync/import that just took
+/// the backup, and only exact `.lpm.backup-*` siblings are ever touched.
+fn prune_backups(keep: usize) {
+    let lpm = config::lpm_dir();
+    let (Some(parent), Some(base)) = (lpm.parent(), lpm.file_name().and_then(|s| s.to_str())) else {
+        return;
+    };
+    let prefix = format!("{base}.backup-");
+    let Ok(entries) = std::fs::read_dir(parent) else { return };
+    let mut backups: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.is_dir()
+                && p.file_name()
+                    .and_then(|s| s.to_str())
+                    .is_some_and(|n| n.starts_with(&prefix))
+        })
+        .collect();
+    if backups.len() <= keep {
+        return;
+    }
+    backups.sort();
+    let remove = backups.len() - keep;
+    for p in backups.into_iter().take(remove) {
+        let _ = std::fs::remove_dir_all(&p);
+    }
 }
 
 pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
@@ -271,7 +306,11 @@ pub(crate) fn snapshot_lpm(src: &Path, dst: &Path) -> Result<(), String> {
         let entry = entry.map_err(|e| e.to_string())?;
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        if name_str == "lpm.sock" || name_str.ends_with(".sock") {
+        // Skip live sockets and pairing credentials: peer.json holds raw device
+        // tokens, and no snapshot_backup caller (peer sync, config import) ever
+        // mutates or restores pairing state, so it must not land in a timestamped
+        // backup dir where a stale copy would leak indefinite peer access.
+        if name_str == "lpm.sock" || name_str.ends_with(".sock") || name_str == "peer.json" {
             continue;
         }
         let sp = entry.path();

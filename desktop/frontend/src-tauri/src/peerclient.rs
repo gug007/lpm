@@ -284,6 +284,7 @@ impl PeerClientHub {
         let mut applied = 0u64;
         let mut pushed = 0u64;
         let mut errors: Vec<String> = Vec::new();
+        let mut backup_path = String::new();
 
         if !to_local.is_empty() {
             let req_items: Vec<Value> = to_local
@@ -297,7 +298,8 @@ impl PeerClientHub {
                 serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
                     .map_err(|e| format!("bad fetch reply: {e}"))?;
             match crate::transfer::snapshot_backup() {
-                Ok(_) => {
+                Ok(path) => {
+                    backup_path = path;
                     for it in &fetched {
                         match crate::peersync::apply_item(it) {
                             Ok(()) => applied += 1,
@@ -350,7 +352,7 @@ impl PeerClientHub {
             let _ = peer::save_config(&snapshot);
         }
         emit_state_changed(self);
-        Ok(json!({ "applied": applied, "pushed": pushed, "errors": errors }))
+        Ok(json!({ "applied": applied, "pushed": pushed, "errors": errors, "backupPath": backup_path }))
     }
 }
 
