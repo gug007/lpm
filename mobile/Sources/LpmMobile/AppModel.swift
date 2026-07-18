@@ -164,6 +164,10 @@ final class AppModel: ObservableObject {
     // an id outside this set means the new terminal has landed.
     private var creatingBaseline: [String: Set<String>] = [:]
     private var creatingGen: [String: Int] = [:]
+    // A pending "switch to the terminal this run spawns" watcher, keyed by project.
+    // Any newer create intent invalidates it (see markTerminalCreating) so a manual
+    // "+" terminal or a later run can't trigger a stale switch.
+    private var spawnCallbacks: [String: (TerminalInfo) -> Void] = [:]
     // project -> terminal ids with a close in flight. The row is removed
     // optimistically (the destructive swipe already animated it away) and
     // filtered from incoming lists until the desktop confirms the close, so a
@@ -597,6 +601,7 @@ final class AppModel: ObservableObject {
         creatingTerminals = []
         creatingBaseline = [:]
         creatingGen = [:]
+        spawnCallbacks = [:]
         closingTerminals = [:]
         closingGen = [:]
         gitSnapshots = [:]
@@ -893,9 +898,11 @@ final class AppModel: ObservableObject {
     }
 
     func runAction(_ project: String, action: String,
-                   inputValues: [String: String] = [:], confirmed: Bool = false) {
+                   inputValues: [String: String] = [:], confirmed: Bool = false,
+                   onSpawn: ((TerminalInfo) -> Void)? = nil) {
         client?.runAction(project: project, action: action, inputValues: inputValues, confirmed: confirmed)
         markTerminalCreating(project)
+        spawnCallbacks[project] = onSpawn
         reloadTerminalsSoon(project)
     }
 
@@ -953,6 +960,8 @@ final class AppModel: ObservableObject {
     /// list one last time so the screen converges to the Mac's truth instead of
     /// going stale-empty.
     private func markTerminalCreating(_ project: String) {
+        // A newer create intent invalidates any pending spawn-switch watcher.
+        spawnCallbacks[project] = nil
         creatingBaseline[project] = Set(terminals[project]?.map(\.id) ?? [])
         creatingTerminals.insert(project)
         let gen = (creatingGen[project] ?? 0) + 1
@@ -961,6 +970,7 @@ final class AppModel: ObservableObject {
             guard let self, self.creatingGen[project] == gen else { return }
             self.creatingTerminals.remove(project)
             self.creatingBaseline[project] = nil
+            self.spawnCallbacks[project] = nil
             self.loadTerminals(project)
         }
     }
@@ -1607,8 +1617,13 @@ final class AppModel: ObservableObject {
             }
             self.terminals[proj] = list
             if let base = self.creatingBaseline[proj], list.contains(where: { !base.contains($0.id) }) {
+                let fresh = list.first(where: { !base.contains($0.id) })
                 self.creatingBaseline[proj] = nil
                 self.creatingTerminals.remove(proj)
+                if let cb = self.spawnCallbacks[proj], let fresh {
+                    cb(fresh)
+                    self.spawnCallbacks[proj] = nil
+                }
             }
         }
         c.onSlash = { [weak self] id, cmds in self?.slashCommands[id] = cmds }
@@ -1675,6 +1690,7 @@ final class AppModel: ObservableObject {
             guard let self else { return }
             self.creatingBaseline[proj] = nil
             self.creatingTerminals.remove(proj)
+            self.spawnCallbacks[proj] = nil
             self.actionError = message
         }
         c.onDuplicateDefaults = { [weak self] excl, reinstall, pull in

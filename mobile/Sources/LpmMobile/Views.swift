@@ -689,7 +689,8 @@ struct TerminalScreen: View {
     @StateObject private var keyboard = KeyboardObserver()
     // Flips when the first screen snapshot renders, hiding the loading spinner.
     @State private var hasContent = false
-    @State private var showSettings = false
+    // A terminal spawned by running an action from this screen — pushed on top.
+    @State private var switched: TerminalInfo?
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
@@ -747,17 +748,14 @@ struct TerminalScreen: View {
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
-            .projectMenuToolbar(project: liveProject) {
-                Divider()
-                Button {
-                    showSettings = true
-                } label: {
-                    Label("Terminal Settings", systemImage: "textformat.size")
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                TerminalSettingsSheet()
-            }
+            .projectMenuToolbar(project: liveProject, onSpawnedTerminal: { t in
+                // The new terminal is owned by the desktop that opened it; claim it
+                // for this phone before pushing so the pushed screen renders live
+                // instead of a "take control" placeholder.
+                model.claimControl(t.id)
+                switched = t
+            })
+            .navigationDestination(item: $switched) { TerminalScreen(term: $0, project: liveProject) }
             // Fallback: never leave the spinner up if no snapshot ever arrives
             // (e.g. the link drops mid-open).
             .task {

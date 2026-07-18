@@ -4,7 +4,7 @@ import UIKit
 /// The project's control menu in the nav bar: a single "more" button whose native
 /// menu holds Start/Stop, the run-actions submenu, and (when present) profiles.
 /// Per-service display and toggles live in the list's Services section.
-struct ProjectRunControl<ExtraItems: View>: View {
+struct ProjectRunControl: View {
     @EnvironmentObject var model: AppModel
     let project: Project
     let pending: Bool
@@ -17,7 +17,7 @@ struct ProjectRunControl<ExtraItems: View>: View {
     let onSwitchBranch: () -> Void
     let onCreatePr: () -> Void
     let onDiscard: () -> Void
-    @ViewBuilder let extraItems: () -> ExtraItems
+    let onTerminalSettings: () -> Void
 
     private var running: Bool { project.running }
 
@@ -64,7 +64,10 @@ struct ProjectRunControl<ExtraItems: View>: View {
                 }
             }
 
-            extraItems()
+            Divider()
+            Button(action: onTerminalSettings) {
+                Label("Terminal Settings", systemImage: "textformat.size")
+            }
         } label: {
             if pending {
                 ProgressView()
@@ -138,15 +141,18 @@ struct ProjectRunControl<ExtraItems: View>: View {
 /// Hosts the project "more" menu on any screen: the toolbar button plus every
 /// presentation its items drive (review push, git sheets, discard dialog,
 /// action run flow, background-run sheet).
-struct ProjectMenuHost<ExtraItems: View>: ViewModifier {
+struct ProjectMenuHost: ViewModifier {
     @EnvironmentObject var model: AppModel
     let project: Project
-    @ViewBuilder let extraItems: () -> ExtraItems
+    // Set only by TerminalScreen: run a terminal action and switch to the terminal
+    // it spawns. nil on other screens (ProjectDetail keeps its skeleton-row flow).
+    let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
     @State private var showChanges = false
     @State private var showBranchSheet = false
     @State private var showPrSheet = false
     @State private var confirmingDiscard = false
+    @State private var showTerminalSettings = false
     // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
     @State private var runInputsFor: Action?
     @State private var runConfirmFor: Action?
@@ -214,6 +220,7 @@ struct ProjectMenuHost<ExtraItems: View>: ViewModifier {
             .sheet(item: $activeBgRun) { run in
                 BackgroundRunSheet(run: run).environmentObject(model)
             }
+            .sheet(isPresented: $showTerminalSettings) { TerminalSettingsSheet() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProjectRunControl(project: project,
@@ -227,7 +234,7 @@ struct ProjectMenuHost<ExtraItems: View>: ViewModifier {
                                       onSwitchBranch: { showBranchSheet = true },
                                       onCreatePr: { showPrSheet = true },
                                       onDiscard: { confirmingDiscard = true },
-                                      extraItems: extraItems)
+                                      onTerminalSettings: { showTerminalSettings = true })
                         .environmentObject(model)
                 }
             }
@@ -273,18 +280,15 @@ struct ProjectMenuHost<ExtraItems: View>: ViewModifier {
             if deferred { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: present) }
             else { present() }
         } else {
-            model.runAction(project.name, action: action.name, inputValues: inputValues, confirmed: true)
+            model.runAction(project.name, action: action.name, inputValues: inputValues,
+                            confirmed: true, onSpawn: onSpawnedTerminal)
         }
     }
 }
 
 extension View {
-    func projectMenuToolbar(project: Project) -> some View {
-        modifier(ProjectMenuHost(project: project, extraItems: { EmptyView() }))
-    }
-
-    func projectMenuToolbar<Extra: View>(project: Project,
-                                         @ViewBuilder extraItems: @escaping () -> Extra) -> some View {
-        modifier(ProjectMenuHost(project: project, extraItems: extraItems))
+    func projectMenuToolbar(project: Project,
+                            onSpawnedTerminal: ((TerminalInfo) -> Void)? = nil) -> some View {
+        modifier(ProjectMenuHost(project: project, onSpawnedTerminal: onSpawnedTerminal))
     }
 }
