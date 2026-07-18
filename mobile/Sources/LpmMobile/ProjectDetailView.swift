@@ -11,14 +11,6 @@ struct ProjectDetail: View {
     @State private var renaming: TerminalInfo?
     @State private var renameText = ""
     @State private var openTerminal: TerminalInfo?
-    @State private var showChanges = false
-    @State private var showBranchSheet = false
-    @State private var showPrSheet = false
-    @State private var confirmingDiscard = false
-    // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
-    @State private var runInputsFor: Action?
-    @State private var runConfirmFor: Action?
-    @State private var pendingInputValues: [String: String] = [:]
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
 
@@ -34,12 +26,6 @@ struct ProjectDetail: View {
     // `services` is the resolved running list; display gates on `running`.
     private var runningServices: Set<String> {
         live.running ? Set(live.services.map(\.name)) : []
-    }
-    // Changed-file count for the Review Changes menu item; nil until the snapshot
-    // loads (or when the project isn't a git repo).
-    private var changedCount: Int? {
-        guard let s = model.gitSnapshots[project.name], s.isRepo else { return nil }
-        return s.files.count
     }
 
     var body: some View {
