@@ -23,7 +23,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.
 - `lpm service <name> start|stop|restart [-p proj]` — one service.
 - `lpm wait [project] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits for the project's agents to settle.
-- `lpm duplicate [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — clone into parallel copies; repeated labels apply to copies in creation order, using `<project-name>-<short-description>` labels such as `lpm-fix-auth`. Output lists each copy's path. By default the app's duplicate setting decides whether uncommitted changes are copied; the two flags override it for this run.
+- `lpm duplicate [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — clone into parallel copies. Always pass a `--label` describing the copy's purpose so it's identifiable in the app — one repeated `--label` per copy in creation order, `<project-name>-<short-description>` style such as `lpm-fix-auth`. Only omit it when you genuinely can't infer a purpose. Output lists each copy's path. By default the app's duplicate setting decides whether uncommitted changes are copied; the two flags override it for this run.
 - `lpm remove <copy-name>` — duplicates only; originals need `--force` (don't use `--force` unless the user explicitly asks).
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
@@ -37,6 +37,6 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 
 ### Fan-out (parallel agents)
 
-`lpm duplicate -n 3 --run <action> --prompt "..."` clones the project into 3 auto-named copies and queues the task in each. Then, per copy: `lpm wait --agent -p <copy>` until it settles, review its work at the printed path (e.g. `git diff` there), and `lpm remove <copy>`.
+`lpm duplicate -n 3 --label <proj>-<purpose> --label <proj>-<purpose> --label <proj>-<purpose> --run <action> --prompt "..."` clones the project into 3 labeled copies and queues the task in each. Then, per copy: `lpm wait --agent -p <copy>` until it settles, review its work at the printed path (e.g. `git diff` there), and `lpm remove <copy>`.
 
 To create or edit project configs (services/actions/YAML), use the `lpm-config` skill.
