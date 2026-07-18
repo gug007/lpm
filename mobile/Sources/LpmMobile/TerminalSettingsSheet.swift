@@ -20,7 +20,7 @@ struct TerminalSettingsControls: View {
                     .monospacedDigit()
             }
         }
-        Picker("Theme", selection: $themeRaw) {
+        Picker("Color scheme", selection: $themeRaw) {
             ForEach(TerminalTheme.allCases) { t in
                 Text(t.label).tag(t.rawValue)
             }
