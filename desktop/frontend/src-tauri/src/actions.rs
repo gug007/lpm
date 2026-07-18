@@ -336,21 +336,31 @@ pub fn run_action_background(
     // resolve/spawn fails before any output is produced. The entry is retained
     // after completion — its terminal status is stamped in below and it's dropped
     // later by reap_stale_runs — so a final poll can read success/error.
+    // A live entry under the same id is a caller bug: merging would interleave
+    // two processes' output in one buffer and leave cancel with a single pid, so
+    // refuse. A retained finished entry is stale — replace it like the pre-TTL
+    // `.insert()` did, else the new run would inherit its terminal status.
     {
         let mut runs = background_runs().lock().unwrap();
         reap_stale_runs(&mut runs);
-        runs.entry(run_id.clone()).or_insert_with(|| BackgroundRun {
-            pid: 0,
-            cancelled: false,
-            project: project_name.clone(),
-            label: action_name.clone(),
-            started_at: now_secs(),
-            output: String::new(),
-            running: true,
-            success: false,
-            error: String::new(),
-            done_at: 0,
-        });
+        if runs.get(&run_id).map(|r| r.running).unwrap_or(false) {
+            return Err(format!("background run {run_id:?} is already running"));
+        }
+        runs.insert(
+            run_id.clone(),
+            BackgroundRun {
+                pid: 0,
+                cancelled: false,
+                project: project_name.clone(),
+                label: action_name.clone(),
+                started_at: now_secs(),
+                output: String::new(),
+                running: true,
+                success: false,
+                error: String::new(),
+                done_at: 0,
+            },
+        );
     }
 
     let result = run_action_background_inner(&app, &project_name, &action_name, &input_values, &run_id);
@@ -402,13 +412,38 @@ fn run_action_background_inner(
             Ok(())
         });
     }
+    // The run is registered (pid 0) before resolve, so a cancel can land while we
+    // are still here — honor it instead of launching a process the cancel's
+    // `pid > 0` guard could no longer reach.
+    if background_runs()
+        .lock()
+        .unwrap()
+        .get(run_id)
+        .map(|r| r.cancelled)
+        .unwrap_or(false)
+    {
+        return Err(CANCELLED_ERR.into());
+    }
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
     let stdout = child
         .stdout
         .take()
         .ok_or("failed to capture action output")?;
-    if let Some(r) = background_runs().lock().unwrap().get_mut(run_id) {
-        r.pid = child.id() as i32;
+    // Publish the pid and, under the same lock, catch a cancel that slipped in
+    // between the check above and the spawn — the canceller saw pid 0 and
+    // couldn't kill, so it's on us to reap the tree now.
+    let cancelled_during_spawn = {
+        let mut runs = background_runs().lock().unwrap();
+        match runs.get_mut(run_id) {
+            Some(r) => {
+                r.pid = child.id() as i32;
+                r.cancelled
+            }
+            None => false,
+        }
+    };
+    if cancelled_during_spawn {
+        proctree::kill_tree_async(child.id() as i32);
     }
 
     // Stream lines so the run toast can preview output live and the phone poll can

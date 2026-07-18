@@ -904,6 +904,19 @@ final class AppModel: ObservableObject {
             .filter { $0.project == project }
             .sorted { $0.startedAt > $1.startedAt }
     }
+
+    /// Drop a run the Mac no longer knows, except: a run started <10s ago with no
+    /// snapshot yet may simply not be registered there yet (the start message spawns
+    /// a worker thread), and a failed-to-start run keeps its error visible.
+    private func pruneBackgroundRun(_ runId: String) {
+        if backgroundRunErrors[runId] != nil { return }
+        if let info = backgroundRunInfo[runId], backgroundRuns[runId] == nil,
+           Int(Date().timeIntervalSince1970) - info.startedAt < 10 {
+            return
+        }
+        backgroundRunInfo[runId] = nil
+        backgroundRuns[runId] = nil
+    }
     func newTerminal(_ project: String) {
         client?.newTerminal(project: project)
         markTerminalCreating(project)
@@ -1825,7 +1838,14 @@ final class AppModel: ObservableObject {
         }
         c.onActionBgOutput = { [weak self] runId, snapshot in
             guard let self else { return }
-            guard let snapshot else { return } // reaped — keep the last known snapshot
+            guard let snapshot else {
+                // found:false — the run was reaped on the Mac (or never existed).
+                // Keeping stale state would leave the row spinning on "Running" and
+                // re-polled forever, so drop the run. A just-started run whose first
+                // poll raced the Mac-side registration gets a grace window instead.
+                self.pruneBackgroundRun(runId)
+                return
+            }
             self.backgroundRuns[runId] = snapshot
             if self.backgroundRunInfo[runId] == nil {
                 self.backgroundRunInfo[runId] = BackgroundRunInfo(
@@ -1838,6 +1858,14 @@ final class AppModel: ObservableObject {
         }
         c.onBackgroundRuns = { [weak self] project, runs in
             guard let self else { return }
+            // The Mac's list is authoritative (running + finished within the TTL):
+            // anything of ours it no longer carries has been reaped, so prune it —
+            // this also bounds the section across a long session.
+            let listed = Set(runs.map(\.runId))
+            for (id, info) in self.backgroundRunInfo
+            where info.project == project && !listed.contains(id) {
+                self.pruneBackgroundRun(id)
+            }
             for r in runs where self.backgroundRunInfo[r.runId] == nil {
                 self.backgroundRunInfo[r.runId] = BackgroundRunInfo(
                     runId: r.runId, project: project, label: r.label, startedAt: r.startedAt)

@@ -11,9 +11,11 @@ struct BackgroundRunSheet: View {
 
     private var snapshot: ActionBgOutput? { model.backgroundRuns[run.runId] }
     private var startError: String? { model.backgroundRunErrors[run.runId] }
+    // The model pruned the run (the Mac reaped it) — terminal, stop polling.
+    private var reaped: Bool { model.backgroundRunInfo[run.runId] == nil }
     // Until the first poll returns (snapshot nil) a just-started run is treated as
-    // running so the poll loop kicks in; a rejected start is terminal.
-    private var running: Bool { startError == nil && (snapshot?.running ?? true) }
+    // running so the poll loop kicks in; a rejected start or a reap is terminal.
+    private var running: Bool { startError == nil && !reaped && (snapshot?.running ?? true) }
     private var text: String { snapshot?.text ?? "" }
 
     var body: some View {
@@ -83,15 +85,15 @@ struct BackgroundRunSheet: View {
 
     private var statusColor: Color {
         if startError != nil { return .red }
-        guard let s = snapshot else { return .blue }
-        if s.running { return .blue }
+        guard let s = snapshot else { return reaped ? .secondary : .blue }
+        if s.running { return reaped ? .secondary : .blue }
         if s.error == "cancelled" { return .orange }
         return s.success ? .green : .red
     }
     private var statusText: String {
         if let startError { return startError }
-        guard let s = snapshot else { return "Starting…" }
-        if s.running { return "Running" }
+        guard let s = snapshot else { return reaped ? "This run is no longer available." : "Starting…" }
+        if s.running { return reaped ? "This run is no longer available." : "Running" }
         if s.error == "cancelled" { return "Stopped" }
         if !s.success { return s.error.isEmpty ? "Failed" : s.error }
         return "Done"

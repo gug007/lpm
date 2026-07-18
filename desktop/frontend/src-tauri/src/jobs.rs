@@ -1625,7 +1625,12 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 let target2 = target.to_string();
                 let id2 = id.clone();
                 std::thread::spawn(move || {
-                    let run_id = format!("job-{}", now_secs());
+                    // now_secs() alone collides when two action jobs fire in the same
+                    // wall-clock second; a colliding id would merge both runs in the
+                    // background registry. A process-wide counter keeps ids distinct.
+                    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let run_id = format!("job-{}-{}", now_secs(), seq);
                     let _ = crate::actions::run_action_background(
                         app2,
                         target2,

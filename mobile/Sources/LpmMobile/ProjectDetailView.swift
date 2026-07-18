@@ -237,7 +237,14 @@ struct ProjectDetail: View {
         dispatch(action, inputValues: [:], deferred: false)
     }
     private func afterInputs(_ action: Action, _ values: [String: String]) {
-        if action.confirm { pendingInputValues = values; runConfirmFor = action; return }
+        if action.confirm {
+            pendingInputValues = values
+            // The inputs sheet is dismissing in this same update; presenting the
+            // alert now can be swallowed (one presentation at a time), so let the
+            // sheet settle first — same guard as dispatch(deferred:).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { runConfirmFor = action }
+            return
+        }
         dispatch(action, inputValues: values, deferred: true)
     }
     private func runConfirmed(_ action: Action) {
