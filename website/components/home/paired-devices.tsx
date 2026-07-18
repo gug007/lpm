@@ -353,22 +353,36 @@ export function PairedDevices() {
             </div>
           </div>
 
-          {/* Sync spine — whisper-quiet mirror link */}
-          <div className="relative h-10 w-px sm:hidden">
-            <div className="absolute inset-y-0 left-0 border-l border-dashed border-gray-300 dark:border-[#333]" />
-          </div>
-          <div className="relative z-10 hidden h-72 w-28 shrink-0 sm:block">
-            <div className="absolute left-0 right-0 top-1/2 h-px border-t border-dashed border-gray-300 dark:border-[#333]" />
+          {/* Sync link — glassy badge on a gradient line with comet streaks */}
+          <div className="relative flex h-20 w-full flex-col items-center justify-center overflow-hidden sm:hidden">
+            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-gray-300 to-transparent dark:via-[#3a3a3c]" />
             {!reduced && (
               <>
-                <span className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-emerald-400/90 shadow-[0_0_6px_rgba(16,185,129,0.7)] [animation:pd-spine-right_2.8s_ease-in-out_infinite]" />
-                <span className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-emerald-400/50 [animation:pd-spine-left_2.8s_ease-in-out_infinite]" />
+                <span className="absolute left-1/2 h-5 w-px -translate-x-1/2 rounded-full bg-gradient-to-b from-transparent to-emerald-400 [animation:pd-spine-down_2.4s_ease-in-out_infinite]" />
+                <span className="absolute left-1/2 h-5 w-px -translate-x-1/2 rounded-full bg-gradient-to-t from-transparent to-emerald-400/70 [animation:pd-spine-up_2.4s_ease-in-out_infinite]" />
               </>
             )}
-            <div className="absolute left-1/2 top-1/2 z-10 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg border border-gray-200 bg-white shadow-sm dark:border-[#2e2e2e] dark:bg-[#1a1a1a]">
+            <div className="relative z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200/80 bg-white/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#1a1a1a]/90">
               <MonitorSmartphone className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#111]" />
             </div>
-            <span className="absolute left-1/2 top-1/2 mt-7 -translate-x-1/2 whitespace-nowrap text-[8px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+            <span className="relative z-10 mt-1 rounded-full bg-white/90 px-1.5 text-[9px] font-medium text-gray-400 backdrop-blur dark:bg-[#111]/90 dark:text-gray-500">
+              Mirrored live
+            </span>
+          </div>
+          <div className="relative z-10 hidden h-72 w-36 shrink-0 overflow-hidden sm:block">
+            <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent dark:via-[#3a3a3c]" />
+            {!reduced && (
+              <>
+                <span className="absolute top-1/2 h-px w-8 -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent to-emerald-400 [animation:pd-spine-right_2.4s_ease-in-out_infinite]" />
+                <span className="absolute top-1/2 h-px w-8 -translate-y-1/2 rounded-full bg-gradient-to-l from-transparent to-emerald-400/70 [animation:pd-spine-left_2.4s_ease-in-out_infinite]" />
+              </>
+            )}
+            <div className="absolute left-1/2 top-1/2 z-10 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200/80 bg-white/90 shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#1a1a1a]/90">
+              <MonitorSmartphone className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-white dark:ring-[#111]" />
+            </div>
+            <span className="absolute left-1/2 top-1/2 z-10 mt-7 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium text-gray-400 dark:text-gray-500">
               Mirrored live
             </span>
           </div>

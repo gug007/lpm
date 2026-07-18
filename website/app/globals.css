@@ -234,6 +234,34 @@ body {
   }
 }
 
+@keyframes pd-spine-down {
+  0% {
+    top: 8%;
+    opacity: 0;
+  }
+  12%, 88% {
+    opacity: 1;
+  }
+  100% {
+    top: 92%;
+    opacity: 0;
+  }
+}
+
+@keyframes pd-spine-up {
+  0% {
+    top: 92%;
+    opacity: 0;
+  }
+  12%, 88% {
+    opacity: 1;
+  }
+  100% {
+    top: 8%;
+    opacity: 0;
+  }
+}
+
 @keyframes pd-spine-right {
   0% {
     left: 8%;
