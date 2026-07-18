@@ -8,30 +8,20 @@
 // harmless.
 use crate::{config, peersync};
 use std::path::{Component, Path, PathBuf};
-use std::sync::mpsc::{sync_channel, RecvTimeoutError, SyncSender};
+use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
 const SETTLE: Duration = Duration::from_millis(500);
 
-// Top-level ~/.lpm files that map to the projects category. Everything else at the
-// top level (message-history.db, peer.json, lpm.sock, temp files, …) is ignored.
-const TOP_LEVEL_ALLOW: [&str; 8] = [
-    "global.yml",
-    "settings.json",
-    "groups.json",
-    "composer-actions.json",
-    "generators.json",
-    "commit-instructions.txt",
-    "pr-title-instructions.txt",
-    "pr-description-instructions.txt",
-];
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Category {
     Projects,
     Templates,
+    // settings.json under ~/.lpm: a projects-category file, but its writes are
+    // gated on a real portable-digest change (window drags rewrite it constantly).
+    Settings,
 }
 
 #[derive(Default)]
@@ -41,8 +31,9 @@ struct Dirty {
 }
 
 /// Map a filesystem event path to the config category it affects, or `None` when
-/// the path is outside the watched surface. Pure over `lpm` (the ~/.lpm root) and
-/// the event path so it can be unit-tested without touching the filesystem.
+/// the path is outside the watched surface. The global file/dir lists come from
+/// peersync so this can't drift from what config sync actually mirrors. Pure over
+/// `lpm` and the event path so it can be unit-tested without the filesystem.
 fn classify(lpm: &Path, path: &Path) -> Option<Category> {
     let rel = path.strip_prefix(lpm).ok()?;
     let segs: Vec<&str> = rel
@@ -53,29 +44,24 @@ fn classify(lpm: &Path, path: &Path) -> Option<Category> {
         })
         .collect();
     match segs.as_slice() {
-        [name] => TOP_LEVEL_ALLOW.contains(name).then_some(Category::Projects),
+        [name] if *name == "settings.json" => Some(Category::Settings),
+        [name] => peersync::GLOBAL_FILES
+            .contains(name)
+            .then_some(Category::Projects),
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
-        ["generator-icons", ..] => Some(Category::Projects),
-        ["zdotdir", ..] => Some(Category::Projects),
+        [dir, ..] if peersync::GLOBAL_DIRS.contains(dir) => Some(Category::Projects),
         _ => None,
     }
 }
 
-fn is_top_level_settings(lpm: &Path, path: &Path) -> bool {
-    path.parent() == Some(lpm) && path.file_name().and_then(|n| n.to_str()) == Some("settings.json")
-}
-
 /// Whether a settings.json event changed portable content. `prev`/`new` are the
 /// cached and freshly computed portable digests (`None` = file unreadable/absent
-/// or un-parseable). Repeated read failures must not emit — only a real transition
-/// counts. The caller updates the cache to `new` regardless of the result.
+/// or un-parseable), so a repeated read failure (`None`→`None`) is correctly no
+/// change while a real `Some`→`None` transition is. The caller updates the cache
+/// to `new` regardless of the result.
 fn settings_changed(prev: Option<&str>, new: Option<&str>) -> bool {
-    match (prev, new) {
-        (_, Some(n)) => prev != Some(n),
-        (Some(_), None) => true,
-        (None, None) => false,
-    }
+    prev != new
 }
 
 fn portable_settings_digest(path: &Path) -> Option<String> {
@@ -86,14 +72,10 @@ fn portable_settings_digest(path: &Path) -> Option<String> {
 /// socketsrv::start — the app still runs, external edits just won't propagate.
 pub fn start(app: AppHandle) {
     let lpm = config::lpm_dir();
-    for dir in [
-        lpm.clone(),
-        config::projects_dir(),
-        config::templates_dir(),
-        lpm.join("generator-icons"),
-        lpm.join("zdotdir"),
-    ] {
-        if let Err(e) = std::fs::create_dir_all(&dir) {
+    let mut dirs = vec![lpm.clone(), config::projects_dir(), config::templates_dir()];
+    dirs.extend(peersync::GLOBAL_DIRS.iter().map(|d| lpm.join(d)));
+    for dir in &dirs {
+        if let Err(e) = std::fs::create_dir_all(dir) {
             eprintln!(
                 "warning: config watcher could not create {}: {e}",
                 dir.display()
@@ -105,42 +87,37 @@ pub fn start(app: AppHandle) {
     // FSEvents delivers canonical absolute paths; canonicalize the root so
     // strip_prefix matches (mirrors git.rs).
     let root = std::fs::canonicalize(&lpm).unwrap_or(lpm);
-    let settings_cache = Arc::new(Mutex::new(portable_settings_digest(
-        &root.join("settings.json"),
-    )));
     let dirty = Arc::new(Mutex::new(Dirty::default()));
     let (tx, rx) = sync_channel::<()>(1);
 
+    // The callback is the sole owner of the settings-digest cache, so a captured
+    // mutable local (recommended_watcher takes an FnMut) suffices — no Arc/Mutex.
     let cb_root = root.clone();
     let cb_dirty = dirty.clone();
-    let cb_cache = settings_cache.clone();
-    let cb_tx: SyncSender<()> = tx.clone();
+    let mut settings_cache = portable_settings_digest(&root.join("settings.json"));
     let mut watcher =
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
-            let mut woke = false;
+            let (mut projects, mut templates) = (false, false);
             for p in &ev.paths {
-                let Some(cat) = classify(&cb_root, p) else {
-                    continue;
-                };
-                if is_top_level_settings(&cb_root, p) {
-                    let new = portable_settings_digest(p);
-                    let mut cache = cb_cache.lock().unwrap();
-                    let changed = settings_changed(cache.as_deref(), new.as_deref());
-                    *cache = new;
-                    if !changed {
-                        continue;
+                match classify(&cb_root, p) {
+                    Some(Category::Projects) => projects = true,
+                    Some(Category::Templates) => templates = true,
+                    Some(Category::Settings) => {
+                        let new = portable_settings_digest(p);
+                        if settings_changed(settings_cache.as_deref(), new.as_deref()) {
+                            projects = true;
+                        }
+                        settings_cache = new;
                     }
+                    None => {}
                 }
-                let mut d = cb_dirty.lock().unwrap();
-                match cat {
-                    Category::Projects => d.projects = true,
-                    Category::Templates => d.templates = true,
-                }
-                woke = true;
             }
-            if woke {
-                let _ = cb_tx.try_send(());
+            if projects || templates {
+                let mut d = cb_dirty.lock().unwrap();
+                d.projects |= projects;
+                d.templates |= templates;
+                let _ = tx.try_send(());
             }
         }) {
             Ok(w) => w,
@@ -151,13 +128,16 @@ pub fn start(app: AppHandle) {
         };
 
     use notify::{RecursiveMode, Watcher};
-    let watches: [(PathBuf, RecursiveMode); 5] = [
+    let mut watches: Vec<(PathBuf, RecursiveMode)> = vec![
         (root.clone(), RecursiveMode::NonRecursive),
         (root.join("projects"), RecursiveMode::NonRecursive),
         (root.join("templates"), RecursiveMode::Recursive),
-        (root.join("generator-icons"), RecursiveMode::Recursive),
-        (root.join("zdotdir"), RecursiveMode::Recursive),
     ];
+    watches.extend(
+        peersync::GLOBAL_DIRS
+            .iter()
+            .map(|d| (root.join(d), RecursiveMode::Recursive)),
+    );
     for (path, mode) in &watches {
         if let Err(e) = watcher.watch(path, *mode) {
             eprintln!(
@@ -217,15 +197,26 @@ mod tests {
             Some(Category::Projects)
         );
         assert_eq!(
-            classify(&lpm(), &at("settings.json")),
-            Some(Category::Projects)
-        );
-        assert_eq!(
             classify(&lpm(), &at("groups.json")),
             Some(Category::Projects)
         );
         assert_eq!(
             classify(&lpm(), &at("commit-instructions.txt")),
+            Some(Category::Projects)
+        );
+    }
+
+    #[test]
+    fn top_level_settings_is_its_own_category() {
+        // settings.json is gated on a portable-digest change, so it classifies
+        // distinctly from the byte-replace global files; a nested settings.json
+        // (e.g. under a synced dir) is not the gated top-level one.
+        assert_eq!(
+            classify(&lpm(), &at("settings.json")),
+            Some(Category::Settings)
+        );
+        assert_eq!(
+            classify(&lpm(), &at("generator-icons/settings.json")),
             Some(Category::Projects)
         );
     }

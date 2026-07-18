@@ -27,7 +27,7 @@ const PROJECT_LOCAL_KEYS: [&str; 4] = ["root", "ssh", "claudeAccount", "parent_n
 
 /// Whole-file global config units under ~/.lpm (settings.json gets a special
 /// digest + merge; the rest are byte-identical replace, newest wins).
-const GLOBAL_FILES: [&str; 8] = [
+pub(crate) const GLOBAL_FILES: [&str; 8] = [
     "global.yml",
     "settings.json",
     "groups.json",
@@ -40,7 +40,7 @@ const GLOBAL_FILES: [&str; 8] = [
 
 /// Global config directories synced file-by-file (each file is its own unit,
 /// keyed by its `<dir>/<name>` path relative to ~/.lpm).
-const GLOBAL_DIRS: [&str; 2] = ["generator-icons", "zdotdir"];
+pub(crate) const GLOBAL_DIRS: [&str; 2] = ["generator-icons", "zdotdir"];
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ItemDigest {
