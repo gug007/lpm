@@ -1,10 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// A project's screen: the project's open terminals as a native inset-grouped
-/// list, with a nav-bar "+" for new terminals and a "more" menu for Start/Stop,
-/// actions, and services. Terminal tab actions (Pin / Rename / Close) live on
-/// native swipe gestures.
+/// A project's screen: the project's open terminals, services, and background
+/// runs as a native list, with a nav-bar "+" for new terminals and a "more" menu
+/// for Start/Stop and actions. Terminal tab actions (Pin / Rename / Close) live
+/// on native swipe gestures.
 struct ProjectDetail: View {
     @EnvironmentObject var model: AppModel
     let project: Project
@@ -94,6 +94,22 @@ struct ProjectDetail: View {
                 }
             }
 
+            if !live.allServices.isEmpty {
+                Section {
+                    ForEach(live.allServices) { s in
+                        ServiceRow(service: s,
+                                   running: runningServices.contains(s.name),
+                                   pending: model.pendingServiceToggle[project.name]?[s.name] != nil,
+                                   onToggle: { model.toggleService(live.name, service: s.name) })
+                            .terminalRowChrome()
+                            .contentShape(Rectangle())
+                            .onTapGesture { logsForService = s }
+                    }
+                } header: {
+                    Text("Services")
+                }
+            }
+
             if !bgRuns.isEmpty {
                 Section {
                     ForEach(bgRuns) { run in
@@ -115,7 +131,8 @@ struct ProjectDetail: View {
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.
         .overlay {
-            if terminalsLoaded && terminals.isEmpty && !creating {
+            if terminalsLoaded && terminals.isEmpty && !creating
+                && live.allServices.isEmpty && bgRuns.isEmpty {
                 EmptyTerminalsView(onNew: { model.newTerminal(project.name) })
             }
         }
@@ -178,6 +195,9 @@ struct ProjectDetail: View {
         .sheet(item: $activeBgRun) { run in
             BackgroundRunSheet(run: run).environmentObject(model)
         }
+        .sheet(item: $logsForService) { s in
+            ServiceLogsSheet(project: live.name, service: s).environmentObject(model)
+        }
         .alert(
             runConfirmFor.map { "Run \($0.label)?" } ?? "Run action?",
             isPresented: Binding(
@@ -197,7 +217,6 @@ struct ProjectDetail: View {
                                   changedCount: changedCount,
                                   onStart: { profile in model.startProject(live, profile: profile) },
                                   onStop: { model.stopProject(live) },
-                                  onToggleService: { model.toggleService(live.name, service: $0) },
                                   onRunAction: { beginRun($0) },
                                   onReviewChanges: { showChanges = true },
                                   onSwitchBranch: { showBranchSheet = true },
@@ -298,6 +317,53 @@ private extension View {
     }
 }
 
+/// One configured service: name, port, and a live status dot, tappable to open
+/// its logs sheet, with a trailing start/stop control (spinning while a toggle
+/// is in flight).
+private struct ServiceRow: View {
+    let service: Service
+    let running: Bool
+    let pending: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "server.rack")
+                .font(.system(size: 15))
+                .foregroundStyle(running ? AnyShapeStyle(.green) : AnyShapeStyle(.secondary))
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(service.name).font(.body.weight(.medium)).lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(running ? Color.green : Color(.systemGray3))
+                        .frame(width: 6, height: 6)
+                    Text(running ? "Running" : "Stopped")
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if service.port > 0 {
+                        Text(":\(String(service.port))")
+                            .font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            Spacer(minLength: 4)
+            if pending {
+                ProgressView().controlSize(.small)
+            } else {
+                Button(action: onToggle) {
+                    Image(systemName: running ? "stop.fill" : "play.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(running ? Color.red : Color.green)
+                        .frame(width: 32, height: 32)
+                        .background(Color(.tertiarySystemFill), in: Circle())
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(.vertical, 3)
+    }
+}
+
 /// A row in the project's background-runs section: the action label plus a live
 /// status dot, tappable to reopen the run's log sheet.
 private struct BackgroundRunRow: View {
@@ -367,8 +433,8 @@ private struct TabsSectionHeader: View {
 }
 
 /// The project's control menu in the nav bar: a single "more" button whose native
-/// menu holds Start/Stop, the run-actions submenu, and (when present) profiles and
-/// per-service toggles.
+/// menu holds Start/Stop, the run-actions submenu, and (when present) profiles.
+/// Per-service display and toggles live in the list's Services section.
 private struct ProjectRunControl: View {
     @EnvironmentObject var model: AppModel
     let project: Project
@@ -377,7 +443,6 @@ private struct ProjectRunControl: View {
     let changedCount: Int?
     let onStart: (_ profile: String) -> Void
     let onStop: () -> Void
-    let onToggleService: (_ service: String) -> Void
     let onRunAction: (_ action: Action) -> Void
     let onReviewChanges: () -> Void
     let onSwitchBranch: () -> Void
@@ -385,7 +450,6 @@ private struct ProjectRunControl: View {
     let onDiscard: () -> Void
 
     private var running: Bool { project.running }
-    private var runningServices: Set<String> { Set(project.services.map(\.name)) }
 
     private var name: String { project.name }
     private var pulling: Bool { model.gitPulling.contains(name) }
@@ -426,13 +490,6 @@ private struct ProjectRunControl: View {
                 Section("Profiles") {
                     ForEach(project.profiles) { p in
                         Button { onStart(p.name) } label: { profileLabel(p) }
-                    }
-                }
-            }
-            if !project.allServices.isEmpty {
-                Section("Services") {
-                    ForEach(project.allServices) { s in
-                        Button { onToggleService(s.name) } label: { serviceLabel(s) }
                     }
                 }
             }
@@ -504,15 +561,6 @@ private struct ProjectRunControl: View {
         }
     }
 
-    @ViewBuilder
-    private func serviceLabel(_ s: Service) -> some View {
-        let title = s.port > 0 ? "\(s.name)  :\(s.port)" : s.name
-        if runningServices.contains(s.name) {
-            Label(title, systemImage: "checkmark")
-        } else {
-            Text(title)
-        }
-    }
 }
 
 /// One terminal card: a terminal-glyph icon tile and the tab name (prefixed with
