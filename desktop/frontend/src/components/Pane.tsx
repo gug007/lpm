@@ -104,6 +104,18 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
   return session;
 }
 
+// Fitting while the host is collapsed (hidden tab, mid-layout flex
+// transition) would shrink the terminal to ~1-2 cols and garble
+// subsequently written lines; skip and let the ResizeObserver refit
+// once the host reaches a usable size.
+const MIN_FIT_WIDTH_PX = 64;
+const MIN_FIT_HEIGHT_PX = 24;
+
+function fitPaneSession(session: PaneSession): void {
+  if (session.host.clientWidth < MIN_FIT_WIDTH_PX || session.host.clientHeight < MIN_FIT_HEIGHT_PX) return;
+  try { session.fit.fit(); } catch {}
+}
+
 function clearPaneSession(session: PaneSession): void {
   session.term.reset();
   session.prevLines = [];
@@ -230,7 +242,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       };
       session.onAfterClear = () => filterRef.current?.refresh();
 
-      try { session.fit.fit(); } catch {}
+      fitPaneSession(session);
 
       const handleMouseUp = (e: MouseEvent) => {
         if (e.button !== 0) return;
@@ -251,8 +263,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         if (resizeTimer) clearTimeout(resizeTimer);
         resizeTimer = window.setTimeout(() => {
           resizeTimer = 0;
-          if (!session.host.clientWidth || !session.host.clientHeight) return;
-          try { session.fit.fit(); } catch {}
+          fitPaneSession(session);
         }, 200);
       });
       ro.observe(session.host);
@@ -296,7 +307,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       if (!session) return;
       session.term.options.fontSize = fontSize;
       filterRef.current?.setFontSize(fontSize);
-      try { session.fit.fit(); } catch {}
+      fitPaneSession(session);
     }, [fontSize]);
 
     useEffect(() => {
@@ -313,7 +324,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       const session = sessionRef.current;
       if (!session) return;
       requestAnimationFrame(() => {
-        try { session.fit.fit(); } catch {}
+        fitPaneSession(session);
         try { session.term.refresh(0, session.term.rows - 1); } catch {}
       });
     }, [visible]);

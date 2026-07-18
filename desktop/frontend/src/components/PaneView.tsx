@@ -488,7 +488,7 @@ function PaneViewImpl(props: PaneViewProps) {
               key={`svc:${svc.name}`}
               className={
                 isVisible
-                  ? "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+                  ? `flex min-h-0 flex-1 flex-col overflow-hidden ${isAllActive ? "min-w-40" : "min-w-0"}`
                   : "hidden"
               }
             >
