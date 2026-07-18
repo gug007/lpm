@@ -7,6 +7,7 @@ import { Features } from "@/components/home/features";
 import { Hero } from "@/components/home/hero";
 import { HomeFaq } from "@/components/home/home-faq";
 import { HowItWorks } from "@/components/home/how-it-works";
+import { PairedDevices } from "@/components/home/paired-devices";
 import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
@@ -29,6 +30,7 @@ export default function HomePage() {
       <HowItWorks />
       <CtaBand />
       <Features />
+      <PairedDevices />
       <ConfigExample />
       <HomeFaq />
       <RelatedPages

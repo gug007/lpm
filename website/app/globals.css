@@ -225,12 +225,51 @@ body {
   }
 }
 
+@keyframes pd-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+@keyframes pd-spine-right {
+  0% {
+    left: 8%;
+    opacity: 0;
+  }
+  12%, 88% {
+    opacity: 1;
+  }
+  100% {
+    left: 92%;
+    opacity: 0;
+  }
+}
+
+@keyframes pd-spine-left {
+  0% {
+    left: 92%;
+    opacity: 0;
+  }
+  12%, 88% {
+    opacity: 1;
+  }
+  100% {
+    left: 8%;
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-bounce-soft,
   .animate-cta-breath,
   .animate-icon-glow,
   .start-ring-pulse,
-  .sidebar-shimmer {
+  .sidebar-shimmer,
+  [class*="pd-spine"],
+  [class*="pd-blink"] {
     animation: none;
   }
   .dl-card:hover {

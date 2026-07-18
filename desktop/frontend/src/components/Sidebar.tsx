@@ -19,6 +19,7 @@ import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type ProjectGroup, type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon, StatsIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
+import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem } from "./ui/SortableList";
 import {
@@ -1149,6 +1150,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           )}
         </button>
       )}
+
+      <SidebarAgentToolsPill />
 
       <div className="flex flex-col p-2">
         <Tooltip

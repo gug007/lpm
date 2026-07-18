@@ -3,8 +3,32 @@ import { toast } from "sonner";
 import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } from "../../bridge/commands";
 import { BTN_SECONDARY } from "./ui/buttons";
 
-type SkillStatus = "loading" | "not-installed" | "outdated" | "installed";
-type CliStatus = "loading" | "unavailable" | "not-installed" | "installed" | "points-elsewhere";
+export type SkillStatus = "loading" | "not-installed" | "outdated" | "installed";
+export type CliStatus = "loading" | "unavailable" | "not-installed" | "installed" | "points-elsewhere";
+
+export function fetchStatuses(): Promise<[SkillStatus, CliStatus]> {
+  return Promise.all([
+    AgentSkillStatus()
+      .then((r) => r.status as SkillStatus)
+      .catch((): SkillStatus => "not-installed"),
+    CliInstallStatus()
+      .then((r) => r.status as CliStatus)
+      .catch((): CliStatus => "unavailable"),
+  ]);
+}
+
+export function agentToolsAction(skill: SkillStatus, cli: CliStatus): "install" | "update" | null {
+  if (skill === "loading" || cli === "loading") return null;
+  if (skill === "not-installed") return "install";
+  const cliNeedsInstall = cli === "not-installed" || cli === "points-elsewhere";
+  if (skill === "outdated" || cliNeedsInstall) return "update";
+  return null;
+}
+
+export async function installAgentTools() {
+  await InstallAgentSkill();
+  await installCliIfNeeded();
+}
 
 const CTA_GREEN =
   "rounded-md bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90";
@@ -24,17 +48,6 @@ function CheckIcon() {
       <path d="M5 12.5l4.5 4.5L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
-}
-
-function fetchStatuses(): Promise<[SkillStatus, CliStatus]> {
-  return Promise.all([
-    AgentSkillStatus()
-      .then((r) => r.status as SkillStatus)
-      .catch((): SkillStatus => "not-installed"),
-    CliInstallStatus()
-      .then((r) => r.status as CliStatus)
-      .catch((): CliStatus => "unavailable"),
-  ]);
 }
 
 async function installCliIfNeeded() {
@@ -70,8 +83,7 @@ export function SkillInstallControl() {
   const install = async () => {
     setInstalling(true);
     try {
-      await InstallAgentSkill();
-      await installCliIfNeeded();
+      await installAgentTools();
     } catch (err) {
       toast.error(String(err));
     } finally {
@@ -92,7 +104,8 @@ export function SkillInstallControl() {
     return <Spinner />;
   }
 
-  if (skillStatus === "not-installed") {
+  const action = agentToolsAction(skillStatus, cliStatus);
+  if (action === "install") {
     return (
       <button onClick={install} className={BTN_SECONDARY}>
         Install
@@ -100,8 +113,7 @@ export function SkillInstallControl() {
     );
   }
 
-  const cliNeedsInstall = cliStatus === "not-installed" || cliStatus === "points-elsewhere";
-  if (skillStatus === "outdated" || cliNeedsInstall) {
+  if (action === "update") {
     return (
       <button onClick={install} className={CTA_GREEN}>
         Update
