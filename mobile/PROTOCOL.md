@@ -56,6 +56,7 @@ any live connection.
 | Request | Reply |
 |---|---|
 | `{ "t": "projects" }` | `{ "t": "projects", "projects": [ProjectInfo…] }` |
+| `{ "t": "stats", "days": N }` | `{ "t": "stats", "ok": true, "stats": AgentUsageStats }` / `{ "ok": false, "error": "…" }` — local agent token-usage stats for the last `N` days (`0` = all time), i.e. the desktop Stats page. The Mac scans Claude Code / Codex session-history files (usage metadata only — no prompts or responses), so it runs off this connection's read loop and the reply arrives **asynchronously** (later than a fast request sent after it). SSH projects are excluded |
 | `{ "t": "jobs" }` | `{ "t": "jobs", "ok": true, "jobs": [JobInfo…] }` / `{ "ok": false, "error": "…" }` — every automation across local projects |
 | `{ "t": "jobHistory", "project": "<name>", "jobId": "<id>" }` | `{ "t": "jobHistory", "project": "<name>", "jobId": "<id>", "ok": true, "entries": [JobHistoryEntry…] }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "jobLiveOutput", "project": "<name>", "jobId": "<id>" }` | `{ "t": "jobLiveOutput", "project": "<name>", "jobId": "<id>", "ok": true, "live": { "startedAt": N, "text": "…" }\|null }` / `{ "ok": false, "error": "…" }` |
@@ -296,6 +297,24 @@ resumed: string?
 follows: unix seconds?
 compacted: bool?
 ```
+
+**AgentUsageStats** (the `stats` reply) — all token counts are numbers that can reach
+the billions:
+```
+generatedAt: unix millis
+days: N                     // the requested period (0 = all time)
+sessions: N                 // total agent sessions in the period
+totals: TokenUsage          // grand totals
+providers: [UsageBreakdown] // key = "claude" | "codex"
+projects:  [UsageBreakdown] // key/label = project name
+models:    [UsageBreakdown] // key = model id (drives the cost estimate)
+daily:     [ { date: "YYYY-MM-DD", claudeTokens: N, codexTokens: N, totalTokens: N } ]
+recentSessions: [ { provider, project, model, startedAt: unix millis, lastAt: unix millis, tokens: TokenUsage } ]
+sources:   [ { provider, files: N } ]   // history files scanned per provider
+```
+**TokenUsage**: `{ inputTokens, cachedInputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens, reasoningTokens, totalTokens }`. Invariants: `inputTokens` **already includes** the cached input (`cacheCreation + cacheRead`); `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. So cache share = `cachedInputTokens / max(1, inputTokens)`.
+**UsageBreakdown**: `{ key, label, sessions, tokens: TokenUsage }`.
+Cost is **estimated on the phone** from `models` (per-model list prices; cache reads/writes priced separately), matching the desktop — no cost field is sent.
 
 **Terminal**:
 ```

@@ -321,6 +321,11 @@ struct ProjectsView: View {
                     } label: {
                         Label("Automations", systemImage: "clock.arrow.circlepath")
                     }
+                    NavigationLink {
+                        StatsScreen()
+                    } label: {
+                        Label("Stats", systemImage: "chart.bar")
+                    }
                     Button { showingSettings = true } label: {
                         Label("Settings", systemImage: "gearshape")
                     }

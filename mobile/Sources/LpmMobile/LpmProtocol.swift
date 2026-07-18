@@ -21,6 +21,7 @@ enum Wire {
     }
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
+    static func stats(days: Int) -> String { json(["t": "stats", "days": days]) }
     static func terminals(project: String) -> String { json(["t": "terminals", "project": project]) }
     static func slash(id: String, project: String) -> String {
         json(["t": "slash", "id": id, "project": project])
@@ -241,6 +242,9 @@ enum Wire {
         case error(String)
         case projects([Project])
         case sidebar(order: [String], groups: [ProjectFolder])
+        // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
+        // a hard failure; the scan runs on the Mac and replies asynchronously.
+        case stats(AgentStats?, error: String?)
         case terminals(project: String, [TerminalInfo])
         case slash(id: String, [SlashCommand])
         case mentions(project: String, [MentionEntry])
@@ -335,6 +339,10 @@ enum Wire {
                     order: obj["order"] as? [String] ?? [],
                     groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init)
                 )
+            case "stats":
+                let ok = obj["ok"] as? Bool ?? false
+                return .stats(ok ? AgentStats(obj["stats"] as? [String: Any] ?? [:]) : nil,
+                              error: ok ? nil : (obj["error"] as? String ?? "Couldn't load stats."))
             case "terminals":
                 return .terminals(project: obj["project"] as? String ?? "",
                                   (obj["terminals"] as? [[String: Any]] ?? []).map(TerminalInfo.init))
@@ -1003,5 +1011,136 @@ struct HistoryFolder: Identifiable {
         id = o["id"] as? String ?? ""
         name = o["name"] as? String ?? "Folder"
         count = o["count"] as? Int ?? 0
+    }
+}
+
+// MARK: agent usage stats
+//
+// Wire mirror of the desktop `AgentUsageStats` (src-tauri/agent_usage.rs, camelCase
+// JSON). Token counts can reach the billions, so they're read as NSNumber.intValue
+// (Int is 64-bit on every iOS device). See ../../PROTOCOL.md.
+
+/// Reads an integer field that may be a large JSON number (bridged as NSNumber).
+private func statInt(_ o: [String: Any], _ key: String) -> Int {
+    (o[key] as? NSNumber)?.intValue ?? 0
+}
+
+/// One bucket of token counts. `inputTokens` ALREADY includes the cached input
+/// (cacheCreation + cacheRead); `reasoningTokens ⊆ outputTokens`; `totalTokens =
+/// inputTokens + outputTokens`. These invariants drive the cache/reasoning shares.
+struct UsageTokens {
+    let inputTokens: Int
+    let cachedInputTokens: Int
+    let cacheCreationInputTokens: Int
+    let cacheReadInputTokens: Int
+    let outputTokens: Int
+    let reasoningTokens: Int
+    let totalTokens: Int
+
+    init(_ o: [String: Any]) {
+        inputTokens = statInt(o, "inputTokens")
+        cachedInputTokens = statInt(o, "cachedInputTokens")
+        cacheCreationInputTokens = statInt(o, "cacheCreationInputTokens")
+        cacheReadInputTokens = statInt(o, "cacheReadInputTokens")
+        outputTokens = statInt(o, "outputTokens")
+        reasoningTokens = statInt(o, "reasoningTokens")
+        totalTokens = statInt(o, "totalTokens")
+    }
+}
+
+/// Tokens aggregated under one key — a provider, a project, or a model.
+struct UsageBreakdown: Identifiable {
+    let key: String
+    let label: String
+    let sessions: Int
+    let tokens: UsageTokens
+
+    var id: String { key }
+
+    init(_ o: [String: Any]) {
+        key = o["key"] as? String ?? ""
+        label = o["label"] as? String ?? ""
+        sessions = statInt(o, "sessions")
+        tokens = UsageTokens(o["tokens"] as? [String: Any] ?? [:])
+    }
+}
+
+/// One day's token totals, split by provider, for the activity chart.
+struct UsageDaily: Identifiable {
+    let date: String   // "YYYY-MM-DD"
+    let claudeTokens: Int
+    let codexTokens: Int
+    let totalTokens: Int
+
+    var id: String { date }
+
+    init(_ o: [String: Any]) {
+        date = o["date"] as? String ?? ""
+        claudeTokens = statInt(o, "claudeTokens")
+        codexTokens = statInt(o, "codexTokens")
+        totalTokens = statInt(o, "totalTokens")
+    }
+}
+
+/// One recent agent session (`startedAt`/`lastAt` are unix **milliseconds**, like
+/// the desktop — the Rust side stores `timestamp_millis`).
+struct UsageSession: Identifiable {
+    let provider: String
+    let project: String
+    let model: String
+    let startedAt: Int
+    let lastAt: Int
+    let tokens: UsageTokens
+
+    var id: String { provider + "\n" + project + "\n" + model + "\n" + String(startedAt) }
+
+    init(_ o: [String: Any]) {
+        provider = o["provider"] as? String ?? ""
+        project = o["project"] as? String ?? ""
+        model = o["model"] as? String ?? ""
+        startedAt = statInt(o, "startedAt")
+        lastAt = statInt(o, "lastAt")
+        tokens = UsageTokens(o["tokens"] as? [String: Any] ?? [:])
+    }
+}
+
+/// How many history files each provider contributed (for the footer note).
+struct UsageSource: Identifiable {
+    let provider: String
+    let files: Int
+
+    var id: String { provider }
+
+    init(_ o: [String: Any]) {
+        provider = o["provider"] as? String ?? ""
+        files = statInt(o, "files")
+    }
+}
+
+/// The full stats snapshot for a period. `models` drives the cost estimate;
+/// `providers`/`projects` the breakdowns; `daily` the chart.
+struct AgentStats {
+    let generatedAt: Int
+    let days: Int
+    let sessions: Int
+    let totals: UsageTokens
+    let providers: [UsageBreakdown]
+    let projects: [UsageBreakdown]
+    let models: [UsageBreakdown]
+    let daily: [UsageDaily]
+    let recentSessions: [UsageSession]
+    let sources: [UsageSource]
+
+    init(_ o: [String: Any]) {
+        generatedAt = statInt(o, "generatedAt")
+        days = statInt(o, "days")
+        sessions = statInt(o, "sessions")
+        totals = UsageTokens(o["totals"] as? [String: Any] ?? [:])
+        providers = (o["providers"] as? [[String: Any]] ?? []).map(UsageBreakdown.init)
+        projects = (o["projects"] as? [[String: Any]] ?? []).map(UsageBreakdown.init)
+        models = (o["models"] as? [[String: Any]] ?? []).map(UsageBreakdown.init)
+        daily = (o["daily"] as? [[String: Any]] ?? []).map(UsageDaily.init)
+        recentSessions = (o["recentSessions"] as? [[String: Any]] ?? []).map(UsageSession.init)
+        sources = (o["sources"] as? [[String: Any]] ?? []).map(UsageSource.init)
     }
 }

@@ -25,6 +25,20 @@ final class AppModel: ObservableObject {
     @Published var automationError: String?
     @Published var automationFollowupError: [String: String] = [:]
 
+    // Local agent token-usage stats (the desktop Stats page). `stats` is nil until
+    // the first load lands; `statsDays` is the selected period (1/7/30 days, 0 =
+    // all time). `statsActive` re-issues the query after a reconnect.
+    @Published var stats: AgentStats?
+    @Published var statsLoading = false
+    @Published var statsError: String?
+    @Published var statsDays = 30
+    private var statsActive = false
+    // Bumped on each request and when a reply lands, so a stale timeout can't clear
+    // a newer in-flight load. Replies are async (the Mac scans history files off the
+    // socket) and can arrive out of order, so the current period is the source of
+    // truth and the timeout is generation-guarded.
+    private var statsGen = 0
+
     // Saved Macs and which one is live. The phone talks to exactly one Mac at a
     // time; `activeMacId` names it. An empty `macs` list means "not paired with any
     // Mac" and drives the root gate to the pairing screen.
@@ -534,6 +548,11 @@ final class AppModel: ObservableObject {
         automationPending = []
         automationError = nil
         automationFollowupError = [:]
+        stats = nil
+        statsLoading = false
+        statsError = nil
+        statsDays = 30
+        statsActive = false
         composerActions = []
         actionVariantCounts = [:]
         services = [:]
@@ -745,6 +764,39 @@ final class AppModel: ObservableObject {
     func loadTerminals(_ project: String) { client?.requestTerminals(project: project) }
 
     func loadAutomations() { client?.requestJobs() }
+
+    /// Load the agent-usage stats for a period (1/7/30 days, 0 = all time). Marks
+    /// the screen active so a reconnect re-issues the query, and dims-not-blanks
+    /// while reloading (the view keeps showing the prior snapshot).
+    func loadStats(days: Int) {
+        statsActive = true
+        statsDays = days
+        statsLoading = true
+        statsError = nil
+        statsGen &+= 1
+        let gen = statsGen
+        client?.requestStats(days: days)
+        // The scan replies asynchronously; if it never does (an old Mac that doesn't
+        // know this message, or a reply lost while the socket stayed up), give up so
+        // the screen shows an error instead of an endless skeleton. Keep prior data
+        // on a reload timeout — only the first, dataless load surfaces the error.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.statsGen == gen, self.statsLoading else { return }
+            self.statsLoading = false
+            if self.stats == nil { self.statsError = "Couldn't load stats. Pull to refresh." }
+        }
+    }
+
+    /// Pull-to-refresh on the Stats screen: re-request when live, else reconnect.
+    func refreshStats() async {
+        if case .ready = connection { loadStats(days: statsDays) }
+        else { reconnectIfNeeded() }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// The Stats screen closed: stop treating its query as live so a straggler
+    /// reply (or reconnect) doesn't keep refetching in the background.
+    func statsScreenDidClose() { statsActive = false }
 
     func refreshAutomations() async {
         if case .ready = connection { client?.requestJobs() }
@@ -965,6 +1017,10 @@ final class AppModel: ObservableObject {
         for store in composerStores.values { store.failInFlightUploads() }
         automationPending = []
         automationHistoryLoading = []
+        // A stats scan in flight can't survive the reconnect; re-issue it if the
+        // screen is still open, otherwise just drop the spinner.
+        if statsActive { loadStats(days: statsDays) }
+        else { statsLoading = false }
         historyPending = []
         historyLoadingMore = false
         if historyActive {
@@ -1434,6 +1490,22 @@ final class AppModel: ObservableObject {
         c.onSidebar = { [weak self] order, groups in
             self?.sidebarOrder = order
             self?.groups = groups
+        }
+        c.onStats = { [weak self] stats, error in
+            guard let self else { return }
+            if let stats {
+                // Drop a stale reply from a superseded period — the payload echoes the
+                // period it was scanned for, and only the current one may land.
+                guard stats.days == self.statsDays else { return }
+                self.statsGen &+= 1
+                self.stats = stats
+                self.statsError = nil
+                self.statsLoading = false
+            } else {
+                self.statsGen &+= 1
+                self.statsLoading = false
+                self.statsError = error ?? "Couldn't load stats."
+            }
         }
         c.onTerminals = { [weak self] proj, t in
             guard let self else { return }

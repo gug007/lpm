@@ -982,6 +982,23 @@ fn handle_msg(
             let sb = sidebar_json();
             send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
         }
+        "stats" => {
+            // Local agent token-usage stats (the desktop Stats page). Scanning the
+            // Claude/Codex history files is slow, so run it off the read loop and
+            // reply through the async out-queue rather than blocking this socket.
+            let days = v.get("days").and_then(Value::as_i64).unwrap_or(30);
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let reply = match crate::agent_usage::agent_usage_stats(days) {
+                    Ok(stats) => match serde_json::to_value(&stats) {
+                        Ok(value) => json!({ "t": "stats", "ok": true, "stats": value }),
+                        Err(e) => json!({ "t": "stats", "ok": false, "error": e.to_string() }),
+                    },
+                    Err(e) => json!({ "t": "stats", "ok": false, "error": e }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
         "jobs" => match crate::jobs::list_all_jobs() {
             Ok(jobs) => send(ws, json!({ "t": "jobs", "ok": true, "jobs": jobs }))?,
             Err(e) => send(ws, json!({ "t": "jobs", "ok": false, "error": e }))?,
