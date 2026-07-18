@@ -685,6 +685,7 @@ private final class KeyboardObserver: ObservableObject {
 struct TerminalScreen: View {
     @EnvironmentObject var model: AppModel
     let term: TerminalInfo
+    let project: Project
     @StateObject private var keyboard = KeyboardObserver()
     // Flips when the first screen snapshot renders, hiding the loading spinner.
     @State private var hasContent = false
@@ -694,6 +695,7 @@ struct TerminalScreen: View {
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
 
     private var theme: TerminalTheme { TerminalPrefs.theme(themeRaw) }
+    private var liveProject: Project { model.projects.first(where: { $0.name == term.project }) ?? project }
 
     var body: some View {
         // A terminal is shown live in exactly one place at a time. When the
@@ -745,13 +747,12 @@ struct TerminalScreen: View {
             .ignoresSafeArea(.keyboard, edges: .bottom)
             .navigationTitle(term.label)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Label("Terminal Settings", systemImage: "textformat.size")
-                    }
+            .projectMenuToolbar(project: liveProject) {
+                Divider()
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Terminal Settings", systemImage: "textformat.size")
                 }
             }
             .sheet(isPresented: $showSettings) {

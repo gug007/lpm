@@ -114,7 +114,7 @@ struct GitReviewView: View {
                 }
                 .environmentObject(model)
             }
-            .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0) }
+            .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: project) }
         }
     }
 

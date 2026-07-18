@@ -344,7 +344,7 @@ private struct AutomationConversationView: View {
                 }
                 .padding(16)
             }
-            .background(Color(.systemGroupedBackground))
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .onAppear { scrollToBottom(proxy, animated: false) }
             .onChange(of: entries.count) { _, _ in scrollToBottom(proxy, animated: true) }
             .onChange(of: model.automationLiveOutput[key]?.text) { _, _ in scrollToBottom(proxy, animated: false) }

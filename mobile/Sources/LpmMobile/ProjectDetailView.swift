@@ -111,7 +111,7 @@ struct ProjectDetail: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         // Full-space overlay (not a list row): ContentUnavailableView is greedy
         // and inside a row it stretches the row — and its action button — to
         // fill the expanse.
@@ -318,137 +318,6 @@ private struct TabsSectionHeader: View {
         .foregroundStyle(.secondary)
         .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 2, trailing: 24))
     }
-}
-
-/// The project's control menu in the nav bar: a single "more" button whose native
-/// menu holds Start/Stop, the run-actions submenu, and (when present) profiles.
-/// Per-service display and toggles live in the list's Services section.
-private struct ProjectRunControl: View {
-    @EnvironmentObject var model: AppModel
-    let project: Project
-    let pending: Bool
-    let actions: [Action]
-    let changedCount: Int?
-    let onStart: (_ profile: String) -> Void
-    let onStop: () -> Void
-    let onRunAction: (_ action: Action) -> Void
-    let onReviewChanges: () -> Void
-    let onSwitchBranch: () -> Void
-    let onCreatePr: () -> Void
-    let onDiscard: () -> Void
-
-    private var running: Bool { project.running }
-
-    private var name: String { project.name }
-    private var pulling: Bool { model.gitPulling.contains(name) }
-    private var pushing: Bool { model.gitPushing.contains(name) }
-    private var fetching: Bool { model.gitFetching.contains(name) }
-    private var branch: String { model.gitSnapshots[name]?.branch ?? "" }
-    private var ghCli: Bool { model.gitSnapshots[name]?.ghCli ?? false }
-
-    var body: some View {
-        Menu {
-            Button {
-                running ? onStop() : onStart(project.activeProfile)
-            } label: {
-                Label(running ? "Stop" : "Start",
-                      systemImage: running ? "stop.fill" : "play.fill")
-            }
-
-            Button(action: onReviewChanges) {
-                Label("Review Changes", systemImage: "checklist")
-                if let changedCount, changedCount > 0 {
-                    Text("\(changedCount) changed file\(changedCount == 1 ? "" : "s")")
-                }
-            }
-
-            gitMenu
-
-            if !actions.isEmpty {
-                Menu {
-                    ForEach(actions) { a in
-                        Button { onRunAction(a) } label: { actionLabel(a) }
-                    }
-                } label: {
-                    Label("Actions", systemImage: "bolt")
-                }
-            }
-
-            if !project.profiles.isEmpty {
-                Section("Profiles") {
-                    ForEach(project.profiles) { p in
-                        Button { onStart(p.name) } label: { profileLabel(p) }
-                    }
-                }
-            }
-        } label: {
-            if pending {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(running ? .green : .primary)
-            }
-        }
-    }
-
-    /// The desktop's project Git submenu, adapted to mobile: sync ops that fire
-    /// directly (disabled while in flight), then branch/PR navigation, then
-    /// copy-branch and the destructive discard. Review Changes sits on the main
-    /// menu, one level up.
-    private var gitMenu: some View {
-        Menu {
-            Button { model.gitPull(name) } label: { Label("Pull", systemImage: "arrow.down") }
-                .disabled(pulling)
-            Button { model.gitPush(name) } label: { Label("Push", systemImage: "arrow.up") }
-                .disabled(pushing)
-            Button { model.gitFetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
-                .disabled(fetching)
-
-            Divider()
-
-            Button(action: onSwitchBranch) {
-                Label("Switch Branch…", systemImage: "arrow.trianglehead.branch")
-            }
-            if ghCli {
-                Button(action: onCreatePr) {
-                    Label("Create Pull Request…", systemImage: "arrow.triangle.pull")
-                }
-            }
-
-            Divider()
-
-            Button { UIPasteboard.general.string = branch } label: {
-                Label("Copy Branch Name", systemImage: "doc.on.doc")
-            }
-            .disabled(branch.isEmpty)
-            Button(role: .destructive, action: onDiscard) {
-                Label("Discard All Changes…", systemImage: "trash")
-            }
-            .disabled((changedCount ?? 0) == 0)
-        } label: {
-            Label("Git", systemImage: "arrow.trianglehead.branch")
-        }
-    }
-
-    @ViewBuilder
-    private func actionLabel(_ a: Action) -> some View {
-        if a.emoji.isEmpty {
-            Text(a.label)
-        } else {
-            Text("\(a.emoji)  \(a.label)")
-        }
-    }
-
-    @ViewBuilder
-    private func profileLabel(_ p: Profile) -> some View {
-        if running && project.activeProfile == p.name {
-            Label(p.name, systemImage: "checkmark")
-        } else {
-            Text(p.name)
-        }
-    }
-
 }
 
 /// One terminal card: a terminal-glyph icon tile and the tab name (prefixed with

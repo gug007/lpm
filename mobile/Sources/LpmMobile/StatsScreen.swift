@@ -26,7 +26,7 @@ struct StatsScreen: View {
             .padding(.top, 10)
             .padding(.bottom, 28)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .navigationTitle("Stats")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await model.refreshStats() }
