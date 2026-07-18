@@ -77,7 +77,7 @@ export default function MobilePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <PairedDevices companionLink={false} />
+      <PairedDevices companionLink={false} flush />
       <Problem />
       <Features />
       <Composer />

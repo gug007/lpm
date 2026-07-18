@@ -18,8 +18,13 @@ type Tone =
   | "ok"
   | "meta"
   | "claudeTitle"
-  | "codexTitle";
-type Line = { text: string; tone: Tone };
+  | "codexTitle"
+  | "tool"
+  | "codexAction"
+  | "ls"
+  | "git";
+// gap = blank line above, matching the real CLIs' block spacing
+type Line = { text: string; tone: Tone; gap?: boolean };
 // preamble = launch-header lines already on screen when the tab activates
 type Session = { key: string; label: string; preamble: number; lines: Line[] };
 
@@ -27,18 +32,22 @@ const CLAUDE_LINES: Line[] = [
   { text: "✳ Claude Code v2.1.214", tone: "claudeTitle" },
   { text: "  Fable 5 with high effort · Claude Max", tone: "meta" },
   { text: "  ~/Projects/auth-service", tone: "meta" },
-  { text: "> tighten the login rate limiter", tone: "prompt" },
-  { text: "● Read(src/auth/rateLimiter.ts)", tone: "agent" },
-  { text: "  ⎿ Read 84 lines", tone: "detail" },
-  { text: "● Update(src/auth/rateLimiter.ts)", tone: "agent" },
-  { text: "  ⎿ Updated with 18 additions and 4 removals", tone: "detail" },
-  { text: "● Bash(npm test -- rateLimiter)", tone: "agent" },
-  { text: "  ⎿ 8 passed, 0 failed (2.1s)", tone: "ok" },
-  { text: "● The limiter now blocks after 5 attempts and", tone: "agent" },
+  { text: "> tighten the login rate limiter", tone: "prompt", gap: true },
+  { text: "● Read(src/auth/rateLimiter.ts)", tone: "tool", gap: true },
+  { text: "  ⎿  Read 84 lines (ctrl+o to expand)", tone: "detail" },
+  { text: "● Update(src/auth/rateLimiter.ts)", tone: "tool", gap: true },
+  { text: "  ⎿  Updated with 18 additions and 4 removals", tone: "detail" },
+  { text: "● Bash(npm test -- rateLimiter)", tone: "tool", gap: true },
+  { text: "  ⎿  8 passed, 0 failed (2.1s)", tone: "detail" },
+  {
+    text: "● The limiter now blocks after 5 attempts and",
+    tone: "agent",
+    gap: true,
+  },
   { text: "  resets on success. Commit and open a PR?", tone: "agent" },
-  { text: "> yes — commit & open the PR", tone: "prompt" },
-  { text: "● Bash(git push && gh pr create)", tone: "agent" },
-  { text: "  ⎿ PR #204 opened", tone: "ok" },
+  { text: "> yes — commit & open the PR", tone: "prompt", gap: true },
+  { text: "● Bash(git push && gh pr create)", tone: "tool", gap: true },
+  { text: "  ⎿  PR #204 opened", tone: "detail" },
 ];
 
 const CODEX_LINES: Line[] = [
@@ -46,25 +55,31 @@ const CODEX_LINES: Line[] = [
   { text: ">_ OpenAI Codex (v0.144.5)", tone: "codexTitle" },
   { text: "  model: gpt-5.6-sol high · /model to change", tone: "meta" },
   { text: "  directory: ~/Projects/auth-service", tone: "meta" },
-  { text: "▌ add cursor pagination to GET /users", tone: "prompt" },
-  { text: "• Explored", tone: "agent" },
+  { text: "▌ add cursor pagination to GET /users", tone: "prompt", gap: true },
+  { text: "• Explored", tone: "codexAction", gap: true },
   { text: "  └ routes/users.ts, models/user.ts", tone: "detail" },
-  { text: "• Edited routes/users.ts (+24 -6)", tone: "agent" },
-  { text: "• Ran npm test", tone: "agent" },
-  { text: "  └ 14 passed (1.2s)", tone: "ok" },
-  { text: "• Added ?limit & ?cursor with stable ordering", tone: "agent" },
-  { text: "  Worked for 9s", tone: "meta" },
+  { text: "• Edited routes/users.ts (+24 -6)", tone: "codexAction" },
+  { text: "• Ran npm test", tone: "codexAction" },
+  { text: "  └ 14 passed (1.2s)", tone: "detail" },
+  { text: "• Worked for 9s", tone: "meta", gap: true },
+  {
+    text: "• Added ?limit & ?cursor with stable ordering",
+    tone: "agent",
+    gap: true,
+  },
 ];
 
 const ZSH_LINES: Line[] = [
   { text: "$ ls", tone: "prompt" },
-  { text: "README.md  package.json  routes  src  tests", tone: "agent" },
+  { text: "README.md  package.json  routes  src  tests", tone: "ls" },
   { text: "$ git status -s", tone: "prompt" },
-  { text: " M src/auth/rateLimiter.ts", tone: "detail" },
-  { text: " M routes/users.ts", tone: "detail" },
+  { text: " M src/auth/rateLimiter.ts", tone: "git" },
+  { text: " M routes/users.ts", tone: "git" },
   { text: "$ lpm start", tone: "prompt" },
   { text: "  ✓ api :4000 · web :3000", tone: "ok" },
 ];
+
+const LS_DIRS = new Set(["routes", "src", "tests"]);
 
 const SESSIONS: Session[] = [
   { key: "claude", label: "claude", preamble: 3, lines: CLAUDE_LINES },
@@ -84,7 +99,10 @@ const CONTROL_INDEX = 12;
 const CONTROL_TEXT = "yes — commit & open the PR";
 
 const TONE_CLASS: Record<
-  Exclude<Tone, "prompt" | "claudeTitle" | "codexTitle">,
+  Exclude<
+    Tone,
+    "prompt" | "claudeTitle" | "codexTitle" | "tool" | "codexAction" | "ls" | "git"
+  >,
   string
 > = {
   agent: "text-gray-100",
@@ -94,11 +112,75 @@ const TONE_CLASS: Record<
 };
 
 function TerminalLine({ line, size }: { line: Line; size: string }) {
-  const base = `whitespace-pre tabular-nums ${size}`;
+  const base = `whitespace-pre tabular-nums ${size}${line.gap ? " mt-5" : ""}`;
   if (line.tone === "prompt") {
     return (
       <div className={base}>
         <span className="text-gray-600">{line.text.slice(0, 2)}</span>
+        <span className="text-gray-300">{line.text.slice(2)}</span>
+      </div>
+    );
+  }
+  if (line.tone === "tool") {
+    const open = line.text.indexOf("(");
+    return (
+      <div className={base}>
+        <span className="text-emerald-400">{line.text.slice(0, 2)}</span>
+        <span className="font-semibold text-gray-100">
+          {line.text.slice(2, open)}
+        </span>
+        <span className="text-gray-100">{line.text.slice(open)}</span>
+      </div>
+    );
+  }
+  if (line.tone === "codexAction") {
+    const rest = line.text.slice(2);
+    const space = rest.indexOf(" ");
+    const head = space === -1 ? rest : rest.slice(0, space);
+    const tail = space === -1 ? "" : rest.slice(space);
+    return (
+      <div className={base}>
+        <span className="text-gray-100">{line.text.slice(0, 2)}</span>
+        <span className="font-semibold text-gray-100">{head}</span>
+        {tail.split(/(\+\d+|-\d+)/).map((part, i) => (
+          <span
+            key={i}
+            className={
+              part.startsWith("+")
+                ? "text-emerald-400"
+                : part.startsWith("-")
+                  ? "text-red-400"
+                  : "text-gray-300"
+            }
+          >
+            {part}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  if (line.tone === "ls") {
+    return (
+      <div className={base}>
+        {line.text.split(/(\s+)/).map((word, i) => (
+          <span
+            key={i}
+            className={
+              LS_DIRS.has(word)
+                ? "font-semibold text-sky-400"
+                : "text-gray-300"
+            }
+          >
+            {word}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  if (line.tone === "git") {
+    return (
+      <div className={base}>
+        <span className="text-red-400">{line.text.slice(0, 2)}</span>
         <span className="text-gray-300">{line.text.slice(2)}</span>
       </div>
     );
@@ -126,8 +208,10 @@ type Step = { wait: number; apply: () => void };
 
 export function PairedDevices({
   companionLink = true,
+  flush = false,
 }: {
   companionLink?: boolean;
+  flush?: boolean;
 }) {
   const [tab, setTab] = useState(0);
   const [revealed, setRevealed] = useState(0);
@@ -236,9 +320,43 @@ export function PairedDevices({
   const isControl = control && !reduced;
   const streaming =
     !reduced && !isTyping && revealed > 0 && revealed < session.lines.length;
+  // Real-CLI status row: Claude/Codex show a spinner line while the agent
+  // works, zsh keeps a plain block cursor (and an idle prompt when done).
+  const working =
+    streaming &&
+    revealed > session.preamble &&
+    !(tabView === 0 && revealed === CONTROL_INDEX);
+  const zshIdle =
+    !reduced && session.key === "zsh" && revealed >= session.lines.length;
+  const status = working ? (
+    session.key === "zsh" ? (
+      <span className="mt-0.5 inline-block h-3 w-1.5 bg-gray-300 [animation:pd-blink_1.05s_steps(1)_infinite]" />
+    ) : (
+      <div className="mt-5 whitespace-pre">
+        <span
+          className={
+            session.key === "claude" ? "text-[#d97757]" : "text-gray-100"
+          }
+        >
+          {session.key === "claude" ? "✳ " : "• "}
+        </span>
+        <span className="text-gray-300">
+          {session.key === "claude" ? "Pondering… " : "Working "}
+        </span>
+        <span className="text-gray-600">(esc to interrupt)</span>
+      </div>
+    )
+  ) : zshIdle ? (
+    <div className="whitespace-pre">
+      <span className="text-gray-600">$ </span>
+      <span className="inline-block h-3 w-1.5 bg-gray-300 align-middle [animation:pd-blink_1.05s_steps(1)_infinite]" />
+    </div>
+  ) : null;
 
   return (
-    <section className="py-16 sm:py-20 overflow-x-clip">
+    <section
+      className={`${flush ? "pb-16 sm:pb-20" : "py-16 sm:py-20"} overflow-x-clip`}
+    >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionHeader
           className="mb-12"
@@ -343,10 +461,48 @@ export function PairedDevices({
                       {visible.map((line, i) => (
                         <TerminalLine key={i} line={line} size="text-[10.5px]" />
                       ))}
-                      {streaming && (
-                        <span className="mt-0.5 inline-block h-3 w-1.5 bg-gray-300 [animation:pd-blink_1.05s_steps(1)_infinite]" />
-                      )}
+                      {status}
                     </div>
+                    {session.key === "claude" && (
+                      <div className="shrink-0 px-3 pb-2 font-mono">
+                        <div
+                          className={`flex items-center gap-1.5 rounded-md border px-2 py-[3px] text-[10.5px] transition-colors ${
+                            isTyping
+                              ? "border-emerald-500/40 bg-emerald-500/[0.04]"
+                              : "border-[#3f3f42]"
+                          }`}
+                        >
+                          <span className="text-gray-500">&gt;</span>
+                          {isTyping ? (
+                            <>
+                              <span className="whitespace-pre text-gray-200">
+                                {typed}
+                              </span>
+                              <span className="inline-block h-3 w-1.5 bg-gray-300 [animation:pd-blink_1s_steps(1)_infinite]" />
+                            </>
+                          ) : (
+                            <span className="inline-block h-3 w-1.5 bg-gray-500 [animation:pd-blink_1.05s_steps(1)_infinite]" />
+                          )}
+                        </div>
+                        <div className="px-1 pt-1 text-[8px] text-gray-600">
+                          ? for shortcuts
+                        </div>
+                      </div>
+                    )}
+                    {session.key === "codex" && (
+                      <div className="shrink-0 px-3 pb-2 font-mono">
+                        <div className="flex items-center text-[10.5px]">
+                          <span className="text-gray-300">▌</span>
+                          <span className="pl-1 text-gray-600">
+                            Ask Codex to do anything
+                          </span>
+                        </div>
+                        <div className="flex justify-between pt-1 text-[8px] text-gray-600">
+                          <span>⏎ send</span>
+                          <span>97% context left</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -445,6 +601,7 @@ export function PairedDevices({
                     {visible.map((line, i) => (
                       <TerminalLine key={i} line={line} size="text-[10px]" />
                     ))}
+                    {status}
                   </div>
 
                   {/* Composer — caret + typed prompt during the control beat */}
