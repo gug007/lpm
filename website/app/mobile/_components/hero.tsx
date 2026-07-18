@@ -1,7 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { HeroDownload } from "@/components/home/hero-download";
-import { REPO_URL } from "@/lib/links";
 import AppStoreButton from "./app-store-button";
 
 export default function Hero() {
@@ -39,16 +38,6 @@ export default function Hero() {
           Install lpm on your Mac and the lpm link app on your iPhone or iPad,
           then scan one QR code to pair.
         </p>
-
-        <div className="mt-8">
-          <a
-            href={REPO_URL}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
-          >
-            View on GitHub
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
-        </div>
       </div>
     </section>
   );

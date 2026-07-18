@@ -20,9 +20,9 @@ import Problem from "./_components/problem";
 import ReviewShip from "./_components/review-ship";
 import Security from "./_components/security";
 
-const TITLE = "Control Claude Code, Codex & More From Your iPhone";
+const TITLE = "Run AI Agents in Your Mac Terminal From Your iPhone";
 const DESCRIPTION =
-  "Pair your iPhone with lpm on your Mac to steer Claude Code and Codex, review diffs, commit, push, or open a PR, and get encrypted alerts when an agent is waiting.";
+  "Pair your iPhone with lpm on your Mac to control Claude Code, Codex, or any AI agent in a live terminal: review diffs, commit and push, and get encrypted alerts.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -30,6 +30,9 @@ export const metadata: Metadata = {
   keywords: [
     "control claude code from phone",
     "control claude code from iphone",
+    "ai agent mac terminal",
+    "mac terminal on iphone",
+    "run ai agents from phone",
     "review git diff on phone",
     "commit and push from iphone",
     "ios terminal companion app",
