@@ -7,7 +7,8 @@ import UIKit
 /// palette is shared and lives in the web page (terminal.html).
 ///
 /// `.default` is the phone's own true-black OLED look (the Mac's default is a
-/// lighter #1a1a1a); every other case matches the desktop values exactly.
+/// lighter #1a1a1a); every other case matches the desktop values exactly. The
+/// out-of-the-box selection is `TerminalPrefs.defaultTheme` (Claude Dark).
 enum TerminalTheme: String, CaseIterable, Identifiable {
     case `default` = "default"
     case oneDark = "one-dark"
@@ -105,10 +106,11 @@ enum TerminalPrefs {
     static let defaultFontSize = 12
     static let minFontSize = 8
     static let maxFontSize = 24
+    static let defaultTheme: TerminalTheme = .claudeDark
 
-    /// The stored theme, defaulting to the OLED look; unknown values fall back too.
+    /// The stored theme, defaulting to Claude Dark; unknown values fall back too.
     static func theme(_ raw: String) -> TerminalTheme {
-        TerminalTheme(rawValue: raw) ?? .default
+        TerminalTheme(rawValue: raw) ?? defaultTheme
     }
 }
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <link rel="stylesheet" href="xterm/xterm.css" />
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #000000; overscroll-behavior: none; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #2b2b2b; overscroll-behavior: none; }
   /* The terminal sits within the safe area (below the nav bar); the inset is set from Swift. */
   #term { position: absolute; inset: 0; padding: var(--top-inset, 0px) 6px 6px 6px; }
   .xterm .xterm-viewport { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
@@ -21,11 +21,12 @@
   const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
 
   // Theme, palette, and font mirror the lpm desktop (terminal-utils.ts): iTerm2
-  // ANSI colors with a brightened blue and #cccccc fg. The phone uses a true-black
-  // (#000000) ground for a clean OLED look, instead of the desktop's #1a1a1a.
+  // ANSI colors with a brightened blue. Initial dynamic colors are Claude Dark —
+  // the default theme (TerminalPrefs.defaultTheme) — so the first paint matches
+  // before Swift pushes the stored theme via lpmSetTheme.
   const theme = {
-    background: '#000000', foreground: '#cccccc',
-    cursor: '#cccccc', cursorAccent: '#000000', selectionBackground: '#444444',
+    background: '#2b2b2b', foreground: '#c8c8c8',
+    cursor: '#c8c8c8', cursorAccent: '#2b2b2b', selectionBackground: '#484848',
     black: '#000000', red: '#c91b00', green: '#00c200', yellow: '#c7c400',
     blue: '#3b8eea', magenta: '#c930c7', cyan: '#00c5c7', white: '#c7c7c7',
     brightBlack: '#686868', brightRed: '#ff6e67', brightGreen: '#5ffa68',

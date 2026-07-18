@@ -691,7 +691,7 @@ struct TerminalScreen: View {
     @State private var showSettings = false
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
-    @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalTheme.default.rawValue
+    @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
 
     private var theme: TerminalTheme { TerminalPrefs.theme(themeRaw) }
 

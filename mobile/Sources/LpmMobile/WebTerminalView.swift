@@ -46,7 +46,7 @@ struct WebTerminalView: UIViewRepresentable {
     /// Phone-local terminal preferences (Settings → Terminal). SwiftUI re-runs
     /// updateUIView when these change, which pushes them into the page.
     var fontSize: Int = TerminalPrefs.defaultFontSize
-    var theme: TerminalTheme = .default
+    var theme: TerminalTheme = TerminalPrefs.defaultTheme
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
 
@@ -124,7 +124,7 @@ struct WebTerminalView: UIViewRepresentable {
         weak var web: WKWebView?
         var topInset: CGFloat = 0
         var fontSize = TerminalPrefs.defaultFontSize
-        var theme: TerminalTheme = .default
+        var theme: TerminalTheme = TerminalPrefs.defaultTheme
         var onFirstContent: (() -> Void)?
         private var ready = false
         private var announcedContent = false
