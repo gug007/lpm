@@ -280,6 +280,81 @@ enum Wire {
         return json(obj)
     }
 
+    // MARK: project creation / discovery + config editing
+
+    /// List the folders under `path` for the Mac folder browser. An empty/`~` path
+    /// resolves to $HOME on the Mac; else an absolute path.
+    static func listDirs(path: String) -> String {
+        json(["t": "listDirs", "path": path])
+    }
+    static func listSshHosts() -> String { json(["t": "listSshHosts"]) }
+    /// Create a new empty project (or adopt an existing folder) rooted at `root`.
+    static func createProject(name: String, root: String) -> String {
+        json(["t": "createProject", "name": name, "root": root])
+    }
+    /// Create a project backed by an SSH host. `ssh` is the connection map
+    /// (`host`, `user`, `port`, `key`, `dir`) the form built.
+    static func createSshProject(name: String, ssh: [String: Any]) -> String {
+        json(["t": "createSshProject", "name": name, "ssh": ssh])
+    }
+    /// Clone a git repo into a new project (slow — the reply arrives asynchronously
+    /// after the clone finishes on the Mac).
+    static func cloneProject(name: String, url: String, branch: String, destParent: String) -> String {
+        json(["t": "cloneProject", "name": name, "url": url, "branch": branch, "destParent": destParent])
+    }
+    /// Read a config layer's raw YAML text for the editor. `layer` ∈ project|repo|global.
+    static func readConfig(project: String, layer: String) -> String {
+        json(["t": "readConfig", "project": project, "layer": layer])
+    }
+    /// Write a config layer's raw YAML text (comment-preserving round-trip).
+    static func saveConfig(project: String, layer: String, content: String) -> String {
+        json(["t": "saveConfig", "project": project, "layer": layer, "content": content])
+    }
+    /// Read one service's normalized mapping to seed the service form.
+    static func serviceBody(project: String, key: String) -> String {
+        json(["t": "serviceBody", "project": project, "key": key])
+    }
+    /// Read one action's normalized mapping (searching actions + terminals across
+    /// layers) to seed the action form. `key` may be a composite `parent:child`.
+    static func actionBody(project: String, key: String) -> String {
+        json(["t": "actionBody", "project": project, "key": key])
+    }
+    /// Create or update a service. `previousKey` (when different) renames the entry
+    /// and rewrites every reference to it. `payload` is the managed-fields map.
+    static func saveService(project: String, key: String, payload: [String: Any],
+                            previousKey: String?) -> String {
+        var obj: [String: Any] = ["t": "saveService", "project": project, "key": key, "payload": payload]
+        if let previousKey, !previousKey.isEmpty { obj["previousKey"] = previousKey }
+        return json(obj)
+    }
+    static func deleteService(project: String, key: String) -> String {
+        json(["t": "deleteService", "project": project, "key": key])
+    }
+    /// Create or update a profile (its ordered service list). `previousName` (when
+    /// different) renames it.
+    static func saveProfile(project: String, name: String, services: [String],
+                            previousName: String?) -> String {
+        var obj: [String: Any] = ["t": "saveProfile", "project": project, "name": name, "services": services]
+        if let previousName, !previousName.isEmpty { obj["previousName"] = previousName }
+        return json(obj)
+    }
+    static func deleteProfile(project: String, name: String) -> String {
+        json(["t": "deleteProfile", "project": project, "name": name])
+    }
+    /// Create or update an action. `payload` is the full action mapping the form
+    /// built; `previousKey` (when different) renames it, preserving `section`
+    /// (actions|terminals).
+    static func saveAction(project: String, key: String, payload: [String: Any],
+                           previousKey: String?, section: String?) -> String {
+        var obj: [String: Any] = ["t": "saveAction", "project": project, "key": key, "payload": payload]
+        if let previousKey, !previousKey.isEmpty { obj["previousKey"] = previousKey }
+        if let section, !section.isEmpty { obj["section"] = section }
+        return json(obj)
+    }
+    static func deleteAction(project: String, key: String) -> String {
+        json(["t": "deleteAction", "project": project, "key": key])
+    }
+
     /// A `transform`/`historyQuery` reqId echoes back verbatim as a string or a
     /// number; normalize either to the string we sent so replies match requests.
     static func reqIdString(_ v: Any?) -> String {
@@ -412,6 +487,26 @@ enum Wire {
         case historyMutated(ok: Bool, error: String?)
         case historyFolders([HistoryFolder])
         case historyCreateFolder(folder: HistoryFolder?, error: String?)
+        // Project creation / discovery + config editing replies. Reads carry their
+        // decoded payload (nil on failure); writes carry only the failure to surface.
+        case listDirs(listing: DirListing?, error: String?)
+        case listSshHosts(hosts: [SshHostInfo], error: String?)
+        case createProject(name: String, error: String?)
+        case createSshProject(name: String, error: String?)
+        case cloneProject(name: String, error: String?)
+        case readConfig(project: String, layer: String, content: String, available: Bool, error: String?)
+        // `name` is the possibly-renamed project (project layer); echoes the input
+        // otherwise.
+        case saveConfig(project: String, layer: String, name: String, error: String?)
+        case serviceBody(project: String, key: String, body: [String: Any]?, source: String, error: String?)
+        case actionBody(project: String, key: String, body: [String: Any]?,
+                        section: String, source: String, error: String?)
+        case saveService(project: String, key: String, error: String?)
+        case deleteService(project: String, key: String, error: String?)
+        case saveProfile(project: String, name: String, error: String?)
+        case deleteProfile(project: String, name: String, error: String?)
+        case saveAction(project: String, key: String, error: String?)
+        case deleteAction(project: String, key: String, error: String?)
         case pong
         case unknown
 
@@ -692,6 +787,85 @@ enum Wire {
                 return .historyCreateFolder(
                     folder: ok ? HistoryFolder(obj["folder"] as? [String: Any] ?? [:]) : nil,
                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the folder."))
+            case "listDirs":
+                let ok = obj["ok"] as? Bool ?? false
+                return .listDirs(listing: ok ? DirListing(obj) : nil,
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't list folders."))
+            case "listSshHosts":
+                let ok = obj["ok"] as? Bool ?? false
+                return .listSshHosts(hosts: ok ? (obj["hosts"] as? [[String: Any]] ?? []).map(SshHostInfo.init) : [],
+                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't list SSH hosts."))
+            case "createProject":
+                let ok = obj["ok"] as? Bool ?? false
+                return .createProject(name: obj["name"] as? String ?? "",
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the project."))
+            case "createSshProject":
+                let ok = obj["ok"] as? Bool ?? false
+                return .createSshProject(name: obj["name"] as? String ?? "",
+                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the project."))
+            case "cloneProject":
+                let ok = obj["ok"] as? Bool ?? false
+                return .cloneProject(name: obj["name"] as? String ?? "",
+                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't clone the repository."))
+            case "readConfig":
+                let ok = obj["ok"] as? Bool ?? false
+                return .readConfig(project: obj["project"] as? String ?? "",
+                                   layer: obj["layer"] as? String ?? "",
+                                   content: ok ? (obj["content"] as? String ?? "") : "",
+                                   available: ok ? (obj["available"] as? Bool ?? true) : false,
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the config."))
+            case "saveConfig":
+                let ok = obj["ok"] as? Bool ?? false
+                let project = obj["project"] as? String ?? ""
+                return .saveConfig(project: project,
+                                   layer: obj["layer"] as? String ?? "",
+                                   name: obj["name"] as? String ?? project,
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the config."))
+            case "serviceBody":
+                let ok = obj["ok"] as? Bool ?? false
+                return .serviceBody(project: obj["project"] as? String ?? "",
+                                    key: obj["key"] as? String ?? "",
+                                    body: ok ? (obj["body"] as? [String: Any]) : nil,
+                                    source: obj["source"] as? String ?? "",
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the service."))
+            case "actionBody":
+                let ok = obj["ok"] as? Bool ?? false
+                return .actionBody(project: obj["project"] as? String ?? "",
+                                   key: obj["key"] as? String ?? "",
+                                   body: ok ? (obj["body"] as? [String: Any]) : nil,
+                                   section: obj["section"] as? String ?? "actions",
+                                   source: obj["source"] as? String ?? "",
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the action."))
+            case "saveService":
+                let ok = obj["ok"] as? Bool ?? false
+                return .saveService(project: obj["project"] as? String ?? "",
+                                    key: obj["key"] as? String ?? "",
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the service."))
+            case "deleteService":
+                let ok = obj["ok"] as? Bool ?? false
+                return .deleteService(project: obj["project"] as? String ?? "",
+                                      key: obj["key"] as? String ?? "",
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the service."))
+            case "saveProfile":
+                let ok = obj["ok"] as? Bool ?? false
+                return .saveProfile(project: obj["project"] as? String ?? "",
+                                    name: obj["name"] as? String ?? "",
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the profile."))
+            case "deleteProfile":
+                let ok = obj["ok"] as? Bool ?? false
+                return .deleteProfile(project: obj["project"] as? String ?? "",
+                                      name: obj["name"] as? String ?? "",
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the profile."))
+            case "saveAction":
+                let ok = obj["ok"] as? Bool ?? false
+                return .saveAction(project: obj["project"] as? String ?? "",
+                                   key: obj["key"] as? String ?? "",
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the action."))
+            case "deleteAction":
+                let ok = obj["ok"] as? Bool ?? false
+                return .deleteAction(project: obj["project"] as? String ?? "",
+                                     key: obj["key"] as? String ?? "",
+                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the action."))
             case "pong": return .pong
             default: return .unknown
             }
@@ -1032,6 +1206,41 @@ struct Profile: Identifiable {
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""
         services = o["services"] as? [String] ?? []
+    }
+}
+
+/// One level of the Mac folder browser (mirrors the Rust `DirListing`): the folder
+/// listed, its parent (nil at the filesystem root), and the immediate subfolders.
+struct DirListing {
+    let path: String
+    let parent: String?
+    let dirs: [String]
+
+    init(_ o: [String: Any]) {
+        path = o["path"] as? String ?? ""
+        parent = o["parent"] as? String
+        dirs = o["dirs"] as? [String] ?? []
+    }
+}
+
+/// One `~/.ssh/config` host (mirrors the Rust `SshConfigHost`) offered when
+/// creating an SSH-backed project. `port` is 0 and the string fields empty when
+/// the host omits them.
+struct SshHostInfo: Identifiable {
+    let name: String
+    let hostName: String
+    let user: String
+    let port: Int
+    let identityFile: String
+
+    var id: String { name }
+
+    init(_ o: [String: Any]) {
+        name = o["name"] as? String ?? ""
+        hostName = o["hostName"] as? String ?? ""
+        user = o["user"] as? String ?? ""
+        port = o["port"] as? Int ?? 0
+        identityFile = o["identityFile"] as? String ?? ""
     }
 }
 

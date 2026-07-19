@@ -8,6 +8,7 @@ mod clipboard;
 mod commands_real;
 mod config;
 mod config_cmds;
+mod config_edit;
 mod configwatch;
 mod control;
 mod detached;

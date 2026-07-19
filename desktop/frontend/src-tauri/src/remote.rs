@@ -1355,6 +1355,58 @@ fn queue_run_action(hub: &RemoteHub, app: &AppHandle, req: Value) {
     let _ = app.emit("remote-run-action", ());
 }
 
+/// Build the `readConfig` reply for one layer. Project/global missing files read
+/// as empty (blank canvas, `available:true`); the repo layer is unavailable for
+/// SSH/rootless projects (`available:false`). Mirrors config_cmds' read logic.
+fn read_config_reply(project: &str, layer: &str) -> Value {
+    let ok = |content: String, available: bool| {
+        json!({ "t": "readConfig", "ok": true, "project": project, "layer": layer,
+        "content": content, "available": available })
+    };
+    let err = |e: String| {
+        json!({ "t": "readConfig", "ok": false, "project": project, "layer": layer, "error": e })
+    };
+    let read = |path: std::path::PathBuf| match std::fs::read_to_string(&path) {
+        Ok(s) => ok(s, true),
+        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => ok(String::new(), true),
+        Err(e) => err(e.to_string()),
+    };
+    match layer {
+        "project" => {
+            let target = config::peek_parent(project).unwrap_or_else(|| project.to_string());
+            read(config::project_path(&target))
+        }
+        "repo" => match crate::config_cmds::repo_config_path(project) {
+            Ok(path) => read(path),
+            Err(_) => ok(String::new(), false),
+        },
+        "global" => read(config::global_path()),
+        _ => err("unknown config layer".into()),
+    }
+}
+
+/// Persist one raw YAML layer via the shared config_cmds writers (same
+/// duplicate-parent + rename routing the desktop uses; those emit
+/// `projects-changed` on success). `name` echoes the possibly-renamed project
+/// for the project layer, else the input project.
+fn save_config_reply(app: &AppHandle, project: &str, layer: &str, content: String) -> Value {
+    let result: Result<String, String> = match layer {
+        "project" => crate::config_cmds::write_project_config(app, project.to_string(), content),
+        "repo" => crate::config_cmds::write_repo_config(app, project, &content)
+            .map(|()| project.to_string()),
+        "global" => {
+            crate::config_cmds::write_global_config(app, &content).map(|()| project.to_string())
+        }
+        _ => Err("unknown config layer".into()),
+    };
+    match result {
+        Ok(name) => json!({ "t": "saveConfig", "ok": true, "project": project,
+        "layer": layer, "name": name }),
+        Err(e) => json!({ "t": "saveConfig", "ok": false, "project": project,
+        "layer": layer, "name": project, "error": e }),
+    }
+}
+
 fn handle_msg(
     ws: &mut ClientWs,
     txt: &str,

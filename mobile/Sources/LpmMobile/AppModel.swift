@@ -37,6 +37,56 @@ final class AppModel {
     var jobMutationDoneToken = 0
     @ObservationIgnored private let jobMutationTimeout = GenerationTimeout<String>()
 
+    // MARK: project creation / discovery + config editing
+    //
+    // Seed state for the add-project + config-editor forms, plus ONE shared
+    // mutation cluster reused by every config write (create/clone/ssh project,
+    // raw-YAML save, and the structured service/profile/action save+delete). A
+    // write sets `configMutationInFlight` (Save spinner) and, on success, bumps
+    // `configMutationDoneToken` so the open sheet dismisses; a failure sets
+    // `configMutationError`. A guarded timeout surfaces an error if the Mac never
+    // replies. Mirrors the job cluster above.
+
+    // Mac folder browser (loadDirs). `dirListing` is the current level.
+    var dirListing: DirListing?
+    var dirListingError: String?
+    var dirListingLoading = false
+    // SSH hosts from the Mac's ~/.ssh/config (loadSshHosts). `sshHostsLoaded` is
+    // true once the first reply lands, so the picker distinguishes empty vs loading.
+    var sshHosts: [SshHostInfo] = []
+    var sshHostsLoaded = false
+    var sshHostsError: String?
+    // Raw YAML editor seed (readConfig). `configText` is the layer's current text;
+    // `configAvailable` is false for the repo layer of an SSH/rootless project.
+    var configText: String?
+    var configAvailable = true
+    var configTextError: String?
+    var configTextLoading = false
+    // Structured service-form seed (loadServiceBody): the normalized mapping and
+    // which layer owns it.
+    var serviceBody: [String: Any]?
+    var serviceBodyError: String?
+    var serviceBodyLoading = false
+    var serviceBodySource = ""
+    // Structured action-form seed (loadActionBody): the normalized mapping plus
+    // which section (actions|terminals) and layer own it.
+    var actionBody: [String: Any]?
+    var actionBodyError: String?
+    var actionBodyLoading = false
+    var actionBodySection = "actions"
+    var actionBodySource = ""
+    // Shared config-write mutation cluster (see note above). `configSavedName` is
+    // the possibly-renamed project a saveConfig success returns, for the editor to
+    // adopt so it keeps editing the right project.
+    var configMutationInFlight = false
+    var configMutationError: String?
+    var configMutationDoneToken = 0
+    var configSavedName: String?
+    // One generation-guarded timeout keyed per request kind ("dirs", "sshHosts",
+    // "readConfig", "serviceBody", "actionBody", "mutation"), so a silent Mac
+    // surfaces an error on each instead of spinning forever.
+    @ObservationIgnored private let configTimeout = GenerationTimeout<String>()
+
     // Local agent token-usage stats (the desktop Stats page). `stats` is nil until
     // the first load lands; `statsDays` is the selected period (1/7/30 days, 0 =
     // all time). `statsActive` re-issues the query after a reconnect.
@@ -767,6 +817,29 @@ final class AppModel {
         jobMutationInFlight = false
         jobMutationError = nil
         jobMutationTimeout.cancel("job")
+        dirListing = nil
+        dirListingError = nil
+        dirListingLoading = false
+        sshHosts = []
+        sshHostsLoaded = false
+        sshHostsError = nil
+        configText = nil
+        configAvailable = true
+        configTextError = nil
+        configTextLoading = false
+        serviceBody = nil
+        serviceBodyError = nil
+        serviceBodyLoading = false
+        serviceBodySource = ""
+        actionBody = nil
+        actionBodyError = nil
+        actionBodyLoading = false
+        actionBodySection = "actions"
+        actionBodySource = ""
+        configMutationInFlight = false
+        configMutationError = nil
+        configSavedName = nil
+        configTimeout.cancelAll()
         stats = nil
         statsLoading = false
         statsError = nil
@@ -1129,6 +1202,170 @@ final class AppModel {
             guard let self, self.jobMutationInFlight else { return }
             self.jobMutationInFlight = false
             self.jobMutationError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    // MARK: project creation / discovery + config editing
+
+    /// Browse the Mac's folders one level at a time for the add-project picker.
+    /// An empty/`~` path resolves to $HOME on the Mac.
+    func loadDirs(_ path: String) {
+        dirListingLoading = true
+        dirListingError = nil
+        client?.requestDirs(path: path)
+        configTimeout.arm("dirs", seconds: 20) { [weak self] in
+            guard let self, self.dirListingLoading else { return }
+            self.dirListingLoading = false
+            self.dirListingError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    /// Load the Mac's SSH config hosts for the SSH-project form.
+    func loadSshHosts() {
+        sshHostsError = nil
+        client?.requestSshHosts()
+        configTimeout.arm("sshHosts", seconds: 20) { [weak self] in
+            guard let self, !self.sshHostsLoaded else { return }
+            self.sshHostsLoaded = true
+            self.sshHostsError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    /// Fetch a config layer's raw YAML text so the editor sheet can seed itself.
+    /// Clears the prior text first, like `loadJobConfig`, so a sheet can await it.
+    func readConfig(project: String, layer: String) {
+        configTextLoading = true
+        configText = nil
+        configTextError = nil
+        configAvailable = true
+        client?.requestConfig(project: project, layer: layer)
+        configTimeout.arm("readConfig", seconds: 20) { [weak self] in
+            guard let self, self.configTextLoading else { return }
+            self.configTextLoading = false
+            self.configTextError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    /// Fetch one service's normalized mapping to seed the service form.
+    func loadServiceBody(project: String, key: String) {
+        serviceBodyLoading = true
+        serviceBody = nil
+        serviceBodyError = nil
+        serviceBodySource = ""
+        client?.requestServiceBody(project: project, key: key)
+        configTimeout.arm("serviceBody", seconds: 20) { [weak self] in
+            guard let self, self.serviceBodyLoading else { return }
+            self.serviceBodyLoading = false
+            self.serviceBodyError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    /// Fetch one action's normalized mapping (plus its section + layer) to seed the
+    /// action form. `key` may be a composite `parent:child`.
+    func loadActionBody(project: String, key: String) {
+        actionBodyLoading = true
+        actionBody = nil
+        actionBodyError = nil
+        actionBodySection = "actions"
+        actionBodySource = ""
+        client?.requestActionBody(project: project, key: key)
+        configTimeout.arm("actionBody", seconds: 20) { [weak self] in
+            guard let self, self.actionBodyLoading else { return }
+            self.actionBodyLoading = false
+            self.actionBodyError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    /// Create a new empty project (or adopt an existing folder) rooted at `root`.
+    func createProject(name: String, root: String) {
+        beginConfigMutation()
+        client?.createProject(name: name, root: root)
+    }
+
+    /// Create a project backed by an SSH host. `ssh` is the connection map
+    /// (`host`, `user`, `port`, `key`, `dir`) the form built.
+    func createSshProject(name: String, ssh: [String: Any]) {
+        beginConfigMutation()
+        client?.createSshProject(name: name, ssh: ssh)
+    }
+
+    /// Clone a git repo into a new project. Slow — the Mac clones on a worker
+    /// thread, so arm a generous timeout (120s) instead of the default.
+    func cloneProject(name: String, url: String, branch: String, destParent: String) {
+        beginConfigMutation(seconds: 120)
+        client?.cloneProject(name: name, url: url, branch: branch, destParent: destParent)
+    }
+
+    /// Write a config layer's raw YAML text. On success the reply carries the
+    /// possibly-renamed project (project layer), adopted into `configSavedName`.
+    func saveConfig(project: String, layer: String, content: String) {
+        configSavedName = nil
+        beginConfigMutation()
+        client?.saveConfig(project: project, layer: layer, content: content)
+    }
+
+    /// Create or update a service. `previousKey` (when different) renames it and
+    /// rewrites every reference; `payload` is the managed-fields map.
+    func saveService(project: String, key: String, payload: [String: Any], previousKey: String?) {
+        beginConfigMutation()
+        client?.saveService(project: project, key: key, payload: payload, previousKey: previousKey)
+    }
+
+    func deleteService(project: String, key: String) {
+        beginConfigMutation()
+        client?.deleteService(project: project, key: key)
+    }
+
+    /// Create or update a profile (its ordered service list). `previousName` (when
+    /// different) renames it.
+    func saveProfile(project: String, name: String, services: [String], previousName: String?) {
+        beginConfigMutation()
+        client?.saveProfile(project: project, name: name, services: services, previousName: previousName)
+    }
+
+    func deleteProfile(project: String, name: String) {
+        beginConfigMutation()
+        client?.deleteProfile(project: project, name: name)
+    }
+
+    /// Create or update an action. `payload` is the full action mapping the form
+    /// built; `previousKey` (when different) renames it, preserving `section`.
+    func saveAction(project: String, key: String, payload: [String: Any],
+                    previousKey: String?, section: String?) {
+        beginConfigMutation()
+        client?.saveAction(project: project, key: key, payload: payload,
+                           previousKey: previousKey, section: section)
+    }
+
+    func deleteAction(project: String, key: String) {
+        beginConfigMutation()
+        client?.deleteAction(project: project, key: key)
+    }
+
+    /// Mark a config write in flight and arm its guard timeout. Shared by every
+    /// create/clone/save/delete above (clone passes a longer window).
+    private func beginConfigMutation(seconds: Double = 20) {
+        configMutationInFlight = true
+        configMutationError = nil
+        configTimeout.arm("mutation", seconds: seconds) { [weak self] in
+            guard let self, self.configMutationInFlight else { return }
+            self.configMutationInFlight = false
+            self.configMutationError = "The Mac didn't respond. Try again."
+        }
+    }
+
+    /// Settle a config write reply: cancel the guard, drop the spinner, then either
+    /// surface the error or bump the done-token (dismiss the sheet) and re-request
+    /// the projects list so the edit shows immediately.
+    private func finishConfigMutation(_ error: String?, _ c: LpmClient) {
+        configTimeout.cancel("mutation")
+        configMutationInFlight = false
+        if let error {
+            configMutationError = error
+        } else {
+            configMutationDoneToken += 1
+            c.requestProjects()
+            c.requestSidebar()
         }
     }
 
@@ -1559,6 +1796,7 @@ final class AppModel {
         wireComposer(c)
         wireBackground(c)
         wireHistory(c)
+        wireConfig(c)
     }
 
     private func wireConnection(_ c: LpmClient) {
@@ -1967,6 +2205,61 @@ final class AppModel {
                 self.historyFolders.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             }
         }
+    }
+
+    private func wireConfig(_ c: LpmClient) {
+        // Form-seed reads: cancel the guard, drop the spinner, seed or surface error.
+        c.onListDirs = { [weak self] listing, error in
+            guard let self else { return }
+            self.configTimeout.cancel("dirs")
+            self.dirListingLoading = false
+            if let listing { self.dirListing = listing; self.dirListingError = nil }
+            else { self.dirListingError = error ?? "Couldn't list folders." }
+        }
+        c.onListSshHosts = { [weak self] hosts, error in
+            guard let self else { return }
+            self.configTimeout.cancel("sshHosts")
+            self.sshHostsLoaded = true
+            if let error { self.sshHostsError = error }
+            else { self.sshHosts = hosts; self.sshHostsError = nil }
+        }
+        c.onReadConfig = { [weak self] _, _, content, available, error in
+            guard let self else { return }
+            self.configTimeout.cancel("readConfig")
+            self.configTextLoading = false
+            if let error { self.configTextError = error }
+            else { self.configText = content; self.configAvailable = available; self.configTextError = nil }
+        }
+        c.onServiceBody = { [weak self] _, _, body, source, error in
+            guard let self else { return }
+            self.configTimeout.cancel("serviceBody")
+            self.serviceBodyLoading = false
+            if let error { self.serviceBodyError = error }
+            else { self.serviceBody = body; self.serviceBodySource = source }
+        }
+        c.onActionBody = { [weak self] _, _, body, section, source, error in
+            guard let self else { return }
+            self.configTimeout.cancel("actionBody")
+            self.actionBodyLoading = false
+            if let error { self.actionBodyError = error }
+            else { self.actionBody = body; self.actionBodySection = section; self.actionBodySource = source }
+        }
+        // Config writes all settle through the shared mutation cluster. saveConfig
+        // additionally adopts the possibly-renamed project name before finishing.
+        c.onCreateProject = { [weak self] _, error in self?.finishConfigMutation(error, c) }
+        c.onCreateSshProject = { [weak self] _, error in self?.finishConfigMutation(error, c) }
+        c.onCloneProject = { [weak self] _, error in self?.finishConfigMutation(error, c) }
+        c.onSaveConfig = { [weak self] _, _, name, error in
+            guard let self else { return }
+            if error == nil, !name.isEmpty { self.configSavedName = name }
+            self.finishConfigMutation(error, c)
+        }
+        c.onSaveService = { [weak self] _, _, error in self?.finishConfigMutation(error, c) }
+        c.onDeleteService = { [weak self] _, _, error in self?.finishConfigMutation(error, c) }
+        c.onSaveProfile = { [weak self] _, _, error in self?.finishConfigMutation(error, c) }
+        c.onDeleteProfile = { [weak self] _, _, error in self?.finishConfigMutation(error, c) }
+        c.onSaveAction = { [weak self] _, _, error in self?.finishConfigMutation(error, c) }
+        c.onDeleteAction = { [weak self] _, _, error in self?.finishConfigMutation(error, c) }
     }
 }
 

@@ -113,6 +113,23 @@ final class LpmClient: NSObject {
     var onSidebarMutation: ((_ order: [String], _ groups: [ProjectFolder], _ error: String?) -> Void)?
     // A readFile reply: `content` nil on failure, `truncated` when capped.
     var onFile: ((_ project: String, _ path: String, _ content: String?, _ truncated: Bool, _ error: String?) -> Void)?
+    // Project creation / discovery + config editing replies. Reads carry a decoded
+    // payload (nil on failure); writes carry only the error to surface (nil = ok).
+    var onListDirs: ((_ listing: DirListing?, _ error: String?) -> Void)?
+    var onListSshHosts: ((_ hosts: [SshHostInfo], _ error: String?) -> Void)?
+    var onCreateProject: ((_ name: String, _ error: String?) -> Void)?
+    var onCreateSshProject: ((_ name: String, _ error: String?) -> Void)?
+    var onCloneProject: ((_ name: String, _ error: String?) -> Void)?
+    var onReadConfig: ((_ project: String, _ layer: String, _ content: String, _ available: Bool, _ error: String?) -> Void)?
+    var onSaveConfig: ((_ project: String, _ layer: String, _ name: String, _ error: String?) -> Void)?
+    var onServiceBody: ((_ project: String, _ key: String, _ body: [String: Any]?, _ source: String, _ error: String?) -> Void)?
+    var onActionBody: ((_ project: String, _ key: String, _ body: [String: Any]?, _ section: String, _ source: String, _ error: String?) -> Void)?
+    var onSaveService: ((_ project: String, _ key: String, _ error: String?) -> Void)?
+    var onDeleteService: ((_ project: String, _ key: String, _ error: String?) -> Void)?
+    var onSaveProfile: ((_ project: String, _ name: String, _ error: String?) -> Void)?
+    var onDeleteProfile: ((_ project: String, _ name: String, _ error: String?) -> Void)?
+    var onSaveAction: ((_ project: String, _ key: String, _ error: String?) -> Void)?
+    var onDeleteAction: ((_ project: String, _ key: String, _ error: String?) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -526,6 +543,38 @@ final class LpmClient: NSObject {
     func stopProject(_ name: String) { send(Wire.stop(name: name)) }
     func toggleService(_ name: String, service: String) { send(Wire.toggleService(name: name, service: service)) }
 
+    // Project creation / discovery + config editing requests. The reads
+    // (listDirs/listSshHosts/readConfig/serviceBody/actionBody) reply quickly; the
+    // writes run on the Mac's worker thread and reply when done (cloneProject can
+    // take a while — the model arms a longer timeout around it).
+    func requestDirs(path: String) { send(Wire.listDirs(path: path)) }
+    func requestSshHosts() { send(Wire.listSshHosts()) }
+    func createProject(name: String, root: String) { send(Wire.createProject(name: name, root: root)) }
+    func createSshProject(name: String, ssh: [String: Any]) {
+        send(Wire.createSshProject(name: name, ssh: ssh))
+    }
+    func cloneProject(name: String, url: String, branch: String, destParent: String) {
+        send(Wire.cloneProject(name: name, url: url, branch: branch, destParent: destParent))
+    }
+    func requestConfig(project: String, layer: String) { send(Wire.readConfig(project: project, layer: layer)) }
+    func saveConfig(project: String, layer: String, content: String) {
+        send(Wire.saveConfig(project: project, layer: layer, content: content))
+    }
+    func requestServiceBody(project: String, key: String) { send(Wire.serviceBody(project: project, key: key)) }
+    func requestActionBody(project: String, key: String) { send(Wire.actionBody(project: project, key: key)) }
+    func saveService(project: String, key: String, payload: [String: Any], previousKey: String?) {
+        send(Wire.saveService(project: project, key: key, payload: payload, previousKey: previousKey))
+    }
+    func deleteService(project: String, key: String) { send(Wire.deleteService(project: project, key: key)) }
+    func saveProfile(project: String, name: String, services: [String], previousName: String?) {
+        send(Wire.saveProfile(project: project, name: name, services: services, previousName: previousName))
+    }
+    func deleteProfile(project: String, name: String) { send(Wire.deleteProfile(project: project, name: name)) }
+    func saveAction(project: String, key: String, payload: [String: Any], previousKey: String?, section: String?) {
+        send(Wire.saveAction(project: project, key: key, payload: payload, previousKey: previousKey, section: section))
+    }
+    func deleteAction(project: String, key: String) { send(Wire.deleteAction(project: project, key: key)) }
+
     // Git review requests. The fast ones (git/gitDiff/gitCommit) reply quickly;
     // push/generate/create-PR do real work on the Mac and can take a long while,
     // so the model arms generous timeouts around them.
@@ -807,6 +856,25 @@ final class LpmClient: NSObject {
             case .historyMutated(let ok, let error): self.onHistoryMutated?(ok, error)
             case .historyFolders(let folders): self.onHistoryFolders?(folders)
             case .historyCreateFolder(let folder, let error): self.onHistoryCreateFolder?(folder, error)
+            case .listDirs(let listing, let error): self.onListDirs?(listing, error)
+            case .listSshHosts(let hosts, let error): self.onListSshHosts?(hosts, error)
+            case .createProject(let name, let error): self.onCreateProject?(name, error)
+            case .createSshProject(let name, let error): self.onCreateSshProject?(name, error)
+            case .cloneProject(let name, let error): self.onCloneProject?(name, error)
+            case .readConfig(let project, let layer, let content, let available, let error):
+                self.onReadConfig?(project, layer, content, available, error)
+            case .saveConfig(let project, let layer, let name, let error):
+                self.onSaveConfig?(project, layer, name, error)
+            case .serviceBody(let project, let key, let body, let source, let error):
+                self.onServiceBody?(project, key, body, source, error)
+            case .actionBody(let project, let key, let body, let section, let source, let error):
+                self.onActionBody?(project, key, body, section, source, error)
+            case .saveService(let project, let key, let error): self.onSaveService?(project, key, error)
+            case .deleteService(let project, let key, let error): self.onDeleteService?(project, key, error)
+            case .saveProfile(let project, let name, let error): self.onSaveProfile?(project, name, error)
+            case .deleteProfile(let project, let name, let error): self.onDeleteProfile?(project, name, error)
+            case .saveAction(let project, let key, let error): self.onSaveAction?(project, key, error)
+            case .deleteAction(let project, let key, let error): self.onDeleteAction?(project, key, error)
             case .pong, .unknown: break
         }
     }
