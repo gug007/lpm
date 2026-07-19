@@ -61,6 +61,7 @@ const PANES: Pane[] = [
     lines: [
       line(s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code", BOLD)),
       line(s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 · company seat", "text-gray-400")),
+      line(s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/client-app", "text-gray-400")),
       prompt("tighten the login rate limiter"),
       gap(s("⏺ ", CLAUDE_GREEN), s("Read", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
       line(s("  ⎿  Read ", DIM), s("84", BOLD_DIM), s(" lines", DIM)),
@@ -75,6 +76,7 @@ const PANES: Pane[] = [
     lines: [
       line(s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code", BOLD)),
       line(s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 · personal", "text-gray-400")),
+      line(s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/side-project", "text-gray-400")),
       prompt("add a dark mode toggle to settings"),
       gap(s("⏺ ", CLAUDE_GREEN), s("Read", BOLD), s("(src/settings/Theme.tsx)", TEXT)),
       line(s("  ⎿  Read ", DIM), s("52", BOLD_DIM), s(" lines", DIM)),
