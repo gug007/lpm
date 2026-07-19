@@ -36,6 +36,9 @@ final class LpmClient: NSObject {
     var onJobLiveOutput: ((_ project: String, _ jobId: String, _ live: AutomationLiveOutput?, _ error: String?) -> Void)?
     var onAutomationMutation: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
     var onAutomationFollowup: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
+    var onJobConfig: ((_ project: String, _ jobId: String, _ job: [String: Any]?, _ error: String?) -> Void)?
+    var onJobSaved: ((_ id: String, _ error: String?) -> Void)?
+    var onJobDeleted: ((_ id: String, _ error: String?) -> Void)?
     var onJobsChanged: (() -> Void)?
     var onDuplicateDefaults: ((_ excludeUncommitted: Bool, _ reinstallDeps: Bool, _ pullLatest: Bool) -> Void)?
     var onDuplicateProgress: ((_ done: Int, _ total: Int, _ name: String) -> Void)?
@@ -367,6 +370,15 @@ final class LpmClient: NSObject {
     func setJobEnabled(project: String, jobId: String, enabled: Bool) {
         send(Wire.setJobEnabled(project: project, jobId: jobId, enabled: enabled))
     }
+    func requestJobConfig(project: String, jobId: String, source: String) {
+        send(Wire.jobConfig(project: project, jobId: jobId, source: source))
+    }
+    func saveJob(id: String, source: String, project: String, job: [String: Any]) {
+        send(Wire.saveJob(id: id, source: source, project: project, job: job))
+    }
+    func deleteJob(id: String, source: String, project: String, deleteCopies: Bool) {
+        send(Wire.deleteJob(id: id, source: source, project: project, deleteCopies: deleteCopies))
+    }
     func sendJobFollowup(project: String, jobId: String, at: Int, message: String,
                          agent: String, model: String, effort: String) {
         send(Wire.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
@@ -618,6 +630,10 @@ final class LpmClient: NSObject {
                 self.onAutomationMutation?(project, jobId, error)
             case .automationFollowup(let project, let jobId, let error):
                 self.onAutomationFollowup?(project, jobId, error)
+            case .jobConfig(let project, let jobId, let job, let error):
+                self.onJobConfig?(project, jobId, job, error)
+            case .jobSaved(let id, let error): self.onJobSaved?(id, error)
+            case .jobDeleted(let id, let error): self.onJobDeleted?(id, error)
             case .jobsChanged: self.onJobsChanged?()
             case .seed(let id, let c, let r, let d, let owner):
                 self.onControl?(id, owner)

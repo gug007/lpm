@@ -1258,6 +1258,80 @@ fn handle_msg(
             reply["jobId"] = json!(job_id);
             send(ws, reply)?;
         }
+        // The raw YAML body of one job, so the phone editor can seed an edit from
+        // the exact stored config (the desktop reads it from the layer file too).
+        "jobConfig" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            let source = str_field("source").unwrap_or_else(|| "project".into());
+            let mut reply = json!({ "t": "jobConfig", "project": project, "jobId": job_id });
+            match crate::jobs::read_job_body(project.clone(), source, job_id.clone()) {
+                Ok(job) => {
+                    reply["ok"] = json!(true);
+                    reply["job"] = job;
+                }
+                Err(e) => {
+                    reply["ok"] = json!(false);
+                    reply["error"] = json!(e);
+                }
+            }
+            send(ws, reply)?;
+        }
+        // Create or edit a job from the phone. Carries the full job body; `id` is
+        // present when editing, empty to create. The write reflows the layer file,
+        // so it runs off the read loop and replies through the out-queue. On
+        // success a `job-status` emit refreshes the desktop's Jobs views and (via
+        // the hub's job-status listener) rebroadcasts `jobs-changed` to phones.
+        "saveJob" => {
+            let source = str_field("source").unwrap_or_else(|| "global".into());
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let job = v.get("job").cloned().unwrap_or(Value::Null);
+            let out = out.clone();
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let r = crate::jobs::save_job_body(source, project.clone(), id.clone(), job);
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("job-status", json!({ "project": project }));
+                        json!({ "t": "saveJob", "ok": true, "id": id })
+                    }
+                    Err(e) => json!({ "t": "saveJob", "ok": false, "id": id, "error": e }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        // Delete a job's config and forget its saved state; `deleteCopies` also
+        // tears down the duplicates its runs left behind (a slow path), so this
+        // runs off the read loop and replies through the out-queue.
+        "deleteJob" => {
+            let source = str_field("source").unwrap_or_else(|| "global".into());
+            let project = str_field("project").unwrap_or_default();
+            let id = str_field("id").unwrap_or_default();
+            let delete_copies = v
+                .get("deleteCopies")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let out = out.clone();
+            let app = app.clone();
+            std::thread::spawn(move || {
+                let r = crate::jobs::delete_job_body(
+                    app.clone(),
+                    source,
+                    project.clone(),
+                    id.clone(),
+                    delete_copies,
+                );
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("job-status", json!({ "project": project }));
+                        json!({ "t": "deleteJob", "ok": true, "id": id })
+                    }
+                    Err(e) => json!({ "t": "deleteJob", "ok": false, "id": id, "error": e }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
         "terminals" => {
             let project = str_field("project").unwrap_or_default();
             let terms = pty::remote_terminals(&app.state::<pty::PtyState>(), &project);

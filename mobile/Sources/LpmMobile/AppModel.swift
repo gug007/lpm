@@ -24,6 +24,18 @@ final class AppModel {
     var automationPending: Set<String> = []
     var automationError: String?
     var automationFollowupError: [String: String] = [:]
+    // Automation authoring (create/edit/delete from the phone editor sheet).
+    // `jobConfigBody` holds the raw YAML body fetched for an edit; the loading key
+    // marks which job it belongs to. A save/delete sets `jobMutationInFlight` (Save
+    // spinner) and, on success, bumps `jobMutationDoneToken` so the open sheet
+    // dismisses. A guarded timeout surfaces an error if the Mac never replies.
+    var jobConfigBody: [String: Any]?
+    var jobConfigError: String?
+    var jobConfigLoadingKey: String?
+    var jobMutationInFlight = false
+    var jobMutationError: String?
+    var jobMutationDoneToken = 0
+    @ObservationIgnored private let jobMutationTimeout = GenerationTimeout<String>()
 
     // Local agent token-usage stats (the desktop Stats page). `stats` is nil until
     // the first load lands; `statsDays` is the selected period (1/7/30 days, 0 =
@@ -515,6 +527,12 @@ final class AppModel {
         automationPending = []
         automationError = nil
         automationFollowupError = [:]
+        jobConfigBody = nil
+        jobConfigError = nil
+        jobConfigLoadingKey = nil
+        jobMutationInFlight = false
+        jobMutationError = nil
+        jobMutationTimeout.cancel("job")
         stats = nil
         statsLoading = false
         statsError = nil
@@ -846,6 +864,39 @@ final class AppModel {
     }
 
     func automationKey(_ project: String, _ jobId: String) -> String { project + "\n" + jobId }
+
+    /// Fetch a job's raw config body so the editor sheet can seed an edit.
+    func loadJobConfig(project: String, jobId: String, source: String) {
+        jobConfigLoadingKey = automationKey(project, jobId)
+        jobConfigBody = nil
+        jobConfigError = nil
+        client?.requestJobConfig(project: project, jobId: jobId, source: source)
+    }
+
+    /// Create (empty `id`) or overwrite a job. `job` is the full YAML body the
+    /// editor built; the reply bumps `jobMutationDoneToken` (dismiss) or sets
+    /// `jobMutationError`. A timeout surfaces an error if the Mac stays silent.
+    func saveJob(id: String, source: String, project: String, job: [String: Any]) {
+        jobMutationInFlight = true
+        jobMutationError = nil
+        client?.saveJob(id: id, source: source, project: project, job: job)
+        armJobMutationTimeout()
+    }
+
+    func deleteJob(id: String, source: String, project: String, deleteCopies: Bool) {
+        jobMutationInFlight = true
+        jobMutationError = nil
+        client?.deleteJob(id: id, source: source, project: project, deleteCopies: deleteCopies)
+        armJobMutationTimeout()
+    }
+
+    private func armJobMutationTimeout() {
+        jobMutationTimeout.arm("job", seconds: 20) { [weak self] in
+            guard let self, self.jobMutationInFlight else { return }
+            self.jobMutationInFlight = false
+            self.jobMutationError = "The Mac didn't respond. Try again."
+        }
+    }
 
     /// Pull-to-refresh on the projects list: re-request projects + sidebar when
     /// live, or kick a reconnect when the link is down. The brief wait lets the
@@ -1419,6 +1470,32 @@ final class AppModel {
             c.requestJobs()
             c.requestJobHistory(project: project, jobId: jobId)
             c.requestJobLiveOutput(project: project, jobId: jobId)
+        }
+        c.onJobConfig = { [weak self] project, jobId, job, error in
+            guard let self else { return }
+            self.jobConfigLoadingKey = nil
+            if let error { self.jobConfigError = error }
+            else { self.jobConfigBody = job }
+        }
+        c.onJobSaved = { [weak self] _, error in
+            guard let self else { return }
+            self.jobMutationTimeout.cancel("job")
+            self.jobMutationInFlight = false
+            if let error { self.jobMutationError = error }
+            else {
+                self.jobMutationDoneToken += 1
+                c.requestJobs()
+            }
+        }
+        c.onJobDeleted = { [weak self] _, error in
+            guard let self else { return }
+            self.jobMutationTimeout.cancel("job")
+            self.jobMutationInFlight = false
+            if let error { self.jobMutationError = error }
+            else {
+                self.jobMutationDoneToken += 1
+                c.requestJobs()
+            }
         }
         c.onJobsChanged = { [weak self] in
             guard let self else { return }

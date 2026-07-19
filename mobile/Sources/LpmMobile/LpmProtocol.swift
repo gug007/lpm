@@ -63,6 +63,16 @@ enum Wire {
         json(["t": "sendJobFollowup", "project": project, "jobId": jobId, "at": at,
               "message": message, "agent": agent, "model": model, "effort": effort])
     }
+    static func jobConfig(project: String, jobId: String, source: String) -> String {
+        json(["t": "jobConfig", "project": project, "jobId": jobId, "source": source])
+    }
+    static func saveJob(id: String, source: String, project: String, job: [String: Any]) -> String {
+        json(["t": "saveJob", "id": id, "source": source, "project": project, "job": job])
+    }
+    static func deleteJob(id: String, source: String, project: String, deleteCopies: Bool) -> String {
+        json(["t": "deleteJob", "id": id, "source": source, "project": project,
+              "deleteCopies": deleteCopies])
+    }
     static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
     /// Take control of a terminal shown live elsewhere (the "Take control" button).
@@ -304,6 +314,9 @@ enum Wire {
         case jobLiveOutput(project: String, jobId: String, live: AutomationLiveOutput?, error: String?)
         case automationMutation(project: String, jobId: String, error: String?)
         case automationFollowup(project: String, jobId: String, error: String?)
+        case jobConfig(project: String, jobId: String, job: [String: Any]?, error: String?)
+        case jobSaved(id: String, error: String?)
+        case jobDeleted(id: String, error: String?)
         case jobsChanged
         case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?)
         case control(id: String, owner: ControlOwner?)
@@ -456,6 +469,20 @@ enum Wire {
                 return .automationFollowup(project: obj["project"] as? String ?? "",
                                            jobId: obj["jobId"] as? String ?? "",
                                            error: ok ? nil : (obj["error"] as? String ?? "Couldn't send the message."))
+            case "jobConfig":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobConfig(project: obj["project"] as? String ?? "",
+                                  jobId: obj["jobId"] as? String ?? "",
+                                  job: ok ? (obj["job"] as? [String: Any]) : nil,
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the automation."))
+            case "saveJob":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobSaved(id: obj["id"] as? String ?? "",
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the automation."))
+            case "deleteJob":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobDeleted(id: obj["id"] as? String ?? "",
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the automation."))
             case "jobs-changed": return .jobsChanged
             case "seed":
                 return .seed(id: obj["id"] as? String ?? "",
