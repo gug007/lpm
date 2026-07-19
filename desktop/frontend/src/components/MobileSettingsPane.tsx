@@ -19,7 +19,6 @@ interface Device {
 
 interface RemoteStateShape {
   enabled: boolean;
-  lan: boolean;
   port: number;
   tailscale: boolean;
   running: boolean;
@@ -40,7 +39,6 @@ interface Pairing {
 
 const DEFAULT_STATE: RemoteStateShape = {
   enabled: false,
-  lan: false,
   port: 8765,
   tailscale: true,
   running: false,
@@ -151,13 +149,12 @@ export function MobileSettingsPane() {
   );
 
   const apply = useCallback(
-    async (next: Partial<Pick<RemoteStateShape, "enabled" | "lan" | "port" | "tailscale">>) => {
+    async (next: Partial<Pick<RemoteStateShape, "enabled" | "port" | "tailscale">>) => {
       const merged = { ...state, ...next };
       setState(merged);
       try {
         const s = (await RemoteSetConfig(
           merged.enabled,
-          merged.lan,
           merged.port,
           merged.tailscale,
         )) as RemoteStateShape;
@@ -256,12 +253,6 @@ export function MobileSettingsPane() {
 
       {state.enabled && (
         <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-          <Row
-            label="Local network access"
-            description="Off keeps the server on this Mac only. On exposes it to your local network — pair over a Tailscale tailnet for encrypted access away from home."
-          >
-            <Toggle enabled={state.lan} onChange={(v) => apply({ lan: v })} />
-          </Row>
           <Row label="Port" description="The port the mobile app connects to.">
             <input
               type="number"

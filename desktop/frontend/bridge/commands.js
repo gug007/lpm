@@ -403,14 +403,17 @@ export function LoadSettings() {
 export function RemoteState() {
   return invoke("remote_state");
 }
-export function RemoteSetConfig(enabled, lan, port, tailscale) {
-  return invoke("remote_set_config", { enabled, lan, port, tailscale });
+export function RemoteSetConfig(enabled, port, tailscale) {
+  return invoke("remote_set_config", { enabled, port, tailscale });
 }
 export function RemoteStartPairing() {
   return invoke("remote_start_pairing");
 }
 export function RemoteRevokeDevice(id) {
   return invoke("remote_revoke_device", { id });
+}
+export function RemoteRespondPairRequest(requestId, allow) {
+  return invoke("remote_respond_pair_request", { requestId, allow });
 }
 export function RemoteSetTerminalLabels(project, labels) {
   return invoke("remote_set_terminal_labels", { project, labels });

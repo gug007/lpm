@@ -18,6 +18,7 @@ import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
 import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
 import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
+import { PairApprovalHost } from "./components/PairApprovalHost";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
@@ -341,6 +342,7 @@ export default function App() {
       <AddCloneRepoModal />
       <RemoteFolderPickerHost />
       <PortConflictDialog />
+      <PairApprovalHost />
       <FileViewerHost />
       <TerminalDropOverlayHost />
     </div>

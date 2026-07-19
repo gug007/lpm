@@ -191,6 +191,7 @@ macro_rules! all_command_handlers {
             peer_sync_run,
             peer_term_attach,
             peer_term_detach,
+            remote_respond_pair_request,
             remote_revoke_device,
             remote_set_composer_draft,
             remote_set_config,

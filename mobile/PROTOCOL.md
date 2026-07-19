@@ -82,6 +82,35 @@ and label each one. On rejection:
 { "t": "error", "error": "pairing rejected" }
 ```
 
+**Pair by approval** (first time, no typed code — for a phone that found this Mac
+via [Discovery](#discovery-bonjourmdns) and asks the user to approve on the Mac):
+```json
+{ "t": "pairRequest", "name": "My iPhone" }
+```
+The server replies immediately with one of:
+```json
+{ "t": "pairPending", "matchCode": "1234" }
+{ "t": "pairDenied", "reason": "busy" }
+```
+`pairPending` means the Mac is now showing an approval dialog; `matchCode` is 4
+random digits the Mac displays and the phone should show too, so the user can
+confirm the same device (the phone never sends it back — a human compares them).
+`busy` means another request is already pending or one was shown too recently
+(the Mac spaces prompts out) — the phone may retry shortly.
+
+Then, within a 30-second window, exactly one of:
+```json
+{ "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
+  "serverId": "<uuid>", "serverName": "My MacBook Pro" }
+{ "t": "pairDenied", "reason": "declined" }
+{ "t": "pairDenied", "reason": "timeout" }
+```
+`paired` (user tapped Allow) is byte-for-byte the same shape and meaning as the
+code-based `paired` above — same token/device minting, same post-pairing
+behavior. `declined` (user tapped Deny) and `timeout` (30s elapsed with no
+decision) are terminal; the server then closes the connection. If the phone
+disconnects while pending, the Mac cancels the request and dismisses its dialog.
+
 **Auth** (every subsequent connect):
 ```json
 { "t": "auth", "deviceId": "<uuid>", "token": "<base64 bearer token>" }

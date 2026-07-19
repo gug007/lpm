@@ -91,8 +91,10 @@ code manually. Sanity check the server from another machine: `nc -vz <mac-ip> 87
   token storage (`Keychain.swift`).
 - **Local-network discovery (`MacDiscovery.swift`):**
   - *Nearby-Mac pairing* — the pairing screen lists Macs found on the local
-    network; tapping one fills in its address (the pairing code is still entered
-    by hand, so discovery never bypasses pairing).
+    network; tapping one starts pairing with that Mac.
+  - *Approve-on-Mac pairing (`ApprovalPairingSheet.swift`)* — tapping a nearby Mac
+    requests pairing; both screens show a 4-digit match code, the user clicks Allow
+    on the Mac, and no code is typed (entering a code manually stays available).
   - *Automatic endpoint recovery* — when a saved Mac's addresses stop responding
     (e.g. a new DHCP lease), the phone browses for it by identity and reconnects
     on its fresh address, keeping the Tailscale fallback.

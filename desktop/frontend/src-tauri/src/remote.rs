@@ -25,8 +25,8 @@
 // self-signed leaf (ECDSA P-256, CN "lpm") before the WebSocket handshake — there
 // is no plaintext fallback. The phone pins the leaf's SHA-256 on first pair/auth
 // (TOFU); the pairing QR carries that fingerprint (`f=`) so a QR pair can verify
-// the leaf up front. The server still binds loopback by default with LAN exposure
-// an explicit opt-in.
+// the leaf up front. When enabled the server binds every interface (0.0.0.0) so a
+// paired phone can reach it over the LAN or tailnet.
 use crate::status::{StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use crate::{config, pty, services};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -41,7 +41,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
@@ -55,6 +55,8 @@ const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-dra
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (phone re-seeds)
 const DEFAULT_PUSH_RELAY: &str = "https://lpm.cx/api/push"; // APNs relay (holds the signing key)
+const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(30); // approve-on-Mac decision deadline
+const PAIR_MIN_GAP_MS: i64 = 5000; // min spacing between approve-on-Mac dialogs (anti-nag)
 
 // --- persisted config (~/.lpm/remote.json) -----------------------------------
 
@@ -131,7 +133,6 @@ struct PushPreferences {
 #[serde(default)]
 struct RemoteConfig {
     enabled: bool,
-    lan: bool, // bind 0.0.0.0 (reachable on LAN/tailnet) vs 127.0.0.1 (loopback only)
     port: u16, // 0 => DEFAULT_PORT
     pairing_code: String, // non-empty while an unused pairing code is outstanding
     tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
@@ -152,7 +153,6 @@ impl Default for RemoteConfig {
     fn default() -> Self {
         Self {
             enabled: false,
-            lan: false,
             port: 0,
             pairing_code: String::new(),
             tailscale: true, // away-from-home works out of the box; the toggle opts out
@@ -358,10 +358,25 @@ struct HubInner {
     // is a transition fact, not per-device); recomputed on every status-changed.
     push_dedup: Mutex<HashMap<(String, String), (String, i64)>>,
     config: Mutex<RemoteConfig>,
+    // The one in-flight approve-on-Mac pairing request (a phone that discovered
+    // this Mac and asked to pair without a code). One at a time; the connection
+    // thread parks on its decision channel while the user sees the dialog.
+    pending_pair: Mutex<Option<PendingPair>>,
+    // Millis of the last approve-on-Mac dialog presented, to space prompts out
+    // (anti-nag / rate limit) even across separate connections.
+    last_pair_prompt: Mutex<i64>,
     next_id: AtomicU64,
     generation: AtomicU64, // bumped on every (re)start to retire old accept/conn threads
     enabled: AtomicBool,   // mirror of config.enabled, checked on the pty flush hot path
     running: AtomicBool,   // a listener is currently bound
+}
+
+/// An outstanding approve-on-Mac pairing request. The connection thread owns the
+/// receiving half of `decision`; `remote_respond_pair_request` sends the user's
+/// Allow/Deny through it (matched by `request_id`).
+struct PendingPair {
+    request_id: String,
+    decision: SyncSender<bool>,
 }
 
 #[derive(Clone, Default)]
@@ -385,6 +400,53 @@ impl RemoteHub {
             return snapshot.flavor_server_id();
         }
         cfg.flavor_server_id()
+    }
+
+    /// Register a new approve-on-Mac pairing request, returning its id, the
+    /// human-verified match code, and the receiver the connection thread parks
+    /// on. `None` when one is already pending or the anti-nag gap hasn't elapsed
+    /// (caller replies `pairDenied`/`busy`).
+    fn begin_pair_request(&self) -> Option<(String, String, mpsc::Receiver<bool>)> {
+        let mut pending = self.inner.pending_pair.lock().unwrap();
+        if pending.is_some() {
+            return None; // one dialog at a time
+        }
+        let now = crate::status::now_millis();
+        {
+            let mut last = self.inner.last_pair_prompt.lock().unwrap();
+            if now - *last < PAIR_MIN_GAP_MS {
+                return None; // presented one too recently
+            }
+            *last = now;
+        }
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let match_code = gen_match_code();
+        let (tx, rx) = mpsc::sync_channel::<bool>(1);
+        *pending = Some(PendingPair {
+            request_id: request_id.clone(),
+            decision: tx,
+        });
+        Some((request_id, match_code, rx))
+    }
+
+    /// Deliver the user's Allow/Deny to the waiting connection thread and clear
+    /// the pending slot. No-op if the request already resolved (timeout/hang-up).
+    fn respond_pair_request(&self, request_id: &str, allow: bool) {
+        let mut pending = self.inner.pending_pair.lock().unwrap();
+        if pending.as_ref().is_some_and(|p| p.request_id == request_id) {
+            if let Some(p) = pending.take() {
+                let _ = p.decision.try_send(allow);
+            }
+        }
+    }
+
+    /// Drop the pending request if it is still this one (idempotent teardown for
+    /// the timeout / phone-disconnect endings).
+    fn clear_pair_request(&self, request_id: &str) {
+        let mut pending = self.inner.pending_pair.lock().unwrap();
+        if pending.as_ref().is_some_and(|p| p.request_id == request_id) {
+            *pending = None;
+        }
     }
 
     fn device_exists(&self, id: &str) -> bool {
@@ -560,10 +622,8 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
         crate::mdns::withdraw();
         return;
     }
-    let bind = if cfg.lan { "0.0.0.0" } else { "127.0.0.1" };
     let port = effective_port(cfg.port);
-    let addr = format!("{bind}:{port}");
-    let lan = cfg.lan;
+    let addr = format!("0.0.0.0:{port}");
     let server_id = hub.server_id();
     // Bind on a background thread so the invoking command never blocks the UI,
     // and retry: the previous generation's accept loop may still hold the port
@@ -601,18 +661,12 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
         }
         let _ = listener.set_nonblocking(true);
         hub.inner.running.store(true, Ordering::Relaxed);
-        // Advertise on Bonjour only for a LAN-reachable bind; a loopback-only
-        // server must not be discoverable.
-        if lan {
-            crate::mdns::advertise(crate::mdns::AdParams {
-                server_id,
-                server_name: server_name(),
-                port,
-                dev: is_dev_instance(),
-            });
-        } else {
-            crate::mdns::withdraw();
-        }
+        crate::mdns::advertise(crate::mdns::AdParams {
+            server_id,
+            server_name: server_name(),
+            port,
+            dev: is_dev_instance(),
+        });
         accept_loop(listener, hub, app, generation);
     });
 }
@@ -666,7 +720,12 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     let Some(mut ws) = accept_ws(stream) else {
         return;
     };
-    let device_id = match authenticate(&mut ws, &hub) {
+    let outcome = match authenticate(&mut ws, &hub) {
+        FirstFrame::Done(outcome) => outcome,
+        // Approve-on-Mac: drive the dialog here, where the AppHandle lives.
+        FirstFrame::PairRequest(name) => handle_pair_request(&mut ws, &hub, &app, &name),
+    };
+    let device_id = match outcome {
         Some(outcome) => {
             if outcome.is_new_pairing() {
                 // A phone just paired — nudge any open Settings pane to refetch its
@@ -796,17 +855,35 @@ impl AuthOutcome {
     }
 }
 
-fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> Option<AuthOutcome> {
+/// The result of reading the first frame. `pair`/`auth` resolve inline (reply
+/// already sent). `PairRequest` needs the AppHandle to drive the on-Mac approval
+/// dialog, so it's handed back to `handle_conn` (which owns `app`) — keeping
+/// `authenticate` itself free of any window/event dependency.
+enum FirstFrame {
+    Done(Option<AuthOutcome>),
+    PairRequest(String), // the phone's device name
+}
+
+fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
     let txt = loop {
         match ws.read() {
-            Ok(m) if m.is_text() => break m.to_text().ok()?.to_string(),
-            Ok(m) if m.is_close() => return None,
+            Ok(m) if m.is_text() => match m.to_text() {
+                Ok(t) => break t.to_string(),
+                Err(_) => return FirstFrame::Done(None),
+            },
+            Ok(m) if m.is_close() => return FirstFrame::Done(None),
             Ok(_) => continue, // ping/pong/binary during handshake — keep waiting
-            Err(_) => return None,
+            Err(_) => return FirstFrame::Done(None),
         }
     };
-    let v: Value = serde_json::from_str(&txt).ok()?;
+    let Ok(v) = serde_json::from_str::<Value>(&txt) else {
+        return FirstFrame::Done(None);
+    };
     match v.get("t").and_then(Value::as_str) {
+        Some("pairRequest") => {
+            let name = v.get("name").and_then(Value::as_str).unwrap_or("iPhone");
+            FirstFrame::PairRequest(name.to_string())
+        }
         Some("pair") => {
             let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
             let name = v.get("name").and_then(Value::as_str).unwrap_or("device");
@@ -822,13 +899,13 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> Option<AuthOutcome> {
                         })
                         .to_string(),
                     ));
-                    Some(AuthOutcome::Paired(id))
+                    FirstFrame::Done(Some(AuthOutcome::Paired(id)))
                 }
                 None => {
                     let _ = ws.send(Message::text(
                         json!({ "t": "error", "error": "pairing rejected" }).to_string(),
                     ));
-                    None
+                    FirstFrame::Done(None)
                 }
             }
         }
@@ -847,15 +924,123 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> Option<AuthOutcome> {
                     })
                     .to_string(),
                 ));
-                Some(AuthOutcome::Resumed(id.to_string()))
+                FirstFrame::Done(Some(AuthOutcome::Resumed(id.to_string())))
             } else {
                 let _ = ws.send(Message::text(
                     json!({ "t": "error", "error": "unauthorized" }).to_string(),
                 ));
-                None
+                FirstFrame::Done(None)
             }
         }
-        _ => None,
+        _ => FirstFrame::Done(None),
+    }
+}
+
+/// How an approve-on-Mac request ended, driving the reply frame.
+enum PairOutcome {
+    Allow,
+    Deny,
+    Timeout,
+    Gone, // the phone hung up before the user decided
+}
+
+/// Drive one approve-on-Mac pairing: show the dialog on the Mac, wait up to
+/// `PAIR_APPROVE_WINDOW` for the user's decision (cancelling if the phone drops),
+/// and reply per the resolution. On Allow this mints a device exactly as the
+/// code-based pair path does (shared `mint_device`), so the post-`paired`
+/// connection behaves identically.
+fn handle_pair_request(
+    ws: &mut ClientWs,
+    hub: &RemoteHub,
+    app: &AppHandle,
+    name: &str,
+) -> Option<AuthOutcome> {
+    let Some((request_id, match_code, rx)) = hub.begin_pair_request() else {
+        let _ = ws.send(Message::text(
+            json!({ "t": "pairDenied", "reason": "busy" }).to_string(),
+        ));
+        return None;
+    };
+    let _ = ws.send(Message::text(
+        json!({ "t": "pairPending", "matchCode": match_code }).to_string(),
+    ));
+    // Surface the approval dialog and pull the window forward so the user sees it.
+    let _ = app.emit(
+        "remote-pair-request",
+        json!({ "requestId": request_id, "name": name, "matchCode": match_code }),
+    );
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+
+    // Poll the decision channel and the socket together: a short read timeout lets
+    // us notice the phone hanging up (so the dialog dismisses) without missing the
+    // user's Allow/Deny.
+    let _ = ws
+        .get_ref()
+        .get_ref()
+        .set_read_timeout(Some(Duration::from_millis(250)));
+    let deadline = Instant::now() + PAIR_APPROVE_WINDOW;
+    let outcome = loop {
+        match rx.try_recv() {
+            Ok(true) => break PairOutcome::Allow,
+            Ok(false) => break PairOutcome::Deny,
+            Err(TryRecvError::Disconnected) => break PairOutcome::Gone,
+            Err(TryRecvError::Empty) => {}
+        }
+        if Instant::now() >= deadline {
+            break PairOutcome::Timeout;
+        }
+        match ws.read() {
+            Ok(m) if m.is_close() => break PairOutcome::Gone,
+            Ok(_) => {}
+            Err(WsError::Io(ref e))
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut => {}
+            Err(WsError::ConnectionClosed) | Err(WsError::AlreadyClosed) => {
+                break PairOutcome::Gone
+            }
+            Err(_) => break PairOutcome::Gone,
+        }
+    };
+
+    // Settle the request (idempotent if the command already took it) and let the
+    // dialog close itself on the phone-side / timeout endings.
+    hub.clear_pair_request(&request_id);
+    let _ = app.emit(
+        "remote-pair-request-resolved",
+        json!({ "requestId": request_id }),
+    );
+
+    match outcome {
+        PairOutcome::Allow => {
+            let (id, token) = mint_device_persisted(hub, name);
+            let _ = ws.send(Message::text(
+                json!({
+                    "t": "paired",
+                    "deviceId": id,
+                    "token": token,
+                    "serverId": hub.server_id(),
+                    "serverName": server_name(),
+                })
+                .to_string(),
+            ));
+            Some(AuthOutcome::Paired(id))
+        }
+        PairOutcome::Deny => {
+            let _ = ws.send(Message::text(
+                json!({ "t": "pairDenied", "reason": "declined" }).to_string(),
+            ));
+            None
+        }
+        PairOutcome::Timeout => {
+            let _ = ws.send(Message::text(
+                json!({ "t": "pairDenied", "reason": "timeout" }).to_string(),
+            ));
+            None
+        }
+        PairOutcome::Gone => None,
     }
 }
 
@@ -866,12 +1051,10 @@ fn normalize_code(s: &str) -> String {
         .to_uppercase()
 }
 
-fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, String)> {
-    let mut cfg = hub.inner.config.lock().unwrap();
-    let expected = normalize_code(&cfg.pairing_code);
-    if expected.is_empty() || !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
-        return None;
-    }
+/// Mint a device record (token + id) for a newly paired phone, pushing it onto
+/// the config. The single token-issuing path shared by the code-based pair flow
+/// and approve-on-Mac; the caller persists the config.
+fn mint_device(cfg: &mut RemoteConfig, name: &str) -> (String, String) {
     let token = gen_token();
     // Stamp the pairing flavor's server id so push scoping later routes only this
     // flavor's alerts to this device; ensure the id exists first (start() normally
@@ -888,11 +1071,31 @@ fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, Strin
     };
     let id = device.id.clone();
     cfg.devices.push(device);
+    (id, token)
+}
+
+/// Mint and persist a device outside the pairing-code flow (approve-on-Mac).
+fn mint_device_persisted(hub: &RemoteHub, name: &str) -> (String, String) {
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let pair = mint_device(&mut cfg, name);
+    let snapshot = cfg.clone();
+    drop(cfg);
+    let _ = save_config(&snapshot);
+    pair
+}
+
+fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, String)> {
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let expected = normalize_code(&cfg.pairing_code);
+    if expected.is_empty() || !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
+        return None;
+    }
+    let pair = mint_device(&mut cfg, name);
     cfg.pairing_code.clear(); // single use — the next device needs a fresh code
     let snapshot = cfg.clone();
     drop(cfg);
     let _ = save_config(&snapshot);
-    Some((id, token))
+    Some(pair)
 }
 
 fn check_device(hub: &RemoteHub, id: &str, token: &str) -> bool {
@@ -3971,6 +4174,15 @@ fn gen_pairing_code() -> String {
     format!("{:04X}-{:04X}", (n >> 16) & 0xFFFF, n & 0xFFFF)
 }
 
+/// 4 random digits the user reads off the Mac dialog and confirms against the
+/// phone's screen. Never sent by the phone — a human compares it, so it only has
+/// to be short and unguessable enough for that check.
+fn gen_match_code() -> String {
+    let mut b = [0u8; 2];
+    let _ = getrandom::fill(&mut b);
+    format!("{:04}", u16::from_be_bytes(b) % 10000)
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
@@ -4065,7 +4277,6 @@ fn state_value(hub: &RemoteHub) -> Value {
         .collect();
     json!({
         "enabled": cfg.enabled,
-        "lan": cfg.lan,
         "port": effective_port(cfg.port),
         "tailscale": cfg.tailscale,
         "running": hub.inner.running.load(Ordering::Relaxed),
@@ -4157,14 +4368,12 @@ pub fn remote_set_config(
     app: AppHandle,
     hub: State<'_, RemoteHub>,
     enabled: bool,
-    lan: bool,
     port: u16,
     tailscale: bool,
 ) -> Result<Value, String> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.enabled = enabled;
-        cfg.lan = lan;
         cfg.port = port;
         cfg.tailscale = tailscale;
         let snapshot = cfg.clone();
@@ -4184,11 +4393,6 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.pairing_code = code.clone();
         cfg.enabled = true;
-        // The QR advertises this Mac's addresses, so the server must bind every
-        // interface (0.0.0.0) or the phone hits a loopback-only port and gets
-        // connection-refused. Pairing a device inherently means network access;
-        // the Settings toggle reflects this and can turn it back off afterward.
-        cfg.lan = true;
         let port = effective_port(cfg.port);
         let snapshot = cfg.clone();
         drop(cfg);
@@ -4232,6 +4436,14 @@ pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Val
     Ok(state_value(&hub))
 }
 
+/// Resolve the pending approve-on-Mac request from the dialog's Allow/Deny.
+/// Async so it never runs on (and blocks) the UI thread; the work is just a
+/// short lock + channel send that wakes the waiting connection thread.
+#[tauri::command(async)]
+pub fn remote_respond_pair_request(hub: State<'_, RemoteHub>, request_id: String, allow: bool) {
+    hub.respond_pair_request(&request_id, allow);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4263,7 +4475,7 @@ mod tests {
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     std::thread::sleep(Duration::from_millis(10));
                 }
-                Err(_) => return None,
+                Err(_) => return FirstFrame::Done(None),
             }
         });
 
@@ -4285,8 +4497,8 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
 
         assert!(
-            auth.is_some(),
-            "authenticate returned None through a non-blocking listener"
+            matches!(auth, FirstFrame::Done(Some(_))),
+            "authenticate did not pair through a non-blocking listener"
         );
         assert!(
             reply.to_text().unwrap().contains("paired"),
@@ -4299,6 +4511,46 @@ mod tests {
         assert!(ct_eq(b"abc", b"abc"));
         assert!(!ct_eq(b"abc", b"abd"));
         assert!(!ct_eq(b"abc", b"ab"));
+    }
+
+    #[test]
+    fn match_code_is_four_digits() {
+        for _ in 0..64 {
+            let c = gen_match_code();
+            assert_eq!(c.len(), 4);
+            assert!(c.chars().all(|ch| ch.is_ascii_digit()));
+        }
+    }
+
+    #[test]
+    fn pair_request_is_one_at_a_time_and_delivers_decision() {
+        let hub = RemoteHub::default();
+        let (id, code, rx) = hub.begin_pair_request().expect("first request registers");
+        assert_eq!(code.len(), 4);
+
+        // A second request while one is pending is refused (caller replies busy).
+        assert!(hub.begin_pair_request().is_none(), "expected one-at-a-time");
+
+        // The Allow/Deny from the command reaches the waiting connection thread.
+        hub.respond_pair_request(&id, true);
+        assert_eq!(rx.try_recv(), Ok(true));
+
+        // Responding again is a no-op (the slot was cleared on resolve).
+        hub.respond_pair_request(&id, false);
+        assert_eq!(rx.try_recv(), Err(TryRecvError::Disconnected));
+    }
+
+    #[test]
+    fn clear_pair_request_only_matches_its_own_id() {
+        let hub = RemoteHub::default();
+        let (id, _code, _rx) = hub.begin_pair_request().expect("request registers");
+        hub.clear_pair_request("some-other-id");
+        assert!(
+            hub.inner.pending_pair.lock().unwrap().is_some(),
+            "a mismatched id must not clear the pending request"
+        );
+        hub.clear_pair_request(&id);
+        assert!(hub.inner.pending_pair.lock().unwrap().is_none());
     }
 
     #[test]
@@ -4514,7 +4766,6 @@ mod tests {
     fn config_roundtrips_through_json() {
         let cfg = RemoteConfig {
             enabled: true,
-            lan: true,
             port: 9000,
             pairing_code: "AB12-CD34".into(),
             tailscale: true,
@@ -4541,7 +4792,7 @@ mod tests {
         let s = serde_json::to_string(&cfg).unwrap();
         let back: RemoteConfig = serde_json::from_str(&s).unwrap();
         assert_eq!(back.port, 9000);
-        assert!(back.enabled && back.lan);
+        assert!(back.enabled);
         assert_eq!(back.server_id.as_deref(), Some("srv-1"));
         assert_eq!(back.dev_server_id.as_deref(), Some("dev-1"));
         assert_eq!(back.devices[0].paired_server_id.as_deref(), Some("srv-1"));

@@ -84,6 +84,12 @@ struct PairingView: View {
     // row shows a checkmark only while the address field still holds that address.
     @State private var lastResolvedNearbyId: String?
     @State private var lastResolvedNearbyHost: String?
+    // The resolved address + name of the Mac being paired via approve-on-Mac, kept
+    // so the waiting sheet can retry and the "Enter code instead" fallback can fill
+    // the manual fields.
+    @State private var approvalMacName = ""
+    @State private var approvalHost = ""
+    @State private var approvalPort = 8765
 
     private var trimmedHost: String {
         host.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -113,21 +119,39 @@ struct PairingView: View {
         return id
     }
 
-    /// Fill the address fields from a nearby Mac the user tapped. Discovery only
-    /// supplies the address — the user still enters the pairing code — so this
-    /// never bypasses pairing auth.
+    /// Tap a nearby Mac: resolve its address and start approve-on-Mac pairing (the
+    /// user confirms on the Mac, no code typed). The resolved address is remembered
+    /// so the waiting sheet can retry or fall back to entering the code manually.
     private func selectNearby(_ mac: MacDiscovery.DiscoveredMac) {
         resolvingNearbyId = mac.id
         Task {
             let resolved = await discovery.resolve(mac)
             resolvingNearbyId = nil
             guard let resolved else { return }
-            host = resolved.host
-            port = String(resolved.port)
-            scannedHosts = []
+            approvalMacName = mac.displayName
+            approvalHost = resolved.host
+            approvalPort = Int(resolved.port)
+            // Remember the resolved address for the row's checkmark, which only
+            // lights once that address actually fills the manual field (i.e. after
+            // "Enter code instead") — not during the approval flow.
             lastResolvedNearbyId = mac.id
             lastResolvedNearbyHost = resolved.host
+            model.pairViaApproval(host: resolved.host, port: Int(resolved.port))
         }
+    }
+
+    private func retryApproval() {
+        guard !approvalHost.isEmpty else { return }
+        model.pairViaApproval(host: approvalHost, port: approvalPort)
+    }
+
+    /// Fall back to today's flow: fill the manual fields with the resolved address
+    /// so the user can type the pairing code, and end the approval attempt.
+    private func enterCodeInstead() {
+        host = approvalHost
+        port = String(approvalPort)
+        scannedHosts = []
+        model.cancelApprovalPairing()
     }
 
     private var isPairing: Bool {
@@ -285,6 +309,17 @@ struct PairingView: View {
                 model.pair(hosts: payload.hosts, port: payload.port, code: payload.code,
                            fingerprint: payload.fingerprint)
             }
+        }
+        .sheet(isPresented: Binding(
+            get: { model.approvalPairing != nil },
+            set: { if !$0 { model.cancelApprovalPairing() } }
+        )) {
+            ApprovalPairingSheet(
+                macName: approvalMacName,
+                onCancel: { model.cancelApprovalPairing() },
+                onRetry: retryApproval,
+                onEnterCode: enterCodeInstead
+            )
         }
     }
 }

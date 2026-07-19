@@ -64,6 +64,12 @@ final class AppModel {
     // reconnecting…"). Nil when idle; cleared once the link comes back.
     var recoveryStatus: String?
 
+    // Drives the approve-on-Mac pairing flow (tap a nearby Mac → confirm on the
+    // Mac, no code typed). Nil when not pairing this way; a terminal state
+    // (denied/timedOut) stays until the user dismisses or retries; success clears
+    // it via `handlePaired`.
+    var approvalPairing: ApprovalPairingState?
+
     // True when a reconnect's TLS certificate no longer matches the pinned
     // identity for the active Mac. Drives a "this Mac's identity has changed"
     // prompt whose only safe resolution is re-pinning (trustNewIdentity) or
@@ -499,6 +505,42 @@ final class AppModel {
         }
     }
 
+    /// Begin approve-on-Mac pairing with a nearby Mac at an already-resolved
+    /// address: send a pair request and wait for the user to confirm on the Mac (no
+    /// code typed). Drives `approvalPairing`; success runs the same `handlePaired`
+    /// flow as code pairing. Tears down any current session first, like `pair`.
+    func pairViaApproval(host: String, port: Int) {
+        resetSessionState()
+        pendingPairHosts = [host]
+        pendingPairPort = UInt16(clamping: port)
+        pendingPairFingerprint = nil
+        attemptHosts = [host]
+        approvalPairing = .requesting
+        currentHost = host
+        // No QR fingerprint and no stored pin for a brand-new Mac: trust-on-first-use,
+        // then pin the observed cert in `handlePaired` (mirrors the code-pair path).
+        let c = LpmClient(endpoint: .init(host: host, port: port),
+                          credential: nil, deviceName: UIDevice.current.name,
+                          expectedFingerprint: nil)
+        wire(c)
+        client = c
+        c.pairRequest(host: host, port: port)
+    }
+
+    /// Cancel an in-flight (or finished-but-unacknowledged) approve-on-Mac pairing:
+    /// clear the flow and tear down the never-authenticated pair client, then
+    /// reconnect the previously active Mac if there was one (the Add-a-Mac case).
+    func cancelApprovalPairing() {
+        approvalPairing = nil
+        if let c = client, c.deviceId == nil {
+            c.disconnect()
+            client = nil
+            currentHost = nil
+            pendingPairHosts = []
+        }
+        if client == nil, let cred = activeCredential() { connectBest(credential: cred) }
+    }
+
     func reconnectIfNeeded() {
         // Even a `.ready` state can be stale after backgrounding (half-open
         // socket) — probe it instead of trusting it, so a dead link is noticed
@@ -650,6 +692,7 @@ final class AppModel {
             Keychain.savePin(fp, for: localId)
         }
         pendingPairFingerprint = nil
+        approvalPairing = nil
         activeMacId = localId
         persistMacs()
         addingMac = false
@@ -700,6 +743,7 @@ final class AppModel {
         currentHost = nil
         stopBrowsing()
         recoveryStatus = nil
+        approvalPairing = nil
         identityMismatch = false
 
         connection = .idle
@@ -1550,6 +1594,17 @@ final class AppModel {
         c.onPaired = { [weak self] deviceId, token, serverId, serverName in
             self?.handlePaired(deviceId: deviceId, token: token, serverId: serverId, serverName: serverName)
         }
+        c.onPairPending = { [weak self] matchCode in
+            self?.approvalPairing = .waiting(matchCode: matchCode)
+        }
+        c.onPairDenied = { [weak self] reason in
+            guard let self else { return }
+            switch reason {
+            case "busy": self.approvalPairing = .denied(reason: "busy")
+            case "timeout": self.approvalPairing = .timedOut
+            default: self.approvalPairing = .denied(reason: "declined")
+            }
+        }
         c.onIdentity = { [weak self] serverId, serverName in
             self?.learnIdentity(serverId: serverId, serverName: serverName)
         }
@@ -1913,6 +1968,16 @@ final class AppModel {
             }
         }
     }
+}
+
+/// The state of an approve-on-Mac pairing attempt. `requesting` is the brief
+/// window before the Mac replies; `waiting` carries the 4-digit match code both
+/// screens show; `denied`/`timedOut` are terminal failures the sheet reports.
+enum ApprovalPairingState: Equatable {
+    case requesting
+    case waiting(matchCode: String)
+    case denied(reason: String)   // "busy" | "declined"
+    case timedOut
 }
 
 /// A generated pull-request draft (title + body), filled into the PR sheet's
