@@ -290,6 +290,10 @@ final class AppModel {
     // The addresses the current attempt is racing, so a failure can name exactly
     // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
     @ObservationIgnored private var attemptHosts: [String] = []
+    // Per-host reasons from the most recent probe, so the offline message can say
+    // *why* each address failed ("no route" vs "refused" vs "timed out") instead
+    // of only that none responded.
+    @ObservationIgnored private var lastProbeOutcomes: [HostProbe.Outcome] = []
     // Guards the opportunistic host migration in onState against overlapping
     // re-probes while one is already in flight.
     @ObservationIgnored private var repicking = false
@@ -351,13 +355,14 @@ final class AppModel {
         attemptHosts = hosts
         connection = .connecting
         Task { @MainActor in
-            var winner = await HostProbe.firstReachable(hosts, port: port)
+            var (winner, outcomes) = await HostProbe.race(hosts, port: port)
             if winner == nil {
                 // On foreground the Tailscale on-demand tunnel may not be up yet;
                 // give it a moment and probe once more before falling back.
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
-                winner = await HostProbe.firstReachable(hosts, port: port)
+                (winner, outcomes) = await HostProbe.race(hosts, port: port)
             }
+            lastProbeOutcomes = outcomes
             // When nothing answers, prefer the Tailscale (CGNAT) address over the
             // LAN IP — the LAN IP is unroutable on cellular, so retrying it spins.
             let host = winner ?? Self.cgnatHost(hosts) ?? hosts.first ?? "127.0.0.1"
@@ -406,12 +411,13 @@ final class AppModel {
     /// `offlineHint` on each slow retry (~20s), so this re-probes periodically
     /// with no timer.
     private func repickHostIfStale(_ s: LpmClient.State, from c: LpmClient) {
-        guard case .failed(LpmClient.offlineHint) = s,
+        guard case .failed(let hint) = s, LpmClient.isOfflineHint(hint),
               c === client, !repicking, let cred = activeCredential() else { return }
         repicking = true
         Task { @MainActor in
             defer { repicking = false }
-            let winner = await HostProbe.firstReachable(savedHosts(), port: savedPort())
+            let (winner, outcomes) = await HostProbe.race(savedHosts(), port: savedPort())
+            if !outcomes.isEmpty { lastProbeOutcomes = outcomes }
             guard let winner, winner != currentHost, c === client else { return }
             connect(host: winner, port: savedPort(), credential: cred)
         }
@@ -426,7 +432,7 @@ final class AppModel {
     /// migrate the connection to its fresh address. Bounded to a short window and
     /// re-armed on each slow retry's hint, so it never browses in the background.
     private func startRecoveryIfStale(_ s: LpmClient.State, from c: LpmClient) {
-        guard case .failed(LpmClient.offlineHint) = s,
+        guard case .failed(let hint) = s, LpmClient.isOfflineHint(hint),
               c === client, !recovering,
               let sid = activeRecord?.serverId, !sid.isEmpty else { return }
         recovering = true
@@ -1730,10 +1736,24 @@ final class AppModel {
         if msg == LpmClient.pairMismatchError {
             return .failed("This Mac's security identity doesn't match its QR code. The code may be stale — on your Mac, tap Add device for a fresh code, then scan again.")
         }
+        if msg == LpmClient.secureFailedError {
+            return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made. This usually means lpm on the Mac or this app is out of date, or the Mac's security identity was reset — update both, then re-pair from your Mac.")
+        }
+        if msg == LpmClient.refusedError {
+            return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but nothing is listening on port \(savedPort()). Make sure lpm is running on the Mac — if it is, its port may have changed; re-pair or fix it under Edit Address.")
+        }
         return s
     }
 
     private func unreachableMessage(_ hosts: [String]) -> String {
+        // Prefer the per-address reasons from the last probe — "192.168.0.80: no
+        // route · 100.92.155.108: timed out" separates Wi-Fi-only-at-home from
+        // Tailscale-down at a glance.
+        let failures = lastProbeOutcomes.filter { !$0.reachable }
+        if !failures.isEmpty {
+            let detail = failures.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
+            return "Couldn't reach your Mac — \(detail). On cellular, open the Tailscale app and make sure it's connected on both devices."
+        }
         let list = hosts.filter { !$0.isEmpty }.joined(separator: ", ")
         let target = list.isEmpty ? "your Mac" : "your Mac at \(list)"
         return "Couldn't reach \(target) — none of its addresses responded. On cellular, open the Tailscale app and make sure it's connected on both devices."

@@ -24,6 +24,7 @@ interface RemoteStateShape {
   running: boolean;
   host: string | null;
   tailscaleHost: string | null;
+  identityRotated: boolean;
   hasPendingCode: boolean;
   devices: Device[];
 }
@@ -44,6 +45,7 @@ const DEFAULT_STATE: RemoteStateShape = {
   running: false,
   host: null,
   tailscaleHost: null,
+  identityRotated: false,
   hasPendingCode: false,
   devices: [],
 };
@@ -264,6 +266,24 @@ export function MobileSettingsPane() {
               className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
             />
           </Row>
+        </div>
+      )}
+
+      {state.enabled && state.identityRotated && state.devices.length > 0 && (
+        <div
+          className="mt-3 rounded-xl border px-4 py-3"
+          style={{
+            borderColor: "color-mix(in srgb, var(--accent-amber) 45%, transparent)",
+            backgroundColor: "color-mix(in srgb, var(--accent-amber) 8%, transparent)",
+          }}
+        >
+          <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
+            <span className="font-medium" style={{ color: "var(--accent-amber-text)" }}>
+              This Mac&#39;s security identity was reset.
+            </span>{" "}
+            Devices paired before the reset can&#39;t connect until they trust it again — on
+            each device, accept the new identity when prompted, or pair it again below.
+          </p>
         </div>
       )}
 

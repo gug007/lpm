@@ -2,13 +2,16 @@
 //
 // The server speaks wss:// only. It presents one self-signed, long-lived leaf
 // certificate (ECDSA P-256, CN "lpm"), persisted as PEM next to remote.json in
-// ~/.lpm and generated once on first use — never rotated. Because the leaf is
+// ~/.lpm and generated once on first use — never deliberately rotated (only
+// regenerated if the stored material can no longer be loaded, which is loudly
+// surfaced as an identity change). Because the leaf is
 // stable, the phone pins its SHA-256 on the first successful pair/auth
 // (trust-on-first-use); the pairing QR also carries that fingerprint (`f=`) so a
 // QR pair can verify the leaf before trusting it.
 
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
@@ -25,8 +28,22 @@ pub struct TlsMaterial {
 
 static MATERIAL: OnceLock<TlsMaterial> = OnceLock::new();
 
+// Set when stored TLS material existed but could not be loaded, forcing a fresh
+// identity. Every previously paired phone will now see an identity change and
+// must trust it again or re-pair — the Settings pane surfaces this so the user
+// learns it from us, not from every device going "unreachable".
+static ROTATED: AtomicBool = AtomicBool::new(false);
+
 fn material() -> &'static TlsMaterial {
     MATERIAL.get_or_init(load_or_generate)
+}
+
+/// True when this run replaced an existing-but-unloadable identity. Forces the
+/// material to load first, so callers (the Settings pane) get a definite answer
+/// rather than "not rotated yet because no phone has connected".
+pub fn identity_rotated() -> bool {
+    let _ = material();
+    ROTATED.load(Ordering::Relaxed)
 }
 
 /// The server config every accepted connection is wrapped in before the
@@ -140,8 +157,25 @@ fn load_or_generate() -> TlsMaterial {
     #[cfg(not(test))]
     {
         let (dir, cert_path, key_path) = paths();
-        if let Ok(mat) = load(&cert_path, &key_path) {
-            return mat;
+        let existed = cert_path.exists() || key_path.exists();
+        match load(&cert_path, &key_path) {
+            Ok(mat) => return mat,
+            Err(e) if existed => {
+                // Regenerating is a silent identity rotation: every paired phone
+                // starts refusing the connection with no clue why. Say so loudly,
+                // and keep the unloadable material around for diagnosis instead
+                // of overwriting the only evidence.
+                eprintln!(
+                    "warning: stored remote TLS identity could not be loaded ({e}); \
+                     generating a new one. Paired phones will report that this Mac's \
+                     identity changed and must trust it again or re-pair. \
+                     Old material kept as {CERT_FILE}.bak / {KEY_FILE}.bak"
+                );
+                ROTATED.store(true, Ordering::Relaxed);
+                let _ = std::fs::rename(&cert_path, dir.join(format!("{CERT_FILE}.bak")));
+                let _ = std::fs::rename(&key_path, dir.join(format!("{KEY_FILE}.bak")));
+            }
+            Err(_) => {}
         }
         let gen = generate().expect("generate remote TLS certificate");
         if let Err(e) = persist(&dir, &cert_path, &key_path, &gen) {

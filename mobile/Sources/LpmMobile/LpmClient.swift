@@ -187,6 +187,26 @@ final class LpmClient: NSObject {
     static let identityChangedError = "identity-changed"
     static let pairMismatchError = "pair-mismatch"
 
+    // Sentinel hints for retryable failures where the Mac *did* answer, so the
+    // generic "none of its addresses responded" would be misleading:
+    // `secureFailedError` — TCP connected but the secure handshake failed (e.g.
+    // the Mac's identity was reset, or mismatched app/Mac versions);
+    // `refusedError` — the machine is reachable but nothing accepts on the port
+    // (lpm not running, or a stale port after a dev/prod port change).
+    static let secureFailedError = "secure-failed"
+    static let refusedError = "connection-refused"
+
+    /// True for any of the retryable "offline" hints — the states the model's
+    /// stale-host repick and mDNS recovery should react to, not just the generic
+    /// unreachable one (a refused port is exactly what recovery can heal).
+    static func isOfflineHint(_ msg: String) -> Bool {
+        msg == offlineHint || msg == secureFailedError || msg == refusedError
+    }
+
+    // What the most recent transport failure looked like, refreshed on every
+    // failed attempt and reported once retries stop being patient.
+    private var failureHint = LpmClient.offlineHint
+
     struct Credential { let deviceId: String; let token: String }
 
     /// This device's id (once paired/authenticated), for comparing against a
@@ -284,7 +304,7 @@ final class LpmClient: NSObject {
                 self.probeDeadline?.cancel()
                 self.probeDeadline = nil
                 guard t === self.task else { return }
-                if err != nil { self.transientFailure("probe failed") }
+                if let err { self.transientFailure("probe failed", error: err) }
             }
         }
     }
@@ -355,20 +375,40 @@ final class LpmClient: NSObject {
     /// the heartbeat that keeps the tunnel warm and detects silent drops.
     private func onConnected() {
         retryAttempt = 0
+        failureHint = Self.offlineHint
         connectWatchdog?.cancel(); connectWatchdog = nil
         startHeartbeat()
     }
 
     /// A retryable failure — transport dropped, a send/ping failed, or the connect
     /// watchdog fired. Tears down and schedules a backoff retry (unless we've been
-    /// intentionally disconnected).
-    private func transientFailure(_ reason: String) {
+    /// intentionally disconnected). When the transport handed us an error, keep
+    /// its shape so the eventual offline message can say *how* it failed —
+    /// "unreachable", "secure handshake failed", and "refused" need different
+    /// user action.
+    private func transientFailure(_ reason: String, error: Error? = nil) {
+        failureHint = Self.classifyFailure(error)
         // A dropped socket during approve-on-Mac pairing must not retry (a retry
         // pops a fresh Allow dialog); surface it as a no-answer timeout instead.
         if pairRequestName != nil { failPair("timeout"); return }
         teardownTask()
         guard wantConnected else { return }
         scheduleReconnect(reason)
+    }
+
+    /// -1200...-1206 is URLSession's TLS band (handshake failed, cert rejected,
+    /// bad date, ...). A nil or unrecognized error resets to the generic hint so
+    /// a stale classification never outlives the failure mode that produced it.
+    private static func classifyFailure(_ error: Error?) -> String {
+        guard let e = error as NSError?, e.domain == NSURLErrorDomain else {
+            return offlineHint
+        }
+        if (NSURLErrorClientCertificateRequired ... NSURLErrorSecureConnectionFailed)
+            .contains(e.code) {
+            return secureFailedError
+        }
+        if e.code == NSURLErrorCannotConnectToHost { return refusedError }
+        return offlineHint
     }
 
     /// A terminal failure — the server rejected our auth/pairing, or the endpoint
@@ -388,7 +428,7 @@ final class LpmClient: NSObject {
         let delay = capped * Double.random(in: 0.85...1.15)
         // Stay hopeful ("connecting") for the first few fast retries; after that,
         // show the honest offline hint while the slow retries continue underneath.
-        set(retryAttempt <= patientAttempts ? .connecting : .failed(Self.offlineHint))
+        set(retryAttempt <= patientAttempts ? .connecting : .failed(failureHint))
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.reconnectWork = nil
@@ -420,7 +460,7 @@ final class LpmClient: NSObject {
                 guard err != nil else { return }
                 self?.main {
                     guard let self, t === self.task else { return }
-                    self.transientFailure("ping timeout")
+                    self.transientFailure("ping timeout", error: err)
                 }
             }
         }
@@ -682,7 +722,7 @@ final class LpmClient: NSObject {
                 guard let self else { return }
                 if requeueOnFailure { self.enqueue(text) }
                 guard t === self.task else { return } // ignore a stale task's send
-                self.transientFailure("send failed")
+                self.transientFailure("send failed", error: err)
             }
         }
     }
@@ -709,10 +749,10 @@ final class LpmClient: NSObject {
         task.receive { [weak self] result in
             guard let self else { return }
             switch result {
-            case .failure:
+            case .failure(let error):
                 self.main {
                     guard task === self.task else { return } // a superseded task's callback
-                    self.transientFailure("disconnected")
+                    self.transientFailure("disconnected", error: error)
                 }
             case .success(let message):
                 // Parse off the main thread — this completion runs on URLSession's

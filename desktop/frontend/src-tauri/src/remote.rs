@@ -4592,6 +4592,7 @@ fn state_value(hub: &RemoteHub) -> Value {
         "running": hub.inner.running.load(Ordering::Relaxed),
         "host": primary_lan_ip(),
         "tailscaleHost": tailscale_ip(),
+        "identityRotated": cfg.enabled && crate::remotetls::identity_rotated(),
         "hasPendingCode": !cfg.pairing_code.is_empty(),
         "devices": devices,
     })
