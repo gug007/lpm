@@ -42,14 +42,14 @@ keywords: [
 
 alternates.canonical: "/git-terminal-for-mac"
 
-openGraph.title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster"
+openGraph.title: "Git Terminal for Mac with Dev Servers in One Window"
 openGraph.description: "Run every git workflow alongside your dev servers in one native Mac window. No context switching between a GUI git client and a separate terminal."
 openGraph.type: "website"
 openGraph.url: "/git-terminal-for-mac"
 openGraph.siteName: "lpm"
 
 twitter.card: "summary_large_image"
-twitter.title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster"
+twitter.title: "Git Terminal for Mac with Dev Servers in One Window"
 twitter.description: "The Mac terminal that keeps your git workflow and your dev servers in the same window. Branch, rebase, watch CI — without ever leaving lpm."
 ```
 
