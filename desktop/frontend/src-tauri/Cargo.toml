@@ -68,6 +68,10 @@ tungstenite = "0.30"
 # QR encode the pairing payload to an SVG string the Settings pane renders inline
 # (svg feature only — avoids pulling the `image` crate).
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+# Bonjour/mDNS advertising so the phone can discover this Mac on the LAN and
+# recover a saved server whose IP changed. Runs its own daemon thread (no tokio),
+# coexisting with the blocking tungstenite server.
+mdns-sd = "0.20"
 
 # objc2 for the in-pane browser's per-webview NSAppearance override (window theme
 # is app-wide on macOS). Versions match what Tauri already pulls in.

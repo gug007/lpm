@@ -19,6 +19,7 @@ mod hooks;
 mod jobs;
 mod log_streaming;
 mod mainwindow;
+mod mdns;
 mod menu;
 mod message_history;
 mod notes_blobs;

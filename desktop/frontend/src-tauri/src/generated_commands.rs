@@ -192,6 +192,7 @@ macro_rules! all_command_handlers {
             peer_term_attach,
             peer_term_detach,
             remote_revoke_device,
+            remote_set_composer_draft,
             remote_set_config,
             remote_set_terminal_labels,
             remote_start_pairing,

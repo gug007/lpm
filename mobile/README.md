@@ -89,10 +89,18 @@ code manually. Sanity check the server from another machine: `nc -vz <mac-ip> 87
   terminals via SwiftTerm with a Ctrl/Esc/Tab/arrows key row, reconnect+re-seed
   on foreground. **Done:** QR-scan pairing (`QRScannerView`) and real Keychain
   token storage (`Keychain.swift`).
+- **Local-network discovery (`MacDiscovery.swift`):**
+  - *Nearby-Mac pairing* — the pairing screen lists Macs found on the local
+    network; tapping one fills in its address (the pairing code is still entered
+    by hand, so discovery never bypasses pairing).
+  - *Automatic endpoint recovery* — when a saved Mac's addresses stop responding
+    (e.g. a new DHCP lease), the phone browses for it by identity and reconnects
+    on its fresh address, keeping the Tailscale fallback.
+  - *Manual endpoint editor (`EditEndpointView.swift`)* — edit a saved Mac's
+    address list and port without re-pairing.
 - **Before shipping:** validate SwiftTerm against Claude Code's TUI (mouse
   reporting + OSC 52 copy → `UIPasteboard`), and build the Ctrl/Esc/Tab/arrows
   keyboard accessory row.
 - **v2:** APNs push for "agent is Waiting" (needs a small vendor relay — the Mac
-  can't wake a suspended iPhone), Live Activities for running agents, native TLS
-  on the server (rcgen + rustls, already in the dependency graph), and mDNS
-  auto-discovery.
+  can't wake a suspended iPhone), Live Activities for running agents, and native
+  TLS on the server (rcgen + rustls, already in the dependency graph).

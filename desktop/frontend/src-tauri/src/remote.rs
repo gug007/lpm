@@ -296,6 +296,15 @@ struct Client {
     device_id: String,
 }
 
+// The plain text of a terminal composer's active input, mirrored between the
+// desktop and paired phones. `rev` is the globally monotonic revision the entry
+// was last written at (see `draft_rev`), so a stale frame is dropped and a
+// re-created draft never appears older than a prior clear.
+struct DraftEntry {
+    text: String,
+    rev: u64,
+}
+
 #[derive(Default)]
 struct HubInner {
     clients: Mutex<HashMap<u64, Client>>,
@@ -315,6 +324,16 @@ struct HubInner {
     // Live terminal id -> tab emoji (from the frontend tab tree), so the phone can
     // show the same per-terminal tab icon the desktop does. Empty when unset.
     emojis: Mutex<HashMap<String, String>>,
+    // Live terminal id -> the composer's active-input draft text, synced both ways
+    // between the desktop composer and paired phones. Cleared when the text goes
+    // empty; the seed carries the stored draft so a reconnecting/opening phone
+    // restores it.
+    drafts: Mutex<HashMap<String, DraftEntry>>,
+    // Monotonic revision stamped on every draft write (desktop or phone). Global
+    // rather than per-terminal so a draft that was cleared and later re-typed still
+    // gets a strictly larger rev than the clear, keeping last-writer-wins ordering
+    // even though the cleared entry was removed from the map.
+    draft_rev: AtomicU64,
     // project -> the ORDERED terminal ids in that project's tab tree (desktop tab
     // order), replaced on each frontend push. The phone's terminal list is emitted
     // in this order and scoped to it (intersected with live PTYs), so it matches
@@ -465,6 +484,28 @@ fn broadcast(hub: &RemoteHub, val: Value) {
     }
 }
 
+/// Record a composer draft for a terminal and return the revision to broadcast.
+/// Non-empty text is stored; empty text clears the entry (and returns `None` when
+/// there was nothing to clear, so callers skip a pointless broadcast). Every real
+/// write consumes a fresh global revision.
+fn record_draft(hub: &RemoteHub, id: &str, text: &str) -> Option<u64> {
+    let mut map = hub.inner.drafts.lock().unwrap();
+    if text.is_empty() && map.remove(id).is_none() {
+        return None;
+    }
+    let rev = hub.inner.draft_rev.fetch_add(1, Ordering::Relaxed) + 1;
+    if !text.is_empty() {
+        map.insert(
+            id.to_string(),
+            DraftEntry {
+                text: text.to_string(),
+                rev,
+            },
+        );
+    }
+    Some(rev)
+}
+
 /// Fan out a terminal's new control owner to paired phones. Called from
 /// `control::broadcast` alongside the desktop `app.emit`. No-op when the server
 /// is disabled (no clients to notify).
@@ -509,10 +550,14 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
     hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
+        crate::mdns::withdraw();
         return;
     }
     let bind = if cfg.lan { "0.0.0.0" } else { "127.0.0.1" };
-    let addr = format!("{bind}:{}", effective_port(cfg.port));
+    let port = effective_port(cfg.port);
+    let addr = format!("{bind}:{port}");
+    let lan = cfg.lan;
+    let server_id = hub.server_id();
     // Bind on a background thread so the invoking command never blocks the UI,
     // and retry: the previous generation's accept loop may still hold the port
     // (it only notices the generation bump on its next ≤200ms tick), so a fresh
@@ -536,10 +581,31 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
         let Some(listener) = bound else {
             eprintln!("warning: mobile remote server could not bind {addr}");
             hub.inner.running.store(false, Ordering::Relaxed);
+            crate::mdns::withdraw();
             return;
         };
+        // A newer apply() may have superseded us between binding and here; that
+        // apply() has already run its own withdraw()/advertise(), so if we went on
+        // we'd re-advertise a record the accept_loop below abandons on its first
+        // generation check — a Bonjour entry pointing at nothing. Drop the listener
+        // (freeing the port for the winning apply()) and bail without advertising.
+        if hub.inner.generation.load(Ordering::SeqCst) != generation {
+            return;
+        }
         let _ = listener.set_nonblocking(true);
         hub.inner.running.store(true, Ordering::Relaxed);
+        // Advertise on Bonjour only for a LAN-reachable bind; a loopback-only
+        // server must not be discoverable.
+        if lan {
+            crate::mdns::advertise(crate::mdns::AdParams {
+                server_id,
+                server_name: server_name(),
+                port,
+                dev: is_dev_instance(),
+            });
+        } else {
+            crate::mdns::withdraw();
+        }
         accept_loop(listener, hub, app, generation);
     });
 }
@@ -550,6 +616,7 @@ pub fn stop(hub: &RemoteHub) {
     hub.inner.enabled.store(false, Ordering::Relaxed);
     hub.inner.running.store(false, Ordering::Relaxed);
     hub.inner.clients.lock().unwrap().clear();
+    crate::mdns::withdraw();
 }
 
 fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation: u64) {
@@ -1595,10 +1662,11 @@ fn handle_msg(
                 }
                 let (cols, rows) =
                     pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((80, 24));
-                send(
-                    ws,
-                    json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&Some(owner)) }),
-                )?;
+                let mut seed = json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&Some(owner)) });
+                if let Some(d) = hub.inner.drafts.lock().unwrap().get(&id) {
+                    seed["draft"] = json!({ "text": d.text, "rev": d.rev });
+                }
+                send(ws, seed)?;
             }
         }
         "unsub" => {
@@ -1983,6 +2051,24 @@ fn handle_msg(
                 );
             }
             send(ws, json!({ "t": t, "ok": true }))?;
+        }
+        // The phone typed into a terminal's composer. Store it, fan it out to the
+        // other clients (tagged with this device's id so the sender drops its own
+        // echo), and emit for the desktop composer via `remote-composer-draft`.
+        "composerDraft" => {
+            if let Some(id) = str_field("id") {
+                let text = str_field("text").unwrap_or_default();
+                if let Some(rev) = record_draft(hub, &id, &text) {
+                    broadcast(
+                        hub,
+                        json!({ "t": "composerDraft", "id": id, "text": text, "rev": rev, "origin": device_id }),
+                    );
+                    let _ = app.emit(
+                        "remote-composer-draft",
+                        json!({ "id": id, "text": text, "rev": rev }),
+                    );
+                }
+            }
         }
         // Git review & ship. Fast, local ops (status, per-file diff, commit, branch
         // list, checkout, discard-all) reply inline like the handlers above. The
@@ -4035,6 +4121,22 @@ pub fn remote_set_terminal_labels(hub: State<'_, RemoteHub>, project: String, la
     }
     if !project.is_empty() && !ids.is_empty() {
         hub.inner.tree_ids.lock().unwrap().insert(project, ids);
+    }
+}
+
+/// The desktop composer pushes its active-input text here (debounced) so paired
+/// phones mirror it. Stores the draft, then broadcasts it to every client tagged
+/// `origin: "mac"` so the phone knows the change is not its own echo.
+#[tauri::command]
+pub fn remote_set_composer_draft(hub: State<'_, RemoteHub>, id: String, text: String) {
+    if id.is_empty() {
+        return;
+    }
+    if let Some(rev) = record_draft(&hub, &id, &text) {
+        broadcast(
+            &hub,
+            json!({ "t": "composerDraft", "id": id, "text": text, "rev": rev, "origin": "mac" }),
+        );
     }
 }
 

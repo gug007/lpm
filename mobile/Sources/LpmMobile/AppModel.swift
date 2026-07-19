@@ -59,6 +59,11 @@ final class AppModel {
     // pairing succeeds (the new Mac becomes active) or the user cancels.
     var addingMac = false
 
+    // A brief status shown while automatic endpoint recovery is finding the active
+    // Mac on the local network and reconnecting to it ("Found <name>,
+    // reconnecting…"). Nil when idle; cleared once the link comes back.
+    var recoveryStatus: String?
+
     // MARK: composer parity
 
     // The user's enabled AI-rewrite actions (global, from composer-actions.json).
@@ -234,6 +239,16 @@ final class AppModel {
     @ObservationIgnored private var pendingPairHosts: [String] = []
     @ObservationIgnored private var pendingPairPort: UInt16 = MacStore.defaultPort
 
+    // Local-network discovery used only for automatic endpoint recovery: when the
+    // active Mac's saved addresses stop responding, browse for it and reconnect on
+    // the fresh address it advertises. `recovering` gates a single bounded browse;
+    // `recoveryWindow` bounds it in time; `recoveryHandled` dedupes resolves within
+    // one browse so each Mac is chased once.
+    @ObservationIgnored private let discovery = MacDiscovery()
+    @ObservationIgnored private var recovering = false
+    @ObservationIgnored private var recoveryWindow: DispatchWorkItem?
+    @ObservationIgnored private var recoveryHandled: Set<String> = []
+
     init() {
         git.model = self
     }
@@ -285,13 +300,36 @@ final class AppModel {
         }
     }
 
-    /// A Tailscale CGNAT address (100.64.0.0/10) from the candidates, if any:
-    /// an IPv4 whose first octet is 100 and second is in 64...127.
+    /// A Tailscale CGNAT address (100.64.0.0/10) from the candidates, if any.
     private static func cgnatHost(_ hosts: [String]) -> String? {
-        hosts.first { host in
-            let octets = host.split(separator: ".").compactMap { Int($0) }
-            return octets.count == 4 && octets[0] == 100 && (64...127).contains(octets[1])
+        hosts.first(where: isCGNAT)
+    }
+
+    /// True for a Tailscale CGNAT address (100.64.0.0/10): an IPv4 whose first
+    /// octet is 100 and second is in 64...127.
+    private static func isCGNAT(_ host: String) -> Bool {
+        let octets = host.split(separator: ".").compactMap { Int($0) }
+        return octets.count == 4 && octets[0] == 100 && (64...127).contains(octets[1])
+    }
+
+    /// Fold a freshly discovered address into a record's host list: the fresh host
+    /// leads, and everything else keeps its order — except a plain LAN IPv4 literal
+    /// that the fresh address replaces, which is dropped as stale. Tailscale CGNAT
+    /// addresses, hostnames (e.g. `mac.local`, a MagicDNS name), and any IPv6
+    /// address survive as the away-from-home fallback.
+    private static func mergedHosts(existing: [String], fresh: String) -> [String] {
+        var out = [fresh]
+        for h in existing where h != fresh {
+            if isIPv4Literal(h) && !isCGNAT(h) { continue }
+            out.append(h)
         }
+        return out
+    }
+
+    /// True for a dotted-quad IPv4 literal (four 0–255 octets).
+    private static func isIPv4Literal(_ host: String) -> Bool {
+        let octets = host.split(separator: ".", omittingEmptySubsequences: false)
+        return octets.count == 4 && octets.allSatisfy { Int($0).map { (0...255).contains($0) } ?? false }
     }
 
     /// A live client only ever retries the one host it was built with, so a phone
@@ -311,6 +349,92 @@ final class AppModel {
             let winner = await HostProbe.firstReachable(savedHosts(), port: savedPort())
             guard let winner, winner != currentHost, c === client else { return }
             connect(host: winner, port: savedPort(), credential: cred)
+        }
+    }
+
+    // MARK: automatic endpoint recovery
+
+    /// The saved addresses have stopped answering (the same stale-link condition
+    /// `repickHostIfStale` reacts to). If the active Mac has a known identity,
+    /// browse the local network for it: a Mac whose LAN address changed (new DHCP
+    /// lease, moved networks) re-appears here under the same identity, and we
+    /// migrate the connection to its fresh address. Bounded to a short window and
+    /// re-armed on each slow retry's hint, so it never browses in the background.
+    private func startRecoveryIfStale(_ s: LpmClient.State, from c: LpmClient) {
+        guard case .failed(LpmClient.offlineHint) = s,
+              c === client, !recovering,
+              let sid = activeRecord?.serverId, !sid.isEmpty else { return }
+        recovering = true
+        recoveryHandled = []
+        discovery.onChange = { [weak self] found in self?.handleDiscovered(found) }
+        discovery.start()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.stopBrowsing()
+            self.recoveryStatus = nil
+        }
+        recoveryWindow = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25, execute: work)
+    }
+
+    /// Stop the recovery browse (leaves `recoveryStatus` alone — the reconnect it
+    /// kicked off clears that when the link returns, or the window timeout does).
+    private func stopBrowsing() {
+        recoveryWindow?.cancel()
+        recoveryWindow = nil
+        discovery.onChange = nil
+        discovery.stop()
+        recovering = false
+        recoveryHandled = []
+    }
+
+    /// Stop browsing and clear any recovery status — used when the app backgrounds
+    /// or the session is torn down.
+    func suspendRecoveryDiscovery() {
+        stopBrowsing()
+        recoveryStatus = nil
+    }
+
+    /// A batch of discovered Macs arrived during recovery. For any that match a
+    /// saved record by identity, resolve a fresh address and heal the record —
+    /// reconnecting only for the active Mac, updating the rest in place.
+    private func handleDiscovered(_ found: [MacDiscovery.DiscoveredMac]) {
+        for mac in found {
+            guard let sid = mac.serverId, !sid.isEmpty,
+                  !recoveryHandled.contains(sid),
+                  let record = macs.first(where: { $0.serverId == sid }) else { continue }
+            recoveryHandled.insert(sid)
+            let localId = record.localId
+            let isActive = localId == activeMacId
+            Task { @MainActor in
+                guard let resolved = await self.discovery.resolve(mac) else {
+                    // Resolution failed — allow a later batch to retry this Mac.
+                    self.recoveryHandled.remove(sid)
+                    return
+                }
+                self.applyRecovered(localId: localId, host: resolved.host,
+                                    port: resolved.port, name: mac.name, reconnect: isActive)
+            }
+        }
+    }
+
+    /// Fold a freshly resolved address into a saved record and persist it. For the
+    /// active Mac (and only while it's still offline), rebuild the client on the
+    /// fresh address and reconnect.
+    private func applyRecovered(localId: UUID, host: String, port: UInt16, name: String, reconnect: Bool) {
+        guard let idx = macs.firstIndex(where: { $0.localId == localId }) else { return }
+        macs[idx].hosts = Self.mergedHosts(existing: macs[idx].hosts, fresh: host)
+        macs[idx].port = port
+        if !name.isEmpty, macs[idx].isAddressName { macs[idx].name = name }
+        persistMacs()
+        guard reconnect else { return }
+        // A parallel path (repickHostIfStale, a manual retry) may have already
+        // reconnected — don't tear down a live link.
+        if case .ready = connection { stopBrowsing(); recoveryStatus = nil; return }
+        stopBrowsing()
+        recoveryStatus = "Found \(macs[idx].displayName), reconnecting…"
+        if let cred = activeCredential() {
+            connect(host: host, port: Int(port), credential: cred)
         }
     }
 
@@ -437,6 +561,22 @@ final class AppModel {
         persistMacs()
     }
 
+    /// Replace the active Mac's addresses and port (the manual endpoint editor).
+    /// The saved credential is untouched — this is not a re-pair — so the change
+    /// only affects how the phone reaches the Mac. Re-probes the new addresses and
+    /// reconnects on whichever answers.
+    func updateActiveMacEndpoint(hosts: [String], port: UInt16) {
+        guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
+        let cleaned = hosts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !cleaned.isEmpty else { return }
+        macs[idx].hosts = cleaned
+        macs[idx].port = port
+        persistMacs()
+        if let cred = activeCredential() { connectBest(credential: cred) }
+    }
+
     /// The Mac `removeActiveMac()` would switch to after removing the active one
     /// (nil if the active Mac is the only one). Shared with the confirmation copy so
     /// the named fallback can never diverge from the actual behavior.
@@ -511,6 +651,8 @@ final class AppModel {
         client?.disconnect()
         client = nil
         currentHost = nil
+        stopBrowsing()
+        recoveryStatus = nil
 
         connection = .idle
         projects = []
@@ -1317,12 +1459,16 @@ final class AppModel {
             guard let self else { return }
             self.connection = self.userFacing(s)
             self.repickHostIfStale(s, from: c)
+            self.startRecoveryIfStale(s, from: c)
             let nowReady: Bool = { if case .ready = s { return true }; return false }()
             // The live socket dropped: any request awaiting a reply is now dead
             // (the reply can't survive the reconnect). Reset in-flight bookkeeping.
             if self.wasReady && !nowReady { self.handleConnectionReset() }
             self.wasReady = nowReady
             if nowReady {
+                // The link is back — a recovery browse (if any) has done its job.
+                self.stopBrowsing()
+                self.recoveryStatus = nil
                 c.requestProjects()
                 c.requestSidebar()
                 c.requestDuplicateDefaults()

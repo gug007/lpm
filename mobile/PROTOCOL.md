@@ -15,6 +15,34 @@ is a WebSocket client. This document is the contract both sides implement.
 - Every frame is a **text** WebSocket message containing a JSON object with a
   discriminator field `t`. Unknown `t` values are ignored (forward-compatible).
 
+## Discovery (Bonjour/mDNS)
+
+The desktop advertises the WebSocket server over Bonjour so the phone can find it
+on the LAN — and, crucially, **re-find a saved Mac whose LAN IP changed** by
+matching the stable `serverId` in the TXT record rather than a remembered address.
+
+- **Service type:** `_lpm._tcp.` (`_lpm._tcp.local.`).
+- **SRV port:** the effective WebSocket port actually bound (the same port the
+  phone connects to — includes the dev instance's port offset).
+- **Instance name:** `<serverName> [<first 6 chars of serverId>]`, sanitized and
+  truncated to the 63-byte instance-label limit while always keeping the id
+  fragment. It exists only to be unique on the wire; the phone shows the `name`
+  TXT value, not the instance name.
+- **TXT records:**
+  - `id` — the full `serverId` UUID (the match key; equals the `serverId` from
+    `paired`/`ready`).
+  - `name` — the user-visible `serverName` (same value as `paired`/`ready`).
+  - `v` — protocol version, currently `"1"`.
+  - `dev` — present and `"1"` **only** on a dev build; absent on release. Lets the
+    phone distinguish a dev and a prod instance running on the same Mac (which
+    also have distinct `serverId`s and ports).
+- **When advertising is active:** only while the remote server is **running and
+  bound to the LAN** (the "Allow connections over the network" option, i.e. bound
+  to `0.0.0.0`). A loopback-only server is **not** advertised. The record is
+  withdrawn when the server stops or drops off the LAN, and re-published (with a
+  fresh port/name) whenever a config change rebinds the server. Dev and prod
+  instances each advertise their own record.
+
 ## Handshake (first frame, required within 20s)
 
 The phone sends exactly one of:

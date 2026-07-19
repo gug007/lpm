@@ -24,6 +24,7 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.reconnectIfNeeded() }
+            else { model.suspendRecoveryDiscovery() }
         }
         // Consume a pending notification-tap target once its Mac has loaded.
         .onChange(of: model.pendingNotificationTarget) { _, _ in consumePendingOpen() }
@@ -76,6 +77,9 @@ struct PairingView: View {
     @State private var code = ""
     @State private var scanning = false
     @State private var scannedHosts: [String] = []
+    // Local-network discovery, running only while this screen is visible.
+    @State private var discovery = MacDiscovery()
+    @State private var resolvingNearbyId: String?
 
     private var trimmedHost: String {
         host.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -96,6 +100,21 @@ struct PairingView: View {
 
     private var canPair: Bool {
         !trimmedHost.isEmpty && !trimmedCode.isEmpty
+    }
+
+    /// Fill the address fields from a nearby Mac the user tapped. Discovery only
+    /// supplies the address — the user still enters the pairing code — so this
+    /// never bypasses pairing auth.
+    private func selectNearby(_ mac: MacDiscovery.DiscoveredMac) {
+        resolvingNearbyId = mac.id
+        Task {
+            let resolved = await discovery.resolve(mac)
+            resolvingNearbyId = nil
+            guard let resolved else { return }
+            host = resolved.host
+            port = String(resolved.port)
+            scannedHosts = []
+        }
     }
 
     private var isPairing: Bool {
@@ -156,6 +175,15 @@ struct PairingView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                if !discovery.found.isEmpty {
+                    NearbyMacsView(
+                        macs: discovery.found,
+                        pairedServerIds: Set(model.macs.compactMap { $0.serverId }),
+                        resolvingId: resolvingNearbyId,
+                        onPick: selectNearby
+                    )
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("ENTER MANUALLY")
@@ -224,6 +252,8 @@ struct PairingView: View {
             .padding(.bottom, 32)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onAppear { discovery.start() }
+        .onDisappear { discovery.stop() }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .toolbar {
             if let onCancel {
@@ -275,6 +305,7 @@ struct ProjectsView: View {
     @State private var confirmingRemove = false
     @State private var renamingMac = false
     @State private var renameText = ""
+    @State private var editingEndpoint = false
     @State private var showingSettings = false
     // The duplicate pending removal-confirmation. Removing deletes its folder from
     // disk, so it always routes through a confirmation dialog.
@@ -388,6 +419,9 @@ struct ProjectsView: View {
                     } label: {
                         Label("Rename this Mac", systemImage: "pencil")
                     }
+                    Button { editingEndpoint = true } label: {
+                        Label("Edit Address…", systemImage: "network")
+                    }
                     Button(role: .destructive) { confirmingRemove = true } label: {
                         Label("Remove this Mac", systemImage: "trash")
                     }
@@ -479,6 +513,9 @@ struct ProjectsView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsSheet()
         }
+        .sheet(isPresented: $editingEndpoint) {
+            EditEndpointView()
+        }
         .alert(
             "Heads up",
             isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })
@@ -500,7 +537,14 @@ struct ProjectsView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .safeAreaInset(edge: .top) {
+            if let status = model.recoveryStatus {
+                RecoveryBanner(text: status)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
         .animation(.default, value: model.duplicateProgress == nil)
+        .animation(.default, value: model.recoveryStatus)
     }
 }
 
@@ -532,6 +576,27 @@ private struct NotificationTerminalDestination: View {
             }
         }
         .task { model.loadTerminals(projectName) }
+    }
+}
+
+/// A slim top banner shown while automatic endpoint recovery is finding the Mac
+/// on the local network and reconnecting to it.
+private struct RecoveryBanner: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProgressView().controlSize(.small)
+            Text(text)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal)
+        .padding(.bottom, 6)
     }
 }
 
