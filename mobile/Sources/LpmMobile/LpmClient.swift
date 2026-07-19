@@ -207,6 +207,12 @@ final class LpmClient: NSObject {
     // failed attempt and reported once retries stop being patient.
     private var failureHint = LpmClient.offlineHint
 
+    /// The URLSession error code behind the most recent transport failure, for
+    /// the model to append to the offline message — "secure connection failed"
+    /// alone isn't enough to tell a refused certificate from a broken handshake
+    /// when someone reports the screen.
+    private(set) var lastTransportErrorCode: Int?
+
     struct Credential { let deviceId: String; let token: String }
 
     /// This device's id (once paired/authenticated), for comparing against a
@@ -388,6 +394,9 @@ final class LpmClient: NSObject {
     /// user action.
     private func transientFailure(_ reason: String, error: Error? = nil) {
         failureHint = Self.classifyFailure(error)
+        lastTransportErrorCode = (error as NSError?).flatMap {
+            $0.domain == NSURLErrorDomain ? $0.code : nil
+        }
         // A dropped socket during approve-on-Mac pairing must not retry (a retry
         // pops a fresh Allow dialog); surface it as a no-answer timeout instead.
         if pairRequestName != nil { failPair("timeout"); return }

@@ -706,6 +706,10 @@ fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation
 }
 
 fn accept_ws(stream: TcpStream) -> Option<ClientWs> {
+    let peer = stream
+        .peer_addr()
+        .map(|p| p.to_string())
+        .unwrap_or_else(|_| "unknown".into());
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
     // Wrap the raw socket in a rustls server session before the WebSocket
@@ -713,7 +717,30 @@ fn accept_ws(stream: TcpStream) -> Option<ClientWs> {
     // reads/writes, bounded by the read timeout just set on the socket.
     let conn = rustls::ServerConnection::new(crate::remotetls::server_config()).ok()?;
     let tls = rustls::StreamOwned::new(conn, stream);
-    accept(tls).ok()
+    match accept(tls) {
+        Ok(ws) => Some(ws),
+        Err(e) => {
+            // A failed handshake is the one moment the phone can't tell us what
+            // went wrong (its screen just says the secure connection failed), so
+            // record who tried and why here — both for the dev console and for
+            // support, in a file next to the rest of the remote state.
+            log_handshake_failure(&peer, &e.to_string());
+            None
+        }
+    }
+}
+
+fn log_handshake_failure(peer: &str, reason: &str) {
+    let line = format!(
+        "{} secure handshake with {peer} failed: {reason}\n",
+        time::OffsetDateTime::now_utc()
+    );
+    eprint!("remote: {line}");
+    let path = crate::config::lpm_dir().join("remote-handshake.log");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        use std::io::Write;
+        let _ = f.write_all(line.as_bytes());
+    }
 }
 
 fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u64) {
