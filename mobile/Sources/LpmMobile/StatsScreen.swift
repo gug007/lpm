@@ -10,7 +10,7 @@ import SwiftUI
 /// breakdowns, recent sessions, and a privacy footer. While a reload is in flight
 /// with data already on screen, the content dims rather than blanking.
 struct StatsScreen: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
 
     private let periods: [(days: Int, label: String)] = [
         (1, "Today"), (7, "7 days"), (30, "30 days"), (0, "All time"),

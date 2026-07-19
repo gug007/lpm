@@ -32,7 +32,7 @@ private func automationThreads(_ entries: [AutomationHistoryEntry]) -> [Automati
 }
 
 struct AutomationsView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
 
     private var groups: [(String, [AutomationJob])] {
         Dictionary(grouping: model.automations, by: \.project)
@@ -153,7 +153,7 @@ private struct AutomationRow: View {
 }
 
 struct AutomationDetailView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: String
     let jobId: String
 
@@ -257,6 +257,7 @@ struct AutomationDetailView: View {
         .navigationTitle(job?.displayName ?? "Automation")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            model.loadAutomations()
             model.loadAutomationHistory(project: project, jobId: jobId)
             model.loadAutomationLiveOutput(project: project, jobId: jobId)
         }
@@ -306,7 +307,7 @@ private struct AutomationHistoryRow: View {
 }
 
 private struct AutomationConversationView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: String
     let jobId: String
     let rootAt: Int

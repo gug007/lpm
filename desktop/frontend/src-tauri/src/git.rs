@@ -6,8 +6,8 @@ use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::RecvTimeoutError;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
 
 // ---- helpers ----------------------------------------------------------------
@@ -326,6 +326,100 @@ pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
     files
 }
 
+/// Parse a single `git status --porcelain -z --branch --untracked-files=all`
+/// output into both the status header (branch/ahead-behind) and the expanded
+/// changed-file list, reusing the same parsing rules as `git_status` +
+/// `git_changed_files`. Pure so it is unit-testable without a real repo. `cwd`
+/// is only consulted for the detached/no-commits header cases.
+fn parse_status_and_files(raw: &str, cwd: &str) -> (GitStatus, Vec<ChangedFile>) {
+    let mut st = GitStatus {
+        is_git_repo: true,
+        ..Default::default()
+    };
+    let entries: Vec<&str> = raw.split('\u{0}').collect();
+    let mut start = 0;
+    if let Some(first) = entries.first() {
+        if let Some(header) = first.strip_prefix("## ") {
+            parse_status_header(header, &mut st, cwd);
+            start = 1;
+        }
+    }
+    let (mut staged, mut unstaged, mut untracked) = (0i64, 0i64, 0i64);
+    let mut files = Vec::new();
+    let mut i = start;
+    while i < entries.len() {
+        let entry = entries[i];
+        if entry.len() < 4 {
+            i += 1;
+            continue;
+        }
+        let b = entry.as_bytes();
+        let (x, y) = (b[0], b[1]);
+        let consumes_two = matches!(x, b'R' | b'C') || matches!(y, b'R' | b'C');
+        // Trailing slash can survive for an untracked nested repo even with
+        // --untracked-files=all; trim it so the path never renders blank.
+        let path = entry[3..].trim_end_matches('/').to_string();
+        if x == b'?' && y == b'?' {
+            untracked += 1;
+            files.push(ChangedFile {
+                path,
+                status: "untracked".into(),
+                staged: false,
+            });
+        } else {
+            if x != b' ' {
+                staged += 1;
+            }
+            if y != b' ' {
+                unstaged += 1;
+            }
+            let mut status = "modified";
+            let mut staged_f = false;
+            if x != b' ' && x != b'?' {
+                staged_f = true;
+                status = status_label(x);
+            } else if y == b'D' {
+                status = "deleted";
+            }
+            files.push(ChangedFile {
+                path,
+                status: status.into(),
+                staged: staged_f,
+            });
+        }
+        if consumes_two {
+            i += 1; // skip the from-path chunk of a rename/copy
+        }
+        i += 1;
+    }
+    st.uncommitted = if staged > unstaged {
+        staged + untracked
+    } else {
+        unstaged + untracked
+    };
+    (st, files)
+}
+
+/// Status header + expanded changed-file list from ONE porcelain scan, for
+/// callers that need both without paying for two `git status` invocations (the
+/// phone's review snapshot). Note the counting difference from `git_status`:
+/// `--untracked-files=all` counts every untracked file, so a wholly-untracked
+/// directory inflates `uncommitted` here — acceptable where the expanded file
+/// list is shown anyway. `git_status`/`git_changed_files` keep their behavior.
+pub fn git_status_and_files(cwd: &str) -> (GitStatus, Vec<ChangedFile>) {
+    let out = git_command(
+        cwd,
+        &[STATUS_PORCELAIN, &["--branch", "--untracked-files=all"]].concat(),
+        &[],
+    )
+    .output();
+    let raw = match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
+        _ => return (GitStatus::default(), Vec::new()),
+    };
+    parse_status_and_files(&raw, cwd)
+}
+
 #[tauri::command(async)]
 pub fn git_diff(cwd: String, files: Vec<String>) -> Result<String, String> {
     if files.is_empty() {
@@ -359,6 +453,214 @@ pub fn git_diff(cwd: String, files: Vec<String>) -> Result<String, String> {
         }
     }
     Ok(out)
+}
+
+/// One file's raw diff in a batch reply. `diff` is the unified diff text (empty
+/// for a file with no changes); binary detection + size capping are applied by
+/// the caller, exactly as the single-file path does. `error` is reserved for a
+/// per-file failure that shouldn't sink the whole batch (unused today — a file
+/// that can't be diffed degrades to an empty `diff`, mirroring `git_diff`).
+pub struct BatchDiff {
+    pub path: String,
+    pub diff: String,
+    pub error: Option<String>,
+}
+
+/// Tokenize a `diff --git …` header tail into whitespace-separated tokens,
+/// keeping a C-quoted token (`"…"`, with `\"`/`\\` escapes) intact even when it
+/// contains spaces. Quote/space/backslash are ASCII, and non-ASCII bytes only
+/// appear octal-escaped inside quotes (core.quotePath) or raw inside an
+/// unquoted token, so byte scanning never splits a multibyte char.
+fn header_tokens(s: &str) -> Vec<&str> {
+    let bytes = s.as_bytes();
+    let mut toks = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        while i < bytes.len() && bytes[i] == b' ' {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let start = i;
+        if bytes[i] == b'"' {
+            i += 1;
+            while i < bytes.len() {
+                match bytes[i] {
+                    b'\\' => i += 2,
+                    b'"' => {
+                        i += 1;
+                        break;
+                    }
+                    _ => i += 1,
+                }
+            }
+        } else {
+            while i < bytes.len() && bytes[i] != b' ' {
+                i += 1;
+            }
+        }
+        toks.push(&s[start..i.min(s.len())]);
+    }
+    toks
+}
+
+/// Decode git's C-style quoted path (`"caf\303\251.txt"`) to its literal form.
+/// Handles `\n \t \r \" \\` and 3-digit octal byte escapes; reassembled bytes
+/// are lossily decoded so a UTF-8 path round-trips.
+fn c_unquote(tok: &str) -> String {
+    let inner = tok
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .unwrap_or(tok);
+    let bytes = inner.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'\\' && i + 1 < bytes.len() {
+            match bytes[i + 1] {
+                b'n' => {
+                    out.push(b'\n');
+                    i += 2;
+                }
+                b't' => {
+                    out.push(b'\t');
+                    i += 2;
+                }
+                b'r' => {
+                    out.push(b'\r');
+                    i += 2;
+                }
+                b'"' => {
+                    out.push(b'"');
+                    i += 2;
+                }
+                b'\\' => {
+                    out.push(b'\\');
+                    i += 2;
+                }
+                b'0'..=b'7' => {
+                    let mut val: u32 = 0;
+                    let mut j = i + 1;
+                    let mut n = 0;
+                    while j < bytes.len() && n < 3 && (b'0'..=b'7').contains(&bytes[j]) {
+                        val = val * 8 + u32::from(bytes[j] - b'0');
+                        j += 1;
+                        n += 1;
+                    }
+                    out.push(val as u8);
+                    i = j;
+                }
+                _ => {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Extract the current-side (`b/`) path from a `diff --git a/… b/…` header,
+/// unquoting git's C-style form. Returns None when the header is the ambiguous
+/// unquoted-path-with-spaces form (more than two tokens), so the caller can fall
+/// back to a per-file diff for that path.
+fn diff_git_b_path(line: &str) -> Option<String> {
+    let rest = line.trim_end().strip_prefix("diff --git ")?;
+    let toks = header_tokens(rest);
+    if toks.len() != 2 {
+        return None;
+    }
+    let b = toks[1];
+    let b = if b.starts_with('"') {
+        c_unquote(b)
+    } else {
+        b.to_string()
+    };
+    b.strip_prefix("b/").map(str::to_string)
+}
+
+/// Split a multi-file `git diff` into (b-path, chunk) pairs, one per `diff
+/// --git` header. A chunk whose header path can't be resolved is paired with an
+/// empty path so the caller can fall back to a per-file diff for it.
+fn split_diff_by_file(diff: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut path: Option<String> = None;
+    let mut chunk = String::new();
+    for line in diff.split_inclusive('\n') {
+        if line.starts_with("diff --git ") {
+            if let Some(p) = path.take() {
+                out.push((p, std::mem::take(&mut chunk)));
+            } else {
+                chunk.clear(); // drop any preamble before the first header
+            }
+            path = Some(diff_git_b_path(line).unwrap_or_default());
+        }
+        chunk.push_str(line);
+    }
+    if let Some(p) = path.take() {
+        out.push((p, chunk));
+    }
+    out
+}
+
+/// Batch form of `git_diff`: one entry per requested path (order preserved),
+/// from a single `git diff HEAD -- <tracked paths>` split per file, plus a
+/// `git diff --no-index` for each untracked path. A tracked path whose header
+/// couldn't be matched (or that had no changes) falls back to a per-file
+/// `git diff HEAD --`, so every requested path yields an entry.
+pub fn git_diffs(cwd: &str, paths: &[String]) -> Vec<BatchDiff> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
+    let mut largs: Vec<&str> = vec!["ls-files", "--"];
+    largs.extend(paths.iter().map(String::as_str));
+    let ls = git_out(cwd, &largs).unwrap_or_default();
+    let tracked: HashSet<&str> = ls
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .collect();
+
+    let tracked_paths: Vec<&str> = paths
+        .iter()
+        .map(String::as_str)
+        .filter(|p| tracked.contains(p))
+        .collect();
+    let mut matched: HashMap<String, String> = HashMap::new();
+    if !tracked_paths.is_empty() {
+        let mut dargs: Vec<&str> = vec!["diff", "HEAD", "--"];
+        dargs.extend(&tracked_paths);
+        let batch = git_out(cwd, &dargs).unwrap_or_default();
+        for (p, chunk) in split_diff_by_file(&batch) {
+            if !p.is_empty() {
+                matched.insert(p, chunk);
+            }
+        }
+    }
+
+    paths
+        .iter()
+        .map(|p| {
+            let diff = if tracked.contains(p.as_str()) {
+                match matched.remove(p) {
+                    Some(d) => d,
+                    // Ambiguous header or no changes: cheap per-file fallback.
+                    None => git_out(cwd, &["diff", "HEAD", "--", p]).unwrap_or_default(),
+                }
+            } else {
+                git_raw(cwd, &["diff", "--no-index", "--", "/dev/null", p])
+            };
+            BatchDiff {
+                path: p.clone(),
+                diff,
+                error: None,
+            }
+        })
+        .collect()
 }
 
 #[tauri::command(async)]
@@ -843,22 +1145,44 @@ pub fn rename_branch(cwd: String, old_name: String, new_name: String) -> Result<
     git_out(&cwd, &["branch", "-m", old_name, new_name]).map(|_| ())
 }
 
-#[tauri::command(async)]
-pub fn git_default_branch(cwd: String) -> String {
-    if let Ok(out) = git_out(&cwd, &["symbolic-ref", "refs/remotes/origin/HEAD"]) {
+fn compute_default_branch(cwd: &str) -> String {
+    if let Ok(out) = git_out(cwd, &["symbolic-ref", "refs/remotes/origin/HEAD"]) {
         if let Some(seg) = out.rsplit('/').next() {
             if !seg.is_empty() {
                 return seg.to_string();
             }
         }
     }
-    if branch_exists(&cwd, "refs/heads/main") {
+    if branch_exists(cwd, "refs/heads/main") {
         return "main".to_string();
     }
-    if branch_exists(&cwd, "refs/heads/master") {
+    if branch_exists(cwd, "refs/heads/master") {
         return "master".to_string();
     }
     "main".to_string()
+}
+
+const DEFAULT_BRANCH_TTL: Duration = Duration::from_secs(60);
+static DEFAULT_BRANCH_CACHE: OnceLock<Mutex<HashMap<String, (Instant, String)>>> = OnceLock::new();
+
+/// The repo's default branch, cached per `cwd` with a short TTL so the review
+/// snapshot (and every other caller) doesn't spawn 1–3 `git` processes on each
+/// poll. The TTL self-corrects if the remote HEAD or local main/master changes.
+#[tauri::command(async)]
+pub fn git_default_branch(cwd: String) -> String {
+    let cache = DEFAULT_BRANCH_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(map) = cache.lock() {
+        if let Some((at, val)) = map.get(&cwd) {
+            if at.elapsed() < DEFAULT_BRANCH_TTL {
+                return val.clone();
+            }
+        }
+    }
+    let val = compute_default_branch(&cwd);
+    if let Ok(mut map) = cache.lock() {
+        map.insert(cwd, (Instant::now(), val.clone()));
+    }
+    val
 }
 
 #[tauri::command(async)]
@@ -995,9 +1319,14 @@ pub fn pull_branch(cwd: String, strategy: String, flags: Vec<String>) -> Result<
 
 // ---- gh / PR ----------------------------------------------------------------
 
+static GHCLI_PRESENT: OnceLock<bool> = OnceLock::new();
+
+/// Whether the `gh` CLI is on PATH, cached for the process lifetime — it gates
+/// the "Open PR" affordance and is polled on every review snapshot, but a CLI
+/// install/removal mid-session is not worth re-probing on the hot path.
 #[tauri::command(async)]
 pub fn check_ghcli() -> bool {
-    crate::sys::which("gh")
+    *GHCLI_PRESENT.get_or_init(|| crate::sys::which("gh"))
 }
 
 #[tauri::command(async)]
@@ -1323,7 +1652,77 @@ pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String>
 
 #[cfg(test)]
 mod tests {
-    use super::{cat_file_size, cat_file_spec_ok};
+    use super::{cat_file_size, cat_file_spec_ok, parse_status_and_files, split_diff_by_file};
+
+    #[test]
+    fn split_diff_by_file_keys_by_current_path() {
+        // A normal path, a git-quoted unicode path (café.txt octal-escaped), and
+        // a rename whose b/ side is the new path the phone keys by.
+        let diff = concat!(
+            "diff --git a/normal.txt b/normal.txt\n",
+            "index abc..def 100644\n",
+            "--- a/normal.txt\n",
+            "+++ b/normal.txt\n",
+            "@@ -1 +1 @@\n",
+            "-old\n",
+            "+new\n",
+            "diff --git \"a/caf\\303\\251.txt\" \"b/caf\\303\\251.txt\"\n",
+            "index 111..222 100644\n",
+            "--- \"a/caf\\303\\251.txt\"\n",
+            "+++ \"b/caf\\303\\251.txt\"\n",
+            "@@ -1 +1 @@\n",
+            "-a\n",
+            "+b\n",
+            "diff --git a/old_name.txt b/new_name.txt\n",
+            "similarity index 90%\n",
+            "rename from old_name.txt\n",
+            "rename to new_name.txt\n",
+        );
+        let parts = split_diff_by_file(diff);
+        let paths: Vec<&str> = parts.iter().map(|(p, _)| p.as_str()).collect();
+        assert_eq!(paths, vec!["normal.txt", "café.txt", "new_name.txt"]);
+        // Each chunk starts at its own header and carries its body.
+        assert!(parts[0].1.starts_with("diff --git a/normal.txt"));
+        assert!(parts[0].1.contains("+new\n"));
+        assert!(parts[2].1.contains("rename to new_name.txt\n"));
+    }
+
+    #[test]
+    fn split_diff_by_file_unquoted_space_falls_back() {
+        // git does not quote a plain space, so this header is ambiguous — it must
+        // yield an empty key so the caller re-diffs the file individually.
+        let diff = "diff --git a/with space.txt b/with space.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        let parts = split_diff_by_file(diff);
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].0, "");
+    }
+
+    #[test]
+    fn parse_status_and_files_reads_header_and_files() {
+        let raw = "## main...origin/main [ahead 2, behind 1]\0 M mod.txt\0A  add.txt\0R  new name.txt\0old.txt\0?? untracked.txt\0";
+        let (st, files) = parse_status_and_files(raw, ".");
+        assert!(st.is_git_repo);
+        assert_eq!(st.branch, "main");
+        assert!(st.has_upstream);
+        assert_eq!(st.ahead, 2);
+        assert_eq!(st.behind, 1);
+        // staged (add + rename) = 2 > unstaged (mod) = 1, plus 1 untracked.
+        assert_eq!(st.uncommitted, 3);
+
+        let rows: Vec<(&str, &str, bool)> = files
+            .iter()
+            .map(|f| (f.path.as_str(), f.status.as_str(), f.staged))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("mod.txt", "modified", false),
+                ("add.txt", "added", true),
+                ("new name.txt", "renamed", true),
+                ("untracked.txt", "untracked", false),
+            ]
+        );
+    }
 
     #[test]
     fn cat_file_size_parses_hit_and_miss() {

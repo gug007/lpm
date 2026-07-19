@@ -5,7 +5,7 @@ import SwiftUI
 /// Sending builds a prompt and hands it back to the caller, which submits it into
 /// the chosen terminal and navigates there.
 struct AgentAskSheet: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     let path: String
     let diffText: String

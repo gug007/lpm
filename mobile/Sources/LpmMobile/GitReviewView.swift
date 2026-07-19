@@ -5,7 +5,7 @@ import SwiftUI
 /// its diff), a commit message field with an AI "generate" helper, and — when the
 /// GitHub CLI is available — a "Create Pull Request" flow.
 struct GitReviewView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     let project: Project
 
@@ -19,12 +19,12 @@ struct GitReviewView: View {
     @State private var isVisible = false
 
     private var name: String { project.name }
-    private var snapshot: GitSnapshot? { model.gitSnapshots[name] }
-    private var loadError: String? { model.gitLoadError[name] }
-    private var loading: Bool { model.gitLoading.contains(name) }
-    private var pushing: Bool { model.gitPushing.contains(name) }
-    private var committing: Bool { model.gitCommitting.contains(name) }
-    private var generating: Bool { model.gitGeneratingMessage.contains(name) }
+    private var snapshot: GitSnapshot? { model.git.snapshots[name] }
+    private var loadError: String? { model.git.loadError[name] }
+    private var loading: Bool { model.git.loading.contains(name) }
+    private var pushing: Bool { model.git.pushing.contains(name) }
+    private var committing: Bool { model.git.committing.contains(name) }
+    private var generating: Bool { model.git.generatingMessage.contains(name) }
 
     private var selectedPaths: [String] {
         (snapshot?.files ?? []).map(\.path).filter { !deselected.contains($0) }
@@ -80,23 +80,23 @@ struct GitReviewView: View {
             }
             .onAppear {
                 isVisible = true
-                if snapshot == nil { model.loadGit(name) }
-                model.watchGit(name)
+                if snapshot == nil { model.git.load(name) }
+                model.git.watch(name)
             }
             .onDisappear {
                 isVisible = false
-                model.unwatchGit(name)
+                model.git.unwatch(name)
             }
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { model.refreshWatchedGit(name) }
+                if phase == .active { model.git.refreshWatched(name) }
             }
-            .onChange(of: model.gitGeneratedMessage[name]) { _, m in
+            .onChange(of: model.git.generatedMessage[name]) { _, m in
                 if let m {
                     message = m
-                    model.consumeGitGeneratedMessage(name)
+                    model.git.consumeGeneratedMessage(name)
                 }
             }
-            .onChange(of: model.gitCommitTick[name]) { _, _ in
+            .onChange(of: model.git.commitTick[name]) { _, _ in
                 message = ""
                 deselected = []
             }
@@ -105,22 +105,22 @@ struct GitReviewView: View {
             // without the gate both screens would try to present this alert.
             .alert(
                 "Something went wrong",
-                isPresented: Binding(get: { isVisible && model.gitOpError[name] != nil },
-                                     set: { if !$0 { model.gitOpError[name] = nil } })
+                isPresented: Binding(get: { isVisible && model.git.opError[name] != nil },
+                                     set: { if !$0 { model.git.opError[name] = nil } })
             ) {
-                Button("OK", role: .cancel) { model.gitOpError[name] = nil }
+                Button("OK", role: .cancel) { model.git.opError[name] = nil }
             } message: {
-                Text(model.gitOpError[name] ?? "")
+                Text(model.git.opError[name] ?? "")
             }
             .sheet(isPresented: $showPrSheet) {
                 GitPrSheet(project: project)
-                    .environmentObject(model)
+                    .environment(model)
             }
             .sheet(item: $asking) { ctx in
                 AgentAskSheet(project: project, path: ctx.path, diffText: ctx.diffText) { term, prompt in
                     sendToAgent(term, prompt)
                 }
-                .environmentObject(model)
+                .environment(model)
             }
             .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: project) }
         }
@@ -136,14 +136,14 @@ struct GitReviewView: View {
     }
 
     private func reviewedCount(_ s: GitSnapshot) -> Int {
-        s.files.filter { model.isViewed(name, path: $0.path) }.count
+        s.files.filter { model.git.isViewed(name, path: $0.path) }.count
     }
 
     /// Aggregate +added −removed across the files whose diffs have parsed.
     private var totals: (added: Int, removed: Int) {
         var added = 0, removed = 0
         for file in snapshot?.files ?? [] {
-            if let parsed = model.parsedDiff(name, path: file.path) {
+            if let parsed = model.git.parsedDiff(name, path: file.path) {
                 added += parsed.addedCount
                 removed += parsed.removedCount
             }
@@ -234,7 +234,7 @@ struct GitReviewView: View {
                 .lineLimit(3...8)
 
             Button {
-                model.gitGenMessage(name, files: selectedPaths)
+                model.git.genMessage(name, files: selectedPaths)
             } label: {
                 HStack(spacing: 8) {
                     if generating {
@@ -296,7 +296,7 @@ struct GitReviewView: View {
                 } description: {
                     Text(loadError)
                 } actions: {
-                    Button("Retry") { model.loadGit(name) }
+                    Button("Retry") { model.git.load(name) }
                         .buttonStyle(.borderedProminent)
                 }
             } else {
@@ -312,11 +312,11 @@ struct GitReviewView: View {
     }
 
     private func commit() {
-        model.gitCommit(name, message: trimmedMessage, files: selectedPaths)
+        model.git.commit(name, message: trimmedMessage, files: selectedPaths)
     }
 
     private func refresh() async {
-        model.loadGit(name)
+        model.git.load(name)
         try? await Task.sleep(nanoseconds: 600_000_000)
     }
 }
@@ -334,7 +334,7 @@ struct AskContext: Identifiable {
 /// line, edge-to-edge. Diffs fetch lazily on first appearance; the List virtualizes
 /// the rows, so even huge diffs render fully with no cap.
 private struct GitFileSection: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: String
     let file: GitFile
     let selected: Bool
@@ -345,12 +345,12 @@ private struct GitFileSection: View {
     @State private var expanded = false
     private let softCap = 600
 
-    private var key: String { model.diffKey(project, file.path) }
-    private var result: GitDiffResult? { model.gitDiffs[key] }
-    private var loading: Bool { model.gitDiffLoading.contains(key) }
-    private var error: String? { model.gitDiffError[key] }
-    private var parsed: ParsedDiff? { model.parsedDiff(project, path: file.path) }
-    private var viewed: Bool { model.isViewed(project, path: file.path) }
+    private var key: String { model.git.diffKey(project, file.path) }
+    private var result: GitDiffResult? { model.git.diffs[key] }
+    private var loading: Bool { model.git.diffLoading.contains(key) }
+    private var error: String? { model.git.diffError[key] }
+    private var parsed: ParsedDiff? { model.git.parsedDiff(project, path: file.path) }
+    private var viewed: Bool { model.git.isViewed(project, path: file.path) }
     private var promptDiff: String {
         guard let result, !result.binary else { return "" }
         return ParsedDiff.promptDiff(result.diff)
@@ -369,7 +369,7 @@ private struct GitFileSection: View {
         }
         .onAppear {
             collapsed = viewed
-            if result == nil && !loading { model.loadGitDiff(project, path: file.path) }
+            if result == nil && !loading { model.git.loadDiff(project, path: file.path) }
         }
     }
 
@@ -411,7 +411,7 @@ private struct GitFileSection: View {
 
             Button {
                 let nowViewed = !viewed
-                model.toggleViewed(project, path: file.path)
+                model.git.toggleViewed(project, path: file.path)
                 withAnimation(.easeInOut(duration: 0.15)) { collapsed = nowViewed }
             } label: {
                 Image(systemName: viewed ? "checkmark.circle.fill" : "circle")
@@ -455,7 +455,7 @@ private struct GitFileSection: View {
                 stateRow { InlineDiffLoading() }
             }
         } else if let error {
-            stateRow { InlineDiffError(message: error) { model.loadGitDiff(project, path: file.path) } }
+            stateRow { InlineDiffError(message: error) { model.git.loadDiff(project, path: file.path) } }
         } else {
             stateRow { InlineDiffLoading() }
         }
@@ -628,7 +628,7 @@ private struct GitReviewSkeleton: View {
 /// success the PR's URL is shown with an Open button. Presentable from both the
 /// review screen and the project screen's Git menu.
 struct GitPrSheet: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     @Environment(\.dismiss) private var dismiss
 
@@ -637,8 +637,8 @@ struct GitPrSheet: View {
     @State private var createdURL: String?
 
     private var name: String { project.name }
-    private var generating: Bool { model.gitGeneratingPr.contains(name) }
-    private var creating: Bool { model.gitCreatingPr.contains(name) }
+    private var generating: Bool { model.git.generatingPr.contains(name) }
+    private var creating: Bool { model.git.creatingPr.contains(name) }
     private var canCreate: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !creating && !generating
     }
@@ -671,27 +671,27 @@ struct GitPrSheet: View {
                     }
                 }
             }
-            .onChange(of: model.gitPrDraft[name]) { _, draft in
+            .onChange(of: model.git.prDraft[name]) { _, draft in
                 if let draft {
                     title = draft.title
                     body_ = draft.body
-                    model.consumeGitPrDraft(name)
+                    model.git.consumePrDraft(name)
                 }
             }
-            .onChange(of: model.gitCreatedPrURL[name]) { _, url in
+            .onChange(of: model.git.createdPrURL[name]) { _, url in
                 if let url {
                     createdURL = url
-                    model.consumeGitCreatedPrURL(name)
+                    model.git.consumeCreatedPrURL(name)
                 }
             }
             .alert(
                 "Something went wrong",
-                isPresented: Binding(get: { model.gitPrError[name] != nil },
-                                     set: { if !$0 { model.gitPrError[name] = nil } })
+                isPresented: Binding(get: { model.git.prError[name] != nil },
+                                     set: { if !$0 { model.git.prError[name] = nil } })
             ) {
-                Button("OK", role: .cancel) { model.gitPrError[name] = nil }
+                Button("OK", role: .cancel) { model.git.prError[name] = nil }
             } message: {
-                Text(model.gitPrError[name] ?? "")
+                Text(model.git.prError[name] ?? "")
             }
         }
     }
@@ -712,7 +712,7 @@ struct GitPrSheet: View {
             }
             Section {
                 Button {
-                    model.gitGenPr(name)
+                    model.git.genPr(name)
                 } label: {
                     HStack(spacing: 8) {
                         if generating {
@@ -749,7 +749,7 @@ struct GitPrSheet: View {
     }
 
     private func create() {
-        model.gitCreatePr(name,
+        model.git.createPr(name,
                           title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                           body: body_)
     }

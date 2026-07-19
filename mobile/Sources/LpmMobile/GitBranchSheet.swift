@@ -6,16 +6,20 @@ import Foundation
 /// out the tapped branch. On a successful checkout the sheet dismisses; the model
 /// refreshes the git snapshot and project list.
 struct GitBranchSheet: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     @Environment(\.dismiss) private var dismiss
 
+    @State private var creatingBranch = false
+    @State private var newBranchName = ""
+
     private var name: String { project.name }
-    private var branches: [GitBranch]? { model.gitBranches[name] }
-    private var loading: Bool { model.gitBranchesLoading.contains(name) }
-    private var error: String? { model.gitBranchError[name] }
-    private var current: String { model.gitCurrentBranch[name] ?? model.gitSnapshots[name]?.branch ?? "" }
-    private var checkingOut: String? { model.gitCheckingOut[name] }
+    private var branches: [GitBranch]? { model.git.branches[name] }
+    private var creating: Bool { model.git.creatingBranch.contains(name) }
+    private var loading: Bool { model.git.branchesLoading.contains(name) }
+    private var error: String? { model.git.branchError[name] }
+    private var current: String { model.git.currentBranch[name] ?? model.git.snapshots[name]?.branch ?? "" }
+    private var checkingOut: String? { model.git.checkingOut[name] }
 
     private var localBranches: [GitBranch] { (branches ?? []).filter { !$0.isRemote } }
     private var remoteBranches: [GitBranch] { (branches ?? []).filter { $0.isRemote } }
@@ -42,21 +46,37 @@ struct GitBranchSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { newBranchName = ""; creatingBranch = true } label: {
+                        if creating { ProgressView().controlSize(.small) }
+                        else { Image(systemName: "plus") }
+                    }
+                    .disabled(creating)
+                }
+            }
+            .alert("New branch", isPresented: $creatingBranch) {
+                TextField("branch-name", text: $newBranchName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {}
+                Button("Create") { model.git.createBranch(name, name: newBranchName) }
+            } message: {
+                Text("Creates a new branch off the current HEAD and checks it out.")
             }
             .alert(
                 "Couldn't switch branch",
                 isPresented: Binding(
-                    get: { branches != nil && model.gitBranchError[name] != nil },
-                    set: { if !$0 { model.gitBranchError[name] = nil } }
+                    get: { branches != nil && model.git.branchError[name] != nil },
+                    set: { if !$0 { model.git.branchError[name] = nil } }
                 )
             ) {
-                Button("OK", role: .cancel) { model.gitBranchError[name] = nil }
+                Button("OK", role: .cancel) { model.git.branchError[name] = nil }
             } message: {
-                Text(model.gitBranchError[name] ?? "")
+                Text(model.git.branchError[name] ?? "")
             }
         }
-        .onAppear { if branches == nil { model.loadGitBranches(name) } }
-        .onChange(of: model.gitCheckoutTick[name]) { _, _ in dismiss() }
+        .onAppear { if branches == nil { model.git.loadBranches(name) } }
+        .onChange(of: model.git.checkoutTick[name]) { _, _ in dismiss() }
     }
 
     private var list: some View {
@@ -77,7 +97,7 @@ struct GitBranchSheet: View {
     private func branchRow(_ branch: GitBranch) -> some View {
         let isCurrent = !branch.isRemote && branch.name == current
         return Button {
-            model.gitCheckout(name, branch: branch.name, remote: branch.remote)
+            model.git.checkout(name, branch: branch.name, remote: branch.remote)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: isCurrent ? "checkmark.circle.fill" : "circle")
@@ -132,7 +152,7 @@ struct GitBranchSheet: View {
         } description: {
             Text(message)
         } actions: {
-            Button("Retry") { model.loadGitBranches(name) }
+            Button("Retry") { model.git.loadBranches(name) }
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.capsule)
         }

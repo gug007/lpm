@@ -36,7 +36,7 @@ enum TerminalWebPool {
 /// posts keystrokes and its fitted geometry back out. Output crosses the JS bridge
 /// as base64(UTF-8) to avoid string-escaping hazards in evaluateJavaScript.
 struct WebTerminalView: UIViewRepresentable {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let term: TerminalInfo
     /// Fired once, when the first screen content renders — lets the host screen
     /// drop its loading spinner.

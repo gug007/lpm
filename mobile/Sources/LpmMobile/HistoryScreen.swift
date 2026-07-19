@@ -5,7 +5,7 @@ import SwiftUI
 /// "Send now" sends it straight to the terminal. Backed by the keyset-paginated
 /// `historyQuery` (60 rows/page, infinite scroll).
 struct HistoryScreen: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
     let project: String

@@ -3,7 +3,7 @@ import UIKit
 import UserNotifications
 
 struct NotificationSettingsView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
 
     // Whether the OS-level permission was denied; if so the master toggle can't
     // actually deliver anything, so we surface a jump to Settings.
@@ -15,7 +15,8 @@ struct NotificationSettingsView: View {
     }
 
     var body: some View {
-        Form {
+        @Bindable var model = model
+        return Form {
             Section {
                 Toggle("Push notifications", isOn: $model.notifyEnabled)
             } footer: {

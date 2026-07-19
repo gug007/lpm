@@ -5,277 +5,226 @@ import UserNotifications
 
 /// Top-level observable state: the connection, the project list, and per-project
 /// status. Views observe this; the client drives it.
-@MainActor
-final class AppModel: ObservableObject {
-    @Published var connection: LpmClient.State = .idle
-    @Published var projects: [Project] = []
+@Observable @MainActor
+final class AppModel {
+    var connection: LpmClient.State = .idle
+    var projects: [Project] = []
     // False until the first projects list arrives, so the UI can tell an empty
     // list apart from "still loading" and show a spinner instead of "No projects".
-    @Published var projectsLoaded = false
-    @Published var terminals: [String: [TerminalInfo]] = [:] // project -> terminals
-    @Published var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
-    @Published var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
-    @Published var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
-    @Published var automations: [AutomationJob] = []
-    @Published var automationsLoaded = false
-    @Published var automationHistory: [String: [AutomationHistoryEntry]] = [:]
-    @Published var automationHistoryLoading: Set<String> = []
-    @Published var automationLiveOutput: [String: AutomationLiveOutput] = [:]
-    @Published var automationPending: Set<String> = []
-    @Published var automationError: String?
-    @Published var automationFollowupError: [String: String] = [:]
+    var projectsLoaded = false
+    var terminals: [String: [TerminalInfo]] = [:] // project -> terminals
+    var slashCommands: [String: [SlashCommand]] = [:] // terminal id -> commands
+    var mentions: [String: [MentionEntry]] = [:] // project -> @-mention targets
+    var history: [String: [HistoryRow]] = [:] // project -> recent sent prompts
+    var automations: [AutomationJob] = []
+    var automationsLoaded = false
+    var automationHistory: [String: [AutomationHistoryEntry]] = [:]
+    var automationHistoryLoading: Set<String> = []
+    var automationLiveOutput: [String: AutomationLiveOutput] = [:]
+    var automationPending: Set<String> = []
+    var automationError: String?
+    var automationFollowupError: [String: String] = [:]
 
     // Local agent token-usage stats (the desktop Stats page). `stats` is nil until
     // the first load lands; `statsDays` is the selected period (1/7/30 days, 0 =
     // all time). `statsActive` re-issues the query after a reconnect.
-    @Published var stats: AgentStats?
-    @Published var statsLoading = false
-    @Published var statsError: String?
-    @Published var statsDays = 30
-    private var statsActive = false
-    // Bumped on each request and when a reply lands, so a stale timeout can't clear
-    // a newer in-flight load. Replies are async (the Mac scans history files off the
-    // socket) and can arrive out of order, so the current period is the source of
-    // truth and the timeout is generation-guarded.
-    private var statsGen = 0
+    var stats: AgentStats?
+    var statsLoading = false
+    var statsError: String?
+    var statsDays = 30
+    @ObservationIgnored private var statsActive = false
+    // The stats scan replies asynchronously and can arrive out of order (the Mac
+    // scans history files off the socket), so a generation-guarded timeout keeps a
+    // stale timeout from clearing a newer in-flight load.
+    @ObservationIgnored private let statsTimeout = GenerationTimeout<String>()
 
     // Saved Macs and which one is live. The phone talks to exactly one Mac at a
     // time; `activeMacId` names it. An empty `macs` list means "not paired with any
     // Mac" and drives the root gate to the pairing screen.
-    @Published var macs: [MacRecord] = []
-    @Published var activeMacId: UUID?
+    var macs: [MacRecord] = []
+    var activeMacId: UUID?
     // Drives the "Add a Mac" pairing sheet over the projects list. Cleared once a
     // pairing succeeds (the new Mac becomes active) or the user cancels.
-    @Published var addingMac = false
+    var addingMac = false
 
     // MARK: composer parity
 
     // The user's enabled AI-rewrite actions (global, from composer-actions.json).
-    @Published var composerActions: [ComposerAction] = []
+    var composerActions: [ComposerAction] = []
     // Per-action remembered variant count (1–5) for the AI-rewrite sheet, keyed by
     // action id (and "__freeform__" for the custom field). Session-scoped.
-    @Published var actionVariantCounts: [String: Int] = [:]
+    var actionVariantCounts: [String: Int] = [:]
     // project -> discovered services (for the @-mention "service logs" source).
-    @Published var services: [String: [ServiceInfo]] = [:]
-    @Published var servicesRunning: [String: Bool] = [:]
+    var services: [String: [ServiceInfo]] = [:]
+    var servicesRunning: [String: Bool] = [:]
     // Captured service-pane output, keyed by serviceLogsKey; one-shot, consumed by
     // the composer which injects it inline then clears it.
-    @Published var serviceLogsResult: [String: String] = [:]
-    @Published var serviceLogsError: [String: String] = [:]
+    var serviceLogsResult: [String: String] = [:]
+    var serviceLogsError: [String: String] = [:]
 
     // Headless background action runs the phone started (or re-attached to), keyed
     // by runId. `backgroundRuns` holds the latest polled snapshot; `backgroundRunInfo`
     // carries project/label/startedAt known at start time so a run shows before its
     // first poll; `backgroundRunErrors` records a rejected start.
-    @Published var backgroundRuns: [String: ActionBgOutput] = [:]
-    @Published var backgroundRunInfo: [String: BackgroundRunInfo] = [:]
-    @Published var backgroundRunErrors: [String: String] = [:]
+    var backgroundRuns: [String: ActionBgOutput] = [:]
+    var backgroundRunInfo: [String: BackgroundRunInfo] = [:]
+    var backgroundRunErrors: [String: String] = [:]
 
     // Rich history screen (historyQuery). The reply carries no echo of its params,
     // so a per-request generation queue (below) records whether each reply should
     // replace (first page) or append (next page), and drops superseded replies.
-    @Published var historyItems: [HistoryItem] = []
-    @Published var historyHasMore = false
-    @Published var historyLoading = false
-    @Published var historyLoadingMore = false
-    @Published var historyFolders: [HistoryFolder] = []
-    private var historyQueryParams: (project: String?, search: String?, favoritesOnly: Bool, folder: String?)
+    var historyItems: [HistoryItem] = []
+    var historyHasMore = false
+    var historyLoading = false
+    var historyLoadingMore = false
+    var historyFolders: [HistoryFolder] = []
+    @ObservationIgnored private var historyQueryParams: (project: String?, search: String?, favoritesOnly: Bool, folder: String?)
         = (nil, nil, false, nil)
     // Each request bumps the generation; replies (delivered in request order over
     // the connection) are matched FIFO, and only the latest generation's reply may
     // replace/append — a stale reply from a superseded filter/search is dropped.
-    private var historyReqGen = 0
-    private var historyPending: [(gen: Int, paging: Bool)] = []
+    @ObservationIgnored private var historyReqGen = 0
+    @ObservationIgnored private var historyPending: [(gen: Int, paging: Bool)] = []
     // Whether the history screen is open, so a reconnect re-issues its query fresh.
-    private var historyActive = false
+    @ObservationIgnored private var historyActive = false
     // Tracks whether the link was live, so a transition AWAY from ready is detected
     // as a socket teardown (a transient background→foreground drop goes
     // .connecting → .ready without ever passing through .failed).
-    private var wasReady = false
+    @ObservationIgnored private var wasReady = false
 
     // Per-terminal composer stores (tabs + attachments + transform state), retained
-    // so composer drafts survive leaving/re-entering a terminal. Plain dict (not
-    // @Published): each store is observed individually by its composer.
-    private var composerStores: [String: ComposerStore] = [:]
+    // so composer drafts survive leaving/re-entering a terminal. Not observed here:
+    // each store is observed individually by its composer.
+    @ObservationIgnored private var composerStores: [String: ComposerStore] = [:]
     // reqId -> terminal id, routing streamed transform replies to the right store.
-    private var transformRoutes: [String: String] = [:]
+    @ObservationIgnored private var transformRoutes: [String: String] = [:]
     // terminal id -> a closure that captures the phone's own xterm scrollback,
     // registered by WebTerminalView (for the @-mention "terminal output" source).
-    var terminalCapture: [String: (_ lines: Int, _ done: @escaping (String) -> Void) -> Void] = [:]
+    @ObservationIgnored var terminalCapture: [String: (_ lines: Int, _ done: @escaping (String) -> Void) -> Void] = [:]
 
     // Notification preferences. The per-type toggles keep their stored values even
     // when the master is off; the effective values sent to the desktop are
     // `notifyEnabled && notifyX`. Any change re-sends the (idempotent) apnsToken
     // frame so the desktop's per-device prefs stay in sync.
-    @Published var notifyEnabled: Bool = AppModel.loadBoolPref(AppModel.notifyEnabledKey) {
+    var notifyEnabled: Bool = AppModel.loadBoolPref(AppModel.notifyEnabledKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    @Published var notifyWaiting: Bool = AppModel.loadBoolPref(AppModel.notifyWaitingKey) {
+    var notifyWaiting: Bool = AppModel.loadBoolPref(AppModel.notifyWaitingKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    @Published var notifyDone: Bool = AppModel.loadBoolPref(AppModel.notifyDoneKey) {
+    var notifyDone: Bool = AppModel.loadBoolPref(AppModel.notifyDoneKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    @Published var notifyError: Bool = AppModel.loadBoolPref(AppModel.notifyErrorKey) {
+    var notifyError: Bool = AppModel.loadBoolPref(AppModel.notifyErrorKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    @Published var notifyAutomationStarted: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationStartedKey) {
+    var notifyAutomationStarted: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationStartedKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    @Published var notifyAutomationDone: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationDoneKey) {
+    var notifyAutomationDone: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationDoneKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    @Published var notifyAutomationError: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationErrorKey) {
+    var notifyAutomationError: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationErrorKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
 
     // Sidebar folders, matching the desktop: `order` interleaves project names and
     // "group:<id>" tokens; `groups` are the folder defs.
-    @Published var sidebarOrder: [String] = []
-    @Published var groups: [ProjectFolder] = []
+    var sidebarOrder: [String] = []
+    var groups: [ProjectFolder] = []
     // terminal id -> current owner. Absent = nobody/unknown (this phone may show
     // it). A terminal is rendered live in exactly one surface; when the desktop
     // (or another phone) owns it, this phone shows a "take control" placeholder.
-    @Published var controlOwner: [String: ControlOwner] = [:]
+    var controlOwner: [String: ControlOwner] = [:]
     // A failed duplicate/remove message to show once (e.g. "cannot duplicate an
     // SSH project"). The list itself refreshes off the projects-changed push.
-    @Published var actionError: String?
+    var actionError: String? {
+        didSet { if actionError != nil { Haptics.error() } }
+    }
     // The duplicate modal's initial toggle state, mirrored from the desktop's
     // persisted settings so the phone's modal opens with matching defaults.
-    @Published var duplicateDefaults = DuplicateOptions()
+    var duplicateDefaults = DuplicateOptions()
     // Live progress of an in-flight duplicate batch (nil when idle).
-    @Published var duplicateProgress: DuplicateProgress?
+    var duplicateProgress: DuplicateProgress?
     // A non-fatal notice to show once (e.g. copies made but a run task needs the
     // Mac app open). Distinct from actionError, which is a hard failure.
-    @Published var notice: String?
-    // A project a notification tap wants to open, consumed by ContentView to
-    // deep-link into its detail (stashed until the projects list has loaded).
-    @Published var pendingOpenProject: String?
+    var notice: String?
+    var pendingNotificationTarget: NotificationOpenTarget?
     // project -> desired running state while a Start/Stop is in flight, so the UI
     // can spin until the projects push confirms it (or a timeout gives up).
-    @Published var pendingRun: [String: Bool] = [:]
+    var pendingRun: [String: Bool] = [:]
     // project -> service -> desired running state while a toggle is in flight,
     // cleared the same way as pendingRun.
-    @Published var pendingServiceToggle: [String: [String: Bool]] = [:]
+    var pendingServiceToggle: [String: [String: Bool]] = [:]
     // Projects with a new-terminal/run-action in flight: the desktop creates the
     // terminal asynchronously, so show a placeholder row until it appears.
-    @Published var creatingTerminals: Set<String> = []
+    var creatingTerminals: Set<String> = []
     // Terminal ids present when the create was requested; a response containing
     // an id outside this set means the new terminal has landed.
-    private var creatingBaseline: [String: Set<String>] = [:]
-    private var creatingGen: [String: Int] = [:]
+    @ObservationIgnored private var creatingBaseline: [String: Set<String>] = [:]
+    @ObservationIgnored private let creatingTimeout = GenerationTimeout<String>()
     // A pending "switch to the terminal this run spawns" watcher, keyed by project.
     // Any newer create intent invalidates it (see markTerminalCreating) so a manual
     // "+" terminal or a later run can't trigger a stale switch.
-    private var spawnCallbacks: [String: (TerminalInfo) -> Void] = [:]
+    @ObservationIgnored private var spawnCallbacks: [String: (TerminalInfo) -> Void] = [:]
     // project -> terminal ids with a close in flight. The row is removed
     // optimistically (the destructive swipe already animated it away) and
     // filtered from incoming lists until the desktop confirms the close, so a
     // stale response can't flash the row back. A timeout gives up and reloads,
     // resurfacing the row if the close actually failed.
-    private var closingTerminals: [String: Set<String>] = [:]
-    private var closingGen: [String: Int] = [:]
+    @ObservationIgnored private var closingTerminals: [String: Set<String>] = [:]
+    @ObservationIgnored private let closingTimeout = GenerationTimeout<String>()
 
     // Terminal streams go straight to whichever TerminalScreen is subscribed; the
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
     // are kept separate so the view can reset the emulator before replaying the
     // seed (raw scrollback) — otherwise a TUI's cursor-positioned redraws overlap.
-    var onTerminalSeed: [String: (_ cols: Int, _ rows: Int, _ data: String) -> Void] = [:]
-    var onTerminalOutput: [String: (String) -> Void] = [:]
+    @ObservationIgnored var onTerminalSeed: [String: (_ cols: Int, _ rows: Int, _ data: String) -> Void] = [:]
+    @ObservationIgnored var onTerminalOutput: [String: (String) -> Void] = [:]
     // Composer "send": routed into the terminal's web view so it can apply the
     // same bracketed-paste wrapping the desktop does (which needs xterm's live
     // bracketed-paste mode). Registered by WebTerminalView.
-    var terminalSubmit: [String: (String) -> Void] = [:]
+    @ObservationIgnored var terminalSubmit: [String: (String) -> Void] = [:]
     // A prompt queued to submit into a terminal as soon as its web view is mounted
     // and seeded (used by "Ask agent…", which navigates to a terminal that may not
     // be on screen yet). Flushed + cleared by WebTerminalView once ready.
-    var pendingAgentPrompt: [String: String] = [:]
+    @ObservationIgnored var pendingAgentPrompt: [String: String] = [:]
 
-    // MARK: git review state (keyed by project)
+    // MARK: git review state
 
-    // The last-loaded repository snapshot, and the load's error/in-flight state.
-    @Published var gitSnapshots: [String: GitSnapshot] = [:]
-    @Published var gitLoadError: [String: String] = [:]
-    @Published var gitLoading: Set<String> = []
-    // Long ops in flight, so each affordance can show its own spinner and
-    // conflicting ops can be serialized.
-    @Published var gitPushing: Set<String> = []
-    @Published var gitCommitting: Set<String> = []
-    @Published var gitGeneratingMessage: Set<String> = []
-    @Published var gitGeneratingPr: Set<String> = []
-    @Published var gitCreatingPr: Set<String> = []
-    // Push/commit/generate-message failures surface on the review screen; PR
-    // draft/create failures surface inside the PR sheet, kept separate so an open
-    // sheet's error doesn't also fire the screen's alert.
-    @Published var gitOpError: [String: String] = [:]
-    @Published var gitPrError: [String: String] = [:]
-    // One-shot signals the view consumes then clears: a generated commit message,
-    // a bumped counter on a successful commit, a drafted PR, a created PR's URL.
-    @Published var gitGeneratedMessage: [String: String] = [:]
-    @Published var gitCommitTick: [String: Int] = [:]
-    @Published var gitPrDraft: [String: GitPrDraft] = [:]
-    @Published var gitCreatedPrURL: [String: String] = [:]
-    // Per-file diffs, keyed by diffKey(project, path).
-    @Published var gitDiffs: [String: GitDiffResult] = [:]
-    @Published var gitDiffLoading: Set<String> = []
-    @Published var gitDiffError: [String: String] = [:]
-    // Bumped when a background-built ParsedDiff lands in the cache, so views that
-    // read parsedDiff() re-evaluate and swap their loading state for the diff.
-    @Published var gitParsedTick = 0
-    // Files the user marked "viewed" on the review screen, keyed by project. Session
-    // scoped: kept across snapshot refreshes, cleared on logout.
-    @Published var gitViewed: [String: Set<String>] = [:]
-    // Git menu ops (Pull/Fetch/Discard) in flight; their failures also surface via
-    // gitOpError, presented on the project screen when the review screen is closed.
-    @Published var gitPulling: Set<String> = []
-    @Published var gitFetching: Set<String> = []
-    @Published var gitDiscarding: Set<String> = []
-    // Switch-branch sheet state: the loaded branch list + current branch, load/
-    // checkout errors (kept separate so they show inside the sheet), the branch
-    // being checked out, and a tick the sheet observes to dismiss on success.
-    @Published var gitBranches: [String: [GitBranch]] = [:]
-    @Published var gitCurrentBranch: [String: String] = [:]
-    @Published var gitBranchesLoading: Set<String> = []
-    @Published var gitBranchError: [String: String] = [:]
-    @Published var gitCheckingOut: [String: String] = [:]
-    @Published var gitCheckoutTick: [String: Int] = [:]
-    // Generation counters that invalidate a pending op timeout once its reply
-    // lands, so a late timeout can't clear a newer in-flight op.
-    private var gitOpGen: [String: Int] = [:]
-    // Parsed diffs (line classification + measured width), keyed by diffKey, so
-    // scrolling the review list doesn't re-parse a file's diff on every body
-    // evaluation. Invalidated when a fresh diff for that key arrives.
-    private var parsedDiffCache: [String: ParsedDiff] = [:]
-    // Debounce per project for the git-changed push, so a burst of file writes
-    // collapses into one refresh.
-    private var gitChangedWork: [String: DispatchWorkItem] = [:]
-    // The file stamp each loaded diff was fetched at, keyed by diffKey, so a
-    // live refresh only re-fetches diffs whose file actually changed.
-    private var gitDiffStamp: [String: String] = [:]
-    // Projects whose next snapshot arrival should reconcile loaded diffs against
-    // the new stamps (set by a git-changed refresh, consumed in onGit).
-    private var pendingWatchRefresh: Set<String> = []
+    // Git-review state + operations for every project, reached as `model.git`. Split
+    // into its own store so its ~40 properties observe and reset independently of the
+    // rest of the app.
+    var git = GitReviewStore()
 
-    private var client: LpmClient?
+    // Loaded file-viewer contents, keyed by "<project>\n<path>", so the FileViewer
+    // sheet can render loading / content / error for the file it opened.
+    var loadedFiles: [String: FileLoad] = [:]
+
+    @ObservationIgnored private(set) var client: LpmClient?
     // The hex APNs device token (once registration succeeds). The token and a live
     // authed connection can land in either order; whichever is second sends the
     // apnsToken frame (idempotent, re-sent on every reconnect).
-    private var apnsTokenHex: String?
+    @ObservationIgnored private var apnsTokenHex: String?
     // Ask for notification permission only once; iOS no-ops a repeat prompt.
-    private var didRequestPushAuthorization = false
+    @ObservationIgnored private var didRequestPushAuthorization = false
     // The addresses the current attempt is racing, so a failure can name exactly
     // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
-    private var attemptHosts: [String] = []
+    @ObservationIgnored private var attemptHosts: [String] = []
     // Guards the opportunistic host migration in onState against overlapping
     // re-probes while one is already in flight.
-    private var repicking = false
+    @ObservationIgnored private var repicking = false
     // The host the live client was built for, so migration only rebuilds when a
     // *different* address becomes reachable.
-    private var currentHost: String?
+    @ObservationIgnored private var currentHost: String?
     // The candidate addresses/port of an in-flight pairing, stamped onto the
     // saved-Mac record once the `paired` frame lands.
-    private var pendingPairHosts: [String] = []
-    private var pendingPairPort: UInt16 = MacStore.defaultPort
+    @ObservationIgnored private var pendingPairHosts: [String] = []
+    @ObservationIgnored private var pendingPairPort: UInt16 = MacStore.defaultPort
+
+    init() {
+        git.model = self
+    }
 
     func bootstrap() {
         MacStore.migrateLegacyIfNeeded()
@@ -600,43 +549,16 @@ final class AppModel: ObservableObject {
         pendingServiceToggle = [:]
         creatingTerminals = []
         creatingBaseline = [:]
-        creatingGen = [:]
+        creatingTimeout.cancelAll()
         spawnCallbacks = [:]
         closingTerminals = [:]
-        closingGen = [:]
-        gitSnapshots = [:]
-        gitLoadError = [:]
-        gitLoading = []
-        gitPushing = []
-        gitCommitting = []
-        gitGeneratingMessage = []
-        gitGeneratingPr = []
-        gitCreatingPr = []
-        gitOpError = [:]
-        gitPrError = [:]
-        gitGeneratedMessage = [:]
-        gitCommitTick = [:]
-        gitPrDraft = [:]
-        gitCreatedPrURL = [:]
-        gitDiffs = [:]
-        gitDiffLoading = []
-        gitDiffError = [:]
-        gitPulling = []
-        gitFetching = []
-        gitDiscarding = []
-        gitBranches = [:]
-        gitCurrentBranch = [:]
-        gitBranchesLoading = []
-        gitBranchError = [:]
-        gitCheckingOut = [:]
-        gitCheckoutTick = [:]
-        gitOpGen = [:]
-        parsedDiffCache = [:]
-        gitChangedWork.values.forEach { $0.cancel() }
-        gitChangedWork = [:]
-        gitDiffStamp = [:]
-        pendingWatchRefresh = []
-        gitViewed = [:]
+        closingTimeout.cancelAll()
+        // The whole git-review cluster (state, caches, pending work) resets by
+        // swapping in a fresh store; the discarded one's pending timers no-op
+        // through their weak references.
+        git = GitReviewStore()
+        git.model = self
+        loadedFiles = [:]
         pendingAgentPrompt = [:]
     }
 
@@ -762,10 +684,12 @@ final class AppModel: ObservableObject {
     func submit(_ id: String, _ text: String) { terminalSubmit[id]?(text) }
 
     func startProject(_ p: Project, profile: String = "") {
+        Haptics.tap()
         markRunPending(p.name, desired: true)
         client?.startProject(p.name, profile: profile)
     }
     func stopProject(_ p: Project) {
+        Haptics.tap()
         markRunPending(p.name, desired: false)
         client?.stopProject(p.name)
     }
@@ -787,6 +711,47 @@ final class AppModel: ObservableObject {
     /// Remove a project — offered only for duplicates, whose folder is deleted from
     /// disk. The list refreshes off the projects-changed push.
     func removeProject(_ p: Project) { client?.removeProject(p.name) }
+    /// Rename a project's display label (empty clears it, falling back to the id).
+    /// The list refreshes off the projects-changed push; only a failure surfaces.
+    func renameProject(_ p: Project, name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != p.label else { return }
+        client?.renameProject(project: p.name, name: trimmed)
+    }
+
+    // Sidebar folder management. Each op writes the Mac's groups.json + settings and
+    // replies the updated layout (applied in onSidebarMutation); folders are matched
+    // by name, so create/rename/delete/move all key off the folder's display name.
+    func createFolder(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        client?.sidebarCreateFolder(name: trimmed)
+    }
+    func renameFolder(_ folder: ProjectFolder, newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != folder.name else { return }
+        client?.sidebarRenameFolder(name: folder.name, newName: trimmed)
+    }
+    func deleteFolder(_ folder: ProjectFolder) { client?.sidebarDeleteFolder(name: folder.name) }
+    /// Move a project into `folder` (created if it doesn't exist), or to the top
+    /// level when `folder` is nil.
+    func moveProject(_ project: Project, toFolder folder: String?) {
+        client?.sidebarMoveProject(project: project.name, folder: folder)
+    }
+
+    /// Open a project file in the viewer sheet: mark it loading and request its
+    /// contents (the reply lands in onFile). A timeout gives up so a lost reply
+    /// can't spin forever.
+    func requestFile(project: String, path: String) {
+        let key = project + "\n" + path
+        loadedFiles[key] = FileLoad(content: nil, truncated: false, error: nil, loading: true)
+        client?.readFile(project: project, path: path)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
+            guard let self, self.loadedFiles[key]?.loading == true else { return }
+            self.loadedFiles[key] = FileLoad(content: nil, truncated: false,
+                                             error: "Reading the file timed out.", loading: false)
+        }
+    }
     /// Start/stop one service. Mirrors markRunPending: the row spins until the
     /// projects push confirms the desired state (or a timeout gives up).
     func toggleService(_ project: String, service: String) {
@@ -814,15 +779,13 @@ final class AppModel: ObservableObject {
         statsDays = days
         statsLoading = true
         statsError = nil
-        statsGen &+= 1
-        let gen = statsGen
         client?.requestStats(days: days)
         // The scan replies asynchronously; if it never does (an old Mac that doesn't
         // know this message, or a reply lost while the socket stayed up), give up so
         // the screen shows an error instead of an endless skeleton. Keep prior data
         // on a reload timeout — only the first, dataless load surfaces the error.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-            guard let self, self.statsGen == gen, self.statsLoading else { return }
+        statsTimeout.arm("stats", seconds: 30) { [weak self] in
+            guard let self, self.statsLoading else { return }
             self.statsLoading = false
             if self.stats == nil { self.statsError = "Couldn't load stats. Pull to refresh." }
         }
@@ -964,10 +927,8 @@ final class AppModel: ObservableObject {
         spawnCallbacks[project] = nil
         creatingBaseline[project] = Set(terminals[project]?.map(\.id) ?? [])
         creatingTerminals.insert(project)
-        let gen = (creatingGen[project] ?? 0) + 1
-        creatingGen[project] = gen
-        DispatchQueue.main.asyncAfter(deadline: .now() + 14) { [weak self] in
-            guard let self, self.creatingGen[project] == gen else { return }
+        creatingTimeout.arm(project, seconds: 14) { [weak self] in
+            guard let self else { return }
             self.creatingTerminals.remove(project)
             self.creatingBaseline[project] = nil
             self.spawnCallbacks[project] = nil
@@ -980,11 +941,8 @@ final class AppModel: ObservableObject {
         // Drop the composer draft state for a terminal that's going away.
         composerStores[id] = nil
         client?.closeTerminal(project: project, id: id)
-        let gen = (closingGen[id] ?? 0) + 1
-        closingGen[id] = gen
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
-            guard let self, self.closingGen[id] == gen,
-                  self.closingTerminals[project]?.contains(id) == true else { return }
+        closingTimeout.arm(id, seconds: 10) { [weak self] in
+            guard let self, self.closingTerminals[project]?.contains(id) == true else { return }
             self.closingTerminals[project]?.remove(id)
             self.loadTerminals(project)
         }
@@ -1163,258 +1121,6 @@ final class AppModel: ObservableObject {
         client?.historyDeleteFolder(id: id, name: nil)
     }
 
-    // MARK: git review
-
-    func diffKey(_ project: String, _ path: String) -> String { project + "\n" + path }
-
-    /// The parsed + highlighted diff for a file. Read-only: the value is built off
-    /// the main thread when the diff arrives (see onGitDiff) and cached; nil until
-    /// that lands, so views keep showing their loading state.
-    func parsedDiff(_ project: String, path: String) -> ParsedDiff? {
-        parsedDiffCache[diffKey(project, path)]
-    }
-
-    /// Build ParsedDiff (parse + syntax highlight) off the main thread, then
-    /// publish it into the cache — but only if the file's diff hasn't changed
-    /// underneath us. The tick nudges observing views to re-read the cache.
-    private func buildParsedDiff(key: String, diff: String, ext: String) {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let parsed = ParsedDiff(diff, ext: ext)
-            DispatchQueue.main.async {
-                guard let self, self.gitDiffs[key]?.diff == diff else { return }
-                self.parsedDiffCache[key] = parsed
-                self.gitParsedTick &+= 1
-            }
-        }
-    }
-
-    /// Load the repository snapshot for the review screen. Coalesces concurrent
-    /// loads; a timeout clears the spinner (and surfaces an error if nothing had
-    /// loaded) so a dropped link can't spin forever.
-    func loadGit(_ project: String) {
-        guard !gitLoading.contains(project) else { return }
-        gitLoading.insert(project)
-        gitLoadError[project] = nil
-        client?.requestGit(project: project)
-        armGitTimeout("git", project, seconds: 25) { [weak self] in
-            guard let self, self.gitLoading.remove(project) != nil else { return }
-            if self.gitSnapshots[project] == nil {
-                self.gitLoadError[project] = "Couldn't reach your Mac. Pull to refresh."
-            }
-        }
-    }
-
-    func loadGitDiff(_ project: String, path: String) {
-        let key = diffKey(project, path)
-        guard !gitDiffLoading.contains(key) else { return }
-        gitDiffLoading.insert(key)
-        gitDiffError[key] = nil
-        client?.requestGitDiff(project: project, path: path)
-        armGitTimeout("diff\n" + path, project, seconds: 30) { [weak self] in
-            guard let self, self.gitDiffLoading.remove(key) != nil else { return }
-            if self.gitDiffs[key] == nil {
-                self.gitDiffError[key] = "Couldn't load the diff. Try again."
-            }
-        }
-    }
-
-    func gitCommit(_ project: String, message: String, files: [String]) {
-        guard !gitCommitting.contains(project) else { return }
-        gitCommitting.insert(project)
-        gitOpError[project] = nil
-        client?.gitCommit(project: project, message: message, files: files)
-        armGitTimeout("commit", project, seconds: 120) { [weak self] in
-            guard let self, self.gitCommitting.remove(project) != nil else { return }
-            self.gitOpError[project] = "Commit timed out. Check your Mac and try again."
-        }
-    }
-
-    func gitPush(_ project: String) {
-        guard !gitPushing.contains(project) else { return }
-        gitPushing.insert(project)
-        gitOpError[project] = nil
-        client?.gitPush(project: project)
-        armGitTimeout("push", project, seconds: 120) { [weak self] in
-            guard let self, self.gitPushing.remove(project) != nil else { return }
-            self.gitOpError[project] = "Push timed out. Check your Mac and try again."
-        }
-    }
-
-    func gitGenMessage(_ project: String, files: [String]) {
-        guard !gitGeneratingMessage.contains(project) else { return }
-        gitGeneratingMessage.insert(project)
-        gitOpError[project] = nil
-        client?.gitGenMessage(project: project, files: files)
-        armGitTimeout("genMessage", project, seconds: 120) { [weak self] in
-            guard let self, self.gitGeneratingMessage.remove(project) != nil else { return }
-            self.gitOpError[project] = "Message generation timed out. Try again."
-        }
-    }
-
-    func gitGenPr(_ project: String) {
-        guard !gitGeneratingPr.contains(project) else { return }
-        gitGeneratingPr.insert(project)
-        gitPrError[project] = nil
-        client?.gitGenPr(project: project)
-        armGitTimeout("genPr", project, seconds: 120) { [weak self] in
-            guard let self, self.gitGeneratingPr.remove(project) != nil else { return }
-            self.gitPrError[project] = "Draft generation timed out. Try again."
-        }
-    }
-
-    func gitCreatePr(_ project: String, title: String, body: String) {
-        guard !gitCreatingPr.contains(project) else { return }
-        gitCreatingPr.insert(project)
-        gitPrError[project] = nil
-        client?.gitCreatePr(project: project, title: title, body: body)
-        armGitTimeout("createPr", project, seconds: 120) { [weak self] in
-            guard let self, self.gitCreatingPr.remove(project) != nil else { return }
-            self.gitPrError[project] = "Pull request creation timed out. Try again."
-        }
-    }
-
-    /// Ask the Mac to watch this project's working tree while the review screen is
-    /// open, so file changes push `git-changed`. The client re-sends on reconnect.
-    func watchGit(_ project: String) { client?.watchGit(project: project) }
-    func unwatchGit(_ project: String) {
-        gitChangedWork[project]?.cancel()
-        gitChangedWork[project] = nil
-        client?.unwatchGit(project: project)
-    }
-
-    /// A `git-changed` push (or a foreground return): reload the snapshot and
-    /// re-fetch the diffs already loaded for this project, leaving selection,
-    /// viewed, and collapse state untouched. Coalesced so a burst collapses to one.
-    private func gitChangedDebounced(_ project: String) {
-        gitChangedWork[project]?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.refreshWatchedGit(project) }
-        gitChangedWork[project] = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
-    }
-
-    /// Reload the snapshot; the diff reconciliation (which needs the new stamps)
-    /// runs in onGit once that snapshot lands.
-    func refreshWatchedGit(_ project: String) {
-        pendingWatchRefresh.insert(project)
-        loadGit(project)
-    }
-
-    /// After a watched snapshot arrives: re-fetch loaded diffs whose file stamp
-    /// changed (or is unknown on either side), and drop diffs for files that left
-    /// the snapshot. Untouched files keep their cached parse.
-    private func reconcileWatchedDiffs(_ project: String) {
-        guard let files = gitSnapshots[project]?.files else { return }
-        let stampByPath = Dictionary(files.map { ($0.path, $0.stamp) }, uniquingKeysWith: { a, _ in a })
-        let prefix = project + "\n"
-        for key in Array(gitDiffs.keys) where key.hasPrefix(prefix) {
-            let path = String(key.dropFirst(prefix.count))
-            if let newStamp = stampByPath[path] {
-                let remembered = gitDiffStamp[key] ?? ""
-                if newStamp.isEmpty || remembered.isEmpty || newStamp != remembered {
-                    loadGitDiff(project, path: path)
-                }
-            } else {
-                gitDiffs[key] = nil
-                parsedDiffCache[key] = nil
-                gitDiffStamp[key] = nil
-                gitDiffError[key] = nil
-                gitDiffLoading.remove(key)
-            }
-        }
-    }
-
-    private func recordDiffStamp(_ project: String, path: String, key: String) {
-        gitDiffStamp[key] = gitSnapshots[project]?.files.first { $0.path == path }?.stamp ?? ""
-    }
-
-    func isViewed(_ project: String, path: String) -> Bool {
-        gitViewed[project]?.contains(path) ?? false
-    }
-    func toggleViewed(_ project: String, path: String) {
-        var set = gitViewed[project] ?? []
-        if set.contains(path) { set.remove(path) } else { set.insert(path) }
-        gitViewed[project] = set
-    }
-
-    func consumeGitGeneratedMessage(_ project: String) { gitGeneratedMessage[project] = nil }
-    func consumeGitPrDraft(_ project: String) { gitPrDraft[project] = nil }
-    func consumeGitCreatedPrURL(_ project: String) { gitCreatedPrURL[project] = nil }
-
-    func gitPull(_ project: String) {
-        guard !gitPulling.contains(project) else { return }
-        gitPulling.insert(project)
-        gitOpError[project] = nil
-        client?.gitPull(project: project)
-        armGitTimeout("pull", project, seconds: 120) { [weak self] in
-            guard let self, self.gitPulling.remove(project) != nil else { return }
-            self.gitOpError[project] = "Pull timed out. Check your Mac and try again."
-        }
-    }
-
-    func gitFetch(_ project: String) {
-        guard !gitFetching.contains(project) else { return }
-        gitFetching.insert(project)
-        gitOpError[project] = nil
-        client?.gitFetch(project: project)
-        armGitTimeout("fetch", project, seconds: 120) { [weak self] in
-            guard let self, self.gitFetching.remove(project) != nil else { return }
-            self.gitOpError[project] = "Fetch timed out. Check your Mac and try again."
-        }
-    }
-
-    func gitDiscardAll(_ project: String) {
-        guard !gitDiscarding.contains(project) else { return }
-        gitDiscarding.insert(project)
-        gitOpError[project] = nil
-        client?.gitDiscardAll(project: project)
-        armGitTimeout("discard", project, seconds: 60) { [weak self] in
-            guard let self, self.gitDiscarding.remove(project) != nil else { return }
-            self.gitOpError[project] = "Discarding changes timed out. Try again."
-        }
-    }
-
-    func loadGitBranches(_ project: String) {
-        guard !gitBranchesLoading.contains(project) else { return }
-        gitBranchesLoading.insert(project)
-        gitBranchError[project] = nil
-        client?.requestGitBranches(project: project)
-        armGitTimeout("branches", project, seconds: 30) { [weak self] in
-            guard let self, self.gitBranchesLoading.remove(project) != nil else { return }
-            if self.gitBranches[project] == nil {
-                self.gitBranchError[project] = "Couldn't load branches. Try again."
-            }
-        }
-    }
-
-    func gitCheckout(_ project: String, branch: String, remote: String) {
-        guard gitCheckingOut[project] == nil else { return }
-        gitCheckingOut[project] = branch
-        gitBranchError[project] = nil
-        client?.gitCheckout(project: project, branch: branch, remote: remote)
-        armGitTimeout("checkout", project, seconds: 60) { [weak self] in
-            guard let self, self.gitCheckingOut[project] != nil else { return }
-            self.gitCheckingOut[project] = nil
-            self.gitBranchError[project] = "Switching branch timed out. Try again."
-        }
-    }
-
-    /// Arm a one-shot timeout for a git op, invalidated when its reply lands (which
-    /// bumps the same key's generation). `op` identifies the op within a project.
-    private func armGitTimeout(_ op: String, _ project: String, seconds: Double, _ fire: @escaping () -> Void) {
-        let key = op + "\u{0}" + project
-        let gen = (gitOpGen[key] ?? 0) + 1
-        gitOpGen[key] = gen
-        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
-            guard let self, self.gitOpGen[key] == gen else { return }
-            fire()
-        }
-    }
-
-    private func clearGitTimeout(_ op: String, _ project: String) {
-        let key = op + "\u{0}" + project
-        gitOpGen[key] = (gitOpGen[key] ?? 0) + 1
-    }
-
     /// The projects list arranged exactly like the desktop sidebar (a port of
     /// Sidebar.tsx's tree build): walk `sidebarOrder`, emitting each folder with
     /// its members and each loose (non-duplicate, non-member) project, with every
@@ -1542,6 +1248,20 @@ final class AppModel: ObservableObject {
     }
 
     private func wire(_ c: LpmClient) {
+        wireConnection(c)
+        wireProjects(c)
+        wireStats(c)
+        wireTerminals(c)
+        wireAutomations(c)
+        wireProjectEvents(c)
+        wireTerminalStreams(c)
+        wireGit(c)
+        wireComposer(c)
+        wireBackground(c)
+        wireHistory(c)
+    }
+
+    private func wireConnection(_ c: LpmClient) {
         c.onState = { [weak self] s in
             guard let self else { return }
             self.connection = self.userFacing(s)
@@ -1569,6 +1289,9 @@ final class AppModel: ObservableObject {
         c.onApnsToken = { ok in
             if !ok { print("apns: server rejected token registration") }
         }
+    }
+
+    private func wireProjects(_ c: LpmClient) {
         c.onProjects = { [weak self] p in
             guard let self else { return }
             self.projects = p
@@ -1589,22 +1312,45 @@ final class AppModel: ObservableObject {
             self?.sidebarOrder = order
             self?.groups = groups
         }
+        // A sidebar folder mutation reply carries the updated layout so the phone
+        // re-renders in place; a failure surfaces once.
+        c.onSidebarMutation = { [weak self] order, groups, error in
+            guard let self else { return }
+            if let error { self.actionError = error }
+            else { self.sidebarOrder = order; self.groups = groups }
+        }
+        // Rename succeeded silently (the projects-changed push refreshes the label);
+        // only a failure needs surfacing.
+        c.onRenameProject = { [weak self] _, error in
+            if let error { self?.actionError = error }
+        }
+        c.onFile = { [weak self] project, path, content, truncated, error in
+            guard let self else { return }
+            self.loadedFiles[project + "\n" + path] =
+                FileLoad(content: content, truncated: truncated, error: error, loading: false)
+        }
+    }
+
+    private func wireStats(_ c: LpmClient) {
         c.onStats = { [weak self] stats, error in
             guard let self else { return }
             if let stats {
                 // Drop a stale reply from a superseded period — the payload echoes the
                 // period it was scanned for, and only the current one may land.
                 guard stats.days == self.statsDays else { return }
-                self.statsGen &+= 1
+                self.statsTimeout.cancel("stats")
                 self.stats = stats
                 self.statsError = nil
                 self.statsLoading = false
             } else {
-                self.statsGen &+= 1
+                self.statsTimeout.cancel("stats")
                 self.statsLoading = false
                 self.statsError = error ?? "Couldn't load stats."
             }
         }
+    }
+
+    private func wireTerminals(_ c: LpmClient) {
         c.onTerminals = { [weak self] proj, t in
             guard let self else { return }
             var list = t
@@ -1632,6 +1378,9 @@ final class AppModel: ObservableObject {
         }
         c.onMentions = { [weak self] proj, entries in self?.mentions[proj] = entries }
         c.onHistory = { [weak self] proj, rows in self?.history[proj] = rows.filter { !$0.isDraft } }
+    }
+
+    private func wireAutomations(_ c: LpmClient) {
         c.onJobs = { [weak self] jobs, error in
             guard let self else { return }
             self.automationsLoaded = true
@@ -1679,6 +1428,9 @@ final class AppModel: ObservableObject {
                 if parts.count == 2 { c.requestJobHistory(project: parts[0], jobId: parts[1]) }
             }
         }
+    }
+
+    private func wireProjectEvents(_ c: LpmClient) {
         c.onProjectsChanged = {
             c.requestProjects()
             c.requestSidebar()
@@ -1686,6 +1438,7 @@ final class AppModel: ObservableObject {
         }
         c.onStatusChanged = { proj in c.requestStatus(project: proj) }
         c.onActionError = { [weak self] message in self?.actionError = message }
+        c.onSendQueueFull = { [weak self] in self?.actionError = "Not connected — action not sent." }
         c.onActionFailed = { [weak self] proj, message in
             guard let self else { return }
             self.creatingBaseline[proj] = nil
@@ -1725,143 +1478,52 @@ final class AppModel: ObservableObject {
                 self.projects[idx] = self.projects[idx].withStatus(entries)
             }
         }
+    }
+
+    private func wireTerminalStreams(_ c: LpmClient) {
         c.onSeed = { [weak self] id, cols, rows, data in self?.onTerminalSeed[id]?(cols, rows, data) }
         c.onOutput = { [weak self] id, data in self?.onTerminalOutput[id]?(data) }
         c.onControl = { [weak self] id, owner in self?.setControlOwner(id, owner) }
+    }
+
+    private func wireGit(_ c: LpmClient) {
         c.onGit = { [weak self] project, snapshot, error in
-            guard let self else { return }
-            self.clearGitTimeout("git", project)
-            self.gitLoading.remove(project)
-            if let snapshot {
-                self.gitSnapshots[project] = snapshot
-                self.gitLoadError[project] = nil
-                if self.pendingWatchRefresh.remove(project) != nil {
-                    self.reconcileWatchedDiffs(project)
-                }
-            } else {
-                self.gitLoadError[project] = error ?? "Couldn't read the repository."
-            }
+            self?.git.applySnapshot(project, snapshot, error: error)
         }
         c.onGitDiff = { [weak self] project, path, result, error in
-            guard let self else { return }
-            let key = self.diffKey(project, path)
-            self.clearGitTimeout("diff\n" + path, project)
-            self.gitDiffLoading.remove(key)
-            if let result {
-                // Identical diff already parsed: keep the existing parse, just
-                // refresh the remembered stamp and drop the loading state.
-                if !result.binary, self.gitDiffs[key]?.diff == result.diff, self.parsedDiffCache[key] != nil {
-                    self.gitDiffError[key] = nil
-                    self.recordDiffStamp(project, path: path, key: key)
-                    return
-                }
-                self.parsedDiffCache[key] = nil
-                self.gitDiffs[key] = result
-                self.gitDiffError[key] = nil
-                self.recordDiffStamp(project, path: path, key: key)
-                if !result.binary && !result.diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.buildParsedDiff(key: key, diff: result.diff, ext: (path as NSString).pathExtension)
-                }
-            } else {
-                self.gitDiffError[key] = error ?? "Couldn't load the diff."
+            self?.git.applyDiff(project, path: path, result: result, error: error)
+        }
+        c.onGitDiffs = { [weak self] project, entries, error in
+            // A whole-batch failure is project-resolution only (unreachable once a
+            // project's snapshot has loaded); the per-key timeouts clear the spinners.
+            guard let self, error == nil else { return }
+            for e in entries {
+                self.git.applyDiff(project, path: e.path, result: e.result, error: e.error)
             }
         }
-        c.onGitCommit = { [weak self] project, error in
-            guard let self else { return }
-            self.clearGitTimeout("commit", project)
-            self.gitCommitting.remove(project)
-            if let error {
-                self.gitOpError[project] = error
-            } else {
-                self.gitCommitTick[project, default: 0] += 1
-                self.loadGit(project)
-            }
-        }
-        c.onGitPush = { [weak self] project, error in
-            guard let self else { return }
-            self.clearGitTimeout("push", project)
-            self.gitPushing.remove(project)
-            if let error {
-                self.gitOpError[project] = error
-            } else {
-                self.loadGit(project)
-            }
-        }
+        c.onGitCommit = { [weak self] project, error in self?.git.finishCommit(project, error: error) }
+        c.onGitPush = { [weak self] project, error in self?.git.finishPush(project, error: error) }
         c.onGitGenMessage = { [weak self] project, message, error in
-            guard let self else { return }
-            self.clearGitTimeout("genMessage", project)
-            self.gitGeneratingMessage.remove(project)
-            if let message {
-                self.gitGeneratedMessage[project] = message
-            } else if let error {
-                self.gitOpError[project] = error
-            }
+            self?.git.finishGenMessage(project, message: message, error: error)
         }
         c.onGitGenPr = { [weak self] project, title, body, error in
-            guard let self else { return }
-            self.clearGitTimeout("genPr", project)
-            self.gitGeneratingPr.remove(project)
-            if let title, let body {
-                self.gitPrDraft[project] = GitPrDraft(title: title, body: body)
-            } else if let error {
-                self.gitPrError[project] = error
-            }
+            self?.git.finishGenPr(project, title: title, body: body, error: error)
         }
         c.onGitCreatePr = { [weak self] project, url, error in
-            guard let self else { return }
-            self.clearGitTimeout("createPr", project)
-            self.gitCreatingPr.remove(project)
-            if let url {
-                self.gitCreatedPrURL[project] = url
-                self.loadGit(project)
-            } else if let error {
-                self.gitPrError[project] = error
-            }
+            self?.git.finishCreatePr(project, url: url, error: error)
         }
-        c.onGitPull = { [weak self] project, error in
-            guard let self else { return }
-            self.clearGitTimeout("pull", project)
-            self.gitPulling.remove(project)
-            if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
-        }
-        c.onGitFetch = { [weak self] project, error in
-            guard let self else { return }
-            self.clearGitTimeout("fetch", project)
-            self.gitFetching.remove(project)
-            if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
-        }
-        c.onGitDiscardAll = { [weak self] project, error in
-            guard let self else { return }
-            self.clearGitTimeout("discard", project)
-            self.gitDiscarding.remove(project)
-            if let error { self.gitOpError[project] = error } else { self.loadGit(project) }
-        }
-        c.onGitChanged = { [weak self] project in self?.gitChangedDebounced(project) }
+        c.onGitPull = { [weak self] project, error in self?.git.finishPull(project, error: error) }
+        c.onGitFetch = { [weak self] project, error in self?.git.finishFetch(project, error: error) }
+        c.onGitDiscardAll = { [weak self] project, error in self?.git.finishDiscard(project, error: error) }
+        c.onGitChanged = { [weak self] project in self?.git.changed(project) }
         c.onGitBranches = { [weak self] project, current, branches, error in
-            guard let self else { return }
-            self.clearGitTimeout("branches", project)
-            self.gitBranchesLoading.remove(project)
-            if let error {
-                self.gitBranchError[project] = error
-            } else {
-                self.gitBranches[project] = branches
-                self.gitCurrentBranch[project] = current
-                self.gitBranchError[project] = nil
-            }
+            self?.git.applyBranches(project, current: current, branches: branches, error: error)
         }
-        c.onGitCheckout = { [weak self] project, error in
-            guard let self else { return }
-            self.clearGitTimeout("checkout", project)
-            self.gitCheckingOut[project] = nil
-            if let error {
-                self.gitBranchError[project] = error
-            } else {
-                self.gitCheckoutTick[project, default: 0] += 1
-                self.loadGit(project)
-                self.client?.requestProjects()
-                self.client?.requestSidebar()
-            }
-        }
+        c.onGitCheckout = { [weak self] project, error in self?.git.finishCheckout(project, error: error) }
+        c.onGitCreateBranch = { [weak self] project, error in self?.git.finishCreateBranch(project, error: error) }
+    }
+
+    private func wireComposer(_ c: LpmClient) {
         c.onComposerActions = { [weak self] actions in self?.composerActions = actions }
         c.onTransformVariant = { [weak self] reqId, idx, text, error in
             guard let self, let termId = self.transformRoutes[reqId] else { return }
@@ -1884,6 +1546,9 @@ final class AppModel: ObservableObject {
             if let text { self.serviceLogsResult[key] = text; self.serviceLogsError[key] = nil }
             else { self.serviceLogsError[key] = error ?? "Couldn't read the logs." }
         }
+    }
+
+    private func wireBackground(_ c: LpmClient) {
         c.onActionBgOutput = { [weak self] runId, snapshot in
             guard let self else { return }
             guard let snapshot else {
@@ -1919,6 +1584,9 @@ final class AppModel: ObservableObject {
                     runId: r.runId, project: project, label: r.label, startedAt: r.startedAt)
             }
         }
+    }
+
+    private func wireHistory(_ c: LpmClient) {
         c.onHistoryQuery = { [weak self] items, hasMore in
             guard let self, !self.historyPending.isEmpty else { return }
             let req = self.historyPending.removeFirst()

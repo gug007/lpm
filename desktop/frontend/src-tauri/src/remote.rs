@@ -1100,6 +1100,60 @@ fn handle_msg(
             let sb = sidebar_json();
             send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
         }
+        // Sidebar folder management, mirroring the desktop's applySidebarLayout
+        // (groups.json + settings.json sidebarOrder/projectOrder). Each op writes
+        // both files, emits `projects-changed` so the desktop webview refreshes
+        // (same as the duplicate flow's group write), and replies the fresh sidebar
+        // so the requesting phone re-renders. Local config ops — no main window
+        // needed. `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`.
+        "sidebarCreateFolder" | "sidebarRenameFolder" | "sidebarDeleteFolder"
+        | "sidebarMoveProject" => {
+            let r = match t {
+                "sidebarCreateFolder" => sidebar_create_folder(&str_field("name").unwrap_or_default()),
+                "sidebarRenameFolder" => sidebar_rename_folder(
+                    &str_field("name").unwrap_or_default(),
+                    &str_field("newName").unwrap_or_default(),
+                ),
+                "sidebarDeleteFolder" => {
+                    sidebar_delete_folder(&str_field("name").unwrap_or_default())
+                }
+                _ => sidebar_move_project(
+                    &str_field("project").unwrap_or_default(),
+                    str_field("folder").as_deref(),
+                ),
+            };
+            match r {
+                Ok(()) => {
+                    let _ = app.emit("projects-changed", ());
+                    let sb = sidebar_json();
+                    send(
+                        ws,
+                        json!({ "t": t, "ok": true, "order": sb.0, "groups": sb.1 }),
+                    )?;
+                }
+                Err(e) => send(ws, json!({ "t": t, "ok": false, "error": e }))?,
+            }
+        }
+        // Read a project file's text for the phone's file viewer. Confined to the
+        // project root (traversal/symlinks resolving outside are rejected), capped at
+        // ~1MB with a `truncated` flag, and refused for non-UTF-8 (binary) content.
+        // fs work runs on a worker thread and replies via the out-queue.
+        "readFile" => {
+            let project = str_field("project").unwrap_or_default();
+            let path = str_field("path").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let _ = out.try_send(read_project_file(&cwd, &project, &path).to_string());
+                    });
+                }
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "file", "project": project, "path": path, "ok": false, "error": e }),
+                )?,
+            }
+        }
         "stats" => {
             // Local agent token-usage stats (the desktop Stats page). Scanning the
             // Claude/Codex history files is slow, so run it off the read loop and
@@ -1680,6 +1734,16 @@ fn handle_msg(
             let r = crate::projects_crud::remove_project(app.clone(), name);
             send(ws, result_reply("remove", r))?;
         }
+        // Rename a project's display label, reusing the desktop's set_project_label
+        // (writes the project's own YAML, emits `projects-changed` so the desktop
+        // webview and paired phones both refresh). A local config op — works with no
+        // main window open.
+        "renameProject" => {
+            let project = str_field("project").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            let r = crate::commands_real::set_project_label(app.clone(), project.clone(), name);
+            send(ws, git_result_reply("renameProject", &project, r))?;
+        }
         // Run an action / open a new terminal. A terminal is a frontend pane-tree +
         // command-injection concept, not a raw pty op — spawning one from Rust would
         // orphan it (no tab, label, or command typed in). So relay to the owner
@@ -1859,38 +1923,43 @@ fn handle_msg(
         "git" => {
             let project = str_field("project").unwrap_or_default();
             match config::project_root(&project) {
+                // A big-repo status scan can take a while, so run it on a worker
+                // and reply through the out-queue rather than stalling this
+                // client's live terminal I/O (project_root already resolved).
                 Ok((cwd, _)) => {
-                    let st = crate::git::git_status(cwd.clone());
-                    if !st.is_git_repo {
-                        send(
-                            ws,
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        // One porcelain scan yields both the branch header and the
+                        // expanded changed-file list (replacing the former
+                        // git_status + git_changed_files double scan).
+                        let (st, changed) = crate::git::git_status_and_files(&cwd);
+                        let reply = if !st.is_git_repo {
                             json!({ "t": "git", "project": project, "ok": true, "isRepo": false,
                             "branch": "", "detached": false, "hasUpstream": false, "ahead": 0, "behind": 0,
-                            "defaultBranch": "", "ghCli": false, "files": [] }),
-                        )?;
-                    } else {
-                        // Enrich each ChangedFile with a `stamp` (a working-tree
-                        // fingerprint) so the phone can skip refetching diffs of
-                        // files that didn't change between `git-changed` snapshots.
-                        let files: Vec<Value> = crate::git::git_changed_files(cwd.clone())
-                            .iter()
-                            .map(|f| {
-                                let mut o = serde_json::to_value(f).unwrap_or_else(|_| json!({}));
-                                if let Some(m) = o.as_object_mut() {
-                                    m.insert("stamp".into(), json!(file_stamp(&cwd, &f.path)));
-                                }
-                                o
-                            })
-                            .collect();
-                        send(
-                            ws,
+                            "defaultBranch": "", "ghCli": false, "files": [] })
+                        } else {
+                            // Enrich each ChangedFile with a `stamp` (a working-tree
+                            // fingerprint) so the phone can skip refetching diffs of
+                            // files that didn't change between `git-changed` snapshots.
+                            let files: Vec<Value> = changed
+                                .iter()
+                                .map(|f| {
+                                    let mut o =
+                                        serde_json::to_value(f).unwrap_or_else(|_| json!({}));
+                                    if let Some(m) = o.as_object_mut() {
+                                        m.insert("stamp".into(), json!(file_stamp(&cwd, &f.path)));
+                                    }
+                                    o
+                                })
+                                .collect();
                             json!({ "t": "git", "project": project, "ok": true, "isRepo": true,
                             "branch": st.branch, "detached": st.detached, "hasUpstream": st.has_upstream,
                             "ahead": st.ahead, "behind": st.behind,
-                            "defaultBranch": crate::git::git_default_branch(cwd),
-                            "ghCli": crate::git::check_ghcli(), "files": files }),
-                        )?;
-                    }
+                            "defaultBranch": crate::git::git_default_branch(cwd.clone()),
+                            "ghCli": crate::git::check_ghcli(), "files": files })
+                        };
+                        let _ = out.try_send(reply.to_string());
+                    });
                 }
                 Err(e) => send(
                     ws,
@@ -1933,6 +2002,56 @@ fn handle_msg(
                 Err(e) => send(
                     ws,
                     json!({ "t": "gitDiff", "project": project, "path": path, "ok": false, "error": e }),
+                )?,
+            }
+        }
+        // Batch diff: fetch many files' diffs in one round trip (the phone
+        // coalesces its lazy per-file requests). Slow on a big repo, so run on a
+        // worker and reply through the out-queue. Each file gets the same binary
+        // detection + size cap as the single `gitDiff` above; a per-file failure
+        // surfaces as an `error` on that entry without sinking the batch.
+        "gitDiffs" => {
+            let project = str_field("project").unwrap_or_default();
+            let paths: Vec<String> = v
+                .get("paths")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let out = out.clone();
+                    std::thread::spawn(move || {
+                        let files: Vec<Value> = crate::git::git_diffs(&cwd, &paths)
+                            .into_iter()
+                            .map(|e| {
+                                if let Some(err) = e.error {
+                                    return json!({ "path": e.path, "error": err });
+                                }
+                                let binary = e.diff.lines().any(|l| {
+                                    l.starts_with("Binary files ")
+                                        || l.starts_with("GIT binary patch")
+                                });
+                                if binary {
+                                    json!({ "path": e.path, "diff": "", "binary": true, "truncated": false })
+                                } else {
+                                    let (diff, truncated) = cap_git_diff(&e.diff);
+                                    json!({ "path": e.path, "diff": diff, "binary": false, "truncated": truncated })
+                                }
+                            })
+                            .collect();
+                        let _ = out.try_send(
+                            json!({ "t": "gitDiffs", "project": project, "ok": true, "files": files })
+                                .to_string(),
+                        );
+                    });
+                }
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitDiffs", "project": project, "ok": false, "error": e }),
                 )?,
             }
         }
@@ -2050,6 +2169,24 @@ fn handle_msg(
                 Err(e) => send(
                     ws,
                     json!({ "t": "gitCheckout", "project": project, "ok": false, "error": e }),
+                )?,
+            }
+        }
+        // Create a new branch off HEAD and check it out (reuses the desktop's
+        // create_branch, which does `branch` + checkout, falling back to
+        // `switch -c`). Inline like gitCheckout; on success the phone refreshes its
+        // branch list + snapshot, so the new current branch shows.
+        "gitCreateBranch" => {
+            let project = str_field("project").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            match config::project_root(&project) {
+                Ok((cwd, _)) => {
+                    let r = crate::git::create_branch(cwd, name);
+                    send(ws, git_result_reply("gitCreateBranch", &project, r))?;
+                }
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "gitCreateBranch", "project": project, "ok": false, "error": e }),
                 )?,
             }
         }
@@ -2802,6 +2939,216 @@ fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
     out
 }
 
+// --- sidebar folder management (mirrors sidebarLayout.ts) ---------------------
+
+/// The current sidebar layout for mutation: the `sidebarOrder` token list and the
+/// groups.json wrapper (`{ "groups": [...] }`), matching group_copies_into_folder.
+fn load_sidebar_layout() -> (Vec<Value>, Value) {
+    let order: Vec<Value> = config::load_settings()
+        .get("sidebarOrder")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    (order, crate::commands_real::load_groups())
+}
+
+/// Persist a mutated layout: rewrite groups.json and the settings sidebarOrder +
+/// flattened projectOrder, exactly like group_copies_into_folder's tail.
+fn persist_sidebar_layout(order: Vec<Value>, wrap: Value) -> Result<(), String> {
+    let groups = wrap
+        .get("groups")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let project_order = flatten_order(&order, &groups);
+    crate::commands_real::save_groups(wrap)?;
+    config::merge_settings(json!({ "sidebarOrder": order, "projectOrder": project_order }))?;
+    Ok(())
+}
+
+/// Index of the folder named `name` (exact match, then case-insensitive), matching
+/// group_copies_into_folder's lookup.
+fn group_index_by_name(groups: &[Value], name: &str) -> Option<usize> {
+    let name = name.trim();
+    let matches = |g: &Value, ci: bool| {
+        g.get("name")
+            .and_then(Value::as_str)
+            .map(|n| {
+                let n = n.trim();
+                if ci {
+                    n.eq_ignore_ascii_case(name)
+                } else {
+                    n == name
+                }
+            })
+            .unwrap_or(false)
+    };
+    groups
+        .iter()
+        .position(|g| matches(g, false))
+        .or_else(|| groups.iter().position(|g| matches(g, true)))
+}
+
+/// Create an empty folder and append its token to the top-level order (mirrors
+/// addGroup). A duplicate name is allowed — the desktop permits it too.
+fn sidebar_create_folder(name: &str) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Folder name required.".into());
+    }
+    let (mut order, mut wrap) = load_sidebar_layout();
+    let groups = wrap
+        .get_mut("groups")
+        .and_then(Value::as_array_mut)
+        .ok_or("groups.json malformed")?;
+    let id = uuid::Uuid::new_v4().to_string();
+    groups.push(json!({ "id": id, "name": name, "members": [] }));
+    order.push(Value::String(format!("group:{}", id)));
+    persist_sidebar_layout(order, wrap)
+}
+
+/// Rename a folder matched by its current name (mirrors renameGroup).
+fn sidebar_rename_folder(name: &str, new_name: &str) -> Result<(), String> {
+    let new_name = new_name.trim();
+    if new_name.is_empty() {
+        return Err("Folder name required.".into());
+    }
+    let (order, mut wrap) = load_sidebar_layout();
+    let groups = wrap
+        .get_mut("groups")
+        .and_then(Value::as_array_mut)
+        .ok_or("groups.json malformed")?;
+    let idx = group_index_by_name(groups, name).ok_or("Folder not found.")?;
+    if let Some(m) = groups[idx].as_object_mut() {
+        m.insert("name".into(), json!(new_name));
+    }
+    persist_sidebar_layout(order, wrap)
+}
+
+/// Delete a folder; its members spill back into the top-level order at the
+/// folder's former slot, then the folder is dropped (mirrors removeGroup).
+fn sidebar_delete_folder(name: &str) -> Result<(), String> {
+    let (mut order, mut wrap) = load_sidebar_layout();
+    let groups = wrap
+        .get_mut("groups")
+        .and_then(Value::as_array_mut)
+        .ok_or("groups.json malformed")?;
+    let idx = group_index_by_name(groups, name).ok_or("Folder not found.")?;
+    let id = groups[idx]
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let members: Vec<Value> = groups[idx]
+        .get("members")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    groups.remove(idx);
+    let token = format!("group:{}", id);
+    match order.iter().position(|t| t.as_str() == Some(token.as_str())) {
+        Some(pos) => {
+            order.splice(pos..=pos, members);
+        }
+        None => order.extend(members),
+    }
+    persist_sidebar_layout(order, wrap)
+}
+
+/// Move a project into a folder (matched by name, created if absent) or, when
+/// `folder` is None, back out to the top level. Detaches from its current slot
+/// first (mirrors moveIntoGroup / moveOutOfGroup).
+fn sidebar_move_project(project: &str, folder: Option<&str>) -> Result<(), String> {
+    if project.trim().is_empty() {
+        return Err("Project required.".into());
+    }
+    let (mut order, mut wrap) = load_sidebar_layout();
+    let groups = wrap
+        .get_mut("groups")
+        .and_then(Value::as_array_mut)
+        .ok_or("groups.json malformed")?;
+
+    order.retain(|t| t.as_str() != Some(project));
+    for g in groups.iter_mut() {
+        if let Some(m) = g.get_mut("members").and_then(Value::as_array_mut) {
+            m.retain(|x| x.as_str() != Some(project));
+        }
+    }
+
+    match folder.map(str::trim).filter(|f| !f.is_empty()) {
+        Some(folder_name) => {
+            let idx = match group_index_by_name(groups, folder_name) {
+                Some(i) => i,
+                None => {
+                    let id = uuid::Uuid::new_v4().to_string();
+                    groups.push(json!({ "id": id, "name": folder_name, "members": [] }));
+                    order.push(Value::String(format!("group:{}", id)));
+                    groups.len() - 1
+                }
+            };
+            if let Some(m) = groups[idx].get_mut("members").and_then(Value::as_array_mut) {
+                m.push(Value::String(project.to_string()));
+            }
+        }
+        None => order.push(Value::String(project.to_string())),
+    }
+    persist_sidebar_layout(order, wrap)
+}
+
+// --- project file read (phone file viewer) -----------------------------------
+
+/// Read a project file's text, confined to the project root and refusing binary
+/// content. Returns the typed `file` reply (ok true/false). `cap` caps the read at
+/// ~1MB; a longer file is truncated with `truncated: true`.
+fn read_project_file(cwd: &str, project: &str, path: &str) -> Value {
+    const CAP: usize = 1024 * 1024;
+    let err = |msg: &str| {
+        json!({ "t": "file", "project": project, "path": path, "ok": false, "error": msg })
+    };
+
+    let root = match std::fs::canonicalize(cwd) {
+        Ok(p) => p,
+        Err(_) => return err("This project's folder no longer exists."),
+    };
+    // Resolve the target through symlinks and confine it to the root, so `..` or a
+    // symlink escaping the project is rejected.
+    let full = match std::fs::canonicalize(root.join(path)) {
+        Ok(p) => p,
+        Err(_) => return err("File not found."),
+    };
+    if !full.starts_with(&root) {
+        return err("That file is outside the project.");
+    }
+    let size = match std::fs::metadata(&full) {
+        Ok(m) if m.is_dir() => return err("That path is a folder, not a file."),
+        Ok(m) => m.len(),
+        Err(_) => return err("File not found."),
+    };
+    // Read at most CAP bytes so previewing a huge file doesn't balloon memory.
+    let mut bytes = Vec::new();
+    match std::fs::File::open(&full).map(|f| {
+        use std::io::Read;
+        f.take(CAP as u64 + 1).read_to_end(&mut bytes)
+    }) {
+        Ok(Ok(_)) => {}
+        Ok(Err(e)) => return err(&e.to_string()),
+        Err(e) => return err(&e.to_string()),
+    }
+    let truncated = size > CAP as u64 || bytes.len() > CAP;
+    let slice = if bytes.len() > CAP { &bytes[..CAP] } else { &bytes[..] };
+    let content = match std::str::from_utf8(slice) {
+        Ok(s) => s.to_string(),
+        // A truncation can split a multibyte char at the cap; keep the valid prefix
+        // only when the invalid tail is that small (else it's genuinely binary).
+        Err(e) if truncated && slice.len() - e.valid_up_to() <= 3 => {
+            String::from_utf8_lossy(&slice[..e.valid_up_to()]).into_owned()
+        }
+        Err(_) => return err("This file isn't text."),
+    };
+    json!({ "t": "file", "project": project, "path": path, "ok": true,
+        "content": content, "truncated": truncated })
+}
+
 // --- APNs push notifications -------------------------------------------------
 
 /// Validate an `apnsToken` registration: token is non-empty hex ≤200 chars, env
@@ -3002,6 +3349,7 @@ impl PushDevice {
 /// the `apns-collapse-id` derived from (project, key).
 struct PushJob {
     terminal: String,
+    terminal_id: String,
     value: String,
     ts: i64,
     key: String,
@@ -3015,10 +3363,32 @@ fn alert_payload(server_id: &str, project: &str, job: &PushJob) -> String {
     json!({
         "serverId": server_id,
         "project": project,
+        "target": "terminal",
         "terminal": job.terminal,
+        "terminalId": job.terminal_id,
         "status": job.value,
         "ts": job.ts,
         "key": job.key,
+    })
+    .to_string()
+}
+
+fn automation_alert_payload(
+    server_id: &str,
+    project: &str,
+    job_id: &str,
+    status: &str,
+    ts: i64,
+) -> String {
+    json!({
+        "serverId": server_id,
+        "project": project,
+        "target": "automation",
+        "terminal": job_id,
+        "automationId": job_id,
+        "status": status,
+        "ts": ts,
+        "key": format!("automation:{job_id}"),
     })
     .to_string()
 }
@@ -3212,6 +3582,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
                 let collapse_id = push_collapse_id(&server_id, project, &key);
                 PushJob {
                     terminal,
+                    terminal_id: pane_of.get(&key).cloned().unwrap_or_default(),
                     value,
                     ts,
                     key,
@@ -3312,15 +3683,13 @@ fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, re
 
     let key = format!("automation:{job_id}");
     let collapse_id = push_collapse_id(&server_id, project, &key);
-    let plaintext = json!({
-        "serverId": server_id,
-        "project": project,
-        "terminal": job_id,
-        "status": status,
-        "ts": crate::status::now_millis(),
-        "key": key,
-    })
-    .to_string();
+    let plaintext = automation_alert_payload(
+        &server_id,
+        project,
+        job_id,
+        status,
+        crate::status::now_millis(),
+    );
 
     let hub = (*hub).clone();
     std::thread::spawn(move || {
@@ -4154,6 +4523,7 @@ mod tests {
     fn alert_payload_carries_server_id_and_fields() {
         let job = PushJob {
             terminal: "Ultracode".into(),
+            terminal_id: "term-42".into(),
             value: STATUS_WAITING.into(),
             ts: 123,
             key: "pane-1".into(),
@@ -4162,7 +4532,9 @@ mod tests {
         let v: Value = serde_json::from_str(&alert_payload("srv-a", "web-app", &job)).unwrap();
         assert_eq!(v["serverId"], "srv-a");
         assert_eq!(v["project"], "web-app");
+        assert_eq!(v["target"], "terminal");
         assert_eq!(v["terminal"], "Ultracode");
+        assert_eq!(v["terminalId"], "term-42");
         assert_eq!(v["status"], STATUS_WAITING);
         assert_eq!(v["ts"], 123);
         assert_eq!(v["key"], "pane-1");
@@ -4178,6 +4550,25 @@ mod tests {
         assert_eq!(cleared[0]["project"], "web-app");
         assert_eq!(cleared[0]["key"], "pane-1");
         assert_eq!(cleared[1]["key"], "pane-2");
+    }
+
+    #[test]
+    fn automation_payload_carries_exact_job_target() {
+        let v: Value = serde_json::from_str(&automation_alert_payload(
+            "srv-a",
+            "web-app",
+            "daily-review",
+            "Automation finished",
+            456,
+        ))
+        .unwrap();
+        assert_eq!(v["serverId"], "srv-a");
+        assert_eq!(v["project"], "web-app");
+        assert_eq!(v["target"], "automation");
+        assert_eq!(v["automationId"], "daily-review");
+        assert_eq!(v["status"], "Automation finished");
+        assert_eq!(v["ts"], 456);
+        assert_eq!(v["key"], "automation:daily-review");
     }
 
     #[test]

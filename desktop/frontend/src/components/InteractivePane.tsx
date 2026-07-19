@@ -37,6 +37,7 @@ import {
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
+import { logDiagnostic } from "../diagnostics";
 import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
 import {
   IS_MIRROR_WINDOW,
@@ -373,7 +374,14 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
       } else {
         SaveClipboardImage(b64, mimeType)
           .then((filePath) => pasteToTerminal(terminalId, filePath))
-          .catch((err) => console.warn("SaveClipboardImage failed:", err));
+          .catch((err) =>
+            logDiagnostic(
+              "warn",
+              "clipboard.image_save_failed",
+              "Clipboard image could not be saved",
+              err,
+            ),
+          );
       }
     });
   };

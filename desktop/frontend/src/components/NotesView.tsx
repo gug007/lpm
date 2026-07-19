@@ -42,6 +42,7 @@ import { MessageMarkdown } from "./MessageMarkdown";
 import { ChatList } from "./ChatList";
 import { MiniChatRail } from "./MiniChatRail";
 import { Modal } from "./ui/Modal";
+import { logDiagnostic } from "../diagnostics";
 
 const PAGE_SIZE = 50;
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -1037,7 +1038,12 @@ function AttachmentChip({ projectName, attachment }: AttachmentChipProps) {
         urlRef.current = u;
         setUrl(u);
       } catch (err) {
-        console.warn("attachment preview failed", attachment.hash, err);
+        logDiagnostic(
+          "warn",
+          "notes.attachment_preview_failed",
+          "Attachment preview could not be loaded",
+          { hash: attachment.hash, error: err },
+        );
       }
     })();
     return () => {

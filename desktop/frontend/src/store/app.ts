@@ -47,6 +47,7 @@ import {
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import type { main } from "../../bridge/models";
+import { reportError } from "../diagnostics";
 import { getSettings, loadSettings, saveSettings } from "./settings";
 import { loadGroups, saveGroups, type GroupsConfig } from "./groups";
 import {
@@ -823,7 +824,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ projects: list });
       get().reconcileSidebarLayout(list);
     } catch (err) {
-      console.error("Failed to load projects:", err);
+      reportError("projects.refresh_failed", err);
     }
   },
 
@@ -847,7 +848,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const list = (await ListTemplates()) || [];
       set((s) => (templatesEqual(s.templates, list) ? s : { templates: list }));
     } catch (err) {
-      console.error("Failed to load templates:", err);
+      reportError("templates.refresh_failed", err);
     }
   },
 
@@ -1608,7 +1609,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { detached: next };
       });
     } catch (err) {
-      console.error("Failed to load detached projects:", err);
+      reportError("detached.refresh_failed", err);
     }
   },
 
@@ -1650,7 +1651,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       return (await FocusDetachedWindow(name)) as boolean;
     } catch (err) {
-      console.error("Failed to focus detached window:", err);
+      reportError("detached.focus_failed", err, { project: name });
       return false;
     }
   },

@@ -88,7 +88,13 @@ any live connection.
 | `{ "t": "duplicate", "name": "<name>", "count": N, "labels": ["<per-copy>"…], "groupName": "<folder>", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool, "runMode": "none"\|"action"\|"command", "action": "<actionName>", "command": "<cmd>", "prompt": "<text>" }` | Streams `{ "t": "duplicateProgress", "done": i, "total": N, "name": "<copy>" }` per copy as they're created, then a final `{ "t": "duplicate", "ok": true, "name": "<first>", "names": [...], "warning": "…"? }` / `{ "ok": false, "error": "…" }` — clones the project, mirroring the desktop modal. Rust creates each copy directly (works with no main window) with `labels[i]` as copy i's display label (blank → auto-named); `groupName` groups them under a sidebar folder (replicating the desktop's applySidebarLayout — writes groups.json + settings.json). The three git toggles default false (phone seeds `pullLatest` true from settings). **runMode** `action`/`command`: after creation, each copy's task is relayed to the main window (`remote-run-task`) which runs it in the copy's terminal (types the command, seeds the AI `prompt`) — **that step needs the desktop main window open**; if it's closed, copies are still made and the reply carries a `warning`. Copies also reach the phone via `projects-changed`. `name` = first copy; `names` = all created |
 | `{ "t": "duplicateDefaults" }` | `{ "t": "duplicateDefaults", "excludeUncommitted": bool, "reinstallDeps": bool, "pullLatest": bool }` — the desktop's persisted duplicate-modal toggle defaults (from `settings.json`), so the phone's duplicate modal opens with the same initial state. Fallbacks mirror the desktop: `excludeUncommitted`/`reinstallDeps` default false, `pullLatest` defaults true |
 | `{ "t": "remove", "name": "<name>" }` | `{ "t": "remove", "ok": true }` / `{ "ok": false, "error": "…" }` — tears down the project and, for a duplicate, deletes its folder from disk. Refuses an original that still has duplicates referencing it. The phone only offers this for duplicates |
-| `{ "t": "start", "name": "<name>", "profile": "" }` | `{ "t": "start", "ok": true }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "renameProject", "project": "<name>", "name": "<new label>" }` | `{ "t": "renameProject", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — sets the project's display label, reusing the desktop's `set_project_label` (writes the project's own YAML; an empty `name` clears the label so it falls back to the project id). Emits the desktop's `projects-changed`, so the Mac's own window and every paired phone refresh the list |
+| `{ "t": "sidebarCreateFolder", "name": "<folder>" }` | `{ "t": "sidebarCreateFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — creates an empty sidebar folder and appends it to the top-level order. The reply carries the **updated** sidebar (same shape as `sidebar`) so the requesting phone re-renders; the desktop learns of the change via the emitted `projects-changed` (as the duplicate flow's group write does). See the sidebar folder ops note below |
+| `{ "t": "sidebarRenameFolder", "name": "<folder>", "newName": "<new>" }` | `{ "t": "sidebarRenameFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — renames the folder matched by `name` (exact, then case-insensitive) |
+| `{ "t": "sidebarDeleteFolder", "name": "<folder>" }` | `{ "t": "sidebarDeleteFolder", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — deletes the folder; its member projects spill back into the top-level order at the folder's former slot (they are **not** removed) |
+| `{ "t": "sidebarMoveProject", "project": "<name>", "folder": "<folder>"\|null }` | `{ "t": "sidebarMoveProject", "ok": true, "order": […], "groups": [ProjectFolder…] }` / `{ "ok": false, "error": "…" }` — moves a project into the folder named `folder` (matched by name, **created** if it doesn't exist — the "New folder…" affordance), detaching it from wherever it currently sits; a `null`/absent `folder` moves it back out to the top level (ungrouped) |
+| `{ "t": "readFile", "project": "<name>", "path": "<relative path>" }` | `{ "t": "file", "project": "<name>", "path": "<path>", "ok": true, "content": "<utf-8 text>", "truncated": bool }` / `{ "ok": false, "error": "…" }` — reads a project file for the phone's file viewer. The path is resolved through symlinks and **confined to the project root** (a `..` or symlink escaping the root is rejected), the read is capped at ~1 MB (`truncated: true` when the file is longer), and **non-UTF-8 (binary) content is refused** with an error. fs work runs on a worker thread, so the reply arrives **asynchronously** via the out-queue |
+| `{ "t": "start", "name": "<name>", "profile": "" }` | `{ "t": "start", "ok": true }` / `{ "ok": false, "error": "…" }`. The optional `profile` starts exactly that profile's services (empty = the project's active/default set); the phone offers a "Start with profile" variant when `ProjectInfo.profiles` is non-empty |
 | `{ "t": "stop", "name": "<name>" }` | `{ "t": "stop", "ok": … }` |
 | `{ "t": "toggleService", "name": "<name>", "service": "<svc>" }` | `{ "t": "toggleService", "ok": … }` |
 | `{ "t": "ping" }` | `{ "t": "pong" }` |
@@ -99,10 +105,12 @@ Review a project's working-tree changes and ship them (pull, push, fetch, switch
 branch, commit, open a PR, discard) from the phone — mirroring the desktop's
 project Git submenu. Every reply echoes the `project` it was addressed to, so a
 reply can be matched to its request even with several in flight. The **local**
-ops (`git` status, `gitDiff`, `gitCommit`, `gitBranches`, `gitCheckout`,
-`gitDiscardAll`) reply inline; the **network / AI** ops (`gitPull`, `gitPush`,
-`gitFetch`, `gitCreatePr`, and the AI generators) are slow and run on a worker
-thread on the desktop, so their reply arrives asynchronously — there is no
+ops (`gitDiff`, `gitCommit`, `gitBranches`, `gitCheckout`, `gitDiscardAll`) reply
+inline; the **worker** ops — the `git` snapshot and `gitDiffs` batch (a status
+scan / many-file diff can be slow on a big repo), the **network / AI** ops
+(`gitPull`, `gitPush`, `gitFetch`, `gitCreatePr`, and the AI generators) — run on
+a worker thread on the desktop, so their reply arrives asynchronously (the
+project is still resolved inline first, so a bad project fails fast). There is no
 separate ack, the phone just waits for the typed reply below.
 
 Pull, push, and fetch take no flags from the phone: the desktop applies the
@@ -112,14 +120,16 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "git", "project": "<name>" }` | `{ "t": "git", "project": "<name>", "ok": true, "isRepo": bool, "branch": "…", "detached": bool, "hasUpstream": bool, "ahead": N, "behind": N, "defaultBranch": "…", "ghCli": bool, "files": [{ path, status, staged, stamp }…] }` — the project's git status + changed files in one shot. `status` ∈ `added`\|`deleted`\|`renamed`\|`modified`\|`untracked`. `stamp` is an **opaque change token** for the file's working-tree content: if a file's `stamp` is unchanged between two snapshots, its diff is unchanged and needn't be refetched (skip the `gitDiff` round-trip); treat an unknown or absent `stamp` as changed (older servers omit it, so always refetch then). `ghCli` reports whether the `gh` CLI is available (gates the "Open PR" affordance). When the project isn't a git repo: `ok:true, isRepo:false` with empty/zero fields. On a bad project: `{ "ok": false, "error": "…" }` |
-| `{ "t": "gitDiff", "project": "<name>", "path": "<file>" }` | `{ "t": "gitDiff", "project": "<name>", "path": "<file>", "ok": true, "diff": "<unified diff>", "binary": bool, "truncated": bool }` — the unified diff (HEAD vs working tree) for one file, including untracked files. A binary file returns `binary:true, diff:""`. The diff is capped at ~400 KB, truncated at a line boundary with `truncated:true` when it exceeds that. Errors → `{ "ok": false, "error": "…" }` |
+| `{ "t": "git", "project": "<name>" }` | `{ "t": "git", "project": "<name>", "ok": true, "isRepo": bool, "branch": "…", "detached": bool, "hasUpstream": bool, "ahead": N, "behind": N, "defaultBranch": "…", "ghCli": bool, "files": [{ path, status, staged, stamp }…] }` — the project's git status + changed files in one shot. `status` ∈ `added`\|`deleted`\|`renamed`\|`modified`\|`untracked`. `stamp` is an **opaque change token** for the file's working-tree content: if a file's `stamp` is unchanged between two snapshots, its diff is unchanged and needn't be refetched (skip the `gitDiff` round-trip); treat an unknown or absent `stamp` as changed (older servers omit it, so always refetch then). `ghCli` reports whether the `gh` CLI is available (gates the "Open PR" affordance). When the project isn't a git repo: `ok:true, isRepo:false` with empty/zero fields. On a bad project: `{ "ok": false, "error": "…" }`. Async (worker) |
+| `{ "t": "gitDiff", "project": "<name>", "path": "<file>" }` | `{ "t": "gitDiff", "project": "<name>", "path": "<file>", "ok": true, "diff": "<unified diff>", "binary": bool, "truncated": bool }` — the unified diff (HEAD vs working tree) for one file, including untracked files. A binary file returns `binary:true, diff:""`. The diff is capped at ~400 KB, truncated at a line boundary with `truncated:true` when it exceeds that. Errors → `{ "ok": false, "error": "…" }`. Inline |
+| `{ "t": "gitDiffs", "project": "<name>", "paths": ["<file>"…] }` | `{ "t": "gitDiffs", "project": "<name>", "ok": true, "files": [{ "path": "<file>", "diff": "<unified diff>", "binary": bool, "truncated": bool }…] }` — **batch** form of `gitDiff`: one `files` entry per requested path (same order), each with the same `binary`/`truncated`/~400 KB-cap semantics as `gitDiff`. Fetched from a single `git diff HEAD -- <paths>` split per file (plus a per-file diff for untracked paths), so N files cost one round trip instead of N. A path whose diff couldn't be produced degrades to an entry `{ "path": "<file>", "error": "…" }` (no `diff`) rather than sinking the batch — the phone routes such an entry through its per-file error state. On a bad project the whole reply is `{ "ok": false, "error": "…" }`. Async (worker) |
 | `{ "t": "gitCommit", "project": "<name>", "message": "…", "files": ["<path>"…] }` | `{ "t": "gitCommit", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — stages exactly the given files (resetting the index first) and commits them with `message` |
 | `{ "t": "gitPush", "project": "<name>" }` | `{ "t": "gitPush", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — `git push -u origin HEAD`, applying the persisted `gitPush` flags (`--force-with-lease` when `mode=="force-with-lease"`, `--no-verify`, `--tags`). Async (network) |
 | `{ "t": "gitPull", "project": "<name>" }` | `{ "t": "gitPull", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — pulls with the persisted `gitPull` strategy (`ff` default \| `ff-only` \| `rebase`) and flags (`--autostash`, `--no-verify`). Async (network) |
 | `{ "t": "gitFetch", "project": "<name>" }` | `{ "t": "gitFetch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — fetches with the persisted `gitFetch` flags (`--all`, `--prune` default on; `--prune-tags`, `--tags` default off). Async (network) |
 | `{ "t": "gitBranches", "project": "<name>" }` | `{ "t": "gitBranches", "project": "<name>", "ok": true, "current": "<branch>", "branches": [{ name, committerDate, remote? }…] }` / `{ "ok": false, "error": "…" }` — the branch list for the "Switch branch" picker (local + remote, newest first). `remote` is **omitted** for a local branch (present only for a remote-tracking one). `current` is the checked-out branch. Inline |
 | `{ "t": "gitCheckout", "project": "<name>", "branch": "<name>", "remote": "<remote>" }` | `{ "t": "gitCheckout", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — checks out `branch`; pass the `remote` from a `gitBranches` entry to create a local tracking branch (empty `remote` for a plain local checkout). Inline |
+| `{ "t": "gitCreateBranch", "project": "<name>", "name": "<branch>" }` | `{ "t": "gitCreateBranch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — creates a new branch off HEAD and checks it out (reuses the desktop's `create_branch`: `git branch` + checkout, falling back to `git switch -c`). Rejects an empty or already-existing name. Inline; on success the phone re-requests `gitBranches` + `git` so the new current branch shows |
 | `{ "t": "gitDiscardAll", "project": "<name>" }` | `{ "t": "gitDiscardAll", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — discards all working-tree changes (reset + clean). Inline |
 | `{ "t": "gitWatch", "project": "<name>" }` | `{ "t": "gitWatch", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — starts watching the project's working tree **for this connection**; while watched, the desktop sends a debounced `git-changed` push (below) on each burst of file changes so the review screen self-refreshes. Watching an already-watched project is a no-op (still `ok:true`). The watch is scoped to the connection and is dropped on `gitUnwatch`, disconnect, and device revocation. Inline |
 | `{ "t": "gitUnwatch", "project": "<name>" }` | `{ "t": "gitUnwatch", "project": "<name>", "ok": true }` — stops watching the project for this connection (no-op if it wasn't watched). Inline |
@@ -155,6 +165,20 @@ The pre-existing `{ "t": "history", "project", "q" }` / `{ "t": "historyAdd", �
 messages are unchanged — `historyQuery` is the richer superset for the paged
 history screen, while `history` remains the simple project-scoped recall list.
 
+### Sidebar folder ops
+
+The read-only `sidebar` message returns `{ order, groups }` (see above). The four
+`sidebar*` mutations write both `~/.lpm/groups.json` (the folder defs) and the
+settings `sidebarOrder` + flattened `projectOrder`, replicating the desktop's
+`applySidebarLayout` — the exact same helpers the duplicate flow's
+`group_copies_into_folder` uses. After each write the desktop's `projects-changed`
+is emitted (so the Mac's own window and other phones refresh) and the reply
+carries the **updated** `order` + `groups` inline, so the requesting phone
+re-renders without a follow-up `sidebar` round-trip. All four are local config ops
+and work with the Mac's main window closed. Folders are matched by **name** (exact,
+then case-insensitive), consistent across create/rename/delete/move; moving a
+project to a folder name that doesn't exist creates it.
+
 ### Push notifications (APNs)
 
 While the app is backgrounded its socket dies, so agent status changes reach the
@@ -178,9 +202,11 @@ found-work/pending-window, completed, and error/timed-out results respectively.
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
-{ "serverId": "<uuid>", "project": "<name>", "terminal": "<tab label or automation id>", "status": "<agent status or automation outcome>", "ts": <unix millis>, "key": "<status entry key>" }
+{ "serverId": "<uuid>", "project": "<name>", "target": "terminal"|"automation", "terminal": "<tab label or automation id>", "terminalId": "<terminal id>", "automationId": "<automation id>", "status": "<agent status or automation outcome>", "ts": <unix millis>, "key": "<status entry key>" }
 ```
-(`terminal` may be empty when the pane label is unknown; `key` identifies the
+(`terminalId` is present for terminal notifications and `automationId` is present
+for automation notifications, allowing a tap to open the exact destination.
+`terminal` may be empty when the pane label is unknown; `key` identifies the
 status entry so a later clear can find this notification. `serverId` is this Mac's
 stable identity — the phone scopes notification matching by `(serverId, project,
 key)` so a same-named project on another paired Mac isn't confused with this one;

@@ -5,7 +5,7 @@ import SwiftUI
 /// active one) plus "Add a Mac…". With a single saved Mac it still works as an
 /// entry point for adding another.
 struct MacSwitcherMenu: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
 
     var body: some View {
         Menu {

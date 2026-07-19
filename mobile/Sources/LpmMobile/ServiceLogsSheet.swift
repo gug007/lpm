@@ -4,7 +4,7 @@ import SwiftUI
 /// runs (tmux pane capture via `serviceLogs` — the mobile counterpart of the
 /// desktop's service pane). The toolbar carries the service's Start/Stop toggle.
 struct ServiceLogsSheet: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let project: String
     let service: Service

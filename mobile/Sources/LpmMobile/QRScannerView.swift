@@ -32,6 +32,7 @@ struct QRScannerView: View {
     let onScan: (PairPayload) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var denied = false
+    @State private var setupFailed = false
 
     var body: some View {
         ZStack {
@@ -41,9 +42,18 @@ struct QRScannerView: View {
                     onScan(payload)
                     dismiss()
                 },
-                onDenied: { denied = true }
+                onDenied: { denied = true },
+                onSetupFailure: { setupFailed = true }
             )
             .ignoresSafeArea()
+
+            if setupFailed {
+                Text("Camera unavailable")
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .padding()
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+            }
 
             VStack {
                 HStack {
@@ -71,10 +81,11 @@ struct QRScannerView: View {
 struct CameraPreview: UIViewRepresentable {
     let onCode: (String) -> Void
     let onDenied: () -> Void
+    let onSetupFailure: () -> Void
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
-        context.coordinator.start(on: view, onCode: onCode, onDenied: onDenied)
+        context.coordinator.start(on: view, onCode: onCode, onDenied: onDenied, onSetupFailure: onSetupFailure)
         return view
     }
 
@@ -90,10 +101,13 @@ struct CameraPreview: UIViewRepresentable {
         private let session = AVCaptureSession()
         private let sessionQueue = DispatchQueue(label: "cx.lpm.camera")
         private var onCode: ((String) -> Void)?
+        private var onSetupFailure: (() -> Void)?
         private var handled = false
 
-        func start(on view: PreviewView, onCode: @escaping (String) -> Void, onDenied: @escaping () -> Void) {
+        func start(on view: PreviewView, onCode: @escaping (String) -> Void,
+                   onDenied: @escaping () -> Void, onSetupFailure: @escaping () -> Void) {
             self.onCode = onCode
+            self.onSetupFailure = onSetupFailure
             switch AVCaptureDevice.authorizationStatus(for: .video) {
             case .authorized:
                 configure(view)
@@ -112,11 +126,11 @@ struct CameraPreview: UIViewRepresentable {
             guard let device = AVCaptureDevice.default(for: .video),
                   let input = try? AVCaptureDeviceInput(device: device),
                   session.canAddInput(input)
-            else { return }
+            else { onSetupFailure?(); return }
             session.addInput(input)
 
             let output = AVCaptureMetadataOutput()
-            guard session.canAddOutput(output) else { return }
+            guard session.canAddOutput(output) else { onSetupFailure?(); return }
             session.addOutput(output)
             output.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
             output.metadataObjectTypes = [.qr]

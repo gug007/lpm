@@ -13,7 +13,7 @@ import UniformTypeIdentifiers
 /// per-terminal `ComposerStore`, retained by AppModel, so it survives leaving and
 /// re-entering the terminal.
 struct TerminalComposer: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var systemColorScheme
     @ObservedObject var store: ComposerStore
     private let onSend: ((String) -> Void)?
@@ -140,7 +140,7 @@ struct TerminalComposer: View {
         if q.isEmpty {
             cachedBranches = []
         } else {
-            let allBranches = model.gitBranches[project] ?? []
+            let allBranches = model.git.branches[project] ?? []
             cachedBranches = Array(allBranches.filter { $0.name.localizedCaseInsensitiveContains(q) }.prefix(20))
         }
         let running = (model.services[project] ?? []).filter { $0.running && $0.paneIndex != nil }
@@ -180,7 +180,7 @@ struct TerminalComposer: View {
                 model.loadMentions(project)
                 model.loadComposerActions()
                 model.loadServices(project)
-                model.loadGitBranches(project)
+                model.git.loadBranches(project)
             }
             .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
             .onChange(of: model.serviceLogsResult) { _, _ in flushPendingLog() }
@@ -201,10 +201,10 @@ struct TerminalComposer: View {
                 HistoryScreen(project: project,
                               onLoad: { text in store.text = text; focused = true },
                               onSendNow: { text in sendRaw(text) })
-                    .environmentObject(model)
+                    .environment(model)
             }
             .sheet(isPresented: $showActions) {
-                ComposerActionsSheet(store: store).environmentObject(model)
+                ComposerActionsSheet(store: store).environment(model)
             }
             .sheet(isPresented: $store.showVariants, onDismiss: { store.variantsSheetDismissed() }) {
                 ComposerVariantsSheet(store: store)
@@ -234,6 +234,7 @@ struct TerminalComposer: View {
                 Divider().opacity(0.5)
             } else if mentionActive && hasMentionContent {
                 ComposerMentionMenu(
+                    project: project,
                     changed: changedMentions, files: fileMentions,
                     branches: cachedBranches, services: cachedServices,
                     pickPath: pickPath, pickBranch: pickBranch,
@@ -257,10 +258,10 @@ struct TerminalComposer: View {
         }
     }
 
-    // Cheap Int change-proxies for the @Published source dicts, so the mention
+    // Cheap Int change-proxies for the observed source dicts, so the mention
     // recompute hooks key off a simple property (not a subscript+coalesce expr).
     private var mentionsCount: Int { model.mentions[project]?.count ?? 0 }
-    private var branchesCount: Int { model.gitBranches[project]?.count ?? 0 }
+    private var branchesCount: Int { model.git.branches[project]?.count ?? 0 }
     private var servicesCount: Int { model.services[project]?.count ?? 0 }
 
     // MARK: input row
@@ -537,6 +538,7 @@ struct TerminalComposer: View {
 
     /// Deliver a composed body and reset the active tab (closing it if others exist).
     private func deliver(_ body: String) {
+        Haptics.tap()
         if let onSend { onSend(body) }
         else { model.submit(termId, body) }
         if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -767,6 +769,8 @@ private struct SlashMenu: View {
 /// then files/dirs, then git branches (once a fragment is typed), then context
 /// sources — this terminal's output and per-service logs, which inject inline.
 private struct ComposerMentionMenu: View {
+    @Environment(AppModel.self) private var model
+    let project: String
     let changed: [MentionEntry]
     let files: [MentionEntry]
     let branches: [GitBranch]
@@ -776,6 +780,9 @@ private struct ComposerMentionMenu: View {
     let includeTerminalOutput: Bool
     let pickTerminalOutput: () -> Void
     let pickServiceLog: (ServiceInfo) -> Void
+    // The file to preview (tapped via the eye button, distinct from the row's
+    // primary insert-mention tap).
+    @State private var previewTarget: FileViewerTarget?
 
     var body: some View {
         ScrollView {
@@ -806,6 +813,9 @@ private struct ComposerMentionMenu: View {
             }
         }
         .frame(maxHeight: 260)
+        .sheet(item: $previewTarget) { target in
+            FileViewerSheet(target: target).environment(model)
+        }
     }
 
     private func header(_ text: String) -> some View {
@@ -821,21 +831,35 @@ private struct ComposerMentionMenu: View {
     }
 
     @ViewBuilder private func pathRow(_ e: MentionEntry) -> some View {
-        Button { pickPath(e.path) } label: {
-            HStack(spacing: 10) {
-                Image(systemName: e.dir ? "folder" : "doc.text")
-                    .font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 18)
-                Text(e.path)
-                    .font(.system(size: 14, design: .monospaced))
-                    .foregroundStyle(.primary).lineLimit(1).truncationMode(.head)
-                Spacer(minLength: 8)
-                if e.changed {
-                    Text("changed").font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
+        HStack(spacing: 0) {
+            Button { pickPath(e.path) } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: e.dir ? "folder" : "doc.text")
+                        .font(.system(size: 13)).foregroundStyle(.secondary).frame(width: 18)
+                    Text(e.path)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundStyle(.primary).lineLimit(1).truncationMode(.head)
+                    Spacer(minLength: 8)
+                    if e.changed {
+                        Text("changed").font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
+                    }
                 }
+                .padding(.leading, 16).padding(.vertical, 9).contentShape(Rectangle())
             }
-            .padding(.horizontal, 16).padding(.vertical, 9).contentShape(Rectangle())
+            .buttonStyle(.plain)
+            // A separate preview tap (files only) that opens the viewer instead of
+            // inserting the @-mention.
+            if !e.dir {
+                Button { previewTarget = FileViewerTarget(project: project, path: e.path) } label: {
+                    Image(systemName: "eye")
+                        .font(.system(size: 13)).foregroundStyle(.secondary)
+                        .frame(width: 44).padding(.vertical, 9).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else {
+                Spacer().frame(width: 16)
+            }
         }
-        .buttonStyle(.plain)
         Divider().opacity(0.4)
     }
 

@@ -53,6 +53,7 @@ import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
+import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
 import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { usePeerState } from "../peer/usePeerState";
@@ -481,7 +482,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   useEffect(() => {
     CheckForUpdate()
       .then((info) => { if (info.updateAvail) setUpdateInfo(info); })
-      .catch((err) => console.warn("update check failed:", err));
+      .catch((err) =>
+        logDiagnostic("warn", "update.check_failed", "Update check failed", err),
+      );
   }, []);
   useEffect(() => EventsOn("update-progress", (pct: number) => setProgress(pct)), []);
   useEffect(() => EventsOn("update-status", (status: string) => {
