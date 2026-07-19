@@ -36,6 +36,9 @@ final class LpmClient: NSObject {
     var onJobLiveOutput: ((_ project: String, _ jobId: String, _ live: AutomationLiveOutput?, _ error: String?) -> Void)?
     var onAutomationMutation: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
     var onAutomationFollowup: ((_ project: String, _ jobId: String, _ error: String?) -> Void)?
+    var onJobConfig: ((_ project: String, _ jobId: String, _ job: [String: Any]?, _ error: String?) -> Void)?
+    var onJobSaved: ((_ id: String, _ error: String?) -> Void)?
+    var onJobDeleted: ((_ id: String, _ error: String?) -> Void)?
     var onJobsChanged: (() -> Void)?
     var onDuplicateDefaults: ((_ excludeUncommitted: Bool, _ reinstallDeps: Bool, _ pullLatest: Bool) -> Void)?
     var onDuplicateProgress: ((_ done: Int, _ total: Int, _ name: String) -> Void)?
@@ -45,6 +48,9 @@ final class LpmClient: NSObject {
     // A duplicate/remove failed — the message to surface. Success is silent (the
     // `projects-changed` push refreshes the list on its own).
     var onActionError: ((_ message: String) -> Void)?
+    // The offline send queue is full, so a new request was dropped rather than
+    // silently evicting an older queued one.
+    var onSendQueueFull: (() -> Void)?
     // A runAction/newTerminal the Mac couldn't execute — stop the creating
     // placeholder for the project and surface the message.
     var onActionFailed: ((_ project: String, _ message: String) -> Void)?
@@ -52,6 +58,7 @@ final class LpmClient: NSObject {
     // success; a nil `snapshot` means the `git` request hard-failed.
     var onGit: ((_ project: String, _ snapshot: GitSnapshot?, _ error: String?) -> Void)?
     var onGitDiff: ((_ project: String, _ path: String, _ result: GitDiffResult?, _ error: String?) -> Void)?
+    var onGitDiffs: ((_ project: String, _ entries: [GitDiffEntry], _ error: String?) -> Void)?
     var onGitCommit: ((_ project: String, _ error: String?) -> Void)?
     var onGitPush: ((_ project: String, _ error: String?) -> Void)?
     var onGitGenMessage: ((_ project: String, _ message: String?, _ error: String?) -> Void)?
@@ -89,6 +96,15 @@ final class LpmClient: NSObject {
     var onHistoryMutated: ((_ ok: Bool, _ error: String?) -> Void)?
     var onHistoryFolders: ((_ folders: [HistoryFolder]) -> Void)?
     var onHistoryCreateFolder: ((_ folder: HistoryFolder?, _ error: String?) -> Void)?
+    // Rename a project's label (error nil on success). New git branch reply.
+    var onRenameProject: ((_ project: String, _ error: String?) -> Void)?
+    var onGitCreateBranch: ((_ project: String, _ error: String?) -> Void)?
+    // A sidebar folder mutation settled: the updated layout (on success) plus any
+    // error to surface. The reply carries the fresh order/groups so no follow-up
+    // `sidebar` is needed.
+    var onSidebarMutation: ((_ order: [String], _ groups: [ProjectFolder], _ error: String?) -> Void)?
+    // A readFile reply: `content` nil on failure, `truncated` when capped.
+    var onFile: ((_ project: String, _ path: String, _ content: String?, _ truncated: Bool, _ error: String?) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -96,8 +112,8 @@ final class LpmClient: NSObject {
     private var deviceName: String
     private var session: URLSession!
     private var task: URLSessionWebSocketTask?
-    private let subscribed = NSMutableSet() // termIds we auto-re-sub on reconnect
-    private let watchedProjects = NSMutableSet() // projects we auto-re-watch on reconnect
+    private var subscribed = Set<String>() // termIds we auto-re-sub on reconnect
+    private var watchedProjects = Set<String>() // projects we auto-re-watch on reconnect
     private(set) var state: State = .idle
 
     // Requests made while the link is down or half-dead, delivered on the next
@@ -354,6 +370,15 @@ final class LpmClient: NSObject {
     func setJobEnabled(project: String, jobId: String, enabled: Bool) {
         send(Wire.setJobEnabled(project: project, jobId: jobId, enabled: enabled))
     }
+    func requestJobConfig(project: String, jobId: String, source: String) {
+        send(Wire.jobConfig(project: project, jobId: jobId, source: source))
+    }
+    func saveJob(id: String, source: String, project: String, job: [String: Any]) {
+        send(Wire.saveJob(id: id, source: source, project: project, job: job))
+    }
+    func deleteJob(id: String, source: String, project: String, deleteCopies: Bool) {
+        send(Wire.deleteJob(id: id, source: source, project: project, deleteCopies: deleteCopies))
+    }
     func sendJobFollowup(project: String, jobId: String, at: Int, message: String,
                          agent: String, model: String, effort: String) {
         send(Wire.sendJobFollowup(project: project, jobId: jobId, at: at, message: message,
@@ -387,6 +412,18 @@ final class LpmClient: NSObject {
     }
     func requestDuplicateDefaults() { send(Wire.duplicateDefaults()) }
     func removeProject(_ name: String) { send(Wire.remove(name: name)) }
+    func renameProject(project: String, name: String) {
+        send(Wire.renameProject(project: project, name: name))
+    }
+    func sidebarCreateFolder(name: String) { send(Wire.sidebarCreateFolder(name: name)) }
+    func sidebarRenameFolder(name: String, newName: String) {
+        send(Wire.sidebarRenameFolder(name: name, newName: newName))
+    }
+    func sidebarDeleteFolder(name: String) { send(Wire.sidebarDeleteFolder(name: name)) }
+    func sidebarMoveProject(project: String, folder: String?) {
+        send(Wire.sidebarMoveProject(project: project, folder: folder))
+    }
+    func readFile(project: String, path: String) { send(Wire.readFile(project: project, path: path)) }
     func sendApnsToken(token: String, env: String, key: String,
                        notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                        notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
@@ -407,6 +444,7 @@ final class LpmClient: NSObject {
     // so the model arms generous timeouts around them.
     func requestGit(project: String) { send(Wire.git(project: project)) }
     func requestGitDiff(project: String, path: String) { send(Wire.gitDiff(project: project, path: path)) }
+    func requestGitDiffs(project: String, paths: [String]) { send(Wire.gitDiffs(project: project, paths: paths)) }
     func gitCommit(project: String, message: String, files: [String]) {
         send(Wire.gitCommit(project: project, message: message, files: files))
     }
@@ -422,9 +460,12 @@ final class LpmClient: NSObject {
     func gitCheckout(project: String, branch: String, remote: String) {
         send(Wire.gitCheckout(project: project, branch: branch, remote: remote))
     }
+    func gitCreateBranch(project: String, name: String) {
+        send(Wire.gitCreateBranch(project: project, name: name))
+    }
     func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
     func watchGit(project: String) {
-        watchedProjects.add(project)
+        watchedProjects.insert(project)
         sendLive(Wire.gitWatch(project: project))
     }
     func unwatchGit(project: String) {
@@ -458,7 +499,7 @@ final class LpmClient: NSObject {
     func historyDeleteFolder(id: String?, name: String?) { send(Wire.historyDeleteFolder(id: id, name: name)) }
 
     func subscribe(_ id: String) {
-        subscribed.add(id)
+        subscribed.insert(id)
         sendLive(Wire.sub(id: id))
     }
     func unsubscribe(_ id: String) {
@@ -482,9 +523,10 @@ final class LpmClient: NSObject {
     }
 
     /// Fire-and-forget send for live traffic (keystrokes, resizes, sub/unsub):
-    /// dropped rather than replayed stale after a reconnect.
+    /// dropped rather than replayed stale after a reconnect. Requires a live,
+    /// authenticated link — a not-yet-`ready` socket would discard it silently.
     private func sendLive(_ text: String) {
-        guard task != nil else { return }
+        guard task != nil, case .ready = state else { return }
         transmit(text, requeueOnFailure: false)
     }
 
@@ -506,10 +548,13 @@ final class LpmClient: NSObject {
 
     private func enqueue(_ text: String) {
         guard wantConnected else { return }
-        pendingSends.append(text)
-        if pendingSends.count > maxPendingSends {
-            pendingSends.removeFirst(pendingSends.count - maxPendingSends)
+        // At the cap, drop this new send rather than silently evicting an older
+        // queued request (which could be an important one, e.g. a git commit).
+        guard pendingSends.count < maxPendingSends else {
+            onSendQueueFull?()
+            return
         }
+        pendingSends.append(text)
     }
 
     private func flushPending() {
@@ -560,9 +605,9 @@ final class LpmClient: NSObject {
                 self.set(.ready)
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop.
-                for id in self.subscribed { self.sendLive(Wire.sub(id: id as! String)) }
+                for id in self.subscribed { self.sendLive(Wire.sub(id: id)) }
                 // Re-watch git for any review screen that was open before a drop.
-                for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p as! String)) }
+                for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p)) }
                 self.flushPending()
                 self.onIdentity?(serverId, serverName)
             case .error(let e):
@@ -585,6 +630,10 @@ final class LpmClient: NSObject {
                 self.onAutomationMutation?(project, jobId, error)
             case .automationFollowup(let project, let jobId, let error):
                 self.onAutomationFollowup?(project, jobId, error)
+            case .jobConfig(let project, let jobId, let job, let error):
+                self.onJobConfig?(project, jobId, job, error)
+            case .jobSaved(let id, let error): self.onJobSaved?(id, error)
+            case .jobDeleted(let id, let error): self.onJobDeleted?(id, error)
             case .jobsChanged: self.onJobsChanged?()
             case .seed(let id, let c, let r, let d, let owner):
                 self.onControl?(id, owner)
@@ -604,6 +653,11 @@ final class LpmClient: NSObject {
                 self.onDuplicateDone?(error, warning)
             case .remove(let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
+            case .renameProject(let proj, let error): self.onRenameProject?(proj, error)
+            case .sidebarMutation(let order, let groups, let error):
+                self.onSidebarMutation?(order, groups, error)
+            case .file(let proj, let path, let content, let truncated, let error):
+                self.onFile?(proj, path, content, truncated, error)
             case .actionFailed(let project, let error):
                 self.onActionFailed?(project, error)
             case .projectsChanged: self.onProjectsChanged?()
@@ -613,6 +667,8 @@ final class LpmClient: NSObject {
             case .gitDiff(let proj, let path, let diff, let binary, let truncated, let error):
                 let result = error == nil ? GitDiffResult(diff: diff, binary: binary, truncated: truncated) : nil
                 self.onGitDiff?(proj, path, result, error)
+            case .gitDiffs(let proj, let entries, let error):
+                self.onGitDiffs?(proj, entries, error)
             case .gitCommit(let proj, let error): self.onGitCommit?(proj, error)
             case .gitPush(let proj, let error): self.onGitPush?(proj, error)
             case .gitGenMessage(let proj, let message, let error): self.onGitGenMessage?(proj, message, error)
@@ -623,6 +679,7 @@ final class LpmClient: NSObject {
             case .gitBranches(let proj, let current, let branches, let error):
                 self.onGitBranches?(proj, current, branches, error)
             case .gitCheckout(let proj, let error): self.onGitCheckout?(proj, error)
+            case .gitCreateBranch(let proj, let error): self.onGitCreateBranch?(proj, error)
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .apnsToken(let ok): self.onApnsToken?(ok)

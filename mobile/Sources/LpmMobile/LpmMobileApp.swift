@@ -4,7 +4,7 @@ import UIKit
 @main
 struct LpmMobileApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = AppModel()
+    @State private var model = AppModel()
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
 
     init() {
@@ -26,7 +26,7 @@ struct LpmMobileApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(model)
+                .environment(model)
                 .onAppear { appDelegate.attach(model) }
                 .preferredColorScheme((AppearanceMode(rawValue: appearanceRaw) ?? .system).colorScheme)
         }

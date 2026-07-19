@@ -1,16 +1,47 @@
 import UIKit
 import UserNotifications
 
+enum NotificationTargetKind: String {
+    case project
+    case terminal
+    case automation
+}
+
+struct NotificationOpenTarget: Equatable {
+    let serverId: String?
+    let project: String
+    let kind: NotificationTargetKind
+    let itemId: String?
+
+    init?(userInfo: [AnyHashable: Any]) {
+        guard let project = userInfo["project"] as? String, !project.isEmpty else { return nil }
+        let serverId = (userInfo["serverId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let target = NotificationTargetKind(rawValue: userInfo["target"] as? String ?? "") ?? .project
+        let itemId: String?
+        switch target {
+        case .terminal:
+            itemId = (userInfo["terminalId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        case .automation:
+            itemId = (userInfo["automationId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        case .project:
+            itemId = nil
+        }
+        self.serverId = serverId
+        self.project = project
+        self.kind = itemId == nil ? .project : target
+        self.itemId = itemId
+    }
+}
+
 /// Bridges UIKit's remote-notification callbacks into the SwiftUI app: forwards the
 /// APNs device token to the model, suppresses banners while foregrounded (the live
-/// socket already shows status), and routes a notification tap to the project it
-/// names.
+/// socket already shows status), and routes a notification tap to its destination.
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     weak var model: AppModel?
     // The device token and a cold-launch notification tap can both arrive before
     // the model is attached; hold them and hand them over on attach.
     private var pendingToken: String?
-    private var pendingProject: String?
+    private var pendingTarget: NotificationOpenTarget?
 
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -21,9 +52,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func attach(_ model: AppModel) {
         self.model = model
         if let token = pendingToken { model.setApnsDeviceToken(token) }
-        if let project = pendingProject {
-            model.pendingOpenProject = project
-            pendingProject = nil
+        if let target = pendingTarget {
+            model.pendingNotificationTarget = target
+            pendingTarget = nil
         }
     }
 
@@ -87,11 +118,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let project = response.notification.request.content.userInfo["project"] as? String, !project.isEmpty {
+        if let target = NotificationOpenTarget(userInfo: response.notification.request.content.userInfo) {
             if model != nil {
-                MainActor.assumeIsolated { model?.pendingOpenProject = project }
+                MainActor.assumeIsolated { model?.pendingNotificationTarget = target }
             } else {
-                pendingProject = project
+                pendingTarget = target
             }
         }
         completionHandler()

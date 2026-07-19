@@ -63,6 +63,16 @@ enum Wire {
         json(["t": "sendJobFollowup", "project": project, "jobId": jobId, "at": at,
               "message": message, "agent": agent, "model": model, "effort": effort])
     }
+    static func jobConfig(project: String, jobId: String, source: String) -> String {
+        json(["t": "jobConfig", "project": project, "jobId": jobId, "source": source])
+    }
+    static func saveJob(id: String, source: String, project: String, job: [String: Any]) -> String {
+        json(["t": "saveJob", "id": id, "source": source, "project": project, "job": job])
+    }
+    static func deleteJob(id: String, source: String, project: String, deleteCopies: Bool) -> String {
+        json(["t": "deleteJob", "id": id, "source": source, "project": project,
+              "deleteCopies": deleteCopies])
+    }
     static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
     /// Take control of a terminal shown live elsewhere (the "Take control" button).
@@ -131,6 +141,32 @@ enum Wire {
     }
     static func duplicateDefaults() -> String { json(["t": "duplicateDefaults"]) }
     static func remove(name: String) -> String { json(["t": "remove", "name": name]) }
+    /// Rename a project's display label. An empty `name` clears it (falls back to
+    /// the project id).
+    static func renameProject(project: String, name: String) -> String {
+        json(["t": "renameProject", "project": project, "name": name])
+    }
+    static func sidebarCreateFolder(name: String) -> String {
+        json(["t": "sidebarCreateFolder", "name": name])
+    }
+    static func sidebarRenameFolder(name: String, newName: String) -> String {
+        json(["t": "sidebarRenameFolder", "name": name, "newName": newName])
+    }
+    static func sidebarDeleteFolder(name: String) -> String {
+        json(["t": "sidebarDeleteFolder", "name": name])
+    }
+    /// Move a project into a folder (by name, created if absent), or out to the top
+    /// level when `folder` is nil.
+    static func sidebarMoveProject(project: String, folder: String?) -> String {
+        var obj: [String: Any] = ["t": "sidebarMoveProject", "project": project]
+        if let folder, !folder.isEmpty { obj["folder"] = folder }
+        return json(obj)
+    }
+    /// Read a project file's text for the file viewer (server confines it to the
+    /// project root, caps at ~1MB, and refuses binary content).
+    static func readFile(project: String, path: String) -> String {
+        json(["t": "readFile", "project": project, "path": path])
+    }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
     }
@@ -158,6 +194,9 @@ enum Wire {
     static func gitDiff(project: String, path: String) -> String {
         json(["t": "gitDiff", "project": project, "path": path])
     }
+    static func gitDiffs(project: String, paths: [String]) -> String {
+        json(["t": "gitDiffs", "project": project, "paths": paths])
+    }
     static func gitCommit(project: String, message: String, files: [String]) -> String {
         json(["t": "gitCommit", "project": project, "message": message, "files": files])
     }
@@ -174,6 +213,9 @@ enum Wire {
     static func gitBranches(project: String) -> String { json(["t": "gitBranches", "project": project]) }
     static func gitCheckout(project: String, branch: String, remote: String) -> String {
         json(["t": "gitCheckout", "project": project, "branch": branch, "remote": remote])
+    }
+    static func gitCreateBranch(project: String, name: String) -> String {
+        json(["t": "gitCreateBranch", "project": project, "name": name])
     }
     static func gitDiscardAll(project: String) -> String { json(["t": "gitDiscardAll", "project": project]) }
     static func gitWatch(project: String) -> String { json(["t": "gitWatch", "project": project]) }
@@ -272,6 +314,9 @@ enum Wire {
         case jobLiveOutput(project: String, jobId: String, live: AutomationLiveOutput?, error: String?)
         case automationMutation(project: String, jobId: String, error: String?)
         case automationFollowup(project: String, jobId: String, error: String?)
+        case jobConfig(project: String, jobId: String, job: [String: Any]?, error: String?)
+        case jobSaved(id: String, error: String?)
+        case jobDeleted(id: String, error: String?)
         case jobsChanged
         case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?)
         case control(id: String, owner: ControlOwner?)
@@ -288,6 +333,16 @@ enum Wire {
         // The desktop's persisted duplicate-modal toggle defaults.
         case duplicateDefaults(excludeUncommitted: Bool, reinstallDeps: Bool, pullLatest: Bool)
         case remove(error: String?)
+        // A rename-project reply (label change). `error` nil on success; the list
+        // itself refreshes off the projects-changed push.
+        case renameProject(project: String, error: String?)
+        // A sidebar folder mutation reply (create/rename/delete/move). On success it
+        // carries the updated sidebar so the phone re-renders in place; `error` is
+        // the failure to surface.
+        case sidebarMutation(order: [String], groups: [ProjectFolder], error: String?)
+        // A readFile reply: the file's text (nil on failure) plus whether it was
+        // capped at the size limit.
+        case file(project: String, path: String, content: String?, truncated: Bool, error: String?)
         // A runAction/newTerminal request the Mac couldn't execute (e.g. the
         // app isn't open there). Success acks carry nothing and stay .unknown.
         case actionFailed(project: String, error: String)
@@ -298,6 +353,7 @@ enum Wire {
         // non-repo is a successful snapshot with isRepo == false.
         case git(project: String, snapshot: GitSnapshot?, error: String?)
         case gitDiff(project: String, path: String, diff: String, binary: Bool, truncated: Bool, error: String?)
+        case gitDiffs(project: String, entries: [GitDiffEntry], error: String?)
         case gitCommit(project: String, error: String?)
         case gitPush(project: String, error: String?)
         case gitGenMessage(project: String, message: String?, error: String?)
@@ -307,6 +363,7 @@ enum Wire {
         case gitFetch(project: String, error: String?)
         case gitBranches(project: String, current: String, branches: [GitBranch], error: String?)
         case gitCheckout(project: String, error: String?)
+        case gitCreateBranch(project: String, error: String?)
         case gitDiscardAll(project: String, error: String?)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
@@ -412,6 +469,20 @@ enum Wire {
                 return .automationFollowup(project: obj["project"] as? String ?? "",
                                            jobId: obj["jobId"] as? String ?? "",
                                            error: ok ? nil : (obj["error"] as? String ?? "Couldn't send the message."))
+            case "jobConfig":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobConfig(project: obj["project"] as? String ?? "",
+                                  jobId: obj["jobId"] as? String ?? "",
+                                  job: ok ? (obj["job"] as? [String: Any]) : nil,
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the automation."))
+            case "saveJob":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobSaved(id: obj["id"] as? String ?? "",
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the automation."))
+            case "deleteJob":
+                let ok = obj["ok"] as? Bool ?? false
+                return .jobDeleted(id: obj["id"] as? String ?? "",
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the automation."))
             case "jobs-changed": return .jobsChanged
             case "seed":
                 return .seed(id: obj["id"] as? String ?? "",
@@ -443,6 +514,23 @@ enum Wire {
             case "remove":
                 let ok = obj["ok"] as? Bool ?? false
                 return .remove(error: ok ? nil : (obj["error"] as? String ?? "Couldn't remove the project."))
+            case "renameProject":
+                let ok = obj["ok"] as? Bool ?? false
+                return .renameProject(project: obj["project"] as? String ?? "",
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't rename the project."))
+            case "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject":
+                let ok = obj["ok"] as? Bool ?? false
+                return .sidebarMutation(
+                    order: obj["order"] as? [String] ?? [],
+                    groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init),
+                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't update folders."))
+            case "file":
+                let ok = obj["ok"] as? Bool ?? false
+                return .file(project: obj["project"] as? String ?? "",
+                             path: obj["path"] as? String ?? "",
+                             content: ok ? (obj["content"] as? String ?? "") : nil,
+                             truncated: obj["truncated"] as? Bool ?? false,
+                             error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the file."))
             case "runAction", "newTerminal":
                 if obj["ok"] as? Bool ?? true { return .unknown }
                 return .actionFailed(project: obj["project"] as? String ?? "",
@@ -462,6 +550,12 @@ enum Wire {
                                 binary: obj["binary"] as? Bool ?? false,
                                 truncated: obj["truncated"] as? Bool ?? false,
                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the diff."))
+            case "gitDiffs":
+                let ok = obj["ok"] as? Bool ?? false
+                let entries = ok ? (obj["files"] as? [[String: Any]] ?? []).map(GitDiffEntry.init) : []
+                return .gitDiffs(project: obj["project"] as? String ?? "",
+                                 entries: entries,
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the diffs."))
             case "gitCommit":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitCommit(project: obj["project"] as? String ?? "",
@@ -504,6 +598,10 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitCheckout(project: obj["project"] as? String ?? "",
                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't switch branch."))
+            case "gitCreateBranch":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitCreateBranch(project: obj["project"] as? String ?? "",
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the branch."))
             case "gitDiscardAll":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
@@ -1051,6 +1149,28 @@ struct GitDiffResult {
     let diff: String
     let binary: Bool
     let truncated: Bool
+}
+
+/// One file's result inside a `gitDiffs` batch reply. `error` set (and `result`
+/// nil) means that file's diff couldn't be produced; otherwise `result` carries
+/// the diff. Routed through the same apply path as a single `gitDiff` reply.
+struct GitDiffEntry {
+    let path: String
+    let result: GitDiffResult?
+    let error: String?
+
+    init(_ o: [String: Any]) {
+        path = o["path"] as? String ?? ""
+        if let err = o["error"] as? String {
+            result = nil
+            error = err
+        } else {
+            result = GitDiffResult(diff: o["diff"] as? String ?? "",
+                                   binary: o["binary"] as? Bool ?? false,
+                                   truncated: o["truncated"] as? Bool ?? false)
+            error = nil
+        }
+    }
 }
 
 /// A branch offered in the switch-branch sheet. `remote` is the remote name for a

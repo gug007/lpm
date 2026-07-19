@@ -6,7 +6,7 @@ import UIKit
 /// for Start/Stop and actions. Terminal tab actions (Pin / Rename / Close) live
 /// on native swipe gestures.
 struct ProjectDetail: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     @State private var renaming: TerminalInfo?
     @State private var renameText = ""
@@ -56,6 +56,7 @@ struct ProjectDetail: View {
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) {
+                                Haptics.warning()
                                 model.closeTerminal(project.name, id: t.id)
                             } label: {
                                 Label("Close", systemImage: "xmark")
@@ -145,10 +146,10 @@ struct ProjectDetail: View {
             }
         }
         .sheet(item: $activeBgRun) { run in
-            BackgroundRunSheet(run: run).environmentObject(model)
+            BackgroundRunSheet(run: run).environment(model)
         }
         .sheet(item: $logsForService) { s in
-            ServiceLogsSheet(project: live.name, service: s).environmentObject(model)
+            ServiceLogsSheet(project: live.name, service: s).environment(model)
         }
         .projectMenuToolbar(project: live)
         .toolbar {
@@ -169,9 +170,13 @@ struct ProjectDetail: View {
         // still marked running (or not yet polled) every 3s.
         .task {
             while !Task.isCancelled {
-                for run in model.backgroundRunList(for: project.name)
-                where model.backgroundRuns[run.runId]?.running ?? true {
-                    model.loadBackgroundRunOutput(project: project.name, runId: run.runId)
+                // Skip while offline — an enqueued poll would just pile up in the
+                // send queue and never reach the Mac.
+                if case .ready = model.connection {
+                    for run in model.backgroundRunList(for: project.name)
+                    where model.backgroundRuns[run.runId]?.running ?? true {
+                        model.loadBackgroundRunOutput(project: project.name, runId: run.runId)
+                    }
                 }
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
             }

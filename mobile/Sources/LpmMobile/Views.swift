@@ -1,12 +1,18 @@
 import SwiftUI
 import UIKit
 
+private enum NotificationRoute: Hashable {
+    case automations
+    case terminal(project: String, id: String)
+    case automation(project: String, id: String)
+}
+
 // Root view: show pairing until at least one Mac is saved, then the projects list.
 struct ContentView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
-    // Nav path so a notification tap can deep-link straight to a project's detail.
-    @State private var path: [String] = []
+    // Nav path so a notification tap can deep-link straight to its destination.
+    @State private var path = NavigationPath()
 
     var body: some View {
         Group {
@@ -19,10 +25,10 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { model.reconnectIfNeeded() }
         }
-        // Consume a pending notification-tap target once its project is loaded
-        // (a cold-launch tap may land before the projects list has arrived).
-        .onChange(of: model.pendingOpenProject) { _, _ in consumePendingOpen() }
+        // Consume a pending notification-tap target once its Mac has loaded.
+        .onChange(of: model.pendingNotificationTarget) { _, _ in consumePendingOpen() }
         .onChange(of: model.projectsLoaded) { _, _ in consumePendingOpen() }
+        .onChange(of: model.activeMacId) { _, _ in consumePendingOpen() }
         .onAppear {
             model.bootstrap()
             // Warm WebKit now so the first terminal opens without the ~2s cold start.
@@ -31,10 +37,32 @@ struct ContentView: View {
     }
 
     private func consumePendingOpen() {
-        guard let project = model.pendingOpenProject, !project.isEmpty,
-              model.projects.contains(where: { $0.name == project }) else { return }
-        path = [project]
-        model.pendingOpenProject = nil
+        guard let target = model.pendingNotificationTarget else { return }
+        if let serverId = target.serverId, model.activeRecord?.serverId != serverId {
+            guard let mac = model.macs.first(where: { $0.serverId == serverId }) else { return }
+            path = NavigationPath()
+            model.switchTo(mac)
+            return
+        }
+        guard model.projectsLoaded else { return }
+
+        var next = NavigationPath()
+        switch target.kind {
+        case .project:
+            guard model.projects.contains(where: { $0.name == target.project }) else { return }
+            next.append(target.project)
+        case .terminal:
+            guard let id = target.itemId,
+                  model.projects.contains(where: { $0.name == target.project }) else { return }
+            next.append(target.project)
+            next.append(NotificationRoute.terminal(project: target.project, id: id))
+        case .automation:
+            guard let id = target.itemId else { return }
+            next.append(NotificationRoute.automations)
+            next.append(NotificationRoute.automation(project: target.project, id: id))
+        }
+        path = next
+        model.pendingNotificationTarget = nil
     }
 }
 
@@ -42,7 +70,7 @@ struct PairingView: View {
     // Non-nil when shown as the "Add a Mac" sheet: adds a Cancel button that
     // returns to the projects list (reconnecting the previously active Mac).
     var onCancel: (() -> Void)? = nil
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var host = ""
     @State private var port = "8765"
     @State private var code = ""
@@ -242,7 +270,7 @@ struct PairingFieldRow: View {
 }
 
 struct ProjectsView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @State private var expandedOverride: [String: Bool] = [:]
     @State private var confirmingRemove = false
     @State private var renamingMac = false
@@ -254,6 +282,15 @@ struct ProjectsView: View {
     // The project whose duplicate-options sheet is open. Duplicating opens the
     // options sheet (count, label, git toggles) rather than firing immediately.
     @State private var duplicating: Project?
+    // Sidebar folder flows. `newFolderForProject` moves that project into a
+    // freshly-named folder; `renamingFolder` renames it; `deletingFolder` confirms
+    // its removal; `creatingFolder` makes a new empty folder. `folderNameText` backs
+    // whichever text alert is open.
+    @State private var newFolderForProject: Project?
+    @State private var renamingFolder: ProjectFolder?
+    @State private var deletingFolder: ProjectFolder?
+    @State private var creatingFolder = false
+    @State private var folderNameText = ""
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
 
@@ -277,31 +314,45 @@ struct ProjectsView: View {
         return first + switchSentence + " To add it back, scan its QR code again."
     }
 
+    @ViewBuilder
+    private func sidebarRow(_ item: SidebarItem) -> some View {
+        switch item {
+        case .project(let row):
+            projectLink(row, indented: false)
+        case .folder(let g, let members):
+            FolderHeader(name: g.name, count: members.filter { !$0.isChild }.count, expanded: isExpanded(g)) {
+                expandedOverride[g.id] = !isExpanded(g)
+            }
+            .contextMenu {
+                Button { folderNameText = g.name; renamingFolder = g } label: {
+                    Label("Rename folder", systemImage: "pencil")
+                }
+                Button(role: .destructive) { deletingFolder = g } label: {
+                    Label("Delete folder", systemImage: "trash")
+                }
+            }
+            if isExpanded(g) {
+                ForEach(members) { row in
+                    projectLink(row, indented: true)
+                }
+            }
+        }
+    }
+
+    private func projectLink(_ row: SidebarRow, indented: Bool) -> some View {
+        NavigationLink(value: row.project.name) {
+            ProjectRow(project: row.project,
+                       pending: model.pendingRun[row.project.name] != nil)
+                .padding(.leading, indented ? 20 : 0)
+        }
+        .projectRowActions(row.project, removing: $removing, duplicating: $duplicating,
+                           newFolderForProject: $newFolderForProject)
+    }
+
     var body: some View {
         List {
             ForEach(model.sidebarItems) { item in
-                switch item {
-                case .project(let row):
-                    NavigationLink(value: row.project.name) {
-                        ProjectRow(project: row.project,
-                                   pending: model.pendingRun[row.project.name] != nil)
-                    }
-                    .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
-                case .folder(let g, let members):
-                    FolderHeader(name: g.name, count: members.filter { !$0.isChild }.count, expanded: isExpanded(g)) {
-                        expandedOverride[g.id] = !isExpanded(g)
-                    }
-                    if isExpanded(g) {
-                        ForEach(members) { row in
-                            NavigationLink(value: row.project.name) {
-                                ProjectRow(project: row.project,
-                                           pending: model.pendingRun[row.project.name] != nil)
-                                    .padding(.leading, 20)
-                            }
-                            .projectRowActions(row.project, removing: $removing, duplicating: $duplicating)
-                        }
-                    }
-                }
+                sidebarRow(item)
             }
         }
         .refreshable { await model.refreshProjects() }
@@ -316,9 +367,7 @@ struct ProjectsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    NavigationLink {
-                        AutomationsView()
-                    } label: {
+                    NavigationLink(value: NotificationRoute.automations) {
                         Label("Automations", systemImage: "clock.arrow.circlepath")
                     }
                     NavigationLink {
@@ -328,6 +377,10 @@ struct ProjectsView: View {
                     }
                     Button { showingSettings = true } label: {
                         Label("Settings", systemImage: "gearshape")
+                    }
+                    Divider()
+                    Button { folderNameText = ""; creatingFolder = true } label: {
+                        Label("New Folder…", systemImage: "folder.badge.plus")
                     }
                     Button {
                         renameText = model.activeRecord?.displayName ?? ""
@@ -348,6 +401,16 @@ struct ProjectsView: View {
         .navigationDestination(for: String.self) { name in
             if let p = model.projects.first(where: { $0.name == name }) {
                 ProjectDetail(project: p)
+            }
+        }
+        .navigationDestination(for: NotificationRoute.self) { route in
+            switch route {
+            case .automations:
+                AutomationsView()
+            case .terminal(let project, let id):
+                NotificationTerminalDestination(projectName: project, terminalId: id)
+            case .automation(let project, let id):
+                AutomationDetailView(project: project, jobId: id)
             }
         }
         .overlay {
@@ -382,7 +445,8 @@ struct ProjectsView: View {
         } message: {
             Text("Leave blank to use the name reported by the Mac.")
         }
-        .sheet(isPresented: $model.addingMac, onDismiss: { model.cancelAddMac() }) {
+        .sheet(isPresented: Binding(get: { model.addingMac }, set: { model.addingMac = $0 }),
+               onDismiss: { model.cancelAddMac() }) {
             NavigationStack {
                 PairingView(onCancel: { model.addingMac = false })
                     .navigationBarTitleDisplayMode(.inline)
@@ -394,7 +458,7 @@ struct ProjectsView: View {
             titleVisibility: .visible,
             presenting: removing
         ) { p in
-            Button("Remove", role: .destructive) { model.removeProject(p); removing = nil }
+            Button("Remove", role: .destructive) { Haptics.warning(); model.removeProject(p); removing = nil }
             Button("Cancel", role: .cancel) { removing = nil }
         } message: { p in
             Text("This deletes “\(p.label)” and its folder from disk. This can't be undone.")
@@ -423,6 +487,13 @@ struct ProjectsView: View {
         } message: {
             Text(model.notice ?? "")
         }
+        .modifier(FolderManagementModals(
+            creatingFolder: $creatingFolder,
+            newFolderForProject: $newFolderForProject,
+            renamingFolder: $renamingFolder,
+            deletingFolder: $deletingFolder,
+            folderNameText: $folderNameText
+        ))
         .safeAreaInset(edge: .bottom) {
             if let progress = model.duplicateProgress {
                 DuplicateProgressBar(progress: progress)
@@ -430,6 +501,37 @@ struct ProjectsView: View {
             }
         }
         .animation(.default, value: model.duplicateProgress == nil)
+    }
+}
+
+private struct NotificationTerminalDestination: View {
+    @Environment(AppModel.self) private var model
+    let projectName: String
+    let terminalId: String
+
+    private var project: Project? {
+        model.projects.first { $0.name == projectName }
+    }
+
+    private var terminal: TerminalInfo? {
+        model.terminals[projectName]?.first { $0.id == terminalId }
+    }
+
+    var body: some View {
+        Group {
+            if let project, let terminal {
+                TerminalScreen(term: terminal, project: project)
+            } else if model.terminals[projectName] != nil {
+                ContentUnavailableView("Terminal unavailable", systemImage: "terminal")
+                    .navigationTitle("Terminal")
+                    .navigationBarTitleDisplayMode(.inline)
+            } else {
+                ProgressView("Opening terminal…")
+                    .navigationTitle("Terminal")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .task { model.loadTerminals(projectName) }
     }
 }
 
@@ -467,11 +569,69 @@ private struct DuplicateProgressBar: View {
 /// what's safe from a phone: Duplicate for any local project, and Remove for a
 /// duplicate (which deletes its folder). Offered as both a swipe and a long-press
 /// context menu; Remove always routes through a confirmation via `removing`.
+/// The four sidebar-folder dialogs (new folder, new-folder-and-move, rename,
+/// delete), grouped off the projects list so its modifier chain stays small enough
+/// for the type-checker. `folderNameText` backs whichever text alert is open.
+private struct FolderManagementModals: ViewModifier {
+    @Environment(AppModel.self) private var model
+    @Binding var creatingFolder: Bool
+    @Binding var newFolderForProject: Project?
+    @Binding var renamingFolder: ProjectFolder?
+    @Binding var deletingFolder: ProjectFolder?
+    @Binding var folderNameText: String
+
+    func body(content: Content) -> some View {
+        content
+            .alert("New folder", isPresented: $creatingFolder) {
+                TextField("Folder name", text: $folderNameText)
+                Button("Cancel", role: .cancel) {}
+                Button("Create") { model.createFolder(name: folderNameText) }
+            }
+            .alert("New folder", isPresented: Binding(
+                get: { newFolderForProject != nil },
+                set: { if !$0 { newFolderForProject = nil } }
+            ), presenting: newFolderForProject) { p in
+                TextField("Folder name", text: $folderNameText)
+                Button("Cancel", role: .cancel) {}
+                Button("Create & move") { model.moveProject(p, toFolder: folderNameText) }
+            } message: { p in
+                Text("Move “\(p.label)” into a new folder.")
+            }
+            .alert("Rename folder", isPresented: Binding(
+                get: { renamingFolder != nil },
+                set: { if !$0 { renamingFolder = nil } }
+            ), presenting: renamingFolder) { folder in
+                TextField("Folder name", text: $folderNameText)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") { model.renameFolder(folder, newName: folderNameText) }
+            }
+            .confirmationDialog(
+                "Delete folder?",
+                isPresented: Binding(get: { deletingFolder != nil }, set: { if !$0 { deletingFolder = nil } }),
+                titleVisibility: .visible,
+                presenting: deletingFolder
+            ) { folder in
+                Button("Delete folder", role: .destructive) { model.deleteFolder(folder) }
+                Button("Cancel", role: .cancel) {}
+            } message: { folder in
+                Text("“\(folder.name)” is removed and its projects move back out to the top level. The projects themselves aren't deleted.")
+            }
+    }
+}
+
 private struct ProjectRowActions: ViewModifier {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     @Binding var removing: Project?
     @Binding var duplicating: Project?
+    // Set to present the "new folder" alert that moves this project into it.
+    @Binding var newFolderForProject: Project?
+
+    // The folder this project currently sits in (nil = top level), so the menu can
+    // offer "No folder" and skip the folder it's already in.
+    private var currentFolderId: String? {
+        model.groups.first(where: { $0.members.contains(project.name) })?.id
+    }
 
     func body(content: Content) -> some View {
         content
@@ -489,7 +649,17 @@ private struct ProjectRowActions: ViewModifier {
                 }
             }
             .contextMenu {
+                if !project.running, !project.profiles.isEmpty {
+                    Menu {
+                        ForEach(project.profiles) { p in
+                            Button(p.name) { model.startProject(project, profile: p.name) }
+                        }
+                    } label: {
+                        Label("Start with profile", systemImage: "play.circle")
+                    }
+                }
                 if !project.isRemote {
+                    moveToFolderMenu
                     Button { duplicating = project } label: {
                         Label("Duplicate", systemImage: "plus.square.on.square")
                     }
@@ -501,15 +671,38 @@ private struct ProjectRowActions: ViewModifier {
                 }
             }
     }
+
+    private var moveToFolderMenu: some View {
+        Menu {
+            ForEach(model.groups) { folder in
+                if folder.id != currentFolderId {
+                    Button(folder.name) { model.moveProject(project, toFolder: folder.name) }
+                }
+            }
+            Button { newFolderForProject = project } label: {
+                Label("New folder…", systemImage: "folder.badge.plus")
+            }
+            if currentFolderId != nil {
+                Divider()
+                Button { model.moveProject(project, toFolder: nil) } label: {
+                    Label("No folder", systemImage: "folder.badge.minus")
+                }
+            }
+        } label: {
+            Label("Move to folder", systemImage: "folder")
+        }
+    }
 }
 
 private extension View {
     func projectRowActions(
         _ project: Project,
         removing: Binding<Project?>,
-        duplicating: Binding<Project?>
+        duplicating: Binding<Project?>,
+        newFolderForProject: Binding<Project?>
     ) -> some View {
-        modifier(ProjectRowActions(project: project, removing: removing, duplicating: duplicating))
+        modifier(ProjectRowActions(project: project, removing: removing,
+                                   duplicating: duplicating, newFolderForProject: newFolderForProject))
     }
 }
 
@@ -683,7 +876,7 @@ private final class KeyboardObserver: ObservableObject {
 /// in and posts keystrokes back — the same emulator the desktop uses, so rendering
 /// matches and scrollback works. The nav bar floats translucently over the top.
 struct TerminalScreen: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let term: TerminalInfo
     let project: Project
     @StateObject private var keyboard = KeyboardObserver()
@@ -713,7 +906,7 @@ struct TerminalScreen: View {
                 WebTerminalView(term: term, onFirstContent: {
                     withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
                 }, fontSize: fontSize, theme: theme)
-                    .environmentObject(model)
+                    .environment(model)
                 if controlled && !hasContent {
                     TerminalLoadingView(background: theme.backgroundColor)
                 }
@@ -739,7 +932,7 @@ struct TerminalScreen: View {
             if controlled {
                 TerminalComposer(store: model.composerStore(for: term.id, project: term.project, label: term.label),
                                  terminalBackground: theme.backgroundColor)
-                    .environmentObject(model)
+                    .environment(model)
             }
         }
             .padding(.bottom, keyboard.height)
@@ -826,6 +1019,7 @@ struct ControlHandoffView: View {
                 Text("This terminal is shown and controlled elsewhere.")
             } actions: {
                 Button {
+                    Haptics.tap()
                     taking = true
                     onTakeControl()
                 } label: {
@@ -837,5 +1031,13 @@ struct ControlHandoffView: View {
             }
         }
         .environment(\.colorScheme, .dark)
+        // The view is removed on a successful claim; if the claim fails or is
+        // dropped, recover so the button becomes tappable again instead of
+        // spinning "Taking control…" forever.
+        .task(id: taking) {
+            guard taking else { return }
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            if !Task.isCancelled { taking = false }
+        }
     }
 }

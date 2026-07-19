@@ -32,7 +32,8 @@ private func automationThreads(_ entries: [AutomationHistoryEntry]) -> [Automati
 }
 
 struct AutomationsView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
+    @State private var editor: AutomationEditorContext?
 
     private var groups: [(String, [AutomationJob])] {
         Dictionary(grouping: model.automations, by: \.project)
@@ -49,6 +50,13 @@ struct AutomationsView: View {
                             AutomationDetailView(project: job.project, jobId: job.id)
                         } label: {
                             AutomationRow(job: job)
+                        }
+                        .contextMenu {
+                            Button {
+                                editor = .edit(job)
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             if job.running {
@@ -81,16 +89,32 @@ struct AutomationsView: View {
         }
         .navigationTitle("Automations")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    editor = .create
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("New automation")
+            }
+        }
+        .sheet(item: $editor) { context in
+            AutomationEditorSheet(context: context)
+                .environment(model)
+        }
         .refreshable { await model.refreshAutomations() }
         .overlay {
             if !model.automationsLoaded {
                 ProgressView("Loading automations…")
             } else if model.automations.isEmpty {
-                ContentUnavailableView(
-                    "No automations",
-                    systemImage: "clock.arrow.circlepath",
-                    description: Text("Create an automation in lpm on your Mac, then manage it here.")
-                )
+                ContentUnavailableView {
+                    Label("No automations", systemImage: "clock.arrow.circlepath")
+                } description: {
+                    Text("Scheduled tasks that check, duplicate, and run agents on their own.")
+                } actions: {
+                    Button("New automation") { editor = .create }
+                }
             }
         }
         .task { model.loadAutomations() }
@@ -153,9 +177,11 @@ private struct AutomationRow: View {
 }
 
 struct AutomationDetailView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: String
     let jobId: String
+
+    @State private var editor: AutomationEditorContext?
 
     private var key: String { model.automationKey(project, jobId) }
     private var job: AutomationJob? { model.automations.first { $0.project == project && $0.id == jobId } }
@@ -205,6 +231,12 @@ struct AutomationDetailView: View {
                         set: { model.setAutomationEnabled(project: project, jobId: jobId, enabled: $0) }
                     ))
                     .disabled(!job.valid || model.automationPending.contains(key))
+
+                    Button {
+                        editor = .edit(job)
+                    } label: {
+                        Label("Edit job", systemImage: "pencil")
+                    }
                 }
 
                 Section("Schedule") {
@@ -256,7 +288,24 @@ struct AutomationDetailView: View {
         }
         .navigationTitle(job?.displayName ?? "Automation")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let job {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        editor = .edit(job)
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .accessibilityLabel("Edit automation")
+                }
+            }
+        }
+        .sheet(item: $editor) { context in
+            AutomationEditorSheet(context: context)
+                .environment(model)
+        }
         .task {
+            model.loadAutomations()
             model.loadAutomationHistory(project: project, jobId: jobId)
             model.loadAutomationLiveOutput(project: project, jobId: jobId)
         }
@@ -306,7 +355,7 @@ private struct AutomationHistoryRow: View {
 }
 
 private struct AutomationConversationView: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: String
     let jobId: String
     let rootAt: Int

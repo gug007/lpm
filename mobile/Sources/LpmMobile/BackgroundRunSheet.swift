@@ -5,7 +5,7 @@ import SwiftUI
 /// streaming log, a status pill, and a Stop control — the mobile counterpart of the
 /// desktop's background-run toast.
 struct BackgroundRunSheet: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let run: BackgroundRunInfo
 

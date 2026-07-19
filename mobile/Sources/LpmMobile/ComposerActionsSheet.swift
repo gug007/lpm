@@ -6,7 +6,7 @@ import SwiftUI
 /// `transform` on the store; the composer shows the in-progress lock and, for N>1,
 /// the variants picker.
 struct ComposerActionsSheet: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     @ObservedObject var store: ComposerStore
     @Environment(\.dismiss) private var dismiss
 

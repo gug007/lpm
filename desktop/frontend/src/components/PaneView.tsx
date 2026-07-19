@@ -528,7 +528,7 @@ function PaneViewImpl(props: PaneViewProps) {
                   <BrowserPane id={t.id} active={visible && isActive} />
                 )
               ) : t.kind === "review" ? (
-                <ErrorBoundary resetKey={t.id}>
+                <ErrorBoundary resetKey={t.id} scope="diff-review">
                   <DiffReviewPane
                     projectRoot={interactiveCwd}
                     active={visible && isActive}

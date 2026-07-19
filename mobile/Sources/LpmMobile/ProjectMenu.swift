@@ -5,7 +5,7 @@ import UIKit
 /// menu holds Start/Stop, the run-actions submenu, and (when present) profiles.
 /// Per-service display and toggles live in the list's Services section.
 struct ProjectRunControl: View {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     let pending: Bool
     let actions: [Action]
@@ -17,16 +17,17 @@ struct ProjectRunControl: View {
     let onSwitchBranch: () -> Void
     let onCreatePr: () -> Void
     let onDiscard: () -> Void
+    let onRename: () -> Void
     let onTerminalSettings: () -> Void
 
     private var running: Bool { project.running }
 
     private var name: String { project.name }
-    private var pulling: Bool { model.gitPulling.contains(name) }
-    private var pushing: Bool { model.gitPushing.contains(name) }
-    private var fetching: Bool { model.gitFetching.contains(name) }
-    private var branch: String { model.gitSnapshots[name]?.branch ?? "" }
-    private var ghCli: Bool { model.gitSnapshots[name]?.ghCli ?? false }
+    private var pulling: Bool { model.git.pulling.contains(name) }
+    private var pushing: Bool { model.git.pushing.contains(name) }
+    private var fetching: Bool { model.git.fetching.contains(name) }
+    private var branch: String { model.git.snapshots[name]?.branch ?? "" }
+    private var ghCli: Bool { model.git.snapshots[name]?.ghCli ?? false }
 
     var body: some View {
         Menu {
@@ -65,6 +66,9 @@ struct ProjectRunControl: View {
             }
 
             Divider()
+            Button(action: onRename) {
+                Label("Rename…", systemImage: "pencil")
+            }
             Button(action: onTerminalSettings) {
                 Label("Terminal Settings", systemImage: "textformat.size")
             }
@@ -85,11 +89,11 @@ struct ProjectRunControl: View {
     /// menu, one level up.
     private var gitMenu: some View {
         Menu {
-            Button { model.gitPull(name) } label: { Label("Pull", systemImage: "arrow.down") }
+            Button { model.git.pull(name) } label: { Label("Pull", systemImage: "arrow.down") }
                 .disabled(pulling)
-            Button { model.gitPush(name) } label: { Label("Push", systemImage: "arrow.up") }
+            Button { model.git.push(name) } label: { Label("Push", systemImage: "arrow.up") }
                 .disabled(pushing)
-            Button { model.gitFetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
+            Button { model.git.fetch(name) } label: { Label("Fetch", systemImage: "arrow.triangle.2.circlepath") }
                 .disabled(fetching)
 
             Divider()
@@ -142,7 +146,7 @@ struct ProjectRunControl: View {
 /// presentation its items drive (review push, git sheets, discard dialog,
 /// action run flow, background-run sheet).
 struct ProjectMenuHost: ViewModifier {
-    @EnvironmentObject var model: AppModel
+    @Environment(AppModel.self) private var model
     let project: Project
     // Set only by TerminalScreen: run a terminal action and switch to the terminal
     // it spawns. nil on other screens (ProjectDetail keeps its skeleton-row flow).
@@ -159,12 +163,15 @@ struct ProjectMenuHost: ViewModifier {
     @State private var pendingInputValues: [String: String] = [:]
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var isVisible = false
+    // Rename flow: the text field's draft, seeded from the current label.
+    @State private var renaming = false
+    @State private var renameText = ""
 
     private var actions: [Action] { project.actions.flatMap { $0.runnableLeaves } }
     // Changed-file count for the Review Changes menu item; nil until the snapshot
     // loads (or when the project isn't a git repo).
     private var changedCount: Int? {
-        guard let s = model.gitSnapshots[project.name], s.isRepo else { return nil }
+        guard let s = model.git.snapshots[project.name], s.isRepo else { return nil }
         return s.files.count
     }
     private var pending: Bool { model.pendingRun[project.name] != nil }
@@ -173,17 +180,17 @@ struct ProjectMenuHost: ViewModifier {
         content
             .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
             .sheet(isPresented: $showBranchSheet) {
-                GitBranchSheet(project: project).environmentObject(model)
+                GitBranchSheet(project: project).environment(model)
             }
             .sheet(isPresented: $showPrSheet) {
-                GitPrSheet(project: project).environmentObject(model)
+                GitPrSheet(project: project).environment(model)
             }
             .confirmationDialog(
                 "Discard all changes?",
                 isPresented: $confirmingDiscard,
                 titleVisibility: .visible
             ) {
-                Button("Discard changes", role: .destructive) { model.gitDiscardAll(project.name) }
+                Button("Discard changes", role: .destructive) { Haptics.warning(); model.git.discardAll(project.name) }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This permanently discards every uncommitted change in this project. This can't be undone.")
@@ -195,13 +202,13 @@ struct ProjectMenuHost: ViewModifier {
             .alert(
                 "Something went wrong",
                 isPresented: Binding(
-                    get: { isVisible && !showChanges && model.gitOpError[project.name] != nil },
-                    set: { if !$0 { model.gitOpError[project.name] = nil } }
+                    get: { isVisible && !showChanges && model.git.opError[project.name] != nil },
+                    set: { if !$0 { model.git.opError[project.name] = nil } }
                 )
             ) {
-                Button("OK", role: .cancel) { model.gitOpError[project.name] = nil }
+                Button("OK", role: .cancel) { model.git.opError[project.name] = nil }
             } message: {
-                Text(model.gitOpError[project.name] ?? "")
+                Text(model.git.opError[project.name] ?? "")
             }
             .sheet(item: $runInputsFor) { action in
                 ActionInputsSheet(action: action) { values in afterInputs(action, values) }
@@ -218,9 +225,16 @@ struct ProjectMenuHost: ViewModifier {
                 Button("Cancel", role: .cancel) {}
             }
             .sheet(item: $activeBgRun) { run in
-                BackgroundRunSheet(run: run).environmentObject(model)
+                BackgroundRunSheet(run: run).environment(model)
             }
             .sheet(isPresented: $showTerminalSettings) { TerminalSettingsSheet() }
+            .alert("Rename project", isPresented: $renaming) {
+                TextField("Project name", text: $renameText)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") { model.renameProject(project, name: renameText) }
+            } message: {
+                Text("Set a display name for this project. Leave it blank to use the project id.")
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProjectRunControl(project: project,
@@ -234,13 +248,14 @@ struct ProjectMenuHost: ViewModifier {
                                       onSwitchBranch: { showBranchSheet = true },
                                       onCreatePr: { showPrSheet = true },
                                       onDiscard: { confirmingDiscard = true },
+                                      onRename: { renameText = project.label; renaming = true },
                                       onTerminalSettings: { showTerminalSettings = true })
-                        .environmentObject(model)
+                        .environment(model)
                 }
             }
             .onAppear {
                 isVisible = true
-                model.loadGit(project.name)
+                model.git.load(project.name)
             }
             .onDisappear { isVisible = false }
     }

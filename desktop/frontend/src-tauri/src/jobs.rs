@@ -2755,6 +2755,144 @@ pub fn clear_job_state_global(
     Ok(())
 }
 
+// ---- remote authoring (create / edit / delete a job's config) ---------------
+//
+// The desktop authors jobs by editing the layer's YAML doc on the frontend
+// (jobsConfig.ts over the ReadConfig/SaveConfig bridge). The phone has no such
+// bridge, so these mirror that read/modify/write against the same files the
+// scheduler reads fresh every tick — a phone edit lands in the same file a
+// desktop edit would, and is picked up on the next tick with no reschedule.
+// serde_yaml doesn't preserve comments the way the frontend's `yaml` lib does,
+// so a phone-authored write reflows the file; the data (every other key, nested
+// order) is preserved.
+
+/// The config file a job of `source` lives in, matching jobsConfig.ts's layer
+/// selection: the project registry, the repo `.lpm.yml`, or `~/.lpm/global.yml`.
+fn job_config_path(source: &str, project: &str) -> Result<PathBuf, String> {
+    match source {
+        SOURCE_GLOBAL => Ok(config::global_path()),
+        SOURCE_REPO => config::repo_path_for_project(project),
+        _ => Ok(config::project_path(project)),
+    }
+}
+
+/// The layer file parsed as a YAML mapping, or an empty mapping when it is
+/// missing / unreadable / not a mapping (a fresh registry, say).
+fn read_yaml_doc(path: &Path) -> serde_yaml::Value {
+    std::fs::read(path)
+        .ok()
+        .and_then(|b| serde_yaml::from_slice::<serde_yaml::Value>(&b).ok())
+        .filter(serde_yaml::Value::is_mapping)
+        .unwrap_or_else(|| serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+}
+
+/// Strict variant for read-modify-write: a missing file is a fresh mapping, but
+/// an existing file that fails to read or parse aborts, so a transiently
+/// malformed config is never silently replaced by just the jobs block.
+fn read_yaml_doc_strict(path: &Path) -> Result<serde_yaml::Value, String> {
+    match std::fs::read(path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+        }
+        Err(e) => Err(e.to_string()),
+        Ok(b) => {
+            let doc: serde_yaml::Value =
+                serde_yaml::from_slice(&b).map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
+            if doc.is_null() {
+                Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+            } else if doc.is_mapping() {
+                Ok(doc)
+            } else {
+                Err("The config file isn't valid.".into())
+            }
+        }
+    }
+}
+
+fn write_yaml_doc(path: &Path, doc: &serde_yaml::Value) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let out = serde_yaml::to_string(doc).map_err(|e| e.to_string())?;
+    config::write_config_file(path, &out)
+}
+
+/// The raw YAML body of one job (label/emoji/schedule/check/duplicate/run/
+/// projects) as JSON — the mobile analogue of the frontend's readJobPayloadFrom,
+/// so the phone editor can seed an edit from the exact stored config.
+pub fn read_job_body(project: String, source: String, job_id: String) -> Result<Value, String> {
+    let path = job_config_path(&source, &project)?;
+    let doc = read_yaml_doc(&path);
+    match doc.get("jobs").and_then(|j| j.get(job_id.as_str())) {
+        Some(v) => serde_json::to_value(v).map_err(|e| e.to_string()),
+        None => Err("This job no longer exists.".into()),
+    }
+}
+
+/// Create or overwrite a job's `jobs.<id>` mapping in its layer file. `job` is
+/// the full body the phone built (the same shape buildJobPayload writes). The
+/// scheduler validates it on the next read, so an unrunnable job simply shows as
+/// invalid in the list rather than being rejected here.
+pub fn save_job_body(
+    source: String,
+    project: String,
+    id: String,
+    job: Value,
+) -> Result<(), String> {
+    let id = id.trim().to_string();
+    if id.is_empty() {
+        return Err("The job needs a name.".into());
+    }
+    let body: serde_yaml::Value = serde_yaml::to_value(&job).map_err(|e| e.to_string())?;
+    if !body.is_mapping() {
+        return Err("The job config is malformed.".into());
+    }
+    let path = job_config_path(&source, &project)?;
+    let mut doc = read_yaml_doc_strict(&path)?;
+    let map = doc
+        .as_mapping_mut()
+        .ok_or_else(|| "The config file isn't valid.".to_string())?;
+    if !map.get("jobs").map(serde_yaml::Value::is_mapping).unwrap_or(false) {
+        map.insert(
+            "jobs".into(),
+            serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
+        );
+    }
+    let jobs = map
+        .get_mut("jobs")
+        .and_then(serde_yaml::Value::as_mapping_mut)
+        .ok_or_else(|| "The config file isn't valid.".to_string())?;
+    jobs.insert(id.as_str().into(), body);
+    write_yaml_doc(&path, &doc)
+}
+
+/// Remove a job's config from its layer file and forget its saved state, the
+/// pair the desktop's delete does (deleteJob + ClearJobState).
+pub fn delete_job_body(
+    app: AppHandle,
+    source: String,
+    project: String,
+    id: String,
+    delete_copies: bool,
+) -> Result<(), String> {
+    let path = job_config_path(&source, &project)?;
+    let mut doc = read_yaml_doc_strict(&path)?;
+    if let Some(jobs) = doc.get_mut("jobs").and_then(serde_yaml::Value::as_mapping_mut) {
+        jobs.remove(id.as_str());
+        if jobs.is_empty() {
+            if let Some(map) = doc.as_mapping_mut() {
+                map.remove("jobs");
+            }
+        }
+    }
+    write_yaml_doc(&path, &doc)?;
+    if source == SOURCE_GLOBAL {
+        clear_job_state_global(app, id, delete_copies)
+    } else {
+        clear_job_state(app, project, id, delete_copies)
+    }
+}
+
 #[tauri::command(async)]
 pub fn set_job_enabled(project: String, job_id: String, enabled: bool) -> Result<(), String> {
     with_state(|f| {

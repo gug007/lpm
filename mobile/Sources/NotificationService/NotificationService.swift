@@ -37,6 +37,11 @@ final class NotificationService: UNNotificationServiceExtension {
         mutable.threadIdentifier = project
         var info = mutable.userInfo
         info["project"] = project
+        for key in ["target", "terminalId", "automationId"] {
+            if let value = payload[key] as? String, !value.isEmpty {
+                info[key] = value
+            }
+        }
         // Carry the status entry key so a later background clear / foreground
         // reconcile can find and withdraw exactly this notification.
         info["statusKey"] = statusKey
