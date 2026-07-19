@@ -67,10 +67,10 @@ targets:
         # notifications (agent status cleared on the Mac).
         UIBackgroundModes:
           - remote-notification
-        # Export compliance: the transport is plaintext ws:// (privacy comes from
-        # Tailscale, not the app), and the only crypto is OS-provided — the Keychain
-        # plus CryptoKit AES-GCM used to decrypt push-notification payloads. Both are
-        # exempt, so this stays false and App Store Connect stops prompting for
+        # Export compliance: all crypto here is exempt — standard TLS (wss://) for
+        # transport, plus OS-provided primitives (the Keychain and CryptoKit: SHA-256
+        # cert pinning and AES-GCM push-payload decryption). Standard/exempt
+        # encryption keeps this false, so App Store Connect stops prompting for
         # export-compliance docs on every build.
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
@@ -90,14 +90,10 @@ targets:
         NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
         NSBonjourServices:
           - _lpm._tcp
-        # The desktop server is plaintext ws:// (encryption comes from running over
-        # a Tailscale tailnet). ATS blocks cleartext by default and
-        # NSAllowsLocalNetworking only exempts local/private addresses — Tailscale's
-        # CGNAT range (100.64.0.0/10) doesn't qualify, so connecting over the tailnet
-        # fails with -1022. NSAllowsArbitraryLoads covers both; it must stand alone,
-        # because iOS ignores it whenever NSAllowsLocalNetworking is also present.
-        NSAppTransportSecurity:
-          NSAllowsArbitraryLoads: true
+        # No NSAppTransportSecurity exception is needed: the desktop server speaks
+        # wss:// with a self-signed cert, and the app's URLSession delegate does its
+        # own certificate-pinning trust evaluation. A custom server-trust handler
+        # satisfies ATS on its own, so cleartext exceptions can stay out entirely.
 
   # Notification service extension: decrypts a push payload on-device and rewrites
   # the notification with the real project/terminal/status. Its bundle id must be

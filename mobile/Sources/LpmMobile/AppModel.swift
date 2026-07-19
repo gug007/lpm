@@ -469,10 +469,11 @@ final class AppModel {
     /// `handlePaired`), which is also where a re-pair of an already-saved Mac is
     /// deduped by serverId. Tears down any current session first, so pairing a new
     /// Mac cleanly replaces the live one.
-    func pair(hosts: [String], port: Int, code: String) {
+    func pair(hosts: [String], port: Int, code: String, fingerprint: String? = nil) {
         resetSessionState()
         pendingPairHosts = hosts
         pendingPairPort = UInt16(clamping: port)
+        pendingPairFingerprint = fingerprint
         attemptHosts = hosts
         connection = .connecting
         Task { @MainActor in
@@ -486,8 +487,12 @@ final class AppModel {
             }
             client?.disconnect()
             currentHost = host
+            // No stored pin during pairing; instead verify the observed cert against
+            // the fingerprint the QR advertised (if any). The observed fingerprint is
+            // pinned once the pairing handshake succeeds (handlePaired).
             let c = LpmClient(endpoint: .init(host: host, port: port),
-                              credential: nil, deviceName: UIDevice.current.name)
+                              credential: nil, deviceName: UIDevice.current.name,
+                              expectedFingerprint: fingerprint)
             wire(c)
             client = c
             c.pair(host: host, port: port, code: code)
@@ -638,6 +643,13 @@ final class AppModel {
             localId = record.localId
         }
         Keychain.save(deviceId: deviceId, token: token, for: localId)
+        // Pairing (re)establishes trust — pin the cert the handshake just accepted
+        // (it already matched the QR's `f` when one was advertised). Overwrites any
+        // prior pin so re-pairing a Mac whose cert changed adopts the new identity.
+        if let fp = client?.observedFingerprint, !fp.isEmpty {
+            Keychain.savePin(fp, for: localId)
+        }
+        pendingPairFingerprint = nil
         activeMacId = localId
         persistMacs()
         addingMac = false
@@ -659,6 +671,26 @@ final class AppModel {
         if changed { persistMacs() }
     }
 
+    /// Trust-on-first-use: after a reconnect reaches `ready`, pin the observed
+    /// leaf-cert fingerprint if this Mac has no pin yet (a fresh pair whose pin was
+    /// already written by handlePaired is a no-op; a Mac paired before TLS gets
+    /// pinned here on its first wss:// connect). Never overwrites an existing pin —
+    /// a changed cert is caught by the pin check, not silently re-pinned.
+    private func persistObservedPinIfNeeded() {
+        guard let id = activeMacId, let fp = client?.observedFingerprint, !fp.isEmpty else { return }
+        if Keychain.loadPin(for: id) == nil { Keychain.savePin(fp, for: id) }
+    }
+
+    /// Accept a changed Mac identity (the "Trust New Identity" action): drop the
+    /// stored pin so the next connect re-pins the current cert via TOFU, then
+    /// reconnect. Only reachable from the explicit mismatch prompt — never silent.
+    func trustNewIdentity() {
+        guard let id = activeMacId else { return }
+        Keychain.deletePin(for: id)
+        identityMismatch = false
+        if let cred = activeCredential() { connectBest(credential: cred) }
+    }
+
     /// Tear down the live connection to the current Mac and clear every cached
     /// per-session value, so switching Macs (or removing one) starts clean. Does
     /// NOT touch the saved-Mac records or their Keychain credentials.
@@ -668,6 +700,7 @@ final class AppModel {
         currentHost = nil
         stopBrowsing()
         recoveryStatus = nil
+        identityMismatch = false
 
         connection = .idle
         projects = []
@@ -1410,6 +1443,12 @@ final class AppModel {
         if msg == "pairing rejected" {
             return .failed("Pairing code rejected. On your Mac, tap Add device for a fresh code, then scan again.")
         }
+        if msg == LpmClient.identityChangedError {
+            return .failed("This Mac's security identity has changed since you paired. Trust the new identity to reconnect, or re-pair from your Mac.")
+        }
+        if msg == LpmClient.pairMismatchError {
+            return .failed("This Mac's security identity doesn't match its QR code. The code may be stale — on your Mac, tap Add device for a fresh code, then scan again.")
+        }
         return s
     }
 
@@ -1481,6 +1520,10 @@ final class AppModel {
     private func wireConnection(_ c: LpmClient) {
         c.onState = { [weak self] s in
             guard let self else { return }
+            // A pinned-identity mismatch on reconnect (not a QR pairing abort, which
+            // the pairing screen surfaces): flag it so the UI can prompt to trust the
+            // new identity. Any other state clears the flag.
+            self.identityMismatch = { if case .failed(LpmClient.identityChangedError) = s { return true }; return false }()
             self.connection = self.userFacing(s)
             self.repickHostIfStale(s, from: c)
             self.startRecoveryIfStale(s, from: c)
@@ -1493,6 +1536,9 @@ final class AppModel {
                 // The link is back — a recovery browse (if any) has done its job.
                 self.stopBrowsing()
                 self.recoveryStatus = nil
+                // Trust-on-first-use: pin the cert this connection presented, if this
+                // Mac isn't pinned yet (migration / first wss:// connect).
+                self.persistObservedPinIfNeeded()
                 c.requestProjects()
                 c.requestSidebar()
                 c.requestDuplicateDefaults()

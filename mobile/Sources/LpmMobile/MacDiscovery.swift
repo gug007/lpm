@@ -138,7 +138,7 @@ final class MacDiscovery {
 
     /// Pull the concrete host + port out of a resolved endpoint. Interface zone
     /// ids (`%en0`) — attached to both IPv4 and IPv6 addresses — are stripped so
-    /// the address forms a plain `ws://host:port/`.
+    /// the address forms a plain `wss://host:port/`.
     private nonisolated static func hostPort(_ endpoint: NWEndpoint?) -> (host: String, port: UInt16)? {
         guard case .hostPort(let host, let port) = endpoint else { return nil }
         let p = port.rawValue

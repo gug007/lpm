@@ -282,7 +282,8 @@ struct PairingView: View {
                 port = String(payload.port)
                 code = payload.code
                 scannedHosts = payload.hosts
-                model.pair(hosts: payload.hosts, port: payload.port, code: payload.code)
+                model.pair(hosts: payload.hosts, port: payload.port, code: payload.code,
+                           fingerprint: payload.fingerprint)
             }
         }
     }
@@ -518,6 +519,15 @@ struct ProjectsView: View {
             Button("OK", role: .cancel) { model.actionError = nil }
         } message: {
             Text(model.actionError ?? "")
+        }
+        .alert(
+            "This Mac's identity has changed",
+            isPresented: Binding(get: { model.identityMismatch }, set: { if !$0 { model.identityMismatch = false } })
+        ) {
+            Button("Trust New Identity") { model.trustNewIdentity() }
+            Button("Cancel", role: .cancel) { model.identityMismatch = false }
+        } message: {
+            Text("The security identity of this Mac differs from the one you paired with. This is expected if lpm was reinstalled on your Mac — but if you weren't expecting it, someone may be impersonating your Mac. Only trust the new identity if you recognize the change.")
         }
         .sheet(item: $duplicating) { p in
             DuplicateOptionsView(project: p, defaults: model.duplicateDefaults) { options in
