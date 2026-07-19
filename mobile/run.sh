@@ -22,13 +22,20 @@ if [ -z "$TEAM" ]; then
   exit 1
 fi
 
-# First connected physical device (its UDID), unless overridden.
-DEVICE_ID="${DEVICE_ID:-$(xcrun devicectl list devices 2>/dev/null \
-  | grep -i connected \
-  | grep -oiE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' \
-  | head -1)}"
+# First connected physical device (its UDID), else a paired one devicectl can
+# reach over the network, unless overridden. The `|| true` guards matter: grep
+# exits 1 on no match, and under `set -euo pipefail` that would kill the script
+# right here, before the friendly message below ever prints.
+UDID_RE='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+DEVICES="$(xcrun devicectl list devices 2>/dev/null || true)"
+DEVICE_ID="${DEVICE_ID:-$(printf '%s\n' "$DEVICES" \
+  | grep -i connected | grep -oiE "$UDID_RE" | head -1 || true)}"
 if [ -z "$DEVICE_ID" ]; then
-  echo "No connected iPhone found. Plug one in, unlock it, and trust this Mac." >&2
+  DEVICE_ID=$(printf '%s\n' "$DEVICES" \
+    | grep -i 'available' | grep -oiE "$UDID_RE" | head -1 || true)
+fi
+if [ -z "$DEVICE_ID" ]; then
+  echo "No iPhone found. Plug one in (or pair it over Wi-Fi), unlock it, and trust this Mac." >&2
   exit 1
 fi
 
