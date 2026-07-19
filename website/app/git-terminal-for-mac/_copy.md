@@ -11,8 +11,8 @@ Intent: git-workflow-first — Mac developers who live in git all day (branching
 ## 1. Metadata
 
 ```ts
-title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster"
-// 58 chars
+title: "Git Terminal for Mac with Dev Servers in One Window"
+// 51 chars
 
 description: "lpm is the git terminal for Mac developers — run git workflows alongside your dev servers in one native window, watch CI logs, and never lose branch context again."
 // 163 chars

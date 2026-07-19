@@ -18,7 +18,7 @@ import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster",
+  title: "Git Terminal for Mac with Dev Servers in One Window",
   description:
     "lpm is the git terminal for Mac developers — run git workflows alongside your dev servers in one native window, watch CI logs, and never lose branch context again.",
   keywords: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     canonical: GIT_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster",
+    title: "Git Terminal for Mac with Dev Servers in One Window",
     description:
       "Run every git workflow alongside your dev servers in one native Mac window. No context switching between a GUI git client and a separate terminal.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster",
+    title: "Git Terminal for Mac with Dev Servers in One Window",
     description:
       "The Mac terminal that keeps your git workflow and your dev servers in the same window. Branch, rebase, watch CI — without ever leaving lpm.",
   },
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "Git Terminal for Mac — Branch, Rebase, and Ship Faster",
+    title: "Git Terminal for Mac with Dev Servers in One Window",
     description:
       "lpm is the git terminal for Mac developers — run git workflows alongside your dev servers in one native window, watch CI logs, and never lose branch context again.",
     path: GIT_TERMINAL_MAC_PATH,

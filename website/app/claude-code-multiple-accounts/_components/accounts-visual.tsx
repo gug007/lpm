@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { useInView } from "@/components/config/playground/hooks";
 
 const ORANGE = "text-[#d97757]";
 const BOLD = "font-semibold text-gray-100";
@@ -12,6 +13,10 @@ const BOLD_DIM = "font-semibold text-gray-400";
 const CLAUDE_GREEN = "text-[#4eba65]";
 const PROMPT_BUBBLE = "bg-[#373737]";
 const PROMPT_CHAR = "text-[#707070]";
+
+const WORK_PROMPT = "tighten the login rate limiter";
+const AMBER_CHIP = "border-amber-500/30 bg-amber-500/[0.08] text-amber-300/90";
+const TEAL_CHIP = "border-teal-500/30 bg-teal-500/[0.08] text-teal-300/90";
 
 type Span = { t: string; c?: string };
 type Line = { spans: Span[]; gap?: boolean; bubble?: string };
@@ -34,14 +39,8 @@ type Pane = {
   lines: Line[];
 };
 
-const WORK_BADGE: Badge = {
-  label: "Work",
-  className: "border-amber-500/30 bg-amber-500/[0.08] text-amber-300/90",
-};
-const PERSONAL_BADGE: Badge = {
-  label: "Personal",
-  className: "border-teal-500/30 bg-teal-500/[0.08] text-teal-300/90",
-};
+const WORK_BADGE: Badge = { label: "Work", className: AMBER_CHIP };
+const PERSONAL_BADGE: Badge = { label: "Personal", className: TEAL_CHIP };
 
 const PONDERING = (
   <>
@@ -66,7 +65,7 @@ const PANES: Pane[] = [
       line(s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code", BOLD)),
       line(s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 · company seat", "text-gray-400")),
       line(s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/client-app", "text-gray-400")),
-      prompt("tighten the login rate limiter"),
+      prompt(WORK_PROMPT),
       gap(s("⏺ ", CLAUDE_GREEN), s("Read", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
       line(s("  ⎿  Read ", DIM), s("84", BOLD_DIM), s(" lines", DIM)),
       gap(s("⏺ ", CLAUDE_GREEN), s("Update", BOLD), s("(src/auth/rateLimiter.ts)", TEXT)),
@@ -97,37 +96,21 @@ const PANES: Pane[] = [
   },
 ];
 
-const SIDEBAR = [
-  { name: "client-app", running: true, active: true },
-  { name: "side-project", running: true, active: true },
+const SIDEBAR: {
+  name: string;
+  running: boolean;
+  active: boolean;
+  chip?: { label: string; className: string };
+}[] = [
+  { name: "client-app", running: true, active: true, chip: { label: "W", className: AMBER_CHIP } },
+  { name: "side-project", running: true, active: true, chip: { label: "P", className: TEAL_CHIP } },
   { name: "docs-site", running: false, active: false },
 ];
-
-type Frame = [number, number, number];
 
 const T0 = PANES[0].lines.length;
 const T1 = PANES[1].lines.length;
 
-const FRAMES: Frame[] = [
-  [3, 3, 520],
-  [4, 3, 700],
-  [4, 4, 640],
-  [5, 4, 620],
-  [5, 5, 600],
-  [6, 5, 500],
-  [6, 6, 520],
-  [7, 6, 640],
-  [7, 7, 600],
-  [8, 7, 480],
-  [8, 8, 500],
-  [9, 8, 640],
-  [9, 9, 620],
-  [10, 9, 520],
-  [10, 10, 600],
-  [T0, 10, 700],
-  [T0, T1, 680],
-  [T0, T1, 2200],
-];
+type Step = { wait: number; apply: () => void };
 
 function TerminalLine({ line }: { line: Line }) {
   const spans = line.spans.map((span, i) => (
@@ -175,7 +158,14 @@ function Sidebar() {
                 : "border border-[#454545]"
             }`}
           />
-          <span className="truncate">{p.name}</span>
+          <span className="min-w-0 flex-1 truncate">{p.name}</span>
+          {p.chip && (
+            <span
+              className={`shrink-0 rounded border px-1 text-[7px] font-semibold leading-tight ${p.chip.className}`}
+            >
+              {p.chip.label}
+            </span>
+          )}
         </span>
       ))}
     </div>
@@ -186,17 +176,20 @@ function TerminalPane({
   pane,
   revealed,
   reduced,
+  typed,
   className,
 }: {
   pane: Pane;
   revealed: number;
   reduced: boolean;
+  typed?: string | null;
   className: string;
 }) {
   const total = pane.lines.length;
   const count = reduced ? total : revealed;
   const visible = pane.lines.slice(0, count);
-  const streaming = !reduced && count > pane.preamble && count < total;
+  const isTyping = !reduced && typed != null;
+  const streaming = !reduced && !isTyping && count > pane.preamble && count < total;
   return (
     <div className={`flex min-w-0 flex-col bg-[#1a1a1a] ${className}`}>
       <div className="flex items-center gap-2 border-b border-[#2d2d2d] bg-[#161616] px-3 py-2">
@@ -213,10 +206,20 @@ function TerminalPane({
           running
         </span>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 py-2.5 font-mono leading-5 [mask-image:linear-gradient(to_right,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_92%,transparent)]">
+      <div className="relative flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 py-2.5 font-mono leading-5 [mask-image:linear-gradient(to_right,#000_92%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_92%,transparent)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-7 bg-gradient-to-b from-[#1a1a1a] to-transparent" />
         {visible.map((l, i) => (
           <TerminalLine key={i} line={l} />
         ))}
+        {isTyping && (
+          <div className="mt-3 whitespace-pre text-[9px] sm:text-[10px]">
+            <span className={PROMPT_BUBBLE}>
+              <span className={PROMPT_CHAR}>❯ </span>
+              <span className={TEXT}>{typed}</span>
+              <span className="inline-block h-3 w-1.5 bg-gray-300 align-middle [animation:pd-blink_1s_steps(1)_infinite]" />
+            </span>
+          </div>
+        )}
         {streaming && (
           <div className="mt-3 whitespace-pre text-[9px] sm:text-[10px]">
             {pane.status}
@@ -228,7 +231,9 @@ function TerminalPane({
 }
 
 export function AccountsVisual() {
+  const { ref, inView } = useInView<HTMLDivElement>("200px 0px");
   const [revealed, setRevealed] = useState<[number, number]>([3, 3]);
+  const [typed, setTyped] = useState<string | null>(null);
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
@@ -240,20 +245,91 @@ export function AccountsVisual() {
   }, []);
 
   useEffect(() => {
-    if (reduced) return;
+    if (reduced || !inView) return;
+
+    const steps: Step[] = [];
+    let w = 3;
+    let p = 3;
+    let t: string | null = null;
+    const push = (wait: number) => {
+      const sw = w;
+      const sp = p;
+      const st = t;
+      steps.push({
+        wait,
+        apply: () => {
+          setRevealed([sw, sp]);
+          setTyped(st);
+        },
+      });
+    };
+
+    w = 3;
+    p = 3;
+    t = null;
+    push(500);
+
+    t = "";
+    p = 4;
+    push(460);
+    for (let c = 1; c <= WORK_PROMPT.length; c += 1) {
+      t = WORK_PROMPT.slice(0, c);
+      push(50);
+      if (c === 8) {
+        p = 5;
+        push(140);
+      }
+      if (c === 18) {
+        p = 6;
+        push(140);
+      }
+      if (c === 28) {
+        p = 7;
+        push(140);
+      }
+    }
+
+    t = null;
+    w = 4;
+    push(380);
+
+    w = 5;
+    push(560);
+    p = 8;
+    push(520);
+    w = 6;
+    push(600);
+    p = 9;
+    push(560);
+    w = 7;
+    push(560);
+    p = 10;
+    push(520);
+    w = 8;
+    push(600);
+    p = T1;
+    push(680);
+    w = 9;
+    push(560);
+    w = 10;
+    push(560);
+    w = T0;
+    push(680);
+    push(2400);
+
     let idx = 0;
     let timer: ReturnType<typeof setTimeout>;
     const run = () => {
-      const [a, b, wait] = FRAMES[idx];
+      const step = steps[idx];
       timer = setTimeout(() => {
-        setRevealed([a, b]);
-        idx = (idx + 1) % FRAMES.length;
+        step.apply();
+        idx = (idx + 1) % steps.length;
         run();
-      }, wait);
+      }, step.wait);
     };
     run();
     return () => clearTimeout(timer);
-  }, [reduced]);
+  }, [reduced, inView]);
 
   return (
     <section className="pb-4 pt-2 sm:pb-8">
@@ -264,12 +340,13 @@ export function AccountsVisual() {
           is pinned to a Work account and tightens a login rate limiter. The
           right pane, project &ldquo;side-project&rdquo;, is pinned to a
           Personal account and adds a dark mode toggle. A projects sidebar shows
-          both as running, and each pane advances its own transcript at the same
-          time — the two accounts work side by side rather than one switching to
-          the other.
+          both as running, each tagged with its account, and the two panes
+          advance at the same time — the accounts work side by side rather than
+          one switching to the other.
         </p>
 
         <div
+          ref={ref}
           aria-hidden="true"
           className="relative overflow-hidden rounded-xl bg-[#111113] p-1.5 shadow-2xl shadow-gray-300/60 ring-1 ring-black/15 dark:shadow-black/60 dark:ring-[#3a3a3c]"
         >
@@ -291,6 +368,7 @@ export function AccountsVisual() {
                   pane={PANES[0]}
                   revealed={revealed[0]}
                   reduced={reduced}
+                  typed={typed}
                   className="h-[11.5rem] sm:h-auto sm:flex-1"
                 />
                 <TerminalPane
@@ -303,6 +381,11 @@ export function AccountsVisual() {
             </div>
           </div>
         </div>
+
+        <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+          Two projects, two subscriptions, no switching — each pane spends its
+          own account&rsquo;s usage.
+        </p>
       </div>
     </section>
   );
