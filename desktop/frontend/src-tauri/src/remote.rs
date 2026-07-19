@@ -18,12 +18,15 @@
 //     receives the Rust-emitted `status-changed` / `projects-changed` events),
 //     with an explicit request/response pull as a fallback.
 //
-// Security posture (v1): a per-device bearer token established by a single-use
+// Security posture: a per-device bearer token established by a single-use
 // pairing code (shown as a QR in Settings); token hashes are stored in
-// ~/.lpm/remote.json (0600). The transport is plaintext WebSocket, so the server
-// binds to loopback by default and LAN exposure is an explicit opt-in — run it
-// over a Tailscale tailnet (encrypted) for away-from-home access. Native TLS
-// (rcgen + rustls, both already in the dependency graph) is a tracked follow-up.
+// ~/.lpm/remote.json (0600). The transport is wss:// only (see remotetls.rs):
+// every connection is wrapped in a rustls server session presenting a persisted,
+// self-signed leaf (ECDSA P-256, CN "lpm") before the WebSocket handshake — there
+// is no plaintext fallback. The phone pins the leaf's SHA-256 on first pair/auth
+// (TOFU); the pairing QR carries that fingerprint (`f=`) so a QR pair can verify
+// the leaf up front. The server still binds loopback by default with LAN exposure
+// an explicit opt-in.
 use crate::status::{StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use crate::{config, pty, services};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -41,6 +44,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
+
+// Every connection is a TLS session (remotetls.rs) before the WebSocket layer.
+type TlsStream = rustls::StreamOwned<rustls::ServerConnection, TcpStream>;
+type ClientWs = WebSocket<TlsStream>;
 
 const DEFAULT_PORT: u16 = 8765;
 const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining phone
@@ -644,10 +651,15 @@ fn accept_loop(listener: TcpListener, hub: RemoteHub, app: AppHandle, generation
     }
 }
 
-fn accept_ws(stream: TcpStream) -> Option<WebSocket<TcpStream>> {
+fn accept_ws(stream: TcpStream) -> Option<ClientWs> {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
-    accept(stream).ok()
+    // Wrap the raw socket in a rustls server session before the WebSocket
+    // handshake; the TLS handshake itself runs lazily inside accept()'s first
+    // reads/writes, bounded by the read timeout just set on the socket.
+    let conn = rustls::ServerConnection::new(crate::remotetls::server_config()).ok()?;
+    let tls = rustls::StreamOwned::new(conn, stream);
+    accept(tls).ok()
 }
 
 fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u64) {
@@ -684,7 +696,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
             device_id: device_id.clone(),
         },
     );
-    let _ = ws.get_ref().set_read_timeout(Some(POLL));
+    let _ = ws.get_ref().get_ref().set_read_timeout(Some(POLL));
 
     // Per-connection working-tree watchers (project -> watcher). Local to this
     // connection so they stop deterministically on teardown below, which also
@@ -784,7 +796,7 @@ impl AuthOutcome {
     }
 }
 
-fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &RemoteHub) -> Option<AuthOutcome> {
+fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> Option<AuthOutcome> {
     let txt = loop {
         match ws.read() {
             Ok(m) if m.is_text() => break m.to_text().ok()?.to_string(),
@@ -899,7 +911,7 @@ fn check_device(hub: &RemoteHub, id: &str, token: &str) -> bool {
 
 // --- request dispatch --------------------------------------------------------
 
-fn send(ws: &mut WebSocket<TcpStream>, val: Value) -> Result<(), ()> {
+fn send(ws: &mut ClientWs, val: Value) -> Result<(), ()> {
     ws.send(Message::text(val.to_string())).map_err(|_| ())
 }
 
@@ -1141,7 +1153,7 @@ fn queue_run_action(hub: &RemoteHub, app: &AppHandle, req: Value) {
 }
 
 fn handle_msg(
-    ws: &mut WebSocket<TcpStream>,
+    ws: &mut ClientWs,
     txt: &str,
     hub: &RemoteHub,
     app: &AppHandle,
@@ -4187,7 +4199,10 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
                        // Every candidate address as a repeated `h=` param; the phone tries each and
                        // keeps the one it can reach (LAN at home, Tailscale away from home).
     let host_params: String = hosts.iter().map(|h| format!("&h={h}")).collect();
-    let url = format!("lpm://pair?p={port}&c={code}{host_params}");
+    // `f=` is the wss:// leaf-cert fingerprint (lowercase hex sha256 of the DER)
+    // so a QR pair can verify the certificate it pins.
+    let fingerprint = crate::remotetls::fingerprint();
+    let url = format!("lpm://pair?p={port}&c={code}{host_params}&f={fingerprint}");
     Ok(json!({
         "code": code,
         "url": url,
@@ -4252,7 +4267,13 @@ mod tests {
             }
         });
 
-        let (mut c, _) = tungstenite::connect(format!("ws://{addr}/")).expect("client connect");
+        let tcp = TcpStream::connect(addr).expect("tcp connect");
+        let server_name = rustls::pki_types::ServerName::try_from("lpm").unwrap();
+        let conn = rustls::ClientConnection::new(crate::remotetls::test_client_config(), server_name)
+            .expect("client tls session");
+        let tls = rustls::StreamOwned::new(conn, tcp);
+        let (mut c, _) =
+            tungstenite::client(format!("ws://{addr}/"), tls).expect("client connect");
         c.send(Message::text(
             json!({ "t": "pair", "code": "AAAA-BBBB", "name": "t" }).to_string(),
         ))

@@ -17,6 +17,10 @@ enum Keychain {
         "device-credential.\(localId.uuidString)"
     }
 
+    private static func pinAccount(for localId: UUID) -> String {
+        "cert-pin.\(localId.uuidString)"
+    }
+
     static func save(deviceId: String, token: String, for localId: UUID) {
         saveCredential(deviceId: deviceId, token: token, account: account(for: localId))
     }
@@ -27,6 +31,50 @@ enum Keychain {
 
     static func delete(for localId: UUID) {
         deleteCredential(account: account(for: localId))
+        deleteCredential(account: pinAccount(for: localId))
+    }
+
+    // MARK: certificate pin (trust-on-first-use)
+
+    /// The pinned leaf-cert fingerprint for a Mac, stored alongside its credential
+    /// so it survives exactly like the token does. Nil means "not yet pinned".
+    static func loadPin(for localId: UUID) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: pinAccount(for: localId),
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data, let pin = String(data: data, encoding: .utf8)
+        else { return nil }
+        return pin
+    }
+
+    static func savePin(_ fingerprint: String, for localId: UUID) {
+        guard let data = fingerprint.data(using: .utf8) else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: pinAccount(for: localId),
+        ]
+        let update: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        let status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+        if status == errSecItemNotFound {
+            var add = query
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(add as CFDictionary, nil)
+        }
+    }
+
+    static func deletePin(for localId: UUID) {
+        deleteCredential(account: pinAccount(for: localId))
     }
 
     // MARK: legacy single-item (pre multi-Mac) — migration only

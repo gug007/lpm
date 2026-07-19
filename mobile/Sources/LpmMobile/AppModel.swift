@@ -64,6 +64,12 @@ final class AppModel {
     // reconnecting…"). Nil when idle; cleared once the link comes back.
     var recoveryStatus: String?
 
+    // True when a reconnect's TLS certificate no longer matches the pinned
+    // identity for the active Mac. Drives a "this Mac's identity has changed"
+    // prompt whose only safe resolution is re-pinning (trustNewIdentity) or
+    // re-pairing. Set from the raw connection state; cleared on any recovery.
+    var identityMismatch = false
+
     // MARK: composer parity
 
     // The user's enabled AI-rewrite actions (global, from composer-actions.json).
@@ -238,6 +244,9 @@ final class AppModel {
     // saved-Mac record once the `paired` frame lands.
     @ObservationIgnored private var pendingPairHosts: [String] = []
     @ObservationIgnored private var pendingPairPort: UInt16 = MacStore.defaultPort
+    // The leaf-cert fingerprint the pairing QR advertised (`f` param), verified
+    // during the pairing TLS handshake. Nil for manual entry or a pre-TLS QR.
+    @ObservationIgnored private var pendingPairFingerprint: String?
 
     // Local-network discovery used only for automatic endpoint recovery: when the
     // active Mac's saved addresses stop responding, browse for it and reconnect on
@@ -441,9 +450,15 @@ final class AppModel {
     func connect(host: String, port: Int, credential: LpmClient.Credential) {
         client?.disconnect()
         currentHost = host
+        identityMismatch = false
+        // Enforce the stored pin for this Mac, read fresh on each TLS handshake so
+        // a just-completed TOFU pin takes effect on the next reconnect. A nil pin
+        // (never pinned, or migration) is accepted, then pinned after auth.
+        let localId = activeMacId
         let c = LpmClient(endpoint: .init(host: host, port: port),
                           credential: credential,
-                          deviceName: UIDevice.current.name)
+                          deviceName: UIDevice.current.name,
+                          pinProvider: { localId.map { Keychain.loadPin(for: $0) } ?? nil })
         wire(c)
         client = c
         c.connect()
@@ -1191,6 +1206,15 @@ final class AppModel {
 
     func loadComposerActions() { client?.requestComposerActions() }
 
+    /// This phone's paired device id, used to drop the echo of a draft it sent.
+    var selfDeviceId: String? { client?.deviceId }
+
+    /// Mirror a composer draft to the Mac (which fans it out to the desktop and any
+    /// other paired phones).
+    func sendComposerDraft(_ id: String, text: String) {
+        client?.sendComposerDraft(id, text: text)
+    }
+
     /// Upload an attachment blob tagged with a per-upload `reqId` the server echoes;
     /// `name` saves it under its original basename (files).
     func sendUpload(_ id: String, b64: String, mime: String, name: String?, reqId: String) {
@@ -1757,6 +1781,9 @@ final class AppModel {
             let termId = self.transformRoutes[reqId]
             self.transformRoutes[reqId] = nil
             if let termId { self.composerStores[termId]?.finishTransform(reqId: reqId, ok: ok) }
+        }
+        c.onComposerDraft = { [weak self] id, text, rev, origin, isSeed in
+            self?.composerStores[id]?.applyRemoteDraft(text: text, rev: rev, origin: origin, isSeed: isSeed)
         }
         c.onServices = { [weak self] project, running, services, error in
             guard let self, error == nil else { return }

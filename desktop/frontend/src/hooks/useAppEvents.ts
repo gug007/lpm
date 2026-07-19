@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { applyRemoteDraft } from "../store/composerDrafts";
 import type { SpawnTask } from "../types";
 
 // Events safe to handle in every window — they don't reach into
@@ -123,6 +124,16 @@ export function useAppEvents(): void {
         }
       },
     );
+    // The phone typed into a terminal's composer. Mirror it into the matching
+    // terminal's draft (and its mounted composer, if any).
+    const cancelComposerDraft = EventsOn(
+      "remote-composer-draft",
+      (payload: { id: string; text: string; rev: number }) => {
+        if (payload?.id !== undefined && typeof payload.text === "string") {
+          applyRemoteDraft(payload.id, payload.text);
+        }
+      },
+    );
     const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
       setView(view as Parameters<typeof setView>[0]);
     });
@@ -156,6 +167,7 @@ export function useAppEvents(): void {
       if (typeof cancelRemoteAction === "function") cancelRemoteAction();
       if (typeof cancelRemoteRunTask === "function") cancelRemoteRunTask();
       if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
+      if (typeof cancelComposerDraft === "function") cancelComposerDraft();
       if (typeof cancelNavView === "function") cancelNavView();
       if (typeof cancelNewProject === "function") cancelNewProject();
       if (typeof cancelSettings === "function") cancelSettings();

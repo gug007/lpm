@@ -6,7 +6,7 @@ import Foundation
 /// phone lands on the LAN address at home and the Tailscale address away — from
 /// one QR, with no manual entry and no fixed ordering penalty.
 ///
-/// The probe opens a real `ws://host:port/` via URLSession — the exact transport
+/// The probe opens a real `wss://host:port/` via URLSession — the exact transport
 /// the live connection uses — rather than a raw `NWConnection`. That matters on
 /// cellular: over a Tailscale tunnel a low-level `NWConnection` to the tailnet IP
 /// often stalls in `.waiting` and never reports `.ready`, so it would wrongly
@@ -56,7 +56,7 @@ enum HostProbe {
     /// sent. lpm answers the WS upgrade before any auth, so a bare open proves the
     /// port is reachable; we tear the socket down as soon as either resolves.
     private static func open(_ host: String, port: Int, timeout: TimeInterval) async -> Outcome {
-        guard let url = URL(string: "ws://\(host):\(port)/") else {
+        guard let url = URL(string: "wss://\(host):\(port)/") else {
             return Outcome(host: host, reachable: false, detail: "bad address")
         }
         let gate = OpenGate()
@@ -147,5 +147,18 @@ private final class OpenGate: NSObject, URLSessionWebSocketDelegate, URLSessionT
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         finish(shortReason(error))
+    }
+
+    /// Reachability only — this probe sends no secrets and pins nothing, so it
+    /// accepts any server certificate (the desktop's is self-signed). The live
+    /// connection, not this probe, enforces the pin.
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+           let trust = challenge.protectionSpace.serverTrust {
+            completionHandler(.useCredential, URLCredential(trust: trust))
+        } else {
+            completionHandler(.performDefaultHandling, nil)
+        }
     }
 }

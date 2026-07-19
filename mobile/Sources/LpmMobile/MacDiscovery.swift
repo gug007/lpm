@@ -21,6 +21,15 @@ final class MacDiscovery {
 
         var id: String { serverId ?? String(describing: endpoint) }
 
+        /// The name to show. A dev build's server name already carries a trailing
+        /// "(dev)" marker; strip it (case/whitespace tolerant) since a dev row shows
+        /// a separate "Development build" caption, so the marker isn't repeated.
+        var displayName: String {
+            let trimmed = name.trimmingCharacters(in: .whitespaces)
+            guard isDev, trimmed.lowercased().hasSuffix("(dev)") else { return trimmed }
+            return trimmed.dropLast("(dev)".count).trimmingCharacters(in: .whitespaces)
+        }
+
         static func == (lhs: DiscoveredMac, rhs: DiscoveredMac) -> Bool {
             lhs.id == rhs.id && lhs.serverId == rhs.serverId
                 && lhs.name == rhs.name && lhs.isDev == rhs.isDev
@@ -127,22 +136,26 @@ final class MacDiscovery {
         }
     }
 
-    /// Pull the concrete host + port out of a resolved endpoint. IPv6 zone ids
-    /// (`%en0`) are stripped so the address forms a plain `ws://host:port/`.
+    /// Pull the concrete host + port out of a resolved endpoint. Interface zone
+    /// ids (`%en0`) — attached to both IPv4 and IPv6 addresses — are stripped so
+    /// the address forms a plain `ws://host:port/`.
     private nonisolated static func hostPort(_ endpoint: NWEndpoint?) -> (host: String, port: UInt16)? {
         guard case .hostPort(let host, let port) = endpoint else { return nil }
         let p = port.rawValue
         switch host {
         case .ipv4(let addr):
-            return ("\(addr)", p)
+            return (stripZone("\(addr)"), p)
         case .ipv6(let addr):
-            let s = "\(addr)"
-            return (s.split(separator: "%").first.map(String.init) ?? s, p)
+            return (stripZone("\(addr)"), p)
         case .name(let n, _):
             return (n, p)
         @unknown default:
             return nil
         }
+    }
+
+    private nonisolated static func stripZone(_ s: String) -> String {
+        s.split(separator: "%").first.map(String.init) ?? s
     }
 }
 

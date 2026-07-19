@@ -445,6 +445,7 @@ struct TerminalComposer: View {
                 .font(.body)
                 .lineLimit(1...5)
                 .focused($focused)
+                .onChange(of: focused) { _, isFocused in store.isEditorFocused = isFocused }
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .padding(.horizontal, 8)

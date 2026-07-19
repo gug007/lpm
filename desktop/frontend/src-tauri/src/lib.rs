@@ -35,6 +35,7 @@ mod proctree;
 mod projects_crud;
 mod pty;
 mod remote;
+mod remotetls;
 mod services;
 mod skill_install;
 mod socketsrv;

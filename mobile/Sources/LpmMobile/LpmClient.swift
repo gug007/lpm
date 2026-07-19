@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// A single WebSocket connection to a paired Mac. Owns connect/auth/reconnect
 /// and demultiplexes inbound frames to per-terminal streams and control state.
@@ -13,7 +14,7 @@ final class LpmClient: NSObject {
     struct Endpoint {
         var host: String
         var port: Int
-        var url: URL? { URL(string: "ws://\(host):\(port)/") }
+        var url: URL? { URL(string: "wss://\(host):\(port)/") }
     }
 
     // Callbacks are delivered on the main queue.
@@ -83,6 +84,9 @@ final class LpmClient: NSObject {
     var onComposerActions: ((_ actions: [ComposerAction]) -> Void)?
     var onTransformVariant: ((_ reqId: String, _ idx: Int, _ text: String?, _ error: String?) -> Void)?
     var onTransformDone: ((_ reqId: String, _ ok: Bool) -> Void)?
+    // A composer draft mirrored from the Mac. `isSeed` marks a draft carried by a
+    // `seed` (restored on open/reconnect) so the store fills only an empty input.
+    var onComposerDraft: ((_ id: String, _ text: String, _ rev: Int, _ origin: String, _ isSeed: Bool) -> Void)?
     var onServices: ((_ project: String, _ running: Bool, _ services: [ServiceInfo], _ error: String?) -> Void)?
     var onServiceLogs: ((_ project: String, _ paneIndex: Int, _ text: String?, _ error: String?) -> Void)?
     // A polled background-action snapshot (`snapshot` nil once reaped on the Mac),
@@ -148,23 +152,53 @@ final class LpmClient: NSObject {
 
     static let offlineHint = "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 
+    // Sentinel failure reasons for certificate-pinning aborts, mapped to
+    // user-facing copy by the model. `identityChangedError` is a reconnect whose
+    // cert no longer matches the stored pin; `pairMismatchError` is a QR pairing
+    // whose cert didn't match the fingerprint the QR advertised.
+    static let identityChangedError = "identity-changed"
+    static let pairMismatchError = "pair-mismatch"
+
     struct Credential { let deviceId: String; let token: String }
 
     /// This device's id (once paired/authenticated), for comparing against a
     /// terminal's control owner.
     var deviceId: String? { credential?.deviceId }
 
-    init(endpoint: Endpoint, credential: Credential?, deviceName: String) {
+    // Trust evaluation for the wss:// link. Owns the pin comparison during the TLS
+    // handshake and captures the observed leaf-cert fingerprint so the model can
+    // pin it (TOFU) after auth succeeds. Held strongly here (and by the session);
+    // its back-reference to us is weak, so no retain cycle keeps this client alive.
+    private let pinning: PinningDelegate
+
+    /// The leaf-cert fingerprint observed on this connection's TLS handshake, once
+    /// it has completed. The model reads it after a `paired`/`ready` reply to pin it.
+    var observedFingerprint: String? { pinning.observed }
+
+    init(endpoint: Endpoint, credential: Credential?, deviceName: String,
+         pinProvider: (() -> String?)? = nil, expectedFingerprint: String? = nil) {
         self.endpoint = endpoint
         self.credential = credential
         self.deviceName = deviceName
+        self.pinning = PinningDelegate(pinProvider: pinProvider, expected: expectedFingerprint)
         super.init()
+        pinning.client = self
         let config = URLSessionConfiguration.default
         // Fail fast on a dead path rather than waiting for connectivity — the
         // reconnect loop owns retrying, and the watchdog owns the connect timeout.
         config.waitsForConnectivity = false
         config.timeoutIntervalForRequest = 30
-        session = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
+        session = URLSession(configuration: config, delegate: pinning, delegateQueue: nil)
+    }
+
+    /// A certificate pin check failed during the TLS handshake. Turn it into a
+    /// terminal failure (no silent retry onto a possibly-impersonated Mac); the
+    /// model surfaces the mismatch and offers to trust the new identity.
+    func notePinMismatch(pairing: Bool) {
+        main { [weak self] in
+            guard let self else { return }
+            self.fatal(pairing ? Self.pairMismatchError : Self.identityChangedError)
+        }
     }
 
     /// Connect (or reconnect) for a normal, already-paired session. Idempotent:
@@ -475,6 +509,11 @@ final class LpmClient: NSObject {
 
     // Composer parity requests.
     func requestComposerActions() { send(Wire.composerActions()) }
+    // Keystroke-frequency, so fire-and-forget: the seed reconciles the current
+    // draft after a reconnect, and a dropped frame is superseded by the next edit.
+    func sendComposerDraft(_ id: String, text: String) {
+        sendLive(Wire.composerDraft(id: id, text: text))
+    }
     func runTransform(reqId: String, project: String, instruction: String, text: String, variants: Int) {
         send(Wire.transform(reqId: reqId, project: project, instruction: instruction, text: text, variants: variants))
     }
@@ -635,9 +674,12 @@ final class LpmClient: NSObject {
             case .jobSaved(let id, let error): self.onJobSaved?(id, error)
             case .jobDeleted(let id, let error): self.onJobDeleted?(id, error)
             case .jobsChanged: self.onJobsChanged?()
-            case .seed(let id, let c, let r, let d, let owner):
+            case .seed(let id, let c, let r, let d, let owner, let draftText, let draftRev):
                 self.onControl?(id, owner)
                 self.onSeed?(id, c, r, d)
+                if let draftText {
+                    self.onComposerDraft?(id, draftText, draftRev, "mac", true)
+                }
             case .control(let id, let owner): self.onControl?(id, owner)
             case .output(let id, let d): self.onOutput?(id, d)
             case .exit(let id, let code): self.onExit?(id, code)
@@ -687,6 +729,8 @@ final class LpmClient: NSObject {
             case .transformVariant(let reqId, let idx, let text, let error):
                 self.onTransformVariant?(reqId, idx, text, error)
             case .transformDone(let reqId, let ok): self.onTransformDone?(reqId, ok)
+            case .composerDraft(let id, let text, let rev, let origin):
+                self.onComposerDraft?(id, text, rev, origin, false)
             case .services(let proj, let running, let services, let error):
                 self.onServices?(proj, running, services, error)
             case .serviceLogs(let proj, let pane, let text, let error):
@@ -715,5 +759,85 @@ final class LpmClient: NSObject {
 
     private func main(_ block: @escaping () -> Void) {
         DispatchQueue.main.async(execute: block)
+    }
+}
+
+/// Evaluates the server's TLS trust for the wss:// link with trust-on-first-use
+/// certificate pinning. The desktop serves a self-signed cert, so default trust
+/// evaluation always fails; instead the identity is the SHA-256 of the leaf
+/// certificate's DER bytes, matched against a per-Mac pin.
+///
+/// - `expected` (QR pairing): the fingerprint the QR advertised — accept iff the
+///   observed cert matches it, else abort the pairing.
+/// - `pinProvider` (reconnect): the stored pin for this Mac, read fresh each
+///   handshake — accept iff it matches; a nil pin is a first/migration connect,
+///   accepted so the model can pin the observed fingerprint after auth (TOFU).
+///
+/// `@unchecked Sendable`: the mutable `observed` is guarded by the lock, and the
+/// immutable config is set before the session issues any challenge.
+final class PinningDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
+    weak var client: LpmClient?
+    private let pinProvider: (() -> String?)?
+    private let expected: String?
+    private let lock = NSLock()
+    private var _observed: String?
+
+    var observed: String? {
+        lock.lock(); defer { lock.unlock() }
+        return _observed
+    }
+
+    init(pinProvider: (() -> String?)?, expected: String?) {
+        self.pinProvider = pinProvider
+        self.expected = expected
+    }
+
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust,
+              let fingerprint = CertPinning.leafFingerprint(trust) else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+            return
+        }
+        lock.lock(); _observed = fingerprint; lock.unlock()
+
+        let accept = { completionHandler(.useCredential, URLCredential(trust: trust)) }
+
+        if let expected {
+            if fingerprint == expected { accept() }
+            else {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+                client?.notePinMismatch(pairing: true)
+            }
+            return
+        }
+        if let pin = pinProvider?() {
+            if fingerprint == pin { accept() }
+            else {
+                completionHandler(.cancelAuthenticationChallenge, nil)
+                client?.notePinMismatch(pairing: false)
+            }
+            return
+        }
+        // No pin yet (fresh pair, or a Mac paired before TLS existed): accept and
+        // let the model pin the observed fingerprint once auth/pair succeeds.
+        accept()
+    }
+}
+
+/// Certificate-identity helpers shared by the live socket and the reachability
+/// probe: the pinned identity is the lowercase hex SHA-256 of the leaf
+/// certificate's DER encoding.
+enum CertPinning {
+    static func leafFingerprint(_ trust: SecTrust) -> String? {
+        guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
+              let leaf = chain.first else { return nil }
+        let der = SecCertificateCopyData(leaf) as Data
+        return sha256Hex(der)
+    }
+
+    static func sha256Hex(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 }

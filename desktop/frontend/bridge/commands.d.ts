@@ -135,6 +135,7 @@ export function RemoteSetConfig(...args: any[]): Promise<any>;
 export function RemoteStartPairing(...args: any[]): Promise<any>;
 export function RemoteRevokeDevice(...args: any[]): Promise<any>;
 export function RemoteSetTerminalLabels(...args: any[]): Promise<any>;
+export function RemoteSetComposerDraft(...args: any[]): Promise<any>;
 export function RemoteTakeRunActions(...args: any[]): Promise<any>;
 export function TerminalPresentControl(...args: any[]): Promise<any>;
 export function TerminalUnpresentControl(...args: any[]): Promise<any>;

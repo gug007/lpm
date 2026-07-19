@@ -107,6 +107,18 @@ final class ComposerStore: ObservableObject {
     // for an old server that doesn't echo `reqId` (new servers match by reqId).
     private var pendingOrder: [UUID] = []
 
+    // Bidirectional draft sync with the Mac (and any other paired phone). The
+    // active tab's text is pushed here (debounced); an inbound remote draft is
+    // applied unless the user is actively typing. `lastAppliedDraftRev` drops stale
+    // frames; `applyingRemote` stops an applied draft from echoing back out.
+    private var draftSendWork: DispatchWorkItem?
+    private var lastLocalEditAt = Date.distantPast
+    private var lastAppliedDraftRev = 0
+    private var applyingRemote = false
+    /// Set by the composer view from its FocusState so an inbound draft can yield
+    /// to a user who is focused and typing here.
+    var isEditorFocused = false
+
     init(termId: String, project: String, label: String, model: AppModel) {
         self.termId = termId
         self.project = project
@@ -121,7 +133,10 @@ final class ComposerStore: ObservableObject {
     }
     var text: String {
         get { tabs.indices.contains(activeIndex) ? tabs[activeIndex].text : "" }
-        set { if tabs.indices.contains(activeIndex) { tabs[activeIndex].text = newValue } }
+        set {
+            if tabs.indices.contains(activeIndex) { tabs[activeIndex].text = newValue }
+            if !applyingRemote { noteLocalEdit(newValue) }
+        }
     }
     var attachments: [Attachment] {
         tabs.indices.contains(activeIndex) ? tabs[activeIndex].attachments : []
@@ -166,6 +181,11 @@ final class ComposerStore: ObservableObject {
             tabs[0] = ComposerTab()
             activeIndex = 0
         }
+        // The active input is now empty; push the cleared draft to the phone's Mac
+        // immediately rather than waiting out the debounce.
+        draftSendWork?.cancel()
+        draftSendWork = nil
+        model?.sendComposerDraft(termId, text: text)
     }
 
     // MARK: attachments
@@ -333,6 +353,39 @@ final class ComposerStore: ObservableObject {
         }
         if body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .empty }
         return hadFailures ? .droppedFailures(body) : .ready(body)
+    }
+
+    // MARK: draft sync
+
+    /// A local text edit: record the timestamp (so a racing remote apply yields to
+    /// the typist) and schedule a debounced push to the Mac.
+    private func noteLocalEdit(_ text: String) {
+        lastLocalEditAt = Date()
+        draftSendWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.draftSendWork = nil
+            self.model?.sendComposerDraft(self.termId, text: text)
+        }
+        draftSendWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+    }
+
+    /// Apply a draft mirrored from the Mac. Drops a stale/own-echo frame, and — when
+    /// the user is focused and typing here — yields to them. A `seed`-carried draft
+    /// only fills the active input when it's empty, so a reconnect never clobbers a
+    /// prompt in progress.
+    func applyRemoteDraft(text: String, rev: Int, origin: String, isSeed: Bool) {
+        if rev <= lastAppliedDraftRev { return }
+        lastAppliedDraftRev = rev
+        if let mine = model?.selfDeviceId, !mine.isEmpty, origin == mine { return }
+        if isEditorFocused, Date().timeIntervalSince(lastLocalEditAt) < 1.5 { return }
+        if isSeed, !(tabs.indices.contains(activeIndex) && tabs[activeIndex].text.isEmpty) { return }
+        draftSendWork?.cancel()
+        draftSendWork = nil
+        applyingRemote = true
+        setText(text, tabId: activeTab.id)
+        applyingRemote = false
     }
 
     // MARK: transform (AI rewrite)

@@ -2,13 +2,16 @@ import SwiftUI
 import AVFoundation
 
 /// A pairing payload decoded from the desktop's QR code:
-/// `lpm://pair?p=<port>&c=<code>&h=<host>&h=<host>…`. The Mac advertises every
-/// address it can be reached at (LAN, Tailscale) as repeated `h` params; the
-/// phone probes them and keeps the reachable one.
+/// `lpm://pair?p=<port>&c=<code>&h=<host>&h=<host>…&f=<fingerprint>`. The Mac
+/// advertises every address it can be reached at (LAN, Tailscale) as repeated `h`
+/// params; the phone probes them and keeps the reachable one. `f` is the
+/// hex SHA-256 of the Mac's TLS leaf cert — verified during the pairing handshake
+/// so the phone pins the right identity. Absent from Macs paired before TLS.
 struct PairPayload {
     let hosts: [String]
     let port: Int
     let code: String
+    let fingerprint: String?
 
     var host: String { hosts.first ?? "" }
 
@@ -23,6 +26,8 @@ struct PairPayload {
         hosts = hs
         port = Int(q("p") ?? "8765") ?? 8765
         code = c
+        let f = q("f")?.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        fingerprint = (f?.isEmpty ?? true) ? nil : f
     }
 }
 

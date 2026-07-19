@@ -415,6 +415,9 @@ export function RemoteRevokeDevice(id) {
 export function RemoteSetTerminalLabels(project, labels) {
   return invoke("remote_set_terminal_labels", { project, labels });
 }
+export function RemoteSetComposerDraft(id, text) {
+  return invoke("remote_set_composer_draft", { id, text });
+}
 export function RemoteTakeRunActions() {
   return invoke("remote_take_run_actions");
 }

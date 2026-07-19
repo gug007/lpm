@@ -80,6 +80,10 @@ struct PairingView: View {
     // Local-network discovery, running only while this screen is visible.
     @State private var discovery = MacDiscovery()
     @State private var resolvingNearbyId: String?
+    // The nearby Mac last tapped and the address its resolution filled in, so the
+    // row shows a checkmark only while the address field still holds that address.
+    @State private var lastResolvedNearbyId: String?
+    @State private var lastResolvedNearbyHost: String?
 
     private var trimmedHost: String {
         host.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -102,6 +106,13 @@ struct PairingView: View {
         !trimmedHost.isEmpty && !trimmedCode.isEmpty
     }
 
+    /// The nearby row to mark selected: the one whose resolved address still
+    /// matches what's typed in the address field (cleared if the user edits it).
+    private var selectedNearbyId: String? {
+        guard let id = lastResolvedNearbyId, let h = lastResolvedNearbyHost, trimmedHost == h else { return nil }
+        return id
+    }
+
     /// Fill the address fields from a nearby Mac the user tapped. Discovery only
     /// supplies the address — the user still enters the pairing code — so this
     /// never bypasses pairing auth.
@@ -114,6 +125,8 @@ struct PairingView: View {
             host = resolved.host
             port = String(resolved.port)
             scannedHosts = []
+            lastResolvedNearbyId = mac.id
+            lastResolvedNearbyHost = resolved.host
         }
     }
 
@@ -181,6 +194,7 @@ struct PairingView: View {
                         macs: discovery.found,
                         pairedServerIds: Set(model.macs.compactMap { $0.serverId }),
                         resolvingId: resolvingNearbyId,
+                        selectedId: selectedNearbyId,
                         onPick: selectNearby
                     )
                 }

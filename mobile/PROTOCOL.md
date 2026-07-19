@@ -5,13 +5,30 @@ is a WebSocket client. This document is the contract both sides implement.
 
 ## Transport
 
-- `ws://<host>:<port>/` — plaintext WebSocket (`tungstenite` on the server).
+- `wss://<host>:<port>/` — WebSocket over TLS (`tungstenite` wrapping a `rustls`
+  server session; see `desktop/frontend/src-tauri/src/remotetls.rs`). There is
+  **no plaintext (`ws://`) fallback** — every accepted socket is wrapped in TLS
+  before the WebSocket handshake.
 - Default port `8765` (configurable in Settings → Mobile devices).
 - The server binds `127.0.0.1` (loopback) by default, or `0.0.0.0` when the user
-  enables "Allow connections over the network". For away-from-home use, run both
-  devices on a **Tailscale** tailnet and connect to the Mac's tailnet IP — that
-  provides the encryption the plaintext transport itself does not. Native TLS is
-  a planned follow-up.
+  enables "Allow connections over the network". Away-from-home use over a
+  **Tailscale** tailnet still works (connect to the Mac's tailnet IP); the tailnet
+  and TLS layers simply compose.
+- **Certificate & pinning.** The Mac presents a single **self-signed** leaf
+  certificate (ECDSA P-256, CN `lpm`, ~10-year validity), generated once and
+  persisted as PEM next to `remote.json` in `~/.lpm` (`remote-cert.pem` /
+  `remote-key.pem`, mode `0600`) — it is **never rotated**. The client does **not**
+  use a CA/PKI: it **pins the leaf certificate's SHA-256** (lowercase hex of the
+  DER) and refuses any connection whose presented leaf does not match the pinned
+  value.
+  - **QR pairing:** the pairing QR URL (`lpm://pair?p=<port>&c=<code>&h=<host>…`)
+    carries the fingerprint as **`&f=<hex sha256>`**; the phone pins that value up
+    front and verifies the leaf against it on the pairing connection.
+  - **Trust-on-first-use:** a device that has no pinned fingerprint yet (paired
+    before TLS, or paired by a path without `f=`) pins the leaf SHA-256 it observes
+    on its **first successful** pair/auth, then enforces it on every later connect.
+  - A fingerprint **mismatch** is treated as a failed/refused connection by the
+    client (never silently trusted).
 - Every frame is a **text** WebSocket message containing a JSON object with a
   discriminator field `t`. Unknown `t` values are ignored (forward-compatible).
 
@@ -102,7 +119,7 @@ any live connection.
 | `{ "t": "history", "project": "<name>", "q": "<search>" }` | `{ "t": "history", "project": "<name>", "rows": [HistoryRow…] }` — recent sent prompts for the project (newest first), for recall |
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
 | `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…] }` |
-| `{ "t": "sub", "id": "<termId>" }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "owner": ControlOwner\|null }`, then a live stream of `o` frames. Subscribing also *presents* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder |
+| `{ "t": "sub", "id": "<termId>" }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "owner": ControlOwner\|null, "draft": { "text": "…", "rev": N }? }`, then a live stream of `o` frames. Subscribing also *presents* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder. The optional `draft` carries the terminal composer's mirrored active-input text (see composer draft sync below); it is **present only** when a non-empty draft is stored, so on (re)open/reconnect the phone restores it — but only into an empty input, never clobbering a prompt in progress |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
 | `{ "t": "in", "id": "<termId>", "d": "ls\r" }` | — (keystrokes; see hex framing) |
@@ -179,6 +196,7 @@ AI generators; the history ops are local SQLite and reply inline.
 
 | Request | Reply |
 |---|---|
+| `{ "t": "composerDraft", "id": "<termId>", "text": "…" }` | — (no direct reply) mirrors the phone's composer active-input text to the Mac. The Mac stores it keyed by `termId`, then **broadcasts** it to every client — including the desktop composer — as `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "<sender deviceId>" }` (see composer draft sync below). Fire-and-forget: send it debounced on each edit; a dropped frame is superseded by the next edit or the `seed` on reconnect |
 | `{ "t": "composerActions" }` | `{ "t": "composerActions", "actions": [{ id, icon, label, instruction }…] }` — the user's **enabled** composer AI actions from `~/.lpm/composer-actions.json`. When that file is absent, the two seeded defaults (`improve`, `concise`) are returned, matching what the desktop shows on a fresh install. `id` is only a stable client-side key (dedup/selection) — it is **not** sent on the wire. To run an action, the phone sends its `instruction` **text** as `transform`'s `instruction` field, exactly like the free-form "Ask AI to rewrite…" path; the server has no action registry and never resolves an id |
 | `{ "t": "transform", "reqId": <any>, "project": "<name>", "instruction": "…", "text": "…", "variants": N }` | Streams `{ "t": "transform", "reqId": <any>, "idx": i, "ok": true, "text": "<rewrite>" }` / `{ "ok": false, "error": "…" }` per variant as it settles, then a final `{ "t": "transformDone", "reqId": <any>, "ok": bool }`. `reqId` is echoed verbatim (string or number) so the phone matches replies to the request. `variants` is clamped to 1..=5 and runs that many rewrites in parallel; for `variants > 1` each run gets a diversity suffix so the picker isn't near-identical outputs. A failed variant replies `ok:false` but doesn't fail the batch — `transformDone.ok` is true if **any** variant succeeded. AI params (cli/model/effort/fast) come from the desktop's persisted settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`), the same source the git AI generators use. A bad `project` replies one `transform` `ok:false` then `transformDone ok:false` |
 | `{ "t": "services", "project": "<name>" }` | `{ "t": "services", "project": "<name>", "ok": true, "running": bool, "services": [{ name, paneIndex, running, cmd, port }…] }` / `{ "ok": false, "error": "…" }` — service discovery for the logs viewer. When the project is running, each running service carries its `paneIndex` (the index to pass to `serviceLogs`) and `running:true`, in pane order; when stopped, every declared service is listed with `paneIndex: null` and `running:false`. `cmd`/`port` are the service's command and label port |
@@ -195,6 +213,36 @@ AI generators; the history ops are local SQLite and reply inline.
 The pre-existing `{ "t": "history", "project", "q" }` / `{ "t": "historyAdd", … }`
 messages are unchanged — `historyQuery` is the richer superset for the paged
 history screen, while `history` remains the simple project-scoped recall list.
+
+### Composer draft sync
+
+The terminal composer's **active-input text** is mirrored between the desktop and
+every paired phone, keyed by terminal `termId`, so a prompt typed on one surface
+appears on the other. Only the active input tab's plain text syncs — multiple
+prepared prompts (the tab strip) stay device-local, and attachments/images do not
+sync (a literal `[Image #N]` token, if present, rides along as text; its Mac-local
+file does not).
+
+- **Mac is the source of truth.** Both directions funnel through the Mac hub: the
+  desktop composer pushes via a Tauri command, the phone via the `composerDraft`
+  request above. Each write stores the text keyed by `termId` and stamps it with a
+  **globally monotonic `rev`**, then the Mac broadcasts `{ "t": "composerDraft",
+  id, text, rev, origin }` to all clients and emits an internal event so the
+  desktop composer applies phone-typed drafts. `origin` is `"mac"` or the sending
+  phone's `deviceId`.
+- **Last-writer-wins, with guards.** A receiver drops a frame whose `rev` is ≤ the
+  last it applied for that terminal (stale), and drops a frame whose `origin` is
+  its own identity (echo of its own push). It also **yields to the local typist**:
+  if the input is focused and was edited within the last ~1.5s, an inbound draft is
+  dropped so remote text can't yank the field out from under active typing.
+- **Debounced, fire-and-forget.** Both sides debounce the push (~250ms trailing)
+  and send it best-effort (no ack). Sending a message flushes the resulting cleared
+  draft immediately. Empty text **clears** the stored draft on the Mac.
+- **Restore on open/reconnect.** The stored draft rides the `seed` (the `draft`
+  field), present only when non-empty, and is applied **only into an empty input**
+  so reconnecting never clobbers a prompt in progress. The `rev` reset that a clear
+  would imply is avoided by the global counter — a re-typed draft always outranks a
+  prior clear.
 
 ### Sidebar folder ops
 
@@ -303,6 +351,7 @@ installs stop generating traffic.
 | `{ "t": "jobs-changed" }` | An automation started, stopped, or completed. Re-request `jobs` and any open history/live output. |
 | `{ "t": "git-changed", "project": "<name>" }` | The watched project's working tree changed (sent only to a connection that issued `gitWatch` for it, debounced ~400ms after the last change). Carries no payload — re-request `git` and any open `gitDiff`s to refresh the review screen. |
 | `{ "t": "control", "id": "<termId>", "owner": ControlOwner\|null }` | The terminal's control owner changed. If `owner` is not this phone, show the "take control" placeholder and stop driving size; if it is (or `null`), render live. |
+| `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
 
 ## Data shapes
 

@@ -224,6 +224,9 @@ enum Wire {
     // MARK: composer parity (AI actions, transform, service logs, rich history)
 
     static func composerActions() -> String { json(["t": "composerActions"]) }
+    static func composerDraft(id: String, text: String) -> String {
+        json(["t": "composerDraft", "id": id, "text": text])
+    }
     static func transform(reqId: String, project: String, instruction: String,
                           text: String, variants: Int) -> String {
         json(["t": "transform", "reqId": reqId, "project": project,
@@ -318,7 +321,8 @@ enum Wire {
         case jobSaved(id: String, error: String?)
         case jobDeleted(id: String, error: String?)
         case jobsChanged
-        case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?)
+        case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?,
+                  draftText: String?, draftRev: Int)
         case control(id: String, owner: ControlOwner?)
         case output(id: String, data: String)
         case exit(id: String, code: Int)
@@ -376,6 +380,10 @@ enum Wire {
         case transformVariant(reqId: String, idx: Int, text: String?, error: String?)
         // The transform batch finished; `ok` is true if any variant succeeded.
         case transformDone(reqId: String, ok: Bool)
+        // A composer draft mirrored from the Mac. `origin` is "mac" for a
+        // desktop-typed draft or the sending phone's deviceId (so we drop our own
+        // echo); `rev` is the monotonic revision for stale-frame rejection.
+        case composerDraft(id: String, text: String, rev: Int, origin: String)
         case services(project: String, running: Bool, services: [ServiceInfo], error: String?)
         case serviceLogs(project: String, paneIndex: Int, text: String?, error: String?)
         // A polled background-action snapshot; `snapshot` is nil once the run has
@@ -485,11 +493,14 @@ enum Wire {
                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the automation."))
             case "jobs-changed": return .jobsChanged
             case "seed":
+                let draft = obj["draft"] as? [String: Any]
                 return .seed(id: obj["id"] as? String ?? "",
                              cols: obj["cols"] as? Int ?? 80,
                              rows: obj["rows"] as? Int ?? 24,
                              data: obj["data"] as? String ?? "",
-                             owner: ControlOwner(obj["owner"]))
+                             owner: ControlOwner(obj["owner"]),
+                             draftText: draft?["text"] as? String,
+                             draftRev: draft?["rev"] as? Int ?? 0)
             case "control":
                 return .control(id: obj["id"] as? String ?? "",
                                 owner: ControlOwner(obj["owner"]))
@@ -618,6 +629,11 @@ enum Wire {
                                          error: ok ? nil : (obj["error"] as? String ?? "The rewrite failed."))
             case "transformDone":
                 return .transformDone(reqId: Wire.reqIdString(obj["reqId"]), ok: obj["ok"] as? Bool ?? false)
+            case "composerDraft":
+                return .composerDraft(id: obj["id"] as? String ?? "",
+                                      text: obj["text"] as? String ?? "",
+                                      rev: obj["rev"] as? Int ?? 0,
+                                      origin: obj["origin"] as? String ?? "")
             case "services":
                 let ok = obj["ok"] as? Bool ?? false
                 return .services(project: obj["project"] as? String ?? "",

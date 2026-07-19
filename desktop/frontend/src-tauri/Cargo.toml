@@ -72,6 +72,14 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # recover a saved server whose IP changed. Runs its own daemon thread (no tokio),
 # coexisting with the blocking tungstenite server.
 mdns-sd = "0.20"
+# wss:// transport for the remote server (remotetls.rs). A self-signed, pinned
+# leaf (ECDSA P-256, CN "lpm") the phone trusts on first pair/auth. rustls uses
+# the aws-lc-rs provider already in the tree; rcgen mints the cert; rustls-pemfile
+# parses the persisted PEM on load.
+rustls = "0.23"
+rcgen = "0.13"
+rustls-pemfile = "2"
+time = "0.3"
 
 # objc2 for the in-pane browser's per-webview NSAppearance override (window theme
 # is app-wide on macOS). Versions match what Tauri already pulls in.

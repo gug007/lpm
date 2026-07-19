@@ -70,3 +70,38 @@ export function saveComposerDraft(terminalId: string, draft: ComposerDraft): voi
 export function forgetComposerDraft(terminalId: string): void {
   drafts.delete(terminalId);
 }
+
+// A mounted composer registers here so an inbound remote draft (typed on the
+// phone) reaches its live editor. At most one composer is mounted per terminal.
+type RemoteDraftCallback = (text: string) => void;
+const remoteDraftSubs = new Map<string, RemoteDraftCallback>();
+
+export function subscribeRemoteDraft(terminalId: string, cb: RemoteDraftCallback): () => void {
+  remoteDraftSubs.set(terminalId, cb);
+  return () => {
+    if (remoteDraftSubs.get(terminalId) === cb) remoteDraftSubs.delete(terminalId);
+  };
+}
+
+// Apply a remote draft (phone-typed) to a terminal's active input. When its
+// composer is mounted the callback owns the change (it writes the live editor and
+// re-parks the draft, and may drop the apply if the user is actively typing);
+// otherwise the parked draft is updated in place so the text is there when the
+// composer next mounts.
+export function applyRemoteDraft(terminalId: string, text: string): void {
+  const cb = remoteDraftSubs.get(terminalId);
+  if (cb) {
+    cb(text);
+    return;
+  }
+  const existing = drafts.get(terminalId);
+  if (existing) {
+    const active =
+      existing.tabs.find((t) => t.id === existing.activeTabId) ?? existing.tabs[0];
+    if (active) active.text = text;
+  } else {
+    const tab = createInputTab();
+    tab.text = text;
+    drafts.set(terminalId, { tabs: [tab], activeTabId: tab.id, history: [] });
+  }
+}

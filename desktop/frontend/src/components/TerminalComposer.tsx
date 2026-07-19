@@ -14,6 +14,7 @@ import {
   GetServiceLogs,
   NotesReadFileAsInput,
   ReadClipboardFiles,
+  RemoteSetComposerDraft,
   SaveClipboardImage,
   TransformText,
   UploadAndQuoteForTerminal,
@@ -37,6 +38,7 @@ import {
   createInputTab,
   loadComposerDraft,
   saveComposerDraft,
+  subscribeRemoteDraft,
   type ComposerHistoryEntry,
   type ComposerInputTab,
 } from "../store/composerDrafts";
@@ -285,6 +287,37 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const focusedRef = useRef(focused);
   focusedRef.current = focused;
 
+  // Bidirectional draft sync with a paired phone. The active tab's text is pushed
+  // (debounced) to the Mac hub, which fans it out; an inbound phone-typed draft is
+  // written back into the editor. `lastRemoteApplied` suppresses the echo of a
+  // draft we just applied, and `lastLocalEditAt` lets a locally-typing user win
+  // over a racing remote apply.
+  const remoteDraftTimer = useRef<number | null>(null);
+  const pendingRemoteDraft = useRef<string | null>(null);
+  const lastRemoteApplied = useRef<string | null>(null);
+  const lastLocalEditAt = useRef(0);
+  const flushRemoteDraft = useCallback(() => {
+    if (remoteDraftTimer.current !== null) {
+      clearTimeout(remoteDraftTimer.current);
+      remoteDraftTimer.current = null;
+    }
+    const text = pendingRemoteDraft.current;
+    if (text === null) return;
+    pendingRemoteDraft.current = null;
+    void RemoteSetComposerDraft(terminalId, text).catch(() => {});
+  }, [terminalId]);
+  const pushRemoteDraft = useCallback(
+    (text: string) => {
+      if (isRemotePeer) return;
+      if (text === lastRemoteApplied.current) return;
+      lastLocalEditAt.current = Date.now();
+      pendingRemoteDraft.current = text;
+      if (remoteDraftTimer.current !== null) clearTimeout(remoteDraftTimer.current);
+      remoteDraftTimer.current = window.setTimeout(flushRemoteDraft, 250);
+    },
+    [isRemotePeer, flushRemoteDraft],
+  );
+
   // Give each attachment chip its resting look (lazily). An image chip loads its
   // thumbnail from the shared cache; any other file is re-skinned to a filename +
   // type glyph. A chip is marked once handled (`thumb`) so repeated syncState
@@ -378,6 +411,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     wasShown.current = shown;
   }, [shown]);
 
+  useEffect(() => {
+    return () => {
+      if (remoteDraftTimer.current !== null) clearTimeout(remoteDraftTimer.current);
+    };
+  }, []);
+
   const dismissPreview = useCallback(() => {
     hoverChip.current = null;
     setPreview(null);
@@ -440,9 +479,34 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       activeTabId: activeId.current,
       history: history.current,
     });
+    // Mirror the active tab's text to a paired phone (debounced; suppressed when it
+    // matches a draft we just applied from the phone, to avoid a feedback loop).
+    pushRemoteDraft(value);
     refreshTabView();
     hydrateChips();
-  }, [terminalId, refreshTabView, hydrateChips]);
+  }, [terminalId, refreshTabView, hydrateChips, pushRemoteDraft]);
+
+  // Apply an inbound remote draft (typed on the phone) to the live editor. Dropped
+  // when the user is actively typing here (focused and edited within 1.5s) so the
+  // local typist wins; otherwise the text is swapped in and the caret parked at the
+  // end. syncState re-parks the draft; its push is suppressed by lastRemoteApplied.
+  useEffect(() => {
+    return subscribeRemoteDraft(terminalId, (text: string) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const focusedHere = document.activeElement === editor;
+      if (focusedHere && Date.now() - lastLocalEditAt.current < 1500) return;
+      if (text === serializeEditor(editor)) {
+        lastRemoteApplied.current = text;
+        return;
+      }
+      lastRemoteApplied.current = text;
+      setEditorContent(editor, text);
+      setPreview(null);
+      placeCaretAtEnd(editor);
+      syncState();
+    });
+  }, [terminalId, syncState]);
 
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
@@ -813,6 +877,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
     }
     syncState();
+    // A send clears the active tab; push that cleared text to the phone at once
+    // rather than waiting out the debounce.
+    flushRemoteDraft();
     // Only a send that cleared the active tab in place resets undo here; a tab
     // switch (autoclose, or a background send finishing while the user edits
     // another tab) is covered by the activeTabId effect and must not wipe the
