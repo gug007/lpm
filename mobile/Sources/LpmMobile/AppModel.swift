@@ -1737,7 +1737,8 @@ final class AppModel {
             return .failed("This Mac's security identity doesn't match its QR code. The code may be stale — on your Mac, tap Add device for a fresh code, then scan again.")
         }
         if msg == LpmClient.secureFailedError {
-            return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made. This usually means lpm on the Mac or this app is out of date, or the Mac's security identity was reset — update both, then re-pair from your Mac.")
+            let code = client?.lastTransportErrorCode.map { " (error \($0))" } ?? ""
+            return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made\(code). This usually means lpm on the Mac or this app is out of date, or the Mac's security identity was reset — update both, then re-pair from your Mac.")
         }
         if msg == LpmClient.refusedError {
             return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but nothing is listening on port \(savedPort()). Make sure lpm is running on the Mac — if it is, its port may have changed; re-pair or fix it under Edit Address.")
