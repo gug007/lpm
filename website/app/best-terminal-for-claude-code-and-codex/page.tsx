@@ -19,7 +19,7 @@ import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Best Terminal for Claude Code & Codex AI Agents",
+  title: "Best Terminal for Claude Code & Codex — Run in Parallel",
   description:
     "lpm is the terminal workspace built for running Claude Code and Codex in parallel on the same codebase. Start your dev stack in one command and keep every agent in view.",
   keywords: [
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     canonical: AI_AGENTS_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Claude Code & Codex AI Agents",
+    title: "Best Terminal for Claude Code & Codex — Run in Parallel",
     description:
       "Run Claude Code and Codex side by side on the same codebase. lpm is the terminal workspace for developers using AI coding agents in parallel.",
     type: "website",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Claude Code & Codex AI Agents",
+    title: "Best Terminal for Claude Code & Codex — Run in Parallel",
     description:
       "Run Claude Code and Codex side by side on the same codebase. lpm is the terminal workspace for developers using AI coding agents in parallel.",
   },
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal for Claude Code & Codex AI Agents",
+    title: "Best Terminal for Claude Code & Codex — Run in Parallel",
     description:
       "lpm is the terminal workspace built for running Claude Code and Codex in parallel on the same codebase. Start your dev stack in one command and keep every agent in view.",
     path: AI_AGENTS_PATH,
@@ -59,7 +59,7 @@ const structuredData = [
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "Best Terminal for Claude Code & Codex AI Agents",
+      name: "Best Terminal for Claude Code & Codex",
       path: AI_AGENTS_PATH,
     },
   ]),
