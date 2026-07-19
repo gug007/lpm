@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
@@ -8,6 +7,8 @@ import {
   CONNECT_AGENTS_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import { AccountsVisual } from "./_components/accounts-visual";
+import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
@@ -77,9 +78,10 @@ export default function ClaudeCodeMultipleAccountsPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection />
+      <AccountsVisual />
       <Problem />
       <Features />
+      <Comparison />
       <Setup />
       <Workflows />
       <Faq />

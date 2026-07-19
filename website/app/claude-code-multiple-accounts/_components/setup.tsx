@@ -74,6 +74,25 @@ export default function Setup() {
             </li>
           ))}
         </ol>
+
+        <div className="mx-auto mt-12 max-w-md">
+          <p className="mb-2 text-center text-xs text-gray-500 dark:text-gray-400">
+            Step 2 in the project&rsquo;s config file — one line does it:
+          </p>
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-[#161616]">
+            <pre className="font-mono text-xs leading-relaxed">
+              <code>
+                <span className="text-gray-500 dark:text-gray-400">name: </span>
+                <span className="text-gray-800 dark:text-gray-200">client-app</span>
+                {"\n"}
+                <span className="text-amber-700 dark:text-amber-300/90">
+                  claudeAccount:{" "}
+                </span>
+                <span className="text-gray-800 dark:text-gray-200">work</span>
+              </code>
+            </pre>
+          </div>
+        </div>
       </div>
     </section>
   );

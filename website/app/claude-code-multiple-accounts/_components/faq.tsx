@@ -14,6 +14,12 @@ const FAQS: QA[] = [
       "Switchers change the globally active account: back up the current credentials, restore another set, restart your sessions — and every project on the machine flips together. lpm doesn't switch anything. Each project is pinned to an account, all accounts stay signed in side by side, and two projects can run two different accounts at the same moment. There's also no credential handling: switchers copy token files or Keychain entries around; lpm just points each project at its own Claude Code home and lets Claude manage its own login there.",
   },
   {
+    question:
+      "I keep separate accounts because of usage limits — does each project get its own limit?",
+    answer:
+      "Each Claude subscription has its own usage allowance, and pinning means every session in a project draws from that project's account. A heavy afternoon on a side project can't eat the work seat's quota, and when a limit is hit you know exactly which account hit it.",
+  },
+  {
     question: "Do I have to log out and back in when I change projects?",
     answer:
       "No. You sign in to each account exactly once — the first time a project pinned to it opens a terminal. After that, moving between projects is just clicking in the sidebar; each project's terminals are already signed in as the right account, even when several projects with different accounts are running at once.",
@@ -34,9 +40,19 @@ const FAQS: QA[] = [
       "Nothing. Your existing login stays the default: any project without a pin keeps using it, and you don't re-authenticate anything. You only add the extra accounts — a work seat, a client seat — and pin them where they belong.",
   },
   {
+    question: "I use an API key in some projects — does pinning interfere?",
+    answer:
+      "No; the pin decides which stored subscription login Claude Code uses, and a project that exports ANTHROPIC_API_KEY keeps billing to that key exactly as before.",
+  },
+  {
+    question: "Does this work for Codex or other coding agents?",
+    answer:
+      "Pinning is Claude Code–specific today. Codex runs in lpm terminals right alongside your pinned projects, but on its own single login — there's no per-project account for it yet.",
+  },
+  {
     question: "Any limitations I should know about?",
     answer:
-      "Two. Account pinning applies to projects that run on your Mac — SSH projects use whatever Claude login exists on the remote host. And it relies on Claude Code's per-home credential isolation, which shipped in early 2026, so keep Claude Code reasonably up to date. Also worth knowing: terminals that are already open keep the account they launched with; a new pin applies to terminals you open afterwards. One gotcha — if you set CLAUDE_CONFIG_DIR by hand in your shell profile (~/.zprofile, ~/.zshrc), remove it: a login shell re-sources it and overrides the per-project account.",
+      "Account pinning applies to projects that run on your Mac — SSH projects use whatever Claude login exists on the remote host. It also relies on Claude Code's per-home credential isolation, which shipped in early 2026, so keep Claude Code reasonably up to date. Terminals that are already open keep the account they launched with; a new pin applies to terminals you open afterwards. And one gotcha — if you set CLAUDE_CONFIG_DIR by hand in your shell profile (~/.zprofile, ~/.zshrc), remove it: a login shell re-sources it and overrides the per-project account.",
   },
 ];
 

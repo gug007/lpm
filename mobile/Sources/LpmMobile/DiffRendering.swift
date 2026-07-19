@@ -26,15 +26,18 @@ enum DiffBlockKind { case hunk, code }
 /// One render unit: a hunk separator, or a run of code lines merged into a single
 /// gutter attributed string (line numbers, deeper tint) and a single code
 /// attributed string (leading +/- marker, syntax highlighting, row tint padded to
-/// the block's longest line, word-level emphasis). Built off the main thread.
+/// the run's longest line, word-level emphasis). A long code run is split into
+/// several consecutive blocks of at most `chunkLimit` lines so no single Text has
+/// to lay out thousands of lines at once. The SwiftUI `AttributedString`s are
+/// converted once here, off the main thread, so the view just renders them.
 struct DiffBlock: Identifiable {
     let id: Int
     let kind: DiffBlockKind
     let hunkLabel: String
     let hunkContext: String
     let indentHint: Int
-    let gutter: NSAttributedString
-    let code: NSAttributedString
+    let gutter: AttributedString
+    let code: AttributedString
     let lineCount: Int
 }
 
@@ -246,10 +249,16 @@ struct ParsedDiff {
 
     // MARK: per-hunk merged blocks
 
+    /// The largest number of code lines packed into one DiffBlock. A long run is
+    /// split into several consecutive chunks so each Text lays out a bounded number
+    /// of lines — one huge hunk no longer becomes one enormous Text whose main-thread
+    /// layout blocks scrolling when it enters the viewport.
+    private static let chunkLimit = 48
+
     private static func buildBlocks(base: [DiffLine], fg: [NSAttributedString?],
                                     emphasis: [Int: [NSRange]], digits: Int) -> [DiffBlock] {
         var blocks: [DiffBlock] = []
-        let empty = NSAttributedString()
+        let empty = AttributedString()
         var id = 0
         var i = 0
         let n = base.count
@@ -264,33 +273,46 @@ struct ParsedDiff {
             }
             var j = i
             while j < n && base[j].kind != .hunk { j += 1 }
-            let code = buildCodeBlock(range: i..<j, base: base, fg: fg, emphasis: emphasis)
-            let gutter = buildGutterBlock(range: i..<j, base: base, digits: digits)
-            blocks.append(DiffBlock(id: id, kind: .code, hunkLabel: "", hunkContext: "",
-                                    indentHint: 0, gutter: gutter, code: code, lineCount: j - i))
-            id += 1; i = j
+            // Measure the whole run once so every chunk pads to the same width and
+            // the row-tint backgrounds stay uniform across chunks of the same run.
+            let runWidth = runCodeWidth(range: i..<j, base: base, fg: fg)
+            var c = i
+            while c < j {
+                let end = min(c + chunkLimit, j)
+                let code = buildCodeBlock(range: c..<end, base: base, fg: fg, emphasis: emphasis, maxLen: runWidth)
+                let gutter = buildGutterBlock(range: c..<end, base: base, digits: digits)
+                blocks.append(DiffBlock(id: id, kind: .code, hunkLabel: "", hunkContext: "",
+                                        indentHint: 0, gutter: AttributedString(gutter),
+                                        code: AttributedString(code), lineCount: end - c))
+                id += 1; c = end
+            }
+            i = j
         }
         return blocks
     }
 
-    /// One attributed string for a run of code lines: leading +/- marker, the
-    /// syntax-highlighted code, right-padded with spaces to the block's longest
-    /// line so the row tint (and deeper emphasis tint over it) span a uniform
-    /// width, joined by newlines. Monospaced, so the padded backgrounds align.
-    private static func buildCodeBlock(range: Range<Int>, base: [DiffLine], fg: [NSAttributedString?],
-                                       emphasis: [Int: [NSRange]]) -> NSAttributedString {
-        let plain: [NSAttributedString.Key: Any] = [.font: DiffTypography.codeFont, .foregroundColor: UIColor.label]
-        var pieces: [NSMutableAttributedString] = []
+    /// The longest marker+code line length (UTF-16) across a run, used to pad every
+    /// chunk of that run to the same width.
+    private static func runCodeWidth(range: Range<Int>, base: [DiffLine], fg: [NSAttributedString?]) -> Int {
         var maxLen = 0
         for idx in range {
-            let piece = NSMutableAttributedString(string: marker(base[idx].kind), attributes: plain)
-            piece.append(fg[idx] ?? NSAttributedString(string: base[idx].text, attributes: plain))
-            pieces.append(piece)
-            maxLen = max(maxLen, piece.length)
+            let codeLen = fg[idx]?.length ?? (base[idx].text as NSString).length
+            maxLen = max(maxLen, 1 + codeLen)
         }
+        return maxLen
+    }
+
+    /// One attributed string for a chunk of code lines: leading +/- marker, the
+    /// syntax-highlighted code, right-padded with spaces to `maxLen` (the run's
+    /// longest line) so the row tint (and deeper emphasis tint over it) span a
+    /// uniform width, joined by newlines. Monospaced, so the padded backgrounds align.
+    private static func buildCodeBlock(range: Range<Int>, base: [DiffLine], fg: [NSAttributedString?],
+                                       emphasis: [Int: [NSRange]], maxLen: Int) -> NSAttributedString {
+        let plain: [NSAttributedString.Key: Any] = [.font: DiffTypography.codeFont, .foregroundColor: UIColor.label]
         let out = NSMutableAttributedString()
-        for (k, idx) in range.enumerated() {
-            let line = pieces[k]
+        for idx in range {
+            let line = NSMutableAttributedString(string: marker(base[idx].kind), attributes: plain)
+            line.append(fg[idx] ?? NSAttributedString(string: base[idx].text, attributes: plain))
             let padCount = maxLen - line.length
             if padCount > 0 {
                 line.append(NSAttributedString(string: String(repeating: " ", count: padCount), attributes: plain))
@@ -336,10 +358,10 @@ struct DiffCodeBlock: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            Text(AttributedString(block.gutter))
+            Text(block.gutter)
                 .fixedSize()
             ScrollView(.horizontal, showsIndicators: false) {
-                Text(AttributedString(block.code))
+                Text(block.code)
                     .fixedSize()
                     .padding(.trailing, 12)
             }

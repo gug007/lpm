@@ -13,10 +13,8 @@ export default function Cta() {
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
           Download a native macOS app, add your Claude accounts in Settings,
-          and pick one per project. Sign in to each account once; from then on
-          every project — and every agent it runs — uses the right identity
-          automatically. Works on Intel and Apple Silicon Macs running macOS 12
-          or later.
+          and pick one per project. Works on Intel and Apple Silicon Macs
+          running macOS 12 or later.
         </p>
 
         <div className="mt-10 flex justify-center">

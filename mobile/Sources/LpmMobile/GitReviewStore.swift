@@ -1,6 +1,14 @@
 import Foundation
 import SwiftUI
 
+/// A per-file box holding that file's parsed diff, so one file's parse landing only
+/// re-evaluates the view reading this box — not every visible file section, which a
+/// single shared counter would have done during the lazy-load burst.
+@Observable @MainActor
+final class ParsedEntry {
+    var parsed: ParsedDiff?
+}
+
 /// The git-review state for every project, plus the operations that drive it.
 /// Owned by `AppModel` and reached as `model.git`; split out so the ~40 review
 /// properties observe and reset independently of the rest of the app. The client
@@ -40,9 +48,6 @@ final class GitReviewStore {
     var diffs: [String: GitDiffResult] = [:]
     var diffLoading: Set<String> = []
     var diffError: [String: String] = [:]
-    // Bumped when a background-built ParsedDiff lands in the cache, so views that
-    // read parsedDiff() re-evaluate and swap their loading state for the diff.
-    var parsedTick = 0
     // Files the user marked "viewed" on the review screen, keyed by project. Session
     // scoped: kept across snapshot refreshes, cleared on logout.
     var viewed: [String: Set<String>] = [:]
@@ -63,10 +68,14 @@ final class GitReviewStore {
     // Projects with a new-branch creation in flight (from the switch-branch sheet).
     var creatingBranch: Set<String> = []
 
-    // Parsed diffs (line classification + measured width), keyed by diffKey, so
-    // scrolling the review list doesn't re-parse a file's diff on every body
-    // evaluation. Invalidated when a fresh diff for that key arrives.
-    @ObservationIgnored private var parsedDiffCache: [String: ParsedDiff] = [:]
+    // Parsed diffs (line classification + measured width), keyed by diffKey, each in
+    // its own observable box so scrolling the review list doesn't re-parse a file's
+    // diff on every body evaluation and one file's parse landing invalidates only
+    // that file's section. A box's `parsed` is nil until its build lands.
+    @ObservationIgnored private var parsedEntries: [String: ParsedEntry] = [:]
+    // Projects whose review screen is open (watching), so a snapshot only triggers a
+    // prefetch of every file's diff while the review screen is actually showing.
+    @ObservationIgnored private var watching: Set<String> = []
     // Debounce per project for the git-changed push, so a burst of file writes
     // collapses into one refresh.
     @ObservationIgnored private var changedWork: [String: DispatchWorkItem] = [:]
@@ -88,23 +97,36 @@ final class GitReviewStore {
 
     func diffKey(_ project: String, _ path: String) -> String { project + "\n" + path }
 
-    /// The parsed + highlighted diff for a file. Read-only: the value is built off
-    /// the main thread when the diff arrives (see applyDiff) and cached; nil until
-    /// that lands, so views keep showing their loading state.
-    func parsedDiff(_ project: String, path: String) -> ParsedDiff? {
-        parsedDiffCache[diffKey(project, path)]
+    /// The observable box for a file's parsed diff, created on first access. A view
+    /// reads its `parsed` so only that box's mutation re-evaluates that view.
+    func parsedEntry(_ project: String, path: String) -> ParsedEntry {
+        entry(for: diffKey(project, path))
     }
 
-    /// Build ParsedDiff (parse + syntax highlight) off the main thread, then
-    /// publish it into the cache — but only if the file's diff hasn't changed
-    /// underneath us. The tick nudges observing views to re-read the cache.
+    private func entry(for key: String) -> ParsedEntry {
+        if let e = parsedEntries[key] { return e }
+        let e = ParsedEntry()
+        parsedEntries[key] = e
+        return e
+    }
+
+    /// The parsed + highlighted diff for a file. Read-only: the value is built off
+    /// the main thread when the diff arrives (see applyDiff); nil until that lands,
+    /// so views keep showing their loading state. Reading it observes the file's box.
+    func parsedDiff(_ project: String, path: String) -> ParsedDiff? {
+        parsedEntry(project, path: path).parsed
+    }
+
+    /// Build ParsedDiff (parse + syntax highlight) off the main thread, then publish
+    /// it into the file's box — but only if the file's diff hasn't changed underneath
+    /// us. Setting the box's `parsed` re-evaluates only that file's section.
     private func buildParsedDiff(key: String, diff: String, ext: String) {
+        let box = entry(for: key)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let parsed = ParsedDiff(diff, ext: ext)
             DispatchQueue.main.async {
                 guard let self, self.diffs[key]?.diff == diff else { return }
-                self.parsedDiffCache[key] = parsed
-                self.parsedTick &+= 1
+                box.parsed = parsed
             }
         }
     }
@@ -136,12 +158,12 @@ final class GitReviewStore {
         if let result {
             // Identical diff already parsed: keep the existing parse, just
             // refresh the remembered stamp and drop the loading state.
-            if !result.binary, diffs[key]?.diff == result.diff, parsedDiffCache[key] != nil {
+            if !result.binary, diffs[key]?.diff == result.diff, entry(for: key).parsed != nil {
                 diffError[key] = nil
                 recordDiffStamp(project, path: path, key: key)
                 return
             }
-            parsedDiffCache[key] = nil
+            entry(for: key).parsed = nil
             diffs[key] = result
             diffError[key] = nil
             recordDiffStamp(project, path: path, key: key)
@@ -246,8 +268,12 @@ final class GitReviewStore {
 
     /// Ask the Mac to watch this project's working tree while the review screen is
     /// open, so file changes push `git-changed`. The client re-sends on reconnect.
-    func watch(_ project: String) { client?.watchGit(project: project) }
+    func watch(_ project: String) {
+        watching.insert(project)
+        client?.watchGit(project: project)
+    }
     func unwatch(_ project: String) {
+        watching.remove(project)
         changedWork[project]?.cancel()
         changedWork[project] = nil
         client?.unwatchGit(project: project)
@@ -270,6 +296,21 @@ final class GitReviewStore {
         load(project)
     }
 
+    /// While the review screen is open, fetch every changed file's diff as soon as
+    /// the snapshot lands (one coalesced `gitDiffs` batch), so rows arrive at their
+    /// full height instead of growing from a placeholder under the finger mid-scroll.
+    /// Already-loaded or in-flight files are skipped; each row's onAppear stays as a
+    /// fallback for any file whose diff didn't come back.
+    private func prefetchDiffs(_ project: String) {
+        guard watching.contains(project), let files = snapshots[project]?.files else { return }
+        for file in files {
+            let key = diffKey(project, file.path)
+            if diffs[key] == nil && !diffLoading.contains(key) {
+                loadDiff(project, path: file.path)
+            }
+        }
+    }
+
     /// After a watched snapshot arrives: re-fetch loaded diffs whose file stamp
     /// changed (or is unknown on either side), and drop diffs for files that left
     /// the snapshot. Untouched files keep their cached parse.
@@ -286,7 +327,7 @@ final class GitReviewStore {
                 }
             } else {
                 diffs[key] = nil
-                parsedDiffCache[key] = nil
+                parsedEntries[key]?.parsed = nil
                 diffStamp[key] = nil
                 diffError[key] = nil
                 diffLoading.remove(key)
@@ -394,6 +435,7 @@ final class GitReviewStore {
             if pendingWatchRefresh.remove(project) != nil {
                 reconcileWatchedDiffs(project)
             }
+            prefetchDiffs(project)
         } else {
             loadError[project] = error ?? "Couldn't read the repository."
         }

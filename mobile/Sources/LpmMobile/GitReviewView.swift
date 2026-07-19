@@ -70,7 +70,7 @@ struct GitReviewView: View {
             .animation(.default, value: snapshot?.files.count ?? -1)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    principalTitle
+                    ChangesTitle(project: name)
                 }
                 if let s = snapshot, s.isRepo, !s.files.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -137,34 +137,6 @@ struct GitReviewView: View {
 
     private func reviewedCount(_ s: GitSnapshot) -> Int {
         s.files.filter { model.git.isViewed(name, path: $0.path) }.count
-    }
-
-    /// Aggregate +added −removed across the files whose diffs have parsed.
-    private var totals: (added: Int, removed: Int) {
-        var added = 0, removed = 0
-        for file in snapshot?.files ?? [] {
-            if let parsed = model.git.parsedDiff(name, path: file.path) {
-                added += parsed.addedCount
-                removed += parsed.removedCount
-            }
-        }
-        return (added, removed)
-    }
-
-    /// The two-line nav title: "Changes" over the aggregate +A −D, GitHub-style.
-    private var principalTitle: some View {
-        let t = totals
-        return VStack(spacing: 1) {
-            Text("Changes").font(.headline)
-            if t.added > 0 || t.removed > 0 {
-                HStack(spacing: 6) {
-                    Text("+\(t.added)").foregroundStyle(.green)
-                    Text("−\(t.removed)").foregroundStyle(.red)
-                }
-                .font(.footnote.weight(.semibold))
-                .monospacedDigit()
-            }
-        }
     }
 
     private func jumpMenu(_ s: GitSnapshot, proxy: ScrollViewProxy) -> some View {
@@ -321,6 +293,40 @@ struct GitReviewView: View {
     }
 }
 
+/// The two-line nav title: "Changes" over the aggregate +A −D, GitHub-style. Its
+/// own view so that reading every file's parsed diff (which the aggregate genuinely
+/// depends on) re-evaluates only this title as parses land, not the whole file list.
+private struct ChangesTitle: View {
+    @Environment(AppModel.self) private var model
+    let project: String
+
+    private var totals: (added: Int, removed: Int) {
+        var added = 0, removed = 0
+        for file in model.git.snapshots[project]?.files ?? [] {
+            if let parsed = model.git.parsedDiff(project, path: file.path) {
+                added += parsed.addedCount
+                removed += parsed.removedCount
+            }
+        }
+        return (added, removed)
+    }
+
+    var body: some View {
+        let t = totals
+        VStack(spacing: 1) {
+            Text("Changes").font(.headline)
+            if t.added > 0 || t.removed > 0 {
+                HStack(spacing: 6) {
+                    Text("+\(t.added)").foregroundStyle(.green)
+                    Text("−\(t.removed)").foregroundStyle(.red)
+                }
+                .font(.footnote.weight(.semibold))
+                .monospacedDigit()
+            }
+        }
+    }
+}
+
 /// One "Ask agent…" invocation: the file path and the diff text to attach.
 struct AskContext: Identifiable {
     let id = UUID()
@@ -461,15 +467,17 @@ private struct GitFileSection: View {
         }
     }
 
-    /// Whole hunks up to the soft line cap (unless expanded), so a monster file
-    /// doesn't realize thousands of merged-Text lines in one row at once.
+    /// Whole blocks up to the soft line cap (unless expanded), so a monster file
+    /// doesn't realize thousands of merged-Text lines at once. The cap applies from
+    /// line zero; blocks are chunked (≤48 lines) so the first block always fits and
+    /// something still renders.
     private func shownBlocks(_ parsed: ParsedDiff) -> [DiffBlock] {
         if expanded { return parsed.blocks }
         var result: [DiffBlock] = []
         var lines = 0
         for block in parsed.blocks {
             if block.kind == .code {
-                if lines > 0 && lines + block.lineCount > softCap { break }
+                if lines + block.lineCount > softCap { break }
                 lines += block.lineCount
             }
             result.append(block)

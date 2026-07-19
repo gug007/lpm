@@ -10,14 +10,11 @@ const WORKFLOWS: Workflow[] = [
     title: "Company seat and personal subscription on one Mac",
     body: (
       <>
-        In Settings you add an account called{" "}
-        <code className="text-xs">Work</code>. In the client repo&rsquo;s
-        config you pick it from the &ldquo;Claude account&rdquo; dropdown. The
-        next terminal you open there asks you to sign in with the company
-        account — once. Your side project keeps your personal login untouched.
-        Now both agents run at the same time in adjacent panes, each spending
-        its own subscription&rsquo;s usage, and switching projects in the
-        sidebar is the only &ldquo;account switching&rdquo; you ever do.
+        Pin the client repo to your company seat and leave the side project on
+        your personal login. Both agents run at the same time in adjacent
+        panes, each spending its own subscription&rsquo;s usage — and clicking
+        between projects in the sidebar is the only &ldquo;account
+        switching&rdquo; you ever do.
       </>
     ),
   },

@@ -1740,4 +1740,5 @@ mod tests {
         assert!(!cat_file_spec_ok("HEAD:weird\nname.txt"));
         assert!(!cat_file_spec_ok("HEAD:weird\rname.txt"));
     }
+
 }
