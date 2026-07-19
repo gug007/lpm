@@ -45,15 +45,15 @@ export function HostSection({
   useEffect(() => setPortDraft(host.port), [host.port]);
 
   const applyHost = useCallback(
-    async (next: { enabled?: boolean; port?: number; lan?: boolean }) => {
-      const merged = { enabled: host.enabled, port: host.port, lan: host.lan, ...next };
+    async (next: { enabled?: boolean; port?: number }) => {
+      const merged = { enabled: host.enabled, port: host.port, ...next };
       try {
-        await PeerHostSetConfig(merged.enabled, merged.port, merged.lan);
+        await PeerHostSetConfig(merged.enabled, merged.port, true);
       } finally {
         await refresh();
       }
     },
-    [host.enabled, host.port, host.lan, refresh],
+    [host.enabled, host.port, refresh],
   );
 
   const startPairing = useCallback(async () => {
@@ -122,21 +122,7 @@ export function HostSection({
       </div>
 
       {host.enabled && (
-        <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-[var(--text-primary)]">Local network access</p>
-              <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
-                Off keeps this Mac reachable only from itself. On lets another Mac on your network
-                connect.
-              </p>
-            </div>
-            <Toggle
-              enabled={host.lan}
-              ariaLabel="Local network access"
-              onChange={(v) => void applyHost({ lan: v })}
-            />
-          </div>
+        <div className="mt-3 rounded-xl border border-[var(--border)]">
           <div className="flex items-center justify-between gap-4 px-4 py-3">
             <p className="text-sm font-medium text-[var(--text-primary)]">Port</p>
             <input

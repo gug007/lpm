@@ -79,7 +79,7 @@ pub(crate) struct PeerDevice {
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct HostConfig {
     pub enabled: bool,
-    pub lan: bool,            // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1 (loopback only)
+    pub lan: bool,            // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1; no UI — the app always sets true, loopback-only is a manual-config escape hatch
     pub port: u16,            // 0 => DEFAULT_PORT
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
     pub devices: Vec<PeerDevice>,

@@ -16,7 +16,6 @@ export interface PeerHostPairing {
 export interface PeerHostState {
   enabled: boolean;
   port: number;
-  lan: boolean;
   pairing: PeerHostPairing | null;
   devices: PeerHostDevice[];
 }
@@ -39,7 +38,7 @@ export interface PeerStateShape {
 }
 
 export const DEFAULT_PEER_STATE: PeerStateShape = {
-  host: { enabled: false, port: 8766, lan: false, pairing: null, devices: [] },
+  host: { enabled: false, port: 8766, pairing: null, devices: [] },
   peers: [],
 };
 
