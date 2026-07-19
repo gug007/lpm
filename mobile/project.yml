@@ -90,10 +90,12 @@ targets:
         NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
         NSBonjourServices:
           - _lpm._tcp
-        # No NSAppTransportSecurity exception is needed: the desktop server speaks
-        # wss:// with a self-signed cert, and the app's URLSession delegate does its
-        # own certificate-pinning trust evaluation. A custom server-trust handler
-        # satisfies ATS on its own, so cleartext exceptions can stay out entirely.
+        # ATS treats Tailscale addresses as non-local, so allow the trust delegate
+        # to validate the desktop's pinned self-signed wss:// certificate.
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            "100.64.0.0/10":
+              NSExceptionAllowsInsecureHTTPLoads: true
 
   # Notification service extension: decrypts a push payload on-device and rewrites
   # the notification with the real project/terminal/status. Its bundle id must be

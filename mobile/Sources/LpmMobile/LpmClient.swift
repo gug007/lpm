@@ -213,6 +213,26 @@ final class LpmClient: NSObject {
     /// when someone reports the screen.
     private(set) var lastTransportErrorCode: Int?
 
+    /// The full nested error-code chain of the most recent transport failure
+    /// (e.g. "-1200/-9816"): the deepest codes name the exact TLS failure, which
+    /// the top-level URLSession code alone can't.
+    private(set) var lastTransportErrorChain: String?
+
+    /// Walks NSUnderlyingError to the deepest cause, joining the codes.
+    private static func errorChain(_ error: Error?) -> String? {
+        guard var e = error as NSError? else { return nil }
+        var parts = ["\(e.code)"]
+        while let u = e.userInfo[NSUnderlyingErrorKey] as? NSError {
+            e = u
+            parts.append("\(e.code)")
+        }
+        return parts.joined(separator: "/")
+    }
+
+    // The auth/pair frame for the current attempt, transmitted only once the
+    // socket reports open (see startAttempt for why it can't be sent earlier).
+    private var pendingHandshakeFrame: String?
+
     struct Credential { let deviceId: String; let token: String }
 
     /// This device's id (once paired/authenticated), for comparing against a
@@ -333,19 +353,21 @@ final class LpmClient: NSObject {
         set(.connecting)
         let task = session.webSocketTask(with: url)
         self.task = task
-        task.resume()
         // Handshake: pair-request (approve-on-Mac), pair (one-time code), else auth.
-        // Sent raw — the queueing `send` holds frames until `ready`, which the
-        // handshake itself produces.
+        // Held until the socket reports open (`noteOpened`) rather than sent right
+        // after resume: on a slow path (cellular via Tailscale) a send issued
+        // while the TLS handshake is still in flight can fail and tear down a
+        // connection that was about to succeed — the exact away-from-home case.
         if let name = pairRequestName {
-            transmit(Wire.pairRequest(name: name), requeueOnFailure: false)
+            pendingHandshakeFrame = Wire.pairRequest(name: name)
         } else if let code = pairingCode {
-            transmit(Wire.pair(code: code, name: deviceName), requeueOnFailure: false)
+            pendingHandshakeFrame = Wire.pair(code: code, name: deviceName)
         } else if let c = credential {
-            transmit(Wire.auth(deviceId: c.deviceId, token: c.token), requeueOnFailure: false)
+            pendingHandshakeFrame = Wire.auth(deviceId: c.deviceId, token: c.token)
         } else {
             return fatal("no credential")
         }
+        task.resume()
         receiveLoop(task)
         // Approve-on-Mac waits on the user, which outlasts the connect watchdog —
         // the pair guard bounds that mode instead.
@@ -397,6 +419,7 @@ final class LpmClient: NSObject {
         lastTransportErrorCode = (error as NSError?).flatMap {
             $0.domain == NSURLErrorDomain ? $0.code : nil
         }
+        lastTransportErrorChain = Self.errorChain(error)
         // A dropped socket during approve-on-Mac pairing must not retry (a retry
         // pops a fresh Allow dialog); surface it as a no-answer timeout instead.
         if pairRequestName != nil { failPair("timeout"); return }
@@ -491,8 +514,20 @@ final class LpmClient: NSObject {
         connectWatchdog?.cancel(); connectWatchdog = nil
         probeDeadline?.cancel(); probeDeadline = nil
         stopHeartbeat()
+        pendingHandshakeFrame = nil
         task?.cancel(with: .goingAway, reason: nil)
         task = nil
+    }
+
+    /// The socket finished its TLS + WebSocket handshake — now it's safe to send
+    /// the auth/pair frame that opens the session.
+    func noteOpened(_ opened: URLSessionWebSocketTask) {
+        main { [weak self] in
+            guard let self, opened === self.task,
+                  let frame = self.pendingHandshakeFrame else { return }
+            self.pendingHandshakeFrame = nil
+            self.transmit(frame, requeueOnFailure: false)
+        }
     }
 
     // MARK: requests
@@ -951,8 +986,13 @@ final class LpmClient: NSObject {
 ///
 /// `@unchecked Sendable`: the mutable `observed` is guarded by the lock, and the
 /// immutable config is set before the session issues any challenge.
-final class PinningDelegate: NSObject, URLSessionDelegate, @unchecked Sendable {
+final class PinningDelegate: NSObject, URLSessionDelegate, URLSessionWebSocketDelegate, @unchecked Sendable {
     weak var client: LpmClient?
+
+    func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask,
+                    didOpenWithProtocol protocolName: String?) {
+        client?.noteOpened(webSocketTask)
+    }
     private let pinProvider: (() -> String?)?
     private let expected: String?
     private let lock = NSLock()

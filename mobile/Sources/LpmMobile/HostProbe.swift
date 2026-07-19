@@ -71,7 +71,14 @@ enum HostProbe {
             await withCheckedContinuation { (cont: CheckedContinuation<String, Never>) in
                 gate.attach(cont)
                 task.resume()
-                task.sendPing { error in gate.finish(error == nil ? "ok" : shortReason(error)) }
+                // The ping drives the connection, but its completion must only
+                // ever resolve the probe *positively*: on a slow path (cellular
+                // via Tailscale) a ping issued before the handshake completes
+                // can fail while the TLS handshake is still in flight, and
+                // failing the probe then would tear down a connection that was
+                // about to succeed. Real failures still resolve via
+                // didCompleteWithError, and a wedged connection via the timeout.
+                task.sendPing { error in if error == nil { gate.finish("ok") } }
                 DispatchQueue.global().asyncAfter(deadline: .now() + timeout) { gate.finish("timed out") }
             }
         } onCancel: {

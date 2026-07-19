@@ -63,7 +63,9 @@ are gitignored; regenerate them any time from `project.yml`.
    `https://github.com/migueldeicaza/SwiftTerm` (1.2.0+). This activates the
    `#if canImport(SwiftTerm)` terminal renderer.
 3. **Info.plist keys.** `NSCameraUsageDescription` is **required** — without it
-   the QR scanner crashes the app the moment it opens:
+   the QR scanner crashes the app the moment it opens. The Tailscale CIDR
+   exception lets the trust delegate validate lpm's pinned self-signed WSS
+   certificate away from the local network:
    ```xml
    <key>NSCameraUsageDescription</key>
    <string>Scan the pairing QR code shown by lpm on your Mac.</string>
@@ -73,6 +75,17 @@ are gitignored; regenerate them any time from `project.yml`.
    <array>
      <string>_lpm._tcp</string>
    </array>
+   <key>NSAppTransportSecurity</key>
+   <dict>
+     <key>NSExceptionDomains</key>
+     <dict>
+       <key>100.64.0.0/10</key>
+       <dict>
+         <key>NSExceptionAllowsInsecureHTTPLoads</key>
+         <true/>
+       </dict>
+     </dict>
+   </dict>
    ```
 
 ### Pair
