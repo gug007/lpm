@@ -16,6 +16,11 @@ enum Wire {
     static func pair(code: String, name: String) -> String {
         json(["t": "pair", "code": code, "name": name])
     }
+    /// Request approve-on-Mac pairing: no code, the Mac shows an Allow dialog with a
+    /// match code the phone also displays. Sent as the first frame in that mode.
+    static func pairRequest(name: String) -> String {
+        json(["t": "pairRequest", "name": name])
+    }
     static func auth(deviceId: String, token: String) -> String {
         json(["t": "auth", "deviceId": deviceId, "token": token])
     }
@@ -299,6 +304,12 @@ enum Wire {
 
     enum Inbound {
         case paired(deviceId: String, token: String, serverId: String?, serverName: String?)
+        // Approve-on-Mac pairing: the Mac accepted the request and put up its Allow
+        // dialog, showing the same match code both screens display.
+        case pairPending(matchCode: String)
+        // Approve-on-Mac pairing was refused: "busy" (another request in flight),
+        // "declined" (user tapped Deny), or "timeout" (no answer, then server closes).
+        case pairDenied(reason: String)
         case ready(serverId: String?, serverName: String?)
         case error(String)
         case projects([Project])
@@ -416,6 +427,10 @@ enum Wire {
                                token: obj["token"] as? String ?? "",
                                serverId: obj["serverId"] as? String,
                                serverName: obj["serverName"] as? String)
+            case "pairPending":
+                return .pairPending(matchCode: obj["matchCode"] as? String ?? "")
+            case "pairDenied":
+                return .pairDenied(reason: obj["reason"] as? String ?? "declined")
             case "ready":
                 return .ready(serverId: obj["serverId"] as? String,
                               serverName: obj["serverName"] as? String)

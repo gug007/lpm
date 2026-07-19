@@ -75,6 +75,10 @@ final class LpmClient: NSObject {
     // identity. The model persists the credential (per-Mac Keychain) and creates
     // or dedupes the saved-Mac record. serverId/serverName are absent on older Macs.
     var onPaired: ((_ deviceId: String, _ token: String, _ serverId: String?, _ serverName: String?) -> Void)?
+    // Approve-on-Mac pairing: the request was accepted (dialog up on the Mac,
+    // carrying the match code to display), or refused with a reason.
+    var onPairPending: ((_ matchCode: String) -> Void)?
+    var onPairDenied: ((_ reason: String) -> Void)?
     // A reconnect reached `ready` carrying the Mac's identity, so the active
     // record can learn/refresh its serverId and name. Absent on older Macs.
     var onIdentity: ((_ serverId: String?, _ serverName: String?) -> Void)?
@@ -113,6 +117,13 @@ final class LpmClient: NSObject {
     private var endpoint: Endpoint
     private var credential: Credential?
     private var pairingCode: String?
+    // Non-nil while an approve-on-Mac pairing is in flight: the device name sent in
+    // the first `pairRequest` frame. This mode never auto-retries (a retry would
+    // pop a second Allow dialog) and never runs the connect watchdog (approval can
+    // take longer than it); the pair guard below bounds it instead.
+    private var pairRequestName: String?
+    private var pairGuard: DispatchWorkItem?
+    private let pairGuardTimeout: TimeInterval = 35
     private var deviceName: String
     private var session: URLSession!
     private var task: URLSessionWebSocketTask?
@@ -218,6 +229,14 @@ final class LpmClient: NSObject {
         connect()
     }
 
+    /// Connect for approve-on-Mac pairing: send a `pairRequest`, then wait (up to
+    /// the pair guard) for the Mac to accept + the user to Allow. No code involved.
+    func pairRequest(host: String, port: Int) {
+        endpoint = Endpoint(host: host, port: port)
+        pairRequestName = deviceName
+        connect()
+    }
+
     /// Force an immediate reconnect attempt (the "Retry" button) — skips any
     /// pending backoff wait.
     func retryNow() {
@@ -255,6 +274,8 @@ final class LpmClient: NSObject {
 
     func disconnect() {
         wantConnected = false
+        pairRequestName = nil
+        pairGuard?.cancel(); pairGuard = nil
         cancelReconnect()
         teardownTask()
         pendingSends.removeAll()
@@ -270,10 +291,12 @@ final class LpmClient: NSObject {
         let task = session.webSocketTask(with: url)
         self.task = task
         task.resume()
-        // Handshake: pair if we have a one-time code, else auth with our token.
+        // Handshake: pair-request (approve-on-Mac), pair (one-time code), else auth.
         // Sent raw — the queueing `send` holds frames until `ready`, which the
         // handshake itself produces.
-        if let code = pairingCode {
+        if let name = pairRequestName {
+            transmit(Wire.pairRequest(name: name), requeueOnFailure: false)
+        } else if let code = pairingCode {
             transmit(Wire.pair(code: code, name: deviceName), requeueOnFailure: false)
         } else if let c = credential {
             transmit(Wire.auth(deviceId: c.deviceId, token: c.token), requeueOnFailure: false)
@@ -281,7 +304,34 @@ final class LpmClient: NSObject {
             return fatal("no credential")
         }
         receiveLoop(task)
-        startWatchdog()
+        // Approve-on-Mac waits on the user, which outlasts the connect watchdog —
+        // the pair guard bounds that mode instead.
+        if pairRequestName != nil { armPairGuard() } else { startWatchdog() }
+    }
+
+    /// Bound an approve-on-Mac pairing so a silent Mac can't hang the UI: if neither
+    /// a `paired` nor a `pairDenied` lands in time, surface a timeout and tear down.
+    private func armPairGuard() {
+        pairGuard?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.pairRequestName != nil else { return }
+            self.failPair("timeout")
+        }
+        pairGuard = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + pairGuardTimeout, execute: work)
+    }
+
+    /// End an in-flight approve-on-Mac pairing without success: stop retrying, tear
+    /// the socket down, and report the reason.
+    private func failPair(_ reason: String) {
+        pairRequestName = nil
+        pairGuard?.cancel(); pairGuard = nil
+        wantConnected = false
+        cancelReconnect()
+        teardownTask()
+        pendingSends.removeAll()
+        set(.idle)
+        onPairDenied?(reason)
     }
 
     /// Reached `ready` (or `paired`): the link is live. Clear backoff and start
@@ -296,6 +346,9 @@ final class LpmClient: NSObject {
     /// watchdog fired. Tears down and schedules a backoff retry (unless we've been
     /// intentionally disconnected).
     private func transientFailure(_ reason: String) {
+        // A dropped socket during approve-on-Mac pairing must not retry (a retry
+        // pops a fresh Allow dialog); surface it as a no-answer timeout instead.
+        if pairRequestName != nil { failPair("timeout"); return }
         teardownTask()
         guard wantConnected else { return }
         scheduleReconnect(reason)
@@ -634,12 +687,18 @@ final class LpmClient: NSObject {
             case .paired(let deviceId, let token, let serverId, let serverName):
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
+                self.pairRequestName = nil
+                self.pairGuard?.cancel(); self.pairGuard = nil
                 self.set(.ready)
                 self.onConnected()
                 self.flushPending()
                 // The model owns the Keychain (per-Mac) and the saved-Mac record.
                 self.onPaired?(deviceId, token, serverId, serverName)
                 self.onProjectsChanged?()
+            case .pairPending(let matchCode):
+                self.onPairPending?(matchCode)
+            case .pairDenied(let reason):
+                self.failPair(reason)
             case .ready(let serverId, let serverName):
                 self.set(.ready)
                 self.onConnected()
