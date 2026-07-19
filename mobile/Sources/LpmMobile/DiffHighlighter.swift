@@ -14,7 +14,7 @@ enum DiffTypography {
 /// within one file's parse (best-effort when the opener isn't in a visible hunk).
 /// Unknown extensions fall back to plain, uncolored text.
 struct DiffHighlighter {
-    enum Token { case plain, keyword, string, comment, number }
+    enum Token { case plain, keyword, string, comment, number, key }
 
     private let spec: LanguageSpec
     private var inBlockComment = false
@@ -26,6 +26,41 @@ struct DiffHighlighter {
             return NSAttributedString(string: line.isEmpty ? " " : line,
                                       attributes: attrs(.plain))
         }
+        return build(tokenize(line))
+    }
+
+    /// Highlights a whole document into one attributed string — for the editable
+    /// code editor, as opposed to the per-line diff rows. Empty lines stay empty
+    /// (the per-line `highlight` pads them to a space so a diff row keeps its
+    /// height; an editor must never inject phantom spaces).
+    static func attributedDocument(_ text: String, ext: String) -> NSAttributedString {
+        var h = DiffHighlighter(ext: ext)
+        let out = NSMutableAttributedString()
+        let plain: [NSAttributedString.Key: Any] =
+            [.font: DiffTypography.codeFont, .foregroundColor: UIColor.label]
+        let lines = text.components(separatedBy: "\n")
+        for (idx, line) in lines.enumerated() {
+            if h.spec.isPlain {
+                out.append(NSAttributedString(string: line, attributes: plain))
+            } else {
+                out.append(h.build(h.tokenize(line)))
+            }
+            if idx < lines.count - 1 {
+                out.append(NSAttributedString(string: "\n", attributes: plain))
+            }
+        }
+        return out
+    }
+
+    private func build(_ runs: [(String, Token)]) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        for (str, token) in runs {
+            out.append(NSAttributedString(string: str, attributes: attrs(token)))
+        }
+        return out
+    }
+
+    private mutating func tokenize(_ line: String) -> [(String, Token)] {
         let chars = Array(line)
         let n = chars.count
         var runs: [(String, Token)] = []
@@ -35,6 +70,12 @@ struct DiffHighlighter {
         }
 
         var i = 0
+        // YAML mapping keys: color `key:` at the head of a line so structure reads
+        // like the desktop editor; the value after `:` falls through to the loop.
+        if spec.mapKeys, !inBlockComment,
+           let valueStart = Self.yamlKeyRuns(chars, into: &runs) {
+            i = valueStart
+        }
         while i < n {
             if inBlockComment {
                 var comment = ""
@@ -82,12 +123,7 @@ struct DiffHighlighter {
             plain.append(c); i += 1
         }
         flushPlain()
-
-        let out = NSMutableAttributedString()
-        for (str, token) in runs {
-            out.append(NSAttributedString(string: str, attributes: attrs(token)))
-        }
-        return out
+        return runs
     }
 
     private func attrs(_ token: Token) -> [NSAttributedString.Key: Any] {
@@ -109,6 +145,39 @@ struct DiffHighlighter {
         return true
     }
 
+    /// If `chars` begins with a YAML mapping key — `<indent>(- )*<key>:` where the
+    /// colon ends the line or is followed by whitespace — appends the indent and
+    /// list markers as plain, the key as `.key`, and the colon as plain to `runs`,
+    /// and returns the index where the value starts. Returns nil when the line
+    /// isn't a mapping key: a bare scalar (`- patch`), a comment, a quoted key, or
+    /// a document marker (`---`). Best-effort; the value tokenizes normally.
+    private static func yamlKeyRuns(_ chars: [Character], into runs: inout [(String, Token)]) -> Int? {
+        let n = chars.count
+        var i = 0
+        var prefix = ""
+        while i < n && chars[i] == " " { prefix.append(chars[i]); i += 1 }
+        while i + 1 < n && chars[i] == "-" && chars[i + 1] == " " {
+            prefix.append("- "); i += 2
+            while i < n && chars[i] == " " { prefix.append(chars[i]); i += 1 }
+        }
+        guard i < n, chars[i] != "#", chars[i] != "\"", chars[i] != "'", chars[i] != "-" else {
+            return nil
+        }
+        var key = ""
+        var j = i
+        while j < n && chars[j] != ":" { key.append(chars[j]); j += 1 }
+        guard j < n else { return nil } // no colon -> a scalar, not a mapping key
+        let afterColon = j + 1
+        guard afterColon >= n || chars[afterColon] == " " || chars[afterColon] == "\t" else {
+            return nil // `a:b` isn't a key/value pair in YAML — the colon needs a space
+        }
+        guard !key.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        if !prefix.isEmpty { runs.append((prefix, .plain)) }
+        runs.append((key, .key))
+        runs.append((":", .plain))
+        return afterColon
+    }
+
     // MARK: colors (GitHub-ish, tuned muted; dynamic so dark/light adapt)
 
     private static func color(_ token: Token) -> UIColor {
@@ -118,8 +187,10 @@ struct DiffHighlighter {
         case .number: return number
         case .comment: return UIColor.secondaryLabel
         case .plain: return UIColor.label
+        case .key: return key
         }
     }
+    private static let key = dynamic(light: 0x0B7285, dark: 0x4EC9B0)
     private static let keyword = dynamic(light: 0x9B2393, dark: 0xFF7AB2)
     private static let string = dynamic(light: 0xC41A16, dark: 0xFF8170)
     private static let number = dynamic(light: 0x1C00CF, dark: 0x79C0FF)
@@ -146,15 +217,20 @@ struct LanguageSpec {
     let blockClose: String?
     let strings: Set<Character>
     let isPlain: Bool
+    // Color a leading `key:` distinctly (YAML). Off for languages where keys are
+    // just quoted strings (JSON) or don't exist.
+    let mapKeys: Bool
 
     init(keywords: Set<String> = [], lineComments: [String] = [],
-         block: (String, String)? = nil, strings: Set<Character> = [], isPlain: Bool = false) {
+         block: (String, String)? = nil, strings: Set<Character> = [],
+         isPlain: Bool = false, mapKeys: Bool = false) {
         self.keywords = keywords
         self.lineComments = lineComments
         self.blockOpen = block?.0
         self.blockClose = block?.1
         self.strings = strings
         self.isPlain = isPlain
+        self.mapKeys = mapKeys
     }
 
     static func forExtension(_ ext: String) -> LanguageSpec {
@@ -211,7 +287,7 @@ struct LanguageSpec {
 
     static let yaml = LanguageSpec(
         keywords: ["true", "false", "null", "yes", "no", "on", "off"],
-        lineComments: ["#"], strings: ["\"", "'"])
+        lineComments: ["#"], strings: ["\"", "'"], mapKeys: true)
 
     static let css = LanguageSpec(block: ("/*", "*/"), strings: ["\"", "'"])
 

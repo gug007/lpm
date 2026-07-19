@@ -115,11 +115,7 @@ struct YamlConfigEditorSheet: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
             }
-            TextEditor(text: $editedText)
-                .font(.system(.callout, design: .monospaced))
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .padding(.horizontal, 8)
+            CodeEditorTextView(text: $editedText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
