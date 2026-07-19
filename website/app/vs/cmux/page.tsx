@@ -20,7 +20,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("cmux");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs cmux — Mac Tools for AI Coding Agents" },
+  title: { absolute: "cmux Terminal Alternative — Project Control for AI Agents" },
   description:
     "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
   keywords: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs cmux — Mac Tools for AI Coding Agents",
+    title: "cmux Terminal Alternative — Project Control for AI Agents",
     description:
       "Both run on macOS for AI coding agents — lpm manages projects while cmux is the terminal. Honest comparison.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs cmux — Mac Tools for AI Coding Agents",
+    title: "cmux Terminal Alternative — Project Control for AI Agents",
     description:
       "Both run on macOS for AI coding agents — lpm manages projects while cmux is the terminal.",
   },
@@ -160,7 +160,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs cmux — Mac Tools for AI Coding Agents",
+    title: "cmux Terminal Alternative — Project Control for AI Agents",
     description:
       "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
     path: PATH,
@@ -181,7 +181,7 @@ export default function LpmVsCmuxPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs cmux"
-        title="Project manager vs. terminal — both built for coding agents."
+        title="A cmux terminal alternative that manages whole projects."
         description="cmux is a native macOS terminal built for agents. lpm is a project manager with a built-in terminal. They overlap in the panes-for-agents area, but solve different halves of the workflow. Honest side-by-side, no shade."
       />
 

@@ -17,10 +17,11 @@ import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Mac Terminal for Developers — Run Your Full Stack",
+  title: "Mac Terminal App for Developers — Run Your Full Stack",
   description:
     "lpm is a Mac terminal built for developers — launch your full stack in one window, track per-service logs, and switch between repos without losing context.",
   keywords: [
+    "mac terminal app",
     "mac terminal for developers",
     "terminal for mac developers",
     "developer terminal mac",
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
     canonical: MAC_TERMINAL_DEVELOPERS_PATH,
   },
   openGraph: {
-    title: "Mac Terminal for Developers — Run Your Full Stack",
+    title: "Mac Terminal App for Developers — Run Your Full Stack",
     description:
       "Launch every service in your stack from one Mac terminal window. Per-service logs, instant project switching, and native Apple Silicon performance.",
     type: "website",
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mac Terminal for Developers — Run Your Full Stack",
+    title: "Mac Terminal App for Developers — Run Your Full Stack",
     description:
       "A Mac terminal workspace for developers. Run every service side by side, switch repos without losing context, and coordinate AI agents.",
   },
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "Mac Terminal for Developers — Run Your Full Stack",
+    title: "Mac Terminal App for Developers — Run Your Full Stack",
     description:
       "lpm is a Mac terminal built for developers — launch your full stack in one window, track per-service logs, and switch between repos without losing context.",
     path: MAC_TERMINAL_DEVELOPERS_PATH,

@@ -9,13 +9,14 @@ Intent: developer-persona / workflow-first — a Mac developer looking for a ter
 ## 1. Metadata
 
 ```ts
-title: "Mac Terminal for Developers — Run Your Full Stack"
-// 52 chars
+title: "Mac Terminal App for Developers — Run Your Full Stack"
+// 53 chars
 
 description: "lpm is a Mac terminal built for developers — launch your full stack in one window, track per-service logs, and switch between repos without losing context."
 // 156 chars
 
 keywords: [
+  "mac terminal app",
   "mac terminal for developers",
   "terminal for mac developers",
   "developer terminal mac",
@@ -39,14 +40,14 @@ keywords: [
 
 alternates.canonical: "/mac-terminal-for-developers"
 
-openGraph.title: "Mac Terminal for Developers — Run Your Full Stack"
+openGraph.title: "Mac Terminal App for Developers — Run Your Full Stack"
 openGraph.description: "Launch every service in your stack from one Mac terminal window. Per-service logs, instant project switching, and native Apple Silicon performance."
 openGraph.type: "website"
 openGraph.url: "/mac-terminal-for-developers"
 openGraph.siteName: "lpm"
 
 twitter.card: "summary_large_image"
-twitter.title: "Mac Terminal for Developers — Run Your Full Stack"
+twitter.title: "Mac Terminal App for Developers — Run Your Full Stack"
 twitter.description: "A Mac terminal workspace for developers. Run every service side by side, switch repos without losing context, and coordinate AI agents."
 ```
 
@@ -159,7 +160,7 @@ Eight sections, rendered in this order:
 ## 3. Hero-specific
 
 - **Eyebrow:** `TERMINAL BUILT FOR YOUR DEVELOPER WORKFLOW`
-- **H1:** `The Mac terminal workspace built for developers who run real stacks.`
+- **H1:** `The Mac terminal app built for developers who run real stacks.`
 - **Subtitle paragraph:** lpm replaces scattered terminal tabs with a project-aware workspace — one window for every service, per-service log panes, and instant project switching that keeps your state intact. Native Apple Silicon, zero Electron.
 - **Primary CTA label:** `Download for macOS` (uses existing `HeroDownload`)
 - **Secondary link label:** `View on GitHub`

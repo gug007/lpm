@@ -14,7 +14,7 @@ import Problem from "./_components/problem";
 import ReviewDemo from "./_components/review-demo";
 import Workflows from "./_components/workflows";
 
-const TITLE = "Review Changes in the Terminal — Diff Review for Mac";
+const TITLE = "Review Code Changes in Your Terminal Before You Commit";
 const DESCRIPTION =
   "Review code changes in your terminal with lpm — a full file-by-file diff viewer built into a native macOS workspace. See what changed before you commit, right next to your running services and AI agents.";
 
@@ -22,6 +22,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
+    "review code changes",
     "review changes in terminal",
     "review code changes in terminal",
     "git diff in terminal mac",
@@ -57,7 +58,7 @@ const structuredData = [
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
-    { name: "Review Changes in the Terminal", path: REVIEW_CHANGES_PATH },
+    { name: "Review Code Changes in Your Terminal", path: REVIEW_CHANGES_PATH },
   ]),
 ];
 

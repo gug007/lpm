@@ -20,7 +20,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("docker-compose");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs Docker Compose — Local Dev Without Containers" },
+  title: { absolute: "Docker Compose Alternative for Fast Native Development" },
   description:
     "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
   keywords: [
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Docker Compose — Local Dev Without Containers",
+    title: "Docker Compose Alternative for Fast Native Development",
     description:
       "Run your Rails, Next.js, Go, or Python stack natively with per-service panes and a visual project switcher — or drive Docker Compose through lpm. Honest comparison.",
     type: "website",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Docker Compose — Local Dev Without Containers",
+    title: "Docker Compose Alternative for Fast Native Development",
     description:
       "Native dev, without container overhead. Or run compose through lpm — they're not mutually exclusive.",
   },
@@ -168,7 +168,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Docker Compose — Local Dev Without Containers",
+    title: "Docker Compose Alternative for Fast Native Development",
     description:
       "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
     path: PATH,
@@ -189,7 +189,7 @@ export default function LpmVsDockerComposePage() {
       />
       <ComparisonHero
         eyebrow="lpm vs Docker Compose"
-        title="Native dev, without container overhead."
+        title="A Docker Compose alternative for fast native development."
         description="Docker Compose is excellent for prod parity and cross-team reproducibility. lpm is about the daily native dev loop on one machine — with per-service panes, a project switcher, and room for AI agents alongside your stack."
       />
 

@@ -11,7 +11,7 @@ export default function Hero() {
           The lpm companion for iPhone &amp; iPad
         </p>
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          Run AI agents in your Mac terminal from your phone.
+          Control Claude Code and Codex on your Mac from your iPhone.
         </h1>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed tracking-wide">
           The lpm iOS app pairs with lpm on your Mac and mirrors every terminal

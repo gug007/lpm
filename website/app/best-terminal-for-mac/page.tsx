@@ -17,12 +17,13 @@ import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Best Terminal for Mac — Native Apple Silicon Workspace",
+  title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
   description:
     "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
   keywords: [
     "best terminal for mac",
     "best terminal for macos",
+    "mac terminal app",
     "best terminal for mac developers",
     "best terminal for mac m1",
     "best free terminal for mac",
@@ -32,7 +33,7 @@ export const metadata: Metadata = {
     canonical: BEST_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Mac — Native Apple Silicon Workspace",
+    title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
     description:
       "A native macOS terminal workspace. Run every service side by side, switch projects visually, and skip the Electron bloat of Hyper or Tabby.",
     type: "website",
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Mac — Native Apple Silicon Workspace",
+    title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
     description:
       "A native macOS terminal workspace. Run every service side by side, switch projects visually, and skip the Electron bloat.",
   },
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal for Mac — Native Apple Silicon Workspace",
+    title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
     description:
       "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
     path: BEST_TERMINAL_MAC_PATH,

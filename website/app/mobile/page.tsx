@@ -20,7 +20,7 @@ import Problem from "./_components/problem";
 import ReviewShip from "./_components/review-ship";
 import Security from "./_components/security";
 
-const TITLE = "Run AI Agents in Your Mac Terminal From Your iPhone";
+const TITLE = "Control Claude Code on Your Mac From Your iPhone";
 const DESCRIPTION =
   "Pair your iPhone with lpm on your Mac to control Claude Code, Codex, or any AI agent in a live terminal: review diffs, commit and push, and get encrypted alerts.";
 
@@ -28,6 +28,9 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
+    "claude code iphone",
+    "claude code mobile",
+    "remote claude code",
     "control claude code from phone",
     "control claude code from iphone",
     "ai agent mac terminal",

@@ -23,11 +23,13 @@ const pageDescription =
   "lpm is a native SSH terminal for Mac developers. Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.";
 
 export const metadata: Metadata = {
-  title: "SSH Terminal for Mac — Port Forwarding & Remote Dev",
+  title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
   description: pageDescription,
   keywords: [
+    "mac ssh client",
     "ssh terminal for mac",
     "ssh client for mac",
+    "ssh app for mac",
     "macos ssh terminal",
     "ssh port forwarding mac terminal",
     "mac terminal for remote development",
@@ -37,7 +39,7 @@ export const metadata: Metadata = {
     canonical: SSH_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "SSH Terminal for Mac — Remote Dev Boxes in One Window",
+    title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
     description:
       "Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote services beside local ones in one native Mac terminal.",
     type: "website",
@@ -46,7 +48,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SSH Terminal for Mac — ~/.ssh/config, Ports, Remote Dev",
+    title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
     description:
       "A native macOS SSH terminal that imports your ~/.ssh/config, forwards remote ports, and keeps remote services next to your local stack.",
   },
@@ -54,7 +56,7 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "SSH Terminal for Mac",
+    title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
     description: pageDescription,
     path: SSH_TERMINAL_MAC_PATH,
     about: [
@@ -78,7 +80,7 @@ const structuredData = [
       {
         "@type": "ListItem",
         position: 2,
-        name: "SSH Terminal for Mac",
+        name: "Mac SSH Client & Terminal",
         item: pageUrl,
       },
     ],

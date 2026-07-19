@@ -40,7 +40,7 @@ Required terms to land somewhere on the page (per upstream calibration):
 ## 2. Hero
 
 - **Eyebrow:** `THE SSH TERMINAL FOR MAC DEVELOPERS`
-- **H1:** `The Mac terminal that keeps your local stack and your remote dev box in the same window.`
+- **H1:** `A Mac SSH client and terminal that makes remote dev boxes feel local.`
 - **Subtitle direction:** lead with "Pick any host from `~/.ssh/config`",
   then name the three core differentiators in order: host import, remote
   port forwarding, remote services running side by side with local ones in

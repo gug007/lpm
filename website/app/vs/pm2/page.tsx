@@ -22,7 +22,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("pm2");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs PM2 — Process Manager for the Dev Loop" },
+  title: { absolute: "PM2 Alternative for Local Development — lpm vs PM2" },
   description:
     "PM2 keeps Node apps alive in production. lpm runs your dev loop with per-service panes, multi-project switching, and AI-agent workflows. Honest comparison.",
   keywords: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs PM2 — Process Manager for the Dev Loop",
+    title: "PM2 Alternative for Local Development — lpm vs PM2",
     description:
       "PM2 is for production. lpm is for the dev loop. See where each one is the right tool — honestly, side by side.",
     type: "website",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs PM2 — Process Manager for the Dev Loop",
+    title: "PM2 Alternative for Local Development — lpm vs PM2",
     description:
       "PM2 is for production. lpm is for the dev loop. Honest side-by-side comparison.",
   },
@@ -198,7 +198,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs PM2 — Process Manager for the Dev Loop",
+    title: "PM2 Alternative for Local Development — lpm vs PM2",
     description:
       "PM2 keeps Node apps alive in production. lpm runs your dev loop with per-service panes, multi-project switching, and AI-agent workflows. Honest comparison.",
     path: PATH,
@@ -219,7 +219,7 @@ export default function LpmVsPm2Page() {
       />
       <ComparisonHero
         eyebrow="lpm vs PM2"
-        title="PM2 is for production. lpm is for the dev loop."
+        title="A PM2 alternative built for the local development loop."
         description="PM2 is a rock-solid daemon for keeping Node apps alive in prod — clustering, auto-restart, startup scripts. lpm is a workflow tool for starting, stopping, and switching between local projects while you code. Different jobs."
       />
 

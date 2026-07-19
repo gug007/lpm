@@ -11,15 +11,17 @@ Intent: hybrid local + remote — Mac developers whose daily work crosses an SSH
 ## 1. Metadata
 
 ```ts
-title: "SSH Terminal for Mac — Remote Dev Boxes in One Window"
-// 55 chars
+title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev"
+// 56 chars
 
 description: "Pick any host from ~/.ssh/config, forward remote ports to localhost, and run remote services side by side with local ones in one native Mac terminal window."
 // 156 chars
 
 keywords: [
+  "mac ssh client",
   "ssh terminal for mac",
   "ssh client for mac",
+  "ssh app for mac",
   "mac terminal ssh",
   "macos ssh terminal",
   "ssh terminal mac developers",
@@ -42,14 +44,14 @@ keywords: [
 
 alternates.canonical: "/ssh-terminal-for-mac"
 
-openGraph.title: "SSH Terminal for Mac — Remote Dev Boxes in One Window"
+openGraph.title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev"
 openGraph.description: "Pick any ~/.ssh/config host, forward remote ports to localhost, and run remote services side by side with local ones in a native Mac terminal."
 openGraph.type: "website"
 openGraph.url: "/ssh-terminal-for-mac"
 openGraph.siteName: "lpm"
 
 twitter.card: "summary_large_image"
-twitter.title: "SSH Terminal for Mac — Remote Dev Boxes in One Window"
+twitter.title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev"
 twitter.description: "An SSH terminal that imports your ~/.ssh/config, forwards remote ports to localhost, and runs remote services in panes alongside your local stack."
 ```
 
@@ -162,7 +164,7 @@ Eight sections, rendered in this order:
 ## 3. Hero-specific
 
 - **Eyebrow:** `THE SSH TERMINAL FOR MAC DEVELOPERS`
-- **H1:** `The Mac terminal that keeps your local stack and your remote dev box in the same window.`
+- **H1:** `A Mac SSH client and terminal that makes remote dev boxes feel local.`
 - **Subtitle paragraph:** Pick any host from `~/.ssh/config`, forward remote ports to localhost the moment a service binds, and run remote services in panes next to your local ones — all in one native Mac window. Native Apple Silicon, zero Electron.
 - **Primary CTA label:** `Download for macOS` (uses existing `HeroDownload`)
 - **Secondary link label:** `View on GitHub`

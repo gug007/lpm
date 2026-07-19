@@ -22,7 +22,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("foreman");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs Foreman — Procfile Manager for Mac" },
+  title: { absolute: "Foreman Alternative for Mac — Per-Service Dev Processes" },
   description:
     "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
   keywords: [
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Foreman — Procfile Manager for Mac",
+    title: "Foreman Alternative for Mac — Per-Service Dev Processes",
     description:
       "Keep the Procfile-style ergonomics, get per-service panes, a desktop app, and multi-project support. Honest look at lpm versus Foreman.",
     type: "website",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Foreman — Procfile Manager for Mac",
+    title: "Foreman Alternative for Mac — Per-Service Dev Processes",
     description:
       "A modern Procfile experience with per-service panes, a desktop app, and multi-project switching.",
   },
@@ -179,7 +179,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Foreman — Procfile Manager for Mac",
+    title: "Foreman Alternative for Mac — Per-Service Dev Processes",
     description:
       "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
     path: PATH,
@@ -200,7 +200,7 @@ export default function LpmVsForemanPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs Foreman"
-        title="A modern Procfile experience for local dev."
+        title="A Foreman alternative with per-service panes and project switching."
         description="Foreman is stable and lovable for Rails devs. lpm keeps the name-plus-command simplicity and adds per-service panes, a desktop app, multi-project switching, and parallel AI-agent workflows."
       />
 

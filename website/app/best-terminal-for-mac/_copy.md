@@ -9,8 +9,8 @@ Intent: evaluative / download-ready Mac developers looking for a native terminal
 ## 1. Metadata
 
 ```ts
-title: "Best Terminal for Mac — Native Apple Silicon Workspace"
-// 54 chars
+title: "Best Terminal App for Mac — Native Apple Silicon Workspace"
+// 58 chars
 
 description: "lpm is the best terminal for Mac developers — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat."
 // 154 chars
@@ -18,6 +18,7 @@ description: "lpm is the best terminal for Mac developers — a native Apple Sil
 keywords: [
   "best terminal for mac",
   "best terminal for macos",
+  "mac terminal app",
   "best terminal for mac developers",
   "best terminal for mac m1",
   "best terminal for mac 2026",
@@ -40,14 +41,14 @@ keywords: [
 
 alternates.canonical: "/best-terminal-for-mac"
 
-openGraph.title: "Best Terminal for Mac — Native Apple Silicon Workspace"
+openGraph.title: "Best Terminal App for Mac — Native Apple Silicon Workspace"
 openGraph.description: "A native macOS terminal built for developers. Run every service side by side, switch projects visually, and skip the Electron bloat of Hyper or Tabby."
 openGraph.type: "website"
 openGraph.url: "/best-terminal-for-mac"
 openGraph.siteName: "lpm"
 
 twitter.card: "summary_large_image"
-twitter.title: "Best Terminal for Mac — Native Apple Silicon Workspace"
+twitter.title: "Best Terminal App for Mac — Native Apple Silicon Workspace"
 twitter.description: "A native macOS terminal built for developers. Run every service side by side, switch projects visually, and skip the Electron bloat."
 ```
 
@@ -158,7 +159,7 @@ Eight sections, rendered in this order:
 ## 3. Hero-specific
 
 - **Eyebrow:** `THE NATIVE TERMINAL FOR MAC DEVELOPERS`
-- **H1:** `The best terminal for Mac, built natively for Apple Silicon.`
+- **H1:** `The best terminal app for Mac, built for Apple Silicon.`
 - **Subtitle paragraph:** A real macOS desktop app that runs your whole dev stack in one window — live output per service, a visual project switcher, and no Electron runtime to drain your MacBook's battery.
 - **Primary CTA label:** `Download for macOS` (uses existing `HeroDownload`)
 - **Secondary link label:** `View on GitHub`

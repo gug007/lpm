@@ -17,7 +17,7 @@ import Install from "./_components/install";
 import Parallel from "./_components/parallel";
 import Workflows from "./_components/workflows";
 
-const TITLE = "Connect AI Coding Agents to Your Dev Environment";
+const TITLE = "Claude Code Skills & Codex Tools for Your Dev Environment";
 const DESCRIPTION =
   "Give Claude Code, Codex, Gemini CLI, and OpenCode a CLI to run your project — start, stop, and restart dev servers, read logs, wait for ports, report status, and fan out into parallel copies. One-click skill and CLI install for your Mac.";
 
@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
+    "claude code skills",
+    "claude code tools",
+    "codex skills",
     "connect ai agents to dev environment",
     "let claude code restart my dev server",
     "claude code agent skills",
@@ -68,7 +71,7 @@ const structuredData = [
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "Connect AI Coding Agents to Your Dev Environment",
+      name: "Claude Code Skills & Codex Tools",
       path: CONNECT_AGENTS_PATH,
     },
   ]),

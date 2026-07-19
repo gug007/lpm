@@ -19,7 +19,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs Overmind — Procfile Manager Without tmux" },
+  title: { absolute: "Overmind Alternative for Mac — Procfile Manager Without tmux" },
   description:
     "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
   keywords: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Overmind — Procfile Manager Without tmux",
+    title: "Overmind Alternative for Mac — Procfile Manager Without tmux",
     description:
       "Overmind-grade per-process control — no tmux to install or learn. A native macOS desktop app with per-service panes, single-service restarts, and multi-project switching.",
     type: "website",
@@ -41,7 +41,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Overmind — Procfile Manager Without tmux",
+    title: "Overmind Alternative for Mac — Procfile Manager Without tmux",
     description:
       "Overmind-grade per-process control — no tmux to install or learn. Per-service panes, single-service restarts, multi-project switching — in a native macOS app.",
   },
@@ -151,7 +151,7 @@ const FAQS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Overmind — Procfile Manager Without tmux",
+    title: "Overmind Alternative for Mac — Procfile Manager Without tmux",
     description:
       "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
     path: PATH,
@@ -172,7 +172,7 @@ export default function OvermindVsPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs Overmind"
-        title="Overmind-grade per-process control, in a desktop app."
+        title="An Overmind alternative for Mac — Procfile control without tmux."
         description="Overmind is a great Procfile runner that asks you to know tmux. lpm gives you the same single-service attach, restart, and signal behavior — plus a native macOS app, multi-project switching, and project configs generated straight from your repo."
       />
 

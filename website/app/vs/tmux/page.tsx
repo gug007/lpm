@@ -17,7 +17,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("tmux");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs tmux — Run Local Dev Stacks in Panes" },
+  title: { absolute: "tmux Alternative for Mac — Run Dev Stacks Without Config" },
   description:
     "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
   keywords: [
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs tmux — Run Local Dev Stacks in Panes",
+    title: "tmux Alternative for Mac — Run Dev Stacks Without Config",
     description:
       "tmux-level visibility, one-command start, no config. How lpm compares to tmux when you use it only as a crude dev-stack process manager.",
     type: "website",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs tmux — Run Local Dev Stacks in Panes",
+    title: "tmux Alternative for Mac — Run Dev Stacks Without Config",
     description:
       "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for local dev stacks.",
   },
@@ -153,7 +153,7 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs tmux — Run Local Dev Stacks in Panes",
+    title: "tmux Alternative for Mac — Run Dev Stacks Without Config",
     description:
       "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
     path: PATH,
@@ -174,7 +174,7 @@ export default function VsTmuxPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs tmux"
-        title="tmux-level visibility, one-command start, no config."
+        title="A tmux alternative for local dev stacks — panes without config."
         description="tmux is a wonderful terminal multiplexer. lpm is a project manager for your local dev stacks that happens to give you the same pane-per-service layout for free. If you only use tmux to wire up your dev stack, this page is for you."
       />
 
