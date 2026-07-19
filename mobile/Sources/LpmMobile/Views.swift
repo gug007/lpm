@@ -357,6 +357,7 @@ struct ProjectsView: View {
     @State private var renameText = ""
     @State private var editingEndpoint = false
     @State private var showingSettings = false
+    @State private var addingProject = false
     // The duplicate pending removal-confirmation. Removing deletes its folder from
     // disk, so it always routes through a confirmation dialog.
     @State private var removing: Project?
@@ -460,6 +461,9 @@ struct ProjectsView: View {
                         Label("Settings", systemImage: "gearshape")
                     }
                     Divider()
+                    Button { addingProject = true } label: {
+                        Label("Add Project…", systemImage: "plus.rectangle.on.folder")
+                    }
                     Button { folderNameText = ""; creatingFolder = true } label: {
                         Label("New Folder…", systemImage: "folder.badge.plus")
                     }
@@ -571,6 +575,9 @@ struct ProjectsView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsSheet()
+        }
+        .sheet(isPresented: $addingProject) {
+            AddProjectSheet()
         }
         .sheet(isPresented: $editingEndpoint) {
             EditEndpointView()

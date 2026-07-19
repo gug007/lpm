@@ -243,6 +243,62 @@ The pre-existing `{ "t": "history", "project", "q" }` / `{ "t": "historyAdd", �
 messages are unchanged — `historyQuery` is the richer superset for the paged
 history screen, while `history` remains the simple project-scoped recall list.
 
+### Add / import / clone projects
+
+Create projects from the phone: a new empty folder, an existing folder on the
+Mac, a git clone, or an SSH (remote) project — mirroring the desktop's Add
+Project flow. The folder browser (`listDirs`) and SSH host list (`listSshHosts`)
+feed the pickers. `createProject`/`createSshProject` write a config file and
+finish quickly, so they reply **inline**; `cloneProject` blocks on the network,
+so it runs on a **worker thread** and its reply arrives **asynchronously** via
+the out-queue (arm a longer, ~120s, timeout for it). Each successful creation
+emits the desktop's `projects-changed`, so the Mac window and every paired phone
+refresh their project list.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "listDirs", "path": "<abs path>" }` | `{ "t": "listDirs", "ok": true, "path": "<canonical>", "parent": "<abs>"\|null, "dirs": ["<name>"…] }` / `{ "ok": false, "error": "…" }` — one level of the Mac's filesystem for the folder picker. An empty `path`, `~`, or `~/…` resolves to `$HOME`; any other value is an absolute path. `dirs` are the immediate child directory names (sorted, case-insensitive; dot-dirs skipped); `parent` is null at the filesystem root. Inline (runs off the UI thread on the Mac) |
+| `{ "t": "listSshHosts" }` | `{ "t": "listSshHosts", "ok": true, "hosts": [SshHost…] }` / `{ "ok": false, "error": "…" }` — the Mac's `~/.ssh/config` Host aliases (non-wildcard, `Include`s followed), for the Add-SSH-project picker. Inline |
+| `{ "t": "createProject", "name": "<name>", "root": "<abs or ~ path>" }` | `{ "t": "createProject", "ok": true, "name": "<name>" }` / `{ "ok": false, "name": "<name>", "error": "…" }` — creates the project `name` rooted at `root`, creating the folder if missing (so it works for both a new project and importing an existing folder) and seeding a placeholder `dev` service. Rejects an invalid or already-used name. Inline; emits `projects-changed` |
+| `{ "t": "createSshProject", "name": "<name>", "ssh": { "host": "<host>", "user": "<user>", "port": N, "key": "<key path>", "dir": "<remote dir>" } }` | `{ "t": "createSshProject", "ok": true, "name": "<name>" }` / `{ "ok": false, "name": "<name>", "error": "…" }` — creates a remote (SSH) project. `host` + `user` are required; `port` `0`/omitted means default 22; `key`/`dir` are optional. Seeds a `shell` service. Inline; emits `projects-changed` |
+| `{ "t": "cloneProject", "name": "<name>", "url": "<git url>", "branch": "<branch>", "destParent": "<abs parent dir>" }` | `{ "t": "cloneProject", "ok": true, "name": "<name>" }` / `{ "ok": false, "name": "<name>", "error": "…" }` — `git clone`s `url` (optionally `--branch <branch>`, empty = default branch) into `destParent/<name>` and registers the project. Validates synchronously (bad name / URL / branch / missing-or-unwritable parent fail fast), then the network clone runs on a **worker thread**; the reply arrives **asynchronously** and the friendly clone error (auth, not-found, offline, …) is surfaced in `error`. Emits `projects-changed` on success. Because a clone can be slow, arm a **~120s** timeout, not the usual ~20s |
+
+### Config editing (services, profiles, actions, raw YAML)
+
+Edit a project's config from the phone across its three layers — `project` (the
+registry file `~/.lpm/projects/<name>.yml`, or the parent's for a duplicate),
+`repo` (`<root>/.lpm.yml`), and `global` (`~/.lpm/global.yml`). Two editing
+styles:
+
+- **Raw YAML** (`readConfig`/`saveConfig`) round-trips a layer's **exact text**,
+  so **comments are preserved**. `readConfig` is a fast inline read;
+  `saveConfig` writes on a worker thread (async reply) through the same routing
+  the desktop uses (a duplicate writes to its parent's file; a project-layer
+  rename moves the file). `readConfig` for the `repo` layer of an SSH/rootless
+  project returns `available:false` (there is no local `.lpm.yml`).
+- **Structured edits** (`serviceBody`/`actionBody` reads + `saveService`/
+  `deleteService`/`saveProfile`/`deleteProfile`/`saveAction`/`deleteAction`
+  writes) seed and mutate individual entries through `serde_yaml`. **DATA is
+  preserved but comments reflow** — the same accepted tradeoff as `saveJob`. An
+  edit lands in the topmost layer that **owns** the entry; a new entry is created
+  in the `project` layer. The read verbs are inline; every write verb runs on a
+  **worker thread**, replies **asynchronously** via the out-queue, and emits
+  `projects-changed` on success. (Profiles need no read verb — the seed comes
+  from `ProjectInfo.profiles` already in the projects push.)
+
+| Request | Reply |
+|---|---|
+| `{ "t": "readConfig", "project": "<name>", "layer": "project"\|"repo"\|"global" }` | `{ "t": "readConfig", "ok": true, "project": "<name>", "layer": "<layer>", "content": "<raw yaml>", "available": bool }` / `{ "ok": false, "project": "<name>", "layer": "<layer>", "error": "…" }` — the layer's exact text (a missing file reads as `""`, `available:true`). `available:false` (with `content:""`) means the layer doesn't apply here — the `repo` layer of an SSH/rootless project. Inline |
+| `{ "t": "saveConfig", "project": "<name>", "layer": "project"\|"repo"\|"global", "content": "<raw yaml>" }` | `{ "t": "saveConfig", "ok": true, "project": "<name>", "layer": "<layer>", "name": "<possibly-renamed>" }` / `{ "ok": false, "project": "<name>", "layer": "<layer>", "name": "<name>", "error": "…" }` — writes the exact text back (**comments preserved**). For the `project` layer, changing the top-level `name:` renames the project and `name` echoes the new project id (blocked while duplicates exist); a duplicate always writes to its parent's file and keeps its own name. `repo`/`global` echo the input project as `name`. Invalid YAML → `error` `"invalid YAML: …"`. Async (worker); emits `projects-changed` |
+| `{ "t": "serviceBody", "project": "<name>", "key": "<service>" }` | `{ "t": "serviceBody", "ok": true, "project": "<name>", "key": "<service>", "body": ServiceBody, "source": "project"\|"repo" }` / `{ "ok": false, "project": "<name>", "key": "<service>", "error": "…" }` — the service's stored mapping from the topmost layer that defines it (compact `key: cmd` normalized to `{ "cmd": … }`), to seed the phone's service editor. `source` is which layer it came from. Inline |
+| `{ "t": "actionBody", "project": "<name>", "key": "<action>" }` | `{ "t": "actionBody", "ok": true, "project": "<name>", "key": "<action>", "body": ActionBody, "section": "actions"\|"terminals", "source": "project"\|"repo"\|"global" }` / `{ "ok": false, "project": "<name>", "key": "<action>", "error": "…" }` — the action's full stored mapping from the topmost body-bearing layer, searching **both** `actions:` and `terminals:` (scalar shorthand normalized to `{ "cmd": … }`). `key` may be a `parent:child` composite (a nested child, resolved by descending `actions:` submaps). `section` says which section it lives in, `source` which layer. Inline |
+| `{ "t": "saveService", "project": "<name>", "key": "<service>", "payload": ServiceBody, "previousKey": "<old>"? }` | `{ "t": "saveService", "ok": true, "project": "<name>", "key": "<service>" }` / `{ "ok": false, "project": "<name>", "key": "<service>", "error": "…" }` — creates or edits `services.<key>`. `payload` carries the managed fields (`cmd` required; optional `cwd`, `port`, `portConflict`, `env`, `dependsOn`) — a field the payload **omits** is removed from the entry, so a cleared value doesn't linger, while user-authored fields outside that set survive. A compact `key: cmd` entry is promoted to a mapping before patching. With `previousKey` ≠ `key` the service is renamed: the map key moves in its owning layer and **every** reference (each `profiles:` list, other services' `dependsOn`/`depends_on`) is rewritten across all layers. A new key is created in the `project` layer. Async (worker); comments reflow; emits `projects-changed` |
+| `{ "t": "deleteService", "project": "<name>", "key": "<service>" }` | `{ "t": "deleteService", "ok": true, "project": "<name>", "key": "<service>" }` / `{ "ok": false, "project": "<name>", "key": "<service>", "error": "…" }` — deletes `services.<key>` from its owning layer and strips every reference to it (profile lists + other services' `dependsOn`/`depends_on`) across all layers, dropping an emptied `services:` map. Async (worker); comments reflow; emits `projects-changed` |
+| `{ "t": "saveProfile", "project": "<name>", "name": "<profile>", "services": ["<service>"…], "previousName": "<old>"? }` | `{ "t": "saveProfile", "ok": true, "project": "<name>", "name": "<profile>" }` / `{ "ok": false, "project": "<name>", "name": "<profile>", "error": "…" }` — sets `profiles.<name>` to the given service list. With `previousName` ≠ `name` the profile is renamed in its owning layer first. A new profile is created in the `project` layer. Async (worker); comments reflow; emits `projects-changed` |
+| `{ "t": "deleteProfile", "project": "<name>", "name": "<profile>" }` | `{ "t": "deleteProfile", "ok": true, "project": "<name>", "name": "<profile>" }` / `{ "ok": false, "project": "<name>", "name": "<profile>", "error": "…" }` — deletes `profiles.<name>` from its owning layer, dropping an emptied `profiles:` map. Async (worker); comments reflow; emits `projects-changed` |
+| `{ "t": "saveAction", "project": "<name>", "key": "<action>", "payload": ActionBody, "previousKey": "<old>"?, "section": "actions"\|"terminals"? }` | `{ "t": "saveAction", "ok": true, "project": "<name>", "key": "<action>" }` / `{ "ok": false, "project": "<name>", "key": "<action>", "error": "…" }` — creates or edits an action. The existing body is read first and **merged**: the payload's managed fields (`label`, `emoji`, `shortcut`, `cmd`, `cwd`, `type`, `reuse`, `confirm`, `port`, `portConflict`, `display`, `actions`, `position`) replace those on the entry, while **unmanaged** fields (`env`, `inputs`, hand-authored keys) ride along untouched — so `payload` is the full managed mapping the form built (omit a managed field to clear it). The edit lands in the entry's existing section + layer; a new entry is created under `section` (default `actions`) in the `project` layer. With `previousKey` ≠ `key` the entry is renamed, preserving its section. A **new** key containing `:` is rejected (composite names address an existing nested child, edited through its parent's payload). Async (worker); comments reflow; emits `projects-changed` |
+| `{ "t": "deleteAction", "project": "<name>", "key": "<action>" }` | `{ "t": "deleteAction", "ok": true, "project": "<name>", "key": "<action>" }` / `{ "ok": false, "project": "<name>", "key": "<action>", "error": "…" }` — deletes the action from the topmost layer/section that has it (`actions:` then `terminals:`), dropping an emptied section. Async (worker); comments reflow; emits `projects-changed` |
+
 ### Composer draft sync
 
 The terminal composer's **active-input text** is mirrored between the desktop and
@@ -399,6 +455,33 @@ parentName: string        // the project this is a duplicate of; empty for origi
 actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
 ```
 
+**SshHost** (from `listSshHosts`) — a `~/.ssh/config` Host alias:
+```
+name: string          // the Host alias
+hostName: string      // HostName (may be empty)
+user: string
+port: number          // 0 when unset
+identityFile: string  // IdentityFile path (may be empty)
+```
+
+**ServiceBody** (the `body`/`payload` of `serviceBody`/`saveService`) — a
+service's managed fields; a compact `key: cmd` entry reads back as `{ "cmd": … }`:
+```
+cmd: string           // required
+cwd: string?
+port: number?
+portConflict: string?
+env: { <k>: <v> }?
+dependsOn: [string]?
+```
+
+**ActionBody** (the `body`/`payload` of `actionBody`/`saveAction`) — an action's
+full mapping. Managed fields the form owns: `label`, `emoji`, `shortcut`, `cmd`,
+`cwd`, `type`, `reuse`, `confirm`, `port`, `portConflict`, `display`, `actions`
+(nested children), `position`. Any other key (`env`, `inputs`, hand-authored) is
+**unmanaged** and preserved across an edit. A scalar shorthand entry reads back
+as `{ "cmd": … }`.
+
 **JobInfo**:
 ```
 id: string
@@ -521,9 +604,14 @@ d = "<utf-8 text>"              // sent as-is
   the socket dies. On foreground, reconnect, `auth`, and `sub` again — the
   `seed` frame restores the current screen from the server-side ring buffer.
 - **v1 scope.** The phone views/types into terminals the desktop already
-  created, and starts/stops projects and services. Spawning new terminals and
-  changing the desktop pane layout from the phone are deferred (they need the
-  owner-window action relay so the desktop store stays authoritative).
+  created, starts/stops projects and services, **creates projects** (new/import/
+  clone/SSH), and **edits project config** — services, profiles, actions, and the
+  raw YAML of the project/repo/global layers. Changing the desktop pane layout
+  from the phone (moving/splitting panes) is still deferred — that needs the
+  owner-window action relay so the desktop store stays authoritative. Config
+  writes go directly through the Mac's config layer (no window needed);
+  structured edits reflow comments (like `saveJob`), while the raw-YAML editor
+  preserves them.
 
 ## Dev/prod coexistence (shared ~/.lpm)
 

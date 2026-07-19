@@ -3144,6 +3144,264 @@ fn handle_msg(
                 )?,
             }
         }
+        // ---- Add / import / clone projects ----------------------------------
+        // Browse the Mac's folders so the phone can pick a root for a new or
+        // imported project without a native dialog. Fast, inline.
+        "listDirs" => {
+            let path = str_field("path").unwrap_or_default();
+            let reply = match crate::files::list_dirs(path) {
+                Ok(d) => json!({ "t": "listDirs", "ok": true, "path": d.path,
+                "parent": d.parent, "dirs": d.dirs }),
+                Err(e) => json!({ "t": "listDirs", "ok": false, "error": e }),
+            };
+            send(ws, reply)?;
+        }
+        // The Mac's ~/.ssh/config Host aliases, for the Add-SSH-project picker.
+        "listSshHosts" => {
+            let reply = match crate::sshconfig::list_ssh_hosts() {
+                Ok(hosts) => json!({ "t": "listSshHosts", "ok": true, "hosts": hosts }),
+                Err(e) => json!({ "t": "listSshHosts", "ok": false, "error": e }),
+            };
+            send(ws, reply)?;
+        }
+        // Create a new empty project OR register an existing folder. create_dir_all
+        // + a config write is fast, so inline; create_project emits projects-changed.
+        "createProject" => {
+            let name = str_field("name").unwrap_or_default();
+            let root = str_field("root").unwrap_or_default();
+            let r = crate::projects_crud::create_project(app.clone(), name.clone(), root);
+            let mut reply = result_reply("createProject", r);
+            reply["name"] = json!(name);
+            send(ws, reply)?;
+        }
+        // Add an SSH (remote) project. Inline — writes a config file, no network.
+        "createSshProject" => {
+            let name = str_field("name").unwrap_or_default();
+            match serde_json::from_value::<crate::projects_crud::SshConfig>(
+                v.get("ssh").cloned().unwrap_or_else(|| json!({})),
+            ) {
+                Ok(ssh) => {
+                    let r = crate::projects_crud::create_ssh_project(app.clone(), name.clone(), ssh);
+                    let mut reply = result_reply("createSshProject", r);
+                    reply["name"] = json!(name);
+                    send(ws, reply)?;
+                }
+                Err(e) => send(
+                    ws,
+                    json!({ "t": "createSshProject", "ok": false, "name": name, "error": e.to_string() }),
+                )?,
+            }
+        }
+        // Clone a git repo into a new project. The clone is network-blocking, so
+        // run it on a worker thread and reply through the out-queue (mirrors
+        // saveJob). create_project_from_clone validates synchronously inside and
+        // emits projects-changed on success.
+        "cloneProject" => {
+            let name = str_field("name").unwrap_or_default();
+            let url = str_field("url").unwrap_or_default();
+            let branch = str_field("branch").unwrap_or_default();
+            let dest_parent = str_field("destParent").unwrap_or_default();
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::projects_crud::create_project_from_clone(
+                    app,
+                    name.clone(),
+                    url,
+                    branch,
+                    dest_parent,
+                );
+                let mut reply = result_reply("cloneProject", r);
+                reply["name"] = json!(name);
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        // ---- Raw YAML config (comment-preserving) ---------------------------
+        // Read a config layer's exact text so the phone's YAML editor round-trips
+        // it verbatim. Fast, inline.
+        "readConfig" => {
+            let project = str_field("project").unwrap_or_default();
+            let layer = str_field("layer").unwrap_or_default();
+            send(ws, read_config_reply(&project, &layer))?;
+        }
+        // Write a config layer's exact text back (comments preserved). Goes
+        // through the shared config_cmds writers (duplicate-parent + rename
+        // routing, which emit projects-changed), on a worker thread.
+        "saveConfig" => {
+            let project = str_field("project").unwrap_or_default();
+            let layer = str_field("layer").unwrap_or_default();
+            let content = str_field("content").unwrap_or_default();
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let reply = save_config_reply(&app, &project, &layer, content);
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        // ---- Structured config reads (seed the phone's edit forms) ----------
+        "serviceBody" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let reply = match crate::config_edit::service_body(&project, &key) {
+                Ok((body, source)) => json!({ "t": "serviceBody", "ok": true,
+                "project": project, "key": key, "body": body, "source": source }),
+                Err(e) => json!({ "t": "serviceBody", "ok": false,
+                "project": project, "key": key, "error": e }),
+            };
+            send(ws, reply)?;
+        }
+        "actionBody" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let reply = match crate::config_edit::action_body(&project, &key) {
+                Ok((body, section, source)) => json!({ "t": "actionBody", "ok": true,
+                "project": project, "key": key, "body": body, "section": section, "source": source }),
+                Err(e) => json!({ "t": "actionBody", "ok": false,
+                "project": project, "key": key, "error": e }),
+            };
+            send(ws, reply)?;
+        }
+        // ---- Structured config writes ---------------------------------------
+        // serde_yaml surgical edits (DATA preserved, comments reflow — the same
+        // tradeoff as saveJob). Each runs on a worker thread, emits
+        // projects-changed on success, and replies through the out-queue.
+        "saveService" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let payload = v.get("payload").cloned().unwrap_or_else(|| json!({}));
+            let previous_key = str_field("previousKey");
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::config_edit::save_service(
+                    &project,
+                    &key,
+                    &payload,
+                    previous_key.as_deref(),
+                );
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("projects-changed", ());
+                        json!({ "t": "saveService", "ok": true, "project": project, "key": key })
+                    }
+                    Err(e) => {
+                        json!({ "t": "saveService", "ok": false, "project": project, "key": key, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "deleteService" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::config_edit::delete_service(&project, &key);
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("projects-changed", ());
+                        json!({ "t": "deleteService", "ok": true, "project": project, "key": key })
+                    }
+                    Err(e) => {
+                        json!({ "t": "deleteService", "ok": false, "project": project, "key": key, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "saveProfile" => {
+            let project = str_field("project").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            let services: Vec<String> = v
+                .get("services")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let previous_name = str_field("previousName");
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::config_edit::save_profile(
+                    &project,
+                    &name,
+                    &services,
+                    previous_name.as_deref(),
+                );
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("projects-changed", ());
+                        json!({ "t": "saveProfile", "ok": true, "project": project, "name": name })
+                    }
+                    Err(e) => {
+                        json!({ "t": "saveProfile", "ok": false, "project": project, "name": name, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "deleteProfile" => {
+            let project = str_field("project").unwrap_or_default();
+            let name = str_field("name").unwrap_or_default();
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::config_edit::delete_profile(&project, &name);
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("projects-changed", ());
+                        json!({ "t": "deleteProfile", "ok": true, "project": project, "name": name })
+                    }
+                    Err(e) => {
+                        json!({ "t": "deleteProfile", "ok": false, "project": project, "name": name, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "saveAction" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let payload = v.get("payload").cloned().unwrap_or_else(|| json!({}));
+            let previous_key = str_field("previousKey");
+            let section = str_field("section");
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::config_edit::save_action(
+                    &project,
+                    &key,
+                    &payload,
+                    previous_key.as_deref(),
+                    section.as_deref(),
+                );
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("projects-changed", ());
+                        json!({ "t": "saveAction", "ok": true, "project": project, "key": key })
+                    }
+                    Err(e) => {
+                        json!({ "t": "saveAction", "ok": false, "project": project, "key": key, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
+        "deleteAction" => {
+            let project = str_field("project").unwrap_or_default();
+            let key = str_field("key").unwrap_or_default();
+            let (app, out) = (app.clone(), out.clone());
+            std::thread::spawn(move || {
+                let r = crate::config_edit::delete_action(&project, &key);
+                let reply = match &r {
+                    Ok(()) => {
+                        let _ = app.emit("projects-changed", ());
+                        json!({ "t": "deleteAction", "ok": true, "project": project, "key": key })
+                    }
+                    Err(e) => {
+                        json!({ "t": "deleteAction", "ok": false, "project": project, "key": key, "error": e })
+                    }
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
         _ => {}
     }
     Ok(())

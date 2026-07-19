@@ -19,6 +19,7 @@ struct ProjectRunControl: View {
     let onDiscard: () -> Void
     let onRename: () -> Void
     let onTerminalSettings: () -> Void
+    let onConfigure: () -> Void
 
     private var running: Bool { project.running }
 
@@ -68,6 +69,9 @@ struct ProjectRunControl: View {
             Divider()
             Button(action: onRename) {
                 Label("Rename…", systemImage: "pencil")
+            }
+            Button(action: onConfigure) {
+                Label("Configure…", systemImage: "slider.horizontal.3")
             }
             Button(action: onTerminalSettings) {
                 Label("Terminal Settings", systemImage: "textformat.size")
@@ -157,6 +161,7 @@ struct ProjectMenuHost: ViewModifier {
     @State private var showPrSheet = false
     @State private var confirmingDiscard = false
     @State private var showTerminalSettings = false
+    @State private var showingConfig = false
     // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
     @State private var runInputsFor: Action?
     @State private var runConfirmFor: Action?
@@ -228,6 +233,9 @@ struct ProjectMenuHost: ViewModifier {
                 BackgroundRunSheet(run: run).environment(model)
             }
             .sheet(isPresented: $showTerminalSettings) { TerminalSettingsSheet() }
+            .sheet(isPresented: $showingConfig) {
+                ProjectConfigView(project: project).environment(model)
+            }
             .alert("Rename project", isPresented: $renaming) {
                 TextField("Project name", text: $renameText)
                 Button("Cancel", role: .cancel) {}
@@ -249,7 +257,8 @@ struct ProjectMenuHost: ViewModifier {
                                       onCreatePr: { showPrSheet = true },
                                       onDiscard: { confirmingDiscard = true },
                                       onRename: { renameText = project.label; renaming = true },
-                                      onTerminalSettings: { showTerminalSettings = true })
+                                      onTerminalSettings: { showTerminalSettings = true },
+                                      onConfigure: { showingConfig = true })
                         .environment(model)
                 }
             }
