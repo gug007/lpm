@@ -24,7 +24,7 @@ input=$(cat)
 jqr() { printf '%s' "$input" | jq -r "$1"; }
 "##;
 
-const STATUSLINE_TINT_FN: &str = r##"tint() { if [ "$1" -ge 90 ]; then printf '\033[31m'; elif [ "$1" -ge 70 ]; then printf '\033[33m'; else printf '\033[32m'; fi; }
+const STATUSLINE_TINT_FN: &str = r##"tint() { if [ "$1" -ge 80 ]; then printf '\033[31m'; elif [ "$1" -ge 50 ]; then printf '\033[33m'; else printf '\033[32m'; fi; }
 "##;
 
 // Label-less meter: the caller prints the (optionally colored) label, then this
@@ -2048,6 +2048,21 @@ mod tests {
         let wide_bar = count(&run_script(&build_custom_statusline(&wide).unwrap(), SAMPLE_PAYLOAD));
         let narrow_bar = count(&run_script(&build_custom_statusline(&narrow).unwrap(), SAMPLE_PAYLOAD));
         assert!(wide_bar > narrow_bar, "wider meter draws more cells: {wide_bar} vs {narrow_bar}");
+    }
+
+    #[test]
+    fn usage_meter_color_tracks_percentage() {
+        let source = build_custom_statusline(&cspec(&["five"], "·", "bar")).unwrap();
+        for (percentage, color) in [(49, "32"), (50, "33"), (79, "33"), (80, "31")] {
+            let payload = format!(
+                r#"{{"rate_limits":{{"five_hour":{{"used_percentage":{percentage}}}}}}}"#
+            );
+            let text = run_script(&source, &payload);
+            assert!(
+                text.contains(&format!("\u{1b}[{color}m")),
+                "{percentage}% uses ANSI color {color}: {text:?}"
+            );
+        }
     }
 
     #[test]
