@@ -19,7 +19,7 @@ export const STATUSLINE_LABELS: Record<StatusLineTemplateId, string> = {
   current: "My status line",
   minimal: "Minimal",
   context: "Context",
-  meters: "Usage meters",
+  meters: "Usage & cost",
   vibrant: "Custom",
   custom: "Custom",
   ai: "AI edited",

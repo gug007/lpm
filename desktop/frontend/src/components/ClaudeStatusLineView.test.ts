@@ -41,7 +41,7 @@ describe("statuslineSelectionLabel", () => {
 
   it("labels known selections and falls back to the current label", () => {
     expect(statuslineSelectionLabel("vibrant", false)).toBe("Custom");
-    expect(statuslineSelectionLabel("meters", false)).toBe("Usage meters");
+    expect(statuslineSelectionLabel("meters", false)).toBe("Usage & cost");
     expect(statuslineSelectionLabel("nope", false)).toBe("My status line");
   });
 });

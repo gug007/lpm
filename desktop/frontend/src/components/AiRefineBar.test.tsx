@@ -6,7 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   generate: vi.fn(),
   run: vi.fn(),
+  cancel: vi.fn(),
   onGenerated: vi.fn(),
+  pickerProps: null as Record<string, unknown> | null,
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -32,7 +34,7 @@ vi.mock("../hooks/useAIGeneration", () => ({
   useAIGeneration: () => ({
     generating: false,
     run: mocks.run,
-    cancel: vi.fn(),
+    cancel: mocks.cancel,
   }),
   isCanceledError: () => false,
 }));
@@ -40,13 +42,13 @@ vi.mock("../types", () => ({
   aiEffectiveFast: () => true,
 }));
 vi.mock("./ui/AIPickerButton", () => ({
-  AIPickerButton: ({
-    onGenerate,
-    label,
-  }: {
+  AIPickerButton: (props: {
     onGenerate: () => void;
     label: string;
-  }) => <button onClick={onGenerate}>{label}</button>,
+  }) => {
+    mocks.pickerProps = props;
+    return <button onClick={props.onGenerate}>{props.label}</button>;
+  },
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -62,6 +64,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
+  mocks.pickerProps = null;
   mocks.generate.mockResolvedValue(undefined);
   mocks.run.mockImplementation(
     (task: (generationId: string) => Promise<unknown>) => task("generation-1"),
@@ -97,6 +100,13 @@ describe("AiRefineBar", () => {
     expect(container.textContent).not.toContain("Add Git info");
     expect(container.textContent).not.toContain("Make it compact");
     expect(container.textContent).not.toContain("Claude orange");
+    expect(mocks.pickerProps).toMatchObject({
+      onCancel: mocks.cancel,
+      generating: false,
+      disabled: true,
+      label: "Refine",
+      menuPlacement: "up",
+    });
   });
 
   it("keeps Enter for new lines and submits with Command-Enter", async () => {

@@ -2090,7 +2090,7 @@ mod tests {
         let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
         assert!(text.contains("\u{1b}[38;2;217;119;87m✳ Opus 4.8"), "model icon uses model color: {text:?}");
         assert!(text.contains("\u{1b}[0m\u{1b}[2m⚡ 5h"), "5h icon resets before its own default style: {text:?}");
-        assert!(!text.contains("\u{1b}[34m✳"), "model icon does not inherit folder blue: {text:?}");
+        assert!(!text.contains("\u{1b}[94m✳"), "model icon does not inherit folder blue: {text:?}");
         assert!(!text.contains("\u{1b}[35m⚡"), "5h icon does not inherit context magenta: {text:?}");
     }
 

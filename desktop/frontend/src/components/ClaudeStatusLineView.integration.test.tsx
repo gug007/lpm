@@ -183,7 +183,7 @@ describe("ClaudeStatusLineView state safety", () => {
     );
 
     await renderView();
-    await act(async () => presetButton("Usage meters").click());
+    await act(async () => presetButton("Usage & cost").click());
 
     const randomize = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.includes("Randomize"),
@@ -219,7 +219,7 @@ describe("ClaudeStatusLineView state safety", () => {
 
     await renderView();
     await act(async () => {
-      presetButton("Usage meters").click();
+      presetButton("Usage & cost").click();
       await Promise.resolve();
     });
     expect(separatorInput().value).toBe("~");
