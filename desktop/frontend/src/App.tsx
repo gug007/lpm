@@ -3,6 +3,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { StatsView } from "./components/StatsView";
+import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
@@ -46,6 +47,7 @@ export default function App() {
   const sidebarOrder = useAppStore((s) => s.sidebarOrder);
   const selected = useAppStore((s) => s.selected);
   const view = useAppStore((s) => s.view);
+  const usageOpen = useAppStore((s) => s.usageOpen);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
@@ -56,6 +58,7 @@ export default function App() {
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
 
   const setView = useAppStore((s) => s.setView);
+  const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setTmuxReady = useAppStore((s) => s.setTmuxReady);
@@ -98,7 +101,10 @@ export default function App() {
   const isStatsView = view === "stats";
   const isScheduledView = view === "scheduled";
   const isSettingsView =
-    view !== "projects" && view !== "terminals" && view !== "stats" && view !== "scheduled";
+    view !== "projects" &&
+    view !== "terminals" &&
+    view !== "stats" &&
+    view !== "scheduled";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
   const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
@@ -248,6 +254,7 @@ export default function App() {
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
           onStats={() => setView("stats")}
+          onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
           onFeedback={() => setFeedbackOpen(true)}
           onSettings={() => setView("settings")}
@@ -271,6 +278,7 @@ export default function App() {
           detached={detached}
           showTerminals={isTerminalsView}
           showStats={isStatsView}
+          showUsage={usageOpen}
           showScheduled={isScheduledView}
           showSettings={isSettingsView}
           duplicatingNames={duplicatingNames}
@@ -350,6 +358,7 @@ export default function App() {
           )}
         </main>
       </div>
+      <UsageModal open={usageOpen} onClose={() => setUsageOpen(false)} />
       <FeedbackModal />
       <NewProjectPicker />
       <AddSSHProjectModal />

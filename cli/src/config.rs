@@ -17,13 +17,23 @@ use std::path::{Path, PathBuf};
 #[derive(Clone)]
 pub struct Ctx {
     pub lpm_dir: PathBuf,
+    pub socket_override: Option<PathBuf>,
 }
 
 impl Ctx {
     /// The real `~/.lpm` (falls back to `./.lpm` if there's no home dir).
+    /// LPM_SOCKET_PATH (injected into lpm-spawned terminals) overrides the
+    /// socket so the CLI talks to the instance that owns the terminal — e.g. a
+    /// dev build running beside the installed app.
     pub fn from_home() -> Self {
         let lpm_dir = dirs::home_dir().unwrap_or_default().join(".lpm");
-        Ctx { lpm_dir }
+        let socket_override = std::env::var_os("LPM_SOCKET_PATH")
+            .filter(|p| !p.is_empty())
+            .map(PathBuf::from);
+        Ctx {
+            lpm_dir,
+            socket_override,
+        }
     }
 
     pub fn projects_dir(&self) -> PathBuf {
@@ -42,7 +52,9 @@ impl Ctx {
         self.lpm_dir.join("terminals.json")
     }
     pub fn socket_path(&self) -> PathBuf {
-        self.lpm_dir.join("lpm.sock")
+        self.socket_override
+            .clone()
+            .unwrap_or_else(|| self.lpm_dir.join("lpm.sock"))
     }
 }
 
@@ -886,6 +898,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Ctx {
             lpm_dir: dir.path().to_path_buf(),
+            socket_override: None,
         };
         std::fs::create_dir_all(ctx.projects_dir()).unwrap();
         for (name, body) in files {

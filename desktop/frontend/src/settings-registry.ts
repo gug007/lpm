@@ -18,10 +18,26 @@ export type SettingsViewEntry = {
   id: string;
   label: string;
   description: string;
+  caption?: string;
   keywords?: string[];
 };
 
-export type SettingsSearchEntry = SettingsRowEntry | SettingsViewEntry;
+// A dashboard overlay (opened over the app, not a main-area view) that settings
+// search can jump to.
+export type SettingsModalEntry = {
+  kind: "modal";
+  modal: "usage";
+  id: string;
+  label: string;
+  description: string;
+  caption?: string;
+  keywords?: string[];
+};
+
+export type SettingsSearchEntry =
+  | SettingsRowEntry
+  | SettingsViewEntry
+  | SettingsModalEntry;
 
 export type SettingsNavItem =
   | { kind: "tab"; tab: SettingsTab; label: string; flag?: SettingsFlag }
@@ -366,6 +382,19 @@ const VIEW_ENTRIES: SettingsViewEntry[] = [
   },
 ];
 
+const MODAL_ENTRIES: SettingsModalEntry[] = [
+  {
+    kind: "modal",
+    modal: "usage",
+    id: "usage",
+    label: "Usage limits",
+    description:
+      "See how much of your Claude and Codex plans you've used, and turn on Claude usage meters.",
+    caption: "Opens Usage",
+    keywords: ["rate limit", "quota", "claude", "codex", "plan", "meter"],
+  },
+];
+
 // Dynamically-generated rows are indexed straight from their source arrays so
 // adding a shortcut or sound event automatically makes it searchable.
 export const SOUND_EVENTS: {
@@ -428,6 +457,7 @@ export function buildSearchEntries(ctx: {
     ...soundEntries(),
     ...shortcutEntries(),
     ...VIEW_ENTRIES,
+    ...MODAL_ENTRIES,
   ];
   return entries.filter(
     (e) => e.kind !== "row" || e.tab !== "tts" || ctx.experimentalTTS,
@@ -462,5 +492,6 @@ export function matchSettings(
 }
 
 export function captionFor(entry: SettingsSearchEntry): string {
-  return entry.kind === "row" ? TAB_TITLES[entry.tab] : "Opens editor";
+  if (entry.kind === "row") return TAB_TITLES[entry.tab];
+  return entry.caption ?? "Opens editor";
 }

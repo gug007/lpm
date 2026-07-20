@@ -189,6 +189,7 @@ export function Settings({
   const [systemSounds, setSystemSounds] = useState<string[]>([]);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
+  const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const templates = useAppStore((s) => s.templates);
   const selectTemplate = useAppStore((s) => s.selectTemplate);
   const createTemplate = useAppStore((s) => s.createTemplate);
@@ -260,6 +261,11 @@ export function Settings({
     if (entry.kind === "view") {
       setQuery("");
       onNavigate(entry.view);
+      return;
+    }
+    if (entry.kind === "modal") {
+      setQuery("");
+      if (entry.modal === "usage") setUsageOpen(true);
       return;
     }
     setActiveTab(entry.tab);

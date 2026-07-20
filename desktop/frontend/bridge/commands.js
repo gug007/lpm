@@ -19,6 +19,12 @@ export function AckTerminalData(id, charCount) {
 export function AgentUsageStats(days) {
   return invoke("agent_usage_stats", { days });
 }
+export function AgentLimits() {
+  return invoke("agent_limits");
+}
+export function ApplyClaudeLimits(enabled) {
+  return invoke("apply_claude_limits", { enabled });
+}
 export function AddPortForward(project, remotePort, localPort) {
   return invoke("add_port_forward", { project, remotePort, localPort });
 }

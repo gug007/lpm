@@ -3,12 +3,16 @@ import { EventsOn } from "../../bridge/runtime";
 import { ListAllJobs } from "../../bridge/commands";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { HistoryIcon, MessageIcon, MoreHorizontalIcon } from "./icons";
+import { HistoryIcon, MessageIcon, MoreHorizontalIcon, StatsIcon, ZapIcon } from "./icons";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
   showScheduled: boolean;
   onScheduled: () => void;
+  showUsage: boolean;
+  onUsage: () => void;
+  showStats: boolean;
+  onStats: () => void;
   onFeedback: () => void;
 }
 
@@ -51,7 +55,7 @@ function useJobsAmbient(showScheduled: boolean): {
   return { running, attention };
 }
 
-export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsage, showStats, onStats, onFeedback }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
   useEventListener("keydown", (e) => {
@@ -76,7 +80,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: Si
       <button
         onClick={() => setOpen((v) => !v)}
         className={`relative flex h-full w-8 items-center justify-center rounded-md transition-colors ${
-          open || showScheduled
+          open || showScheduled || showUsage || showStats
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
@@ -116,6 +120,18 @@ export function SidebarFooterMore({ showScheduled, onScheduled, onFeedback }: Si
                 Beta
               </span>
             )}
+          </button>
+          <button onClick={pick(onUsage)} className={itemClass(showUsage)}>
+            <span className="shrink-0">
+              <ZapIcon />
+            </span>
+            Usage
+          </button>
+          <button onClick={pick(onStats)} className={itemClass(showStats)}>
+            <span className="shrink-0">
+              <StatsIcon />
+            </span>
+            Stats
           </button>
           <button onClick={pick(onFeedback)} className={itemClass(false)}>
             <MessageIcon />

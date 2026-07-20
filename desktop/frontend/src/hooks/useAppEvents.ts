@@ -54,6 +54,7 @@ export function useAppEvents(): void {
     const {
       selectProject,
       setView,
+      setUsageOpen,
       setFeedbackOpen,
       addProject,
       triggerRemoteAction,
@@ -135,6 +136,12 @@ export function useAppEvents(): void {
       },
     );
     const cancelNavView = EventsOn("navigate-main-view", (view: string) => {
+      // Usage is an overlay rather than a main-area view (a detached window asks
+      // for it via FocusMainWindow("usage")), so route it to the modal.
+      if (view === "usage") {
+        setUsageOpen(true);
+        return;
+      }
       setView(view as Parameters<typeof setView>[0]);
     });
     const cancelNewProject = EventsOn("open-new-project", () => {

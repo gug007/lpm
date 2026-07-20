@@ -992,6 +992,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Ctx {
             lpm_dir: dir.path().join(".lpm"),
+            socket_override: None,
         };
         std::fs::create_dir_all(ctx.projects_dir()).unwrap();
         (dir, ctx)

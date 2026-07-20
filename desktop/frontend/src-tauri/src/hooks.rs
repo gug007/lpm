@@ -7,11 +7,13 @@
 // `# lpm-hook` marker and only ever touches the `hooks` key — every other
 // setting is preserved (serde_json::Value round-trips losslessly; key ordering
 // alphabetizes exactly as Go's map+MarshalIndent did).
+use base64::Engine;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
 const MARKER: &str = "# lpm-hook";
+const STATUSLINE_MARKER: &str = "# lpm-statusline:";
 
 fn home() -> PathBuf {
     dirs::home_dir().unwrap_or_default()
@@ -293,6 +295,181 @@ fn capture_resume_cmd() -> String {
     format!(
         "sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && echo \"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & }} >/dev/null 2>&1; {MARKER}"
     )
+}
+
+// ---- Claude usage-limit statusline forwarder --------------------------------
+//
+// Consent-gated: enabling "Claude usage limits" installs a `statusLine` command
+// into ~/.claude/settings.json that reads the statusline JSON on stdin, forwards
+// it (base64) into the status socket as `agent_limits <account> --payload-b64=…`,
+// and — if the user already had a statusline — chains their original command so
+// their display is unchanged. The forwarder derives the account from the live
+// CLAUDE_CONFIG_DIR, so a single install covers every account (per-account
+// settings.json symlink to this one file). Disable restores the exact prior
+// statusLine, which is preserved base64-encoded in the trailing marker.
+
+fn claude_config_dir_env() -> &'static str {
+    crate::config::CLAUDE_CONFIG_DIR_ENV
+}
+
+/// Build the wrapper `command` string. `original` is the user's prior statusLine
+/// object (or Null when there was none); it is both chained inline (via its
+/// `command`) and embedded base64 in the trailing marker for exact restore.
+fn statusline_command(original: &Value) -> String {
+    let original_cmd = original.get("command").and_then(Value::as_str);
+    let embedded =
+        base64::engine::general_purpose::STANDARD.encode(serde_json::to_vec(original).unwrap_or_default());
+    let env = claude_config_dir_env();
+    let mut s = format!(
+        "acct=default; case \"${{{env}:-}}\" in */claude-accounts/*) acct=\"${{{env}##*/}}\";; esac; "
+    );
+    s.push_str("i=$(cat); ");
+    s.push_str(
+        "printf %s \"$i\" | base64 | tr -d '\\n' | { IFS= read -r b; [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && printf 'agent_limits %s --payload-b64=%s\\n' \"${acct:-default}\" \"$b\" | nc -w1 -U \"$LPM_SOCKET_PATH\"; } >/dev/null 2>&1 &",
+    );
+    if let Some(orig) = original_cmd {
+        s.push(' ');
+        s.push_str("printf %s \"$i\" | ( ");
+        s.push_str(orig);
+        s.push_str(" )");
+    }
+    s.push(' ');
+    s.push_str(STATUSLINE_MARKER);
+    s.push_str(&embedded);
+    s
+}
+
+/// If `command` is an lpm-installed wrapper, return the embedded original
+/// statusLine value (an object, or Null when the user had no prior statusLine);
+/// None when the command is not ours.
+fn unwrap_statusline(command: &str) -> Option<Value> {
+    let idx = command.rfind(STATUSLINE_MARKER)?;
+    let b64 = command[idx + STATUSLINE_MARKER.len()..].trim();
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// The user's true prior statusLine, unwrapping our own wrapper if present so a
+/// reinstall never nests. Null when there was no usable prior statusLine.
+fn prior_statusline(settings: &Value) -> Value {
+    let prior = settings.get("statusLine");
+    let cmd = prior.and_then(|v| v.get("command")).and_then(Value::as_str);
+    match cmd {
+        Some(c) => match unwrap_statusline(c) {
+            Some(embedded) => embedded,
+            None => prior.cloned().unwrap_or(Value::Null),
+        },
+        None => Value::Null,
+    }
+}
+
+/// Merge the statusLine forwarder into settings bytes, returning Some(new bytes)
+/// on change and None when unchanged or the input is not a JSON object. Pure so
+/// install/restore share one tested transform.
+fn install_statusline(data: &[u8]) -> Option<Vec<u8>> {
+    let before = serde_json::from_slice::<Value>(data).ok()?;
+    let mut settings = before.clone();
+    settings.as_object()?; // must be an object
+    let original = prior_statusline(&settings);
+    let command = statusline_command(&original);
+
+    let mut slo = original.as_object().cloned().unwrap_or_default();
+    slo.insert("type".into(), json!("command"));
+    slo.insert("command".into(), json!(command));
+    // Keep meters fresh while idle; never slow down a user's faster interval.
+    let refresh = slo
+        .get("refreshInterval")
+        .and_then(Value::as_i64)
+        .filter(|n| *n > 0)
+        .unwrap_or(30)
+        .min(30);
+    slo.insert("refreshInterval".into(), json!(refresh));
+
+    settings
+        .as_object_mut()
+        .unwrap()
+        .insert("statusLine".into(), Value::Object(slo));
+    if settings == before {
+        return None;
+    }
+    serde_json::to_string_pretty(&settings)
+        .ok()
+        .map(String::into_bytes)
+}
+
+/// Restore the pre-install statusLine (or remove it if there was none), only
+/// touching an lpm-installed wrapper. None when unchanged or not ours.
+fn remove_statusline(data: &[u8]) -> Option<Vec<u8>> {
+    let before = serde_json::from_slice::<Value>(data).ok()?;
+    let cmd = before
+        .get("statusLine")
+        .and_then(|v| v.get("command"))
+        .and_then(Value::as_str)?;
+    let embedded = unwrap_statusline(cmd)?; // not ours -> leave untouched
+    let mut settings = before.clone();
+    let obj = settings.as_object_mut()?;
+    match embedded {
+        Value::Null => {
+            obj.remove("statusLine");
+        }
+        other => {
+            obj.insert("statusLine".into(), other);
+        }
+    }
+    if settings == before {
+        return None;
+    }
+    serde_json::to_string_pretty(&settings)
+        .ok()
+        .map(String::into_bytes)
+}
+
+fn install_claude_statusline_at(path: &Path) -> Result<(), String> {
+    // On explicit opt-in, create a minimal settings.json when absent (unlike the
+    // status hooks, which never create the file) so the meter can turn on.
+    let data = std::fs::read(path).unwrap_or_else(|_| b"{}".to_vec());
+    if let Some(out) = install_statusline(&data) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        }
+        std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+    }
+    Ok(())
+}
+
+fn remove_claude_statusline_at(path: &Path) -> Result<(), String> {
+    let Ok(data) = std::fs::read(path) else {
+        return Ok(()); // no file -> nothing to restore
+    };
+    if let Some(out) = remove_statusline(&data) {
+        std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Install or uninstall the Claude usage-limit forwarder. The frontend toggle
+/// owns the persisted `claudeLimitsEnabled` flag; this only performs the
+/// filesystem side effect.
+#[tauri::command(async)]
+pub fn apply_claude_limits(enabled: bool) -> Result<(), String> {
+    let path = claude_settings_path();
+    if enabled {
+        install_claude_statusline_at(&path)
+    } else {
+        remove_claude_statusline_at(&path)
+    }
+}
+
+/// Startup re-apply: silently reinstall the forwarder when the user previously
+/// enabled it (mirrors the skill/CLI refresh — startup only refreshes opt-ins).
+pub fn reapply_claude_limits_if_enabled() {
+    let enabled = crate::config::load_settings()
+        .get("claudeLimitsEnabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if enabled {
+        let _ = install_claude_statusline_at(&claude_settings_path());
+    }
 }
 
 fn has_marker(hooks: &Value) -> bool {
@@ -611,5 +788,99 @@ mod tests {
         assert!(s.contains("set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid"));
         assert!(s.contains("[ -S \"$LPM_SOCKET_PATH\" ]") && s.contains("[ -n \"$sid\" ]"));
         assert!(s.ends_with(MARKER));
+    }
+
+    #[test]
+    fn statusline_wrap_forwards_and_derives_account() {
+        let cmd = statusline_command(&Value::Null);
+        assert!(cmd.contains("agent_limits"), "forwards to the socket verb");
+        assert!(cmd.contains("--payload-b64="));
+        assert!(cmd.contains("CLAUDE_CONFIG_DIR"), "derives account at runtime");
+        assert!(cmd.contains(STATUSLINE_MARKER));
+        // No prior statusline -> nothing chained.
+        assert!(!cmd.contains("printf %s \"$i\" | ( "));
+    }
+
+    #[test]
+    fn statusline_install_preserves_and_chains_user_command() {
+        let body = br#"{"model":"opus","statusLine":{"type":"command","command":"my-line.sh","padding":2}}"#;
+        let out = install_statusline(body).expect("install changes settings");
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(v["model"], "opus", "siblings preserved");
+        assert_eq!(v["statusLine"]["padding"], 2, "padding preserved");
+        let cmd = v["statusLine"]["command"].as_str().unwrap();
+        assert!(cmd.contains("printf %s \"$i\" | ( my-line.sh )"), "chains original");
+        assert_eq!(v["statusLine"]["refreshInterval"], 30);
+        // Restore returns the exact original statusLine.
+        let restored = remove_statusline(&out).expect("restore changes settings");
+        let r: Value = serde_json::from_slice(&restored).unwrap();
+        assert_eq!(r["statusLine"]["command"], "my-line.sh");
+        assert_eq!(r["statusLine"]["padding"], 2);
+        assert!(r["statusLine"].get("refreshInterval").is_none());
+    }
+
+    #[test]
+    fn statusline_install_is_idempotent() {
+        let body = br#"{"statusLine":{"type":"command","command":"orig"}}"#;
+        let first = install_statusline(body).unwrap();
+        assert!(
+            install_statusline(&first).is_none(),
+            "second install is a no-op (no nesting)"
+        );
+        // And the embedded original still restores to exactly "orig".
+        let restored = remove_statusline(&first).unwrap();
+        let r: Value = serde_json::from_slice(&restored).unwrap();
+        assert_eq!(r["statusLine"]["command"], "orig");
+    }
+
+    #[test]
+    fn statusline_install_without_prior_removes_on_restore() {
+        let out = install_statusline(b"{}").expect("install changes empty settings");
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(v["statusLine"]["type"], "command");
+        let restored = remove_statusline(&out).expect("restore changes settings");
+        let r: Value = serde_json::from_slice(&restored).unwrap();
+        assert!(r.get("statusLine").is_none(), "no prior statusline -> removed");
+    }
+
+    #[test]
+    fn statusline_keeps_users_faster_refresh_interval() {
+        let body = br#"{"statusLine":{"type":"command","command":"x","refreshInterval":5}}"#;
+        let out = install_statusline(body).unwrap();
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(v["statusLine"]["refreshInterval"], 5, "5s beats the 30s default");
+    }
+
+    #[test]
+    fn remove_leaves_foreign_statusline_untouched() {
+        let body = br#"{"statusLine":{"type":"command","command":"not-ours.sh"}}"#;
+        assert!(
+            remove_statusline(body).is_none(),
+            "a statusline we didn't install is never modified"
+        );
+    }
+
+    #[test]
+    fn install_and_remove_roundtrip_on_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"model":"opus"}"#).unwrap();
+        install_claude_statusline_at(&path).unwrap();
+        let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(v["statusLine"]["command"].as_str().unwrap().contains("agent_limits"));
+        remove_claude_statusline_at(&path).unwrap();
+        let v2: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(v2["model"], "opus");
+        assert!(v2.get("statusLine").is_none());
+    }
+
+    #[test]
+    fn install_creates_settings_when_absent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json"); // does not exist
+        install_claude_statusline_at(&path).unwrap();
+        assert!(path.exists(), "explicit opt-in creates the file");
+        let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(v["statusLine"]["type"], "command");
     }
 }

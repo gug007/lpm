@@ -13,6 +13,7 @@ import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
   CLAUDE_ACCOUNTS_PATH,
+  TOKEN_USAGE_PATH,
   vsPath,
 } from "@/lib/links";
 
@@ -52,6 +53,12 @@ export default function HomePage() {
             title: "Best terminal for Claude Code & Codex",
             description:
               "Run Claude Code and Codex side by side on the same codebase and keep every agent in view.",
+          },
+          {
+            href: TOKEN_USAGE_PATH,
+            title: "Claude Code & Codex token usage",
+            description:
+              "Track tokens, approximate cost, cache usage, projects, models, and sessions locally on your Mac.",
           },
           {
             href: vsPath("tmux"),

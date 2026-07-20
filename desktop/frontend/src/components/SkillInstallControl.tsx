@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AgentSkillStatus, CliInstallStatus, InstallAgentSkill, InstallCli } from "../../bridge/commands";
 import { BTN_SECONDARY } from "./ui/buttons";
+import { RefreshIcon } from "./icons";
 
 export type SkillStatus = "loading" | "not-installed" | "outdated" | "installed";
 export type CliStatus =
@@ -123,6 +124,7 @@ export function SkillInstallControl() {
   const [skill, setSkill] = useState<SkillResult>({ status: "loading" });
   const [cli, setCli] = useState<CliResult>({ status: "loading" });
   const [installing, setInstalling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const skillStatus = skill.status;
   const cliStatus = cli.status;
 
@@ -130,6 +132,15 @@ export function SkillInstallControl() {
     const [skillResult, cliResult] = await fetchStatuses();
     setSkill(skillResult);
     setCli(cliResult);
+  };
+
+  const recheck = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -160,20 +171,40 @@ export function SkillInstallControl() {
     return <Spinner />;
   }
 
+  const refreshButton = (
+    <button
+      onClick={recheck}
+      disabled={refreshing}
+      title="Re-check status"
+      aria-label="Re-check status"
+      className="rounded-md p-1 text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
+    >
+      <span className={refreshing ? "flex animate-spin" : "flex"}>
+        <RefreshIcon />
+      </span>
+    </button>
+  );
+
   const action = agentToolsAction(skillStatus, cliStatus);
   if (action === "install") {
     return (
-      <button onClick={install} className={BTN_SECONDARY}>
-        Install
-      </button>
+      <div className="flex items-center gap-1.5">
+        {refreshButton}
+        <button onClick={install} className={BTN_SECONDARY}>
+          Install
+        </button>
+      </div>
     );
   }
 
   if (action === "update") {
     return (
-      <button onClick={install} className={CTA_GREEN}>
-        Update
-      </button>
+      <div className="flex items-center gap-1.5">
+        {refreshButton}
+        <button onClick={install} className={CTA_GREEN}>
+          Update
+        </button>
+      </div>
     );
   }
 
@@ -184,26 +215,32 @@ export function SkillInstallControl() {
     const other = cli.shadowedBy ?? "another location";
     const managed = cli.linkPath ?? "/usr/local/bin/lpm";
     return (
-      <div className="flex flex-col items-end gap-0.5">
-        <span
-          className="flex items-center gap-1.5 text-xs text-[var(--accent-amber)]"
-          title={`Another lpm at ${other} takes precedence over ${managed}. Remove it to use the app-managed CLI.`}
-        >
-          <WarningIcon />
-          Shadowed
-        </span>
-        {versionLine}
+      <div className="flex items-center gap-1.5">
+        {refreshButton}
+        <div className="flex flex-col items-end gap-0.5">
+          <span
+            className="flex items-center gap-1.5 text-xs text-[var(--accent-amber)]"
+            title={`Another lpm at ${other} takes precedence over ${managed}. Remove it to use the app-managed CLI.`}
+          >
+            <WarningIcon />
+            Shadowed
+          </span>
+          {versionLine}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-end gap-0.5">
-      <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
-        <CheckIcon />
-        Installed
-      </span>
-      {versionLine}
+    <div className="flex items-center gap-1.5">
+      {refreshButton}
+      <div className="flex flex-col items-end gap-0.5">
+        <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+          <CheckIcon />
+          Installed
+        </span>
+        {versionLine}
+      </div>
     </div>
   );
 }

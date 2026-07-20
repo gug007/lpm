@@ -452,16 +452,35 @@ fn account_signin_status(id: &str) -> (bool, String) {
     }
 }
 
-/// Per-account sign-in status for every id in accounts.json, as
-/// `{"statuses": [{"id", "signedIn", "email"}, ...]}`.
+/// Sign-in status of the ambient `~/.claude` login, reported under the id
+/// "default" so surfaces like the Usage page can label it with an email.
+fn default_signin_status() -> (bool, String) {
+    let path = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".claude")
+        .join(".claude.json");
+    match std::fs::read(&path) {
+        Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
+            .map(|v| claude_status_from_json(&v))
+            .unwrap_or((false, String::new())),
+        Err(_) => (false, String::new()),
+    }
+}
+
+/// Per-account sign-in status for every id in accounts.json plus the ambient
+/// "default" login, as `{"statuses": [{"id", "signedIn", "email"}, ...]}`.
+/// Consumers look ids up by key, so the extra entry never renders as an
+/// account row.
 pub fn claude_accounts_status() -> Value {
-    let statuses: Vec<Value> = claude_account_ids(&load_claude_accounts())
+    let mut statuses: Vec<Value> = claude_account_ids(&load_claude_accounts())
         .iter()
         .map(|id| {
             let (signed_in, email) = account_signin_status(id);
             json!({ "id": id, "signedIn": signed_in, "email": email })
         })
         .collect();
+    let (signed_in, email) = default_signin_status();
+    statuses.push(json!({ "id": "default", "signedIn": signed_in, "email": email }));
     json!({ "statuses": statuses })
 }
 
@@ -1070,9 +1089,16 @@ pub fn ssh_command_line(
     argv.join(" ")
 }
 
-/// desktop/socket.go SocketPath().
+/// desktop/socket.go SocketPath(). Debug builds bind their own socket so a dev
+/// instance and the installed app can run side by side: each injects its path
+/// via LPM_SOCKET_PATH, so hooks and the CLI follow the owning instance.
 pub fn socket_path() -> String {
-    lpm_dir().join("lpm.sock").to_string_lossy().into_owned()
+    let name = if cfg!(debug_assertions) {
+        "lpm-dev.sock"
+    } else {
+        "lpm.sock"
+    };
+    lpm_dir().join(name).to_string_lossy().into_owned()
 }
 
 /// Second, restricted status socket that remote (SSH) hosts reach over an

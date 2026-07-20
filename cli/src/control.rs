@@ -47,6 +47,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Ctx {
             lpm_dir: dir.path().to_path_buf(),
+            socket_override: None,
         };
         let listener = UnixListener::bind(ctx.socket_path()).unwrap();
         let handle = std::thread::spawn(move || {

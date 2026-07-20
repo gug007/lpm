@@ -13,6 +13,7 @@ import {
   STATS_PATH,
   TELEGRAM_URL,
   TERMS_PATH,
+  TOKEN_USAGE_PATH,
   VS_SLUGS,
   vsPath,
 } from "@/lib/links";
@@ -122,6 +123,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Connect AI agents
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={TOKEN_USAGE_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Claude Code &amp; Codex token usage
           </Link>
           <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
             ·

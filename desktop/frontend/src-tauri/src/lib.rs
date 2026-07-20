@@ -1,4 +1,5 @@
 mod actions;
+mod agent_limits;
 mod agent_usage;
 mod aigen;
 mod bounds;
@@ -61,6 +62,7 @@ mod voicetotext;
 // macro (which lists them unqualified) resolves the hand-written real
 // commands and the generated stubs.
 use actions::*;
+use agent_limits::*;
 use agent_usage::*;
 use aigen::*;
 use browser::*;
@@ -134,6 +136,7 @@ pub fn run() {
         .manage(notes_cmds::NotesState::default())
         .manage(message_history::MessageHistoryState::default())
         .manage(std::sync::Arc::new(status::StatusStore::new()))
+        .manage(std::sync::Arc::new(agent_limits::AgentLimitsStore::new()))
         .manage(updates::UpdateState::default())
         .manage(tts::TtsState::default())
         .manage(portforward::PortFwdState::default())
@@ -192,6 +195,11 @@ pub fn run() {
             // editor re-emit projects-changed / templates-changed here.
             configwatch::start(handle.clone());
 
+            // Live usage-limit meters: scan Codex's newest rollout and watch
+            // ~/.codex/sessions; Claude limits arrive via the statusline
+            // forwarder over the status socket once the user opts in.
+            agent_limits::start(handle.clone());
+
             // Mobile remote-control server (the phone app connects here). Reads
             // its own ~/.lpm/remote.json; a no-op until enabled + paired.
             let hub = app.state::<remote::RemoteHub>().inner().clone();
@@ -216,6 +224,7 @@ pub fn run() {
             std::thread::spawn(|| {
                 skill_install::refresh_if_outdated();
                 cli_install::repair_symlink_quietly();
+                hooks::reapply_claude_limits_if_enabled();
             });
 
             // Check for updates on startup, then every 24h while the app runs

@@ -13,7 +13,9 @@ macro_rules! all_command_handlers {
     () => {
         tauri::generate_handler![
             ack_terminal_data,
+            agent_limits,
             agent_usage_stats,
+            apply_claude_limits,
             add_port_forward,
             attach_project,
             browse_folder,

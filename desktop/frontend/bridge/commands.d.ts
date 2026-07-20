@@ -3,6 +3,8 @@
 
 export function AckTerminalData(...args: any[]): Promise<any>;
 export function AgentUsageStats(...args: any[]): Promise<any>;
+export function AgentLimits(...args: any[]): Promise<any>;
+export function ApplyClaudeLimits(...args: any[]): Promise<any>;
 export function AddPortForward(...args: any[]): Promise<any>;
 export function AttachProject(...args: any[]): Promise<any>;
 export function BrowseFolder(...args: any[]): Promise<any>;

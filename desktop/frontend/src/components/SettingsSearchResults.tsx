@@ -45,7 +45,7 @@ export function SettingsSearchResults({
                 {captionFor(entry)}
               </span>
             </span>
-            {entry.kind === "view" && (
+            {(entry.kind === "view" || entry.kind === "modal") && (
               <ChevronRight size={14} className="shrink-0 text-[var(--text-muted)]" />
             )}
           </button>

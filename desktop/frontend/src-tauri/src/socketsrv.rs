@@ -160,6 +160,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
         "set_resume" => cmd_set_resume(args, app),
+        "agent_limits" => cmd_agent_limits(args, app),
         "list_jobs" => cmd_list_jobs(args),
         "list_all_jobs" => cmd_list_all_jobs(),
         "run_job" => cmd_run_job(args, app),
@@ -436,6 +437,20 @@ fn parse_resume_args(args: &[String]) -> Result<ResumeArgs, String> {
         pane_id: positional[1].clone(),
         session_id: positional[2].clone(),
     })
+}
+
+/// `agent_limits <account> --payload-b64=<base64 statusline JSON>` — the Claude
+/// usage-limit forwarder reports here. Decodes into the AgentLimitsStore and
+/// emits `agent-limits-changed` on a real change.
+fn cmd_agent_limits(args: &[String], app: &AppHandle) -> String {
+    let (positional, options) = parse_options(args);
+    let store = app.state::<Arc<crate::agent_limits::AgentLimitsStore>>();
+    crate::agent_limits::ingest_from_socket(
+        app,
+        &store,
+        &positional,
+        options.get("payload-b64").map(String::as_str),
+    )
 }
 
 fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {

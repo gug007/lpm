@@ -42,6 +42,7 @@ export interface Settings {
   sidebarWidth?: number;
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
+  claudeLimitsEnabled?: boolean;
   aiCli?: string;
   aiModel?: string;
   aiEffort?: string;

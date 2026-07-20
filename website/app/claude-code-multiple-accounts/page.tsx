@@ -5,6 +5,7 @@ import {
   CLAUDE_ACCOUNTS_PATH,
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  TOKEN_USAGE_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import { AccountsVisual } from "./_components/accounts-visual";
@@ -98,6 +99,12 @@ export default function ClaudeCodeMultipleAccountsPage() {
             title: "Connect AI agents to your projects",
             description:
               "Let agents start, stop, and restart services, read dev-server logs, and fan out into parallel copies.",
+          },
+          {
+            href: TOKEN_USAGE_PATH,
+            title: "Claude Code & Codex token usage",
+            description:
+              "Track usage across projects, providers, models, and recent sessions without sending the dashboard to the cloud.",
           },
           {
             href: CONFIG_PATH,

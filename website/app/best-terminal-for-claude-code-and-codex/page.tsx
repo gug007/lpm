@@ -6,6 +6,7 @@ import {
   CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
   REVIEW_CHANGES_PATH,
+  TOKEN_USAGE_PATH,
   vsPath,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
@@ -93,6 +94,12 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
             title: "Multiple Claude Code accounts",
             description:
               "Pin a Claude account to each project — work and personal run in parallel, signed in once.",
+          },
+          {
+            href: TOKEN_USAGE_PATH,
+            title: "Claude Code & Codex token usage",
+            description:
+              "See tokens, approximate cost, cache usage, projects, models, and sessions in one local dashboard.",
           },
           {
             href: vsPath("cmux"),

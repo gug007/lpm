@@ -17,7 +17,7 @@ import { getSettings } from "../store/settings";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type ProjectGroup, type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon, StatsIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -74,6 +74,7 @@ interface SidebarProps {
   onToggle: (name: string) => void;
   onTerminals: () => void;
   onStats: () => void;
+  onUsage: () => void;
   onScheduled: () => void;
   onFeedback: () => void;
   onSettings: () => void;
@@ -98,6 +99,7 @@ interface SidebarProps {
   detachedSelf?: string;
   showTerminals: boolean;
   showStats: boolean;
+  showUsage: boolean;
   showScheduled: boolean;
   showSettings: boolean;
   duplicatingNames: string[];
@@ -136,7 +138,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onStats, onScheduled, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onStats, onUsage, onScheduled, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -1176,17 +1178,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             Terminals
           </button>
         </Tooltip>
-        <button
-          onClick={onStats}
-          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-            showStats
-              ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          <StatsIcon />
-          Stats
-        </button>
         <div className="flex items-stretch gap-1">
           <button
             onClick={onSettings}
@@ -1205,6 +1196,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <SidebarFooterMore
             showScheduled={showScheduled}
             onScheduled={onScheduled}
+            showUsage={showUsage}
+            onUsage={onUsage}
+            showStats={showStats}
+            onStats={onStats}
             onFeedback={onFeedback}
           />
         </div>

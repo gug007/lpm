@@ -128,6 +128,9 @@ interface AppState {
   settingsTab: SettingsTab;
   sidebarCollapsed: boolean;
   feedbackOpen: boolean;
+  // The Usage dashboard is an overlay, not a main-area view — a detached window
+  // can request it via FocusMainWindow("usage"), so it lives in the store.
+  usageOpen: boolean;
   tmuxReady: boolean | null;
   visited: Set<string>;
   // Most-recently-selected project names, most-recent-first. Drives the
@@ -162,6 +165,7 @@ interface AppState {
   setSettingsTab: (tab: SettingsTab) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
   setFeedbackOpen: (open: boolean) => void;
+  setUsageOpen: (open: boolean) => void;
   setTmuxReady: (ready: boolean | null) => void;
 
   selectProject: (name: string) => void;
@@ -771,6 +775,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   settingsTab: "general",
   sidebarCollapsed: false,
   feedbackOpen: false,
+  usageOpen: false,
   tmuxReady: null,
   visited: new Set<string>(),
   mruProjects: [],
@@ -799,6 +804,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   setFeedbackOpen: (feedbackOpen) => set({ feedbackOpen }),
+
+  setUsageOpen: (usageOpen) => set({ usageOpen }),
 
   setTmuxReady: (tmuxReady) => set({ tmuxReady }),
 
