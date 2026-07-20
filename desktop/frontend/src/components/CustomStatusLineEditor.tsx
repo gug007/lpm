@@ -159,7 +159,15 @@ export function CustomStatusLineEditor({
     onChange({
       segments,
       separator: randomItem(STATUS_LINE_SEPARATORS),
-      meterStyle: randomItem(["bar", "blocks", "dots"] as const),
+      meterStyle: randomItem([
+        "bar",
+        "blocks",
+        "shade",
+        "segments",
+        "dots",
+        "squares",
+        "braille",
+      ] as const),
       meterWidth: randomItem([5, 7, 9]),
       icons: true,
       gitStatus: chosen.includes("branch"),

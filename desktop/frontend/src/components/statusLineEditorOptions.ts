@@ -73,7 +73,11 @@ export const STATUS_LINE_METER_STYLES: {
 }[] = [
   { id: "bar", label: "Bars", sample: "━━╸━" },
   { id: "blocks", label: "Blocks", sample: "▇▇▃▁" },
+  { id: "shade", label: "Shade", sample: "▓▓▒░" },
+  { id: "segments", label: "Segments", sample: "▰▰▱▱" },
   { id: "dots", label: "Dots", sample: "●●○○" },
+  { id: "squares", label: "Squares", sample: "■■□□" },
+  { id: "braille", label: "Braille", sample: "⣿⣿⡆⣀" },
   { id: "percent", label: "Number", sample: "47%" },
 ];
 

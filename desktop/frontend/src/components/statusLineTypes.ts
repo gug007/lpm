@@ -27,7 +27,15 @@ export interface Segment {
   icon?: string;
 }
 
-export type MeterStyle = "bar" | "blocks" | "dots" | "percent";
+export type MeterStyle =
+  | "bar"
+  | "blocks"
+  | "shade"
+  | "segments"
+  | "dots"
+  | "squares"
+  | "braille"
+  | "percent";
 
 export interface CustomSpec {
   segments: Segment[];

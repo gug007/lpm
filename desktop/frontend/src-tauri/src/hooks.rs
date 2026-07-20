@@ -78,6 +78,75 @@ const STATUSLINE_METER_FN_DOTS: &str = r##"meter() {
 }
 "##;
 
+// Segmented meter: solid ▰ up to the rounded percentage, hollow ▱ for the rest.
+const STATUSLINE_METER_FN_SEGMENTS: &str = r##"meter() {
+    pct=$1 width=$MW
+    filled=$(( (pct * width + 50) / 100 ))
+    [ "$filled" -gt "$width" ] && filled=$width
+    [ "$filled" -lt 0 ] && filled=0
+    fill="" i=0
+    while [ "$i" -lt "$filled" ]; do fill="${fill}▰"; i=$((i + 1)); done
+    track="" i=$filled
+    while [ "$i" -lt "$width" ]; do track="${track}▱"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
+// Square meter: filled ■ up to the rounded percentage, hollow □ for the rest.
+const STATUSLINE_METER_FN_SQUARES: &str = r##"meter() {
+    pct=$1 width=$MW
+    filled=$(( (pct * width + 50) / 100 ))
+    [ "$filled" -gt "$width" ] && filled=$width
+    [ "$filled" -lt 0 ] && filled=0
+    fill="" i=0
+    while [ "$i" -lt "$filled" ]; do fill="${fill}■"; i=$((i + 1)); done
+    track="" i=$filled
+    while [ "$i" -lt "$width" ]; do track="${track}□"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
+// Shaded meter: dense ▓ cells, one medium ▒ cell for the fractional part, and a
+// light ░ track.
+const STATUSLINE_METER_FN_SHADE: &str = r##"meter() {
+    pct=$1 width=$MW
+    filled=$(( pct * width / 100 ))
+    [ "$filled" -gt "$width" ] && filled=$width
+    [ "$filled" -lt 0 ] && filled=0
+    rem=$(( pct * width - filled * 100 ))
+    fill="" i=0
+    while [ "$i" -lt "$filled" ]; do fill="${fill}▓"; i=$((i + 1)); done
+    used=$filled
+    if [ "$used" -lt "$width" ] && [ "$rem" -ge 30 ]; then
+        fill="${fill}▒"; used=$((used + 1))
+    fi
+    track="" i=$used
+    while [ "$i" -lt "$width" ]; do track="${track}░"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
+// Braille meter: full ⣿ cells, the fractional cell steps through the eight
+// braille dot counts, the empty track sits on a dim ⣀ baseline.
+const STATUSLINE_METER_FN_BRAILLE: &str = r##"meter() {
+    pct=$1 width=$MW
+    filled=$(( pct * width / 100 ))
+    [ "$filled" -gt "$width" ] && filled=$width
+    [ "$filled" -lt 0 ] && filled=0
+    rem=$(( pct * width - filled * 100 ))
+    fill="" i=0
+    while [ "$i" -lt "$filled" ]; do fill="${fill}⣿"; i=$((i + 1)); done
+    used=$filled
+    if [ "$used" -lt "$width" ] && [ "$rem" -ge 12 ]; then
+        if [ "$rem" -ge 88 ]; then p=⣷; elif [ "$rem" -ge 75 ]; then p=⣧; elif [ "$rem" -ge 62 ]; then p=⣇; elif [ "$rem" -ge 50 ]; then p=⡇; elif [ "$rem" -ge 38 ]; then p=⡆; elif [ "$rem" -ge 25 ]; then p=⡄; else p=⡀; fi
+        fill="${fill}${p}"; used=$((used + 1))
+    fi
+    track="" i=$used
+    while [ "$i" -lt "$width" ]; do track="${track}⣀"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
 const STATUSLINE_APPEND_FN: &str = r##"out=""
 append() { if [ -n "$out" ]; then out="${out}${SEP}${1}"; else out="$1"; fi; }
 "##;
@@ -653,7 +722,8 @@ const SEGMENT_COLORS: [&str; 9] = [
     "default", "dim", "red", "green", "yellow", "blue", "magenta", "cyan", "claude",
 ];
 
-const METER_STYLES: [&str; 4] = ["bar", "blocks", "dots", "percent"];
+const METER_STYLES: [&str; 8] =
+    ["bar", "blocks", "shade", "segments", "dots", "squares", "braille", "percent"];
 
 fn seg(id: &str) -> Segment {
     Segment {
@@ -945,7 +1015,11 @@ fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
     if needs_meter {
         out.push_str(match style {
             "blocks" => STATUSLINE_METER_FN_BLOCKS,
+            "shade" => STATUSLINE_METER_FN_SHADE,
+            "segments" => STATUSLINE_METER_FN_SEGMENTS,
             "dots" => STATUSLINE_METER_FN_DOTS,
+            "squares" => STATUSLINE_METER_FN_SQUARES,
+            "braille" => STATUSLINE_METER_FN_BRAILLE,
             _ => STATUSLINE_METER_FN,
         });
     }
@@ -2074,6 +2148,42 @@ mod tests {
         assert!(text.contains('▇') || text.contains('▁'), "block glyphs present: {text:?}");
         assert!(text.contains("34%"), "still shows the percentage: {text:?}");
         assert!(!text.contains('━'), "blocks style draws no heavy-line bar: {text:?}");
+    }
+
+    #[test]
+    fn added_meter_styles_render_their_glyphs() {
+        // Sample payload: five_hour 34% at width 7 -> 2 full cells, partial cell
+        // for the fractional styles, and a visible track.
+        for (style, fill, track) in [
+            ("segments", '▰', '▱'),
+            ("squares", '■', '□'),
+            ("shade", '▓', '░'),
+            ("braille", '⣿', '⣀'),
+        ] {
+            let text = run_script(
+                &build_custom_statusline(&cspec(&["five"], "·", style)).unwrap(),
+                SAMPLE_PAYLOAD,
+            );
+            assert!(text.contains(fill), "{style} fill glyph present: {text:?}");
+            assert!(text.contains(track), "{style} track glyph present: {text:?}");
+            assert!(text.contains("34%"), "{style} keeps the percentage: {text:?}");
+            assert!(!text.contains('━'), "{style} draws no heavy-line bar: {text:?}");
+        }
+    }
+
+    #[test]
+    fn shade_and_braille_meters_render_partial_cells() {
+        // 34% of 7 leaves rem=38: shade shows its ▒ half-cell, braille its ⡆ step.
+        let shade = run_script(
+            &build_custom_statusline(&cspec(&["five"], "·", "shade")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(shade.contains('▒'), "shade partial cell present: {shade:?}");
+        let braille = run_script(
+            &build_custom_statusline(&cspec(&["five"], "·", "braille")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(braille.contains('⡆'), "braille partial cell present: {braille:?}");
     }
 
     #[test]
