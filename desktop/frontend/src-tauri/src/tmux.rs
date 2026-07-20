@@ -367,20 +367,40 @@ fn spawn_dir_or_root(dir: &str) -> &str {
     }
 }
 
+/// Raw tmux escape hatch so sibling modules' tests can set up sessions this
+/// module deliberately never produces (e.g. panes with no service label).
+#[cfg(test)]
+pub fn run_for_test(args: &[&str]) -> Result<String, String> {
+    run(args)
+}
+
+/// Serializes every test that creates or destroys a session. All tests share one
+/// tmux server, and killing the last session shuts that server down — a
+/// concurrent `new-session` then races the shutdown and fails to connect.
+#[cfg(test)]
+pub fn test_server_lock() -> std::sync::MutexGuard<'static, ()> {
+    use std::sync::{Mutex, OnceLock};
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    struct SessionGuard(String);
+    struct SessionGuard(String, std::sync::MutexGuard<'static, ()>);
 
     impl SessionGuard {
         fn new() -> Self {
+            let lock = test_server_lock();
             let nonce = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
-            Self(format!("lpm-test-{}-{nonce}", std::process::id()))
+            Self(format!("lpm-test-{}-{nonce}", std::process::id()), lock)
         }
     }
 

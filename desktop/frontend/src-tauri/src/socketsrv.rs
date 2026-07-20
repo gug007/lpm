@@ -201,13 +201,6 @@ fn cmd_stop_project(args: &[String], app: &AppHandle) -> String {
         return "ERROR: usage: stop_project <project>".into();
     }
     let project = &positional[0];
-    // Idempotent: a project whose session is already gone is treated as stopped,
-    // since `do_stop_project` would otherwise error on the missing tmux session.
-    match crate::config::spawn_info(project) {
-        Ok(info) if !crate::tmux::session_exists(&info.session) => return "OK".into(),
-        Err(e) => return format!("ERROR: {e}"),
-        _ => {}
-    }
     reply(crate::services::stop_project_internal(
         app,
         &app.state::<crate::services::ServiceState>(),
