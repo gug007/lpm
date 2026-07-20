@@ -105,13 +105,30 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const runningRef = useRef(false);
   const queueRef = useRef<ApplyJob | null>(null);
 
+  // Bumped whenever the selection changes; a preset-spec fetch only seeds the
+  // editor if its token is still current, so quick chip clicks can't land stale.
+  const seedTokenRef = useRef(0);
+
+  const seedFromPreset = (id: string) => {
+    const token = ++seedTokenRef.current;
+    ClaudeStatuslinePresetSpec(id)
+      .then((spec) => {
+        if (seedTokenRef.current === token && spec) setCustomSpec(spec as CustomSpec);
+      })
+      .catch(() => {});
+  };
+
   const refresh = async (syncSpec = false) => {
     try {
       const state = await GetClaudeStatuslineState();
-      setSelected((state?.selected as TemplateId) ?? "current");
+      const sel = (state?.selected as TemplateId) ?? "current";
+      setSelected(sel);
       setHasCustom(Boolean(state?.hasCustom));
       setAiDescription(state?.aiDescription ?? "");
-      if (syncSpec && state?.custom) setCustomSpec(state.custom as CustomSpec);
+      if (syncSpec) {
+        if (isSeedablePreset(sel)) seedFromPreset(sel);
+        else if (state?.custom) setCustomSpec(state.custom as CustomSpec);
+      }
     } catch (err) {
       toast.error(String(err));
     } finally {
@@ -151,15 +168,21 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
 
   const choose = (id: TemplateId) => {
     setSelected(id);
+    seedTokenRef.current++;
     if (id === "custom") {
       const spec = sanitizeSpec(customSpec);
       if (spec.segments.length > 0) enqueue({ kind: "custom", spec });
     } else if (id !== "ai") {
       enqueue({ kind: "template", id });
+      if (isSeedablePreset(id)) seedFromPreset(id);
     }
   };
 
+  // The first edit on a preset-seeded line switches to the custom pipeline: the
+  // canonical preset script stays applied only while the segments are untouched.
   const onCustomChange = (spec: CustomSpec) => {
+    seedTokenRef.current++;
+    if (selected !== "custom") setSelected("custom");
     setCustomSpec(spec);
     const clean = sanitizeSpec(spec);
     if (clean.segments.length > 0) enqueue({ kind: "custom", spec: clean });
@@ -256,7 +279,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
             ))}
           </div>
 
-          {selected === "custom" && (
+          {statuslineShowsEditor(selected) && (
             <CustomStatusLineEditor spec={customSpec} onChange={onCustomChange} disabled={false} />
           )}
         </div>
