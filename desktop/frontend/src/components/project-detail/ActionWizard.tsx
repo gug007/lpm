@@ -692,6 +692,11 @@ export function ActionWizard({
   modeRef.current = mode;
   const draftRef = useRef(draft);
   draftRef.current = draft;
+  // Read at open time only. Keeping nextPosition out of the reset effect's deps
+  // stops a background refresh (which hands the parent's array props fresh
+  // identities) from re-firing the reset and wiping in-progress edits.
+  const nextPositionRef = useRef(nextPosition);
+  nextPositionRef.current = nextPosition;
 
   useEffect(() => {
     if (!open) return;
@@ -715,7 +720,7 @@ export function ActionWizard({
         setEditorContent("");
         setEditorBaseline("");
       } else {
-        const content = buildCreateEditorContent(nextDraft, nextPosition);
+        const content = buildCreateEditorContent(nextDraft, nextPositionRef.current);
         setEditorContent(content);
         setEditorBaseline(content);
       }
@@ -726,7 +731,7 @@ export function ActionWizard({
       if (!editing) setEditorBaseline("");
       setTimeout(() => nameRef.current?.focus(), 50);
     }
-  }, [open, editing, existingActionKeys, nextPosition]);
+  }, [open, editing]);
 
   useEffect(() => {
     if (!open || !editing) return;

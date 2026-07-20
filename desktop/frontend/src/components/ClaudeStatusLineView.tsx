@@ -13,13 +13,14 @@ import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { CustomStatusLineEditor, type CustomSpec } from "./CustomStatusLineEditor";
 import { AiRefineBar } from "./AiRefineBar";
 
-type TemplateId = "current" | "minimal" | "context" | "meters" | "custom" | "ai";
+type TemplateId = "current" | "minimal" | "context" | "meters" | "vibrant" | "custom" | "ai";
 
 export const STATUSLINE_LABELS: Record<TemplateId, string> = {
   current: "My status line",
   minimal: "Minimal",
   context: "Context",
   meters: "Usage meters",
+  vibrant: "Vibrant",
   custom: "Custom",
   ai: "AI edited",
 };
@@ -33,27 +34,30 @@ interface Choice {
   id: TemplateId;
   label: string;
   hint: string;
+  featured?: boolean;
 }
 
 const CHOICES: Choice[] = [
   { id: "current", label: "My status line", hint: "Your existing line" },
-  { id: "minimal", label: "Minimal", hint: "Folder and model" },
-  { id: "context", label: "Context", hint: "Adds context left" },
-  { id: "meters", label: "Usage meters", hint: "5-hour and weekly bars" },
+  { id: "vibrant", label: "Vibrant", hint: "Icons, colors & meters", featured: true },
+  { id: "meters", label: "Usage meters", hint: "5-hour and weekly" },
   { id: "custom", label: "Custom", hint: "Build your own" },
 ];
 
 const DEFAULT_SPEC: CustomSpec = {
   segments: [
-    { id: "folder", color: "default", text: "" },
-    { id: "model", color: "default", text: "" },
+    { id: "folder", color: "cyan", text: "" },
+    { id: "model", color: "magenta", text: "" },
     { id: "ctx", color: "default", text: "" },
     { id: "five", color: "default", text: "" },
     { id: "seven", color: "default", text: "" },
+    { id: "cost", color: "yellow", text: "" },
   ],
   separator: "·",
-  meterStyle: "bar",
+  meterStyle: "blocks",
   meterWidth: 7,
+  icons: true,
+  gitStatus: false,
 };
 
 function sanitizeSpec(spec: CustomSpec): CustomSpec {
@@ -171,7 +175,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   }, [previewSelection]);
 
   const emptyHint =
-    selected === "current" && !hasCustom ? "Status line is off" : "Nothing to show";
+    selected === "current" && !hasCustom ? "Status line is off" : "Nothing to show yet";
 
   return (
     <div className="flex flex-1 flex-col pt-6">
@@ -186,12 +190,12 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
         <h1 className="text-lg font-semibold tracking-tight">Claude Code status line</h1>
       </div>
       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-        Choose what the status line under Claude Code shows.
+        Compose the line under your agent and watch it update live.
       </p>
 
       <div className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
         <div className="max-w-2xl" style={{ opacity: loaded ? 1 : 0.5 }}>
-          <PreviewPanel
+          <TerminalPreview
             text={preview}
             emptyHint={emptyHint}
             themeStyle={themeStyle}
@@ -221,9 +225,15 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
             </div>
           )}
 
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="mb-2 mt-4 flex items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Start from
+            </span>
+            <span className="h-px flex-1 bg-[var(--border)]" />
+          </div>
+          <div className="flex flex-wrap gap-2">
             {CHOICES.map((c) => (
-              <ChoiceCard
+              <PresetChip
                 key={c.id}
                 choice={c}
                 active={selected === c.id}
@@ -241,7 +251,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function PreviewPanel({
+function TerminalPreview({
   text,
   emptyHint,
   themeStyle,
@@ -256,37 +266,54 @@ function PreviewPanel({
     <div>
       <div className="mb-1.5 flex items-center gap-2">
         <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          Preview
+          Live preview
         </span>
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-green)]" />
         <span className="h-px flex-1 bg-[var(--border)]" />
       </div>
       {/* themeStyle sets the terminal CSS vars for a named theme; when the theme
           is "default" it is undefined and the ambient --terminal-* vars apply —
           exactly how TerminalView resolves colors === null. */}
       <div
-        className="overflow-x-auto rounded-lg border border-[var(--terminal-header-border)] px-4 py-3"
+        className="overflow-hidden rounded-xl border border-[var(--terminal-header-border)] shadow-sm"
         style={{ ...themeStyle, background: "var(--terminal-bg)" }}
       >
-        <div
-          className="whitespace-nowrap leading-relaxed"
-          style={{
-            color: "var(--terminal-fg)",
-            fontFamily: TERMINAL_XTERM_FONT,
-            fontSize: `${fontSize}px`,
-          }}
-        >
-          {text.trim() ? (
-            <AnsiLine text={text} />
-          ) : (
-            <span style={{ color: "var(--terminal-fg)", opacity: 0.4 }}>{emptyHint}</span>
-          )}
+        <div className="flex items-center gap-1.5 border-b border-[var(--terminal-header-border)] px-3 py-2">
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#ff5f56" }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#ffbd2e" }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#27c93f" }} />
+          <span
+            className="ml-1.5 text-[10px] tracking-wide"
+            style={{ color: "var(--terminal-fg)", opacity: 0.45, fontFamily: TERMINAL_XTERM_FONT }}
+          >
+            claude
+          </span>
+        </div>
+        <div className="overflow-x-auto px-4 py-3.5">
+          <div
+            className="whitespace-nowrap leading-relaxed"
+            style={{
+              color: "var(--terminal-fg)",
+              fontFamily: TERMINAL_XTERM_FONT,
+              fontSize: `${fontSize}px`,
+            }}
+          >
+            <span className="mr-2 select-none" style={{ color: "var(--terminal-fg)", opacity: 0.3 }}>
+              ❯
+            </span>
+            {text.trim() ? (
+              <AnsiLine text={text} />
+            ) : (
+              <span style={{ color: "var(--terminal-fg)", opacity: 0.4 }}>{emptyHint}</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ChoiceCard({
+function PresetChip({
   choice,
   active,
   onClick,
@@ -300,14 +327,27 @@ function ChoiceCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+      title={choice.hint}
+      className={`group flex items-center gap-2 rounded-lg border px-3 py-1.5 text-left transition-colors duration-[120ms] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
         active
           ? "border-[var(--accent-green)] bg-[var(--accent-green)]/8"
-          : "border-[var(--border)] hover:bg-[var(--bg-hover)]"
+          : choice.featured
+            ? "border-[var(--accent-blue)]/40 hover:bg-[var(--bg-hover)]"
+            : "border-[var(--border)] hover:bg-[var(--bg-hover)]"
       }`}
     >
-      <span className="text-[13px] font-medium text-[var(--text-primary)]">{choice.label}</span>
-      <span className="text-[10.5px] text-[var(--text-muted)]">{choice.hint}</span>
+      {choice.featured && <span aria-hidden className="text-[12px]">✦</span>}
+      <span className="flex flex-col">
+        <span className="flex items-center gap-1.5">
+          <span className="text-[12.5px] font-medium text-[var(--text-primary)]">{choice.label}</span>
+          {choice.featured && (
+            <span className="rounded-full bg-gradient-to-r from-[var(--accent-blue)] to-[var(--accent-green)] px-1.5 py-[1px] text-[8px] font-semibold uppercase tracking-[0.06em] text-white">
+              New
+            </span>
+          )}
+        </span>
+        <span className="text-[10px] text-[var(--text-muted)]">{choice.hint}</span>
+      </span>
     </button>
   );
 }

@@ -24,7 +24,7 @@ input=$(cat)
 jqr() { printf '%s' "$input" | jq -r "$1"; }
 "##;
 
-const STATUSLINE_TINT_FN: &str = r##"tint() { if [ "$1" -ge 90 ]; then printf '\033[2;31m'; elif [ "$1" -ge 70 ]; then printf '\033[2;33m'; else printf '\033[2;32m'; fi; }
+const STATUSLINE_TINT_FN: &str = r##"tint() { if [ "$1" -ge 90 ]; then printf '\033[31m'; elif [ "$1" -ge 70 ]; then printf '\033[33m'; else printf '\033[32m'; fi; }
 "##;
 
 // Label-less meter: the caller prints the (optionally colored) label, then this
@@ -39,6 +39,41 @@ const STATUSLINE_METER_FN: &str = r##"meter() {
     [ "$half" -eq 1 ] && fill="${fill}╸"
     track="" i=$((full + half))
     while [ "$i" -lt "$width" ]; do track="${track}━"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
+// Vibrant "equalizer" meter: filled cells rise to full height, the fractional
+// cell steps through the vertical eighths, the empty track sits flat and dim.
+const STATUSLINE_METER_FN_BLOCKS: &str = r##"meter() {
+    pct=$1 width=$MW
+    filled=$(( pct * width / 100 ))
+    [ "$filled" -gt "$width" ] && filled=$width
+    [ "$filled" -lt 0 ] && filled=0
+    rem=$(( pct * width - filled * 100 ))
+    fill="" i=0
+    while [ "$i" -lt "$filled" ]; do fill="${fill}▇"; i=$((i + 1)); done
+    used=$filled
+    if [ "$used" -lt "$width" ] && [ "$rem" -ge 15 ]; then
+        if [ "$rem" -ge 85 ]; then p=▇; elif [ "$rem" -ge 70 ]; then p=▆; elif [ "$rem" -ge 55 ]; then p=▅; elif [ "$rem" -ge 40 ]; then p=▄; elif [ "$rem" -ge 27 ]; then p=▃; else p=▂; fi
+        fill="${fill}${p}"; used=$((used + 1))
+    fi
+    track="" i=$used
+    while [ "$i" -lt "$width" ]; do track="${track}▁"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
+// Dotted meter: filled ● up to the rounded percentage, hollow ○ for the rest.
+const STATUSLINE_METER_FN_DOTS: &str = r##"meter() {
+    pct=$1 width=$MW
+    filled=$(( (pct * width + 50) / 100 ))
+    [ "$filled" -gt "$width" ] && filled=$width
+    [ "$filled" -lt 0 ] && filled=0
+    fill="" i=0
+    while [ "$i" -lt "$filled" ]; do fill="${fill}●"; i=$((i + 1)); done
+    track="" i=$filled
+    while [ "$i" -lt "$width" ]; do track="${track}○"; i=$((i + 1)); done
     printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
 }
 "##;
@@ -572,19 +607,43 @@ pub struct CustomSpec {
     pub meter_style: String,
     #[serde(default = "default_meter_width")]
     pub meter_width: u32,
+    /// Prefix each segment with an emoji glyph (📁 🌿 ✦ …).
+    #[serde(default)]
+    pub icons: bool,
+    /// Decorate the git branch with a dirty marker and ahead/behind counts.
+    #[serde(default)]
+    pub git_status: bool,
 }
 
 fn default_meter_width() -> u32 {
     7
 }
 
+/// The emoji glyph shown before a segment when `icons` is on. Empty for ids that
+/// read better bare (the free-text segment carries its own leading glyph).
+fn segment_icon(id: &str) -> &'static str {
+    match id {
+        "folder" => "📁",
+        "path" => "📂",
+        "model" => "✦",
+        "branch" => "🌿",
+        "ctx" => "🧠",
+        "five" => "⚡",
+        "seven" => "📆",
+        "cost" => "💰",
+        _ => "",
+    }
+}
+
 const SEGMENT_IDS: [&str; 9] = [
     "folder", "path", "model", "branch", "ctx", "five", "seven", "cost", "text",
 ];
 
-const SEGMENT_COLORS: [&str; 8] = [
-    "default", "dim", "red", "green", "yellow", "blue", "magenta", "cyan",
+const SEGMENT_COLORS: [&str; 9] = [
+    "default", "dim", "red", "green", "yellow", "blue", "magenta", "cyan", "claude",
 ];
+
+const METER_STYLES: [&str; 4] = ["bar", "blocks", "dots", "percent"];
 
 fn seg(id: &str) -> Segment {
     Segment {
@@ -594,16 +653,54 @@ fn seg(id: &str) -> Segment {
     }
 }
 
+fn colseg(id: &str, color: &str) -> Segment {
+    Segment {
+        id: id.into(),
+        color: color.into(),
+        text: String::new(),
+    }
+}
+
 fn default_custom_spec() -> CustomSpec {
+    // A lively starting point so the Custom builder opens with something to react
+    // to (icons, accent colors, the equalizer meter) rather than a bare line.
     CustomSpec {
-        segments: ["folder", "model", "ctx", "five", "seven"].map(seg).into(),
+        segments: vec![
+            colseg("folder", "cyan"),
+            colseg("model", "magenta"),
+            seg("ctx"),
+            seg("five"),
+            seg("seven"),
+            colseg("cost", "yellow"),
+        ],
         separator: "·".into(),
-        meter_style: "bar".into(),
+        meter_style: "blocks".into(),
         meter_width: 7,
+        icons: true,
+        git_status: false,
     }
 }
 
 fn preset_spec(id: &str) -> Option<CustomSpec> {
+    // The Vibrant preset is the showcase: emoji glyphs, per-segment accent colors,
+    // the equalizer meter, and live git status.
+    if id == "vibrant" {
+        return Some(CustomSpec {
+            segments: vec![
+                colseg("folder", "cyan"),
+                colseg("model", "magenta"),
+                seg("ctx"),
+                seg("five"),
+                seg("seven"),
+                colseg("cost", "yellow"),
+            ],
+            separator: "·".into(),
+            meter_style: "blocks".into(),
+            meter_width: 7,
+            icons: true,
+            git_status: false,
+        });
+    }
     let ids: &[&str] = match id {
         "minimal" => &["folder", "model"],
         "context" => &["folder", "model", "ctx"],
@@ -615,11 +712,14 @@ fn preset_spec(id: &str) -> Option<CustomSpec> {
         separator: "·".into(),
         meter_style: "bar".into(),
         meter_width: 7,
+        icons: false,
+        git_status: false,
     })
 }
 
 /// The ANSI open sequence for a chosen color, or None for "default". Emitted as a
 /// literal `\033[Nm` that the script's final `printf '%b'` turns into a real ESC.
+/// "claude" is Claude's brand orange as a truecolor escape (not in the ANSI 16).
 fn color_open(color: &str) -> Option<String> {
     let code = match color {
         "dim" => "2",
@@ -629,6 +729,7 @@ fn color_open(color: &str) -> Option<String> {
         "blue" => "34",
         "magenta" => "35",
         "cyan" => "36",
+        "claude" => "38;2;217;119;87",
         _ => return None,
     };
     Some(format!("\\033[{code}m"))
@@ -652,59 +753,94 @@ fn close_seq(open: &str) -> &'static str {
     }
 }
 
-fn meter_append(var: &str, label: &str, jq: &str, style: &str, color: &str) -> String {
+fn meter_append(var: &str, label: &str, jq: &str, style: &str, color: &str, icon: &str) -> String {
     // The label takes the segment color (or dim); the bar/number keep their tint.
     let lopen = open_seq(color, true);
     let compute = format!("{var}=$(jqr '{jq} // empty | round')\n");
     let body = if style == "percent" {
-        format!("[ -n \"${var}\" ] && append \"{lopen}{label}${{RESET}} $(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
+        format!("[ -n \"${var}\" ] && append \"{icon}{lopen}{label}${{RESET}} $(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
     } else {
-        format!("[ -n \"${var}\" ] && append \"{lopen}{label}${{RESET}} $(meter \"${var}\")\"\n")
+        format!("[ -n \"${var}\" ] && append \"{icon}{lopen}{label}${{RESET}} $(meter \"${var}\")\"\n")
     };
     format!("{compute}{body}")
 }
 
-fn segment_snippet(segment: &Segment, style: &str) -> String {
+// Branch with git status: dirty marker (✳) plus ahead/behind counts vs upstream.
+// Placeholders are substituted so we never fight `format!`'s brace escaping over
+// the many `${...}` shell expansions inside.
+const BRANCH_GIT_STATUS: &str = r##"gitdir=$(jqr '.cwd // "."')
+branch=$(git -C "$gitdir" branch --show-current 2>/dev/null)
+if [ -n "$branch" ]; then
+  gs=""
+  [ -n "$(git -C "$gitdir" status --porcelain 2>/dev/null | head -c 1)" ] && gs="✳"
+  ab=$(git -C "$gitdir" rev-list --left-right --count HEAD...@{upstream} 2>/dev/null)
+  ahead=$(printf '%s' "$ab" | cut -f1); behind=$(printf '%s' "$ab" | cut -f2)
+  case "$ahead" in ''|*[!0-9]*) ahead=0;; esac
+  case "$behind" in ''|*[!0-9]*) behind=0;; esac
+  [ "$ahead" -gt 0 ] && gs="${gs}↑${ahead}"
+  [ "$behind" -gt 0 ] && gs="${gs}↓${behind}"
+  append "__IC____OPEN__${branch}${gs}__CLOSE__"
+fi
+"##;
+
+fn segment_snippet(segment: &Segment, style: &str, icons: bool, git_status: bool) -> String {
     let color = segment.color.as_str();
-    match segment.id.as_str() {
+    let id = segment.id.as_str();
+    // Emoji prefix, only when icons are on and this segment has one. It sits
+    // outside the color escape — emoji render in their own color regardless.
+    let ic = if icons && !segment_icon(id).is_empty() {
+        format!("{} ", segment_icon(id))
+    } else {
+        String::new()
+    };
+    match id {
         "folder" => {
             let o = open_seq(color, false);
             format!(
-                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{o}$cwd{c}\"\n",
+                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{ic}{o}$cwd{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "path" => {
             let o = open_seq(color, false);
             format!(
-                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{o}$path{c}\"\n",
+                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{ic}{o}$path{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "model" => {
             let o = open_seq(color, true);
             format!(
-                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{o}$model{c}\"\n",
+                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{ic}{o}$model{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "branch" => {
             let o = open_seq(color, true);
-            format!(
-                "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{o}$branch{c}\"\n",
-                c = close_seq(&o)
-            )
+            let c = close_seq(&o);
+            if git_status {
+                BRANCH_GIT_STATUS
+                    .replace("__IC__", &ic)
+                    .replace("__OPEN__", &o)
+                    .replace("__CLOSE__", c)
+            } else {
+                format!(
+                    "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{ic}{o}$branch{c}\"\n"
+                )
+            }
         }
         "ctx" => match color_open(color) {
-            Some(c) => format!(
-                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{c}ctx ${{ctx}}%${{RESET}}\"\n"
+            Some(cc) => format!(
+                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{ic}{cc}ctx ${{ctx}}%${{RESET}}\"\n"
             ),
-            None => "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"${DIM}ctx${RESET} ${ctx}%\"\n".to_string(),
+            None => format!(
+                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{ic}${{DIM}}ctx${{RESET}} ${{ctx}}%\"\n"
+            ),
         },
         "cost" => {
             let o = open_seq(color, false);
             format!(
-                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{o}\\$${{cost}}{c}\"\n",
+                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{ic}{o}\\$${{cost}}{c}\"\n",
                 c = close_seq(&o)
             )
         }
@@ -712,8 +848,8 @@ fn segment_snippet(segment: &Segment, style: &str) -> String {
             let o = open_seq(color, false);
             format!("append \"{o}{t}{c}\"\n", t = segment.text, c = close_seq(&o))
         }
-        "five" => meter_append("five", "5h", ".rate_limits.five_hour.used_percentage", style, color),
-        "seven" => meter_append("seven", "7d", ".rate_limits.seven_day.used_percentage", style, color),
+        "five" => meter_append("five", "5h", ".rate_limits.five_hour.used_percentage", style, color, &ic),
+        "seven" => meter_append("seven", "7d", ".rate_limits.seven_day.used_percentage", style, color, &ic),
         _ => String::new(),
     }
 }
@@ -746,7 +882,7 @@ fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
         }
     }
     let style = spec.meter_style.as_str();
-    if style != "bar" && style != "percent" {
+    if !METER_STYLES.contains(&style) {
         return Err(format!("Unknown meter style: {}", spec.meter_style));
     }
     let sep = spec.separator.trim();
@@ -760,7 +896,7 @@ fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
     let width = spec.meter_width.clamp(3, 16);
 
     let has_rate = spec.segments.iter().any(|s| s.id == "five" || s.id == "seven");
-    let needs_meter = has_rate && style == "bar";
+    let needs_meter = has_rate && style != "percent";
 
     let mut out = String::new();
     out.push_str(STATUSLINE_HEADER);
@@ -774,11 +910,15 @@ fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
         out.push_str(STATUSLINE_TINT_FN);
     }
     if needs_meter {
-        out.push_str(STATUSLINE_METER_FN);
+        out.push_str(match style {
+            "blocks" => STATUSLINE_METER_FN_BLOCKS,
+            "dots" => STATUSLINE_METER_FN_DOTS,
+            _ => STATUSLINE_METER_FN,
+        });
     }
     out.push_str(STATUSLINE_APPEND_FN);
     for s in &spec.segments {
-        out.push_str(&segment_snippet(s, style));
+        out.push_str(&segment_snippet(s, style, spec.icons, spec.git_status));
     }
     out.push_str("printf '%b' \"$out\"\n");
     Ok(out)
@@ -793,7 +933,7 @@ fn sh_quote(s: &str) -> String {
 /// matched against the concrete script paths under `dir`.
 fn detect_template_id(statusline: &Value, dir: &Path) -> Option<String> {
     let cmd = statusline.get("command").and_then(Value::as_str)?;
-    for id in ["minimal", "context", "meters", "custom", "ai"] {
+    for id in ["minimal", "context", "meters", "vibrant", "custom", "ai"] {
         let path = dir.join(format!("lpm-{id}.sh"));
         if cmd.contains(&*path.to_string_lossy()) {
             return Some(id.to_string());
@@ -953,7 +1093,9 @@ fn restore_statusline_at(settings_path: &Path, dir: &Path) -> Result<(), String>
 fn apply_claude_statusline_at(settings_path: &Path, dir: &Path, template: &str) -> Result<(), String> {
     match template {
         "current" => restore_statusline_at(settings_path, dir),
-        "minimal" | "context" | "meters" => apply_template_at(settings_path, dir, template),
+        "minimal" | "context" | "meters" | "vibrant" => {
+            apply_template_at(settings_path, dir, template)
+        }
         "custom" => apply_custom_at(settings_path, dir, &read_custom_spec(dir)),
         "ai" => apply_ai_at(settings_path, dir),
         other => Err(format!("unknown status line template: {other}")),
@@ -1030,11 +1172,47 @@ pub fn apply_claude_statusline_custom(spec: Value) -> Result<(), String> {
 // against a canonical sample payload and return raw stdout INCLUDING ANSI escapes
 // so the frontend can paint it like a real terminal line.
 
-const PREVIEW_PAYLOAD: &str = r#"{"model":{"display_name":"Opus 4.8"},"cwd":"/Users/dev/Projects/lpm","workspace":{"current_dir":"/Users/dev/Projects/lpm"},"context_window":{"remaining_percentage":72},"rate_limits":{"five_hour":{"used_percentage":34,"resets_at":"2026-07-20T22:00:00Z"},"seven_day":{"used_percentage":62,"resets_at":"2026-07-25T00:00:00Z"}},"cost":{"total_cost_usd":4.2}}"#;
+/// A throwaway git repo used only so the branch + git-status segments render in
+/// the preview (they need a real repo). Created once under the statuslines dir,
+/// on branch `main` with a committed file and a dirty edit, so the preview shows
+/// `main✳`. Returns its path, or None when git is unavailable.
+fn ensure_preview_repo(dir: &Path) -> Option<String> {
+    let repo = dir.join("my-project");
+    if !repo.join(".git").exists() {
+        std::fs::create_dir_all(&repo).ok()?;
+        let script = format!(
+            "cd {} || exit 1\n\
+             git init -q . >/dev/null 2>&1 || exit 1\n\
+             git symbolic-ref HEAD refs/heads/main >/dev/null 2>&1\n\
+             git config user.email lpm@local >/dev/null 2>&1\n\
+             git config user.name lpm >/dev/null 2>&1\n\
+             git config commit.gpgsign false >/dev/null 2>&1\n\
+             printf 'demo\\n' > README.md\n\
+             git add README.md >/dev/null 2>&1\n\
+             git commit -q -m init >/dev/null 2>&1\n\
+             printf 'wip\\n' >> README.md\n",
+            sh_quote(&repo.to_string_lossy())
+        );
+        let _ = run_shell_capture(&script, "");
+    }
+    repo.join(".git")
+        .exists()
+        .then(|| repo.to_string_lossy().into_owned())
+}
 
-/// Run shell `code` with the sample payload on stdin, killing it after ~2s.
+/// The canonical preview payload. When a demo git repo can be prepared its path
+/// becomes `.cwd`, so branch + git status render; otherwise a plain path is used.
+fn preview_payload(dir: &Path) -> String {
+    let cwd = ensure_preview_repo(dir).unwrap_or_else(|| "/Users/dev/my-project".to_string());
+    let cwd = Value::String(cwd).to_string();
+    format!(
+        r#"{{"model":{{"display_name":"Opus 4.8"}},"cwd":{cwd},"workspace":{{"current_dir":{cwd}}},"context_window":{{"remaining_percentage":72}},"rate_limits":{{"five_hour":{{"used_percentage":34,"resets_at":"2026-07-20T22:00:00Z"}},"seven_day":{{"used_percentage":62,"resets_at":"2026-07-25T00:00:00Z"}}}},"cost":{{"total_cost_usd":4.2}}}}"#
+    )
+}
+
+/// Run shell `code` with `payload` on stdin, killing it after ~2s.
 /// Returns (exited_success, stdout, stderr). Output is capped.
-fn run_shell_capture(code: &str) -> (bool, String, String) {
+fn run_shell_capture(code: &str, payload: &str) -> (bool, String, String) {
     use std::io::{Read, Write};
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
@@ -1050,7 +1228,7 @@ fn run_shell_capture(code: &str) -> (bool, String, String) {
         return (false, String::new(), "could not start sh".into());
     };
     if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(PREVIEW_PAYLOAD.as_bytes()); // drops -> EOF for `cat`
+        let _ = stdin.write_all(payload.as_bytes()); // drops -> EOF for `cat`
     }
     let mut stdout = child.stdout.take();
     let mut stderr = child.stderr.take();
@@ -1124,7 +1302,7 @@ fn resolve_preview_code(sel: &Value, dir: &Path, settings_path: &Path) -> Result
 
 fn preview_claude_statusline_at(selection: &Value, dir: &Path, settings_path: &Path) -> Result<String, String> {
     match resolve_preview_code(selection, dir, settings_path)? {
-        Some(c) if !c.trim().is_empty() => Ok(run_shell_capture(&c).1),
+        Some(c) if !c.trim().is_empty() => Ok(run_shell_capture(&c, &preview_payload(dir)).1),
         _ => Ok(String::new()),
     }
 }
@@ -1156,6 +1334,7 @@ Hard rules:
 - Print exactly ONE line to stdout, no trailing newline.
 - Only use jq, git, and standard POSIX tools.
 - ANSI color escapes are allowed; emit them with printf '%b'. Gracefully skip any field that is absent or empty.
+- A modern, readable look is encouraged: tasteful emoji glyphs, unicode meter bars (e.g. ▇▁ or ●○), and per-segment accent colors are all welcome — but keep it legible and never require a Nerd Font.
 - Output ONLY the script. No markdown fences, no commentary, no explanation."#;
 
 fn strip_code_fences(s: &str) -> String {
@@ -1233,7 +1412,7 @@ fn finalize_ai_statusline_at(
     if script.trim().is_empty() {
         return Err("The model returned an empty status line. Try describing it again.".into());
     }
-    let (ok, out, err) = run_shell_capture(&script);
+    let (ok, out, err) = run_shell_capture(&script, &preview_payload(dir));
     if !ok || out.trim().is_empty() {
         let detail = if !err.trim().is_empty() {
             err.trim().to_string()
@@ -1725,6 +1904,8 @@ mod tests {
             separator: sep.into(),
             meter_style: style.into(),
             meter_width: 7,
+            icons: false,
+            git_status: false,
         }
     }
 
@@ -1794,6 +1975,18 @@ mod tests {
     }
 
     #[test]
+    fn claude_color_emits_brand_orange_truecolor() {
+        // Claude's orange isn't in the ANSI 16, so it ships as a truecolor escape.
+        let mut spec = cspec(&["model"], "·", "bar");
+        spec.segments[0].color = "claude".into();
+        let src = build_custom_statusline(&spec).unwrap();
+        assert!(src.contains("\\033[38;2;217;119;87m"), "script carries claude truecolor: {src}");
+        let text = run_script(&src, SAMPLE_PAYLOAD);
+        assert!(text.contains("\u{1b}[38;2;217;119;87m"), "rendered has the claude escape: {text:?}");
+        assert!(text.contains("Opus 4.8"), "model still shown: {text:?}");
+    }
+
+    #[test]
     fn custom_meter_width_is_respected() {
         let mut wide = cspec(&["five"], "·", "bar");
         wide.meter_width = 14;
@@ -1803,6 +1996,108 @@ mod tests {
         let wide_bar = count(&run_script(&build_custom_statusline(&wide).unwrap(), SAMPLE_PAYLOAD));
         let narrow_bar = count(&run_script(&build_custom_statusline(&narrow).unwrap(), SAMPLE_PAYLOAD));
         assert!(wide_bar > narrow_bar, "wider meter draws more cells: {wide_bar} vs {narrow_bar}");
+    }
+
+    #[test]
+    fn blocks_meter_renders_block_glyphs() {
+        let text = run_script(
+            &build_custom_statusline(&cspec(&["five"], "·", "blocks")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(text.contains('▇') || text.contains('▁'), "block glyphs present: {text:?}");
+        assert!(text.contains("34%"), "still shows the percentage: {text:?}");
+        assert!(!text.contains('━'), "blocks style draws no heavy-line bar: {text:?}");
+    }
+
+    #[test]
+    fn dots_meter_renders_dot_glyphs() {
+        let text = run_script(
+            &build_custom_statusline(&cspec(&["five"], "·", "dots")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(text.contains('●'), "filled dots present: {text:?}");
+        assert!(text.contains('○'), "empty dots present: {text:?}");
+        assert!(text.contains("34%"), "still shows the percentage: {text:?}");
+    }
+
+    #[test]
+    fn icons_prefix_segments_when_enabled() {
+        let mut spec = cspec(&["folder", "model", "five"], "·", "blocks");
+        spec.icons = true;
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("📁"), "folder icon: {text:?}");
+        assert!(text.contains("✦"), "model icon: {text:?}");
+        assert!(text.contains("⚡"), "5h icon: {text:?}");
+        // Off by default, no glyphs leak in.
+        let plain = run_script(
+            &build_custom_statusline(&cspec(&["folder", "model"], "·", "bar")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(!plain.contains("📁"), "no icon when disabled: {plain:?}");
+    }
+
+    #[test]
+    fn vibrant_preset_has_icons_colors_and_block_meters() {
+        let spec = preset_spec("vibrant").unwrap();
+        assert!(spec.icons, "vibrant enables icons");
+        assert_eq!(spec.meter_style, "blocks");
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("📁") && text.contains("✦") && text.contains("🧠"), "glyphs: {text:?}");
+        assert!(text.contains("⚡") && text.contains("📆"), "5h + weekly icons: {text:?}");
+        assert!(text.contains("Opus 4.8"), "model shown: {text:?}");
+        assert!(text.contains("\u{1b}[36m"), "folder carries the cyan accent: {text:?}");
+        assert!(text.contains('▇') || text.contains('▁'), "block meter: {text:?}");
+        assert!(text.contains("34%") && text.contains("62%"), "both 5h and weekly render: {text:?}");
+        assert!(!text.contains("🌿"), "vibrant has no branch: {text:?}");
+    }
+
+    fn make_dirty_repo() -> tempfile::TempDir {
+        let td = tempfile::tempdir().unwrap();
+        let p = td.path().to_str().unwrap().to_string();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(["-C", &p])
+                .args(args)
+                .output()
+                .unwrap();
+        };
+        git(&["init", "-q", "."]);
+        git(&["symbolic-ref", "HEAD", "refs/heads/main"]);
+        git(&["config", "user.email", "t@t"]);
+        git(&["config", "user.name", "t"]);
+        git(&["config", "commit.gpgsign", "false"]);
+        std::fs::write(td.path().join("README.md"), "demo\n").unwrap();
+        git(&["add", "README.md"]);
+        git(&["commit", "-q", "-m", "init"]);
+        std::fs::write(td.path().join("README.md"), "demo\nwip\n").unwrap();
+        td
+    }
+
+    #[test]
+    fn git_status_marks_a_dirty_branch() {
+        let repo = make_dirty_repo();
+        let payload = serde_json::json!({
+            "cwd": repo.path().to_str().unwrap(),
+            "model": { "display_name": "X" }
+        })
+        .to_string();
+        // Branch + git status is a builder capability (icons on to check the glyph).
+        let mut spec = cspec(&["folder", "branch"], "·", "bar");
+        spec.icons = true;
+        spec.git_status = true;
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), &payload);
+        assert!(text.contains("main"), "branch name shown: {text:?}");
+        assert!(text.contains('✳'), "dirty marker shown: {text:?}");
+        assert!(text.contains("🌿"), "branch icon shown: {text:?}");
+
+        // A clean checkout drops the marker.
+        std::process::Command::new("git")
+            .args(["-C", repo.path().to_str().unwrap(), "checkout", "--", "README.md"])
+            .output()
+            .unwrap();
+        let clean = run_script(&build_custom_statusline(&spec).unwrap(), &payload);
+        assert!(clean.contains("main"), "branch still shown: {clean:?}");
+        assert!(!clean.contains('✳'), "clean tree has no marker: {clean:?}");
     }
 
     #[test]
