@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
@@ -23,8 +23,10 @@ import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
 import { MainTopBar } from "./components/MainTopBar";
+import { ProjectSwitcher } from "./components/ProjectSwitcher";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
+import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
@@ -48,6 +50,7 @@ export default function App() {
   const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
   const detached = useAppStore((s) => s.detached);
+  const mruProjects = useAppStore((s) => s.mruProjects);
   const duplicatingNames = useAppStore((s) => s.duplicatingNames);
   const removingNames = useAppStore((s) => s.removingNames);
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
@@ -149,6 +152,17 @@ export default function App() {
       if (project) selectProject(project.name);
     },
   );
+
+  const localProjectNames = useMemo(
+    () => projects.filter((p) => !isPeerName(p.name)).map((p) => p.name),
+    [projects],
+  );
+  const switcher = useProjectSwitcher({
+    projectNames: localProjectNames,
+    mru: mruProjects,
+    current: selected,
+    onCommit: handleSelect,
+  });
 
   // Drop a stale saved selection if the project was deleted while lpm was
   // closed, but only once projects has actually loaded — otherwise the
@@ -345,6 +359,11 @@ export default function App() {
       <PairApprovalHost />
       <FileViewerHost />
       <TerminalDropOverlayHost />
+      <ProjectSwitcher
+        active={switcher.active}
+        list={switcher.list}
+        index={switcher.index}
+      />
     </div>
   );
 }

@@ -130,6 +130,9 @@ interface AppState {
   feedbackOpen: boolean;
   tmuxReady: boolean | null;
   visited: Set<string>;
+  // Most-recently-selected project names, most-recent-first. Drives the
+  // Ctrl+Tab MRU switcher. Session-only; not persisted.
+  mruProjects: string[];
   // Source names with a duplication in flight. A multiset (repeats allowed) so
   // several copies of the same source can run at once and each finishing only
   // clears its own entry. Duplications never block one another.
@@ -770,6 +773,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   feedbackOpen: false,
   tmuxReady: null,
   visited: new Set<string>(),
+  mruProjects: [],
   duplicatingNames: [],
   spawnTasks: {},
   removingNames: new Set<string>(),
@@ -798,7 +802,13 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setTmuxReady: (tmuxReady) => set({ tmuxReady }),
 
-  selectProject: (name) => set({ selected: name, selectedTemplate: null, view: "projects" }),
+  selectProject: (name) =>
+    set((s) => ({
+      selected: name,
+      selectedTemplate: null,
+      view: "projects",
+      mruProjects: [name, ...s.mruProjects.filter((n) => n !== name)],
+    })),
 
   clearSelection: () => set({ selected: null }),
 

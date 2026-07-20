@@ -27,6 +27,7 @@ import { usePeerState } from "../peer/usePeerState";
 import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { detectAICLI } from "../slashCommands";
 import { findActionByPath, flattenRunnableActions } from "../actionTree";
+import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import type {
   CopyOverride,
   CopyRunMode,
@@ -144,6 +145,14 @@ export function BulkDuplicateDialog({
   // would keep seeding from the previous session's retained draft.
   const [openSession, setOpenSession] = useState(0);
 
+  // Every place this project already exists — here and on connected Macs with a
+  // same-named project. A copy targeted at another Mac is created THERE by
+  // duplicating that Mac's own project; no files ever move between machines.
+  const projects = useAppStore((s) => s.projects);
+  const projectDisplay = project
+    ? projectDisplayName(project, findParentProject(project, projects))
+    : "";
+
   // Default each label to the copy's would-be name (`<original>-<id>`), the
   // same scheme the backend uses for the folder, so the field shows the copy's
   // name rather than the original's.
@@ -151,7 +160,7 @@ export function BulkDuplicateDialog({
   const genLabel = () => (base ? `${base}-${randomId6()}` : "");
   // Shown as run #1 in the seeded (composer) flow — the current project runs the
   // prompt in place, so it's listed above the fresh copies rather than created.
-  const currentName = project?.label || project?.name || "This project";
+  const currentName = projectDisplay || "This project";
 
   // The full action tree drives the picker (it drills into menus / split
   // buttons); the flattened runnable set is for "is anything runnable?" checks,
@@ -159,10 +168,6 @@ export function BulkDuplicateDialog({
   const actionTree = project?.actions ?? [];
   const runnableActions = flattenRunnableActions(actionTree);
 
-  // Every place this project already exists — here and on connected Macs with a
-  // same-named project. A copy targeted at another Mac is created THERE by
-  // duplicating that Mac's own project; no files ever move between machines.
-  const projects = useAppStore((s) => s.projects);
   const { state: peerState } = usePeerState();
   const sourceName = project?.name ?? "";
   const rawName = stripMarker(sourceName);
@@ -592,7 +597,7 @@ export function BulkDuplicateDialog({
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
             Create independent copies of{" "}
             <span className="font-mono text-[var(--text-secondary)]">
-              {project?.label || project?.name}
+              {projectDisplay}
             </span>{" "}
             to run agents or services in parallel.
           </p>

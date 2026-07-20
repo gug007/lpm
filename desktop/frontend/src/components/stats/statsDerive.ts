@@ -75,18 +75,19 @@ export function sortProjects(
   projects: UsageBreakdown[],
   key: ProjectSortKey,
   direction: SortDirection,
+  nameOf: (project: UsageBreakdown) => string = (project) => project.label,
 ): UsageBreakdown[] {
   return [...projects].sort((a, b) => {
     let primary: number;
     if (key === "name") {
-      primary = a.label.localeCompare(b.label);
+      primary = nameOf(a).localeCompare(nameOf(b));
     } else if (key === "sessions") {
       primary = a.sessions - b.sessions;
     } else {
       primary = a.tokens.totalTokens - b.tokens.totalTokens;
     }
     if (primary !== 0) return direction === "asc" ? primary : -primary;
-    return a.label.localeCompare(b.label);
+    return nameOf(a).localeCompare(nameOf(b));
   });
 }
 

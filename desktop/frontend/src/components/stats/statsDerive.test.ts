@@ -112,4 +112,24 @@ describe("sortProjects", () => {
   it("sorts by name ascending", () => {
     expect(sortProjects(projects, "name", "asc").map((p) => p.key)).toEqual(["a", "b", "c"]);
   });
+
+  it("sorts by the resolved display name when a resolver is supplied", () => {
+    const resolved: Record<string, string> = { a: "Zeta", b: "Mango", c: "Apple" };
+    const nameOf = (p: UsageBreakdown) => resolved[p.key];
+    expect(sortProjects(projects, "name", "asc", nameOf).map((p) => p.key)).toEqual([
+      "c",
+      "b",
+      "a",
+    ]);
+  });
+
+  it("breaks ties on the resolved display name", () => {
+    const resolved: Record<string, string> = { a: "Zeta", b: "Mango", c: "Apple" };
+    const nameOf = (p: UsageBreakdown) => resolved[p.key];
+    expect(sortProjects(projects, "sessions", "desc", nameOf).map((p) => p.key)).toEqual([
+      "b",
+      "a",
+      "c",
+    ]);
+  });
 });

@@ -240,6 +240,16 @@ body {
   animation: demo-slot-in 180ms ease-out both;
 }
 
+@keyframes switcher-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @keyframes field-reveal {
   from {
     opacity: 0;

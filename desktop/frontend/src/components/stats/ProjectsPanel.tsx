@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { UsageBreakdown } from "../../types";
 import { formatTokenCount, usagePeriodLabel } from "../../agentUsageFormat";
@@ -8,6 +8,8 @@ import {
   projectShare,
   sortProjects,
 } from "./statsDerive";
+import { useAppStore } from "../../store/app";
+import { displayNameForProjectName } from "../ProjectNameDisplay";
 import { usePrefersReducedMotion } from "./usePrefersReducedMotion";
 
 const COLLAPSED_COUNT = 8;
@@ -25,9 +27,18 @@ interface ProjectsPanelProps {
 
 export function ProjectsPanel({ projects, days }: ProjectsPanelProps) {
   const reducedMotion = usePrefersReducedMotion();
+  const allProjects = useAppStore((s) => s.projects);
   const [sortKey, setSortKey] = useState<ProjectSortKey>("tokens");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
   const [expanded, setExpanded] = useState(false);
+
+  // The stats key is the project's config name (see agent_usage.rs); resolve it
+  // to the label-aware display name, falling back to the raw key when no project
+  // matches (a history folder whose project was since removed).
+  const displayName = useCallback(
+    (project: UsageBreakdown) => displayNameForProjectName(project.key, allProjects),
+    [allProjects],
+  );
 
   const onSort = (key: ProjectSortKey, defaultDir: SortDirection) => {
     if (key === sortKey) {
@@ -38,7 +49,7 @@ export function ProjectsPanel({ projects, days }: ProjectsPanelProps) {
     }
   };
 
-  const sorted = sortProjects(projects, sortKey, sortDir);
+  const sorted = sortProjects(projects, sortKey, sortDir, displayName);
   const maxTokens = Math.max(1, ...projects.map((project) => project.tokens.totalTokens));
   const shown = expanded ? sorted : sorted.slice(0, COLLAPSED_COUNT);
 
@@ -81,7 +92,7 @@ export function ProjectsPanel({ projects, days }: ProjectsPanelProps) {
                 key={project.key}
                 className="flex items-center gap-3 px-4 py-2.5 text-xs transition-colors duration-[120ms] hover:bg-[var(--bg-hover)]"
               >
-                <span className="min-w-0 flex-1 truncate font-medium">{project.label}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">{displayName(project)}</span>
                 <span className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-[var(--bg-active)]">
                   <span
                     className="block h-full rounded-full"

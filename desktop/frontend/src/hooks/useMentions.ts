@@ -3,6 +3,7 @@ import { GitChangedFiles, ListBranches, ListDirFiles } from "../../bridge/comman
 import { useAppStore } from "../store/app";
 import { isDuplicate } from "../types";
 import { rankMentions, type MentionItem } from "../mentions";
+import { findParentProject, projectDisplayName } from "../components/ProjectNameDisplay";
 
 interface DirFileEntry {
   path: string;
@@ -163,7 +164,7 @@ export function useMentions(
     const present = new Set(projects.map((p) => p.name));
     return projects.map((p) => ({
       kind: isDuplicate(p, present) ? "duplicate" : "project",
-      label: p.label || p.name,
+      label: projectDisplayName(p, findParentProject(p, projects)),
       insert: p.root,
       detail: p.root,
     }));
