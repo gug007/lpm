@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { X, Plus, Sparkles, GripVertical } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Sparkles, Undo2 } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
+  KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -12,105 +13,39 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  useSortable,
   arrayMove,
   rectSortingStrategy,
+  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { StatusLineAppearanceSettings } from "./StatusLineAppearanceSettings";
+import { StatusLineDragChip } from "./StatusLineDragChip";
+import { StatusLineSegmentChip } from "./StatusLineSegmentChip";
+import { StatusLineSegmentInspector } from "./StatusLineSegmentInspector";
+import {
+  STATUS_LINE_SEGMENT_DESCRIPTIONS,
+  STATUS_LINE_SEGMENT_ICONS,
+  STATUS_LINE_SEGMENT_IDS,
+  STATUS_LINE_SEGMENT_LABELS,
+  STATUS_LINE_SEPARATORS,
+} from "./statusLineEditorOptions";
+import { customStatusLineError } from "./statusLineValidation";
+import type {
+  CustomSpec,
+  SegColor,
+  Segment,
+  SegmentId,
+} from "./statusLineTypes";
 
-export type SegmentId =
-  | "folder"
-  | "path"
-  | "model"
-  | "branch"
-  | "ctx"
-  | "five"
-  | "seven"
-  | "cost"
-  | "text";
+export type {
+  CustomSpec,
+  MeterStyle,
+  SegColor,
+  Segment,
+  SegmentId,
+} from "./statusLineTypes";
 
-export type SegColor =
-  | "default"
-  | "dim"
-  | "red"
-  | "green"
-  | "yellow"
-  | "blue"
-  | "magenta"
-  | "cyan"
-  | "claude";
-
-export interface Segment {
-  id: SegmentId;
-  color: SegColor;
-  text: string;
-}
-
-export type MeterStyle = "bar" | "blocks" | "dots" | "percent";
-
-export interface CustomSpec {
-  segments: Segment[];
-  separator: string;
-  meterStyle: MeterStyle;
-  meterWidth: number;
-  icons: boolean;
-  gitStatus: boolean;
-}
-
-const ADDABLE: SegmentId[] = ["folder", "path", "model", "branch", "ctx", "five", "seven", "cost"];
-
-const LABELS: Record<SegmentId, string> = {
-  folder: "Folder",
-  path: "Full path",
-  model: "Model",
-  branch: "Git branch",
-  ctx: "Context left",
-  five: "5-hour usage",
-  seven: "Weekly usage",
-  cost: "Session cost",
-  text: "Text",
-};
-
-// Mirrors the emoji the backend prepends (hooks.rs segment_icon) so a chip looks
-// like the token it produces once icons are on.
-const ICONS: Record<SegmentId, string> = {
-  folder: "📁",
-  path: "📂",
-  model: "✦",
-  branch: "🌿",
-  ctx: "🧠",
-  five: "⚡",
-  seven: "📆",
-  cost: "💰",
-  text: "",
-};
-
-const SEPARATORS = ["·", "|", "›", "/", "—"];
-
-const COLORS: { id: SegColor; swatch: string; label: string }[] = [
-  { id: "default", swatch: "var(--text-secondary)", label: "Default" },
-  { id: "dim", swatch: "var(--text-muted)", label: "Dim" },
-  { id: "red", swatch: "#cc4b4b", label: "Red" },
-  { id: "green", swatch: "#4e9a06", label: "Green" },
-  { id: "yellow", swatch: "#c4a000", label: "Yellow" },
-  { id: "blue", swatch: "#3465a4", label: "Blue" },
-  { id: "magenta", swatch: "#a349a4", label: "Magenta" },
-  { id: "cyan", swatch: "#06989a", label: "Cyan" },
-  { id: "claude", swatch: "#d97757", label: "Claude" },
-];
-
-const METER_STYLES: { id: MeterStyle; label: string; sample: string }[] = [
-  { id: "bar", label: "Bars", sample: "━━╸━" },
-  { id: "blocks", label: "Blocks", sample: "▇▇▃▁" },
-  { id: "dots", label: "Dots", sample: "●●○○" },
-  { id: "percent", label: "Numbers", sample: "47%" },
-];
-
-function colorHex(c: SegColor): string {
-  return COLORS.find((x) => x.id === c)?.swatch ?? "var(--text-secondary)";
-}
-
-const rand = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
+const randomItem = <T,>(items: readonly T[]): T =>
+  items[Math.floor(Math.random() * items.length)];
 
 export function CustomStatusLineEditor({
   spec,
@@ -121,25 +56,63 @@ export function CustomStatusLineEditor({
   onChange: (spec: CustomSpec) => void;
   disabled: boolean;
 }) {
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number | null>(0);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [undoSpec, setUndoSpec] = useState<CustomSpec | null>(null);
+  const used = new Set(spec.segments.map((segment) => segment.id));
+  const addable = STATUS_LINE_SEGMENT_IDS.filter((id) => !used.has(id));
+  const ids = spec.segments.map((segment, index) => `${segment.id}:${index}`);
+  const active = selected == null ? undefined : spec.segments[selected];
+  const validationError = customStatusLineError(spec);
+  const canRemove = spec.segments.length > 1;
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
-  const used = new Set(spec.segments.map((s) => s.id));
-  const addable = ADDABLE.filter((id) => !used.has(id));
-  const showMeter = spec.segments.some((s) => s.id === "five" || s.id === "seven");
-  const hasBranch = spec.segments.some((s) => s.id === "branch");
+  useEffect(() => {
+    setSelected((current) => {
+      if (spec.segments.length === 0) return null;
+      if (current == null) return 0;
+      return Math.min(current, spec.segments.length - 1);
+    });
+  }, [spec.segments.length]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const ids = spec.segments.map((_, i) => String(i));
+  const commit = (next: CustomSpec) => {
+    setUndoSpec(null);
+    onChange(next);
+  };
 
-  const setSegments = (segments: Segment[]) => onChange({ ...spec, segments });
+  const setSegments = (segments: Segment[]) => {
+    commit({
+      ...spec,
+      segments,
+      gitStatus:
+        spec.gitStatus && segments.some((segment) => segment.id === "branch"),
+    });
+  };
 
-  const update = (index: number, patch: Partial<Segment>) =>
-    setSegments(spec.segments.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+  const update = (index: number, patch: Partial<Segment>) => {
+    setSegments(
+      spec.segments.map((segment, itemIndex) =>
+        itemIndex === index ? { ...segment, ...patch } : segment,
+      ),
+    );
+  };
 
   const remove = (index: number) => {
-    setSegments(spec.segments.filter((_, i) => i !== index));
-    setSelected(null);
+    if (!canRemove) return;
+    const segments = spec.segments.filter(
+      (_, itemIndex) => itemIndex !== index,
+    );
+    setSegments(segments);
+    setSelected((current) => {
+      if (current == null) return 0;
+      if (current === index) return Math.min(index, segments.length - 1);
+      return current > index ? current - 1 : current;
+    });
   };
 
   const add = (id: SegmentId) => {
@@ -147,413 +120,223 @@ export function CustomStatusLineEditor({
     setSelected(spec.segments.length);
   };
 
-  const onDragStart = (e: DragStartEvent) => setDragIndex(Number(e.active.id));
-  const onDragEnd = (e: DragEndEvent) => {
-    setDragIndex(null);
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    setSegments(arrayMove(spec.segments, Number(active.id), Number(over.id)));
-    setSelected(null);
+  const onDragStart = (event: DragStartEvent) => {
+    setDragIndex(ids.indexOf(String(event.active.id)));
   };
 
-  // A tasteful random line — folder + model anchor it, a few extras join, icons on.
-  const surprise = () => {
-    const accents: SegColor[] = ["cyan", "green", "magenta", "blue", "yellow"];
+  const onDragEnd = (event: DragEndEvent) => {
+    setDragIndex(null);
+    const from = ids.indexOf(String(event.active.id));
+    const to = event.over ? ids.indexOf(String(event.over.id)) : -1;
+    if (from < 0 || to < 0 || from === to) return;
+    setSegments(arrayMove(spec.segments, from, to));
+    setSelected(to);
+  };
+
+  const randomize = () => {
+    const accents: SegColor[] = [
+      "cyan",
+      "green",
+      "magenta",
+      "blue",
+      "yellow",
+      "claude",
+    ];
     const optional: SegmentId[] = ["ctx", "five", "seven", "cost", "branch"];
-    const chosen: SegmentId[] = ["folder", "model", ...optional.filter(() => Math.random() > 0.45)];
-    if (!chosen.includes("five") && !chosen.includes("seven")) chosen.push("five");
+    const chosen: SegmentId[] = [
+      "folder",
+      "model",
+      ...optional.filter(() => Math.random() > 0.45),
+    ];
+    if (!chosen.includes("five") && !chosen.includes("seven"))
+      chosen.push("five");
     const segments: Segment[] = chosen.map((id) => ({
       id,
       text: "",
-      color: Math.random() > 0.3 ? rand(accents) : "default",
+      color: Math.random() > 0.3 ? randomItem(accents) : "default",
     }));
+    setUndoSpec(spec);
     onChange({
       segments,
-      separator: rand(SEPARATORS),
-      meterStyle: rand(["bar", "blocks", "dots"] as const),
-      meterWidth: rand([5, 7, 9]),
+      separator: randomItem(STATUS_LINE_SEPARATORS),
+      meterStyle: randomItem(["bar", "blocks", "dots"] as const),
+      meterWidth: randomItem([5, 7, 9]),
       icons: true,
       gitStatus: chosen.includes("branch"),
     });
-    setSelected(null);
+    setSelected(0);
   };
 
-  const active = selected != null ? spec.segments[selected] : undefined;
+  const undo = () => {
+    if (!undoSpec) return;
+    onChange(undoSpec);
+    setUndoSpec(null);
+    setSelected(0);
+  };
 
   return (
-    <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/40 p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          Your segments
-        </span>
-        <button
-          type="button"
-          onClick={surprise}
-          disabled={disabled}
-          className="flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-blue)]/50 hover:text-[var(--text-primary)] disabled:opacity-40"
-          title="Shuffle a fresh combination"
-        >
-          <Sparkles size={12} /> Surprise me
-        </button>
-      </div>
-
-      {/* The chip canvas — drag to reorder, click to edit. */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDragCancel={() => setDragIndex(null)}
-      >
-        <SortableContext items={ids} strategy={rectSortingStrategy}>
-          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/40 p-2">
-            {spec.segments.map((segment, i) => (
-              <SortableChip
-                key={i}
-                id={String(i)}
-                segment={segment}
-                showIcon={spec.icons}
-                selected={selected === i}
-                disabled={disabled}
-                onSelect={() => setSelected(selected === i ? null : i)}
-              />
-            ))}
-            {spec.segments.length === 0 && (
-              <span className="px-1 py-1 text-[11px] text-[var(--text-muted)]">
-                Add a segment below to begin.
-              </span>
-            )}
-          </div>
-        </SortableContext>
-        <DragOverlay>
-          {dragIndex != null && spec.segments[dragIndex] ? (
-            <Chip segment={spec.segments[dragIndex]} showIcon={spec.icons} dragging />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
-
-      {/* Add palette — every remaining segment, one click away. */}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] text-[var(--text-muted)]">Add</span>
-        {addable.map((id) => (
+    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/35">
+      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-3.5">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
+            Arrange your items
+          </h2>
+          <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
+            Drag to reorder. Select an item to customize it.
+          </p>
+        </div>
+        {undoSpec && (
           <button
-            key={id}
             type="button"
-            onClick={() => add(id)}
+            onClick={undo}
             disabled={disabled}
-            className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-green)]/50 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
           >
-            <Plus size={11} />
-            <span aria-hidden>{ICONS[id]}</span> {LABELS[id]}
+            <Undo2 size={13} /> Undo
           </button>
-        ))}
+        )}
         <button
           type="button"
-          onClick={() => add("text")}
+          onClick={randomize}
           disabled={disabled}
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--accent-blue)]/50 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
         >
-          <Plus size={11} /> Text…
+          <Sparkles size={13} /> Randomize
         </button>
       </div>
 
-      {/* Inline editor for the chip you tapped. */}
-      {active && (
-        <div className="mt-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)]/60 p-2.5">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-[11px] text-[var(--text-muted)]">
-              Editing <span className="text-[var(--text-secondary)]">{LABELS[active.id]}</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => remove(selected!)}
-              className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--accent-red)]/12 hover:text-[var(--accent-red-text,#cc4b4b)]"
+      <div className="p-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(230px,0.58fr)]">
+          <div className="min-w-0">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+                Status line order
+              </span>
+              <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+                {spec.segments.length}{" "}
+                {spec.segments.length === 1 ? "item" : "items"}
+              </span>
+            </div>
+
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragCancel={() => setDragIndex(null)}
             >
-              <X size={12} /> Remove
-            </button>
-          </div>
+              <SortableContext items={ids} strategy={rectSortingStrategy}>
+                <div className="flex min-h-24 flex-wrap content-start items-start gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/55 p-3">
+                  {spec.segments.map((segment, index) => (
+                    <StatusLineSegmentChip
+                      key={ids[index]}
+                      id={ids[index]}
+                      segment={segment}
+                      showIcon={spec.icons}
+                      selected={selected === index}
+                      disabled={disabled}
+                      canRemove={canRemove}
+                      onSelect={() => setSelected(index)}
+                      onRemove={() => remove(index)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+              <DragOverlay>
+                {dragIndex != null && spec.segments[dragIndex] ? (
+                  <StatusLineDragChip
+                    segment={spec.segments[dragIndex]}
+                    showIcon={spec.icons}
+                  />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
 
-          {active.id === "text" && (
-            <input
-              value={active.text}
-              onChange={(e) => update(selected!, { text: e.target.value })}
-              disabled={disabled}
-              autoFocus
-              placeholder="Your text…"
-              className="mb-2 w-full rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--accent-green)]"
-            />
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-[var(--text-muted)]">Color</span>
-            <div className="flex items-center gap-1">
-              {COLORS.map((c) => (
+            <div className="mb-2 mt-4 flex items-center justify-between gap-3">
+              <span className="text-[11px] font-medium text-[var(--text-secondary)]">
+                Add an item
+              </span>
+              <span className="text-[10px] text-[var(--text-muted)]">
+                Click to append
+              </span>
+            </div>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {addable.map((id) => (
                 <button
-                  key={c.id}
+                  key={id}
                   type="button"
+                  onClick={() => add(id)}
                   disabled={disabled}
-                  onClick={() => update(selected!, { color: c.id })}
-                  aria-label={c.label}
-                  title={c.label}
-                  className={`flex h-5 w-5 items-center justify-center rounded-full transition-transform hover:scale-110 ${
-                    active.color === c.id
-                      ? "ring-2 ring-[var(--accent-green)] ring-offset-1 ring-offset-[var(--bg-primary)]"
-                      : ""
-                  }`}
+                  className="group flex min-h-12 items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 px-2.5 text-left outline-none transition-colors hover:border-[var(--accent-green)]/45 hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
                 >
                   <span
-                    className="h-3 w-3 rounded-full"
-                    style={{
-                      background: c.id === "default" ? "transparent" : c.swatch,
-                      border: c.id === "default" ? "1px solid var(--text-muted)" : undefined,
-                    }}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-secondary)] text-[13px] ${id === "model" ? "font-semibold text-[#d97757]" : ""}`}
+                  >
+                    <span aria-hidden>{STATUS_LINE_SEGMENT_ICONS[id]}</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11px] font-medium text-[var(--text-primary)]">
+                      {STATUS_LINE_SEGMENT_LABELS[id]}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[9.5px] text-[var(--text-muted)]">
+                      {STATUS_LINE_SEGMENT_DESCRIPTIONS[id]}
+                    </span>
+                  </span>
+                  <Plus
+                    size={13}
+                    className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-green-text)]"
                   />
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Options — the knobs that shape the whole line. */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-[var(--border)] pt-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[var(--text-muted)]">Icons</span>
-          <ToggleSwitch
-            on={spec.icons}
-            disabled={disabled}
-            label="Icons"
-            onChange={(v) => onChange({ ...spec, icons: v })}
-          />
-        </div>
-
-        {hasBranch && (
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-[var(--text-muted)]">Git status</span>
-            <ToggleSwitch
-              on={spec.gitStatus}
-              disabled={disabled}
-              label="Git status"
-              onChange={(v) => onChange({ ...spec, gitStatus: v })}
-            />
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[var(--text-muted)]">Separator</span>
-          <input
-            value={spec.separator}
-            onChange={(e) => onChange({ ...spec, separator: e.target.value })}
-            disabled={disabled}
-            maxLength={3}
-            aria-label="Separator"
-            className="w-12 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-center text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--accent-green)]"
-          />
-          <div className="flex items-center gap-1">
-            {SEPARATORS.map((s) => (
               <button
-                key={s}
                 type="button"
-                onClick={() => onChange({ ...spec, separator: s })}
+                onClick={() => add("text")}
                 disabled={disabled}
-                className={`flex h-6 w-6 items-center justify-center rounded font-mono text-[12px] transition-colors ${
-                  spec.separator === s
-                    ? "bg-[var(--accent-green)]/15 text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-                }`}
+                className="group flex min-h-12 items-center gap-2.5 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/35 px-2.5 text-left outline-none transition-colors hover:border-[var(--accent-green)]/45 hover:bg-[var(--bg-hover)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
               >
-                {s}
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-secondary)] font-mono text-[12px] font-semibold text-[var(--text-secondary)]">
+                  T
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-medium text-[var(--text-primary)]">
+                    Custom text
+                  </span>
+                  <span className="mt-0.5 block truncate text-[9.5px] text-[var(--text-muted)]">
+                    Add a label or symbol
+                  </span>
+                </span>
+                <Plus
+                  size={13}
+                  className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-green-text)]"
+                />
               </button>
-            ))}
+            </div>
           </div>
+
+          <StatusLineSegmentInspector
+            segment={active}
+            disabled={disabled}
+            canRemove={canRemove}
+            onUpdate={(patch) => selected != null && update(selected, patch)}
+            onRemove={() => selected != null && remove(selected)}
+          />
         </div>
 
-        {showMeter && (
-          <>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-[var(--text-muted)]">Usage as</span>
-              <div className="inline-flex overflow-hidden rounded-md border border-[var(--border)]">
-                {METER_STYLES.map((style) => (
-                  <button
-                    key={style.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onChange({ ...spec, meterStyle: style.id })}
-                    title={style.sample}
-                    className={`px-2.5 py-1 text-[11px] transition-colors ${
-                      spec.meterStyle === style.id
-                        ? "bg-[var(--accent-green)]/15 text-[var(--text-primary)]"
-                        : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
-                    }`}
-                  >
-                    {style.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {spec.meterStyle !== "percent" && (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-[var(--text-muted)]">Bar width</span>
-                <Stepper
-                  value={spec.meterWidth}
-                  min={3}
-                  max={16}
-                  disabled={disabled}
-                  onChange={(meterWidth) => onChange({ ...spec, meterWidth })}
-                />
-              </div>
-            )}
-          </>
+        {validationError && (
+          <div
+            role="alert"
+            className="mt-3 rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2 text-[10.5px] text-[var(--accent-red-text)]"
+          >
+            Fix the highlighted setting to update Claude Code. {validationError}
+          </div>
         )}
+
+        <StatusLineAppearanceSettings
+          spec={spec}
+          disabled={disabled}
+          onChange={commit}
+        />
       </div>
-    </div>
-  );
-}
-
-function SortableChip({
-  id,
-  segment,
-  showIcon,
-  selected,
-  disabled,
-  onSelect,
-}: {
-  id: string;
-  segment: Segment;
-  showIcon: boolean;
-  selected: boolean;
-  disabled: boolean;
-  onSelect: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-    disabled,
-  });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.35 : 1,
-  };
-  return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      style={style}
-      {...attributes}
-      {...listeners}
-      onClick={onSelect}
-      className={`inline-flex touch-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] text-[var(--text-primary)] transition-colors ${
-        disabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"
-      } ${
-        selected
-          ? "border-[var(--accent-green)] bg-[var(--accent-green)]/10"
-          : "border-[var(--border)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)]"
-      }`}
-    >
-      <GripVertical size={11} className="text-[var(--text-muted)]" />
-      <ChipBody segment={segment} showIcon={showIcon} />
-    </button>
-  );
-}
-
-function Chip({ segment, showIcon, dragging }: { segment: Segment; showIcon: boolean; dragging?: boolean }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-[var(--accent-green)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[12px] text-[var(--text-primary)] ${
-        dragging ? "shadow-lg" : ""
-      }`}
-    >
-      <GripVertical size={11} className="text-[var(--text-muted)]" />
-      <ChipBody segment={segment} showIcon={showIcon} />
-    </span>
-  );
-}
-
-function ChipBody({ segment, showIcon }: { segment: Segment; showIcon: boolean }) {
-  const label = segment.id === "text" ? segment.text || "Text" : LABELS[segment.id];
-  const icon = ICONS[segment.id];
-  return (
-    <>
-      {showIcon && icon && <span aria-hidden>{icon}</span>}
-      <span className="max-w-[9rem] truncate">{label}</span>
-      <span
-        className="h-2 w-2 shrink-0 rounded-full"
-        style={{
-          background: segment.color === "default" ? "transparent" : colorHex(segment.color),
-          border: segment.color === "default" ? "1px solid var(--text-muted)" : undefined,
-        }}
-      />
-    </>
-  );
-}
-
-function ToggleSwitch({
-  on,
-  disabled,
-  label,
-  onChange,
-}: {
-  on: boolean;
-  disabled: boolean;
-  label: string;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className={`relative h-4 w-7 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-        on ? "bg-[var(--accent-green)]" : "bg-[var(--border)]"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-all ${
-          on ? "left-3.5" : "left-0.5"
-        }`}
-      />
-    </button>
-  );
-}
-
-function Stepper({
-  value,
-  min,
-  max,
-  disabled,
-  onChange,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  disabled: boolean;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div className="inline-flex items-center overflow-hidden rounded-md border border-[var(--border)]">
-      <button
-        type="button"
-        disabled={disabled || value <= min}
-        onClick={() => onChange(value - 1)}
-        aria-label="Narrower"
-        className="flex h-6 w-6 items-center justify-center text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
-      >
-        <span className="text-[13px] leading-none">−</span>
-      </button>
-      <span className="w-6 text-center text-[11px] tabular-nums text-[var(--text-primary)]">{value}</span>
-      <button
-        type="button"
-        disabled={disabled || value >= max}
-        onClick={() => onChange(value + 1)}
-        aria-label="Wider"
-        className="flex h-6 w-6 items-center justify-center text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-30"
-      >
-        <span className="text-[13px] leading-none">+</span>
-      </button>
-    </div>
+    </section>
   );
 }

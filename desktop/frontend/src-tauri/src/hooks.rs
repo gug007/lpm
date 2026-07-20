@@ -563,6 +563,8 @@ pub struct Segment {
     pub color: String,
     #[serde(default)]
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 fn default_color() -> String {
@@ -589,6 +591,7 @@ where
                 id,
                 color: default_color(),
                 text: String::new(),
+                icon: None,
             },
             In::Full(s) => s,
         })
@@ -607,7 +610,7 @@ pub struct CustomSpec {
     pub meter_style: String,
     #[serde(default = "default_meter_width")]
     pub meter_width: u32,
-    /// Prefix each segment with an emoji glyph (📁 🌿 ✦ …).
+    /// Prefix each segment with an emoji glyph (📁 🌿 ✳ …).
     #[serde(default)]
     pub icons: bool,
     /// Decorate the git branch with a dirty marker and ahead/behind counts.
@@ -621,11 +624,11 @@ fn default_meter_width() -> u32 {
 
 /// The emoji glyph shown before a segment when `icons` is on. Empty for ids that
 /// read better bare (the free-text segment carries its own leading glyph).
-fn segment_icon(id: &str) -> &'static str {
+fn default_segment_icon(id: &str) -> &'static str {
     match id {
         "folder" => "📁",
         "path" => "📂",
-        "model" => "✦",
+        "model" => "✳",
         "branch" => "🌿",
         "ctx" => "🧠",
         "five" => "⚡",
@@ -633,6 +636,13 @@ fn segment_icon(id: &str) -> &'static str {
         "cost" => "💰",
         _ => "",
     }
+}
+
+fn segment_icon(segment: &Segment) -> &str {
+    segment
+        .icon
+        .as_deref()
+        .unwrap_or_else(|| default_segment_icon(&segment.id))
 }
 
 const SEGMENT_IDS: [&str; 9] = [
@@ -650,6 +660,7 @@ fn seg(id: &str) -> Segment {
         id: id.into(),
         color: default_color(),
         text: String::new(),
+        icon: None,
     }
 }
 
@@ -658,12 +669,13 @@ fn colseg(id: &str, color: &str) -> Segment {
         id: id.into(),
         color: color.into(),
         text: String::new(),
+        icon: None,
     }
 }
 
 fn default_custom_spec() -> CustomSpec {
     // A lively starting point so the Custom builder opens with something to react
-    // to (icons, accent colors, the equalizer meter) rather than a bare line.
+    // to (icons, accent colors, and usage bars) rather than a bare line.
     CustomSpec {
         segments: vec![
             colseg("folder", "cyan"),
@@ -674,7 +686,7 @@ fn default_custom_spec() -> CustomSpec {
             colseg("cost", "yellow"),
         ],
         separator: "·".into(),
-        meter_style: "blocks".into(),
+        meter_style: "bar".into(),
         meter_width: 7,
         icons: true,
         git_status: false,
@@ -704,11 +716,14 @@ fn preset_spec(id: &str) -> Option<CustomSpec> {
     let ids: &[&str] = match id {
         "minimal" => &["folder", "model"],
         "context" => &["folder", "model", "ctx"],
-        "meters" => &["folder", "model", "ctx", "five", "seven"],
+        "meters" => &["folder", "model", "ctx", "five", "seven", "cost"],
         _ => return None,
     };
     Some(CustomSpec {
-        segments: ids.iter().map(|s| seg(s)).collect(),
+        segments: ids
+            .iter()
+            .map(|s| if *s == "cost" { colseg(s, "yellow") } else { seg(s) })
+            .collect(),
         separator: "·".into(),
         meter_style: "bar".into(),
         meter_width: 7,
@@ -726,7 +741,7 @@ fn color_open(color: &str) -> Option<String> {
         "red" => "31",
         "green" => "32",
         "yellow" => "33",
-        "blue" => "34",
+        "blue" => "94",
         "magenta" => "35",
         "cyan" => "36",
         "claude" => "38;2;217;119;87",
@@ -754,13 +769,13 @@ fn close_seq(open: &str) -> &'static str {
 }
 
 fn meter_append(var: &str, label: &str, jq: &str, style: &str, color: &str, icon: &str) -> String {
-    // The label takes the segment color (or dim); the bar/number keep their tint.
+    // The icon and label take the segment color (or dim); the bar/number keep their tint.
     let lopen = open_seq(color, true);
     let compute = format!("{var}=$(jqr '{jq} // empty | round')\n");
     let body = if style == "percent" {
-        format!("[ -n \"${var}\" ] && append \"{icon}{lopen}{label}${{RESET}} $(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
+        format!("[ -n \"${var}\" ] && append \"${{RESET}}{lopen}{icon}{label}${{RESET}} $(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
     } else {
-        format!("[ -n \"${var}\" ] && append \"{icon}{lopen}{label}${{RESET}} $(meter \"${var}\")\"\n")
+        format!("[ -n \"${var}\" ] && append \"${{RESET}}{lopen}{icon}{label}${{RESET}} $(meter \"${var}\")\"\n")
     };
     format!("{compute}{body}")
 }
@@ -779,17 +794,16 @@ if [ -n "$branch" ]; then
   case "$behind" in ''|*[!0-9]*) behind=0;; esac
   [ "$ahead" -gt 0 ] && gs="${gs}↑${ahead}"
   [ "$behind" -gt 0 ] && gs="${gs}↓${behind}"
-  append "__IC____OPEN__${branch}${gs}__CLOSE__"
+  append "__OPEN____IC__${branch}${gs}__CLOSE__"
 fi
 "##;
 
 fn segment_snippet(segment: &Segment, style: &str, icons: bool, git_status: bool) -> String {
     let color = segment.color.as_str();
     let id = segment.id.as_str();
-    // Emoji prefix, only when icons are on and this segment has one. It sits
-    // outside the color escape — emoji render in their own color regardless.
-    let ic = if icons && !segment_icon(id).is_empty() {
-        format!("{} ", segment_icon(id))
+    // Emoji prefix, only when icons are on and this segment has one.
+    let ic = if icons && !segment_icon(segment).is_empty() {
+        format!("{} ", segment_icon(segment))
     } else {
         String::new()
     };
@@ -797,21 +811,21 @@ fn segment_snippet(segment: &Segment, style: &str, icons: bool, git_status: bool
         "folder" => {
             let o = open_seq(color, false);
             format!(
-                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{ic}{o}$cwd{c}\"\n",
+                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{o}{ic}$cwd{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "path" => {
             let o = open_seq(color, false);
             format!(
-                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{ic}{o}$path{c}\"\n",
+                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{o}{ic}$path{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "model" => {
             let o = open_seq(color, true);
             format!(
-                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{ic}{o}$model{c}\"\n",
+                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{o}{ic}$model{c}\"\n",
                 c = close_seq(&o)
             )
         }
@@ -825,28 +839,28 @@ fn segment_snippet(segment: &Segment, style: &str, icons: bool, git_status: bool
                     .replace("__CLOSE__", c)
             } else {
                 format!(
-                    "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{ic}{o}$branch{c}\"\n"
+                    "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{o}{ic}$branch{c}\"\n"
                 )
             }
         }
         "ctx" => match color_open(color) {
             Some(cc) => format!(
-                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{ic}{cc}ctx ${{ctx}}%${{RESET}}\"\n"
+                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{cc}{ic}ctx ${{ctx}}%${{RESET}}\"\n"
             ),
             None => format!(
-                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{ic}${{DIM}}ctx${{RESET}} ${{ctx}}%\"\n"
+                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"${{DIM}}{ic}ctx${{RESET}} ${{ctx}}%\"\n"
             ),
         },
         "cost" => {
             let o = open_seq(color, false);
             format!(
-                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{ic}{o}\\$${{cost}}{c}\"\n",
+                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{o}{ic}\\$${{cost}}{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "text" => {
             let o = open_seq(color, false);
-            format!("append \"{o}{t}{c}\"\n", t = segment.text, c = close_seq(&o))
+            format!("append \"{o}{ic}{t}{c}\"\n", t = segment.text, c = close_seq(&o))
         }
         "five" => meter_append("five", "5h", ".rate_limits.five_hour.used_percentage", style, color, &ic),
         "seven" => meter_append("seven", "7d", ".rate_limits.seven_day.used_percentage", style, color, &ic),
@@ -878,6 +892,20 @@ fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
             }
             if s.text.contains(['"', '$', '`', '\\']) {
                 return Err("Text uses an unsupported character.".into());
+            }
+        }
+        if let Some(icon) = &s.icon {
+            if icon.chars().count() > 16 {
+                return Err("Icons must be one emoji or a short symbol.".into());
+            }
+            if !icon.is_empty() && icon.trim().is_empty() {
+                return Err("Icons must contain a visible symbol.".into());
+            }
+            if icon.trim() != icon {
+                return Err("Icons cannot start or end with spaces.".into());
+            }
+            if icon.contains(['"', '$', '`', '\\']) || icon.chars().any(char::is_control) {
+                return Err("Icon uses an unsupported character.".into());
             }
         }
     }
@@ -1901,6 +1929,7 @@ mod tests {
             }
             if id == "meters" {
                 assert!(text.contains("34%") && text.contains("62%"), "meters show usage: {text:?}");
+                assert!(text.contains("\u{1b}[33m$4.20"), "meters show session cost in yellow: {text:?}");
             }
         }
     }
@@ -1963,8 +1992,8 @@ mod tests {
     #[test]
     fn custom_text_segment_renders_verbatim_including_emoji() {
         let mut spec = cspec(&["folder"], "·", "bar");
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "🚀 dev".into() });
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "★".into() });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "🚀 dev".into(), icon: None });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "★".into(), icon: None });
         let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
         assert!(text.contains("🚀 dev"), "emoji text verbatim: {text:?}");
         assert!(text.contains('★'), "second text segment present: {text:?}");
@@ -1991,6 +2020,14 @@ mod tests {
         let text = run_script(&src, SAMPLE_PAYLOAD);
         assert!(text.contains("\u{1b}[38;2;217;119;87m"), "rendered has the claude escape: {text:?}");
         assert!(text.contains("Opus 4.8"), "model still shown: {text:?}");
+    }
+
+    #[test]
+    fn blue_color_matches_terminal_link_blue() {
+        let mut spec = cspec(&["folder"], "·", "bar");
+        spec.segments[0].color = "blue".into();
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("\u{1b}[94mproj"), "bright blue emitted: {text:?}");
     }
 
     #[test]
@@ -2033,7 +2070,7 @@ mod tests {
         spec.icons = true;
         let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
         assert!(text.contains("📁"), "folder icon: {text:?}");
-        assert!(text.contains("✦"), "model icon: {text:?}");
+        assert!(text.contains("✳"), "model icon: {text:?}");
         assert!(text.contains("⚡"), "5h icon: {text:?}");
         // Off by default, no glyphs leak in.
         let plain = run_script(
@@ -2044,12 +2081,47 @@ mod tests {
     }
 
     #[test]
+    fn icons_use_their_own_segment_color() {
+        let mut spec = cspec(&["folder", "model", "ctx", "five"], "·", "blocks");
+        spec.icons = true;
+        spec.segments[0].color = "blue".into();
+        spec.segments[1].color = "claude".into();
+        spec.segments[2].color = "magenta".into();
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("\u{1b}[38;2;217;119;87m✳ Opus 4.8"), "model icon uses model color: {text:?}");
+        assert!(text.contains("\u{1b}[0m\u{1b}[2m⚡ 5h"), "5h icon resets before its own default style: {text:?}");
+        assert!(!text.contains("\u{1b}[34m✳"), "model icon does not inherit folder blue: {text:?}");
+        assert!(!text.contains("\u{1b}[35m⚡"), "5h icon does not inherit context magenta: {text:?}");
+    }
+
+    #[test]
+    fn custom_icons_override_hide_and_respect_global_toggle() {
+        let mut spec = cspec(&["folder", "text"], "·", "bar");
+        spec.icons = true;
+        spec.segments[0].icon = Some("⌂".into());
+        spec.segments[1].text = "deploy".into();
+        spec.segments[1].icon = Some("🚀".into());
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("⌂ proj"), "folder override rendered: {text:?}");
+        assert!(text.contains("🚀 deploy"), "text icon rendered: {text:?}");
+        assert!(!text.contains("📁"), "default icon replaced: {text:?}");
+
+        spec.segments[0].icon = Some(String::new());
+        let hidden = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(!hidden.contains('⌂') && !hidden.contains("📁"), "empty override hides icon: {hidden:?}");
+
+        spec.icons = false;
+        let disabled = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(!disabled.contains("🚀"), "global toggle suppresses overrides: {disabled:?}");
+    }
+
+    #[test]
     fn vibrant_preset_has_icons_colors_and_block_meters() {
         let spec = preset_spec("vibrant").unwrap();
         assert!(spec.icons, "vibrant enables icons");
         assert_eq!(spec.meter_style, "blocks");
         let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
-        assert!(text.contains("📁") && text.contains("✦") && text.contains("🧠"), "glyphs: {text:?}");
+        assert!(text.contains("📁") && text.contains("✳") && text.contains("🧠"), "glyphs: {text:?}");
         assert!(text.contains("⚡") && text.contains("📆"), "5h + weekly icons: {text:?}");
         assert!(text.contains("Opus 4.8"), "model shown: {text:?}");
         assert!(text.contains("\u{1b}[36m"), "folder carries the cyan accent: {text:?}");
@@ -2115,6 +2187,7 @@ mod tests {
         assert_eq!(spec.segments.len(), 2);
         assert_eq!(spec.segments[0].id, "folder");
         assert_eq!(spec.segments[0].color, "default");
+        assert_eq!(spec.segments[0].icon, None);
         assert_eq!(spec.meter_width, 7, "missing width defaults to 7");
         // And it builds a runnable script.
         assert!(build_custom_statusline(&spec).is_ok());
@@ -2130,20 +2203,30 @@ mod tests {
         let dup = CustomSpec { segments: vec![seg("folder"), seg("folder")], ..base.clone() };
         assert!(build_custom_statusline(&dup).is_err(), "duplicate rejected");
         let badcolor = CustomSpec {
-            segments: vec![Segment { id: "folder".into(), color: "chartreuse".into(), text: String::new() }],
+            segments: vec![Segment { id: "folder".into(), color: "chartreuse".into(), text: String::new(), icon: None }],
             ..base.clone()
         };
         assert!(build_custom_statusline(&badcolor).is_err(), "unknown color rejected");
         let emptytext = CustomSpec {
-            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "  ".into() }],
+            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "  ".into(), icon: None }],
             ..base.clone()
         };
         assert!(build_custom_statusline(&emptytext).is_err(), "empty text rejected");
         let unsafetext = CustomSpec {
-            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "a$b".into() }],
+            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "a$b".into(), icon: None }],
             ..base.clone()
         };
         assert!(build_custom_statusline(&unsafetext).is_err(), "unsafe text char rejected");
+        let unsafeicon = CustomSpec {
+            segments: vec![Segment { icon: Some("$HOME".into()), ..seg("folder") }],
+            ..base.clone()
+        };
+        assert!(build_custom_statusline(&unsafeicon).is_err(), "unsafe icon rejected");
+        let longicon = CustomSpec {
+            segments: vec![Segment { icon: Some("12345678901234567".into()), ..seg("folder") }],
+            ..base.clone()
+        };
+        assert!(build_custom_statusline(&longicon).is_err(), "over-long icon rejected");
         let badsep = CustomSpec { separator: "".into(), ..base.clone() };
         assert!(build_custom_statusline(&badsep).is_err(), "empty separator rejected");
         let longsep = CustomSpec { separator: "abcd".into(), ..base.clone() };
@@ -2155,8 +2238,8 @@ mod tests {
     #[test]
     fn custom_allows_multiple_text_segments() {
         let mut spec = cspec(&["folder"], "·", "bar");
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "a".into() });
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "b".into() });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "a".into(), icon: None });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "b".into(), icon: None });
         assert!(build_custom_statusline(&spec).is_ok(), "duplicate text ids are allowed");
     }
 
@@ -2166,6 +2249,7 @@ mod tests {
         std::fs::write(&settings, "{}").unwrap();
         let mut spec = cspec(&["path", "model", "seven"], "›", "percent");
         spec.segments[1].color = "cyan".into();
+        spec.segments[1].icon = Some("🤖".into());
         spec.meter_width = 10;
         apply_custom_at(&settings, &sldir, &spec).unwrap();
 
@@ -2173,6 +2257,11 @@ mod tests {
         assert_eq!(state.selected, "custom");
         assert_eq!(state.custom, spec, "state echoes the saved spec");
         assert!(sldir.join("custom.json").exists());
+    }
+
+    #[test]
+    fn custom_defaults_to_bar_meter() {
+        assert_eq!(default_custom_spec().meter_style, "bar");
     }
 
     #[test]

@@ -1,30 +1,12 @@
 import { BrowserOpenURL } from "../../bridge/runtime";
+import { ansiColors } from "./terminal-colors";
+
+export { ansiColors };
 
 export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(uri);
 
 export const TERMINAL_FONT_FAMILY =
   "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
-
-// ANSI color palette matching iTerm2 defaults for consistent rendering,
-// except blue is brightened for legibility on dark backgrounds.
-export const ansiColors = {
-  black: "#000000",
-  red: "#c91b00",
-  green: "#00c200",
-  yellow: "#c7c400",
-  blue: "#3b8eea",
-  magenta: "#c930c7",
-  cyan: "#00c5c7",
-  white: "#c7c7c7",
-  brightBlack: "#686868",
-  brightRed: "#ff6e67",
-  brightGreen: "#5ffa68",
-  brightYellow: "#fffc67",
-  brightBlue: "#83a5d6",
-  brightMagenta: "#ff77ff",
-  brightCyan: "#60fdff",
-  brightWhite: "#ffffff",
-} as const;
 
 export interface TerminalThemeStyle {
   background: string;

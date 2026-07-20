@@ -12,7 +12,12 @@ vi.mock("../../bridge/commands", () => ({
 }));
 vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
 
-import { statuslineShowsEditor, statuslineSelectionLabel } from "./ClaudeStatusLineView";
+import {
+  statuslineCustomBaseSpec,
+  statuslineShowsEditor,
+  statuslineSelectionLabel,
+} from "./ClaudeStatusLineView";
+import type { CustomSpec } from "./statusLineTypes";
 
 describe("statuslineShowsEditor", () => {
   it("shows the editor for every spec-backed selection", () => {
@@ -35,8 +40,28 @@ describe("statuslineSelectionLabel", () => {
   });
 
   it("labels known selections and falls back to the current label", () => {
-    expect(statuslineSelectionLabel("vibrant", false)).toBe("Vibrant");
+    expect(statuslineSelectionLabel("vibrant", false)).toBe("Custom");
     expect(statuslineSelectionLabel("meters", false)).toBe("Usage meters");
     expect(statuslineSelectionLabel("nope", false)).toBe("My status line");
+  });
+});
+
+describe("statuslineCustomBaseSpec", () => {
+  const editorSpec = { separator: "editor" } as CustomSpec;
+  const savedSpec = { separator: "saved" } as CustomSpec;
+
+  it("restores the saved custom design when leaving a preset", () => {
+    expect(statuslineCustomBaseSpec("vibrant", editorSpec, savedSpec)).toBe(
+      savedSpec,
+    );
+    expect(statuslineCustomBaseSpec("meters", editorSpec, savedSpec)).toBe(
+      savedSpec,
+    );
+  });
+
+  it("keeps the active editor design while already customizing", () => {
+    expect(statuslineCustomBaseSpec("custom", editorSpec, savedSpec)).toBe(
+      editorSpec,
+    );
   });
 });

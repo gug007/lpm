@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { GenerateClaudeStatusline } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
@@ -7,108 +8,130 @@ import { useAIGeneration, isCanceledError } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { AIPickerButton } from "./ui/AIPickerButton";
 
-// A persistent bar under the preview: change whatever the preview currently
-// shows using words. `selection` is the same descriptor the preview uses, so
-// the edit builds on the active line (and stacks when that line is AI-made).
 export function AiRefineBar({
   selection,
   initialDescription,
+  disabled,
   onGenerated,
 }: {
   selection: unknown;
   initialDescription: string;
+  disabled: boolean;
   onGenerated: () => void;
 }) {
   const [description, setDescription] = useState(initialDescription);
   const [progress, setProgress] = useState("");
   const focused = useRef(false);
   const ai = useAIPicker(true);
-  const gen = useAIGeneration();
+  const generation = useAIGeneration();
 
-  // Keep the field in step with the saved description, but never clobber typing.
   useEffect(() => {
     if (!focused.current) setDescription(initialDescription);
   }, [initialDescription]);
 
   useEffect(() => {
-    if (!gen.generating) return;
+    if (!generation.generating) return;
     const off = EventsOn("statusline-gen-progress", (line: string) => {
       if (typeof line === "string" && line.trim()) setProgress(line.trim());
     });
     return () => {
       off?.();
     };
-  }, [gen.generating]);
+  }, [generation.generating]);
 
   const generate = async () => {
-    const desc = description.trim();
-    if (!desc) return;
+    const prompt = description.trim();
+    if (!prompt || !ai.anyAvailable || disabled) return;
     setProgress("");
     try {
-      await gen.run((genId) =>
+      await generation.run((generationId) =>
         GenerateClaudeStatusline(
           ai.selectedCLI,
           ai.selectedModel,
           ai.selectedEffort,
           aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
           selection,
-          desc,
-          genId,
+          prompt,
+          generationId,
         ),
       );
       setProgress("");
       onGenerated();
-    } catch (err) {
-      if (!isCanceledError(err)) toast.error(String(err));
+    } catch (error) {
+      if (!isCanceledError(error)) toast.error(String(error));
     }
   };
 
   return (
-    <div className="mt-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 p-2.5">
-      <div className="flex items-center gap-2">
-        <input
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/20 p-3">
+      <div className="mb-2.5 flex items-center gap-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-purple-500/10 text-purple-500">
+          <WandSparkles size={13} />
+        </span>
+        <h2 className="text-[11.5px] font-semibold text-[var(--text-primary)]">
+          Refine with AI
+        </h2>
+      </div>
+
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] transition-[border-color,box-shadow] focus-within:border-purple-500/45 focus-within:ring-2 focus-within:ring-purple-500/10">
+        <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          onChange={(event) => setDescription(event.target.value)}
           onFocus={() => (focused.current = true)}
           onBlur={() => (focused.current = false)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !gen.generating) {
-              e.preventDefault();
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              (event.metaKey || event.ctrlKey) &&
+              !generation.generating &&
+              ai.anyAvailable &&
+              !disabled
+            ) {
+              event.preventDefault();
               void generate();
             }
           }}
-          disabled={gen.generating}
-          placeholder="Change it with AI — e.g. make the model orange, add a rocket before the folder"
-          className="min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--accent-green)]"
+          disabled={disabled || generation.generating || !ai.anyAvailable}
+          aria-label="Describe an AI status line change"
+          placeholder="Describe the change you want…"
+          className="block min-h-[60px] w-full resize-none rounded-t-xl bg-transparent px-3 py-2.5 text-[11.5px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]/70 disabled:opacity-60"
         />
-        {ai.anyAvailable && (
-          <AIPickerButton
-            onGenerate={() => void generate()}
-            onCancel={gen.cancel}
-            generating={gen.generating}
-            disabled={!description.trim()}
-            label="Generate"
-            generatingLabel="Generating…"
-            title="Change the status line with AI"
-            aiCLIs={ai.aiCLIs}
-            selectedCLI={ai.selectedCLI}
-            selectedModel={ai.selectedModel}
-            selectedEffort={ai.selectedEffort}
-            selectedFast={ai.selectedFast}
-            onSelect={ai.selectAI}
-            onSelectEffort={ai.selectEffort}
-            onSelectFast={ai.selectFast}
-            menuPlacement="down"
-          />
-        )}
+        <div className="flex min-h-10 items-center justify-between gap-3 border-t border-[var(--border)] px-2.5 py-1.5">
+          <span
+            aria-live="polite"
+            className="min-w-0 truncate text-[9.5px] text-[var(--text-muted)]"
+          >
+            {generation.generating
+              ? progress || "Generating your change…"
+              : disabled
+                ? "Load your status line to use AI."
+                : ai.anyAvailable
+                  ? "⌘ Enter to refine"
+                  : "Install an AI coding CLI to use this"}
+          </span>
+          {ai.anyAvailable && (
+            <AIPickerButton
+              onGenerate={() => void generate()}
+              onCancel={generation.cancel}
+              generating={generation.generating}
+              disabled={disabled || !description.trim()}
+              label="Refine"
+              generatingLabel="Generating…"
+              title="Refine the status line with AI"
+              aiCLIs={ai.aiCLIs}
+              selectedCLI={ai.selectedCLI}
+              selectedModel={ai.selectedModel}
+              selectedEffort={ai.selectedEffort}
+              selectedFast={ai.selectedFast}
+              onSelect={ai.selectAI}
+              onSelectEffort={ai.selectEffort}
+              onSelectFast={ai.selectFast}
+              menuPlacement="up"
+            />
+          )}
+        </div>
       </div>
-      <div className="mt-1.5 px-0.5 text-[11px] text-[var(--text-muted)]">
-        {gen.generating
-          ? progress || "Generating…"
-          : ai.anyAvailable
-            ? "Changes the line above to match your description."
-            : "Install Claude Code, Codex, or Gemini to change it with AI."}
-      </div>
-    </div>
+    </section>
   );
 }
