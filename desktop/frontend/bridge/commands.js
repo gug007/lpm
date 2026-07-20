@@ -25,6 +25,21 @@ export function AgentLimits() {
 export function ApplyClaudeLimits(enabled) {
   return invoke("apply_claude_limits", { enabled });
 }
+export function GetClaudeStatuslineState() {
+  return invoke("get_claude_statusline_state");
+}
+export function ApplyClaudeStatusline(template) {
+  return invoke("apply_claude_statusline", { template });
+}
+export function ApplyClaudeStatuslineCustom(spec) {
+  return invoke("apply_claude_statusline_custom", { spec });
+}
+export function PreviewClaudeStatusline(selection) {
+  return invoke("preview_claude_statusline", { selection });
+}
+export function GenerateClaudeStatusline(cli, model, effort, fast, selection, description, genId = "") {
+  return invoke("generate_claude_statusline", { cli, model, effort, fast, selection, description, genId });
+}
 export function AddPortForward(project, remotePort, localPort) {
   return invoke("add_port_forward", { project, remotePort, localPort });
 }

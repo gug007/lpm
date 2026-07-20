@@ -301,6 +301,14 @@ export const ROWS = {
     description: "Keep each project signed in to the right Claude account.",
     keywords: ["login", "sign in", "account", "claude"],
   },
+  "ai.statusLine": {
+    kind: "row",
+    tab: "ai",
+    id: "ai.statusLine",
+    label: "Claude Code status line",
+    description: "Choose what the status line under Claude Code shows",
+    keywords: ["statusline", "status line", "claude", "template", "meter", "custom", "segments", "separator", "ai", "generate", "preview"],
+  },
   "templates.list": {
     kind: "row",
     tab: "templates",

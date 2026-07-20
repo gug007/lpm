@@ -85,6 +85,7 @@ export type View =
   | "scheduled"
   | "settings"
   | "global-config"
+  | "claude-statusline"
   | "commit-instructions"
   | "pr-instructions"
   | "branch-instructions"

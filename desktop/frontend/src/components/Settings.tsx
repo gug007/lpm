@@ -35,6 +35,7 @@ import { ShortcutRecorder } from "./ui/ShortcutRecorder";
 import { HOTKEYS, resolveHotkey, configuredHotkeyCombos } from "../hotkeys";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { SkillInstallControl } from "./SkillInstallControl";
+import { statuslineSelectionLabel } from "./ClaudeStatusLineView";
 import { AgentToolsManualSetup } from "./AgentToolsManualSetup";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
@@ -52,6 +53,7 @@ import {
   VaultImportKey,
   ListSystemSounds,
   BrowseFolder,
+  GetClaudeStatuslineState,
 } from "../../bridge/commands";
 import { SoundPicker } from "./SoundPicker";
 import type { main } from "../../bridge/models";
@@ -187,6 +189,12 @@ export function Settings({
 
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
   const [systemSounds, setSystemSounds] = useState<string[]>([]);
+  const [statuslineDescription, setStatuslineDescription] = useState("Choose what the status line under Claude Code shows");
+  useEffect(() => {
+    GetClaudeStatuslineState()
+      .then((s) => setStatuslineDescription(statuslineSelectionLabel(s?.selected ?? "current", Boolean(s?.hasCustom))))
+      .catch(() => {});
+  }, []);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
@@ -868,6 +876,19 @@ export function Settings({
                 </p>
               </div>
             )}
+
+            <SettingsSection>
+              <SettingsRow
+                {...rowProps("ai.statusLine", { description: statuslineDescription })}
+              >
+                <button
+                  onClick={() => onNavigate("claude-statusline")}
+                  className={BTN_SECONDARY}
+                >
+                  Customize
+                </button>
+              </SettingsRow>
+            </SettingsSection>
             </>
           )}
 

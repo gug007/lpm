@@ -8,12 +8,44 @@
 // setting is preserved (serde_json::Value round-trips losslessly; key ordering
 // alphabetizes exactly as Go's map+MarshalIndent did).
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
 const MARKER: &str = "# lpm-hook";
 const STATUSLINE_MARKER: &str = "# lpm-statusline:";
+
+// Status line scripts (presets and the user's Custom line) are generated from a
+// spec by `build_custom_statusline`, composing these shared sh building blocks —
+// the exact idioms the presets always used (jqr, tint, meter, append, DIM/RESET).
+
+const STATUSLINE_HEADER: &str = r##"#!/bin/sh
+input=$(cat)
+jqr() { printf '%s' "$input" | jq -r "$1"; }
+"##;
+
+const STATUSLINE_TINT_FN: &str = r##"tint() { if [ "$1" -ge 90 ]; then printf '\033[2;31m'; elif [ "$1" -ge 70 ]; then printf '\033[2;33m'; else printf '\033[2;32m'; fi; }
+"##;
+
+// Label-less meter: the caller prints the (optionally colored) label, then this
+// prints the tinted bar + track + percentage. Width comes from `$MW`.
+const STATUSLINE_METER_FN: &str = r##"meter() {
+    pct=$1 width=$MW
+    units=$(( (pct * width * 2 + 50) / 100 ))
+    [ "$units" -gt $((width * 2)) ] && units=$((width * 2)); [ "$units" -lt 0 ] && units=0
+    full=$((units / 2)) half=$((units % 2))
+    fill="" i=0
+    while [ "$i" -lt "$full" ]; do fill="${fill}━"; i=$((i + 1)); done
+    [ "$half" -eq 1 ] && fill="${fill}╸"
+    track="" i=$((full + half))
+    while [ "$i" -lt "$width" ]; do track="${track}━"; i=$((i + 1)); done
+    printf '%b%s%b%b%s%b %s%%' "$(tint "$pct")" "$fill" "$RESET" "$DIM" "$track" "$RESET" "$pct"
+}
+"##;
+
+const STATUSLINE_APPEND_FN: &str = r##"out=""
+append() { if [ -n "$out" ]; then out="${out}${SEP}${1}"; else out="$1"; fi; }
+"##;
 
 fn home() -> PathBuf {
     dirs::home_dir().unwrap_or_default()
@@ -472,6 +504,759 @@ pub fn reapply_claude_limits_if_enabled() {
     }
 }
 
+// ---- Claude status line templates -------------------------------------------
+//
+// Built-in status line looks the user can pick in Settings. Applying one writes
+// its shell script under ~/.lpm/statuslines/ and points the *underlying*
+// statusLine at it — composing with the usage-limit forwarder above: if the live
+// statusLine is our forwarder wrapper, the template becomes the wrapped original
+// and the forwarder is re-chained on top; otherwise the template object is
+// written directly. "My status line" restores the snapshot taken the first time
+// a template replaced a non-lpm original.
+
+fn statuslines_dir() -> PathBuf {
+    crate::config::lpm_dir().join("statuslines")
+}
+
+/// One segment of a status line: `id` picks the source, `color` optionally tints
+/// it, and `text` carries the literal string for the free-text ("text") segment.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Segment {
+    pub id: String,
+    #[serde(default = "default_color")]
+    pub color: String,
+    #[serde(default)]
+    pub text: String,
+}
+
+fn default_color() -> String {
+    "default".into()
+}
+
+/// Accept both the current object form and the legacy plain-string array (old
+/// custom.json / older frontend payloads), normalizing everything to objects.
+fn deserialize_segments<'de, D>(d: D) -> Result<Vec<Segment>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum In {
+        Plain(String),
+        Full(Segment),
+    }
+    let raw = Vec::<In>::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .map(|x| match x {
+            In::Plain(id) => Segment {
+                id,
+                color: default_color(),
+                text: String::new(),
+            },
+            In::Full(s) => s,
+        })
+        .collect())
+}
+
+/// A user-composable status line: an ordered list of segments, a separator token,
+/// how usage segments render, and the meter width. The presets are just fixed
+/// specs (see `preset_spec`), so `build_custom_statusline` is the single generator.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomSpec {
+    #[serde(deserialize_with = "deserialize_segments")]
+    pub segments: Vec<Segment>,
+    pub separator: String,
+    pub meter_style: String,
+    #[serde(default = "default_meter_width")]
+    pub meter_width: u32,
+}
+
+fn default_meter_width() -> u32 {
+    7
+}
+
+const SEGMENT_IDS: [&str; 9] = [
+    "folder", "path", "model", "branch", "ctx", "five", "seven", "cost", "text",
+];
+
+const SEGMENT_COLORS: [&str; 8] = [
+    "default", "dim", "red", "green", "yellow", "blue", "magenta", "cyan",
+];
+
+fn seg(id: &str) -> Segment {
+    Segment {
+        id: id.into(),
+        color: default_color(),
+        text: String::new(),
+    }
+}
+
+fn default_custom_spec() -> CustomSpec {
+    CustomSpec {
+        segments: ["folder", "model", "ctx", "five", "seven"].map(seg).into(),
+        separator: "·".into(),
+        meter_style: "bar".into(),
+        meter_width: 7,
+    }
+}
+
+fn preset_spec(id: &str) -> Option<CustomSpec> {
+    let ids: &[&str] = match id {
+        "minimal" => &["folder", "model"],
+        "context" => &["folder", "model", "ctx"],
+        "meters" => &["folder", "model", "ctx", "five", "seven"],
+        _ => return None,
+    };
+    Some(CustomSpec {
+        segments: ids.iter().map(|s| seg(s)).collect(),
+        separator: "·".into(),
+        meter_style: "bar".into(),
+        meter_width: 7,
+    })
+}
+
+/// The ANSI open sequence for a chosen color, or None for "default". Emitted as a
+/// literal `\033[Nm` that the script's final `printf '%b'` turns into a real ESC.
+fn color_open(color: &str) -> Option<String> {
+    let code = match color {
+        "dim" => "2",
+        "red" => "31",
+        "green" => "32",
+        "yellow" => "33",
+        "blue" => "34",
+        "magenta" => "35",
+        "cyan" => "36",
+        _ => return None,
+    };
+    Some(format!("\\033[{code}m"))
+}
+
+/// The open sequence for a segment: the chosen color if any, else the segment's
+/// natural style (`${DIM}` for normally-dim segments, empty otherwise).
+fn open_seq(color: &str, default_dim: bool) -> String {
+    match color_open(color) {
+        Some(c) => c,
+        None if default_dim => "${DIM}".into(),
+        None => String::new(),
+    }
+}
+
+fn close_seq(open: &str) -> &'static str {
+    if open.is_empty() {
+        ""
+    } else {
+        "${RESET}"
+    }
+}
+
+fn meter_append(var: &str, label: &str, jq: &str, style: &str, color: &str) -> String {
+    // The label takes the segment color (or dim); the bar/number keep their tint.
+    let lopen = open_seq(color, true);
+    let compute = format!("{var}=$(jqr '{jq} // empty | round')\n");
+    let body = if style == "percent" {
+        format!("[ -n \"${var}\" ] && append \"{lopen}{label}${{RESET}} $(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
+    } else {
+        format!("[ -n \"${var}\" ] && append \"{lopen}{label}${{RESET}} $(meter \"${var}\")\"\n")
+    };
+    format!("{compute}{body}")
+}
+
+fn segment_snippet(segment: &Segment, style: &str) -> String {
+    let color = segment.color.as_str();
+    match segment.id.as_str() {
+        "folder" => {
+            let o = open_seq(color, false);
+            format!(
+                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{o}$cwd{c}\"\n",
+                c = close_seq(&o)
+            )
+        }
+        "path" => {
+            let o = open_seq(color, false);
+            format!(
+                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{o}$path{c}\"\n",
+                c = close_seq(&o)
+            )
+        }
+        "model" => {
+            let o = open_seq(color, true);
+            format!(
+                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{o}$model{c}\"\n",
+                c = close_seq(&o)
+            )
+        }
+        "branch" => {
+            let o = open_seq(color, true);
+            format!(
+                "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{o}$branch{c}\"\n",
+                c = close_seq(&o)
+            )
+        }
+        "ctx" => match color_open(color) {
+            Some(c) => format!(
+                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{c}ctx ${{ctx}}%${{RESET}}\"\n"
+            ),
+            None => "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"${DIM}ctx${RESET} ${ctx}%\"\n".to_string(),
+        },
+        "cost" => {
+            let o = open_seq(color, false);
+            format!(
+                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{o}\\$${{cost}}{c}\"\n",
+                c = close_seq(&o)
+            )
+        }
+        "text" => {
+            let o = open_seq(color, false);
+            format!("append \"{o}{t}{c}\"\n", t = segment.text, c = close_seq(&o))
+        }
+        "five" => meter_append("five", "5h", ".rate_limits.five_hour.used_percentage", style, color),
+        "seven" => meter_append("seven", "7d", ".rate_limits.seven_day.used_percentage", style, color),
+        _ => String::new(),
+    }
+}
+
+/// Generate the POSIX-sh status line script for `spec`, or an error describing an
+/// invalid spec (empty/unknown/duplicate segment, bad separator, color, text, or
+/// meter style). Multiple "text" segments are allowed; other ids are unique.
+fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
+    if spec.segments.is_empty() {
+        return Err("Pick at least one thing to show.".into());
+    }
+    let mut seen = std::collections::HashSet::new();
+    for s in &spec.segments {
+        if !SEGMENT_IDS.contains(&s.id.as_str()) {
+            return Err(format!("Unknown status line item: {}", s.id));
+        }
+        if s.id != "text" && !seen.insert(s.id.as_str()) {
+            return Err(format!("Duplicate status line item: {}", s.id));
+        }
+        if !SEGMENT_COLORS.contains(&s.color.as_str()) {
+            return Err(format!("Unknown color: {}", s.color));
+        }
+        if s.id == "text" {
+            if s.text.trim().is_empty() {
+                return Err("Text items need some text.".into());
+            }
+            if s.text.contains(['"', '$', '`', '\\']) {
+                return Err("Text uses an unsupported character.".into());
+            }
+        }
+    }
+    let style = spec.meter_style.as_str();
+    if style != "bar" && style != "percent" {
+        return Err(format!("Unknown meter style: {}", spec.meter_style));
+    }
+    let sep = spec.separator.trim();
+    let sep_len = sep.chars().count();
+    if !(1..=3).contains(&sep_len) {
+        return Err("Separator must be 1 to 3 characters.".into());
+    }
+    if sep.contains(['"', '$', '`', '\\']) {
+        return Err("Separator uses an unsupported character.".into());
+    }
+    let width = spec.meter_width.clamp(3, 16);
+
+    let has_rate = spec.segments.iter().any(|s| s.id == "five" || s.id == "seven");
+    let needs_meter = has_rate && style == "bar";
+
+    let mut out = String::new();
+    out.push_str(STATUSLINE_HEADER);
+    out.push_str("DIM='\\033[2m'; RESET='\\033[0m'; SEP=\" ${DIM}");
+    out.push_str(sep);
+    out.push_str("${RESET} \"\n");
+    if needs_meter {
+        out.push_str(&format!("MW={width}\n"));
+    }
+    if has_rate {
+        out.push_str(STATUSLINE_TINT_FN);
+    }
+    if needs_meter {
+        out.push_str(STATUSLINE_METER_FN);
+    }
+    out.push_str(STATUSLINE_APPEND_FN);
+    for s in &spec.segments {
+        out.push_str(&segment_snippet(s, style));
+    }
+    out.push_str("printf '%b' \"$out\"\n");
+    Ok(out)
+}
+
+/// Single-quote a path for embedding in a `sh <path>` command.
+fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// The id of the built-in template a statusLine object points at, if any —
+/// matched against the concrete script paths under `dir`.
+fn detect_template_id(statusline: &Value, dir: &Path) -> Option<String> {
+    let cmd = statusline.get("command").and_then(Value::as_str)?;
+    for id in ["minimal", "context", "meters", "custom", "ai"] {
+        let path = dir.join(format!("lpm-{id}.sh"));
+        if cmd.contains(&*path.to_string_lossy()) {
+            return Some(id.to_string());
+        }
+    }
+    None
+}
+
+fn write_template_script(dir: &Path, id: &str, source: &str) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let path = dir.join(format!("lpm-{id}.sh"));
+    std::fs::write(&path, source).map_err(|e| format!("cannot write status line script: {e}"))?;
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+    Ok(path)
+}
+
+fn read_custom_spec(dir: &Path) -> CustomSpec {
+    std::fs::read(dir.join("custom.json"))
+        .ok()
+        .and_then(|d| serde_json::from_slice::<CustomSpec>(&d).ok())
+        .unwrap_or_else(default_custom_spec)
+}
+
+fn read_snapshot(dir: &Path) -> Option<Value> {
+    let data = std::fs::read(dir.join("original.json")).ok()?;
+    serde_json::from_slice(&data).ok()
+}
+
+/// Replace the underlying statusLine with `new_original` (an object, or Null to
+/// remove it), preserving the usage-limit forwarder wrapper when present by
+/// re-chaining it on top. Pure: bytes in, Some(bytes) on change else None.
+fn set_original_statusline(data: &[u8], new_original: &Value) -> Option<Vec<u8>> {
+    let before = serde_json::from_slice::<Value>(data).ok()?;
+    let mut settings = before.clone();
+    settings.as_object()?;
+    let wrapped = settings
+        .get("statusLine")
+        .and_then(|v| v.get("command"))
+        .and_then(Value::as_str)
+        .map(|c| unwrap_statusline(c).is_some())
+        .unwrap_or(false);
+    {
+        let obj = settings.as_object_mut().unwrap();
+        match new_original {
+            Value::Null => {
+                obj.remove("statusLine");
+            }
+            other => {
+                obj.insert("statusLine".into(), other.clone());
+            }
+        }
+    }
+    let out = if wrapped {
+        let bytes = serde_json::to_vec(&settings).ok()?;
+        match install_statusline(&bytes) {
+            Some(rewrapped) => serde_json::from_slice::<Value>(&rewrapped).ok()?,
+            None => settings,
+        }
+    } else {
+        settings
+    };
+    if out == before {
+        return None;
+    }
+    serde_json::to_string_pretty(&out)
+        .ok()
+        .map(String::into_bytes)
+}
+
+/// Save the current non-lpm original as the "My status line" snapshot. Taken the
+/// first time a template replaces a non-lpm original; refreshed only when the
+/// live original is a different non-null non-lpm statusline (user changed it by
+/// hand); never taken when the original is already one of our templates.
+fn maybe_snapshot(original: &Value, dir: &Path) -> Result<(), String> {
+    if detect_template_id(original, dir).is_some() {
+        return Ok(());
+    }
+    let should_write = match read_snapshot(dir) {
+        None => true,
+        Some(prev) => !original.is_null() && *original != prev,
+    };
+    if should_write {
+        std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        let bytes = serde_json::to_vec_pretty(original).map_err(|e| e.to_string())?;
+        std::fs::write(dir.join("original.json"), bytes)
+            .map_err(|e| format!("cannot write status line snapshot: {e}"))?;
+    }
+    Ok(())
+}
+
+/// Write a generated status line script for `id` and point the underlying
+/// statusLine at it, snapshotting the prior non-lpm line and preserving the
+/// usage-limit forwarder wrapper if present.
+fn apply_statusline_script(settings_path: &Path, dir: &Path, id: &str, source: &str) -> Result<(), String> {
+    // Explicit opt-in creates a minimal settings.json when absent, like the
+    // usage-limit install does.
+    let data = std::fs::read(settings_path).unwrap_or_else(|_| b"{}".to_vec());
+    let settings = serde_json::from_slice::<Value>(&data)
+        .map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
+    maybe_snapshot(&prior_statusline(&settings), dir)?;
+
+    let script = write_template_script(dir, id, source)?;
+    let command = format!("sh {}", sh_quote(&script.to_string_lossy()));
+    let template = json!({ "type": "command", "command": command });
+
+    if let Some(out) = set_original_statusline(&data, &template) {
+        if let Some(parent) = settings_path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        }
+        std::fs::write(settings_path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+    }
+    Ok(())
+}
+
+fn apply_template_at(settings_path: &Path, dir: &Path, id: &str) -> Result<(), String> {
+    let spec = preset_spec(id).ok_or_else(|| format!("unknown status line template: {id}"))?;
+    let source = build_custom_statusline(&spec)?;
+    apply_statusline_script(settings_path, dir, id, &source)
+}
+
+/// Apply the user's Custom status line, persisting the spec to custom.json so it
+/// survives switching to a preset and back.
+fn apply_custom_at(settings_path: &Path, dir: &Path, spec: &CustomSpec) -> Result<(), String> {
+    let source = build_custom_statusline(spec)?; // validates before any write
+    std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let bytes = serde_json::to_vec_pretty(spec).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("custom.json"), bytes)
+        .map_err(|e| format!("cannot write status line spec: {e}"))?;
+    apply_statusline_script(settings_path, dir, "custom", &source)
+}
+
+fn restore_statusline_at(settings_path: &Path, dir: &Path) -> Result<(), String> {
+    let Ok(data) = std::fs::read(settings_path) else {
+        return Ok(()); // no settings file -> nothing to restore
+    };
+    let settings = serde_json::from_slice::<Value>(&data)
+        .map_err(|e| format!("invalid JSON in Claude settings: {e}"))?;
+    let target = match read_snapshot(dir) {
+        Some(snap) => snap,
+        None => {
+            // No snapshot: clear only our own template; leave a real user line alone.
+            if detect_template_id(&prior_statusline(&settings), dir).is_some() {
+                Value::Null
+            } else {
+                return Ok(());
+            }
+        }
+    };
+    if let Some(out) = set_original_statusline(&data, &target) {
+        std::fs::write(settings_path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+    }
+    Ok(())
+}
+
+fn apply_claude_statusline_at(settings_path: &Path, dir: &Path, template: &str) -> Result<(), String> {
+    match template {
+        "current" => restore_statusline_at(settings_path, dir),
+        "minimal" | "context" | "meters" => apply_template_at(settings_path, dir, template),
+        "custom" => apply_custom_at(settings_path, dir, &read_custom_spec(dir)),
+        "ai" => apply_ai_at(settings_path, dir),
+        other => Err(format!("unknown status line template: {other}")),
+    }
+}
+
+/// Re-apply the previously generated AI status line (its script is stored under
+/// lpm-ai.sh). No-op with a friendly error if nothing was generated yet.
+fn apply_ai_at(settings_path: &Path, dir: &Path) -> Result<(), String> {
+    let source = std::fs::read_to_string(dir.join("lpm-ai.sh"))
+        .map_err(|_| "No AI status line yet. Describe one and generate it first.".to_string())?;
+    apply_statusline_script(settings_path, dir, "ai", &source)
+}
+
+fn read_ai_description(dir: &Path) -> String {
+    std::fs::read(dir.join("ai.json"))
+        .ok()
+        .and_then(|d| serde_json::from_slice::<Value>(&d).ok())
+        .and_then(|v| v.get("description").and_then(Value::as_str).map(str::to_string))
+        .unwrap_or_default()
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeStatuslineState {
+    pub selected: String,
+    pub has_custom: bool,
+    pub custom: CustomSpec,
+    pub ai_description: String,
+}
+
+fn claude_statusline_state_at(settings_path: &Path, dir: &Path) -> ClaudeStatuslineState {
+    let original = std::fs::read(settings_path)
+        .ok()
+        .and_then(|d| serde_json::from_slice::<Value>(&d).ok())
+        .map(|s| prior_statusline(&s))
+        .unwrap_or(Value::Null);
+    let template = detect_template_id(&original, dir);
+    let has_custom = dir.join("original.json").exists()
+        || (template.is_none() && !original.is_null());
+    ClaudeStatuslineState {
+        selected: template.unwrap_or_else(|| "current".into()),
+        has_custom,
+        custom: read_custom_spec(dir),
+        ai_description: read_ai_description(dir),
+    }
+}
+
+/// Which status line is effective on this Mac, whether there is a prior line to
+/// restore, and the saved Custom spec (or the default when none). Read-only.
+#[tauri::command(async)]
+pub fn get_claude_statusline_state() -> ClaudeStatuslineState {
+    claude_statusline_state_at(&claude_settings_path(), &statuslines_dir())
+}
+
+/// Apply a built-in status line template ("minimal"/"context"/"meters"), the
+/// saved Custom line ("custom"), or restore the user's own line ("current").
+#[tauri::command(async)]
+pub fn apply_claude_statusline(template: String) -> Result<(), String> {
+    apply_claude_statusline_at(&claude_settings_path(), &statuslines_dir(), &template)
+}
+
+/// Validate and apply a Custom status line composed in Settings.
+#[tauri::command(async)]
+pub fn apply_claude_statusline_custom(spec: Value) -> Result<(), String> {
+    let spec: CustomSpec =
+        serde_json::from_value(spec).map_err(|e| format!("invalid status line spec: {e}"))?;
+    apply_custom_at(&claude_settings_path(), &statuslines_dir(), &spec)
+}
+
+// ---- exact preview ----------------------------------------------------------
+//
+// Renders exactly what Claude Code would show: run the resolved script/command
+// against a canonical sample payload and return raw stdout INCLUDING ANSI escapes
+// so the frontend can paint it like a real terminal line.
+
+const PREVIEW_PAYLOAD: &str = r#"{"model":{"display_name":"Opus 4.8"},"cwd":"/Users/dev/Projects/lpm","workspace":{"current_dir":"/Users/dev/Projects/lpm"},"context_window":{"remaining_percentage":72},"rate_limits":{"five_hour":{"used_percentage":34,"resets_at":"2026-07-20T22:00:00Z"},"seven_day":{"used_percentage":62,"resets_at":"2026-07-25T00:00:00Z"}},"cost":{"total_cost_usd":4.2}}"#;
+
+/// Run shell `code` with the sample payload on stdin, killing it after ~2s.
+/// Returns (exited_success, stdout, stderr). Output is capped.
+fn run_shell_capture(code: &str) -> (bool, String, String) {
+    use std::io::{Read, Write};
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    let child = Command::new("sh")
+        .arg("-c")
+        .arg(code)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn();
+    let Ok(mut child) = child else {
+        return (false, String::new(), "could not start sh".into());
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(PREVIEW_PAYLOAD.as_bytes()); // drops -> EOF for `cat`
+    }
+    let mut stdout = child.stdout.take();
+    let mut stderr = child.stderr.take();
+
+    let start = Instant::now();
+    let mut timed_out = false;
+    let success = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) => {
+                if start.elapsed() > Duration::from_secs(2) {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    timed_out = true;
+                    break false;
+                }
+                std::thread::sleep(Duration::from_millis(15));
+            }
+            Err(_) => break false,
+        }
+    };
+
+    let mut out = String::new();
+    if let Some(so) = stdout.take() {
+        let _ = so.take(64 * 1024).read_to_string(&mut out);
+    }
+    let mut err = String::new();
+    if let Some(se) = stderr.take() {
+        let _ = se.take(8 * 1024).read_to_string(&mut err);
+    }
+    if timed_out {
+        err = "the status line took too long to render".into();
+    }
+    (success, out, err)
+}
+
+/// Resolve a preview selection to the shell code to run, or None when there is
+/// nothing to show (e.g. "current" with no prior line).
+fn resolve_preview_code(sel: &Value, dir: &Path, settings_path: &Path) -> Result<Option<String>, String> {
+    let kind = sel.get("kind").and_then(Value::as_str).ok_or("missing preview kind")?;
+    match kind {
+        "template" => {
+            let id = sel.get("id").and_then(Value::as_str).ok_or("missing template id")?;
+            let spec = preset_spec(id).ok_or_else(|| format!("unknown template: {id}"))?;
+            Ok(Some(build_custom_statusline(&spec)?))
+        }
+        "custom" => {
+            let spec: CustomSpec = serde_json::from_value(sel.get("spec").cloned().unwrap_or(Value::Null))
+                .map_err(|e| format!("invalid status line spec: {e}"))?;
+            Ok(Some(build_custom_statusline(&spec)?))
+        }
+        "ai" => Ok(std::fs::read_to_string(dir.join("lpm-ai.sh")).ok()),
+        "current" => {
+            // The user's own prior line: the snapshot, else the live non-lpm original.
+            let target = read_snapshot(dir).unwrap_or_else(|| {
+                std::fs::read(settings_path)
+                    .ok()
+                    .and_then(|d| serde_json::from_slice::<Value>(&d).ok())
+                    .map(|s| prior_statusline(&s))
+                    .unwrap_or(Value::Null)
+            });
+            // Only the user's own command counts as "My status line".
+            if detect_template_id(&target, dir).is_some() {
+                return Ok(None);
+            }
+            Ok(target.get("command").and_then(Value::as_str).map(str::to_string))
+        }
+        other => Err(format!("unknown preview kind: {other}")),
+    }
+}
+
+fn preview_claude_statusline_at(selection: &Value, dir: &Path, settings_path: &Path) -> Result<String, String> {
+    match resolve_preview_code(selection, dir, settings_path)? {
+        Some(c) if !c.trim().is_empty() => Ok(run_shell_capture(&c).1),
+        _ => Ok(String::new()),
+    }
+}
+
+/// Render a status line selection exactly as Claude Code would, returning raw
+/// stdout with ANSI escapes intact (empty string when there is nothing to show).
+#[tauri::command(async)]
+pub fn preview_claude_statusline(selection: Value) -> Result<String, String> {
+    preview_claude_statusline_at(&selection, &statuslines_dir(), &claude_settings_path())
+}
+
+// ---- AI generation ----------------------------------------------------------
+
+const AI_STATUSLINE_PROMPT: &str = r#"Write a POSIX sh script for a Claude Code status line.
+
+Claude Code pipes a single JSON object to the script on stdin with these fields (any may be absent):
+- .model.display_name        e.g. "Opus 4.8"
+- .cwd                        absolute path of the current directory
+- .workspace.current_dir     absolute path of the workspace root
+- .context_window.remaining_percentage   0-100 number
+- .rate_limits.five_hour.used_percentage  0-100 number
+- .rate_limits.five_hour.resets_at        ISO 8601 timestamp
+- .rate_limits.seven_day.used_percentage  0-100 number
+- .rate_limits.seven_day.resets_at        ISO 8601 timestamp
+- .cost.total_cost_usd        number, dollars spent this session
+
+Hard rules:
+- POSIX sh only (no bash-isms). Read stdin ONCE into a variable, then parse it (jq is available).
+- Print exactly ONE line to stdout, no trailing newline.
+- Only use jq, git, and standard POSIX tools.
+- ANSI color escapes are allowed; emit them with printf '%b'. Gracefully skip any field that is absent or empty.
+- Output ONLY the script. No markdown fences, no commentary, no explanation."#;
+
+fn strip_code_fences(s: &str) -> String {
+    let t = s.trim();
+    if let Some(rest) = t.strip_prefix("```") {
+        // Drop the opening fence's language tag line and the closing fence.
+        let rest = rest.splitn(2, '\n').nth(1).unwrap_or("");
+        let rest = rest.trim_end();
+        let rest = rest.strip_suffix("```").unwrap_or(rest);
+        return rest.trim().to_string();
+    }
+    t.to_string()
+}
+
+/// If `code` is just `sh`/`bash <path.sh>` (optionally quoted), the referenced
+/// script path — so the AI base is the file's content, not the launcher command.
+fn single_sh_file_ref(code: &str) -> Option<PathBuf> {
+    let tokens: Vec<&str> = code.trim().split_whitespace().collect();
+    if tokens.len() != 2 || !matches!(tokens[0], "sh" | "bash") {
+        return None;
+    }
+    let path = tokens[1].trim_matches(|c| c == '\'' || c == '"');
+    if path.ends_with(".sh") {
+        Some(PathBuf::from(path))
+    } else {
+        None
+    }
+}
+
+fn extract_base_script(code: &str) -> String {
+    if let Some(path) = single_sh_file_ref(code) {
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            return content;
+        }
+    }
+    code.to_string()
+}
+
+/// The current status line to use as the base for an AI edit, resolved from the
+/// same selection the preview uses. None when there is nothing to build on.
+fn ai_base_for_selection_at(selection: &Value, dir: &Path, settings_path: &Path) -> Option<String> {
+    match resolve_preview_code(selection, dir, settings_path).ok().flatten() {
+        Some(code) if !code.trim().is_empty() => Some(extract_base_script(&code)),
+        _ => None,
+    }
+}
+
+pub fn ai_base_for_selection(selection: &Value) -> Option<String> {
+    ai_base_for_selection_at(selection, &statuslines_dir(), &claude_settings_path())
+}
+
+/// The prompt for AI generation. When there is a current line (`base`), the model
+/// is asked to modify it; otherwise it writes one from scratch.
+pub fn ai_statusline_prompt(description: &str, base: Option<&str>) -> String {
+    let mut p = String::from(AI_STATUSLINE_PROMPT);
+    if let Some(cur) = base {
+        if !cur.trim().is_empty() {
+            p.push_str("\n\nThis is the current status line script. Modify it to satisfy the new instruction, keeping everything else the same:\n\n");
+            p.push_str(cur.trim());
+        }
+    }
+    p.push_str("\n\nInstruction:\n");
+    p.push_str(description.trim());
+    p
+}
+
+fn finalize_ai_statusline_at(
+    raw: &str,
+    description: &str,
+    base_selection: &Value,
+    settings_path: &Path,
+    dir: &Path,
+) -> Result<String, String> {
+    let script = strip_code_fences(raw);
+    if script.trim().is_empty() {
+        return Err("The model returned an empty status line. Try describing it again.".into());
+    }
+    let (ok, out, err) = run_shell_capture(&script);
+    if !ok || out.trim().is_empty() {
+        let detail = if !err.trim().is_empty() {
+            err.trim().to_string()
+        } else {
+            "it produced no output".to_string()
+        };
+        return Err(format!("The generated status line didn't run: {detail}"));
+    }
+    write_template_script(dir, "ai", &script)?;
+    let meta = json!({ "description": description.trim(), "baseSelection": base_selection });
+    let bytes = serde_json::to_vec_pretty(&meta).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("ai.json"), bytes)
+        .map_err(|e| format!("cannot write status line description: {e}"))?;
+    apply_statusline_script(settings_path, dir, "ai", &script)?;
+    Ok(script)
+}
+
+/// Clean, validate, save, and apply an AI-generated status line script. Returns
+/// the cleaned script on success; a useful error (including stderr) on failure.
+pub fn finalize_ai_statusline(raw: &str, description: &str, base_selection: &Value) -> Result<String, String> {
+    finalize_ai_statusline_at(raw, description, base_selection, &claude_settings_path(), &statuslines_dir())
+}
+
 fn has_marker(hooks: &Value) -> bool {
     serde_json::to_string(hooks)
         .map(|s| s.contains(MARKER))
@@ -882,5 +1667,450 @@ mod tests {
         assert!(path.exists(), "explicit opt-in creates the file");
         let v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(v["statusLine"]["type"], "command");
+    }
+
+    // ---- status line templates ----
+
+    fn slt_dirs() -> (tempfile::TempDir, PathBuf, PathBuf) {
+        let td = tempfile::tempdir().unwrap();
+        let settings = td.path().join("settings.json");
+        let sldir = td.path().join("statuslines");
+        (td, settings, sldir)
+    }
+
+    fn read_json(path: &Path) -> Value {
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    const SAMPLE_PAYLOAD: &str = r#"{"model":{"display_name":"Opus 4.8"},"cwd":"/tmp/proj","context_window":{"remaining_percentage":72},"rate_limits":{"five_hour":{"used_percentage":34},"seven_day":{"used_percentage":62}},"cost":{"total_cost_usd":4.2}}"#;
+
+    fn run_script(source: &str, payload: &str) -> String {
+        let td = tempfile::tempdir().unwrap();
+        let script = write_template_script(td.path(), "probe", source).unwrap();
+        let out = std::process::Command::new("sh")
+            .arg(&script)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .and_then(|mut c| {
+                use std::io::Write;
+                c.stdin.take().unwrap().write_all(payload.as_bytes())?;
+                c.wait_with_output()
+            })
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    }
+
+    #[test]
+    fn template_scripts_render_sensibly() {
+        // The presets are generated specs; each is valid POSIX sh and prints the
+        // expected fields against the sample payload.
+        for id in ["minimal", "context", "meters"] {
+            let source = build_custom_statusline(&preset_spec(id).unwrap()).unwrap();
+            let text = run_script(&source, SAMPLE_PAYLOAD);
+            assert!(text.contains("proj"), "{id} shows the folder: {text:?}");
+            assert!(text.contains("Opus 4.8"), "{id} shows the model: {text:?}");
+            if id != "minimal" {
+                assert!(text.contains("72%"), "{id} shows context: {text:?}");
+            }
+            if id == "meters" {
+                assert!(text.contains("34%") && text.contains("62%"), "meters show usage: {text:?}");
+            }
+        }
+    }
+
+    fn cspec(ids: &[&str], sep: &str, style: &str) -> CustomSpec {
+        CustomSpec {
+            segments: ids.iter().map(|s| seg(s)).collect(),
+            separator: sep.into(),
+            meter_style: style.into(),
+            meter_width: 7,
+        }
+    }
+
+    #[test]
+    fn custom_script_renders_segments_in_order_with_separator() {
+        let text = run_script(
+            &build_custom_statusline(&cspec(&["model", "five", "folder"], "|", "bar")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        let model = text.find("Opus 4.8").unwrap();
+        let five = text.find("34%").unwrap();
+        let folder = text.find("proj").unwrap();
+        assert!(model < five && five < folder, "spec order preserved: {text:?}");
+        assert!(text.contains('|'), "uses the chosen separator: {text:?}");
+    }
+
+    #[test]
+    fn custom_percent_style_has_no_bar() {
+        let text = run_script(
+            &build_custom_statusline(&cspec(&["five", "seven"], "·", "percent")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(text.contains("34%") && text.contains("62%"), "shows plain percentages: {text:?}");
+        assert!(!text.contains('━'), "percent style draws no meter bar: {text:?}");
+    }
+
+    #[test]
+    fn custom_branch_and_cost_degrade_when_absent() {
+        // No cost and a cwd that is not a git repo -> both segments drop out.
+        let payload = r#"{"cwd":"/tmp","model":{"display_name":"X"}}"#;
+        let text = run_script(
+            &build_custom_statusline(&cspec(&["folder", "branch", "cost"], "·", "bar")).unwrap(),
+            payload,
+        );
+        assert!(!text.contains('$'), "cost absent: {text:?}");
+        assert!(!text.contains('·'), "no dangling separators: {text:?}");
+    }
+
+    #[test]
+    fn custom_cost_renders_when_present() {
+        let text = run_script(
+            &build_custom_statusline(&cspec(&["cost"], "·", "bar")).unwrap(),
+            SAMPLE_PAYLOAD,
+        );
+        assert!(text.contains("$4.20"), "formats cost as $X.XX: {text:?}");
+    }
+
+    #[test]
+    fn custom_text_segment_renders_verbatim_including_emoji() {
+        let mut spec = cspec(&["folder"], "·", "bar");
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "🚀 dev".into() });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "★".into() });
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("🚀 dev"), "emoji text verbatim: {text:?}");
+        assert!(text.contains('★'), "second text segment present: {text:?}");
+    }
+
+    #[test]
+    fn custom_color_wraps_segment_with_sgr() {
+        let mut spec = cspec(&["folder"], "·", "bar");
+        spec.segments[0].color = "red".into();
+        let src = build_custom_statusline(&spec).unwrap();
+        // The generated script carries the red SGR open (31) around the folder.
+        assert!(src.contains("\\033[31m$cwd${RESET}"), "folder wrapped in red: {src}");
+        let text = run_script(&src, SAMPLE_PAYLOAD);
+        assert!(text.contains("\u{1b}[31m"), "rendered output has the red escape: {text:?}");
+    }
+
+    #[test]
+    fn custom_meter_width_is_respected() {
+        let mut wide = cspec(&["five"], "·", "bar");
+        wide.meter_width = 14;
+        let mut narrow = cspec(&["five"], "·", "bar");
+        narrow.meter_width = 3;
+        let count = |t: &str| t.chars().filter(|&c| c == '━' || c == '╸').count();
+        let wide_bar = count(&run_script(&build_custom_statusline(&wide).unwrap(), SAMPLE_PAYLOAD));
+        let narrow_bar = count(&run_script(&build_custom_statusline(&narrow).unwrap(), SAMPLE_PAYLOAD));
+        assert!(wide_bar > narrow_bar, "wider meter draws more cells: {wide_bar} vs {narrow_bar}");
+    }
+
+    #[test]
+    fn custom_spec_accepts_legacy_string_form() {
+        // Old custom.json stored segments as a plain array of ids.
+        let legacy = r#"{"segments":["folder","model"],"separator":"·","meterStyle":"bar"}"#;
+        let spec: CustomSpec = serde_json::from_str(legacy).unwrap();
+        assert_eq!(spec.segments.len(), 2);
+        assert_eq!(spec.segments[0].id, "folder");
+        assert_eq!(spec.segments[0].color, "default");
+        assert_eq!(spec.meter_width, 7, "missing width defaults to 7");
+        // And it builds a runnable script.
+        assert!(build_custom_statusline(&spec).is_ok());
+    }
+
+    #[test]
+    fn custom_spec_validation_rejects_bad_specs() {
+        let base = default_custom_spec();
+        let empty = CustomSpec { segments: vec![], ..base.clone() };
+        assert!(build_custom_statusline(&empty).is_err(), "empty rejected");
+        let unknown = CustomSpec { segments: vec![seg("bogus")], ..base.clone() };
+        assert!(build_custom_statusline(&unknown).is_err(), "unknown segment rejected");
+        let dup = CustomSpec { segments: vec![seg("folder"), seg("folder")], ..base.clone() };
+        assert!(build_custom_statusline(&dup).is_err(), "duplicate rejected");
+        let badcolor = CustomSpec {
+            segments: vec![Segment { id: "folder".into(), color: "chartreuse".into(), text: String::new() }],
+            ..base.clone()
+        };
+        assert!(build_custom_statusline(&badcolor).is_err(), "unknown color rejected");
+        let emptytext = CustomSpec {
+            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "  ".into() }],
+            ..base.clone()
+        };
+        assert!(build_custom_statusline(&emptytext).is_err(), "empty text rejected");
+        let unsafetext = CustomSpec {
+            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "a$b".into() }],
+            ..base.clone()
+        };
+        assert!(build_custom_statusline(&unsafetext).is_err(), "unsafe text char rejected");
+        let badsep = CustomSpec { separator: "".into(), ..base.clone() };
+        assert!(build_custom_statusline(&badsep).is_err(), "empty separator rejected");
+        let longsep = CustomSpec { separator: "abcd".into(), ..base.clone() };
+        assert!(build_custom_statusline(&longsep).is_err(), "over-long separator rejected");
+        let badstyle = CustomSpec { meter_style: "wild".into(), ..base };
+        assert!(build_custom_statusline(&badstyle).is_err(), "unknown meter style rejected");
+    }
+
+    #[test]
+    fn custom_allows_multiple_text_segments() {
+        let mut spec = cspec(&["folder"], "·", "bar");
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "a".into() });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "b".into() });
+        assert!(build_custom_statusline(&spec).is_ok(), "duplicate text ids are allowed");
+    }
+
+    #[test]
+    fn custom_spec_persists_and_round_trips_through_state() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, "{}").unwrap();
+        let mut spec = cspec(&["path", "model", "seven"], "›", "percent");
+        spec.segments[1].color = "cyan".into();
+        spec.meter_width = 10;
+        apply_custom_at(&settings, &sldir, &spec).unwrap();
+
+        let state = claude_statusline_state_at(&settings, &sldir);
+        assert_eq!(state.selected, "custom");
+        assert_eq!(state.custom, spec, "state echoes the saved spec");
+        assert!(sldir.join("custom.json").exists());
+    }
+
+    #[test]
+    fn switching_custom_preset_custom_keeps_spec_and_wrapper() {
+        let (_td, settings, sldir) = slt_dirs();
+        // Forwarder enabled over a user line.
+        std::fs::write(&settings, r#"{"statusLine":{"type":"command","command":"my-line.sh"}}"#).unwrap();
+        install_claude_statusline_at(&settings).unwrap();
+
+        let spec = cspec(&["folder", "cost"], "/", "bar");
+        apply_custom_at(&settings, &sldir, &spec).unwrap();
+        apply_claude_statusline_at(&settings, &sldir, "minimal").unwrap();
+        // Preset apply must not touch the saved custom spec.
+        assert_eq!(read_custom_spec(&sldir), spec, "custom spec survives a preset");
+
+        // Re-select Custom via the generic dispatcher -> restores the saved spec.
+        apply_claude_statusline_at(&settings, &sldir, "custom").unwrap();
+        let v = read_json(&settings);
+        let cmd = v["statusLine"]["command"].as_str().unwrap();
+        assert!(cmd.contains("agent_limits"), "forwarder preserved: {cmd}");
+        assert!(cmd.contains("lpm-custom.sh"), "custom chained underneath: {cmd}");
+        let embedded = unwrap_statusline(cmd).unwrap();
+        assert_eq!(detect_template_id(&embedded, &sldir).as_deref(), Some("custom"));
+    }
+
+    #[test]
+    fn preview_current_renders_prior_line_and_empty_when_none() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, "{}").unwrap();
+        // No prior line -> empty preview.
+        let empty = preview_claude_statusline_at(&json!({"kind":"current"}), &sldir, &settings).unwrap();
+        assert!(empty.is_empty(), "no prior line -> empty: {empty:?}");
+        // Snapshot a user's own command; "current" previews it.
+        std::fs::create_dir_all(&sldir).unwrap();
+        std::fs::write(
+            sldir.join("original.json"),
+            r#"{"type":"command","command":"printf 'hi %s' \"$(cat | jq -r .model.display_name)\""}"#,
+        )
+        .unwrap();
+        let out = preview_claude_statusline_at(&json!({"kind":"current"}), &sldir, &settings).unwrap();
+        assert!(out.contains("Opus 4.8"), "previews the user's own line: {out:?}");
+    }
+
+    #[test]
+    fn preview_meters_returns_ansi() {
+        let (_td, settings, sldir) = slt_dirs();
+        let out = preview_claude_statusline_at(
+            &json!({"kind":"template","id":"meters"}),
+            &sldir,
+            &settings,
+        )
+        .unwrap();
+        assert!(out.contains("Opus 4.8") && out.contains("34%"), "renders fields: {out:?}");
+        assert!(out.contains('\u{1b}'), "includes ANSI escapes: {out:?}");
+    }
+
+    #[test]
+    fn preview_unknown_kind_errors() {
+        let (_td, settings, sldir) = slt_dirs();
+        assert!(preview_claude_statusline_at(&json!({"kind":"bogus"}), &sldir, &settings).is_err());
+    }
+
+    #[test]
+    fn finalize_ai_saves_validates_and_applies() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, "{}").unwrap();
+        let good = "#!/bin/sh\ni=$(cat); printf 'model %s' \"$(printf '%s' \"$i\" | jq -r .model.display_name)\"\n";
+        let sel = json!({"kind":"current"});
+        let script = finalize_ai_statusline_at(good, "show the model", &sel, &settings, &sldir).unwrap();
+        assert!(script.contains("jq -r .model.display_name"));
+        assert!(sldir.join("lpm-ai.sh").exists() && sldir.join("ai.json").exists());
+        // ai.json records both the description and the base selection.
+        let meta: Value = serde_json::from_slice(&std::fs::read(sldir.join("ai.json")).unwrap()).unwrap();
+        assert_eq!(meta["description"], "show the model");
+        assert_eq!(meta["baseSelection"]["kind"], "current");
+        let state = claude_statusline_state_at(&settings, &sldir);
+        assert_eq!(state.selected, "ai");
+        assert_eq!(state.ai_description, "show the model");
+        // A script that prints nothing is rejected with a useful error.
+        let bad = "#!/bin/sh\ncat >/dev/null\n";
+        assert!(finalize_ai_statusline_at(bad, "x", &sel, &settings, &sldir).is_err());
+    }
+
+    #[test]
+    fn ai_base_from_template_and_referenced_file_and_none() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, "{}").unwrap();
+
+        // Base from a template spec: the generated script body.
+        let base = ai_base_for_selection_at(&json!({"kind":"template","id":"meters"}), &sldir, &settings);
+        let base = base.expect("template has a base");
+        assert!(base.contains("5h") && base.contains("meter"), "template base is the script: {base:?}");
+
+        // Base from a "current" line that is just `sh '<file>'`: the file's content.
+        std::fs::create_dir_all(&sldir).unwrap();
+        let userscript = sldir.join("mine.sh");
+        std::fs::write(&userscript, "#!/bin/sh\necho MINE\n").unwrap();
+        std::fs::write(
+            sldir.join("original.json"),
+            format!(r#"{{"type":"command","command":"sh '{}'"}}"#, userscript.display()),
+        )
+        .unwrap();
+        let base = ai_base_for_selection_at(&json!({"kind":"current"}), &sldir, &settings);
+        assert_eq!(base.as_deref(), Some("#!/bin/sh\necho MINE\n"), "reads the referenced file");
+
+        // No base: "current" with nothing configured (fresh dir).
+        let (_td2, settings2, sldir2) = slt_dirs();
+        std::fs::write(&settings2, "{}").unwrap();
+        assert!(
+            ai_base_for_selection_at(&json!({"kind":"current"}), &sldir2, &settings2).is_none(),
+            "no prior line -> generate from scratch"
+        );
+    }
+
+    #[test]
+    fn ai_prompt_includes_base_only_when_present() {
+        let with = ai_statusline_prompt("make it red", Some("#!/bin/sh\necho x"));
+        assert!(with.contains("current status line script") && with.contains("echo x"));
+        let without = ai_statusline_prompt("from scratch", None);
+        assert!(!without.contains("current status line script"));
+        assert!(without.contains("from scratch"));
+    }
+
+    #[test]
+    fn strip_code_fences_unwraps_markdown() {
+        let raw = "```sh\n#!/bin/sh\necho hi\n```";
+        assert_eq!(strip_code_fences(raw), "#!/bin/sh\necho hi");
+        assert_eq!(strip_code_fences("plain\nline"), "plain\nline");
+    }
+
+    #[test]
+    fn apply_template_without_wrapper_writes_template_object() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, r#"{"model":"opus"}"#).unwrap();
+        apply_claude_statusline_at(&settings, &sldir, "minimal").unwrap();
+
+        let v = read_json(&settings);
+        assert_eq!(v["model"], "opus", "siblings preserved");
+        let cmd = v["statusLine"]["command"].as_str().unwrap();
+        assert!(cmd.contains("lpm-minimal.sh"), "points at the template script: {cmd}");
+        assert!(!cmd.contains("agent_limits"), "no forwarder when limits are off");
+        assert!(sldir.join("lpm-minimal.sh").exists(), "script written");
+    }
+
+    #[test]
+    fn apply_template_with_wrapper_preserves_forwarder_and_chains_template() {
+        let (_td, settings, sldir) = slt_dirs();
+        // Start with the usage-limit forwarder installed over a user line.
+        std::fs::write(&settings, r#"{"statusLine":{"type":"command","command":"my-line.sh"}}"#).unwrap();
+        install_claude_statusline_at(&settings).unwrap();
+
+        apply_claude_statusline_at(&settings, &sldir, "meters").unwrap();
+        let v = read_json(&settings);
+        let cmd = v["statusLine"]["command"].as_str().unwrap();
+        assert!(cmd.contains("agent_limits"), "forwarder stays chained: {cmd}");
+        assert!(cmd.contains("lpm-meters.sh"), "template chained underneath: {cmd}");
+        // The embedded original is the template, not the forwarder itself.
+        let embedded = unwrap_statusline(cmd).unwrap();
+        assert!(detect_template_id(&embedded, &sldir).as_deref() == Some("meters"));
+    }
+
+    #[test]
+    fn switching_templates_does_not_nest() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, r#"{"statusLine":{"type":"command","command":"my-line.sh"}}"#).unwrap();
+        install_claude_statusline_at(&settings).unwrap();
+
+        apply_claude_statusline_at(&settings, &sldir, "minimal").unwrap();
+        apply_claude_statusline_at(&settings, &sldir, "context").unwrap();
+        let v = read_json(&settings);
+        let cmd = v["statusLine"]["command"].as_str().unwrap();
+        assert!(!cmd.contains("lpm-minimal.sh"), "old template gone, no nesting: {cmd}");
+        assert!(cmd.contains("lpm-context.sh"), "new template present: {cmd}");
+        assert!(cmd.contains("agent_limits"), "forwarder still on top");
+        // Exactly one status-line marker -> the wrapper is not doubly nested.
+        assert_eq!(cmd.matches(STATUSLINE_MARKER).count(), 1, "single wrapper: {cmd}");
+    }
+
+    #[test]
+    fn restore_returns_exact_snapshot_and_snapshots_once() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(
+            &settings,
+            r#"{"statusLine":{"type":"command","command":"my-line.sh","padding":2}}"#,
+        )
+        .unwrap();
+
+        apply_claude_statusline_at(&settings, &sldir, "minimal").unwrap();
+        let snap_after_first = std::fs::read(sldir.join("original.json")).unwrap();
+        // Switching to another template must NOT re-snapshot our own template.
+        apply_claude_statusline_at(&settings, &sldir, "context").unwrap();
+        assert_eq!(
+            std::fs::read(sldir.join("original.json")).unwrap(),
+            snap_after_first,
+            "snapshot taken only once"
+        );
+
+        apply_claude_statusline_at(&settings, &sldir, "current").unwrap();
+        let v = read_json(&settings);
+        assert_eq!(v["statusLine"]["command"], "my-line.sh", "restores the exact original");
+        assert_eq!(v["statusLine"]["padding"], 2);
+    }
+
+    #[test]
+    fn restore_null_snapshot_removes_line_but_keeps_forwarder() {
+        let (_td, settings, sldir) = slt_dirs();
+        // No prior status line, but usage-limit forwarder is enabled.
+        std::fs::write(&settings, "{}").unwrap();
+        install_claude_statusline_at(&settings).unwrap();
+
+        apply_claude_statusline_at(&settings, &sldir, "meters").unwrap();
+        apply_claude_statusline_at(&settings, &sldir, "current").unwrap();
+        let v = read_json(&settings);
+        let cmd = v["statusLine"]["command"].as_str().unwrap();
+        assert!(cmd.contains("agent_limits"), "forwarder kept: {cmd}");
+        let embedded = unwrap_statusline(cmd).unwrap();
+        assert!(embedded.is_null(), "underlying line cleared back to none: {embedded}");
+    }
+
+    #[test]
+    fn state_reports_selected_template_and_custom() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, r#"{"statusLine":{"type":"command","command":"my-line.sh"}}"#).unwrap();
+
+        let s0 = claude_statusline_state_at(&settings, &sldir);
+        assert_eq!(s0.selected, "current");
+        assert!(s0.has_custom, "a live non-lpm line counts as custom");
+
+        apply_claude_statusline_at(&settings, &sldir, "context").unwrap();
+        let s1 = claude_statusline_state_at(&settings, &sldir);
+        assert_eq!(s1.selected, "context");
+        assert!(s1.has_custom, "snapshot exists -> My status line has something to restore");
+    }
+
+    #[test]
+    fn state_no_line_no_snapshot_is_not_custom() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, "{}").unwrap();
+        let s = claude_statusline_state_at(&settings, &sldir);
+        assert_eq!(s.selected, "current");
+        assert!(!s.has_custom, "nothing configured -> nothing to restore");
     }
 }
