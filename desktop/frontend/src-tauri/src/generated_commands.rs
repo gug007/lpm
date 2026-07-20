@@ -19,6 +19,7 @@ macro_rules! all_command_handlers {
             get_claude_statusline_state,
             apply_claude_statusline,
             apply_claude_statusline_custom,
+            claude_statusline_preset_spec,
             preview_claude_statusline,
             generate_claude_statusline,
             add_port_forward,

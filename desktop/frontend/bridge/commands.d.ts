@@ -8,6 +8,7 @@ export function ApplyClaudeLimits(...args: any[]): Promise<any>;
 export function GetClaudeStatuslineState(...args: any[]): Promise<any>;
 export function ApplyClaudeStatusline(...args: any[]): Promise<any>;
 export function ApplyClaudeStatuslineCustom(...args: any[]): Promise<any>;
+export function ClaudeStatuslinePresetSpec(...args: any[]): Promise<any>;
 export function PreviewClaudeStatusline(...args: any[]): Promise<any>;
 export function GenerateClaudeStatusline(...args: any[]): Promise<any>;
 export function AddPortForward(...args: any[]): Promise<any>;

@@ -34,6 +34,9 @@ export function ApplyClaudeStatusline(template) {
 export function ApplyClaudeStatuslineCustom(spec) {
   return invoke("apply_claude_statusline_custom", { spec });
 }
+export function ClaudeStatuslinePresetSpec(id) {
+  return invoke("claude_statusline_preset_spec", { id });
+}
 export function PreviewClaudeStatusline(selection) {
   return invoke("preview_claude_statusline", { selection });
 }

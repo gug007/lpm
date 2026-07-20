@@ -1166,6 +1166,13 @@ pub fn apply_claude_statusline_custom(spec: Value) -> Result<(), String> {
     apply_custom_at(&claude_settings_path(), &statuslines_dir(), &spec)
 }
 
+/// The Custom spec behind a built-in preset, so the editor can open pre-filled
+/// with that preset's segments when the user chooses to tweak it.
+#[tauri::command(async)]
+pub fn claude_statusline_preset_spec(id: String) -> Result<CustomSpec, String> {
+    preset_spec(&id).ok_or_else(|| format!("unknown status line template: {id}"))
+}
+
 // ---- exact preview ----------------------------------------------------------
 //
 // Renders exactly what Claude Code would show: run the resolved script/command
