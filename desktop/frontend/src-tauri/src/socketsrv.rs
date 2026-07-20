@@ -644,6 +644,14 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
         agent_pid: options.get("pid").and_then(|p| p.parse().ok()).unwrap_or(0),
         pane_id: options.get("pane").cloned().unwrap_or_default(),
     };
+    // Hook frames arrive async (backgrounded `nc`), so a Done/Error can land
+    // after its pane was closed and cleaned up — drop those instead of storing
+    // an entry nothing can ever clear.
+    if !entry.pane_id.is_empty()
+        && !crate::pty::session_exists(&app.state::<crate::pty::PtyState>(), &entry.pane_id)
+    {
+        return "OK".into();
+    }
     if store.set(project, entry) {
         let _ = app.emit("status-changed", project);
         crate::sound::play_status_sound(&value);

@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 // Constants mirror pty.go exactly (watermarks count UTF-8 runes, not bytes).
 const HEX_MARKER: &str = "\u{0}HEX:"; // null + "HEX:" (pty.go:23)
@@ -93,6 +93,13 @@ pub fn project_has_live_sessions(state: &PtyState, project_name: &str) -> bool {
         .unwrap()
         .values()
         .any(|s| s.project_name == project_name && !*s.closed.read().unwrap())
+}
+
+/// True when a pane id maps to a live PTY session. Guards the status socket:
+/// hook frames are delivered async, so one can arrive after its pane was
+/// closed — storing it would orphan a badge nothing can ever clear.
+pub fn session_exists(state: &PtyState, id: &str) -> bool {
+    state.sessions.lock().unwrap().contains_key(id)
 }
 
 fn lookup(state: &State<'_, PtyState>, id: &str) -> Result<Arc<PtySession>, String> {
@@ -655,13 +662,24 @@ pub fn ack_terminal_data(
 }
 
 #[tauri::command]
-pub fn stop_terminal(state: State<'_, PtyState>, id: String) -> Result<(), String> {
+pub fn stop_terminal(
+    app: AppHandle,
+    state: State<'_, PtyState>,
+    id: String,
+) -> Result<(), String> {
     // remove first so no new I/O can grab the session, then wake the reader,
     // mark closed, and kill the child (which closes the fd -> reader EOF).
     let sess = state.sessions.lock().unwrap().remove(&id);
     let Some(sess) = sess else {
         return Ok(());
     };
+    // Purge the pane's status entries here, not only in the frontend close
+    // handlers, so close paths that never touch the webview (peer stop) can't
+    // leave an orphaned sidebar badge behind.
+    let store = app.state::<Arc<crate::status::StatusStore>>();
+    if store.clear_pane(&sess.project_name, &id) {
+        let _ = app.emit("status-changed", &sess.project_name);
+    }
     {
         let mut f = sess.flow.lock().unwrap();
         f.paused = false;

@@ -892,7 +892,7 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         }
         "stop_terminal" => {
             let id = s("id");
-            Some(pty::stop_terminal(state, id.clone()).map(|_| {
+            Some(pty::stop_terminal(app.clone(), state, id.clone()).map(|_| {
                 // Only wire calls reach this path, so the event means "the peer
                 // closed this terminal" — the host UI removes its adopted tab
                 // instead of leaving a dead one. Host-local closes never emit it.
