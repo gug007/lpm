@@ -678,8 +678,8 @@ fn default_custom_spec() -> CustomSpec {
     // to (icons, accent colors, and usage bars) rather than a bare line.
     CustomSpec {
         segments: vec![
-            colseg("folder", "cyan"),
-            colseg("model", "magenta"),
+            colseg("folder", "blue"),
+            colseg("model", "claude"),
             seg("ctx"),
             seg("five"),
             seg("seven"),
@@ -699,8 +699,8 @@ fn preset_spec(id: &str) -> Option<CustomSpec> {
     if id == "vibrant" {
         return Some(CustomSpec {
             segments: vec![
-                colseg("folder", "cyan"),
-                colseg("model", "magenta"),
+                colseg("folder", "blue"),
+                colseg("model", "claude"),
                 seg("ctx"),
                 seg("five"),
                 seg("seven"),
@@ -722,7 +722,12 @@ fn preset_spec(id: &str) -> Option<CustomSpec> {
     Some(CustomSpec {
         segments: ids
             .iter()
-            .map(|s| if *s == "cost" { colseg(s, "yellow") } else { seg(s) })
+            .map(|s| match *s {
+                "folder" => colseg(s, "blue"),
+                "model" => colseg(s, "claude"),
+                "cost" => colseg(s, "yellow"),
+                _ => seg(s),
+            })
             .collect(),
         separator: "·".into(),
         meter_style: "bar".into(),
@@ -1920,7 +1925,10 @@ mod tests {
         // The presets are generated specs; each is valid POSIX sh and prints the
         // expected fields against the sample payload.
         for id in ["minimal", "context", "meters"] {
-            let source = build_custom_statusline(&preset_spec(id).unwrap()).unwrap();
+            let spec = preset_spec(id).unwrap();
+            assert_eq!(spec.segments[0].color, "blue");
+            assert_eq!(spec.segments[1].color, "claude");
+            let source = build_custom_statusline(&spec).unwrap();
             let text = run_script(&source, SAMPLE_PAYLOAD);
             assert!(text.contains("proj"), "{id} shows the folder: {text:?}");
             assert!(text.contains("Opus 4.8"), "{id} shows the model: {text:?}");
@@ -2124,7 +2132,14 @@ mod tests {
         assert!(text.contains("📁") && text.contains("✳") && text.contains("🧠"), "glyphs: {text:?}");
         assert!(text.contains("⚡") && text.contains("📆"), "5h + weekly icons: {text:?}");
         assert!(text.contains("Opus 4.8"), "model shown: {text:?}");
-        assert!(text.contains("\u{1b}[36m"), "folder carries the cyan accent: {text:?}");
+        assert!(
+            text.contains("\u{1b}[94m"),
+            "folder carries the blue accent: {text:?}"
+        );
+        assert!(
+            text.contains("\u{1b}[38;2;217;119;87m"),
+            "model carries the Claude accent: {text:?}"
+        );
         assert!(text.contains('▇') || text.contains('▁'), "block meter: {text:?}");
         assert!(text.contains("34%") && text.contains("62%"), "both 5h and weekly render: {text:?}");
         assert!(!text.contains("🌿"), "vibrant has no branch: {text:?}");
@@ -2260,8 +2275,11 @@ mod tests {
     }
 
     #[test]
-    fn custom_defaults_to_bar_meter() {
-        assert_eq!(default_custom_spec().meter_style, "bar");
+    fn custom_defaults_to_bar_meter_with_folder_and_model_colors() {
+        let spec = default_custom_spec();
+        assert_eq!(spec.meter_style, "bar");
+        assert_eq!(spec.segments[0].color, "blue");
+        assert_eq!(spec.segments[1].color, "claude");
     }
 
     #[test]

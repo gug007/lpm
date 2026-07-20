@@ -9,7 +9,7 @@ import { ansiColors } from "./terminal-utils";
 // Unknown codes are ignored so unusual output still renders as plain text.
 
 interface RunStyle {
-  color?: string;
+  color: string | undefined;
   bold: boolean;
   dim: boolean;
   italic: boolean;
@@ -60,7 +60,13 @@ function ansi256(n: number): string | undefined {
 }
 
 function fresh(): RunStyle {
-  return { bold: false, dim: false, italic: false, underline: false };
+  return {
+    color: undefined,
+    bold: false,
+    dim: false,
+    italic: false,
+    underline: false,
+  };
 }
 
 function applyCodes(style: RunStyle, codes: number[]): void {
