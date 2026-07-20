@@ -4,6 +4,7 @@ import {
   GetClaudeStatuslineState,
   ApplyClaudeStatusline,
   ApplyClaudeStatuslineCustom,
+  ClaudeStatuslinePresetSpec,
   PreviewClaudeStatusline,
 } from "../../bridge/commands";
 import { ChevronLeftIcon } from "./icons";
@@ -28,6 +29,19 @@ export const STATUSLINE_LABELS: Record<TemplateId, string> = {
 export function statuslineSelectionLabel(selected: string, hasCustom: boolean): string {
   if (selected === "current" && !hasCustom) return "Off";
   return STATUSLINE_LABELS[selected as TemplateId] ?? STATUSLINE_LABELS.current;
+}
+
+// Presets whose segments the editor can open pre-filled from. "custom" is the
+// editable line itself; "vibrant"/"meters" seed the editor from their backing
+// spec so any tweak flows into the custom pipeline. "current"/"ai" have no spec.
+const SPEC_BACKED: readonly TemplateId[] = ["vibrant", "meters", "custom"];
+
+export function statuslineShowsEditor(selected: string): boolean {
+  return (SPEC_BACKED as readonly string[]).includes(selected);
+}
+
+function isSeedablePreset(id: string): boolean {
+  return id === "vibrant" || id === "meters";
 }
 
 interface Choice {
