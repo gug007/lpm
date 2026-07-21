@@ -8,6 +8,7 @@ import { ScheduledView } from "./components/ScheduledView";
 import { Settings } from "./components/Settings";
 import { GlobalConfigEditor } from "./components/GlobalConfigEditor";
 import { ClaudeStatusLineView } from "./components/ClaudeStatusLineView";
+import { CodexStatusLineView } from "./components/CodexStatusLineView";
 import { TemplateEditor } from "./components/TemplateEditor";
 import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor";
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
@@ -311,6 +312,9 @@ export default function App() {
           )}
           {view === "claude-statusline" && (
             <ClaudeStatusLineView onBack={() => setView("settings")} />
+          )}
+          {view === "codex-statusline" && (
+            <CodexStatusLineView onBack={() => setView("settings")} />
           )}
           {view === "commit-instructions" && (
             <CommitInstructionsEditor onBack={() => setView("settings")} />

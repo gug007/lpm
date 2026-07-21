@@ -34,6 +34,7 @@ urlencoding = "2"
 glob = "0.3"
 libc = "0.2"
 regex = "1"           # sniff localhost URLs from remote PTY output (port poller)
+toml_edit = "0.25"
 
 # --- Notes + vault (encrypted notes.db, blob store, Keychain, key export) ---
 # SQLCipher 4.x compiled from source with vendored OpenSSL so the build is

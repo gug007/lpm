@@ -309,6 +309,14 @@ export const ROWS = {
     description: "Choose what the status line under Claude Code shows",
     keywords: ["statusline", "status line", "claude", "template", "meter", "custom", "segments", "separator", "ai", "generate", "preview"],
   },
+  "ai.codexStatusLine": {
+    kind: "row",
+    tab: "ai",
+    id: "ai.codexStatusLine",
+    label: "Codex CLI status line",
+    description: "Choose what the status line under Codex shows",
+    keywords: ["statusline", "status line", "codex", "footer", "fields", "items", "preview"],
+  },
   "templates.list": {
     kind: "row",
     tab: "templates",

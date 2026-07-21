@@ -90,12 +90,23 @@ fn merge_login_shell_path() {
 /// than EOF avoids hanging when an rc leaves a daemon holding stdout (gitstatusd,
 /// atuin). 2s timeout + kill bounds a pathological rc.
 fn capture_login_path() -> Option<String> {
-    const START: &str = "__LPM_PATH_START__";
-    const END: &str = "__LPM_PATH_END__";
+    capture_login_env("PATH")
+}
+
+pub(crate) fn capture_login_env(name: &str) -> Option<String> {
+    if name.is_empty()
+        || !name.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_uppercase() || byte == b'_' || (index > 0 && byte.is_ascii_digit())
+        })
+    {
+        return None;
+    }
+    const START: &str = "__LPM_ENV_START__";
+    const END: &str = "__LPM_ENV_END__";
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
     let mut child = Command::new(&shell)
         .arg("-ilc")
-        .arg(format!("printf '{START}%s{END}' \"$PATH\""))
+        .arg(format!("printf '{START}%s{END}' \"${{{name}:-}}\""))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -128,11 +139,11 @@ fn capture_login_path() -> Option<String> {
     let text = String::from_utf8_lossy(&buf);
     let start = text.find(START)? + START.len();
     let end = text[start..].find(END)? + start;
-    let path = &text[start..end];
-    if path.is_empty() {
+    let value = &text[start..end];
+    if value.is_empty() {
         None
     } else {
-        Some(path.to_string())
+        Some(value.to_string())
     }
 }
 

@@ -86,6 +86,7 @@ export type View =
   | "settings"
   | "global-config"
   | "claude-statusline"
+  | "codex-statusline"
   | "commit-instructions"
   | "pr-instructions"
   | "branch-instructions"

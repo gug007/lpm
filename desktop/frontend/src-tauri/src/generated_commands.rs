@@ -22,6 +22,8 @@ macro_rules! all_command_handlers {
             claude_statusline_preset_spec,
             preview_claude_statusline,
             generate_claude_statusline,
+            get_codex_statusline_state,
+            apply_codex_statusline,
             add_port_forward,
             attach_project,
             browse_folder,

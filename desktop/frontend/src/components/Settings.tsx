@@ -36,6 +36,7 @@ import { HOTKEYS, resolveHotkey, configuredHotkeyCombos } from "../hotkeys";
 import { BTN_SECONDARY } from "./ui/buttons";
 import { SkillInstallControl } from "./SkillInstallControl";
 import { statuslineSelectionLabel } from "./ClaudeStatusLineView";
+import { codexStatuslineSelectionLabel } from "./CodexStatusLineView";
 import { AgentToolsManualSetup } from "./AgentToolsManualSetup";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
@@ -54,6 +55,7 @@ import {
   ListSystemSounds,
   BrowseFolder,
   GetClaudeStatuslineState,
+  GetCodexStatuslineState,
 } from "../../bridge/commands";
 import { SoundPicker } from "./SoundPicker";
 import type { main } from "../../bridge/models";
@@ -190,9 +192,24 @@ export function Settings({
   const [kokoroStatus, setKokoroStatus] = useState<KokoroStatus>("idle");
   const [systemSounds, setSystemSounds] = useState<string[]>([]);
   const [statuslineDescription, setStatuslineDescription] = useState("Choose what the status line under Claude Code shows");
+  const [codexStatuslineDescription, setCodexStatuslineDescription] = useState(
+    "Choose what the status line under Codex shows",
+  );
   useEffect(() => {
     GetClaudeStatuslineState()
       .then((s) => setStatuslineDescription(statuslineSelectionLabel(s?.selected ?? "current", Boolean(s?.hasCustom))))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    GetCodexStatuslineState()
+      .then((state) =>
+        setCodexStatuslineDescription(
+          codexStatuslineSelectionLabel(
+            Array.isArray(state?.items) ? state.items : [],
+            Boolean(state?.configured),
+          ),
+        ),
+      )
       .catch(() => {});
   }, []);
   const activeTab = useAppStore((s) => s.settingsTab);
@@ -883,6 +900,18 @@ export function Settings({
               >
                 <button
                   onClick={() => onNavigate("claude-statusline")}
+                  className={BTN_SECONDARY}
+                >
+                  Customize
+                </button>
+              </SettingsRow>
+              <SettingsRow
+                {...rowProps("ai.codexStatusLine", {
+                  description: codexStatuslineDescription,
+                })}
+              >
+                <button
+                  onClick={() => onNavigate("codex-statusline")}
                   className={BTN_SECONDARY}
                 >
                   Customize

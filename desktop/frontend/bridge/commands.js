@@ -43,6 +43,12 @@ export function PreviewClaudeStatusline(selection) {
 export function GenerateClaudeStatusline(cli, model, effort, fast, selection, description, genId = "") {
   return invoke("generate_claude_statusline", { cli, model, effort, fast, selection, description, genId });
 }
+export function GetCodexStatuslineState() {
+  return invoke("get_codex_statusline_state");
+}
+export function ApplyCodexStatusline(items, useColors) {
+  return invoke("apply_codex_statusline", { items, useColors });
+}
 export function AddPortForward(project, remotePort, localPort) {
   return invoke("add_port_forward", { project, remotePort, localPort });
 }
