@@ -1,4 +1,4 @@
-import { Check, MousePointer2, Trash2 } from "lucide-react";
+import { Check, Trash2, X } from "lucide-react";
 import {
   STATUS_LINE_COLORS,
   STATUS_LINE_SEGMENT_DESCRIPTIONS,
@@ -13,34 +13,22 @@ import {
 import type { Segment } from "./statusLineTypes";
 
 export function StatusLineSegmentInspector({
+  headingId,
   segment,
   disabled,
   canRemove,
   onUpdate,
   onRemove,
+  onClose,
 }: {
-  segment: Segment | undefined;
+  headingId: string;
+  segment: Segment;
   disabled: boolean;
   canRemove: boolean;
   onUpdate: (patch: Partial<Segment>) => void;
   onRemove: () => void;
+  onClose: () => void;
 }) {
-  if (!segment) {
-    return (
-      <div className="flex min-h-52 flex-col items-center justify-center rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/50 px-5 text-center">
-        <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
-          <MousePointer2 size={18} />
-        </span>
-        <p className="text-[12px] font-medium text-[var(--text-secondary)]">
-          Select an item to style it
-        </p>
-        <p className="mt-1 max-w-44 text-[11px] leading-relaxed text-[var(--text-muted)]">
-          Change its color, edit custom text, or remove it from the line.
-        </p>
-      </div>
-    );
-  }
-
   const activeColor = STATUS_LINE_COLORS.find(
     (color) => color.id === segment.color,
   );
@@ -52,7 +40,7 @@ export function StatusLineSegmentInspector({
     segment.icon === undefined ? null : statusLineIconError(segment.icon);
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/70 p-3.5">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-3.5">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-secondary)] text-base">
           <span
@@ -63,23 +51,36 @@ export function StatusLineSegmentInspector({
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="text-[12px] font-semibold text-[var(--text-primary)]">
+          <h3
+            id={headingId}
+            className="text-[12px] font-semibold text-[var(--text-primary)]"
+          >
             {STATUS_LINE_SEGMENT_LABELS[segment.id]} settings
           </h3>
           <p className="mt-0.5 text-[10.5px] leading-relaxed text-[var(--text-muted)]">
             {STATUS_LINE_SEGMENT_DESCRIPTIONS[segment.id]}
           </p>
         </div>
-        <button
-          type="button"
-          disabled={disabled || !canRemove}
-          onClick={onRemove}
-          aria-label={`Remove ${STATUS_LINE_SEGMENT_LABELS[segment.id]}`}
-          title={canRemove ? "Remove item" : "Keep at least one item"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red-text)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <Trash2 size={14} />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            disabled={disabled || !canRemove}
+            onClick={onRemove}
+            aria-label={`Remove ${STATUS_LINE_SEGMENT_LABELS[segment.id]}`}
+            title={canRemove ? "Remove item" : "Keep at least one item"}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red-text)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <Trash2 size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={`Close ${STATUS_LINE_SEGMENT_LABELS[segment.id]} settings`}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
       {segment.id === "text" && (
@@ -125,6 +126,7 @@ export function StatusLineSegmentInspector({
             value={effectiveIcon}
             onChange={(event) => onUpdate({ icon: event.target.value })}
             disabled={disabled}
+            autoFocus={segment.id !== "text"}
             aria-label={`${STATUS_LINE_SEGMENT_LABELS[segment.id]} icon`}
             aria-invalid={Boolean(iconError)}
             aria-describedby={iconError ? "status-line-icon-error" : undefined}
@@ -176,7 +178,7 @@ export function StatusLineSegmentInspector({
                 aria-pressed={active}
                 aria-label={color.label}
                 title={color.label}
-                className={`flex h-7 w-7 items-center justify-center rounded-full outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40 ${
+                className={`flex h-8 w-8 items-center justify-center rounded-full outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40 ${
                   active
                     ? "ring-2 ring-[var(--accent-green)] ring-offset-2 ring-offset-[var(--bg-primary)]"
                     : ""

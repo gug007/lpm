@@ -42,10 +42,10 @@ describe("statuslineSelectionLabel", () => {
   });
 
   it("labels known selections and falls back to the current label", () => {
-    expect(statuslineSelectionLabel("vibrant", false)).toBe("Custom");
-    expect(statuslineSelectionLabel("minimal", false)).toBe("Minimal");
+    expect(statuslineSelectionLabel("vibrant", false)).toBe("Modern");
+    expect(statuslineSelectionLabel("minimal", false)).toBe("Minimalistic");
     expect(statuslineSelectionLabel("context", false)).toBe("Context");
-    expect(statuslineSelectionLabel("meters", false)).toBe("Usage & cost");
+    expect(statuslineSelectionLabel("meters", false)).toBe("Clean");
     expect(statuslineSelectionLabel("nope", false)).toBe("My status line");
   });
 });

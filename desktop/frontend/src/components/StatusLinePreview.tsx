@@ -1,4 +1,4 @@
-import { AlertCircle, Eye, RefreshCw } from "lucide-react";
+import { AlertCircle, Eye } from "lucide-react";
 import type { CSSProperties } from "react";
 import { AnsiLine } from "./AnsiLine";
 
@@ -11,9 +11,11 @@ export interface StatusLinePreviewProps {
   themeStyle: CSSProperties | undefined;
   fontSize: number;
   status: StatusLinePreviewStatus;
+  selectionLabel: string;
 }
 
 export type StatusLinePreviewStatus =
+  | "loading"
   | "live"
   | "updating"
   | "paused"
@@ -24,6 +26,13 @@ const STATUS_DETAILS: Record<
   StatusLinePreviewStatus,
   { label: string; pillClass: string; dotClass: string; footer: string }
 > = {
+  loading: {
+    label: "Loading",
+    pillClass:
+      "border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 text-[var(--accent-blue-text)]",
+    dotClass: "bg-[var(--accent-blue)]",
+    footer: "Loading your saved status line…",
+  },
   live: {
     label: "Live",
     pillClass:
@@ -68,32 +77,37 @@ export function StatusLinePreview({
   themeStyle,
   fontSize,
   status,
+  selectionLabel,
 }: StatusLinePreviewProps) {
   const details = STATUS_DETAILS[status];
-  const updating = status === "updating";
+  const updating = status === "updating" || status === "loading";
   const renderedEmptyHint =
     status === "error"
       ? "Preview unavailable"
       : status === "paused"
         ? "Fix a setting to preview"
-        : emptyHint;
+        : status === "loading"
+          ? "Loading preview…"
+          : emptyHint;
+  const showDetail =
+    status === "paused" || status === "preview-only" || status === "error";
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/35 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2.5 sm:px-4">
+    <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/35 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 sm:px-4">
         <div className="flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--accent-green)]/10 text-[var(--accent-green-text)]">
             <span aria-hidden className="text-[13px] leading-none">
               ❯_
             </span>
           </span>
-          <div>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
             <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
-              Live preview
+              Preview
             </h2>
-            <p className="text-[10.5px] text-[var(--text-muted)]">
-              Sample data in your terminal theme
-            </p>
+            <span className="max-w-48 truncate rounded-md bg-[var(--bg-active)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]">
+              {selectionLabel}
+            </span>
           </div>
         </div>
         <span
@@ -109,79 +123,47 @@ export function StatusLinePreview({
         </span>
       </div>
 
-      <div className="p-2.5 sm:p-3">
+      <div className="px-2.5 pb-2.5 sm:px-3 sm:pb-3">
         <div
-          className="overflow-hidden rounded-lg border border-[var(--terminal-header-border)] shadow-sm"
+          className="overflow-x-auto rounded-xl border border-[var(--terminal-header-border)] px-3 py-3 shadow-sm sm:px-4"
           style={{ ...themeStyle, background: "var(--terminal-bg)" }}
         >
-          <div className="flex items-center gap-1.5 border-b border-[var(--terminal-header-border)] px-3 py-2">
+          <div
+            className="min-w-max select-text whitespace-nowrap leading-relaxed"
+            style={{
+              color: "var(--terminal-fg)",
+              fontFamily: TERMINAL_XTERM_FONT,
+              fontSize: `${fontSize}px`,
+            }}
+          >
             <span
               aria-hidden
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: "#ff5f56" }}
-            />
-            <span
-              aria-hidden
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: "#ffbd2e" }}
-            />
-            <span
-              aria-hidden
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: "#27c93f" }}
-            />
-            <span
-              className="ml-1.5 text-[10px] tracking-wide"
-              style={{
-                color: "var(--terminal-fg)",
-                opacity: 0.45,
-                fontFamily: TERMINAL_XTERM_FONT,
-              }}
+              className="mr-2 select-none"
+              style={{ color: "var(--terminal-fg)", opacity: 0.3 }}
             >
-              claude
+              ❯
             </span>
-          </div>
-          <div className="overflow-x-auto px-3 py-4 sm:px-4">
-            <div
-              className="min-w-max whitespace-nowrap leading-relaxed"
-              style={{
-                color: "var(--terminal-fg)",
-                fontFamily: TERMINAL_XTERM_FONT,
-                fontSize: `${fontSize}px`,
-              }}
-            >
-              <span
-                aria-hidden
-                className="mr-2 select-none"
-                style={{ color: "var(--terminal-fg)", opacity: 0.3 }}
-              >
-                ❯
+            {text.trim() ? (
+              <AnsiLine text={text} />
+            ) : (
+              <span style={{ color: "var(--terminal-fg)", opacity: 0.4 }}>
+                {renderedEmptyHint}
               </span>
-              {text.trim() ? (
-                <AnsiLine text={text} />
-              ) : (
-                <span style={{ color: "var(--terminal-fg)", opacity: 0.4 }}>
-                  {renderedEmptyHint}
-                </span>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-t border-[var(--border)] px-3 py-2 text-[10.5px] text-[var(--text-muted)] sm:px-4">
-        {status === "error" || status === "paused" ? (
-          <AlertCircle aria-hidden className="h-3 w-3 shrink-0" />
-        ) : status === "preview-only" ? (
-          <Eye aria-hidden className="h-3 w-3 shrink-0" />
-        ) : (
-          <RefreshCw
-            aria-hidden
-            className={`h-3 w-3 shrink-0 ${updating ? "animate-spin motion-reduce:animate-none" : ""}`}
-          />
-        )}
-        <span>{details.footer}</span>
-      </div>
+      {showDetail && (
+        <div className="flex items-center gap-2 border-t border-[var(--border)] px-3 py-2 text-[10.5px] text-[var(--text-muted)] sm:px-4">
+          {status === "error" || status === "paused" ? (
+            <AlertCircle aria-hidden className="h-3 w-3 shrink-0" />
+          ) : (
+            <Eye aria-hidden className="h-3 w-3 shrink-0" />
+          )}
+          <span>{details.footer}</span>
+        </div>
+      )}
     </section>
   );
 }

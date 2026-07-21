@@ -21,7 +21,6 @@ vi.mock("../hooks/useTerminalTheme", () => ({
 vi.mock("../hooks/useTerminalFontSize", () => ({
   useTerminalFontSize: () => ({ fontSize: 12 }),
 }));
-vi.mock("./AiRefineBar", () => ({ AiRefineBar: () => null }));
 
 const { ClaudeStatusLineView } = await import("./ClaudeStatusLineView");
 
@@ -98,8 +97,19 @@ describe("ClaudeStatusLineView state safety", () => {
       ...container.querySelectorAll<HTMLButtonElement>('button[role="radio"]'),
     ];
     expect(presets).toHaveLength(5);
+    expect(
+      presets.some((button) => button.textContent?.includes("Minimalistic")),
+    ).toBe(true);
+    expect(
+      presets.some((button) => button.textContent?.includes("Modern")),
+    ).toBe(true);
+    expect(
+      presets.some((button) => button.textContent?.includes("Context")),
+    ).toBe(false);
     expect(container.textContent).not.toContain("Vibrant");
     expect(presets.every((button) => button.disabled)).toBe(true);
+    expect(container.textContent).toContain("Loading preview…");
+    expect(container.textContent).not.toContain("Live");
     customPresetButton().click();
     expect(commands.ApplyClaudeStatuslineCustom).not.toHaveBeenCalled();
 
@@ -158,6 +168,7 @@ describe("ClaudeStatusLineView state safety", () => {
     await act(async () => {
       await Promise.resolve();
     });
+    expect(presetButton("Modern").getAttribute("aria-checked")).toBe("true");
     await act(async () => customPresetButton().click());
 
     expect(commands.ApplyClaudeStatuslineCustom).toHaveBeenCalledWith(
@@ -168,13 +179,32 @@ describe("ClaudeStatusLineView state safety", () => {
     );
   });
 
-  it("seeds the editor from the backend spec when picking Minimal", async () => {
-    commands.GetClaudeStatuslineState.mockResolvedValueOnce({
-      selected: "current",
+  it("applies the Modern preset using the stable vibrant template id", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
       hasCustom: true,
       custom: savedSpec,
       aiDescription: "",
-    }).mockResolvedValue({
+    });
+    commands.ClaudeStatuslinePresetSpec.mockResolvedValue({
+      ...savedSpec,
+      separator: "modern",
+    });
+
+    await renderView();
+    await act(async () => {
+      presetButton("Modern").click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledWith("vibrant");
+    expect(commands.ClaudeStatuslinePresetSpec).toHaveBeenCalledWith("vibrant");
+    expect(separatorInput().value).toBe("modern");
+  });
+
+  it("keeps a previously selected Minimalistic preset editable", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValue({
       selected: "minimal",
       hasCustom: true,
       custom: savedSpec,
@@ -187,45 +217,22 @@ describe("ClaudeStatusLineView state safety", () => {
 
     await renderView();
     await act(async () => {
-      presetButton("Minimal").click();
-      await Promise.resolve();
-      await Promise.resolve();
       await Promise.resolve();
     });
 
-    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledWith("minimal");
     expect(commands.ClaudeStatuslinePresetSpec).toHaveBeenCalledWith("minimal");
     expect(separatorInput().value).toBe("~");
-  });
+    expect(presetButton("Clean")).toBeTruthy();
+    expect(presetButton("Minimalistic").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(customPresetButton().getAttribute("aria-checked")).toBe("false");
 
-  it("seeds the editor from the backend spec when picking Context", async () => {
-    commands.GetClaudeStatuslineState.mockResolvedValueOnce({
-      selected: "current",
-      hasCustom: true,
-      custom: savedSpec,
-      aiDescription: "",
-    }).mockResolvedValue({
-      selected: "context",
-      hasCustom: true,
-      custom: savedSpec,
-      aiDescription: "",
-    });
-    commands.ClaudeStatuslinePresetSpec.mockResolvedValue({
-      ...savedSpec,
-      separator: "»",
-    });
+    await act(async () => customPresetButton().click());
 
-    await renderView();
-    await act(async () => {
-      presetButton("Context").click();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledWith("context");
-    expect(commands.ClaudeStatuslinePresetSpec).toHaveBeenCalledWith("context");
-    expect(separatorInput().value).toBe("»");
+    expect(commands.ApplyClaudeStatuslineCustom).toHaveBeenCalledWith(
+      savedSpec,
+    );
   });
 
   it("keeps preset customization disabled until its editor spec loads", async () => {
@@ -243,7 +250,7 @@ describe("ClaudeStatusLineView state safety", () => {
     );
 
     await renderView();
-    await act(async () => presetButton("Usage & cost").click());
+    await act(async () => presetButton("Clean").click());
 
     const randomize = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
       (button) => button.textContent?.includes("Randomize"),
@@ -279,7 +286,7 @@ describe("ClaudeStatusLineView state safety", () => {
 
     await renderView();
     await act(async () => {
-      presetButton("Usage & cost").click();
+      presetButton("Clean").click();
       await Promise.resolve();
     });
     expect(separatorInput().value).toBe("~");

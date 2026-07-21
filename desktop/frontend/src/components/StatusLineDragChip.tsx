@@ -10,8 +10,8 @@ export function StatusLineDragChip({
   showIcon: boolean;
 }) {
   return (
-    <div className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--accent-green)] bg-[var(--bg-secondary)] px-2.5 text-[12px] text-[var(--text-primary)] shadow-xl">
-      <GripVertical size={14} className="text-[var(--text-muted)]" />
+    <div className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--accent-green)] bg-[var(--bg-primary)] px-2 text-[11px] text-[var(--text-primary)] shadow-xl">
+      <GripVertical size={12} className="text-[var(--text-muted)]" />
       <StatusLineSegmentContent segment={segment} showIcon={showIcon} />
     </div>
   );

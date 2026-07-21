@@ -43,7 +43,7 @@ const STATUSLINE_METER_FN: &str = r##"meter() {
 }
 "##;
 
-// Vibrant "equalizer" meter: filled cells rise to full height, the fractional
+// Equalizer meter: filled cells rise to full height, the fractional
 // cell steps through the vertical eighths, the empty track sits flat and dim.
 const STATUSLINE_METER_FN_BLOCKS: &str = r##"meter() {
     pct=$1 width=$MW
@@ -744,11 +744,9 @@ fn colseg(id: &str, color: &str) -> Segment {
 }
 
 fn default_custom_spec() -> CustomSpec {
-    // A lively starting point so the Custom builder opens with something to react
-    // to (icons, accent colors, and usage bars) rather than a bare line.
     CustomSpec {
         segments: vec![
-            colseg("folder", "blue"),
+            seg("folder"),
             colseg("model", "claude"),
             seg("ctx"),
             seg("five"),
@@ -764,11 +762,40 @@ fn default_custom_spec() -> CustomSpec {
 }
 
 fn preset_spec(id: &str) -> Option<CustomSpec> {
-    // The Vibrant preset is the showcase: emoji glyphs, per-segment accent colors,
-    // the equalizer meter, and live git status.
-    if id == "vibrant" {
-        return Some(CustomSpec {
-            segments: vec![
+    let (segments, icons) = match id {
+        "minimal" => (
+            vec![
+                seg("folder"),
+                seg("model"),
+                seg("ctx"),
+                seg("five"),
+                seg("seven"),
+                seg("cost"),
+            ],
+            false,
+        ),
+        "context" => (
+            vec![
+                seg("folder"),
+                colseg("model", "claude"),
+                seg("ctx"),
+                seg("cost"),
+            ],
+            false,
+        ),
+        "meters" => (
+            vec![
+                seg("folder"),
+                colseg("model", "claude"),
+                seg("ctx"),
+                seg("five"),
+                seg("seven"),
+                colseg("cost", "yellow"),
+            ],
+            false,
+        ),
+        "vibrant" => (
+            vec![
                 colseg("folder", "blue"),
                 colseg("model", "claude"),
                 seg("ctx"),
@@ -776,33 +803,16 @@ fn preset_spec(id: &str) -> Option<CustomSpec> {
                 seg("seven"),
                 colseg("cost", "yellow"),
             ],
-            separator: "·".into(),
-            meter_style: "blocks".into(),
-            meter_width: 7,
-            icons: true,
-            git_status: false,
-        });
-    }
-    let ids: &[&str] = match id {
-        "minimal" => &["folder", "model"],
-        "context" => &["folder", "model", "ctx"],
-        "meters" => &["folder", "model", "ctx", "five", "seven", "cost"],
+            true,
+        ),
         _ => return None,
     };
     Some(CustomSpec {
-        segments: ids
-            .iter()
-            .map(|s| match *s {
-                "folder" => colseg(s, "blue"),
-                "model" => colseg(s, "claude"),
-                "cost" => colseg(s, "yellow"),
-                _ => seg(s),
-            })
-            .collect(),
+        segments,
         separator: "·".into(),
         meter_style: "bar".into(),
         meter_width: 7,
-        icons: false,
+        icons,
         git_status: false,
     })
 }
@@ -1249,6 +1259,32 @@ fn claude_statusline_state_at(settings_path: &Path, dir: &Path) -> ClaudeStatusl
         custom: read_custom_spec(dir),
         ai_description: read_ai_description(dir),
     }
+}
+
+fn refresh_active_template_at(settings_path: &Path, dir: &Path) -> Result<(), String> {
+    let Ok(data) = std::fs::read(settings_path) else {
+        return Ok(());
+    };
+    let Ok(settings) = serde_json::from_slice::<Value>(&data) else {
+        return Ok(());
+    };
+    let Some(id) = detect_template_id(&prior_statusline(&settings), dir) else {
+        return Ok(());
+    };
+    let Some(spec) = preset_spec(&id) else {
+        return Ok(());
+    };
+    let source = build_custom_statusline(&spec)?;
+    let path = dir.join(format!("lpm-{id}.sh"));
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(source.as_str()) {
+        return Ok(());
+    }
+    write_template_script(dir, &id, &source)?;
+    Ok(())
+}
+
+pub fn refresh_active_claude_statusline_template() {
+    let _ = refresh_active_template_at(&claude_settings_path(), &statuslines_dir());
 }
 
 /// Which status line is effective on this Mac, whether there is a prior line to
@@ -1996,21 +2032,36 @@ mod tests {
 
     #[test]
     fn template_scripts_render_sensibly() {
-        // The presets are generated specs; each is valid POSIX sh and prints the
-        // expected fields against the sample payload.
-        for id in ["minimal", "context", "meters"] {
+        let cases: &[(&str, &[&str], bool, &str)] = &[
+            ("minimal", &["folder", "model", "ctx", "five", "seven", "cost"], true, "default"),
+            ("context", &["folder", "model", "ctx", "cost"], false, "claude"),
+            ("meters", &["folder", "model", "ctx", "five", "seven", "cost"], true, "claude"),
+        ];
+        for (id, expected_ids, has_usage, model_color) in cases {
             let spec = preset_spec(id).unwrap();
-            assert_eq!(spec.segments[0].color, "blue");
-            assert_eq!(spec.segments[1].color, "claude");
+            assert_eq!(
+                spec.segments.iter().map(|segment| segment.id.as_str()).collect::<Vec<_>>(),
+                *expected_ids
+            );
+            assert_eq!(spec.segments[0].color, "default");
+            assert_eq!(spec.segments[1].color, *model_color);
+            assert_eq!(spec.separator, "·");
+            assert_eq!(spec.meter_style, "bar");
+            assert_eq!(spec.meter_width, 7);
+            assert!(!spec.icons);
+            assert!(!spec.git_status);
             let source = build_custom_statusline(&spec).unwrap();
             let text = run_script(&source, SAMPLE_PAYLOAD);
             assert!(text.contains("proj"), "{id} shows the folder: {text:?}");
             assert!(text.contains("Opus 4.8"), "{id} shows the model: {text:?}");
-            if id != "minimal" {
-                assert!(text.contains("72%"), "{id} shows context: {text:?}");
+            assert!(text.contains("72%"), "{id} shows context: {text:?}");
+            assert!(!text.contains("📁"), "{id} has no icons: {text:?}");
+            if *has_usage {
+                assert!(text.contains("34%") && text.contains("62%"), "{id} shows usage: {text:?}");
             }
-            if id == "meters" {
-                assert!(text.contains("34%") && text.contains("62%"), "meters show usage: {text:?}");
+            assert!(text.contains("$4.20"), "{id} shows session cost: {text:?}");
+            if *id == "meters" {
+                assert_eq!(spec.segments.last().unwrap().color, "yellow");
                 assert!(text.contains("\u{1b}[33m$4.20"), "meters show session cost in yellow: {text:?}");
             }
         }
@@ -2249,13 +2300,24 @@ mod tests {
     }
 
     #[test]
-    fn vibrant_preset_has_icons_colors_and_block_meters() {
+    fn vibrant_preset_matches_modern_variant() {
         let spec = preset_spec("vibrant").unwrap();
-        assert!(spec.icons, "vibrant enables icons");
-        assert_eq!(spec.meter_style, "blocks");
+        assert_eq!(
+            spec.segments.iter().map(|segment| segment.id.as_str()).collect::<Vec<_>>(),
+            ["folder", "model", "ctx", "five", "seven", "cost"]
+        );
+        assert_eq!(
+            spec.segments.iter().map(|segment| segment.color.as_str()).collect::<Vec<_>>(),
+            ["blue", "claude", "default", "default", "default", "yellow"]
+        );
+        assert_eq!(spec.separator, "·");
+        assert_eq!(spec.meter_style, "bar");
+        assert_eq!(spec.meter_width, 7);
+        assert!(spec.icons);
+        assert!(!spec.git_status);
         let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
         assert!(text.contains("📁") && text.contains("✳") && text.contains("🧠"), "glyphs: {text:?}");
-        assert!(text.contains("⚡") && text.contains("📆"), "5h + weekly icons: {text:?}");
+        assert!(text.contains("⚡") && text.contains("📆") && text.contains("💰"), "usage glyphs: {text:?}");
         assert!(text.contains("Opus 4.8"), "model shown: {text:?}");
         assert!(
             text.contains("\u{1b}[94m"),
@@ -2265,9 +2327,10 @@ mod tests {
             text.contains("\u{1b}[38;2;217;119;87m"),
             "model carries the Claude accent: {text:?}"
         );
-        assert!(text.contains('▇') || text.contains('▁'), "block meter: {text:?}");
+        assert!(text.contains('━') || text.contains('╸'), "bar meter: {text:?}");
         assert!(text.contains("34%") && text.contains("62%"), "both 5h and weekly render: {text:?}");
-        assert!(!text.contains("🌿"), "vibrant has no branch: {text:?}");
+        assert!(text.contains("\u{1b}[33m💰 $4.20"), "cost has its yellow accent: {text:?}");
+        assert!(!text.contains("🌿"), "modern has no branch: {text:?}");
     }
 
     fn make_dirty_repo() -> tempfile::TempDir {
@@ -2387,7 +2450,8 @@ mod tests {
     fn custom_spec_persists_and_round_trips_through_state() {
         let (_td, settings, sldir) = slt_dirs();
         std::fs::write(&settings, "{}").unwrap();
-        let mut spec = cspec(&["path", "model", "seven"], "›", "percent");
+        let mut spec = cspec(&["folder", "model", "seven"], "›", "percent");
+        spec.segments[0].color = "blue".into();
         spec.segments[1].color = "cyan".into();
         spec.segments[1].icon = Some("🤖".into());
         spec.meter_width = 10;
@@ -2400,11 +2464,20 @@ mod tests {
     }
 
     #[test]
-    fn custom_defaults_to_bar_meter_with_folder_and_model_colors() {
+    fn custom_defaults_to_full_emoji_bar_with_neutral_folder() {
         let spec = default_custom_spec();
-        assert_eq!(spec.meter_style, "bar");
-        assert_eq!(spec.segments[0].color, "blue");
+        assert_eq!(
+            spec.segments.iter().map(|segment| segment.id.as_str()).collect::<Vec<_>>(),
+            ["folder", "model", "ctx", "five", "seven", "cost"]
+        );
+        assert_eq!(spec.segments[0].color, "default");
         assert_eq!(spec.segments[1].color, "claude");
+        assert_eq!(spec.segments.last().unwrap().color, "yellow");
+        assert_eq!(spec.separator, "·");
+        assert_eq!(spec.meter_style, "bar");
+        assert_eq!(spec.meter_width, 7);
+        assert!(spec.icons);
+        assert!(!spec.git_status);
     }
 
     #[test]
@@ -2637,6 +2710,34 @@ mod tests {
         let s1 = claude_statusline_state_at(&settings, &sldir);
         assert_eq!(s1.selected, "context");
         assert!(s1.has_custom, "snapshot exists -> My status line has something to restore");
+    }
+
+    #[test]
+    fn startup_refresh_rewrites_only_the_active_builtin_script() {
+        let (_td, settings, sldir) = slt_dirs();
+        std::fs::write(&settings, r#"{"statusLine":{"type":"command","command":"my-line.sh"}}"#).unwrap();
+        install_claude_statusline_at(&settings).unwrap();
+        apply_claude_statusline_at(&settings, &sldir, "meters").unwrap();
+        let meters_path = sldir.join("lpm-meters.sh");
+        std::fs::write(&meters_path, "#!/bin/sh\necho legacy\n").unwrap();
+        let settings_before = std::fs::read(&settings).unwrap();
+
+        refresh_active_template_at(&settings, &sldir).unwrap();
+
+        let expected = build_custom_statusline(&preset_spec("meters").unwrap()).unwrap();
+        assert_eq!(std::fs::read_to_string(&meters_path).unwrap(), expected);
+        assert_eq!(std::fs::read(&settings).unwrap(), settings_before);
+
+        let mut custom = default_custom_spec();
+        custom.segments[0].color = "blue".into();
+        apply_custom_at(&settings, &sldir, &custom).unwrap();
+        let custom_script = std::fs::read(sldir.join("lpm-custom.sh")).unwrap();
+        let custom_spec = std::fs::read(sldir.join("custom.json")).unwrap();
+
+        refresh_active_template_at(&settings, &sldir).unwrap();
+
+        assert_eq!(std::fs::read(sldir.join("lpm-custom.sh")).unwrap(), custom_script);
+        assert_eq!(std::fs::read(sldir.join("custom.json")).unwrap(), custom_spec);
     }
 
     #[test]

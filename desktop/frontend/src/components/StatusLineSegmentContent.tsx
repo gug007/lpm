@@ -29,10 +29,10 @@ export function StatusLineSegmentContent({
           {icon}
         </span>
       )}
-      <span className="max-w-[9rem] truncate">{label}</span>
+      <span className="max-w-[8rem] truncate font-medium">{label}</span>
       <span
         aria-hidden
-        className="h-2.5 w-2.5 shrink-0 rounded-full"
+        className="h-2 w-2 shrink-0 rounded-full"
         style={{
           background:
             segment.color === "default"

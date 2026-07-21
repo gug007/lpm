@@ -2,6 +2,7 @@ import { GripVertical, X } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { StatusLineSegmentContent } from "./StatusLineSegmentContent";
+import { StatusLineSegmentPopover } from "./StatusLineSegmentPopover";
 import { STATUS_LINE_SEGMENT_LABELS } from "./statusLineEditorOptions";
 import type { Segment } from "./statusLineTypes";
 
@@ -9,19 +10,23 @@ export function StatusLineSegmentChip({
   id,
   segment,
   showIcon,
-  selected,
+  editing,
   disabled,
   canRemove,
-  onSelect,
+  onEdit,
+  onClose,
+  onUpdate,
   onRemove,
 }: {
   id: string;
   segment: Segment;
   showIcon: boolean;
-  selected: boolean;
+  editing: boolean;
   disabled: boolean;
   canRemove: boolean;
-  onSelect: () => void;
+  onEdit: () => void;
+  onClose: () => void;
+  onUpdate: (patch: Partial<Segment>) => void;
   onRemove: () => void;
 }) {
   const {
@@ -48,10 +53,10 @@ export function StatusLineSegmentChip({
         transition,
         opacity: isDragging ? 0.3 : 1,
       }}
-      className={`group inline-flex min-h-9 items-center rounded-lg border text-[12px] text-[var(--text-primary)] transition-colors ${
-        selected
-          ? "border-[var(--accent-green)] bg-[var(--accent-green)]/10"
-          : "border-[var(--border)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]/60 hover:bg-[var(--bg-hover)]"
+      className={`group inline-flex h-8 items-center rounded-lg border text-[11px] text-[var(--text-primary)] shadow-sm transition-[border-color,background-color,box-shadow] ${
+        editing
+          ? "border-[var(--accent-green)]/80 bg-[var(--accent-green)]/8"
+          : "border-[var(--border)] bg-[var(--bg-primary)]/70 hover:border-[var(--text-muted)]/55 hover:bg-[var(--bg-hover)]"
       }`}
     >
       <button
@@ -61,28 +66,32 @@ export function StatusLineSegmentChip({
         {...listeners}
         aria-label={`Move ${label}`}
         title="Drag to reorder"
-        className="flex h-9 w-7 touch-none cursor-grab items-center justify-center rounded-l-lg text-[var(--text-muted)] outline-none hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)] active:cursor-grabbing disabled:cursor-default"
+        className="flex h-8 w-6 touch-none cursor-grab items-center justify-center rounded-l-lg text-[var(--text-muted)]/70 outline-none hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)] active:cursor-grabbing disabled:cursor-default"
       >
-        <GripVertical size={14} />
+        <GripVertical size={12} />
       </button>
-      <button
-        type="button"
-        disabled={disabled}
-        aria-pressed={selected}
-        onClick={onSelect}
-        className="flex h-9 items-center gap-1.5 px-1 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-blue)]"
-      >
+      <span className="flex h-8 items-center gap-1.5 pr-1.5">
         <StatusLineSegmentContent segment={segment} showIcon={showIcon} />
-      </button>
+      </span>
+      <StatusLineSegmentPopover
+        segment={segment}
+        open={editing}
+        disabled={disabled}
+        canRemove={canRemove}
+        onToggle={onEdit}
+        onUpdate={onUpdate}
+        onRemove={onRemove}
+        onClose={onClose}
+      />
       <button
         type="button"
         disabled={disabled || !canRemove}
         onClick={onRemove}
         aria-label={`Remove ${label}`}
         title={canRemove ? `Remove ${label}` : "Keep at least one item"}
-        className="mr-1 flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] opacity-60 outline-none transition-colors hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red-text)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-25"
+        className="mr-0.5 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] opacity-45 outline-none transition-[color,background-color,opacity] hover:bg-[var(--accent-red)]/10 hover:text-[var(--accent-red-text)] hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] group-hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-20"
       >
-        <X size={13} />
+        <X size={12} />
       </button>
     </div>
   );

@@ -219,12 +219,13 @@ pub fn run() {
             std::thread::spawn(hooks::install_agent_hooks);
 
             // Silently refresh what the user already opted into installing:
-            // stale agent skills get re-written, a stale CLI symlink gets
-            // repointed. Missing or foreign installs are left alone.
+            // stale agent skills and active status-line presets get re-written,
+            // and a stale CLI symlink gets repointed. Foreign installs stay alone.
             std::thread::spawn(|| {
                 skill_install::refresh_if_outdated();
                 cli_install::repair_symlink_quietly();
                 hooks::reapply_claude_limits_if_enabled();
+                hooks::refresh_active_claude_statusline_template();
             });
 
             // Check for updates on startup, then every 24h while the app runs

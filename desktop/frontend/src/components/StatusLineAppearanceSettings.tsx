@@ -25,51 +25,50 @@ export function StatusLineAppearanceSettings({
 
   return (
     <section
-      className="mt-4 border-t border-[var(--border)] pt-4"
+      className="mt-3 border-t border-[var(--border)] pt-3"
       aria-labelledby="status-line-appearance-heading"
     >
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--bg-primary)] text-[var(--text-muted)]">
-          <SlidersHorizontal size={14} />
-        </span>
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--bg-primary)] text-[var(--text-muted)]">
+            <SlidersHorizontal size={13} />
+          </span>
           <h3
             id="status-line-appearance-heading"
             className="text-[12px] font-semibold text-[var(--text-primary)]"
           >
             Appearance
           </h3>
-          <p className="text-[10.5px] text-[var(--text-muted)]">
-            Style the entire line.
-          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusLineToggle
+            checked={spec.icons}
+            disabled={disabled}
+            label="Show icons"
+            description="Add a visual cue to each item"
+            onChange={(icons) => onChange({ ...spec, icons })}
+          />
+          {hasBranch && (
+            <StatusLineToggle
+              checked={spec.gitStatus}
+              disabled={disabled}
+              label="Show Git status"
+              description="Mark uncommitted branch changes"
+              onChange={(gitStatus) => onChange({ ...spec, gitStatus })}
+            />
+          )}
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <StatusLineToggle
-          checked={spec.icons}
-          disabled={disabled}
-          label="Show icons"
-          description="Add a visual cue to each item"
-          onChange={(icons) => onChange({ ...spec, icons })}
-        />
-        {hasBranch && (
-          <StatusLineToggle
-            checked={spec.gitStatus}
-            disabled={disabled}
-            label="Show Git status"
-            description="Mark uncommitted branch changes"
-            onChange={(gitStatus) => onChange({ ...spec, gitStatus })}
-          />
-        )}
-      </div>
-
-      <div className={`mt-3 grid gap-3 ${showMeter ? "lg:grid-cols-2" : ""}`}>
-        <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 p-3">
-          <legend className="px-1 text-[11px] font-medium text-[var(--text-secondary)]">
+      <div
+        className={`mt-2 grid items-start gap-2 ${showMeter ? "@min-[680px]:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)]" : ""}`}
+      >
+        <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 p-2">
+          <legend className="sr-only">Separator</legend>
+          <div className="mb-1.5 text-[10.5px] font-medium text-[var(--text-secondary)]">
             Separator
-          </legend>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
             <input
               value={spec.separator}
               onChange={(event) =>
@@ -81,7 +80,7 @@ export function StatusLineAppearanceSettings({
               aria-describedby={
                 separatorError ? "status-line-separator-error" : undefined
               }
-              className={`h-9 w-12 rounded-lg border bg-[var(--bg-primary)] px-2 text-center font-mono text-[12px] text-[var(--text-primary)] outline-none focus:ring-1 ${
+              className={`h-8 w-10 rounded-md border bg-[var(--bg-primary)] px-1.5 text-center font-mono text-[11px] text-[var(--text-primary)] outline-none focus:ring-1 ${
                 separatorError
                   ? "border-[var(--accent-red)] focus:ring-[var(--accent-red)]/30"
                   : "border-[var(--border)] focus:border-[var(--accent-green)] focus:ring-[var(--accent-green)]/20"
@@ -95,7 +94,7 @@ export function StatusLineAppearanceSettings({
                 disabled={disabled}
                 aria-pressed={spec.separator === separator}
                 aria-label={`Use ${separator} as separator`}
-                className={`flex h-9 w-9 items-center justify-center rounded-lg border font-mono text-[12px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+                className={`flex h-8 w-8 items-center justify-center rounded-md border font-mono text-[11px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
                   spec.separator === separator
                     ? "border-[var(--accent-green)] bg-[var(--accent-green)]/10 text-[var(--text-primary)]"
                     : "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
@@ -117,11 +116,30 @@ export function StatusLineAppearanceSettings({
         </fieldset>
 
         {showMeter && (
-          <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 p-3">
-            <legend className="px-1 text-[11px] font-medium text-[var(--text-secondary)]">
-              Usage display
-            </legend>
-            <div className="mt-1 grid grid-cols-2 gap-1.5">
+          <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)]/60 p-2">
+            <legend className="sr-only">Usage display</legend>
+            <div className="mb-1.5 flex min-h-8 items-center justify-between gap-2">
+              <span className="text-[10.5px] font-medium text-[var(--text-secondary)]">
+                Usage display
+              </span>
+              {spec.meterStyle !== "percent" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    Meter width
+                  </span>
+                  <StatusLineStepper
+                    value={spec.meterWidth}
+                    min={3}
+                    max={16}
+                    disabled={disabled}
+                    onChange={(meterWidth) =>
+                      onChange({ ...spec, meterWidth })
+                    }
+                  />
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-1 @min-[760px]:grid-cols-4">
               {STATUS_LINE_METER_STYLES.map((style) => (
                 <button
                   key={style.id}
@@ -129,40 +147,21 @@ export function StatusLineAppearanceSettings({
                   disabled={disabled}
                   onClick={() => onChange({ ...spec, meterStyle: style.id })}
                   aria-pressed={spec.meterStyle === style.id}
-                  className={`flex min-h-10 items-center justify-between gap-2 rounded-lg border px-2.5 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+                  className={`flex h-8 min-w-0 items-center justify-between gap-1.5 rounded-md border px-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
                     spec.meterStyle === style.id
                       ? "border-[var(--accent-green)] bg-[var(--accent-green)]/10 text-[var(--text-primary)]"
                       : "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-hover)]"
                   }`}
                 >
-                  <span className="text-[10.5px] font-medium">
+                  <span className="truncate text-[10px] font-medium">
                     {style.label}
                   </span>
-                  <span className="font-mono text-[9.5px] opacity-75">
+                  <span className="shrink-0 font-mono text-[9px] opacity-70">
                     {style.sample}
                   </span>
                 </button>
               ))}
             </div>
-            {spec.meterStyle !== "percent" && (
-              <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3">
-                <span>
-                  <span className="block text-[11px] font-medium text-[var(--text-secondary)]">
-                    Meter width
-                  </span>
-                  <span className="mt-0.5 block text-[10px] text-[var(--text-muted)]">
-                    Characters per meter
-                  </span>
-                </span>
-                <StatusLineStepper
-                  value={spec.meterWidth}
-                  min={3}
-                  max={16}
-                  disabled={disabled}
-                  onChange={(meterWidth) => onChange({ ...spec, meterWidth })}
-                />
-              </div>
-            )}
           </fieldset>
         )}
       </div>

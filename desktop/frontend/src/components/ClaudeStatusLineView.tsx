@@ -1,11 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  CheckCircle2,
-  RefreshCw,
-  SlidersHorizontal,
-  Sparkles,
-} from "lucide-react";
+import { SlidersHorizontal, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   GetClaudeStatuslineState,
@@ -18,7 +12,6 @@ import { ChevronLeftIcon } from "./icons";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { CustomStatusLineEditor } from "./CustomStatusLineEditor";
-import { AiRefineBar } from "./AiRefineBar";
 import { StatusLinePreview } from "./StatusLinePreview";
 import type { StatusLinePreviewStatus } from "./StatusLinePreview";
 import {
@@ -60,8 +53,8 @@ function isSeedablePreset(id: string): boolean {
 
 const DEFAULT_SPEC: CustomSpec = {
   segments: [
-    { id: "folder", color: "cyan", text: "" },
-    { id: "model", color: "magenta", text: "" },
+    { id: "folder", color: "default", text: "" },
+    { id: "model", color: "claude", text: "" },
     { id: "ctx", color: "default", text: "" },
     { id: "five", color: "default", text: "" },
     { id: "seven", color: "default", text: "" },
@@ -104,7 +97,6 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const [customSpec, setCustomSpec] = useState<CustomSpec>(DEFAULT_SPEC);
   const [savedCustomSpec, setSavedCustomSpec] =
     useState<CustomSpec>(DEFAULT_SPEC);
-  const [aiDescription, setAiDescription] = useState("");
   const [preview, setPreview] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -166,7 +158,6 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
         (state?.selected as StatusLineTemplateId) ?? "current";
       setSelected(nextSelection);
       setHasCustom(Boolean(state?.hasCustom));
-      setAiDescription(state?.aiDescription ?? "");
       if (syncSpec) {
         if (state?.custom) setSavedCustomSpec(state.custom as CustomSpec);
         if (isSeedablePreset(nextSelection)) seedFromPreset(nextSelection);
@@ -300,19 +291,20 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const token = ++previewTokenRef.current;
-    setPreviewing(false);
     if (!loaded || loadError) {
+      setPreviewing(false);
       setPreviewError(false);
       return;
     }
     if (selected === "custom" && customValidationError) {
+      setPreviewing(false);
       setPreviewError(false);
       return;
     }
+    setPreviewing(true);
+    setPreviewError(false);
     const handle = setTimeout(() => {
       if (previewTokenRef.current !== token) return;
-      setPreviewing(true);
-      setPreviewError(false);
       PreviewClaudeStatusline(previewSelection)
         .then((output: string) => {
           if (previewTokenRef.current === token) {
@@ -333,7 +325,6 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     return () => clearTimeout(handle);
   }, [previewSelection, selected, customValidationError, loaded, loadError]);
 
-  const aiExists = aiDescription.trim() !== "";
   const emptyHint =
     selected === "current" && !hasCustom
       ? "Status line is off"
@@ -342,31 +333,23 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const previewStatus = (
     loadError
       ? "error"
-      : selected === "custom" && customValidationError
-        ? "paused"
-        : previewError
-          ? "error"
-          : isUpdating
-            ? "updating"
-            : applyState === "error"
-              ? "preview-only"
-              : "live"
+      : !loaded
+        ? "loading"
+        : selected === "custom" && customValidationError
+          ? "paused"
+          : previewError
+            ? "error"
+            : isUpdating
+              ? "updating"
+              : applyState === "error"
+                ? "preview-only"
+                : "live"
   ) satisfies StatusLinePreviewStatus;
-  const syncState = loadError
-    ? "load-error"
-    : !loaded
-      ? "loading"
-      : selected === "custom" && customValidationError
-        ? "blocked"
-        : applyState;
-  const syncBadgeClass =
-    syncState === "applied"
-      ? "border-[var(--accent-green)]/25 bg-[var(--accent-green)]/8 text-[var(--accent-green-text)]"
-      : syncState === "applying" || syncState === "loading"
-        ? "border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 text-[var(--accent-blue-text)]"
-        : syncState === "blocked"
-          ? "border-[var(--accent-amber)]/25 bg-[var(--accent-amber)]/8 text-[var(--accent-amber-text)]"
-          : "border-[var(--accent-red)]/25 bg-[var(--accent-red)]/8 text-[var(--accent-red-text)]";
+  const selectionLabel = loadError
+    ? "Status unavailable"
+    : loaded
+      ? statuslineSelectionLabel(selected, hasCustom)
+      : "Loading status";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col pt-6">
@@ -375,7 +358,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
           type="button"
           onClick={onBack}
           aria-label="Back to Settings"
-          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
           title="Back to Settings"
         >
           <ChevronLeftIcon />
@@ -385,39 +368,12 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
             Build your Claude Code status line
           </h1>
           <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Pick a style, arrange the items, and make the line your own.
+            Start with a layout, then tune every item. Changes apply as you work.
           </p>
         </div>
-        <span
-          role="status"
-          aria-live="polite"
-          className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10.5px] font-medium sm:flex ${syncBadgeClass}`}
-        >
-          {syncState === "applied" ? (
-            <CheckCircle2 size={13} />
-          ) : syncState === "applying" || syncState === "loading" ? (
-            <RefreshCw
-              size={13}
-              className="animate-spin motion-reduce:animate-none"
-            />
-          ) : (
-            <AlertCircle size={13} />
-          )}
-          {syncState === "applied"
-            ? "Applied automatically"
-            : syncState === "loading"
-              ? "Loading status…"
-              : syncState === "load-error"
-                ? "Couldn’t load status"
-                : syncState === "applying"
-                  ? "Applying changes…"
-                  : syncState === "blocked"
-                    ? "Fix a setting to sync"
-                    : "Previous line still active"}
-        </span>
       </div>
 
-      <div className="no-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
         <div
           className="mx-auto w-full max-w-6xl pb-6 transition-opacity"
           style={{ opacity: loaded ? 1 : 0.55 }}
@@ -430,80 +386,34 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
               themeStyle={themeStyle}
               fontSize={fontSize}
               status={previewStatus}
+              selectionLabel={selectionLabel}
             />
           </div>
 
           <div className="space-y-4">
-            <div className="min-w-0 space-y-4">
-              <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/25 p-3">
-                <div className="mb-2.5 flex items-center gap-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--accent-blue)]/10 text-[10px] font-semibold text-[var(--accent-blue-text)]">
-                    1
-                  </span>
-                  <div>
-                    <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
-                      Choose a starting point
-                    </h2>
-                    <p className="text-[10px] text-[var(--text-muted)]">
-                      Presets are ready to use and fully customizable.
-                    </p>
-                  </div>
-                </div>
-                <StatusLinePresetPicker
-                  selected={selected}
-                  hasCustom={hasCustom}
-                  disabled={!canEdit}
-                  onSelect={choose}
-                />
-              </section>
-
-              {statuslineShowsEditor(selected) ? (
-                <CustomStatusLineEditor
-                  spec={customSpec}
-                  onChange={onCustomChange}
-                  disabled={!canCustomize}
-                />
-              ) : (
-                <section className="flex flex-col items-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-secondary)]/20 px-5 py-8 text-center">
-                  <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--accent-green)]/10 text-[var(--accent-green-text)]">
-                    {selected === "ai" ? (
-                      <Sparkles size={19} />
-                    ) : (
-                      <SlidersHorizontal size={19} />
-                    )}
-                  </span>
-                  <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
-                    {selected === "ai"
-                      ? "Your AI-edited line is active"
-                      : "Ready to make it yours?"}
+            <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/25 p-3.5">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="rounded-md bg-[var(--accent-blue)]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
+                  Start
+                </span>
+                <div>
+                  <h2 className="text-[12.5px] font-semibold text-[var(--text-primary)]">
+                    Choose a starting point
                   </h2>
-                  <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-[var(--text-muted)]">
-                    Choose Custom to arrange each item yourself, or start with
-                    Usage & cost and fine-tune it.
+                  <p className="text-[10.5px] text-[var(--text-muted)]">
+                    Switch anytime. Every layout stays customizable.
                   </p>
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => choose("custom")}
-                      disabled={!canEdit}
-                      className="h-8 rounded-lg bg-[var(--accent-green)] px-3 text-[11px] font-semibold text-green-950 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Build a custom line
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => choose("meters")}
-                      disabled={!canEdit}
-                      className="h-8 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Start with Usage & cost
-                    </button>
-                  </div>
-                </section>
-              )}
-            </div>
+                </div>
+              </div>
+              <StatusLinePresetPicker
+                selected={selected}
+                hasCustom={hasCustom}
+                disabled={!canEdit}
+                onSelect={choose}
+              />
+            </section>
 
-            <aside className="min-w-0 space-y-3">
+            <div className="min-w-0 space-y-3">
               {loadError && (
                 <div
                   role="alert"
@@ -534,6 +444,12 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
                 >
                   Couldn’t apply this change. Your previous status line is still
                   active.
+                  <details className="mt-1 select-text text-[10px] opacity-80">
+                    <summary className="w-fit cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-red)]">
+                      Show details
+                    </summary>
+                    <p className="mt-1 break-words">{applyError}</p>
+                  </details>
                 </div>
               )}
 
@@ -555,31 +471,52 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
                     </button>
                   </div>
                 )}
+            </div>
 
-              {selected === "ai" && aiExists && (
-                <div className="rounded-xl border border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-[var(--accent-blue)]/15 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[var(--accent-blue-text)]">
-                      AI edited
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--text-secondary)]">
-                      {aiDescription}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <AiRefineBar
-                selection={previewSelection}
-                initialDescription={aiDescription}
+            {statuslineShowsEditor(selected) ? (
+              <CustomStatusLineEditor
+                spec={customSpec}
+                onChange={onCustomChange}
                 disabled={!canCustomize}
-                onGenerated={() => {
-                  setSelected("ai");
-                  setApplyState("applied");
-                  void refresh(true);
-                }}
               />
-            </aside>
+            ) : (
+              <section className="flex flex-col items-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-secondary)]/20 px-5 py-7 text-center">
+                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--accent-green)]/10 text-[var(--accent-green-text)]">
+                  {selected === "ai" ? (
+                    <Sparkles size={19} />
+                  ) : (
+                    <SlidersHorizontal size={19} />
+                  )}
+                </span>
+                <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
+                  {selected === "ai"
+                    ? "Your AI-edited line is active"
+                    : "Ready to make it yours?"}
+                </h2>
+                <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-[var(--text-muted)]">
+                  Choose Custom to arrange each item yourself, or start with
+                  Clean and fine-tune it.
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => choose("custom")}
+                    disabled={!canEdit}
+                    className="h-8 rounded-lg bg-[var(--accent-green)] px-3 text-[11px] font-semibold text-green-950 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Build a custom line
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => choose("meters")}
+                    disabled={!canEdit}
+                    className="h-8 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Start with Clean
+                  </button>
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>
