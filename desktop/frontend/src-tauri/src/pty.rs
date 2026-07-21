@@ -293,7 +293,7 @@ fn start_internal(
         );
         let argv = config::ssh_command_argv(ssh, raw_cwd, &remote_env, &inner);
         crate::statusfwd::ensure_status_forward(app, ssh);
-        crate::hooks::install_remote_claude_hooks_once(ssh);
+        crate::hooks::install_remote_agent_hooks_once(ssh);
         builder = CommandBuilder::new(&argv[0]);
         for a in &argv[1..] {
             builder.arg(a);

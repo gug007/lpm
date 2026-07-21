@@ -270,7 +270,6 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
 /// ~/.claude/settings.json over ssh, so agents on the host report status. Reads
 /// via `cat` (skips a missing/unreadable file — never creates it), reuses the
 /// shared merge, and writes back only on change via a temp file + atomic rename.
-/// Codex remote hooks are out of scope (remote TOML editing).
 pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) {
     let read = crate::sshexec::remote_command(
         ssh,
@@ -287,12 +286,46 @@ pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) {
     let Some(merged) = merge_claude_hooks(&out.stdout) else {
         return;
     };
-    write_remote_claude_settings(ssh, &merged);
+    write_remote_file(ssh, "\"$HOME/.claude/settings.json\"", &merged);
 }
 
-fn write_remote_claude_settings(ssh: &crate::config::SshSettings, bytes: &[u8]) {
-    let script = "t=\"$HOME/.claude/.settings.json.lpmtmp\"; cat > \"$t\" && mv -f \"$t\" \"$HOME/.claude/settings.json\"";
-    let child = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[])
+/// Best-effort: install the Codex status hooks on the REMOTE host — enable the
+/// codex_hooks feature in ~/.codex/config.toml and merge the lpm entries into
+/// ~/.codex/hooks.json. Gated on the remote ~/.codex dir existing (never
+/// created), the same gate the local install applies; within it, config.toml
+/// and hooks.json are created when missing, also matching local.
+pub fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) {
+    let read = |script: &str| {
+        crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[])
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| o.stdout)
+    };
+    let Some(gate) = read("[ -d \"$HOME/.codex\" ] && echo yes || true") else {
+        return;
+    };
+    if String::from_utf8_lossy(&gate).trim() != "yes" {
+        return;
+    }
+    if let Some(config) = read("cat \"$HOME/.codex/config.toml\" 2>/dev/null || true") {
+        if let Some(new) = merge_codex_feature(&String::from_utf8_lossy(&config)) {
+            write_remote_file(ssh, "\"$HOME/.codex/config.toml\"", new.as_bytes());
+        }
+    }
+    if let Some(hooks) = read("cat \"$HOME/.codex/hooks.json\" 2>/dev/null || true") {
+        if let Some(new) = merge_codex_hooks(&hooks) {
+            write_remote_file(ssh, "\"$HOME/.codex/hooks.json\"", &new);
+        }
+    }
+}
+
+/// Overwrite a remote file atomically (temp + rename) with `bytes` piped over
+/// stdin. `path_expr` is a shell expression the remote login shell expands —
+/// callers pass it quoted, e.g. `"$HOME/.claude/settings.json"`.
+fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, bytes: &[u8]) {
+    let script = format!("t={path_expr}.lpmtmp; cat > \"$t\" && mv -f \"$t\" {path_expr}");
+    let child = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &script], &[])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -305,9 +338,9 @@ fn write_remote_claude_settings(ssh: &crate::config::SshSettings, bytes: &[u8]) 
     let _ = child.wait();
 }
 
-/// Install the remote Claude hooks once per host per app run (best-effort,
-/// off-thread). Called on remote terminal spawn.
-pub fn install_remote_claude_hooks_once(ssh: &crate::config::SshSettings) {
+/// Install the remote Claude + Codex hooks once per host per app run
+/// (best-effort, off-thread). Called on remote terminal spawn.
+pub fn install_remote_agent_hooks_once(ssh: &crate::config::SshSettings) {
     use std::collections::HashSet;
     use std::sync::{Mutex, OnceLock};
     static DONE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
@@ -321,7 +354,10 @@ pub fn install_remote_claude_hooks_once(ssh: &crate::config::SshSettings) {
         return;
     }
     let ssh = ssh.clone();
-    std::thread::spawn(move || install_remote_claude_hooks(&ssh));
+    std::thread::spawn(move || {
+        install_remote_claude_hooks(&ssh);
+        install_remote_codex_hooks(&ssh);
+    });
 }
 
 fn install_codex_hooks() {
@@ -329,14 +365,38 @@ fn install_codex_hooks() {
 }
 
 fn install_codex_hooks_at(codex_dir: &Path) {
-    let config_path = codex_dir.join("config.toml");
-    let hooks_path = codex_dir.join("hooks.json");
-
     if !codex_dir.exists() {
         return;
     }
-    enable_codex_hooks_feature(&config_path);
+    let config_path = codex_dir.join("config.toml");
+    let content = std::fs::read_to_string(&config_path).unwrap_or_default();
+    if let Some(new) = merge_codex_feature(&content) {
+        let _ = std::fs::write(&config_path, new);
+    }
+    let hooks_path = codex_dir.join("hooks.json");
+    let data = std::fs::read(&hooks_path).unwrap_or_default();
+    if let Some(out) = merge_codex_hooks(&data) {
+        let _ = std::fs::write(&hooks_path, out);
+    }
+}
 
+/// Pure: config.toml content with the codex_hooks feature enabled, or None when
+/// it already is. Shared by the local and remote installs.
+fn merge_codex_feature(content: &str) -> Option<String> {
+    if content.contains("codex_hooks") {
+        return None;
+    }
+    Some(if content.contains("[features]") {
+        content.replacen("[features]", "[features]\ncodex_hooks = true", 1)
+    } else {
+        format!("{content}\n[features]\ncodex_hooks = true\n")
+    })
+}
+
+/// Pure: merge the lpm Codex hooks into hooks.json `data` (missing/invalid →
+/// built fresh), returning Some(new bytes) when a write is needed and None when
+/// unchanged. Shared by the local and remote installs.
+fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
     // Per-pane key, same reason as the Claude hooks.
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
@@ -359,9 +419,7 @@ fn install_codex_hooks_at(codex_dir: &Path) {
         ("Stop", vec![codex_entry(&set_done)]),
     ];
 
-    let original = std::fs::read(&hooks_path)
-        .ok()
-        .and_then(|d| serde_json::from_slice::<Value>(&d).ok());
+    let original = serde_json::from_slice::<Value>(data).ok();
 
     let hooks_data = if let Some(mut existing) = original
         .clone()
@@ -383,24 +441,12 @@ fn install_codex_hooks_at(codex_dir: &Path) {
         json!({ "hooks": Value::Object(m) })
     };
 
-    if original.as_ref() != Some(&hooks_data) {
-        if let Ok(out) = serde_json::to_string_pretty(&hooks_data) {
-            let _ = std::fs::write(&hooks_path, out);
-        }
+    if original.as_ref() == Some(&hooks_data) {
+        return None;
     }
-}
-
-fn enable_codex_hooks_feature(config_path: &Path) {
-    let content = std::fs::read_to_string(config_path).unwrap_or_default();
-    if content.contains("codex_hooks") {
-        return;
-    }
-    let new_content = if content.contains("[features]") {
-        content.replacen("[features]", "[features]\ncodex_hooks = true", 1)
-    } else {
-        format!("{content}\n[features]\ncodex_hooks = true\n")
-    };
-    let _ = std::fs::write(config_path, new_content);
+    serde_json::to_string_pretty(&hooks_data)
+        .ok()
+        .map(String::into_bytes)
 }
 
 /// Backgrounded socket write; only runs when the socket exists. Ends with the

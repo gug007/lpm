@@ -100,12 +100,15 @@ fn socket_is_live(path: &str) -> bool {
     reply.trim_end() == "PONG"
 }
 
-/// Verbs a remote host is allowed to send on the restricted socket: status
-/// reporting only, never project control.
+/// Verbs a remote host is allowed to send on the restricted socket: status and
+/// session-id reporting only, never project control. set_resume is safe here
+/// because parse_resume_args rejects any session id that isn't a plain token —
+/// the id ends up inside a command typed into a terminal, so a hostile host
+/// must not be able to smuggle shell text through it.
 fn remote_allowed(command: &str) -> bool {
     matches!(
         command,
-        "ping" | "set_status" | "clear_status" | "list_status"
+        "ping" | "set_status" | "clear_status" | "list_status" | "set_resume"
     )
 }
 
@@ -432,11 +435,24 @@ fn parse_resume_args(args: &[String]) -> Result<ResumeArgs, String> {
     if positional.len() < 3 {
         return Err("usage: set_resume <project> <pane> <session-id>".into());
     }
+    // The session id is embedded in a resume command the app later types into a
+    // terminal, and set_resume is reachable from remote hosts on the restricted
+    // socket — only a plain token (Codex ids are UUIDs) may pass.
+    if !valid_session_id(&positional[2]) {
+        return Err("session id must be alphanumeric/-/_ (max 128 chars)".into());
+    }
     Ok(ResumeArgs {
         project: positional[0].clone(),
         pane_id: positional[1].clone(),
         session_id: positional[2].clone(),
     })
+}
+
+fn valid_session_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 128
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// `agent_limits <account> --payload-b64=<base64 statusline JSON>` — the Claude
@@ -798,7 +814,13 @@ mod tests {
 
     #[test]
     fn restricted_socket_allows_only_status_verbs() {
-        for ok in ["ping", "set_status", "clear_status", "list_status"] {
+        for ok in [
+            "ping",
+            "set_status",
+            "clear_status",
+            "list_status",
+            "set_resume",
+        ] {
             assert!(
                 remote_allowed(ok),
                 "{ok} should be allowed on the remote socket"
@@ -813,7 +835,6 @@ mod tests {
             "remove_project",
             "run_task",
             "duplicate_project",
-            "set_resume",
             "list_jobs",
             "list_all_jobs",
             "run_job",
@@ -840,6 +861,28 @@ mod tests {
         assert_eq!(ok.project, "proj");
         assert_eq!(ok.pane_id, "pane-1");
         assert_eq!(ok.session_id, "sess-abc");
+    }
+
+    #[test]
+    fn set_resume_rejects_non_token_session_ids() {
+        // The id lands inside a command later typed into a terminal, and remote
+        // hosts can send set_resume — shell text must never pass.
+        let mk = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        for bad in [
+            "a;rm -rf ~",
+            "$(whoami)",
+            "id`x`",
+            "a b",
+            "",
+            &"x".repeat(129),
+        ] {
+            assert!(
+                parse_resume_args(&mk(&["proj", "pane-1", bad])).is_err(),
+                "{bad:?} must be rejected"
+            );
+        }
+        assert!(valid_session_id("019820c4-2f9a-7a11-b4d2-0242ac120002"));
+        assert!(valid_session_id("sess_ABC-123"));
     }
 
     #[test]
