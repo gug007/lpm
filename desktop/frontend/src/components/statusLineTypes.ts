@@ -24,6 +24,7 @@ export interface Segment {
   id: SegmentId;
   color: SegColor;
   text: string;
+  label?: string;
   icon?: string;
 }
 

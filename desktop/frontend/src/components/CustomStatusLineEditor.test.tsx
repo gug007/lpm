@@ -89,7 +89,7 @@ describe("CustomStatusLineEditor", () => {
     expect(settingsDialog()?.textContent).toContain("Folder settings");
     expect(folderEdit.getAttribute("aria-expanded")).toBe("true");
     expect(document.activeElement?.getAttribute("aria-label")).toBe(
-      "Folder icon",
+      "Folder label",
     );
 
     await act(async () => modelEdit.click());
@@ -128,15 +128,70 @@ describe("CustomStatusLineEditor", () => {
     };
     await renderEditor(overridden, onChange);
     await act(async () => editButton("Folder").click());
-    const resetButton = [
-      ...settingsDialog()!.querySelectorAll<HTMLButtonElement>("button"),
-    ].find((button) => button.textContent?.trim() === "Reset");
+    const resetButton = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Reset Folder icon"]',
+    );
     await act(async () => resetButton?.click());
     expect(onChange).toHaveBeenLastCalledWith({
       ...overridden,
       segments: [
         { ...overridden.segments[0], icon: undefined },
         overridden.segments[1],
+      ],
+    });
+  });
+
+  it("updates and resets a built-in item label", async () => {
+    const spec: CustomSpec = {
+      ...baseSpec,
+      segments: [
+        ...baseSpec.segments,
+        { id: "ctx", color: "default", text: "" },
+      ],
+    };
+    const onChange = await renderEditor(spec);
+    await act(async () => editButton("Context left").click());
+    const labelInput = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Context left label"]',
+    );
+
+    expect(labelInput?.value).toBe("ctx");
+    await act(async () => {
+      if (!labelInput) return;
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setValue?.call(labelInput, "context");
+      labelInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...spec,
+      segments: [
+        ...baseSpec.segments,
+        { id: "ctx", color: "default", text: "", label: "context" },
+      ],
+    });
+
+    await act(async () => editButton("Context left").click());
+    const overridden: CustomSpec = {
+      ...spec,
+      segments: [
+        ...baseSpec.segments,
+        { id: "ctx", color: "default", text: "", label: "context" },
+      ],
+    };
+    await renderEditor(overridden, onChange);
+    await act(async () => editButton("Context left").click());
+    const resetButton = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Reset Context left label"]',
+    );
+    await act(async () => resetButton?.click());
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...spec,
+      segments: [
+        ...baseSpec.segments,
+        { id: "ctx", color: "default", text: "", label: undefined },
       ],
     });
   });

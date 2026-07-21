@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   customStatusLineError,
   statusLineIconError,
+  statusLineLabelError,
   statusLineSeparatorError,
   statusLineTextError,
 } from "./statusLineValidation";
@@ -19,8 +20,19 @@ const validSpec: CustomSpec = {
 describe("status line validation", () => {
   it("accepts safe text and Unicode separators", () => {
     expect(statusLineTextError("shipping mode")).toBeNull();
+    expect(statusLineLabelError("ctx")).toBeNull();
+    expect(statusLineLabelError("")).toBeNull();
     expect(statusLineSeparatorError("→")).toBeNull();
     expect(customStatusLineError(validSpec)).toBeNull();
+  });
+
+  it("rejects malformed value labels", () => {
+    expect(statusLineLabelError(" ctx")).toContain("spaces");
+    expect(statusLineLabelError("   ")).toContain("visible text");
+    expect(statusLineLabelError("x\ny")).toContain("Control characters");
+    expect(statusLineLabelError("123456789012345678901234567890123")).toContain(
+      "32 characters",
+    );
   });
 
   it("rejects shell-sensitive custom text", () => {
@@ -31,6 +43,14 @@ describe("status line validation", () => {
         segments: [{ id: "text", color: "default", text: "`deploy`" }],
       }),
     ).toContain("backticks");
+    expect(
+      customStatusLineError({
+        ...validSpec,
+        segments: [
+          { id: "ctx", color: "default", text: "", label: "cost $5" },
+        ],
+      }),
+    ).toContain("dollar signs");
   });
 
   it("accepts emoji icons and rejects unsafe or overlong overrides", () => {

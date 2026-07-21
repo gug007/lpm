@@ -8,6 +8,17 @@ export function statusLineTextError(value: string): string | null {
     : null;
 }
 
+export function statusLineLabelError(value: string): string | null {
+  const textError = statusLineTextError(value);
+  if (textError) return textError;
+  if (value !== "" && value.trim() === "")
+    return "Use visible text or clear the field.";
+  if (value !== value.trim()) return "Remove spaces around the label.";
+  if (/\p{Cc}/u.test(value)) return "Control characters aren’t supported.";
+  if ([...value].length > 32) return "Use 32 characters or fewer.";
+  return null;
+}
+
 export function statusLineSeparatorError(value: string): string | null {
   const trimmed = value.trim();
   if ([...trimmed].length < 1 || [...trimmed].length > 3)
@@ -37,6 +48,11 @@ export function customStatusLineError(spec: CustomSpec): string | null {
     (segment) => segment.id === "text" && statusLineTextError(segment.text),
   );
   if (invalidText) return statusLineTextError(invalidText.text);
+  const invalidLabel = spec.segments.find(
+    (segment) =>
+      segment.label !== undefined && statusLineLabelError(segment.label),
+  );
+  if (invalidLabel) return statusLineLabelError(invalidLabel.label ?? "");
   const invalidIcon = spec.segments.find(
     (segment) => segment.icon !== undefined && statusLineIconError(segment.icon),
   );

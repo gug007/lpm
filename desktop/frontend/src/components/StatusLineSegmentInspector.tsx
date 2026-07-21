@@ -10,6 +10,7 @@ import {
   statusLineIconError,
   statusLineTextError,
 } from "./statusLineValidation";
+import { StatusLineSegmentLabelField } from "./StatusLineSegmentLabelField";
 import type { Segment } from "./statusLineTypes";
 
 export function StatusLineSegmentInspector({
@@ -114,6 +115,14 @@ export function StatusLineSegmentInspector({
         </label>
       )}
 
+      {segment.id !== "text" && (
+        <StatusLineSegmentLabelField
+          segment={segment}
+          disabled={disabled}
+          onUpdate={onUpdate}
+        />
+      )}
+
       <label className="mt-4 block">
         <span className="mb-1.5 flex items-center justify-between gap-2 text-[11px] font-medium text-[var(--text-secondary)]">
           <span>Icon</span>
@@ -126,7 +135,6 @@ export function StatusLineSegmentInspector({
             value={effectiveIcon}
             onChange={(event) => onUpdate({ icon: event.target.value })}
             disabled={disabled}
-            autoFocus={segment.id !== "text"}
             aria-label={`${STATUS_LINE_SEGMENT_LABELS[segment.id]} icon`}
             aria-invalid={Boolean(iconError)}
             aria-describedby={iconError ? "status-line-icon-error" : undefined}
@@ -141,6 +149,7 @@ export function StatusLineSegmentInspector({
             type="button"
             onClick={() => onUpdate({ icon: undefined })}
             disabled={disabled || segment.icon === undefined}
+            aria-label={`Reset ${STATUS_LINE_SEGMENT_LABELS[segment.id]} icon`}
             className="h-9 rounded-lg border border-[var(--border)] px-2.5 text-[10.5px] font-medium text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-35"
           >
             Reset

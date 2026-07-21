@@ -48,6 +48,18 @@ export const STATUS_LINE_SEGMENT_ICONS: Record<SegmentId, string> = {
   text: "",
 };
 
+export const STATUS_LINE_SEGMENT_DEFAULT_LABELS: Record<SegmentId, string> = {
+  folder: "",
+  path: "",
+  model: "",
+  branch: "",
+  ctx: "ctx",
+  five: "5h",
+  seven: "7d",
+  cost: "",
+  text: "",
+};
+
 export const STATUS_LINE_SEPARATORS = ["·", "|", "›", "/", "—"];
 
 export const STATUS_LINE_COLORS: {

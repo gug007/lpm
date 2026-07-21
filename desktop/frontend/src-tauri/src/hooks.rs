@@ -623,7 +623,7 @@ fn statuslines_dir() -> PathBuf {
 }
 
 /// One segment of a status line: `id` picks the source, `color` optionally tints
-/// it, and `text` carries the literal string for the free-text ("text") segment.
+/// it, `label` overrides the value prefix, and `text` carries free text.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Segment {
@@ -632,6 +632,8 @@ pub struct Segment {
     pub color: String,
     #[serde(default)]
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
 }
@@ -660,6 +662,7 @@ where
                 id,
                 color: default_color(),
                 text: String::new(),
+                label: None,
                 icon: None,
             },
             In::Full(s) => s,
@@ -714,6 +717,19 @@ fn segment_icon(segment: &Segment) -> &str {
         .unwrap_or_else(|| default_segment_icon(&segment.id))
 }
 
+fn segment_label<'a>(segment: &'a Segment, default: &'a str) -> &'a str {
+    segment.label.as_deref().unwrap_or(default)
+}
+
+fn segment_label_prefix(segment: &Segment, default: &str) -> String {
+    let label = segment_label(segment, default);
+    if label.is_empty() {
+        String::new()
+    } else {
+        format!("{label} ")
+    }
+}
+
 const SEGMENT_IDS: [&str; 9] = [
     "folder", "path", "model", "branch", "ctx", "five", "seven", "cost", "text",
 ];
@@ -730,6 +746,7 @@ fn seg(id: &str) -> Segment {
         id: id.into(),
         color: default_color(),
         text: String::new(),
+        label: None,
         icon: None,
     }
 }
@@ -739,6 +756,7 @@ fn colseg(id: &str, color: &str) -> Segment {
         id: id.into(),
         color: color.into(),
         text: String::new(),
+        label: None,
         icon: None,
     }
 }
@@ -856,11 +874,13 @@ fn close_seq(open: &str) -> &'static str {
 fn meter_append(var: &str, label: &str, jq: &str, style: &str, color: &str, icon: &str) -> String {
     // The icon and label take the segment color (or dim); the bar/number keep their tint.
     let lopen = open_seq(color, true);
+    let label = if label.is_empty() { String::new() } else { format!("{label} ") };
+    let prefix = format!("{icon}{label}");
     let compute = format!("{var}=$(jqr '{jq} // empty | round')\n");
     let body = if style == "percent" {
-        format!("[ -n \"${var}\" ] && append \"${{RESET}}{lopen}{icon}{label}${{RESET}} $(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
+        format!("[ -n \"${var}\" ] && append \"${{RESET}}{lopen}{prefix}${{RESET}}$(tint \"${var}\")${{{var}}}%${{RESET}}\"\n")
     } else {
-        format!("[ -n \"${var}\" ] && append \"${{RESET}}{lopen}{icon}{label}${{RESET}} $(meter \"${var}\")\"\n")
+        format!("[ -n \"${var}\" ] && append \"${{RESET}}{lopen}{prefix}${{RESET}}$(meter \"${var}\")\"\n")
     };
     format!("{compute}{body}")
 }
@@ -879,7 +899,7 @@ if [ -n "$branch" ]; then
   case "$behind" in ''|*[!0-9]*) behind=0;; esac
   [ "$ahead" -gt 0 ] && gs="${gs}↑${ahead}"
   [ "$behind" -gt 0 ] && gs="${gs}↓${behind}"
-  append "__OPEN____IC__${branch}${gs}__CLOSE__"
+  append "__OPEN____IC____LABEL__${branch}${gs}__CLOSE__"
 fi
 "##;
 
@@ -895,51 +915,60 @@ fn segment_snippet(segment: &Segment, style: &str, icons: bool, git_status: bool
     match id {
         "folder" => {
             let o = open_seq(color, false);
+            let label = segment_label_prefix(segment, "");
             format!(
-                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{o}{ic}$cwd{c}\"\n",
+                "cwd=$(basename \"$(jqr '.cwd // \".\"')\")\n[ -n \"$cwd\" ] && append \"{o}{ic}{label}$cwd{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "path" => {
             let o = open_seq(color, false);
+            let label = segment_label_prefix(segment, "");
             format!(
-                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{o}{ic}$path{c}\"\n",
+                "cwd_full=$(jqr '.cwd // empty')\ncase \"$cwd_full\" in \"$HOME\"*) path=\"~${{cwd_full#$HOME}}\";; *) path=\"$cwd_full\";; esac\n[ -n \"$path\" ] && append \"{o}{ic}{label}$path{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "model" => {
             let o = open_seq(color, true);
+            let label = segment_label_prefix(segment, "");
             format!(
-                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{o}{ic}$model{c}\"\n",
+                "model=$(jqr '.model.display_name // empty')\n[ -n \"$model\" ] && append \"{o}{ic}{label}$model{c}\"\n",
                 c = close_seq(&o)
             )
         }
         "branch" => {
             let o = open_seq(color, true);
             let c = close_seq(&o);
+            let label = segment_label_prefix(segment, "");
             if git_status {
                 BRANCH_GIT_STATUS
                     .replace("__IC__", &ic)
+                    .replace("__LABEL__", &label)
                     .replace("__OPEN__", &o)
                     .replace("__CLOSE__", c)
             } else {
                 format!(
-                    "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{o}{ic}$branch{c}\"\n"
+                    "branch=$(git -C \"$(jqr '.cwd // \".\"')\" branch --show-current 2>/dev/null)\n[ -n \"$branch\" ] && append \"{o}{ic}{label}$branch{c}\"\n"
                 )
             }
         }
-        "ctx" => match color_open(color) {
-            Some(cc) => format!(
-                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{cc}{ic}ctx ${{ctx}}%${{RESET}}\"\n"
-            ),
-            None => format!(
-                "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"${{DIM}}{ic}ctx${{RESET}} ${{ctx}}%\"\n"
-            ),
-        },
+        "ctx" => {
+            let label = segment_label_prefix(segment, "ctx");
+            match color_open(color) {
+                Some(cc) => format!(
+                    "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"{cc}{ic}{label}${{ctx}}%${{RESET}}\"\n"
+                ),
+                None => format!(
+                    "ctx=$(jqr '.context_window.remaining_percentage // empty | round')\n[ -n \"$ctx\" ] && append \"${{DIM}}{ic}{label}${{RESET}}${{ctx}}%\"\n"
+                ),
+            }
+        }
         "cost" => {
             let o = open_seq(color, false);
+            let label = segment_label_prefix(segment, "");
             format!(
-                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{o}{ic}\\$${{cost}}{c}\"\n",
+                "cost_raw=$(jqr '.cost.total_cost_usd // empty')\n[ -n \"$cost_raw\" ] && cost=$(printf '%.2f' \"$cost_raw\" 2>/dev/null) || cost=\"\"\n[ -n \"$cost\" ] && append \"{o}{ic}{label}\\$${{cost}}{c}\"\n",
                 c = close_seq(&o)
             )
         }
@@ -947,8 +976,8 @@ fn segment_snippet(segment: &Segment, style: &str, icons: bool, git_status: bool
             let o = open_seq(color, false);
             format!("append \"{o}{ic}{t}{c}\"\n", t = segment.text, c = close_seq(&o))
         }
-        "five" => meter_append("five", "5h", ".rate_limits.five_hour.used_percentage", style, color, &ic),
-        "seven" => meter_append("seven", "7d", ".rate_limits.seven_day.used_percentage", style, color, &ic),
+        "five" => meter_append("five", segment_label(segment, "5h"), ".rate_limits.five_hour.used_percentage", style, color, &ic),
+        "seven" => meter_append("seven", segment_label(segment, "7d"), ".rate_limits.seven_day.used_percentage", style, color, &ic),
         _ => String::new(),
     }
 }
@@ -977,6 +1006,20 @@ fn build_custom_statusline(spec: &CustomSpec) -> Result<String, String> {
             }
             if s.text.contains(['"', '$', '`', '\\']) {
                 return Err("Text uses an unsupported character.".into());
+            }
+        }
+        if let Some(label) = &s.label {
+            if label.chars().count() > 32 {
+                return Err("Labels must be 32 characters or fewer.".into());
+            }
+            if !label.is_empty() && label.trim().is_empty() {
+                return Err("Labels must contain visible text or be empty.".into());
+            }
+            if label.trim() != label {
+                return Err("Labels cannot start or end with spaces.".into());
+            }
+            if label.contains(['"', '$', '`', '\\']) || label.chars().any(char::is_control) {
+                return Err("Label uses an unsupported character.".into());
             }
         }
         if let Some(icon) = &s.icon {
@@ -2123,10 +2166,33 @@ mod tests {
     }
 
     #[test]
+    fn custom_value_labels_override_and_hide_defaults() {
+        let mut spec = cspec(&["folder", "model", "ctx", "five", "seven", "cost"], "·", "percent");
+        for (segment, label) in spec.segments.iter_mut().zip(["repo", "model", "context", "limit", "week", "spent"]) {
+            segment.label = Some(label.into());
+        }
+        let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
+        assert!(text.contains("repo proj"), "folder label prefixes its value: {text:?}");
+        assert!(text.contains("model Opus 4.8"), "model label prefixes its value: {text:?}");
+        assert!(text.contains("context ") && text.contains("72%"), "context label is replaced: {text:?}");
+        assert!(text.contains("limit ") && text.contains("34%"), "5-hour label is replaced: {text:?}");
+        assert!(text.contains("week ") && text.contains("62%"), "weekly label is replaced: {text:?}");
+        assert!(text.contains("spent $4.20"), "cost label prefixes its value: {text:?}");
+
+        let mut hidden = cspec(&["ctx", "five", "seven"], "·", "percent");
+        for segment in &mut hidden.segments {
+            segment.label = Some(String::new());
+        }
+        let text = run_script(&build_custom_statusline(&hidden).unwrap(), SAMPLE_PAYLOAD);
+        assert!(!text.contains("ctx") && !text.contains("5h") && !text.contains("7d"), "empty overrides hide labels: {text:?}");
+        assert!(text.contains("72%") && text.contains("34%") && text.contains("62%"), "values remain visible: {text:?}");
+    }
+
+    #[test]
     fn custom_text_segment_renders_verbatim_including_emoji() {
         let mut spec = cspec(&["folder"], "·", "bar");
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "🚀 dev".into(), icon: None });
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "★".into(), icon: None });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "🚀 dev".into(), label: None, icon: None });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "★".into(), label: None, icon: None });
         let text = run_script(&build_custom_statusline(&spec).unwrap(), SAMPLE_PAYLOAD);
         assert!(text.contains("🚀 dev"), "emoji text verbatim: {text:?}");
         assert!(text.contains('★'), "second text segment present: {text:?}");
@@ -2390,6 +2456,7 @@ mod tests {
         assert_eq!(spec.segments.len(), 2);
         assert_eq!(spec.segments[0].id, "folder");
         assert_eq!(spec.segments[0].color, "default");
+        assert_eq!(spec.segments[0].label, None);
         assert_eq!(spec.segments[0].icon, None);
         assert_eq!(spec.meter_width, 7, "missing width defaults to 7");
         // And it builds a runnable script.
@@ -2406,20 +2473,25 @@ mod tests {
         let dup = CustomSpec { segments: vec![seg("folder"), seg("folder")], ..base.clone() };
         assert!(build_custom_statusline(&dup).is_err(), "duplicate rejected");
         let badcolor = CustomSpec {
-            segments: vec![Segment { id: "folder".into(), color: "chartreuse".into(), text: String::new(), icon: None }],
+            segments: vec![Segment { id: "folder".into(), color: "chartreuse".into(), text: String::new(), label: None, icon: None }],
             ..base.clone()
         };
         assert!(build_custom_statusline(&badcolor).is_err(), "unknown color rejected");
         let emptytext = CustomSpec {
-            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "  ".into(), icon: None }],
+            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "  ".into(), label: None, icon: None }],
             ..base.clone()
         };
         assert!(build_custom_statusline(&emptytext).is_err(), "empty text rejected");
         let unsafetext = CustomSpec {
-            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "a$b".into(), icon: None }],
+            segments: vec![Segment { id: "text".into(), color: "default".into(), text: "a$b".into(), label: None, icon: None }],
             ..base.clone()
         };
         assert!(build_custom_statusline(&unsafetext).is_err(), "unsafe text char rejected");
+        let unsafelabel = CustomSpec {
+            segments: vec![Segment { label: Some("cost $".into()), ..seg("ctx") }],
+            ..base.clone()
+        };
+        assert!(build_custom_statusline(&unsafelabel).is_err(), "unsafe label rejected");
         let unsafeicon = CustomSpec {
             segments: vec![Segment { icon: Some("$HOME".into()), ..seg("folder") }],
             ..base.clone()
@@ -2441,8 +2513,8 @@ mod tests {
     #[test]
     fn custom_allows_multiple_text_segments() {
         let mut spec = cspec(&["folder"], "·", "bar");
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "a".into(), icon: None });
-        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "b".into(), icon: None });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "a".into(), label: None, icon: None });
+        spec.segments.push(Segment { id: "text".into(), color: "default".into(), text: "b".into(), label: None, icon: None });
         assert!(build_custom_statusline(&spec).is_ok(), "duplicate text ids are allowed");
     }
 
@@ -2454,6 +2526,7 @@ mod tests {
         spec.segments[0].color = "blue".into();
         spec.segments[1].color = "cyan".into();
         spec.segments[1].icon = Some("🤖".into());
+        spec.segments[2].label = Some("week".into());
         spec.meter_width = 10;
         apply_custom_at(&settings, &sldir, &spec).unwrap();
 
