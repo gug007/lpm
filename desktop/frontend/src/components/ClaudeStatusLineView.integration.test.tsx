@@ -266,6 +266,92 @@ describe("ClaudeStatusLineView state safety", () => {
     expect(separatorInput().value).toBe("~");
   });
 
+  it("does not refresh stale state between a preset change and a custom edit", async () => {
+    vi.useFakeTimers();
+    let resolvePresetApply!: () => void;
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+    commands.ApplyClaudeStatusline.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolvePresetApply = resolve;
+      }),
+    );
+
+    await renderView();
+    await act(async () => {
+      presetButton("Clean").click();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      const input = separatorInput();
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setValue?.call(input, "|");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    await act(async () => {
+      resolvePresetApply();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commands.GetClaudeStatuslineState).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(260);
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatuslineCustom).toHaveBeenCalledWith({
+      ...savedSpec,
+      separator: "|",
+    });
+    expect(commands.GetClaudeStatuslineState).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops queued changes after leaving the status-line screen", async () => {
+    let resolvePresetApply!: () => void;
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+    commands.ApplyClaudeStatusline.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolvePresetApply = resolve;
+      }),
+    );
+
+    await renderView();
+    await act(async () => {
+      presetButton("Clean").click();
+      presetButton("Modern").click();
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledTimes(1);
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledWith("meters");
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => {
+      resolvePresetApply();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledTimes(1);
+  });
+
   it("restores the saved custom design when applying a preset fails", async () => {
     let rejectApply!: (reason: Error) => void;
     commands.GetClaudeStatuslineState.mockResolvedValue({

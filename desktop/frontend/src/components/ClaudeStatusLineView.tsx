@@ -84,9 +84,16 @@ export function statuslineCustomBaseSpec(
   return selected === "custom" ? editorSpec : savedSpec;
 }
 
-type ApplyJob =
+type ApplyRequest =
   | { kind: "template"; id: Exclude<StatusLineTemplateId, "custom" | "ai"> }
   | { kind: "custom"; spec: CustomSpec };
+type ApplyJob = ApplyRequest & { revision: number };
+
+function applyJob(request: ApplyRequest, revision: number): ApplyJob {
+  return request.kind === "custom"
+    ? { kind: "custom", spec: request.spec, revision }
+    : { kind: "template", id: request.id, revision };
+}
 
 type ApplyState = "applied" | "applying" | "error";
 type PresetSpecState = "idle" | "loading" | "error";
@@ -111,6 +118,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const runningRef = useRef(false);
   const queueRef = useRef<ApplyJob | null>(null);
   const mountedRef = useRef(true);
+  const interactionRevisionRef = useRef(0);
   const stateTokenRef = useRef(0);
   const seedTokenRef = useRef(0);
   const previewTokenRef = useRef(0);
@@ -185,6 +193,8 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     return () => {
       mountedRef.current = false;
       clearPendingCustomApply();
+      queueRef.current = null;
+      interactionRevisionRef.current++;
       stateTokenRef.current++;
       seedTokenRef.current++;
       previewTokenRef.current++;
@@ -194,17 +204,33 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const drain = async () => {
     runningRef.current = true;
     let lastResult: ApplyState = "applied";
+    let lastSettledRevision: number | null = null;
     let shouldSyncSpec = false;
     while (queueRef.current) {
       const job = queueRef.current;
       queueRef.current = null;
+      if (job.revision !== interactionRevisionRef.current) continue;
       try {
         if (job.kind === "custom") await ApplyClaudeStatuslineCustom(job.spec);
         else await ApplyClaudeStatusline(job.id);
+        if (
+          !mountedRef.current ||
+          job.revision !== interactionRevisionRef.current
+        ) {
+          continue;
+        }
+        lastSettledRevision = job.revision;
         lastResult = "applied";
         setApplyError(null);
       } catch (error) {
+        if (
+          !mountedRef.current ||
+          job.revision !== interactionRevisionRef.current
+        ) {
+          continue;
+        }
         const message = String(error);
+        lastSettledRevision = job.revision;
         lastResult = "error";
         if (job.kind === "template" && isSeedablePreset(job.id)) {
           seedTokenRef.current++;
@@ -217,19 +243,21 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     }
     runningRef.current = false;
     if (!mountedRef.current) return;
+    if (lastSettledRevision !== interactionRevisionRef.current) return;
     setApplyState(lastResult);
     void refresh(shouldSyncSpec);
   };
 
-  const enqueue = (job: ApplyJob) => {
+  const enqueue = (request: ApplyRequest) => {
     setApplyState("applying");
     setApplyError(null);
-    queueRef.current = job;
+    queueRef.current = applyJob(request, interactionRevisionRef.current);
     if (!runningRef.current) void drain();
   };
 
   const choose = (id: StatusLineTemplateId) => {
     if (!canEdit) return;
+    interactionRevisionRef.current++;
     stateTokenRef.current++;
     clearPendingCustomApply();
     setSelected(id);
@@ -252,6 +280,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
 
   const onCustomChange = (spec: CustomSpec) => {
     if (!canCustomize) return;
+    interactionRevisionRef.current++;
     stateTokenRef.current++;
     clearPendingCustomApply();
     cancelPresetSeed();
