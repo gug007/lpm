@@ -480,8 +480,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "+", meta: true },
       { key: "-", meta: true },
       { key: "w", meta: true },
-      { key: "d", meta: true },
-      { key: "f", meta: true },
+      { key: "d", meta: true, whileTyping: false },
+      { key: "f", meta: true, whileTyping: false },
       { key: "i", meta: true },
       { key: "r", meta: true, shift: true },
       { key: "Escape", preventDefault: false },
@@ -541,8 +541,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // Cycles the focused pane's header entries — configurable in Settings ▸
   // Keyboard Shortcuts. The combo must carry ⌘ to escape the interactive
   // terminal's key handler (it only forwards non-meta keys to the agent);
-  // capture phase beats the composer's keydown stopPropagation so it works
-  // while typing too.
+  // capture phase is needed because the combo is user-configurable and may
+  // carry Ctrl, which the composer stops.
   const hotkeys = useSettingsStore((s) => s.hotkeys);
   const { paneNavShortcuts, dirByCanonical } = useMemo(() => {
     const paneNavShortcuts: KeyboardShortcut[] = [];

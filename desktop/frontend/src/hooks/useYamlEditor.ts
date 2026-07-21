@@ -31,7 +31,7 @@ export function useYamlEditor(
     }
   }, [content, save]);
 
-  useKeyboardShortcut({ key: "s", meta: true }, () => {
+  useKeyboardShortcut({ key: "s", meta: true, whileTyping: false }, () => {
     if (dirty) handleSave();
   });
 

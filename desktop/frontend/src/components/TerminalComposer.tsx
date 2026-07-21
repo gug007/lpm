@@ -1637,18 +1637,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
-    // Keep app-chrome shortcuts (⌘D split, ⌘F find, ⌘1-9 switch project) from
-    // firing while typing here. ⌘I still bubbles so it can toggle the composer
-    // closed, ⌘⇧R bubbles so it opens the diff review tab, and plain ⌘T / ⌘W bubble
-    // so they open / close the terminal even with the input focused (⌘⇧W above
-    // already handled the composer's own tabs); native edit shortcuts
-    // (copy/paste/select-all) keep working since we never preventDefault them.
-    const guardKey = e.key.toLowerCase();
-    const passesThrough =
-      guardKey === "i" ||
-      (e.metaKey && e.shiftKey && guardKey === "r") ||
-      (e.metaKey && !e.shiftKey && (guardKey === "t" || guardKey === "w"));
-    if ((e.metaKey || e.ctrlKey) && !passesThrough) {
+    // Ctrl chords are this field's own macOS text bindings (⌃A start of line,
+    // ⌃E end, ⌃B back a char, ⌃K kill) — they must not reach the global
+    // shortcuts, which treat Ctrl as Cmd and would preventDefault them. ⌘ chords
+    // belong to the app: one that must not fire mid-prompt declares
+    // `whileTyping: false` at its own registration instead of being listed here.
+    if (e.ctrlKey && !e.metaKey) {
       e.stopPropagation();
     }
     // Any caret move can make WebKit inject stray chars around a chip — the
@@ -1837,6 +1831,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           contentEditable={!busy}
           suppressContentEditableWarning
           data-terminal-composer
+          data-text-scope=""
           role="textbox"
           aria-multiline="true"
           aria-label={`Send to ${targetLabel}`}

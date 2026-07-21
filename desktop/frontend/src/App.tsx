@@ -154,7 +154,7 @@ export default function App() {
   });
 
   useKeyboardShortcut(
-    Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1), meta: true })),
+    Array.from({ length: 9 }, (_, i) => ({ key: String(i + 1), meta: true, whileTyping: false })),
     (_e, matched) => {
       const project = projects[Number(matched.key) - 1];
       if (project) selectProject(project.name);

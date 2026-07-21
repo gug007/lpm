@@ -51,9 +51,14 @@ fn remote_socket_abs(home: &str) -> String {
     )
 }
 
-/// `ssh -N -R <remote.sock>:<local.sock>` over the shared mux (ssh_args minus
-/// -t, meaningless with -N). ExitOnForwardFailure so a stale remote socket fails
-/// fast rather than silently not forwarding.
+/// `ssh -N -R <remote.sock>:<local.sock>` on a DEDICATED connection (ssh_args
+/// minus -t, meaningless with -N). Never the shared mux: a mux client only
+/// registers the forward in the master and exits 0 immediately, so the child
+/// pid stops meaning "forward alive", ExitOnForwardFailure is not honored, and
+/// the forward dies with the master. ControlMaster=no + ControlPath=none are
+/// prepended so they win over ssh_args' mux options (first -o per keyword
+/// wins). ExitOnForwardFailure so a stale remote socket fails fast rather than
+/// silently not forwarding.
 fn forward_argv(ssh: &SshSettings, remote_sock: &str, local_sock: &str) -> Vec<String> {
     let mut argv = vec![
         "-N".into(),
@@ -61,6 +66,10 @@ fn forward_argv(ssh: &SshSettings, remote_sock: &str, local_sock: &str) -> Vec<S
         "ExitOnForwardFailure=yes".into(),
         "-o".into(),
         "ServerAliveInterval=30".into(),
+        "-o".into(),
+        "ControlMaster=no".into(),
+        "-o".into(),
+        "ControlPath=none".into(),
         "-R".into(),
         format!("{remote_sock}:{local_sock}"),
     ];
@@ -237,6 +246,19 @@ mod tests {
             .any(|w| w[0] == "-R" && w[1] == "/r/s.sock:/l/s.sock"));
         assert!(!argv.iter().any(|a| a == "-t"), "no pty with -N: {argv:?}");
         assert_eq!(argv.last().unwrap(), "dev@host");
+    }
+
+    #[test]
+    fn forward_argv_overrides_mux_before_ssh_args() {
+        // A mux client only registers the forward in the master and exits, so
+        // the dedicated-connection overrides must come BEFORE ssh_args' mux
+        // options (ssh honors the first -o per keyword).
+        let argv = forward_argv(&ssh(), "/r/s.sock", "/l/s.sock");
+        let pos = |v: &str| argv.iter().position(|a| a == v);
+        let no_mux = pos("ControlMaster=no").expect("ControlMaster=no missing");
+        let no_path = pos("ControlPath=none").expect("ControlPath=none missing");
+        let auto_mux = pos("ControlMaster=auto").expect("ssh_args mux option missing");
+        assert!(no_mux < auto_mux && no_path < auto_mux);
     }
 
     #[test]
