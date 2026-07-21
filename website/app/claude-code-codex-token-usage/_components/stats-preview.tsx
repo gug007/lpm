@@ -1,5 +1,5 @@
 import Image from "next/image";
-import statsDashboard from "../_assets/stats-dashboard.png";
+import statsDashboard from "../_assets/stats-dashboard.webp";
 
 export default function StatsPreview() {
   return (
