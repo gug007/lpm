@@ -1,6 +1,8 @@
 import {
+  Brain,
   Check,
   Gauge,
+  Minimize2,
   SlidersHorizontal,
   Terminal,
 } from "lucide-react";
@@ -39,6 +41,16 @@ const PRESETS = [
     icon: Terminal,
   },
   {
+    id: "minimal",
+    hint: "Just folder and model",
+    icon: Minimize2,
+  },
+  {
+    id: "context",
+    hint: "Folder, model & context left",
+    icon: Brain,
+  },
+  {
     id: "meters",
     hint: "5-hour, weekly usage & cost",
     icon: Gauge,
@@ -68,6 +80,28 @@ function presetSample(
         <span className="text-[var(--text-secondary)]">~/project</span>
         <span className="text-[var(--text-muted)]">·</span>
         <span className="text-[var(--text-secondary)]">Opus 4.8</span>
+      </div>
+    );
+  }
+
+  if (id === "minimal") {
+    return (
+      <div className="flex items-center gap-1.5 font-mono text-[10px]">
+        <span className="text-[var(--text-secondary)]">~/project</span>
+        <span className="text-[var(--text-muted)]">·</span>
+        <span className="text-[var(--text-secondary)]">Opus 4.8</span>
+      </div>
+    );
+  }
+
+  if (id === "context") {
+    return (
+      <div className="flex items-center gap-1.5 font-mono text-[10px]">
+        <span className="text-[var(--text-secondary)]">~/project</span>
+        <span className="text-[var(--text-muted)]">·</span>
+        <span className="text-[var(--text-secondary)]">Opus 4.8</span>
+        <span className="text-[var(--text-muted)]">·</span>
+        <span className="text-[var(--accent-green-text)]">⌁ 62%</span>
       </div>
     );
   }
@@ -113,7 +147,7 @@ export function StatusLinePresetPicker({
   return (
     <div
       role="radiogroup"
-      className="grid grid-cols-2 gap-1.5 min-[700px]:grid-cols-3"
+      className="grid grid-cols-2 gap-1.5 min-[700px]:grid-cols-3 min-[1000px]:grid-cols-5"
       aria-label="Status line templates"
     >
       {PRESETS.map((preset) => {

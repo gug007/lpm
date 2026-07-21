@@ -42,6 +42,8 @@ export function statuslineSelectionLabel(
 
 const SPEC_BACKED: readonly StatusLineTemplateId[] = [
   "vibrant",
+  "minimal",
+  "context",
   "meters",
   "custom",
 ];
@@ -51,7 +53,9 @@ export function statuslineShowsEditor(selected: string): boolean {
 }
 
 function isSeedablePreset(id: string): boolean {
-  return id === "vibrant" || id === "meters";
+  return (
+    id === "vibrant" || id === "meters" || id === "minimal" || id === "context"
+  );
 }
 
 const DEFAULT_SPEC: CustomSpec = {
@@ -419,15 +423,17 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
           style={{ opacity: loaded ? 1 : 0.55 }}
           aria-busy={!loaded}
         >
-          <StatusLinePreview
-            text={preview}
-            emptyHint={emptyHint}
-            themeStyle={themeStyle}
-            fontSize={fontSize}
-            status={previewStatus}
-          />
+          <div className="sticky top-0 z-10 bg-[var(--bg-primary)] pb-3">
+            <StatusLinePreview
+              text={preview}
+              emptyHint={emptyHint}
+              themeStyle={themeStyle}
+              fontSize={fontSize}
+              status={previewStatus}
+            />
+          </div>
 
-          <div className="mt-4 space-y-4">
+          <div className="space-y-4">
             <div className="min-w-0 space-y-4">
               <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)]/25 p-3">
                 <div className="mb-2.5 flex items-center gap-2.5">

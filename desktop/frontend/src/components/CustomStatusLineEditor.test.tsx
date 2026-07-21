@@ -133,6 +133,25 @@ describe("CustomStatusLineEditor", () => {
     expect(removeButtons.every((button) => button.disabled)).toBe(true);
   });
 
+  it("offers a one-step undo after removing an item", async () => {
+    const onChange = await renderEditor(baseSpec);
+    const removeButton = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove Folder"]',
+    );
+    expect(removeButton).not.toBeNull();
+    await act(async () => removeButton?.click());
+    expect(onChange).toHaveBeenLastCalledWith({
+      ...baseSpec,
+      segments: [baseSpec.segments[1]],
+    });
+    const undoButton = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.trim() === "Undo");
+    expect(undoButton).toBeDefined();
+    await act(async () => undoButton?.click());
+    expect(onChange).toHaveBeenLastCalledWith(baseSpec);
+  });
+
   it("offers a one-step undo after randomizing", async () => {
     const onChange = await renderEditor(baseSpec);
     const matchingRandomizeButton = [

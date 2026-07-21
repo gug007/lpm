@@ -22,6 +22,8 @@ import type { CustomSpec } from "./statusLineTypes";
 describe("statuslineShowsEditor", () => {
   it("shows the editor for every spec-backed selection", () => {
     expect(statuslineShowsEditor("vibrant")).toBe(true);
+    expect(statuslineShowsEditor("minimal")).toBe(true);
+    expect(statuslineShowsEditor("context")).toBe(true);
     expect(statuslineShowsEditor("meters")).toBe(true);
     expect(statuslineShowsEditor("custom")).toBe(true);
   });
@@ -41,6 +43,8 @@ describe("statuslineSelectionLabel", () => {
 
   it("labels known selections and falls back to the current label", () => {
     expect(statuslineSelectionLabel("vibrant", false)).toBe("Custom");
+    expect(statuslineSelectionLabel("minimal", false)).toBe("Minimal");
+    expect(statuslineSelectionLabel("context", false)).toBe("Context");
     expect(statuslineSelectionLabel("meters", false)).toBe("Usage & cost");
     expect(statuslineSelectionLabel("nope", false)).toBe("My status line");
   });

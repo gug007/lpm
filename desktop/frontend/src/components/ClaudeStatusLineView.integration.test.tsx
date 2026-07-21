@@ -97,7 +97,7 @@ describe("ClaudeStatusLineView state safety", () => {
     const presets = [
       ...container.querySelectorAll<HTMLButtonElement>('button[role="radio"]'),
     ];
-    expect(presets).toHaveLength(3);
+    expect(presets).toHaveLength(5);
     expect(container.textContent).not.toContain("Vibrant");
     expect(presets.every((button) => button.disabled)).toBe(true);
     customPresetButton().click();
@@ -166,6 +166,66 @@ describe("ClaudeStatusLineView state safety", () => {
     expect(commands.ApplyClaudeStatuslineCustom).not.toHaveBeenCalledWith(
       presetSpec,
     );
+  });
+
+  it("seeds the editor from the backend spec when picking Minimal", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValueOnce({
+      selected: "current",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    }).mockResolvedValue({
+      selected: "minimal",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+    commands.ClaudeStatuslinePresetSpec.mockResolvedValue({
+      ...savedSpec,
+      separator: "~",
+    });
+
+    await renderView();
+    await act(async () => {
+      presetButton("Minimal").click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledWith("minimal");
+    expect(commands.ClaudeStatuslinePresetSpec).toHaveBeenCalledWith("minimal");
+    expect(separatorInput().value).toBe("~");
+  });
+
+  it("seeds the editor from the backend spec when picking Context", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValueOnce({
+      selected: "current",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    }).mockResolvedValue({
+      selected: "context",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+    commands.ClaudeStatuslinePresetSpec.mockResolvedValue({
+      ...savedSpec,
+      separator: "»",
+    });
+
+    await renderView();
+    await act(async () => {
+      presetButton("Context").click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledWith("context");
+    expect(commands.ClaudeStatuslinePresetSpec).toHaveBeenCalledWith("context");
+    expect(separatorInput().value).toBe("»");
   });
 
   it("keeps preset customization disabled until its editor spec loads", async () => {

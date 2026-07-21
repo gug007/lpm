@@ -41,6 +41,9 @@ export function StatusLineSegmentInspector({
     );
   }
 
+  const activeColor = STATUS_LINE_COLORS.find(
+    (color) => color.id === segment.color,
+  );
   const textError =
     segment.id === "text" ? statusLineTextError(segment.text) : null;
   const defaultIcon = STATUS_LINE_SEGMENT_ICONS[segment.id];
@@ -160,9 +163,10 @@ export function StatusLineSegmentInspector({
         <legend className="mb-2 text-[11px] font-medium text-[var(--text-secondary)]">
           Color
         </legend>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {STATUS_LINE_COLORS.map((color) => {
             const active = segment.color === color.id;
+            const isDefault = color.id === "default";
             return (
               <button
                 key={color.id}
@@ -170,34 +174,34 @@ export function StatusLineSegmentInspector({
                 disabled={disabled}
                 onClick={() => onUpdate({ color: color.id })}
                 aria-pressed={active}
-                className={`flex min-h-8 items-center gap-1.5 rounded-lg border px-2 text-left text-[10.5px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+                aria-label={color.label}
+                title={color.label}
+                className={`flex h-7 w-7 items-center justify-center rounded-full outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40 ${
                   active
-                    ? "border-[var(--accent-green)] bg-[var(--accent-green)]/10 text-[var(--text-primary)]"
-                    : "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]"
+                    ? "ring-2 ring-[var(--accent-green)] ring-offset-2 ring-offset-[var(--bg-primary)]"
+                    : ""
                 }`}
+                style={{
+                  background: isDefault ? "transparent" : color.swatch,
+                  border: isDefault ? "1px solid var(--text-muted)" : undefined,
+                }}
               >
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{
-                    background:
-                      color.id === "default" ? "transparent" : color.swatch,
-                    border:
-                      color.id === "default"
-                        ? "1px solid var(--text-muted)"
-                        : undefined,
-                  }}
-                />
-                <span className="min-w-0 flex-1 truncate">{color.label}</span>
                 {active && (
                   <Check
-                    size={10}
-                    className="shrink-0 text-[var(--accent-green-text)]"
+                    size={13}
+                    strokeWidth={2.5}
+                    style={{
+                      color: isDefault ? "var(--text-primary)" : "#fff",
+                    }}
                   />
                 )}
               </button>
             );
           })}
         </div>
+        <p className="mt-2 text-[10px] text-[var(--text-muted)]">
+          {activeColor?.label ?? "Default"}
+        </p>
       </fieldset>
     </div>
   );

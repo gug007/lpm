@@ -85,13 +85,15 @@ export function CustomStatusLineEditor({
     onChange(next);
   };
 
+  const withSegments = (segments: Segment[]): CustomSpec => ({
+    ...spec,
+    segments,
+    gitStatus:
+      spec.gitStatus && segments.some((segment) => segment.id === "branch"),
+  });
+
   const setSegments = (segments: Segment[]) => {
-    commit({
-      ...spec,
-      segments,
-      gitStatus:
-        spec.gitStatus && segments.some((segment) => segment.id === "branch"),
-    });
+    commit(withSegments(segments));
   };
 
   const update = (index: number, patch: Partial<Segment>) => {
@@ -107,7 +109,8 @@ export function CustomStatusLineEditor({
     const segments = spec.segments.filter(
       (_, itemIndex) => itemIndex !== index,
     );
-    setSegments(segments);
+    setUndoSpec(spec);
+    onChange(withSegments(segments));
     setSelected((current) => {
       if (current == null) return 0;
       if (current === index) return Math.min(index, segments.length - 1);
