@@ -1069,7 +1069,9 @@ export function ActionWizard({
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
         <div
-          className="flex max-h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col"
+          className={`flex max-h-[min(820px,92vh)] w-[min(960px,calc(100vw-32px))] flex-col ${
+            mode === "editor" ? "h-[min(820px,92vh)]" : ""
+          }`}
           onKeyDown={onKeyDown}
         >
           <header className="px-7 pb-4 pt-6">
