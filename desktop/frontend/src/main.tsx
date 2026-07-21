@@ -15,6 +15,7 @@ import { useGeneratorsStore } from "./store/generators";
 import { useAccountsStore } from "./store/accounts";
 import { queryClient } from "./queryClient";
 import { MIRROR_PROJECT } from "./mirror";
+import { initMenuEditEvents } from "./menuEdit";
 import { initScrollbarFade } from "./scrollbarFade";
 import { AppRecovery } from "./components/AppRecovery";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
@@ -31,6 +32,7 @@ const surface = detachedProject ? "detached" : "main";
 const root = createRoot(document.getElementById("root")!);
 
 initScrollbarFade();
+initMenuEditEvents();
 initializeDiagnostics(surface);
 
 function reloadWindow() {

@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 const ID_SETTINGS: &str = "lpm-menu-settings";
 const ID_FEEDBACK: &str = "lpm-menu-feedback";
 const ID_CHECK_UPDATES: &str = "lpm-menu-check-updates";
+const ID_SELECT_ALL: &str = "lpm-menu-select-all";
 
 pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
     let version = option_env!("LPM_VERSION").unwrap_or("dev");
@@ -46,6 +47,14 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .quit()
         .build()?;
 
+    // The native Select All action targets the focused DOM element, which in
+    // Monaco editors is a hidden textarea holding only a fragment of the
+    // document. Emit to the frontend instead, which routes select-all to the
+    // focused editor (menuEdit.ts).
+    let select_all = MenuItemBuilder::with_id(ID_SELECT_ALL, "Select All")
+        .accelerator("CmdOrCtrl+A")
+        .build(app)?;
+
     let edit = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
@@ -53,7 +62,7 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .cut()
         .copy()
         .paste()
-        .select_all()
+        .item(&select_all)
         .build()?;
 
     let window = SubmenuBuilder::new(app, "Window")
@@ -76,6 +85,9 @@ pub fn handle_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         ID_SETTINGS => show_and_emit(app, "menu-open-settings"),
         ID_FEEDBACK => show_and_emit(app, "menu-open-feedback"),
+        ID_SELECT_ALL => {
+            let _ = app.emit("menu-select-all", ());
+        }
         ID_CHECK_UPDATES => {
             show_main(app);
             let app2 = app.clone();

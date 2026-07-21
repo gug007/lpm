@@ -146,6 +146,26 @@ export function MonacoEditor({
     };
     hostRef.current?.addEventListener("wheel", wheelHandler, { passive: false });
 
+    // The macOS Edit menu consumes ⌘Z/⌘⇧Z before keydown reaches the webview;
+    // they arrive as native history edits on Monaco's hidden textarea, which
+    // bypass (and would desync) Monaco's own undo stack. Cancel the native edit
+    // and drive Monaco's undo/redo instead.
+    const beforeInputHandler = (e: Event) => {
+      const inputType = (e as InputEvent).inputType;
+      if (inputType !== "historyUndo" && inputType !== "historyRedo") return;
+      e.preventDefault();
+      e.stopPropagation();
+      editor.trigger("menu", inputType === "historyUndo" ? "undo" : "redo", null);
+    };
+    hostRef.current?.addEventListener("beforeinput", beforeInputHandler, true);
+
+    const menuSelectAllHandler = (e: Event) => {
+      if (!editor.hasTextFocus()) return;
+      e.preventDefault();
+      editor.trigger("menu", "editor.action.selectAll", null);
+    };
+    window.addEventListener("lpm-menu-select-all", menuSelectAllHandler);
+
     if (modelLang === "yaml") {
       editor.addCommand(
         monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
@@ -180,6 +200,8 @@ export function MonacoEditor({
     return () => {
       disposeTheme();
       host?.removeEventListener("wheel", wheelHandler);
+      host?.removeEventListener("beforeinput", beforeInputHandler, true);
+      window.removeEventListener("lpm-menu-select-all", menuSelectAllHandler);
       sub.dispose();
       editor.dispose();
       model.dispose();
