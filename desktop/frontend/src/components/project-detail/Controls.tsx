@@ -17,7 +17,6 @@ interface ControlsProps {
   showQuickMenu: boolean;
   showProfileMenu: boolean;
   profileMenuRef: RefObject<HTMLDivElement | null>;
-  hasHistory: boolean;
   onToggleQuickMenu: () => void;
   onCloseQuickMenu: () => void;
   onToggleProfileMenu: () => void;
@@ -26,7 +25,6 @@ interface ControlsProps {
   onPickProfile: (name: string) => void;
   onToggleService: (name: string) => void;
   onRunAction: (action: ActionInfo) => void;
-  onOpenHistory: () => void;
   onEditConfig: () => void;
   onOpenNotes: () => void;
   onOpenAI: () => void;
@@ -50,7 +48,6 @@ export function Controls({
   showQuickMenu,
   showProfileMenu,
   profileMenuRef,
-  hasHistory,
   onToggleQuickMenu,
   onCloseQuickMenu,
   onToggleProfileMenu,
@@ -59,7 +56,6 @@ export function Controls({
   onPickProfile,
   onToggleService,
   onRunAction,
-  onOpenHistory,
   onEditConfig,
   onOpenNotes,
   onOpenAI,
@@ -95,10 +91,8 @@ export function Controls({
             actions={menuActions}
             running={project.running}
             actionBusy={runningAction !== null}
-            hasHistory={hasHistory}
             onClose={onCloseQuickMenu}
             onRunAction={onRunAction}
-            onOpenHistory={onOpenHistory}
             onEditConfig={onEditConfig}
             onOpenNotes={onOpenNotes}
             onOpenAI={onOpenAI}

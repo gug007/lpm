@@ -52,6 +52,7 @@ interface TerminalViewProps {
   waitingPaneIDs?: Set<string>;
   errorPaneIDs?: Set<string>;
   visible?: boolean;
+  onResumeSession?: () => void;
   ref?: React.Ref<TerminalViewHandle>;
 }
 
@@ -73,7 +74,7 @@ export interface TerminalViewHandle {
   remoteReorderTerminals(order: string[]): void;
 }
 
-export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, onResumeSession, ref }: TerminalViewProps) {
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
@@ -788,6 +789,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
             onAddReview={openReviewInPane}
+            onResumeSession={onResumeSession}
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}
             onForkTerminal={forkTerminal}

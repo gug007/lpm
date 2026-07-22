@@ -575,7 +575,6 @@ export function ProjectDetail({
       showQuickMenu={showQuickMenu}
       showProfileMenu={showProfileMenu}
       profileMenuRef={profileMenuRef}
-      hasHistory={historyEntries.length > 0}
       onToggleQuickMenu={() => {
         setShowProfileMenu(false);
         setShowQuickMenu((v) => !v);
@@ -590,7 +589,6 @@ export function ProjectDetail({
       onPickProfile={handlePickProfile}
       onToggleService={handleToggleServiceClick}
       onRunAction={handleRunAction}
-      onOpenHistory={handleOpenHistory}
       onEditConfig={() => switchDetailView("config")}
       onOpenNotes={() => switchDetailView("notes")}
       onOpenAI={() => switchDetailView("ai")}
@@ -679,6 +677,7 @@ export function ProjectDetail({
           onZoomOut={zoomOut}
           onRunAction={handleRunAction}
           onActionContextMenu={handleActionContextMenu}
+          onResumeSession={historyEntries.length > 0 ? handleOpenHistory : undefined}
         />
 
         {detailView === "config" && (

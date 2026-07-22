@@ -130,6 +130,7 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
   onAddReview: (paneId: string) => void;
+  onResumeSession?: () => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
   onForkTerminal: (paneId: string, termId: string) => void;
@@ -198,6 +199,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddTerminal,
     onAddBrowser,
     onAddReview,
+    onResumeSession,
     onCloseTerminal,
     onCloseOtherTerminals,
     onForkTerminal,
@@ -413,6 +415,7 @@ function PaneViewImpl(props: PaneViewProps) {
             onAddTerminal={() => onAddTerminal(pane.id)}
             onAddBrowser={() => onAddBrowser(pane.id)}
             onAddReview={() => onAddReview(pane.id)}
+            onResumeSession={onResumeSession}
           />
           </div>
           {canScrollLeft && (

@@ -35,6 +35,7 @@ interface TerminalPaneProps {
   onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onNewTerminal: () => void;
   onEditConfig: () => void;
+  onResumeSession?: () => void;
 }
 
 export function TerminalPane({
@@ -59,6 +60,7 @@ export function TerminalPane({
   onActionContextMenu,
   onNewTerminal,
   onEditConfig,
+  onResumeSession,
 }: TerminalPaneProps) {
   return (
     <div
@@ -81,6 +83,7 @@ export function TerminalPane({
           waitingPaneIDs={paneStatus.waiting}
           errorPaneIDs={paneStatus.error}
           visible={visible && active && !showEmptyState}
+          onResumeSession={onResumeSession}
         />
       </div>
       {showEmptyState && (

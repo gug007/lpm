@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { PlusIcon } from "./icons";
-import { ChevronDownIcon, GlobeIcon, CodeIcon } from "../icons";
+import { ChevronDownIcon, GlobeIcon, CodeIcon, HistoryIcon } from "../icons";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 
@@ -8,12 +8,14 @@ interface AddTabSplitButtonProps {
   onAddTerminal: () => void;
   onAddBrowser: () => void;
   onAddReview: () => void;
+  onResumeSession?: () => void;
 }
 
 export function AddTabSplitButton({
   onAddTerminal,
   onAddBrowser,
   onAddReview,
+  onResumeSession,
 }: AddTabSplitButtonProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -78,6 +80,16 @@ export function AddTabSplitButton({
               setMenu(null);
             }}
           />
+          {onResumeSession && (
+            <ContextMenuItem
+              label="Resume session"
+              icon={<HistoryIcon />}
+              onClick={() => {
+                onResumeSession();
+                setMenu(null);
+              }}
+            />
+          )}
         </ContextMenuShell>
       )}
     </div>
