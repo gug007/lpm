@@ -373,7 +373,7 @@ function PaneViewImpl(props: PaneViewProps) {
             );
           })}
           {services.length > 0 && pane.tabs.length > 0 && (
-            <div className="mx-1 h-3.5 w-px shrink-0 bg-[var(--terminal-header-hover)]" />
+            <div className="mx-1.5 h-3 w-px shrink-0 bg-[var(--terminal-header-border)] opacity-25" />
           )}
           <TabStrip paneId={pane.id} tabIds={tabIds}>
             {pane.tabs.map((t, i) => {

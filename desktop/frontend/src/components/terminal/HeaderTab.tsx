@@ -66,16 +66,16 @@ export function HeaderTab({
       onClick={onClick}
       onContextMenu={onContextMenu}
       data-active-tab={active || undefined}
-      className={`group flex max-w-[200px] select-none items-center gap-1 overflow-hidden rounded-md px-2.5 py-1 font-mono text-[11px] font-medium transition-colors ${
+      className={`group flex h-6 max-w-[200px] select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
         active
-          ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
-          : "text-[var(--terminal-header-text)] hover:text-[var(--terminal-tab-active)]"
+          ? "bg-[var(--terminal-tab-active-bg)] text-[var(--terminal-tab-active)] shadow-[var(--terminal-tab-shadow)]"
+          : "text-[var(--terminal-header-text)] hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
       }`}
     >
       {icon && (
         <span className="flex shrink-0 items-center">
           <span
-            className={`flex items-center opacity-80 [&>svg]:h-3.5 [&>svg]:w-3.5 ${hasHoverIcon ? "group-hover:hidden" : ""}`}
+            className={`flex items-center transition-opacity ${active ? "opacity-90" : "opacity-60 group-hover:opacity-80"} [&>svg]:h-3.5 [&>svg]:w-3.5 ${hasHoverIcon ? "group-hover:hidden" : ""}`}
           >
             {icon}
           </span>
