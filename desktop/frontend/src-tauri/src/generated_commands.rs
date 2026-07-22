@@ -198,6 +198,7 @@ macro_rules! all_command_handlers {
             peer_add,
             peer_remove,
             peer_set_enabled,
+            peer_set_auto_sync,
             peer_invoke,
             peer_pair_request,
             peer_pair_cancel,

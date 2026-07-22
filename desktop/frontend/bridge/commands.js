@@ -835,6 +835,9 @@ export function PeerRemove(slug) {
 export function PeerSetEnabled(slug, enabled) {
   return invoke("peer_set_enabled", { slug, enabled });
 }
+export function PeerSetAutoSync(slug, enabled) {
+  return invoke("peer_set_auto_sync", { slug, enabled });
+}
 export function PeerInvoke(slug, cmd, args) {
   return invoke("peer_invoke", { slug, cmd, args });
 }

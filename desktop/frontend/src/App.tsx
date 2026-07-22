@@ -38,6 +38,7 @@ import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
 import { onRunInDuplicates } from "./mirror";
 import { usePeerDispatcher } from "./peer/usePeerDispatcher";
+import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerState } from "./peer/usePeerState";
 import { isPeerName, peerSlugOf } from "./peer/markers";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
@@ -119,6 +120,7 @@ export default function App() {
   useAppEvents();
   usePeerDispatcher();
   const { state: peerState } = usePeerState();
+  usePeerAutoSyncToasts(peerState.peers);
   const isFullscreen = useIsFullscreen();
 
   // A selected remote project whose peer dropped: keep the selection and show a

@@ -39,8 +39,11 @@ export interface PeerClient {
   enabled: boolean;
   connected: boolean;
   supportsSync?: boolean;
+  supportsSync2?: boolean;
+  pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;
+  autoSync?: boolean;
 }
 
 export interface DiscoveredPeer {

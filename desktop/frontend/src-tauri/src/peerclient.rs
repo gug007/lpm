@@ -156,6 +156,9 @@ impl PeerClientHub {
                 let supports_sync = conn
                     .map(|c| c.supports_sync.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_sync2 = conn
+                    .map(|c| c.supports_sync2.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
@@ -167,6 +170,10 @@ impl PeerClientHub {
                     "enabled": p.enabled,
                     "connected": connected,
                     "supportsSync": supports_sync,
+                    "supportsSync2": supports_sync2,
+                    // Whether the peer's identity is pinned (verified-encrypted). An
+                    // auto run refuses an unpinned channel, so the UI hints on it.
+                    "pinned": p.tls_fp.is_some(),
                     "lastSyncAt": p.last_sync_at,
                     "lastError": last_error,
                     "autoSync": p.auto_sync,
@@ -1773,6 +1780,32 @@ mod tests {
         assert!(!push_fully_applied(3, 0, 0));
         // Nothing sent (guarded out in practice): vacuously true, commit is a no-op.
         assert!(push_fully_applied(0, 0, 0));
+    }
+
+    #[test]
+    fn parse_run_report_reads_the_sync_run_shape() {
+        // The exact JSON sync_run returns: conflicts carried alongside counts/errors.
+        let v = json!({
+            "applied": 2,
+            "pushed": 1,
+            "errors": ["web: boom"],
+            "conflicts": ["api", "global.yml"],
+            "backupPath": "/x",
+        });
+        let r = parse_run_report(&v);
+        assert_eq!(r.applied, 2);
+        assert_eq!(r.pushed, 1);
+        assert_eq!(r.errors, vec!["web: boom".to_string()]);
+        assert_eq!(r.conflicts, vec!["api".to_string(), "global.yml".to_string()]);
+        // A clean run: counts zero, no errors, empty conflicts.
+        let clean = json!({ "applied": 0, "pushed": 0, "errors": [], "conflicts": [] });
+        let r2 = parse_run_report(&clean);
+        assert!(r2.errors.is_empty());
+        assert!(r2.conflicts.is_empty());
+        // Missing fields (defensive) default to zero/empty.
+        let empty = parse_run_report(&json!({}));
+        assert_eq!((empty.applied, empty.pushed), (0, 0));
+        assert!(empty.errors.is_empty() && empty.conflicts.is_empty());
     }
 
     #[test]

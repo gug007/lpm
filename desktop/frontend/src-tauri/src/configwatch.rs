@@ -12,7 +12,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 const SETTLE: Duration = Duration::from_millis(500);
 
@@ -165,6 +165,14 @@ pub fn start(app: AppHandle) {
             }
             if d.templates {
                 let _ = app.emit("templates-changed", ());
+            }
+            // Same debounced classification that emits the events also nudges the
+            // auto-sync engine: a local config edit reconciles every auto-enabled
+            // peer shortly after. A no-op until the engine is set up.
+            if d.projects || d.templates {
+                if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
+                    engine.notify_local_change();
+                }
             }
             if disconnected {
                 return;
