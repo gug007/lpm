@@ -111,16 +111,21 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     setRemembered(rest);
   };
 
+  // Children without a color of their own launch with the group's accent, so a
+  // tab spawned from a colored split button keeps the tint the button shows.
+  const runChild = (child: ActionInfo) => {
+    noteRun(child);
+    onRunAction(child.color || !action.color ? child : { ...child, color: action.color });
+  };
+
   const handleSelectChild = (child: ActionInfo) => {
     setOpen(false);
-    noteRun(child);
-    onRunAction(child);
+    runChild(child);
   };
 
   const runPrimary = () => {
     if (primaryChild) {
-      noteRun(primaryChild);
-      onRunAction(primaryChild);
+      runChild(primaryChild);
     } else {
       onRunAction(action);
     }
