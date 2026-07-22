@@ -15,6 +15,10 @@ function normalizeDisplay(d: string | undefined): Display {
   return "header";
 }
 
+function withEmoji(emoji: string | undefined, label: string): string {
+  return emoji ? `${emoji} ${label}` : label;
+}
+
 export function normalizeService(key: string, def: ServiceDef): Service {
   if (typeof def === "string") return { key, cmd: def };
   return {
@@ -36,7 +40,7 @@ export function normalizeAction(key: string, def: ActionDef): Action {
   return {
     key,
     cmd: def?.cmd,
-    label: def?.label ?? key,
+    label: withEmoji(def?.emoji, def?.label ?? key),
     cwd: def?.cwd,
     env: def?.env,
     confirm: def?.confirm,
@@ -55,7 +59,7 @@ export function normalizeTerminal(key: string, def: TerminalDef): TerminalItem {
   return {
     key,
     cmd: def?.cmd ?? "",
-    label: def?.label ?? key,
+    label: withEmoji(def?.emoji, def?.label ?? key),
     display: normalizeDisplay(def?.display),
     position: typeof def?.position === "number" ? def.position : undefined,
   };

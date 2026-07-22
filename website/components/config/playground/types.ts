@@ -14,6 +14,7 @@ export type ActionDef =
   | {
       cmd?: string;
       label?: string;
+      emoji?: string;
       cwd?: string;
       env?: Record<string, string>;
       confirm?: boolean;
@@ -29,6 +30,7 @@ export type TerminalDef =
   | {
       cmd?: string;
       label?: string;
+      emoji?: string;
       cwd?: string;
       env?: Record<string, string>;
       display?: "header" | "menu" | "footer" | "button";

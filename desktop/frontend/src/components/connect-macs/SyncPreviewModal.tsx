@@ -19,6 +19,7 @@ export interface SyncRunResult {
   applied: number;
   pushed: number;
   errors: string[];
+  conflicts?: string[];
   backupPath?: string;
 }
 

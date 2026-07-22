@@ -97,17 +97,20 @@ services:
 actions:
   deploy:
     cmd: ./deploy.sh staging     # split button — main click runs this
-    label: 🚀 Deploy
+    label: Deploy
+    emoji: 🚀                    # icon shown next to the label
     display: header
     confirm: true
     actions:                     # chevron opens these
       production:
         cmd: ./deploy.sh production
-        label: 🔴 Production
+        label: Production
+        emoji: 🔴
         confirm: true
       preview:
         cmd: ./deploy.sh preview
-        label: 👁️ Preview
+        label: Preview
+        emoji: 👁️
 `;
 
 export const ACTIONS_PRIMARY_EXAMPLE = `name: myapp
@@ -116,16 +119,19 @@ services:
   web: npm run dev
 actions:
   deploy:
-    label: 🚀 Deploy
+    label: Deploy
+    emoji: 🚀
     display: header
     primary: last-used           # main click repeats the last used option
     actions:                     # chevron opens these
       staging:
         cmd: ./deploy.sh staging
-        label: 🟢 Staging
+        label: Staging
+        emoji: 🟢
       production:
         cmd: ./deploy.sh production
-        label: 🔴 Production
+        label: Production
+        emoji: 🔴
         confirm: true
 `;
 
@@ -135,19 +141,23 @@ services:
   web: npm run dev
 actions:
   db:
-    label: 🗄️ Database
+    label: Database
+    emoji: 🗄️
     display: header
     cwd: ./backend
     actions:
       migrate:
         cmd: python manage.py migrate
-        label: 📦 Migrate
+        label: Migrate
+        emoji: 📦
       seed:
         cmd: python manage.py seed
-        label: 🌱 Seed
+        label: Seed
+        emoji: 🌱
       reset:
         cmd: python manage.py flush
-        label: 💣 Reset
+        label: Reset
+        emoji: 💣
         confirm: true
 `;
 

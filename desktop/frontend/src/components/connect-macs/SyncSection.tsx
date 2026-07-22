@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { PeerSyncStatus } from "../../../bridge/commands";
+import { PeerSyncStatus, PeerSetAutoSync } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
 import { subscribePeerGlobalEvent } from "../../peer/route";
 import type { PeerClient } from "../../peer/usePeerState";
 import { relativeTime } from "../../relativeTime";
 import { rowProps } from "../../settings-registry";
-import { GroupHeader, Group, Row } from "./GroupedList";
+import { GroupHeader, Group } from "./GroupedList";
+import { Toggle } from "./Toggle";
 import { SyncPreviewModal, type SyncItem } from "./SyncPreviewModal";
 
 interface DiffState {
@@ -35,6 +36,16 @@ function pillFor(peer: PeerClient, diff: DiffState | undefined): Pill {
   const n = diff.items?.length ?? 0;
   if (n === 0) return { text: "In sync", color: "var(--accent-green)" };
   return { text: `${n} item${n === 1 ? "" : "s"} differ`, color: "var(--accent-amber)" };
+}
+
+// When auto-sync is on but the peer can't sync yet, one short reason in product
+// terms. Null when off (nothing to explain) or fully able to sync (no hint).
+function autoHint(p: PeerClient): string | null {
+  if (!p.autoSync) return null;
+  if (!p.connected) return "Waits until the other Mac is connected.";
+  if (!p.supportsSync2) return "Waits until the other Mac is updated.";
+  if (!p.pinned) return "Waits until this Mac and the other Mac have verified each other.";
+  return null;
 }
 
 export function SyncSection({ peers }: { peers: PeerClient[] }) {
@@ -139,40 +150,60 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
             : rel === "now"
               ? "Last synced just now"
               : `Last synced ${rel} ago`;
+          const hint = autoHint(p);
           return (
-            <Row key={p.slug}>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                    {p.alias || p.host}
-                  </p>
-                  <span
-                    title={pill.title}
-                    className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
-                    style={{
-                      color: pill.color,
-                      backgroundColor: `color-mix(in srgb, ${pill.color} 14%, transparent)`,
-                    }}
-                  >
-                    {pill.text}
-                  </span>
+            <div key={p.slug} className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                      {p.alias || p.host}
+                    </p>
+                    <span
+                      title={pill.title}
+                      className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                      style={{
+                        color: pill.color,
+                        backgroundColor: `color-mix(in srgb, ${pill.color} 14%, transparent)`,
+                      }}
+                    >
+                      {pill.text}
+                    </span>
+                  </div>
+                  <p className="truncate text-[11px] text-[var(--text-muted)]">{lastSynced}</p>
                 </div>
-                <p className="truncate text-[11px] text-[var(--text-muted)]">{lastSynced}</p>
+                <button
+                  type="button"
+                  onClick={() => void syncNow(p)}
+                  disabled={!canSync}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-default disabled:opacity-40"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
+                    color: "var(--accent-cyan)",
+                  }}
+                >
+                  <RefreshCw size={13} className={busy === p.slug ? "animate-spin" : ""} />
+                  Sync now
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => void syncNow(p)}
-                disabled={!canSync}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors disabled:cursor-default disabled:opacity-40"
-                style={{
-                  backgroundColor: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
-                  color: "var(--accent-cyan)",
-                }}
-              >
-                <RefreshCw size={13} className={busy === p.slug ? "animate-spin" : ""} />
-                Sync now
-              </button>
-            </Row>
+              <div className="mt-3 flex items-start gap-3 border-t border-[var(--border)] pt-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                    Keep in sync automatically
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-muted)]">
+                    Changes on either Mac sync shortly after they happen. If both Macs change the
+                    same item, the newer change wins and a backup is kept.
+                  </p>
+                  {hint && <p className="mt-1 text-[11px] text-[var(--text-muted)]">{hint}</p>}
+                </div>
+                <Toggle
+                  enabled={!!p.autoSync}
+                  ariaLabel={`Keep config in sync with ${p.alias || p.host} automatically`}
+                  onChange={(v) => void PeerSetAutoSync(p.slug, v)}
+                />
+              </div>
+            </div>
           );
         })}
       </Group>
