@@ -27,7 +27,6 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::{TcpListener, TcpStream};
-use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -153,9 +152,10 @@ pub(crate) fn load_config() -> PeerConfig {
 pub(crate) fn save_config(cfg: &PeerConfig) -> Result<(), String> {
     std::fs::create_dir_all(config::lpm_dir()).map_err(|e| e.to_string())?;
     let data = serde_json::to_vec_pretty(cfg).map_err(|e| e.to_string())?;
-    std::fs::write(config_path(), &data).map_err(|e| e.to_string())?;
-    let _ = std::fs::set_permissions(config_path(), std::fs::Permissions::from_mode(0o600));
-    Ok(())
+    // peer.json holds raw device tokens — Exact(0o600) so the temp never exists
+    // at a wider mode and the file stays 0600 even on first creation.
+    crate::fsatomic::write(&config_path(), &data, crate::fsatomic::Mode::Exact(0o600))
+        .map_err(|e| e.to_string())
 }
 
 // --- shared state -------------------------------------------------------------
@@ -554,7 +554,7 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
-                        "features": [crate::peersync::SYNC_FEATURE] })
+                        "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2] })
                     .to_string(),
                 ));
                 Some(id.to_string())
@@ -685,12 +685,16 @@ fn handle_msg(
 
 /// Answer one config-sync request from a client. Digest/fetch are read-only;
 /// apply snapshots ~/.lpm first, then applies with the shared portable-merge
-/// rules and refreshes the host UI.
+/// rules and refreshes the host UI. A `v:2` request speaks configSync2 and carries
+/// the client's sidecar device id; a legacy (`v:1`) request gets the pre-Phase-2
+/// map (no revisions, no tombstones) and applies without touching the sidecar.
 fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+    let v2 = v.get("v").and_then(Value::as_u64).unwrap_or(1) >= 2;
     match t {
         "syncDigest" => {
             let dm = crate::peersync::local_digest_map();
+            let dm = if v2 { dm } else { crate::peersync::legacy_view(dm) };
             let value = serde_json::to_value(dm).unwrap_or(Value::Null);
             let _ = out.try_send(result_frame(&req_id, true, value));
         }
@@ -713,6 +717,12 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
             let _ = out.try_send(result_frame(&req_id, true, json!({ "items": fetched })));
         }
         "syncApply" => {
+            let sender = v
+                .get("device")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let record = v2 && !sender.is_empty();
             let items: Vec<crate::peersync::WireItem> =
                 serde_json::from_value(v.get("items").cloned().unwrap_or_else(|| json!([])))
                     .unwrap_or_default();
@@ -720,11 +730,46 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
             let mut errors: Vec<String> = Vec::new();
             match crate::transfer::snapshot_backup() {
                 Ok(_) => {
+                    // Sidecar entries to write after the files land (revisions of the
+                    // received units, keyed under the sending Mac's device id).
+                    let snap = crate::syncstate::snapshot();
+                    let self_id = snap.device.clone();
+                    let mut item_updates: Vec<(String, crate::syncstate::ItemState)> = Vec::new();
+                    let mut base_updates: Vec<(String, crate::syncstate::BaseState)> = Vec::new();
                     for it in &items {
+                        let key = crate::peersync::item_key(&it.kind, &it.name);
                         match crate::peersync::apply_item(it) {
-                            Ok(()) => applied += 1,
+                            Ok(ap) => {
+                                applied += 1;
+                                if record {
+                                    let local_rev =
+                                        snap.items.get(&key).map(|i| i.rev).unwrap_or(0);
+                                    let (istate, base) = crate::syncstate::received_state(
+                                        &ap.incoming,
+                                        it.rev,
+                                        &it.device,
+                                        ap.deleted,
+                                        &ap.stored,
+                                        local_rev,
+                                        &self_id,
+                                    );
+                                    item_updates.push((key.clone(), istate));
+                                    base_updates.push((key, base));
+                                }
+                            }
                             Err(e) => errors.push(format!("{}/{}: {e}", it.kind, it.name)),
                         }
+                    }
+                    if record && !(item_updates.is_empty() && base_updates.is_empty()) {
+                        crate::syncstate::mutate(|s| {
+                            for (k, istate) in &item_updates {
+                                s.set_item(k, istate.clone());
+                            }
+                            for (k, base) in &base_updates {
+                                s.set_base(&sender, k, base.clone());
+                            }
+                            (true, ())
+                        });
                     }
                     let _ = app.emit("projects-changed", ());
                     let _ = app.emit("templates-changed", ());

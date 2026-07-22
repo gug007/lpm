@@ -8,9 +8,17 @@
 //
 // A "portable digest" hashes a canonicalized form of a config unit with the
 // machine-local parts removed, so two Macs whose projects differ only in local
-// paths / accounts compare as identical. Direction is newest-wins on file mtime.
-// Nothing is ever deleted; projects are only synced when present on both Macs.
+// paths / accounts compare as identical.
+//
+// Direction is decided one of two ways. Against a peer that only speaks the
+// original `configSync` feature it is newest-wins on file mtime, nothing is ever
+// deleted, and projects sync only when present on both Macs — exactly as before.
+// Against a `configSync2` peer it is revision-based: the sidecar in syncstate.rs
+// tracks a per-unit revision + author and the agreed base with each Mac, so
+// `compute_plan_v2` tells a fast-forward from a real conflict and lets a deletion
+// of a synced-dir file cross to the other Mac. See PEER_PROTOCOL.md.
 use crate::config;
+use crate::syncstate::{BaseState, TOMBSTONE};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 use sha2::{Digest, Sha256};
@@ -21,31 +29,41 @@ use std::path::{Component, Path, PathBuf};
 /// "the other Mac needs to update lpm" error) when it is absent.
 pub const SYNC_FEATURE: &str = "configSync";
 
-/// Project keys stripped before hashing and preserved locally on apply — the
-/// machine-specific parts a synced project must not carry between Macs.
-const PROJECT_LOCAL_KEYS: [&str; 4] = ["root", "ssh", "claudeAccount", "parent_name"];
+/// The revision-aware sync feature (Phase 2). A host advertises it alongside
+/// `configSync`; a client keys revision/base logic on it per peer and never sends
+/// tombstones or revision fields to a peer that lacks it.
+pub const SYNC_FEATURE2: &str = "configSync2";
 
-/// Whole-file global config units under ~/.lpm (settings.json gets a special
-/// digest + merge; the rest are byte-identical replace, newest wins).
-pub(crate) const GLOBAL_FILES: [&str; 8] = [
-    "global.yml",
-    "settings.json",
-    "groups.json",
-    "composer-actions.json",
-    "generators.json",
-    "commit-instructions.txt",
-    "pr-title-instructions.txt",
-    "pr-description-instructions.txt",
-];
+fn is_false(b: &bool) -> bool {
+    !*b
+}
 
-/// Global config directories synced file-by-file (each file is its own unit,
-/// keyed by its `<dir>/<name>` path relative to ~/.lpm).
-pub(crate) const GLOBAL_DIRS: [&str; 2] = ["generator-icons", "zdotdir"];
+fn is_zero(n: &u64) -> bool {
+    *n == 0
+}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+// The synced global file/dir surface, the machine-local settings keys, and the
+// project-local key set all come from syncsurface.rs — the single manifest shared
+// with transfer.rs (export/import) and configwatch.rs (the FSEvents watcher) so
+// none of them can drift. settings.json among the global files gets a special
+// digest + merge; every other synced file is a byte-identical newest-wins replace.
+use crate::syncsurface::{
+    is_sync_global_file, sync_global_dirs, sync_global_files, PER_MACHINE_KEYS, PROJECT_LOCAL_KEYS,
+};
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct ItemDigest {
     pub hash: String,
     pub mtime: i64,
+    /// Revision + author + tombstone flag, present only on maps built by / exchanged
+    /// with a `configSync2` peer. A legacy map leaves these at their defaults (rev 0,
+    /// no device, not deleted), which `compute_plan` ignores.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub rev: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub device: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub deleted: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
@@ -57,6 +75,21 @@ pub struct DigestMap {
     /// templates a matched project references on either side.
     #[serde(rename = "projectExtends", default)]
     pub project_extends: BTreeMap<String, Vec<String>>,
+    /// The sidecar device id of the Mac that produced this map (configSync2 only),
+    /// so the receiver keys its base map by the other Mac's id.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub device: String,
+}
+
+impl DigestMap {
+    pub fn get(&self, kind: &str, name: &str) -> Option<&ItemDigest> {
+        match kind {
+            "project" => self.projects.get(name),
+            "global" => self.globals.get(name),
+            "template" => self.templates.get(name),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -67,11 +100,19 @@ pub struct SyncItem {
     pub direction: String, // "toLocal" | "toRemote"
     pub local_mtime: i64,
     pub remote_mtime: i64,
+    /// The unit changed on both Macs since their last agreed base; the newer
+    /// revision wins and the other is backed up. configSync2 only.
+    #[serde(default)]
+    pub conflict: bool,
+    /// This item removes the file on the destination side (a synced-dir file that
+    /// was deleted on the source). configSync2 only.
+    #[serde(default)]
+    pub deleted: bool,
 }
 
 /// A config unit's content on the wire (fetch reply / apply request). Text files
 /// travel as UTF-8; binaries (and any non-UTF-8 file) as base64.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct WireItem {
     pub kind: String,
@@ -79,6 +120,21 @@ pub struct WireItem {
     pub enc: String, // "text" | "b64"
     pub content: String,
     pub mtime: i64,
+    /// A pushed deletion of a synced-dir file (content empty). configSync2 only.
+    #[serde(default)]
+    pub deleted: bool,
+    /// The pushing Mac's revision + author for this unit, so the receiving host can
+    /// record the base without seeing the pusher's digest map. configSync2 only.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub rev: u64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub device: String,
+}
+
+/// The composite sidecar key for a unit: "project/<name>", "global/<rel>",
+/// "template/<name>".
+pub fn item_key(kind: &str, name: &str) -> String {
+    format!("{kind}/{name}")
 }
 
 // ---- digest map --------------------------------------------------------------
@@ -99,13 +155,14 @@ pub fn local_digest_map() -> DigestMap {
                 ItemDigest {
                     hash,
                     mtime: mtime_millis(&path),
+                    ..Default::default()
                 },
             );
             dm.project_extends.insert(name.clone(), extends_of(&bytes));
         }
     }
 
-    for f in GLOBAL_FILES {
+    for f in sync_global_files() {
         let path = lpm.join(f);
         let Ok(bytes) = std::fs::read(&path) else {
             continue;
@@ -116,11 +173,12 @@ pub fn local_digest_map() -> DigestMap {
                 ItemDigest {
                     hash,
                     mtime: mtime_millis(&path),
+                    ..Default::default()
                 },
             );
         }
     }
-    for d in GLOBAL_DIRS {
+    for d in sync_global_dirs() {
         collect_global_dir(&lpm, Path::new(d), &mut dm.globals);
     }
 
@@ -145,11 +203,106 @@ pub fn local_digest_map() -> DigestMap {
                 ItemDigest {
                     hash: sha256_hex(&bytes),
                     mtime: mtime_millis(&path),
+                    ..Default::default()
                 },
             );
         }
     }
 
+    reconcile_and_attach(&mut dm);
+    dm
+}
+
+/// Fold the freshly-read present digests into the revision sidecar (the single
+/// observation choke point), then decorate the map with each unit's revision +
+/// author and add tombstone entries for synced-dir files the sidecar knows were
+/// deleted. Both roles call `local_digest_map`, so this runs on host and client.
+fn reconcile_and_attach(dm: &mut DigestMap) {
+    let mut present: BTreeMap<String, String> = BTreeMap::new();
+    for (n, d) in &dm.projects {
+        present.insert(item_key("project", n), d.hash.clone());
+    }
+    for (n, d) in &dm.globals {
+        present.insert(item_key("global", n), d.hash.clone());
+    }
+    for (n, d) in &dm.templates {
+        present.insert(item_key("template", n), d.hash.clone());
+    }
+    let state = crate::syncstate::mutate(|s| {
+        let changed = s.reconcile(&present, tombstone_eligible);
+        (changed, s.clone())
+    });
+    dm.device = state.device.clone();
+    for (n, d) in dm.projects.iter_mut() {
+        if let Some(it) = state.items.get(&item_key("project", n)) {
+            d.rev = it.rev;
+            d.device = it.device.clone();
+        }
+    }
+    for (n, d) in dm.globals.iter_mut() {
+        if let Some(it) = state.items.get(&item_key("global", n)) {
+            d.rev = it.rev;
+            d.device = it.device.clone();
+        }
+    }
+    for (n, d) in dm.templates.iter_mut() {
+        if let Some(it) = state.items.get(&item_key("template", n)) {
+            d.rev = it.rev;
+            d.device = it.device.clone();
+        }
+    }
+    for (key, it) in &state.items {
+        if !it.deleted {
+            continue;
+        }
+        if let Some(rel) = key.strip_prefix("global/") {
+            if is_deletable_global(rel) {
+                dm.globals.insert(
+                    rel.to_string(),
+                    ItemDigest {
+                        hash: String::new(),
+                        mtime: 0,
+                        rev: it.rev,
+                        device: it.device.clone(),
+                        deleted: true,
+                    },
+                );
+            }
+        }
+    }
+}
+
+/// Whether an absent sidecar entry keyed `key` should become a tombstone: only
+/// files under a synced global dir (generator-icons/*, zdotdir/*).
+fn tombstone_eligible(key: &str) -> bool {
+    key.strip_prefix("global/")
+        .map(is_deletable_global)
+        .unwrap_or(false)
+}
+
+/// Whether a global relative path is a synced-dir file (the only globals a deletion
+/// may cross): under a synced dir with at least one path segment beneath it.
+fn is_deletable_global(rel: &str) -> bool {
+    let p = Path::new(rel);
+    sync_global_dirs().any(|d| p.starts_with(d) && p.components().count() > 1)
+}
+
+/// Strip every configSync2-only field, so a legacy peer sees the pre-Phase-2 map:
+/// no revision/author, and no tombstone entries (which it would otherwise re-create
+/// as empty files).
+pub fn legacy_view(mut dm: DigestMap) -> DigestMap {
+    dm.device.clear();
+    dm.globals.retain(|_, d| !d.deleted);
+    for d in dm
+        .projects
+        .values_mut()
+        .chain(dm.globals.values_mut())
+        .chain(dm.templates.values_mut())
+    {
+        d.rev = 0;
+        d.device.clear();
+        d.deleted = false;
+    }
     dm
 }
 
@@ -180,6 +333,7 @@ fn collect_global_dir(lpm: &Path, rel: &Path, out: &mut BTreeMap<String, ItemDig
                     ItemDigest {
                         hash: sha256_hex(&bytes),
                         mtime: mtime_millis(&path),
+                        ..Default::default()
                     },
                 );
             }
@@ -213,7 +367,7 @@ fn project_digest(bytes: &[u8]) -> Result<String, String> {
 pub(crate) fn settings_digest(bytes: &[u8]) -> Result<String, String> {
     let mut j: Json = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
     if let Json::Object(map) = &mut j {
-        for k in crate::transfer::PER_MACHINE_KEYS {
+        for k in PER_MACHINE_KEYS {
             map.remove(k);
         }
     }
@@ -234,60 +388,251 @@ fn extends_of(bytes: &[u8]) -> Vec<String> {
 
 // ---- diff --------------------------------------------------------------------
 
-/// The items whose portable content differs between the two maps, each tagged
-/// with the direction the newer copy flows. Projects are intersection-only;
-/// globals union (a one-sided global is created on the other Mac); templates are
-/// limited to those referenced by a matched project on either side.
+/// Legacy (configSync) plan: the items whose portable content differs, each tagged
+/// with the newest-wins-by-mtime direction. Projects are intersection-only; globals
+/// union (a one-sided global is created on the other Mac); templates are limited to
+/// those referenced by a matched project on either side. Nothing is deleted. This
+/// is the unchanged pre-Phase-2 behavior, used against a peer without configSync2.
 pub fn compute_plan(local: &DigestMap, remote: &DigestMap) -> Vec<SyncItem> {
-    let mut items = Vec::new();
+    plan_core(local, remote, &BTreeMap::new(), true)
+}
 
+/// Revision-aware (configSync2) plan. `bases` is the base agreed with this peer per
+/// item key. Each differing unit resolves to a fast-forward (one side moved off the
+/// base), a conflict (both moved — higher revision wins, backups cover the loser),
+/// or, when no base exists yet (first sync / Phase-1 upgrade), the legacy mtime
+/// direction with no conflict. Deletions of synced-dir files cross as delete items.
+pub fn compute_plan_v2(
+    local: &DigestMap,
+    remote: &DigestMap,
+    bases: &BTreeMap<String, BaseState>,
+) -> Vec<SyncItem> {
+    plan_core(local, remote, bases, false)
+}
+
+/// Pure over (local map, remote map, bases, legacy flag) so the whole decision is
+/// unit-testable without any I/O.
+fn plan_core(
+    local: &DigestMap,
+    remote: &DigestMap,
+    bases: &BTreeMap<String, BaseState>,
+    legacy: bool,
+) -> Vec<SyncItem> {
+    let mut items = Vec::new();
     for (name, l) in &local.projects {
         if let Some(r) = remote.projects.get(name) {
-            if l.hash != r.hash {
-                items.push(make_item("project", name, l.mtime, r.mtime));
+            if let Some(it) = resolve_pair("project", name, Some(l), Some(r), bases, legacy) {
+                items.push(it);
             }
         }
     }
-
     let mut global_keys: BTreeSet<&String> = local.globals.keys().collect();
     global_keys.extend(remote.globals.keys());
     for name in global_keys {
-        match (local.globals.get(name), remote.globals.get(name)) {
-            (Some(l), Some(r)) if l.hash != r.hash => {
-                items.push(make_item("global", name, l.mtime, r.mtime))
-            }
-            (Some(l), None) => items.push(make_item("global", name, l.mtime, 0)),
-            (None, Some(r)) => items.push(make_item("global", name, 0, r.mtime)),
-            _ => {}
+        if let Some(it) = resolve_pair(
+            "global",
+            name,
+            local.globals.get(name),
+            remote.globals.get(name),
+            bases,
+            legacy,
+        ) {
+            items.push(it);
         }
     }
-
     for name in referenced_templates(local, remote) {
-        match (local.templates.get(&name), remote.templates.get(&name)) {
-            (Some(l), Some(r)) if l.hash != r.hash => {
-                items.push(make_item("template", &name, l.mtime, r.mtime))
-            }
-            (Some(l), None) => items.push(make_item("template", &name, l.mtime, 0)),
-            (None, Some(r)) => items.push(make_item("template", &name, 0, r.mtime)),
-            _ => {}
+        if let Some(it) = resolve_pair(
+            "template",
+            &name,
+            local.templates.get(&name),
+            remote.templates.get(&name),
+            bases,
+            legacy,
+        ) {
+            items.push(it);
         }
     }
-
     items
 }
 
-fn make_item(kind: &str, name: &str, local_mtime: i64, remote_mtime: i64) -> SyncItem {
-    let direction = if remote_mtime > local_mtime {
-        "toLocal"
+/// One Mac's contribution to a decision. `ck` (content key) is None when the unit
+/// is absent, `Some(TOMBSTONE)` when deleted, `Some(digest)` when live. In legacy
+/// mode a tombstone folds to absent, reproducing the pre-Phase-2 behavior where a
+/// deletion simply resurrects.
+struct SideInfo {
+    ck: Option<String>,
+    rev: u64,
+    device: String,
+    mtime: i64,
+    deleted: bool,
+}
+
+fn side_info(d: Option<&ItemDigest>, legacy: bool) -> SideInfo {
+    match d {
+        Some(x) if x.deleted && !legacy => SideInfo {
+            ck: Some(TOMBSTONE.to_string()),
+            rev: x.rev,
+            device: x.device.clone(),
+            mtime: x.mtime,
+            deleted: true,
+        },
+        Some(x) if !x.deleted => SideInfo {
+            ck: Some(x.hash.clone()),
+            rev: x.rev,
+            device: x.device.clone(),
+            mtime: x.mtime,
+            deleted: false,
+        },
+        _ => SideInfo {
+            ck: None,
+            rev: 0,
+            device: String::new(),
+            mtime: 0,
+            deleted: false,
+        },
+    }
+}
+
+fn resolve_pair(
+    kind: &str,
+    name: &str,
+    local: Option<&ItemDigest>,
+    remote: Option<&ItemDigest>,
+    bases: &BTreeMap<String, BaseState>,
+    legacy: bool,
+) -> Option<SyncItem> {
+    let l = side_info(local, legacy);
+    let r = side_info(remote, legacy);
+    match (&l.ck, &r.ck) {
+        (None, None) => None,
+        (Some(lc), Some(rc)) if lc == rc => None, // converged
+        (Some(_), Some(_)) => {
+            let base = if legacy {
+                None
+            } else {
+                bases.get(&item_key(kind, name))
+            };
+            Some(decide_both(kind, name, &l, &r, base))
+        }
+        (Some(_), None) => one_sided(kind, name, &l, "toRemote"),
+        (None, Some(_)) => one_sided(kind, name, &r, "toLocal"),
+    }
+}
+
+/// Both Macs have the unit and they differ. With a base, decide fast-forward vs
+/// conflict; without one, fall back to mtime (never a conflict).
+fn decide_both(kind: &str, name: &str, l: &SideInfo, r: &SideInfo, base: Option<&BaseState>) -> SyncItem {
+    let lc = l.ck.as_deref().unwrap_or("");
+    let rc = r.ck.as_deref().unwrap_or("");
+    match base {
+        Some(b) => {
+            let bc = b.content_key();
+            let local_moved = lc != bc;
+            let remote_moved = rc != bc;
+            if local_moved && remote_moved {
+                // Conflict: the higher (revision, device, content) wins. Both Macs
+                // compare the same pair, so each picks the same winner and only the
+                // direction (push vs pull) differs.
+                let local_wins = (l.rev, l.device.as_str(), lc) > (r.rev, r.device.as_str(), rc);
+                if local_wins {
+                    item(kind, name, "toRemote", l.mtime, r.mtime, true, l.deleted)
+                } else {
+                    item(kind, name, "toLocal", l.mtime, r.mtime, true, r.deleted)
+                }
+            } else if remote_moved {
+                item(kind, name, "toLocal", l.mtime, r.mtime, false, r.deleted)
+            } else {
+                item(kind, name, "toRemote", l.mtime, r.mtime, false, l.deleted)
+            }
+        }
+        None => resolve_no_base(kind, name, l, r),
+    }
+}
+
+/// No agreed base (first sync between these Macs, or a Phase-1 upgrade): mtime
+/// direction, never a conflict. A tombstone here does not propagate the deletion —
+/// the live side resurrects, matching legacy behavior — so a delete only crosses
+/// once a base has been established.
+fn resolve_no_base(kind: &str, name: &str, l: &SideInfo, r: &SideInfo) -> SyncItem {
+    match (l.deleted, r.deleted) {
+        (false, true) => item(kind, name, "toRemote", l.mtime, r.mtime, false, false),
+        (true, false) => item(kind, name, "toLocal", l.mtime, r.mtime, false, false),
+        _ => {
+            let dir = if r.mtime > l.mtime { "toLocal" } else { "toRemote" };
+            item(kind, name, dir, l.mtime, r.mtime, false, false)
+        }
+    }
+}
+
+/// The unit exists on only one Mac. A live unit is created on the other side
+/// (globals/templates; projects are intersection-only and never reach here). A
+/// tombstone with nothing on the other side is already consistent — nothing to do.
+fn one_sided(kind: &str, name: &str, side: &SideInfo, direction: &str) -> Option<SyncItem> {
+    if side.deleted {
+        return None;
+    }
+    Some(if direction == "toRemote" {
+        item(kind, name, "toRemote", side.mtime, 0, false, false)
     } else {
-        "toRemote"
-    };
+        item(kind, name, "toLocal", 0, side.mtime, false, false)
+    })
+}
+
+fn item(
+    kind: &str,
+    name: &str,
+    direction: &str,
+    local_mtime: i64,
+    remote_mtime: i64,
+    conflict: bool,
+    deleted: bool,
+) -> SyncItem {
     SyncItem {
         kind: kind.to_string(),
         name: name.to_string(),
         direction: direction.to_string(),
         local_mtime,
         remote_mtime,
+        conflict,
+        deleted,
+    }
+}
+
+/// The base to record for every unit present-and-equal on both Macs after a
+/// configSync2 sync, so an already-in-sync unit's base is refreshed even though it
+/// wasn't transferred (task item 2). Same domains as the plan (intersection).
+pub fn converged_bases(local: &DigestMap, remote: &DigestMap) -> Vec<(String, BaseState)> {
+    let mut out = Vec::new();
+    for (name, l) in &local.projects {
+        if let Some(r) = remote.projects.get(name) {
+            push_if_equal("project", name, l, r, &mut out);
+        }
+    }
+    for (name, l) in &local.globals {
+        if let Some(r) = remote.globals.get(name) {
+            push_if_equal("global", name, l, r, &mut out);
+        }
+    }
+    for name in referenced_templates(local, remote) {
+        if let (Some(l), Some(r)) = (local.templates.get(&name), remote.templates.get(&name)) {
+            push_if_equal("template", &name, l, r, &mut out);
+        }
+    }
+    out
+}
+
+fn push_if_equal(kind: &str, name: &str, l: &ItemDigest, r: &ItemDigest, out: &mut Vec<(String, BaseState)>) {
+    let lck = if l.deleted { TOMBSTONE } else { l.hash.as_str() };
+    let rck = if r.deleted { TOMBSTONE } else { r.hash.as_str() };
+    if lck == rck {
+        out.push((
+            item_key(kind, name),
+            BaseState {
+                rev: l.rev,
+                digest: if l.deleted { String::new() } else { l.hash.clone() },
+                deleted: l.deleted,
+            },
+        ));
     }
 }
 
@@ -331,6 +676,7 @@ pub fn read_item(kind: &str, name: &str) -> Result<WireItem, String> {
         enc,
         content,
         mtime,
+        ..Default::default()
     })
 }
 
@@ -359,21 +705,78 @@ fn template_read_path(name: &str) -> Option<PathBuf> {
 
 // ---- apply -------------------------------------------------------------------
 
+/// The outcome of applying one received unit, for the sidecar update. `incoming` is
+/// the portable digest of what the sender pushed; `stored` is what actually landed
+/// on disk — the two differ only for the settings.json fixpoint (the local merge
+/// kept extra portable keys). Empty on both for a deletion.
+pub struct Applied {
+    pub incoming: String,
+    pub stored: String,
+    pub deleted: bool,
+}
+
 /// Apply one received unit locally using the portable-merge rules. Projects are
 /// never created (only updated, preserving local machine keys); templates and
-/// globals may be created. Returns the changed kinds implicitly via Ok(()).
-pub fn apply_item(item: &WireItem) -> Result<(), String> {
+/// globals may be created. A `deleted` item removes a synced-dir file (path
+/// validated exactly like a write). Returns the digests needed to record the
+/// sidecar; the caller updates the revision state.
+pub fn apply_item(item: &WireItem) -> Result<Applied, String> {
+    if item.deleted {
+        if item.kind != "global" {
+            return Err(format!("cannot delete {}: only global files", item.kind));
+        }
+        delete_global(&item.name)?;
+        return Ok(Applied {
+            incoming: String::new(),
+            stored: String::new(),
+            deleted: true,
+        });
+    }
     let bytes = decode(item)?;
-    match item.kind.as_str() {
+    let incoming = portable_digest(&item.kind, &item.name, &bytes)?;
+    let stored = match item.kind.as_str() {
         "project" => apply_project(&item.name, &bytes)?,
         "template" => apply_template(&item.name, &bytes)?,
         "global" => apply_global(&item.name, &bytes)?,
         other => return Err(format!("unknown item kind: {other}")),
-    }
-    Ok(())
+    };
+    Ok(Applied {
+        incoming,
+        stored,
+        deleted: false,
+    })
 }
 
-fn apply_project(name: &str, incoming: &[u8]) -> Result<(), String> {
+/// The portable digest of a unit's raw bytes, as `local_digest_map` would compute
+/// it — so the sender's advertised digest can be recovered from pushed content
+/// without carrying it on the wire.
+pub fn portable_digest(kind: &str, name: &str, bytes: &[u8]) -> Result<String, String> {
+    match kind {
+        "project" => project_digest(bytes),
+        "template" => Ok(sha256_hex(bytes)),
+        "global" => global_digest(name, bytes),
+        other => Err(format!("unknown item kind: {other}")),
+    }
+}
+
+/// Remove a synced-dir global file (the only deletable globals). Missing is success
+/// (idempotent). The path is validated like any write, so a peer can never remove
+/// outside its allowed surface.
+pub fn delete_global(name: &str) -> Result<(), String> {
+    if !is_deletable_global(name) {
+        return Err(format!("global not deletable: {name}"));
+    }
+    let path = config::lpm_dir().join(safe_global_rel(name)?);
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Apply a project and return the stored portable digest (== the incoming portable
+/// digest, since the preserved machine keys are stripped from the digest anyway).
+fn apply_project(name: &str, incoming: &[u8]) -> Result<String, String> {
     config::validate_name(name)?;
     let path = config::project_path(name);
     if !path.exists() {
@@ -398,28 +801,37 @@ fn apply_project(name: &str, incoming: &[u8]) -> Result<(), String> {
         }
     }
     let out = serde_yaml::to_string(&incoming_v).map_err(|e| e.to_string())?;
-    config::write_config_file(&path, &out)
+    config::write_config_file(&path, &out)?;
+    project_digest(incoming)
 }
 
-fn apply_template(name: &str, incoming: &[u8]) -> Result<(), String> {
+fn apply_template(name: &str, incoming: &[u8]) -> Result<String, String> {
     validate_simple_name(name)?;
     std::fs::create_dir_all(config::templates_dir()).map_err(|e| e.to_string())?;
     let path = config::templates_dir().join(format!("{name}.yml"));
-    std::fs::write(&path, incoming).map_err(|e| e.to_string())
+    crate::fsatomic::write(&path, incoming, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())?;
+    Ok(sha256_hex(incoming))
 }
 
-fn apply_global(name: &str, incoming: &[u8]) -> Result<(), String> {
+/// Apply a global and return the stored portable digest. For settings.json the
+/// stored bytes are the merge of incoming over the current file, so the returned
+/// digest is of the MERGED result (which may exceed the incoming digest — the
+/// fixpoint the caller resolves).
+fn apply_global(name: &str, incoming: &[u8]) -> Result<String, String> {
     let path = config::lpm_dir().join(safe_global_rel(name)?);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    if name == "settings.json" {
+    let bytes = if name == "settings.json" {
         let current = std::fs::read(&path).unwrap_or_default();
-        let merged = crate::transfer::merge_settings_bytes(incoming, &current)?;
-        std::fs::write(&path, merged).map_err(|e| e.to_string())
+        crate::transfer::merge_settings_bytes(incoming, &current)?
     } else {
-        std::fs::write(&path, incoming).map_err(|e| e.to_string())
-    }
+        incoming.to_vec()
+    };
+    crate::fsatomic::write(&path, &bytes, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())?;
+    global_digest(name, &bytes)
 }
 
 fn decode(item: &WireItem) -> Result<Vec<u8>, String> {
@@ -439,10 +851,10 @@ fn safe_global_rel(name: &str) -> Result<PathBuf, String> {
     if rel.components().any(|c| !matches!(c, Component::Normal(_))) {
         return Err(format!("unsafe global path: {name}"));
     }
-    if GLOBAL_FILES.contains(&name) {
+    if is_sync_global_file(name) {
         return Ok(rel.to_path_buf());
     }
-    for d in GLOBAL_DIRS {
+    for d in sync_global_dirs() {
         if rel.starts_with(d) && rel.components().count() > 1 {
             return Ok(rel.to_path_buf());
         }
@@ -556,6 +968,7 @@ fn base64_decode(s: &str) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::syncstate::{received_state, SyncState};
 
     fn digest(yaml: &str) -> String {
         project_digest(yaml.as_bytes()).unwrap()
@@ -606,6 +1019,18 @@ mod tests {
         let a = br#"{"theme":"dark"}"#;
         let b = br#"{"theme":"light"}"#;
         assert_ne!(settings_digest(a).unwrap(), settings_digest(b).unwrap());
+    }
+
+    #[test]
+    fn settings_digest_ignores_detached_windows() {
+        // detachedWindows is per-machine (delta 2): two settings differing only in
+        // it hash identically, so moving a detached window never triggers a sync.
+        let a = br#"{"theme":"dark","detachedWindows":{"web":{"detached":true,"x":1}}}"#;
+        let b = br#"{"theme":"dark","detachedWindows":{"api":{"detached":false,"x":9}}}"#;
+        assert_eq!(settings_digest(a).unwrap(), settings_digest(b).unwrap());
+        // A real portable change still differs even with detachedWindows present.
+        let c = br#"{"theme":"light","detachedWindows":{"web":{"detached":true,"x":1}}}"#;
+        assert_ne!(settings_digest(a).unwrap(), settings_digest(c).unwrap());
     }
 
     #[test]
@@ -661,47 +1086,25 @@ mod tests {
         );
     }
 
+    fn id(hash: &str, mtime: i64) -> ItemDigest {
+        ItemDigest {
+            hash: hash.into(),
+            mtime,
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn compute_plan_directions_follow_mtime() {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
-        local.projects.insert(
-            "web".into(),
-            ItemDigest {
-                hash: "a".into(),
-                mtime: 200,
-            },
-        );
-        remote.projects.insert(
-            "web".into(),
-            ItemDigest {
-                hash: "b".into(),
-                mtime: 100,
-            },
-        );
+        local.projects.insert("web".into(), id("a", 200));
+        remote.projects.insert("web".into(), id("b", 100));
         // Present on both, local newer -> push local to remote.
-        local.projects.insert(
-            "api".into(),
-            ItemDigest {
-                hash: "a".into(),
-                mtime: 100,
-            },
-        );
-        remote.projects.insert(
-            "api".into(),
-            ItemDigest {
-                hash: "b".into(),
-                mtime: 300,
-            },
-        );
+        local.projects.insert("api".into(), id("a", 100));
+        remote.projects.insert("api".into(), id("b", 300));
         // Present only locally -> not synced (projects are intersection-only).
-        local.projects.insert(
-            "solo".into(),
-            ItemDigest {
-                hash: "a".into(),
-                mtime: 1,
-            },
-        );
+        local.projects.insert("solo".into(), id("a", 1));
 
         let plan = compute_plan(&local, &remote);
         let web = plan.iter().find(|i| i.name == "web").unwrap();
@@ -715,21 +1118,9 @@ mod tests {
     fn compute_plan_globals_union_and_settings_special() {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
-        local.globals.insert(
-            "global.yml".into(),
-            ItemDigest {
-                hash: "x".into(),
-                mtime: 5,
-            },
-        );
+        local.globals.insert("global.yml".into(), id("x", 5));
         // Only remote has groups.json -> created locally.
-        remote.globals.insert(
-            "groups.json".into(),
-            ItemDigest {
-                hash: "y".into(),
-                mtime: 9,
-            },
-        );
+        remote.globals.insert("groups.json".into(), id("y", 9));
         let plan = compute_plan(&local, &remote);
         let g = plan.iter().find(|i| i.name == "groups.json").unwrap();
         assert_eq!(g.direction, "toLocal");
@@ -743,20 +1134,8 @@ mod tests {
     fn referenced_templates_only_from_matched_projects() {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
-        local.projects.insert(
-            "web".into(),
-            ItemDigest {
-                hash: "a".into(),
-                mtime: 1,
-            },
-        );
-        remote.projects.insert(
-            "web".into(),
-            ItemDigest {
-                hash: "a".into(),
-                mtime: 1,
-            },
-        );
+        local.projects.insert("web".into(), id("a", 1));
+        remote.projects.insert("web".into(), id("a", 1));
         local
             .project_extends
             .insert("web".into(), vec!["base".into()]);
@@ -764,13 +1143,7 @@ mod tests {
             .project_extends
             .insert("web".into(), vec!["node".into()]);
         // Not matched (local only), its extends must be ignored.
-        local.projects.insert(
-            "solo".into(),
-            ItemDigest {
-                hash: "a".into(),
-                mtime: 1,
-            },
-        );
+        local.projects.insert("solo".into(), id("a", 1));
         local
             .project_extends
             .insert("solo".into(), vec!["ignored".into()]);
@@ -782,6 +1155,10 @@ mod tests {
     #[test]
     fn safe_global_rel_blocks_escape_and_unknowns() {
         assert!(safe_global_rel("global.yml").is_ok());
+        // branch-name-instructions.txt joined the sync surface (delta 1), so the
+        // apply-side allowlist now accepts it, like its sibling instruction files.
+        assert!(safe_global_rel("branch-name-instructions.txt").is_ok());
+        assert!(safe_global_rel("commit-instructions.txt").is_ok());
         assert!(safe_global_rel("generator-icons/a.png").is_ok());
         assert!(safe_global_rel("zdotdir/.zshrc").is_ok());
         assert!(safe_global_rel("../secret").is_err());
@@ -797,7 +1174,7 @@ mod tests {
             name: "global.yml".into(),
             enc: "text".into(),
             content: "root: ~/x".into(),
-            mtime: 0,
+            ..Default::default()
         };
         assert_eq!(decode(&text).unwrap(), b"root: ~/x");
         let raw = [0u8, 159, 146, 150];
@@ -806,8 +1183,388 @@ mod tests {
             name: "generator-icons/a.png".into(),
             enc: "b64".into(),
             content: base64_encode(&raw),
-            mtime: 0,
+            ..Default::default()
         };
         assert_eq!(decode(&bin).unwrap(), raw);
+    }
+
+    // ---- configSync2: revision-based planning --------------------------------
+
+    fn idv(hash: &str, rev: u64, device: &str) -> ItemDigest {
+        ItemDigest {
+            hash: hash.into(),
+            mtime: 0,
+            rev,
+            device: device.into(),
+            deleted: false,
+        }
+    }
+
+    fn tombstone(rev: u64, device: &str) -> ItemDigest {
+        ItemDigest {
+            hash: String::new(),
+            mtime: 0,
+            rev,
+            device: device.into(),
+            deleted: true,
+        }
+    }
+
+    fn bases(pairs: &[(&str, BaseState)]) -> BTreeMap<String, BaseState> {
+        pairs.iter().map(|(k, b)| (k.to_string(), b.clone())).collect()
+    }
+
+    fn live_base(rev: u64, digest: &str) -> BaseState {
+        BaseState {
+            rev,
+            digest: digest.into(),
+            deleted: false,
+        }
+    }
+
+    #[test]
+    fn v2_fast_forward_pull_when_only_remote_moved() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.projects.insert("web".into(), idv("A", 1, "da")); // unchanged since base
+        r.projects.insert("web".into(), idv("B", 2, "db")); // moved
+        let b = bases(&[("project/web", live_base(1, "A"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        let it = plan.iter().find(|i| i.name == "web").unwrap();
+        assert_eq!(it.direction, "toLocal");
+        assert!(!it.conflict && !it.deleted);
+    }
+
+    #[test]
+    fn v2_fast_forward_push_when_only_local_moved() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.projects.insert("web".into(), idv("B", 2, "da")); // moved
+        r.projects.insert("web".into(), idv("A", 1, "db")); // unchanged since base
+        let b = bases(&[("project/web", live_base(1, "A"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        let it = plan.iter().find(|i| i.name == "web").unwrap();
+        assert_eq!(it.direction, "toRemote");
+        assert!(!it.conflict);
+    }
+
+    #[test]
+    fn v2_equal_units_produce_no_item_but_refresh_base() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.projects.insert("web".into(), idv("X", 3, "da"));
+        r.projects.insert("web".into(), idv("X", 5, "db"));
+        let plan = compute_plan_v2(&l, &r, &BTreeMap::new());
+        assert!(plan.is_empty());
+        let refreshed = converged_bases(&l, &r);
+        assert_eq!(refreshed, vec![("project/web".into(), live_base(3, "X"))]);
+    }
+
+    #[test]
+    fn v2_conflict_higher_rev_wins_and_is_flagged() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.projects.insert("web".into(), idv("LA", 6, "da")); // higher rev
+        r.projects.insert("web".into(), idv("RB", 5, "db"));
+        let b = bases(&[("project/web", live_base(1, "O"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        let it = plan.iter().find(|i| i.name == "web").unwrap();
+        assert!(it.conflict);
+        assert_eq!(it.direction, "toRemote"); // local (rev 6) wins -> pushed
+    }
+
+    #[test]
+    fn v2_conflict_tie_broken_by_device_and_symmetric() {
+        // Equal revs -> higher device id wins. Both Macs must pick the same winner.
+        let a = idv("LA", 5, "da");
+        let z = idv("RB", 5, "dz");
+        let base = bases(&[("project/web", live_base(1, "O"))]);
+        let mut a_local = DigestMap::default();
+        let mut a_remote = DigestMap::default();
+        a_local.projects.insert("web".into(), a.clone()); // this Mac = "da"
+        a_remote.projects.insert("web".into(), z.clone()); // peer = "dz"
+        let a_plan = compute_plan_v2(&a_local, &a_remote, &base);
+        let a_it = a_plan.iter().find(|i| i.name == "web").unwrap();
+        // "dz" > "da" -> remote wins -> this Mac pulls.
+        assert!(a_it.conflict && a_it.direction == "toLocal");
+
+        // The peer's perspective: its local is "dz", remote is "da".
+        let mut z_local = DigestMap::default();
+        let mut z_remote = DigestMap::default();
+        z_local.projects.insert("web".into(), z);
+        z_remote.projects.insert("web".into(), a);
+        let z_plan = compute_plan_v2(&z_local, &z_remote, &base);
+        let z_it = z_plan.iter().find(|i| i.name == "web").unwrap();
+        // Same winner ("dz"), so the peer pushes — both agree "dz" propagates.
+        assert!(z_it.conflict && z_it.direction == "toRemote");
+    }
+
+    #[test]
+    fn v2_delete_fast_forward_pull() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.globals.insert("zdotdir/x".into(), idv("O", 1, "da")); // unchanged since base
+        r.globals.insert("zdotdir/x".into(), tombstone(2, "db")); // deleted remotely
+        let b = bases(&[("global/zdotdir/x", live_base(1, "O"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        let it = plan.iter().find(|i| i.name == "zdotdir/x").unwrap();
+        assert_eq!(it.direction, "toLocal");
+        assert!(it.deleted && !it.conflict);
+    }
+
+    #[test]
+    fn v2_delete_vs_edit_delete_wins_by_rev() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.globals.insert("zdotdir/x".into(), tombstone(5, "da")); // deleted, higher rev
+        r.globals.insert("zdotdir/x".into(), idv("RB", 4, "db")); // edited
+        let b = bases(&[("global/zdotdir/x", live_base(1, "O"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        let it = plan.iter().find(|i| i.name == "zdotdir/x").unwrap();
+        assert!(it.conflict);
+        assert_eq!(it.direction, "toRemote"); // delete wins -> push the removal
+        assert!(it.deleted);
+    }
+
+    #[test]
+    fn v2_delete_vs_edit_edit_wins_resurrects() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        l.globals.insert("zdotdir/x".into(), idv("LA", 6, "da")); // edited, higher rev
+        r.globals.insert("zdotdir/x".into(), tombstone(5, "db")); // deleted
+        let b = bases(&[("global/zdotdir/x", live_base(1, "O"))]);
+        let plan = compute_plan_v2(&l, &r, &b);
+        let it = plan.iter().find(|i| i.name == "zdotdir/x").unwrap();
+        assert!(it.conflict);
+        assert_eq!(it.direction, "toRemote"); // edit wins -> push live content
+        assert!(!it.deleted); // resurrect, not delete
+    }
+
+    #[test]
+    fn v2_no_base_cold_start_uses_mtime_never_conflict() {
+        let mut l = DigestMap::default();
+        let mut r = DigestMap::default();
+        // Remote has the far higher rev, but with no base rev is ignored: mtime wins.
+        l.projects.insert(
+            "web".into(),
+            ItemDigest {
+                hash: "LA".into(),
+                mtime: 200,
+                rev: 5,
+                device: "da".into(),
+                deleted: false,
+            },
+        );
+        r.projects.insert(
+            "web".into(),
+            ItemDigest {
+                hash: "RB".into(),
+                mtime: 100,
+                rev: 9,
+                device: "db".into(),
+                deleted: false,
+            },
+        );
+        let plan = compute_plan_v2(&l, &r, &BTreeMap::new());
+        let it = plan.iter().find(|i| i.name == "web").unwrap();
+        assert!(!it.conflict);
+        assert_eq!(it.direction, "toRemote"); // local mtime 200 > 100
+    }
+
+    #[test]
+    fn settings_fixpoint_converges_in_one_extra_round_no_ping_pong() {
+        // Model settings as a key set; the digest is the set, merge is the union.
+        // Round 1: A (rev 2, "t") pushes to B, which holds the superset "tm".
+        // B's merge keeps "tm" (stored != incoming) -> a self-authored bump, but the
+        // base with A is A's pushed state so it pushes back exactly once.
+        let (b_item, b_base) = received_state("t", 2, "A", false, "tm", 3, "B");
+        assert_eq!((b_item.digest.as_str(), b_item.device.as_str(), b_item.rev), ("tm", "B", 4));
+        assert_eq!(b_base, live_base(2, "t"));
+
+        // Round 2: B (rev 4, "tm") pushes to A, which holds the subset "t". A's merge
+        // yields "tm" == incoming, so it applies straight (no further bump) and both
+        // Macs now agree on "tm" with a matching base -> round 3 is empty.
+        let (a_item, a_base) = received_state("tm", 4, "B", false, "tm", 2, "A");
+        assert_eq!((a_item.digest.as_str(), a_item.device.as_str(), a_item.rev), ("tm", "B", 4));
+        assert_eq!(a_base, live_base(4, "tm"));
+        // The pushing side (B) records the symmetric base on apply -> both "tm"/rev 4.
+        assert_eq!(b_item.digest, a_item.digest);
+    }
+
+    #[test]
+    fn legacy_view_strips_revisions_and_tombstones() {
+        let mut dm = DigestMap::default();
+        dm.device = "da".into();
+        dm.globals.insert("zdotdir/x".into(), idv("h", 3, "da"));
+        dm.globals.insert("zdotdir/gone".into(), tombstone(4, "da"));
+        let lv = legacy_view(dm);
+        assert!(!lv.globals.contains_key("zdotdir/gone")); // tombstone dropped
+        assert_eq!(lv.globals["zdotdir/x"].rev, 0);
+        assert!(lv.globals["zdotdir/x"].device.is_empty());
+        assert!(lv.device.is_empty());
+    }
+
+    #[test]
+    fn is_deletable_global_is_dir_files_only() {
+        assert!(is_deletable_global("zdotdir/.zshrc"));
+        assert!(is_deletable_global("generator-icons/a.png"));
+        assert!(!is_deletable_global("settings.json")); // top-level never deletes
+        assert!(!is_deletable_global("zdotdir")); // the dir itself, no file
+        assert!(!is_deletable_global("notes/x")); // not a synced dir
+    }
+
+    // ---- two-sidecar simulation ----------------------------------------------
+
+    /// One Mac's world for the simulation: a device id, its synced-dir files
+    /// (content used directly as the portable digest), and its sidecar.
+    struct Mac {
+        state: SyncState,
+        files: BTreeMap<String, String>, // item key -> content
+    }
+
+    impl Mac {
+        fn new(device: &str) -> Self {
+            Mac {
+                state: SyncState {
+                    version: 1,
+                    device: device.into(),
+                    items: BTreeMap::new(),
+                    peers: BTreeMap::new(),
+                },
+                files: BTreeMap::new(),
+            }
+        }
+        fn write(&mut self, key: &str, content: &str) {
+            self.files.insert(key.into(), content.into());
+        }
+        fn reconcile(&mut self) {
+            let present: BTreeMap<String, String> = self.files.clone();
+            self.state
+                .reconcile(&present, |k| k.starts_with("global/zdotdir/"));
+        }
+        fn map(&self) -> DigestMap {
+            let mut dm = DigestMap::default();
+            dm.device = self.state.device.clone();
+            for (key, content) in &self.files {
+                let rel = key.strip_prefix("global/").unwrap();
+                let it = &self.state.items[key];
+                dm.globals
+                    .insert(rel.into(), idv(content, it.rev, &it.device));
+            }
+            for (key, it) in &self.state.items {
+                if it.deleted {
+                    let rel = key.strip_prefix("global/").unwrap();
+                    dm.globals.insert(rel.into(), tombstone(it.rev, &it.device));
+                }
+            }
+            dm
+        }
+    }
+
+    /// Drive a full sync with `client` initiating against `host`, applying the plan
+    /// exactly the way sync_run / handle_sync do (client updates its base on pull,
+    /// push, and equal items; host updates its base only on a received push).
+    fn sync(client: &mut Mac, host: &mut Mac) -> Vec<SyncItem> {
+        client.reconcile();
+        host.reconcile();
+        let cmap = client.map();
+        let hmap = host.map();
+        let cdev = client.state.device.clone();
+        let hdev = host.state.device.clone();
+        let base = client.state.peers.get(&hdev).cloned().unwrap_or_default();
+        let plan = compute_plan_v2(&cmap, &hmap, &base);
+        for it in &plan {
+            let key = item_key(&it.kind, &it.name);
+            if it.direction == "toLocal" {
+                let h = hmap.get(&it.kind, &it.name).unwrap();
+                if it.deleted {
+                    client.files.remove(&key);
+                    let (istate, b) = received_state("", h.rev, &h.device, true, "", 0, &cdev);
+                    client.state.set_item(&key, istate);
+                    client.state.set_base(&hdev, &key, b);
+                } else {
+                    let content = host.files[&key].clone();
+                    client.write(&key, &content);
+                    let (istate, b) =
+                        received_state(&h.hash, h.rev, &h.device, false, &content, 0, &cdev);
+                    client.state.set_item(&key, istate);
+                    client.state.set_base(&hdev, &key, b);
+                }
+            } else {
+                let c = cmap.get(&it.kind, &it.name).unwrap();
+                if it.deleted {
+                    host.files.remove(&key);
+                    let (istate, b) = received_state("", c.rev, &c.device, true, "", 0, &hdev);
+                    host.state.set_item(&key, istate);
+                    host.state.set_base(&cdev, &key, b);
+                    client
+                        .state
+                        .set_base(&hdev, &key, BaseState { rev: c.rev, digest: String::new(), deleted: true });
+                } else {
+                    let content = client.files[&key].clone();
+                    host.write(&key, &content);
+                    let (istate, b) =
+                        received_state(&c.hash, c.rev, &c.device, false, &content, 0, &hdev);
+                    host.state.set_item(&key, istate);
+                    host.state.set_base(&cdev, &key, b);
+                    client.state.set_base(&hdev, &key, live_base(c.rev, &content));
+                }
+            }
+        }
+        for (k, b) in converged_bases(&cmap, &hmap) {
+            client.state.set_base(&hdev, &k, b);
+        }
+        plan
+    }
+
+    #[test]
+    fn two_sidecar_full_story() {
+        let key = "global/zdotdir/.zshrc";
+        let mut a = Mac::new("mac-a");
+        let mut b = Mac::new("mac-b");
+        a.write(key, "C0");
+        b.write(key, "C0");
+
+        // 1. In sync: nothing to do, the base gets established.
+        assert!(sync(&mut a, &mut b).is_empty());
+        assert_eq!(a.state.peers["mac-b"][key], live_base(1, "C0"));
+
+        // 2. B edits offline, A pulls it (fast-forward, no conflict).
+        b.write(key, "C1");
+        let plan = sync(&mut a, &mut b);
+        let it = &plan[0];
+        assert!(it.direction == "toLocal" && !it.conflict);
+        assert_eq!(a.files[key], "C1");
+
+        // 3. A edits on top, pushes it (fast-forward, no conflict).
+        a.write(key, "C2");
+        let plan = sync(&mut a, &mut b);
+        let it = &plan[0];
+        assert!(it.direction == "toRemote" && !it.conflict);
+        assert_eq!(b.files[key], "C2");
+
+        // 4. Both edit concurrently, sync is a conflict with a deterministic winner.
+        a.write(key, "C4");
+        b.write(key, "C5");
+        let plan = sync(&mut a, &mut b);
+        let it = &plan[0];
+        assert!(it.conflict, "concurrent edit must be flagged a conflict");
+        // Equal revs -> higher device id ("mac-b") wins, so A pulls B's content.
+        assert_eq!(it.direction, "toLocal");
+        assert_eq!(a.files[key], "C5");
+
+        // The loser's content (A's "C4") is what a real sync backs up before the
+        // pull; both Macs converge on the winner.
+        assert_eq!(a.files[key], b.files[key]);
+
+        // Both perspectives agree on the winner: from B's side it is a push.
+        b.reconcile();
+        a.reconcile();
+        let b_plan = compute_plan_v2(
+            &b.map(),
+            &a.map(),
+            &b.state.peers.get("mac-a").cloned().unwrap_or_default(),
+        );
+        assert!(b_plan.is_empty(), "already converged after the conflict resolved");
     }
 }

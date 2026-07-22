@@ -65,8 +65,13 @@ First client frame within 20s, or the host closes the socket.
   The single-use pairing code is consumed on success. `name` is the client Mac's
   display name; `hostName` is the host Mac's.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
-  host → `{ "t": "ready", "hostName" }`
+  host → `{ "t": "ready", "hostName", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
+
+`features` advertises optional capabilities the client keys behavior on (unknown
+entries ignored). `configSync` = the config-sync frames below exist at all;
+`configSync2` = the revision-aware variant (see **Config sync**). A host missing a
+feature simply never receives frames that depend on it.
 
 Codes are compared case-insensitively with separators stripped, in constant time.
 Tokens are compared as `sha256` hex in constant time.
@@ -134,6 +139,110 @@ with payload `{ name, payload }`; the TS shim demultiplexes, translates
 identifier fields (project names → prefixed, roots/paths → prefixed root,
 terminal ids → prefixed), and dispatches to the same callbacks the local events
 would.
+
+## Config sync
+
+Mirrors the portable subset of `~/.lpm` between two paired Macs: projects (present
+on both — intersection only), synced global files + dirs (union — created when
+one-sided), and templates referenced by a matched project. Machine-local parts
+(project `root`/`ssh`/`claudeAccount`/`parent_name`, settings.json window/geometry
+keys) are stripped from the compared **portable digest** and preserved locally on
+apply, so two Macs that differ only in local paths compare as in sync. The client
+drives every sync; the host answers. Each side that receives changes snapshots
+`~/.lpm` to `~/.lpm.backup-<ts>` first. Rust: `peersync.rs` (shared digest / plan /
+apply), `syncstate.rs` (the revision sidecar), driven from `peerclient.rs` (client)
+and answered in `peer.rs` (host).
+
+Three request frames, each a generic correlated request (`reqId`, answered by a
+`result` frame). `v` is the frame version: `1` = legacy (configSync), `2` =
+revision-aware (configSync2). A client sends `v:2` only to a host that advertised
+`configSync2`.
+
+- **Digest** — client → `{ "t": "syncDigest", "v", "reqId", "device"? }`
+  host → `result` whose value is the host's **digest map**. `device` (the client's
+  sidecar id) is sent only at `v:2`.
+- **Fetch** — client → `{ "t": "syncFetch", "v":1, "reqId", "items":[{kind,name}] }`
+  host → `result` `{ "items": [wire item…] }`. Read-only; used to pull content the
+  client will apply. Unchanged between versions.
+- **Apply** — client → `{ "t": "syncApply", "v", "reqId", "device"?, "items":[wire item…] }`
+  host → `result` `{ "applied", "errors":[…] }`. The host snapshots, applies each
+  item with the portable-merge rules, and (at `v:2`) records the sender's revisions.
+
+### Digest map
+
+```json
+{
+  "projects":  { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+  "globals":   { "<rel>":  { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+  "templates": { "<name>": { "hash", "mtime", "rev"?, "device"?, "deleted"? } },
+  "projectExtends": { "<name>": ["<template>"] },
+  "device": "<sidecar uuid>"
+}
+```
+
+`hash` is the portable digest; `mtime` the file mtime in millis. The `rev`/`device`
+/`deleted` fields and the top-level `device` appear only at `v:2` (a `v:1` request
+gets them stripped, and tombstone entries removed). `rev` is a per-unit revision
+counter, `device` the sidecar id of the Mac that authored that revision, `deleted`
+marks a **tombstone** (a synced-dir file known to be deleted; `hash` empty).
+
+### Wire item
+
+```json
+{ "kind", "name", "enc": "text|b64", "content", "mtime", "deleted"?, "rev"?, "device"? }
+```
+
+Text files travel as UTF-8, binaries as base64. `deleted:true` (v2) is a pushed
+deletion — empty content, the host removes the file (path-validated like a write,
+synced-dir files only). `rev`/`device` (v2 push) let the host record the base
+without holding the pusher's digest map.
+
+### Revision sidecar & direction (configSync2)
+
+`~/.lpm/sync-state.json` (see `syncstate.rs`) is process-private, never synced,
+exported, or watched. It holds this Mac's `device` uuid, a per-unit `{digest, rev,
+device, deleted}`, and, per remote Mac's uuid, the `{rev, digest}` **base** the two
+last agreed on. Building the digest map reconciles it: a new or changed unit bumps
+`rev` (author = self); a vanished synced-dir file becomes a tombstone; applying a
+received unit stores its digest verbatim so the next reconcile does not re-bump
+(the echo guard). Projects, templates, and top-level global files never tombstone —
+their absence is machine-local, not an intent to delete everywhere.
+
+For a unit that differs on both Macs, with `base = the agreed base for this peer`:
+
+- local == base, remote moved → **pull** (fast-forward).
+- remote == base, local moved → **push** (fast-forward).
+- both moved off base → **conflict**: the higher `(rev, device)` wins (ties by
+  content), the loser is overwritten (both sides backed up). The winner is symmetric
+  — each Mac picks the same one; only push-vs-pull differs.
+- no base (first sync / Phase-1 upgrade) → the legacy mtime direction, never a
+  conflict; the base is recorded afterward.
+
+Deletions cross only with a base: a tombstone vs a live file fast-forwards (remove
+the file) or conflicts by the same rule (edit-wins resurrects, delete-wins removes).
+A tombstone with no base does not propagate — the live side resurrects, matching
+legacy behavior. settings.json has a **fixpoint** rule: apply merges incoming over
+local, so if the merged result kept extra local keys it becomes a self-authored edit
+one rev above both sides that pushes back and converges in one extra round (never a
+ping-pong).
+
+After a sync the client records the new base for every unit synced and every unit
+already equal; the host records it for units it received via apply. A pull leaves
+the host's base for that unit stale until the next exchange refreshes it (an equal
+unit re-establishes it, a divergence resolves as a fast-forward), so a host-initiated
+sync in that window may over-report a conflict — the winner is still correct and a
+backup is still taken.
+
+### Legacy interop
+
+| client ↔ host | behavior |
+| --- | --- |
+| new ↔ new | configSync2: revision direction, conflict detection, deletions cross. |
+| new ↔ old | old host advertises only `configSync`; client sends `v:1` and uses the mtime plan — no revisions, no deletions (identical to pre-Phase-2). |
+| old ↔ new | old client sends `v:1`; new host answers with the stripped legacy map (no revisions, tombstones removed) and applies without touching its sidecar. |
+
+Deletions and revision fields are therefore never sent to, nor accepted from, a peer
+that does not speak `configSync2`.
 
 ## Keepalive
 

@@ -11,24 +11,7 @@ import type { PeerHostState } from "../../peer/usePeerState";
 import { encodeInvite } from "../../peer/invite";
 import { Toggle } from "./Toggle";
 import { InviteChip } from "./InviteChip";
-
-function LaptopIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <path d="M2 20h20" />
-    </svg>
-  );
-}
+import { LaptopIcon } from "./LaptopIcon";
 
 export function HostSection({
   host,
@@ -93,8 +76,19 @@ export function HostSection({
 
   return (
     <section>
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4">
-        <div className="min-w-0">
+      <div className="flex items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-4">
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
+          style={{
+            backgroundColor: host.enabled
+              ? "color-mix(in srgb, var(--accent-green) 15%, transparent)"
+              : "var(--bg-active)",
+            color: host.enabled ? "var(--accent-green)" : "var(--text-muted)",
+          }}
+        >
+          <LaptopIcon size={20} />
+        </div>
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--text-primary)]">
             Allow control of this Mac
           </p>
@@ -122,9 +116,14 @@ export function HostSection({
       </div>
 
       {host.enabled && (
-        <div className="mt-3 rounded-xl border border-[var(--border)]">
+        <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
           <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <p className="text-sm font-medium text-[var(--text-primary)]">Port</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-[var(--text-primary)]">Port</p>
+              <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
+                The port other Macs connect to.
+              </p>
+            </div>
             <input
               type="number"
               value={portDraft}
@@ -141,7 +140,7 @@ export function HostSection({
       )}
 
       <div className="mt-8">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
           Paired Macs
         </h2>
 
@@ -179,50 +178,52 @@ export function HostSection({
           </div>
         )}
 
-        <div className="flex flex-col">
-          {host.devices.length === 0 && !pairing && (
-            <p className="py-2 text-[12px] text-[var(--text-muted)]">No Macs paired yet.</p>
-          )}
-          {host.devices.map((d) => (
-            <div
-              key={d.id}
-              className="group flex items-center gap-3 rounded-lg px-1 py-2.5 transition-colors hover:bg-[var(--bg-hover)]"
-            >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-muted)]">
-                <LaptopIcon size={15} />
-              </span>
-              <p className="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]">
-                {d.name || "Mac"}
+        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+          <div className="divide-y divide-[var(--border)]">
+            {host.devices.length === 0 && !pairing && (
+              <p className="px-4 py-5 text-center text-[12px] text-[var(--text-muted)]">
+                No Macs paired yet.
               </p>
+            )}
+            {host.devices.map((d) => (
+              <div key={d.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-muted)]">
+                  <LaptopIcon size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                    {d.name || "Mac"}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">Can control this Mac</p>
+                </div>
+                <button
+                  onClick={() => setRevokeDevice({ id: d.id, name: d.name || "Mac" })}
+                  className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            {!pairing && (
               <button
-                onClick={() => setRevokeDevice({ id: d.id, name: d.name || "Mac" })}
-                className="shrink-0 rounded-md px-2 py-1 text-xs text-[var(--text-muted)] opacity-0 transition-colors hover:text-[var(--accent-red)] group-hover:opacity-100"
+                onClick={startPairing}
+                disabled={pairingBusy}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-60"
               >
-                Remove
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-dashed border-[var(--border)] text-[var(--text-muted)]">
+                  <PlusIcon />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    {pairingBusy ? "Preparing…" : "Pair another Mac"}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)]">
+                    Create a one-time invite to paste on the other Mac.
+                  </p>
+                </div>
               </button>
-            </div>
-          ))}
-          {!pairing && (
-            <button
-              onClick={startPairing}
-              disabled={pairingBusy}
-              className="mt-2 flex items-center gap-1.5 self-start rounded-full px-4 py-1.5 text-[13px] font-semibold text-[var(--accent-cyan)] transition-[background-color,transform] duration-150 active:scale-[0.97] disabled:opacity-50"
-              style={{
-                backgroundColor: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "color-mix(in srgb, var(--accent-cyan) 18%, transparent)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor =
-                  "color-mix(in srgb, var(--accent-cyan) 12%, transparent)";
-              }}
-            >
-              <PlusIcon />
-              {pairingBusy ? "Preparing…" : "Pair Another Mac"}
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

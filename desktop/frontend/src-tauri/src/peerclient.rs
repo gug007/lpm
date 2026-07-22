@@ -52,8 +52,9 @@ struct PeerConn {
     attached: Mutex<HashSet<String>>, // raw host terminal ids the frontend has open
     pending: Mutex<HashMap<u64, Arc<Pending>>>,
     enabled: AtomicBool,
-    supports_sync: AtomicBool, // host advertised the configSync feature in `ready`
-    generation: AtomicU64,     // bump to retire the current connection thread
+    supports_sync: AtomicBool,  // host advertised the configSync feature in `ready`
+    supports_sync2: AtomicBool, // host also advertised configSync2 (revision-aware)
+    generation: AtomicU64,      // bump to retire the current connection thread
 }
 
 impl PeerConn {
@@ -67,6 +68,7 @@ impl PeerConn {
             pending: Mutex::new(HashMap::new()),
             enabled: AtomicBool::new(true),
             supports_sync: AtomicBool::new(false),
+            supports_sync2: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -273,54 +275,147 @@ impl PeerClientHub {
         Ok(())
     }
 
+    /// Whether the peer's host advertised configSync2 (revision-aware sync).
+    fn supports_sync2(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .map(|c| c.supports_sync2.load(Ordering::Relaxed))
+            .unwrap_or(false)
+    }
+
+    /// Ask the host for its digest map. A configSync2 exchange carries this Mac's
+    /// sidecar id and asks for revisions + tombstones; a legacy exchange asks for
+    /// the pre-Phase-2 map.
+    fn fetch_remote_map(&self, slug: &str, sync2: bool) -> Result<crate::peersync::DigestMap, String> {
+        let frame = if sync2 {
+            json!({ "t": "syncDigest", "v": 2, "device": crate::syncstate::device_id() })
+        } else {
+            json!({ "t": "syncDigest", "v": 1 })
+        };
+        let remote_v = self.request_blocking(slug, SYNC_TIMEOUT, |req| {
+            let mut f = frame.clone();
+            f["reqId"] = json!(req);
+            f
+        })?;
+        serde_json::from_value(remote_v).map_err(|e| format!("bad digest reply: {e}"))
+    }
+
+    /// The plan against a peer: revision-based when both sides speak configSync2 and
+    /// the host sent its sidecar id, else the legacy mtime plan.
+    fn plan_for(
+        &self,
+        local: &crate::peersync::DigestMap,
+        remote: &crate::peersync::DigestMap,
+        sync2: bool,
+    ) -> Vec<crate::peersync::SyncItem> {
+        if sync2 && !remote.device.is_empty() {
+            let bases = crate::syncstate::peer_bases(&remote.device);
+            crate::peersync::compute_plan_v2(local, remote, &bases)
+        } else {
+            crate::peersync::compute_plan(local, remote)
+        }
+    }
+
     /// Exchange digests with the peer and return the diff plan plus the persisted
     /// last-sync time.
     fn sync_status(&self, slug: &str) -> Result<Value, String> {
         self.require_sync_peer(slug)?;
-        let remote_v = self.request_blocking(
-            slug,
-            SYNC_TIMEOUT,
-            |req| json!({ "t": "syncDigest", "v": 1, "reqId": req }),
-        )?;
-        let remote: crate::peersync::DigestMap =
-            serde_json::from_value(remote_v).map_err(|e| format!("bad digest reply: {e}"))?;
+        let sync2 = self.supports_sync2(slug);
+        let remote = self.fetch_remote_map(slug, sync2)?;
         let local = crate::peersync::local_digest_map();
-        let items = crate::peersync::compute_plan(&local, &remote);
+        let items = self.plan_for(&local, &remote, sync2);
         let last = self.peer_entry(slug).map(|p| p.last_sync_at).unwrap_or(0);
         Ok(json!({ "items": items, "lastSyncAt": last }))
     }
 
-    /// Run the sync both directions: pull remote-newer items (local backup first,
-    /// then apply) and push local-newer items to the host (it backs up + applies).
-    fn sync_run(&self, slug: &str, items: Vec<crate::peersync::SyncItem>) -> Result<Value, String> {
+    /// Run the sync both directions. The plan is recomputed here against a fresh
+    /// digest exchange (the preview the UI showed is advisory), so a config edit
+    /// between preview and run can't apply a stale direction. Pulls are applied
+    /// after a local backup; pushes are sent for the host to back up + apply. When
+    /// both Macs speak configSync2 the revision sidecar is updated for every unit
+    /// synced (and every unit already in sync), keyed by the other Mac's id.
+    fn sync_run(&self, slug: &str, _hint: Vec<crate::peersync::SyncItem>) -> Result<Value, String> {
         self.require_sync_peer(slug)?;
+        let sync2 = self.supports_sync2(slug);
+        let remote = self.fetch_remote_map(slug, sync2)?;
+        let local = crate::peersync::local_digest_map();
+        let v2 = sync2 && !remote.device.is_empty();
+        let self_id = local.device.clone();
+        let remote_id = remote.device.clone();
+        let plan = self.plan_for(&local, &remote, sync2);
         let (to_local, to_remote): (Vec<_>, Vec<_>) =
-            items.into_iter().partition(|i| i.direction == "toLocal");
+            plan.into_iter().partition(|i| i.direction == "toLocal");
+
         let mut applied = 0u64;
         let mut pushed = 0u64;
         let mut errors: Vec<String> = Vec::new();
         let mut backup_path = String::new();
+        let mut item_updates: Vec<(String, crate::syncstate::ItemState)> = Vec::new();
+        let mut base_updates: Vec<(String, crate::syncstate::BaseState)> = Vec::new();
 
         if !to_local.is_empty() {
-            let req_items: Vec<Value> = to_local
-                .iter()
-                .map(|i| json!({ "kind": i.kind, "name": i.name }))
-                .collect();
-            let resp = self.request_blocking(
-                slug,
-                SYNC_TIMEOUT,
-                |req| json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": req_items }),
-            )?;
-            let fetched: Vec<crate::peersync::WireItem> =
+            let live: Vec<&crate::peersync::SyncItem> =
+                to_local.iter().filter(|i| !i.deleted).collect();
+            let fetched: Vec<crate::peersync::WireItem> = if live.is_empty() {
+                Vec::new()
+            } else {
+                let req_items: Vec<Value> = live
+                    .iter()
+                    .map(|i| json!({ "kind": i.kind, "name": i.name }))
+                    .collect();
+                let resp = self.request_blocking(
+                    slug,
+                    SYNC_TIMEOUT,
+                    |req| json!({ "t": "syncFetch", "v": 1, "reqId": req, "items": req_items }),
+                )?;
                 serde_json::from_value(resp.get("items").cloned().unwrap_or_else(|| json!([])))
-                    .map_err(|e| format!("bad fetch reply: {e}"))?;
+                    .map_err(|e| format!("bad fetch reply: {e}"))?
+            };
             match crate::transfer::snapshot_backup() {
                 Ok(path) => {
                     backup_path = path;
                     for it in &fetched {
+                        let key = crate::peersync::item_key(&it.kind, &it.name);
                         match crate::peersync::apply_item(it) {
-                            Ok(()) => applied += 1,
+                            Ok(ap) => {
+                                applied += 1;
+                                if v2 {
+                                    if let Some(rd) = remote.get(&it.kind, &it.name) {
+                                        let local_rev =
+                                            local.get(&it.kind, &it.name).map(|d| d.rev).unwrap_or(0);
+                                        let (istate, base) = crate::syncstate::received_state(
+                                            &rd.hash, rd.rev, &rd.device, false, &ap.stored, local_rev,
+                                            &self_id,
+                                        );
+                                        item_updates.push((key.clone(), istate));
+                                        base_updates.push((key, base));
+                                    }
+                                }
+                            }
                             Err(e) => errors.push(format!("{}/{}: {e}", it.kind, it.name)),
+                        }
+                    }
+                    for i in to_local.iter().filter(|i| i.deleted) {
+                        let key = crate::peersync::item_key(&i.kind, &i.name);
+                        match crate::peersync::delete_global(&i.name) {
+                            Ok(()) => {
+                                applied += 1;
+                                if v2 {
+                                    if let Some(rd) = remote.get(&i.kind, &i.name) {
+                                        let local_rev =
+                                            local.get(&i.kind, &i.name).map(|d| d.rev).unwrap_or(0);
+                                        let (istate, base) = crate::syncstate::received_state(
+                                            "", rd.rev, &rd.device, true, "", local_rev, &self_id,
+                                        );
+                                        item_updates.push((key.clone(), istate));
+                                        base_updates.push((key, base));
+                                    }
+                                }
+                            }
+                            Err(e) => errors.push(format!("{}/{}: {e}", i.kind, i.name)),
                         }
                     }
                     if let Some(app) = self.app() {
@@ -332,31 +427,102 @@ impl PeerClientHub {
             }
         }
 
+        // Persist the pull results and the bases of units already in sync BEFORE any
+        // push traffic: a push failure below must neither roll these back nor, if the
+        // syncApply request errors and returns early, drop sidecar updates for pulls
+        // that already reached disk.
+        if v2 {
+            for (k, b) in crate::peersync::converged_bases(&local, &remote) {
+                base_updates.push((k, b));
+            }
+            commit_sidecar(&remote_id, &item_updates, &base_updates);
+        }
+
         if !to_remote.is_empty() {
             let mut wire: Vec<Value> = Vec::new();
+            let mut push_bases: Vec<(String, crate::syncstate::BaseState)> = Vec::new();
             for i in &to_remote {
-                match crate::peersync::read_item(&i.kind, &i.name) {
-                    Ok(w) => {
-                        if let Ok(val) = serde_json::to_value(w) {
-                            wire.push(val);
+                let key = crate::peersync::item_key(&i.kind, &i.name);
+                let ld = local.get(&i.kind, &i.name);
+                if i.deleted {
+                    let (rev, device) = ld
+                        .map(|d| (d.rev, d.device.clone()))
+                        .unwrap_or((0, String::new()));
+                    let w = crate::peersync::WireItem {
+                        kind: i.kind.clone(),
+                        name: i.name.clone(),
+                        enc: "text".into(),
+                        content: String::new(),
+                        mtime: 0,
+                        deleted: true,
+                        rev,
+                        device,
+                    };
+                    if let Ok(val) = serde_json::to_value(&w) {
+                        wire.push(val);
+                        if v2 {
+                            push_bases.push((
+                                key,
+                                crate::syncstate::BaseState {
+                                    rev,
+                                    digest: String::new(),
+                                    deleted: true,
+                                },
+                            ));
                         }
                     }
-                    Err(e) => errors.push(format!("read {}/{}: {e}", i.kind, i.name)),
+                } else {
+                    match crate::peersync::read_item(&i.kind, &i.name) {
+                        Ok(mut w) => {
+                            if let Some(d) = ld {
+                                w.rev = d.rev;
+                                w.device = d.device.clone();
+                            }
+                            if let Ok(val) = serde_json::to_value(&w) {
+                                wire.push(val);
+                                if v2 {
+                                    if let Some(d) = ld {
+                                        push_bases.push((
+                                            key,
+                                            crate::syncstate::BaseState {
+                                                rev: d.rev,
+                                                digest: d.hash.clone(),
+                                                deleted: false,
+                                            },
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => errors.push(format!("read {}/{}: {e}", i.kind, i.name)),
+                    }
                 }
             }
             if !wire.is_empty() {
-                let resp = self.request_blocking(
-                    slug,
-                    SYNC_APPLY_TIMEOUT,
-                    |req| json!({ "t": "syncApply", "v": 1, "reqId": req, "items": wire }),
-                )?;
-                pushed += resp.get("applied").and_then(Value::as_u64).unwrap_or(0);
-                if let Some(errs) = resp.get("errors").and_then(Value::as_array) {
+                let ver = if v2 { 2 } else { 1 };
+                let dev = self_id.clone();
+                let sent = wire.len();
+                let resp = self.request_blocking(slug, SYNC_APPLY_TIMEOUT, |req| {
+                    json!({ "t": "syncApply", "v": ver, "reqId": req, "device": dev, "items": wire })
+                })?;
+                let host_applied = resp.get("applied").and_then(Value::as_u64).unwrap_or(0);
+                pushed += host_applied;
+                let host_errors = resp.get("errors").and_then(Value::as_array);
+                let host_error_count = host_errors.map(|a| a.len()).unwrap_or(0);
+                if let Some(errs) = host_errors {
                     for e in errs {
                         if let Some(s) = e.as_str() {
                             errors.push(format!("other Mac: {s}"));
                         }
                     }
+                }
+                // Record the pushed units' bases only when the host applied ALL of
+                // them cleanly. On any partial failure skip every one, so the next
+                // run re-plans them as local-moved fast-forwards and cleanly retries
+                // the push rather than inferring the wrong direction from a stale
+                // host copy.
+                if v2 && push_fully_applied(sent, host_applied, host_error_count) {
+                    commit_sidecar(&remote_id, &[], &push_bases);
                 }
             }
         }
@@ -375,6 +541,36 @@ impl PeerClientHub {
             json!({ "applied": applied, "pushed": pushed, "errors": errors, "backupPath": backup_path }),
         )
     }
+}
+
+// --- sync sidecar helpers -----------------------------------------------------
+
+/// Whether a syncApply fully succeeded, so the client may record the pushed units'
+/// bases. All-or-nothing: any host-side error, or fewer applied than sent, means
+/// skip every push base so the next run re-plans and retries the push.
+fn push_fully_applied(sent: usize, host_applied: u64, host_error_count: usize) -> bool {
+    host_error_count == 0 && host_applied == sent as u64
+}
+
+/// Write the given item states and bases (bases keyed under `remote_id`) to the
+/// sidecar in one locked read-modify-write. A no-op when there is nothing to store.
+fn commit_sidecar(
+    remote_id: &str,
+    items: &[(String, crate::syncstate::ItemState)],
+    bases: &[(String, crate::syncstate::BaseState)],
+) {
+    if items.is_empty() && bases.is_empty() {
+        return;
+    }
+    crate::syncstate::mutate(|s| {
+        for (k, istate) in items {
+            s.set_item(k, istate.clone());
+        }
+        for (k, base) in bases {
+            s.set_base(remote_id, k, base.clone());
+        }
+        (true, ())
+    });
 }
 
 // --- lifecycle ----------------------------------------------------------------
@@ -429,6 +625,7 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
         }
         conn.connected.store(false, Ordering::Relaxed);
         conn.supports_sync.store(false, Ordering::Relaxed);
+        conn.supports_sync2.store(false, Ordering::Relaxed);
         *conn.out.lock().unwrap() = None;
         conn.fail_pending("peer disconnected");
         emit_state_changed(&hub);
@@ -503,15 +700,16 @@ fn connect_session(
             .unwrap_or("authentication failed");
         return Err(err.to_string());
     }
-    let supports_sync = rv
-        .get("features")
-        .and_then(Value::as_array)
-        .map(|a| {
-            a.iter()
-                .any(|f| f.as_str() == Some(crate::peersync::SYNC_FEATURE))
-        })
-        .unwrap_or(false);
-    conn.supports_sync.store(supports_sync, Ordering::Relaxed);
+    let features = rv.get("features").and_then(Value::as_array);
+    let has_feature = |name: &str| {
+        features
+            .map(|a| a.iter().any(|f| f.as_str() == Some(name)))
+            .unwrap_or(false)
+    };
+    conn.supports_sync
+        .store(has_feature(crate::peersync::SYNC_FEATURE), Ordering::Relaxed);
+    conn.supports_sync2
+        .store(has_feature(crate::peersync::SYNC_FEATURE2), Ordering::Relaxed);
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -962,6 +1160,19 @@ mod tests {
         assert!(hub
             .invoke_blocking("nope", "list_projects", json!({}))
             .is_err());
+    }
+
+    #[test]
+    fn push_bases_recorded_only_when_host_applied_all_cleanly() {
+        // Clean response: every sent item applied, no errors -> record the bases.
+        assert!(push_fully_applied(3, 3, 0));
+        // Host reported an error on some item -> skip all push bases.
+        assert!(!push_fully_applied(3, 3, 1));
+        // Fewer applied than sent (host dropped one) -> skip all.
+        assert!(!push_fully_applied(3, 2, 0));
+        assert!(!push_fully_applied(3, 0, 0));
+        // Nothing sent (guarded out in practice): vacuously true, commit is a no-op.
+        assert!(push_fully_applied(0, 0, 0));
     }
 
     fn paired(host_name: &str) -> Result<(String, String, String, String), String> {

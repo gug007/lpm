@@ -126,7 +126,8 @@ pub fn save_terminals(c: Value) -> Result<(), String> {
     config::ensure_dirs()?;
     let path = config::lpm_dir().join("terminals.json");
     let data = serde_json::to_vec_pretty(&c).map_err(|e| e.to_string())?;
-    std::fs::write(path, data).map_err(|e| e.to_string())
+    crate::fsatomic::write(&path, &data, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -153,7 +154,8 @@ pub fn load_groups() -> Value {
 pub fn save_groups(groups: Value) -> Result<(), String> {
     config::ensure_dirs()?;
     let data = serde_json::to_vec_pretty(&groups).map_err(|e| e.to_string())?;
-    std::fs::write(config::groups_path(), data).map_err(|e| e.to_string())
+    crate::fsatomic::write(&config::groups_path(), &data, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -171,7 +173,12 @@ pub fn load_composer_actions() -> Value {
 pub fn save_composer_actions(actions: Value) -> Result<(), String> {
     config::ensure_dirs()?;
     let data = serde_json::to_vec_pretty(&actions).map_err(|e| e.to_string())?;
-    std::fs::write(config::composer_actions_path(), data).map_err(|e| e.to_string())
+    crate::fsatomic::write(
+        &config::composer_actions_path(),
+        &data,
+        crate::fsatomic::Mode::Preserve(0o644),
+    )
+    .map_err(|e| e.to_string())
 }
 
 // (async): config::list_projects shells out to `tmux list-sessions` (blocking),

@@ -261,7 +261,8 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
     };
     // Write only on change; errors propagate so the Reset button can surface them.
     if let Some(out) = merge_claude_hooks(&data) {
-        std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+        crate::fsatomic::write(path, &out, crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
     Ok(())
 }
@@ -371,12 +372,16 @@ fn install_codex_hooks_at(codex_dir: &Path) {
     let config_path = codex_dir.join("config.toml");
     let content = std::fs::read_to_string(&config_path).unwrap_or_default();
     if let Some(new) = merge_codex_feature(&content) {
-        let _ = std::fs::write(&config_path, new);
+        let _ = crate::fsatomic::write(
+            &config_path,
+            new.as_bytes(),
+            crate::fsatomic::Mode::Preserve(0o644),
+        );
     }
     let hooks_path = codex_dir.join("hooks.json");
     let data = std::fs::read(&hooks_path).unwrap_or_default();
     if let Some(out) = merge_codex_hooks(&data) {
-        let _ = std::fs::write(&hooks_path, out);
+        let _ = crate::fsatomic::write(&hooks_path, &out, crate::fsatomic::Mode::Preserve(0o644));
     }
 }
 
@@ -614,7 +619,8 @@ fn install_claude_statusline_at(path: &Path) -> Result<(), String> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
         }
-        std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+        crate::fsatomic::write(path, &out, crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
     Ok(())
 }
@@ -624,7 +630,8 @@ fn remove_claude_statusline_at(path: &Path) -> Result<(), String> {
         return Ok(()); // no file -> nothing to restore
     };
     if let Some(out) = remove_statusline(&data) {
-        std::fs::write(path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+        crate::fsatomic::write(path, &out, crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
     Ok(())
 }
@@ -1151,9 +1158,8 @@ fn detect_template_id(statusline: &Value, dir: &Path) -> Option<String> {
 fn write_template_script(dir: &Path, id: &str, source: &str) -> Result<PathBuf, String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     let path = dir.join(format!("lpm-{id}.sh"));
-    std::fs::write(&path, source).map_err(|e| format!("cannot write status line script: {e}"))?;
-    use std::os::unix::fs::PermissionsExt;
-    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+    crate::fsatomic::write(&path, source.as_bytes(), crate::fsatomic::Mode::Exact(0o755))
+        .map_err(|e| format!("cannot write status line script: {e}"))?;
     Ok(path)
 }
 
@@ -1225,8 +1231,12 @@ fn maybe_snapshot(original: &Value, dir: &Path) -> Result<(), String> {
     if should_write {
         std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
         let bytes = serde_json::to_vec_pretty(original).map_err(|e| e.to_string())?;
-        std::fs::write(dir.join("original.json"), bytes)
-            .map_err(|e| format!("cannot write status line snapshot: {e}"))?;
+        crate::fsatomic::write(
+            &dir.join("original.json"),
+            &bytes,
+            crate::fsatomic::Mode::Preserve(0o644),
+        )
+        .map_err(|e| format!("cannot write status line snapshot: {e}"))?;
     }
     Ok(())
 }
@@ -1251,7 +1261,8 @@ fn apply_statusline_script(settings_path: &Path, dir: &Path, id: &str, source: &
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
         }
-        std::fs::write(settings_path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+        crate::fsatomic::write(settings_path, &out, crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
     Ok(())
 }
@@ -1268,8 +1279,12 @@ fn apply_custom_at(settings_path: &Path, dir: &Path, spec: &CustomSpec) -> Resul
     let source = build_custom_statusline(spec)?; // validates before any write
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     let bytes = serde_json::to_vec_pretty(spec).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join("custom.json"), bytes)
-        .map_err(|e| format!("cannot write status line spec: {e}"))?;
+    crate::fsatomic::write(
+        &dir.join("custom.json"),
+        &bytes,
+        crate::fsatomic::Mode::Preserve(0o644),
+    )
+    .map_err(|e| format!("cannot write status line spec: {e}"))?;
     apply_statusline_script(settings_path, dir, "custom", &source)
 }
 
@@ -1291,7 +1306,8 @@ fn restore_statusline_at(settings_path: &Path, dir: &Path) -> Result<(), String>
         }
     };
     if let Some(out) = set_original_statusline(&data, &target) {
-        std::fs::write(settings_path, out).map_err(|e| format!("cannot write Claude settings: {e}"))?;
+        crate::fsatomic::write(settings_path, &out, crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| format!("cannot write Claude settings: {e}"))?;
     }
     Ok(())
 }
@@ -1663,7 +1679,7 @@ fn finalize_ai_statusline_at(
     write_template_script(dir, "ai", &script)?;
     let meta = json!({ "description": description.trim(), "baseSelection": base_selection });
     let bytes = serde_json::to_vec_pretty(&meta).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join("ai.json"), bytes)
+    crate::fsatomic::write(&dir.join("ai.json"), &bytes, crate::fsatomic::Mode::Preserve(0o644))
         .map_err(|e| format!("cannot write status line description: {e}"))?;
     apply_statusline_script(settings_path, dir, "ai", &script)?;
     Ok(script)

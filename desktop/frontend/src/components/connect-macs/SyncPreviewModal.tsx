@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, RefreshCw, X } from "lucide-react";
+import { ArrowRight, RefreshCw, Trash2, X } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { PeerSyncRun } from "../../../bridge/commands";
 
@@ -9,6 +9,10 @@ export interface SyncItem {
   direction: "toLocal" | "toRemote";
   localMtime: number;
   remoteMtime: number;
+  // Changed on both Macs since they last matched; the newer change wins.
+  conflict?: boolean;
+  // Removes the file on the destination side rather than copying content.
+  deleted?: boolean;
 }
 
 export interface SyncRunResult {
@@ -38,6 +42,40 @@ function DirectionArrow({
       <span className="max-w-[90px] truncate">{from}</span>
       <ArrowRight size={11} className="shrink-0 text-[var(--accent-cyan)]" />
       <span className="max-w-[90px] truncate">{to}</span>
+    </span>
+  );
+}
+
+function RemoveLabel({
+  direction,
+  peerName,
+}: {
+  direction: SyncItem["direction"];
+  peerName: string;
+}) {
+  const where = direction === "toRemote" ? peerName : "This Mac";
+  return (
+    <span
+      className="flex shrink-0 items-center gap-1 text-[11px] text-[var(--accent-red)]"
+      title={`This file was deleted and will be removed on ${where}. A backup is kept.`}
+    >
+      <Trash2 size={11} className="shrink-0" />
+      <span className="max-w-[120px] truncate">Removed on {where}</span>
+    </span>
+  );
+}
+
+function ConflictBadge() {
+  return (
+    <span
+      title="Changed on both Macs — the newer change wins, and a backup is kept."
+      className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+      style={{
+        color: "var(--accent-amber)",
+        backgroundColor: "color-mix(in srgb, var(--accent-amber) 14%, transparent)",
+      }}
+    >
+      Both changed
     </span>
   );
 }
@@ -105,8 +143,8 @@ export function SyncPreviewModal({
             <span className="font-mono text-[var(--text-secondary)]">{peerName}</span>
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
-            The newer copy of each item wins. A full backup of this Mac's config is taken on both
-            Macs first, and nothing is ever deleted.
+            The newer copy of each item wins, and when an item changed on both Macs the newer change
+            is kept. A full backup of each Mac's config is taken first.
           </p>
         </div>
         <button
@@ -171,10 +209,17 @@ export function SyncPreviewModal({
                     key={`${it.kind}:${it.name}`}
                     className="flex items-center justify-between gap-3 px-3 py-2"
                   >
-                    <span className="min-w-0 truncate text-[13px] text-[var(--text-primary)]">
-                      {it.name}
-                    </span>
-                    <DirectionArrow direction={it.direction} peerName={peerName} />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 truncate text-[13px] text-[var(--text-primary)]">
+                        {it.name}
+                      </span>
+                      {it.conflict && <ConflictBadge />}
+                    </div>
+                    {it.deleted ? (
+                      <RemoveLabel direction={it.direction} peerName={peerName} />
+                    ) : (
+                      <DirectionArrow direction={it.direction} peerName={peerName} />
+                    )}
                   </div>
                 ))}
               </div>

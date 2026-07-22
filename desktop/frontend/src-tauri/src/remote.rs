@@ -37,7 +37,6 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::{TcpListener, TcpStream};
-use std::os::unix::fs::PermissionsExt;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -290,9 +289,10 @@ fn load_config() -> RemoteConfig {
 fn save_config(cfg: &RemoteConfig) -> Result<(), String> {
     std::fs::create_dir_all(config::lpm_dir()).map_err(|e| e.to_string())?;
     let data = serde_json::to_vec_pretty(cfg).map_err(|e| e.to_string())?;
-    std::fs::write(config_path(), &data).map_err(|e| e.to_string())?;
-    let _ = std::fs::set_permissions(config_path(), std::fs::Permissions::from_mode(0o600));
-    Ok(())
+    // remote.json holds device token hashes and push keys — Exact(0o600) so the
+    // temp never exists at a wider mode and the file stays 0600 on first creation.
+    crate::fsatomic::write(&config_path(), &data, crate::fsatomic::Mode::Exact(0o600))
+        .map_err(|e| e.to_string())
 }
 
 // --- shared state ------------------------------------------------------------

@@ -6,7 +6,7 @@ import { subscribePeerGlobalEvent } from "../../peer/route";
 import type { PeerClient } from "../../peer/usePeerState";
 import { relativeTime } from "../../relativeTime";
 import { rowProps } from "../../settings-registry";
-import { GroupHeader, Group, GroupFooter, Row } from "./GroupedList";
+import { GroupHeader, Group, Row } from "./GroupedList";
 import { SyncPreviewModal, type SyncItem } from "./SyncPreviewModal";
 
 interface DiffState {
@@ -120,9 +120,14 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
   );
 
   return (
-    <section className="mt-6" data-settings-row={rowProps("connect-macs.sync").id}>
+    <section className="mt-8" data-settings-row={rowProps("connect-macs.sync").id}>
       <GroupHeader>Config sync</GroupHeader>
       <Group>
+        <p className="px-4 py-3 text-[12px] leading-relaxed text-[var(--text-muted)]">
+          Mirror projects, global config, and settings between paired Macs. The newer copy of each
+          item wins, and a change on both Macs keeps the newer one; local paths, accounts, and window
+          layout stay per-Mac.
+        </p>
         {peers.map((p) => {
           const diff = diffs[p.slug];
           const pill = pillFor(p, diff);
@@ -135,10 +140,10 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
               ? "Last synced just now"
               : `Last synced ${rel} ago`;
           return (
-            <Row key={p.slug} className="group">
+            <Row key={p.slug}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-[13px] text-[var(--text-primary)]">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                     {p.alias || p.host}
                   </p>
                   <span
@@ -171,10 +176,6 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
           );
         })}
       </Group>
-      <GroupFooter>
-        Mirror projects, global config, and settings between paired Macs. The newer copy of each item
-        wins; local paths, accounts, and window layout stay per-Mac, and nothing is deleted.
-      </GroupFooter>
 
       <SyncPreviewModal
         open={preview !== null}

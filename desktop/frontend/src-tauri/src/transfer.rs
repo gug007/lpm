@@ -10,26 +10,15 @@ use crate::config;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use std::collections::HashSet;
-use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use tauri::{AppHandle, Emitter};
 
-const TOP_LEVEL_FILES: [&str; 5] = [
-    "global.yml",
-    "terminals.json",
-    "commit-instructions.txt",
-    "pr-title-instructions.txt",
-    "pr-description-instructions.txt",
-];
-pub(crate) const PER_MACHINE_KEYS: [&str; 6] = [
-    "windowWidth",
-    "windowHeight",
-    "windowX",
-    "windowY",
-    "sidebarWidth",
-    "lastSelectedProject",
-];
+// The top-level files, per-machine settings keys, and exported dirs all come from
+// syncsurface.rs, the single manifest shared with peersync.rs so the two surfaces
+// can't drift.
+use crate::syncsurface::{export_global_dirs, export_top_level_files, PER_MACHINE_KEYS};
+
 // Hardening Go lacks: bound extraction so a crafted archive can't exhaust disk.
 const MAX_ENTRY_BYTES: u64 = 256 * 1024 * 1024;
 const MAX_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
@@ -96,12 +85,13 @@ fn build_archive(path: &Path) -> Result<(), String> {
         tw.append_dir_all("projects", &projects)
             .map_err(|e| e.to_string())?;
     }
-    let zdot = root.join("zdotdir");
-    if zdot.is_dir() {
-        tw.append_dir_all("zdotdir", &zdot)
-            .map_err(|e| e.to_string())?;
+    for dir in export_global_dirs() {
+        let p = root.join(dir);
+        if p.is_dir() {
+            tw.append_dir_all(dir, &p).map_err(|e| e.to_string())?;
+        }
     }
-    for name in TOP_LEVEL_FILES {
+    for name in export_top_level_files() {
         let p = root.join(name);
         if p.is_file() {
             tw.append_path_with_name(&p, name)
@@ -172,7 +162,7 @@ pub async fn import_config(
 
     let valid = std::iter::once("projects")
         .chain(std::iter::once("settings.json"))
-        .chain(TOP_LEVEL_FILES)
+        .chain(export_top_level_files())
         .any(|n| tmp.path().join(n).exists());
     if !valid {
         return Err("archive does not contain an lpm config".into());
@@ -366,7 +356,7 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
     }
 
     // Top-level files: always clobber (overwrite ignored).
-    for n in TOP_LEVEL_FILES {
+    for n in export_top_level_files() {
         let src = tmp.join(n);
         if src.is_file() {
             copy_file(&src, &dst.join(n), 0o644)?;
@@ -386,20 +376,23 @@ fn apply_import(tmp: &Path, overwrite: bool, report: &mut ImportReport) -> Resul
         merge_accounts_file(&accounts_src)?;
     }
 
-    // zdotdir: copy when absent or overwriting (replacing the old tree).
-    let zdot_src = tmp.join("zdotdir");
-    if zdot_src.is_dir() {
-        let zdot_dst = dst.join("zdotdir");
-        let exists = zdot_dst.exists();
+    // Exported dirs (zdotdir): copy when absent or overwriting (replacing the tree).
+    for dir in export_global_dirs() {
+        let src = tmp.join(dir);
+        if !src.is_dir() {
+            continue;
+        }
+        let dst_dir = dst.join(dir);
+        let exists = dst_dir.exists();
         if !exists || overwrite {
             if exists {
-                std::fs::remove_dir_all(&zdot_dst).map_err(|e| e.to_string())?;
+                std::fs::remove_dir_all(&dst_dir).map_err(|e| e.to_string())?;
             }
-            let mode = std::fs::metadata(&zdot_src)
+            let mode = std::fs::metadata(&src)
                 .map_err(|e| e.to_string())?
                 .permissions()
                 .mode();
-            copy_tree(&zdot_src, &zdot_dst, mode)?;
+            copy_tree(&src, &dst_dir, mode)?;
         }
     }
     Ok(())
@@ -509,15 +502,10 @@ fn copy_file(src: &Path, dst: &Path, mode: u32) -> Result<(), String> {
     write_mode(dst, &data, mode & 0o777)
 }
 
+/// Atomic write preserving an existing file's mode, else creating at `mode` — the
+/// same semantics the old `OpenOptions::mode()` had (mode applies on create only).
 fn write_mode(dst: &Path, data: &[u8], mode: u32) -> Result<(), String> {
-    let mut f = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .mode(mode)
-        .open(dst)
-        .map_err(|e| e.to_string())?;
-    f.write_all(data).map_err(|e| e.to_string())
+    crate::fsatomic::write(dst, data, crate::fsatomic::Mode::Preserve(mode)).map_err(|e| e.to_string())
 }
 
 fn copy_tree(src: &Path, dst: &Path, mode: u32) -> Result<(), String> {
@@ -625,5 +613,18 @@ mod tests {
         assert_eq!(v["model"], "opus"); // incoming added
         assert_eq!(v["windowWidth"], 1); // per-machine preserved despite incoming 9999
         assert_eq!(v["sidebarWidth"], 250);
+    }
+
+    #[test]
+    fn merge_settings_keeps_local_detached_windows() {
+        // detachedWindows is per-machine (delta 2): the local value is preserved and
+        // the incoming Mac's detachedWindows is dropped, like the window-bounds keys.
+        let current = br#"{"detachedWindows":{"web":{"detached":true}},"theme":"dark"}"#;
+        let incoming = br#"{"detachedWindows":{"api":{"detached":false}},"theme":"light"}"#;
+        let merged = merge_settings_bytes(incoming, current).unwrap();
+        let v: Value = serde_json::from_slice(&merged).unwrap();
+        assert_eq!(v["theme"], "light"); // shared key: incoming wins
+        assert!(v["detachedWindows"].get("web").is_some()); // local kept
+        assert!(v["detachedWindows"].get("api").is_none()); // incoming dropped
     }
 }

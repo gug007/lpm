@@ -77,15 +77,11 @@ pub fn remove_dir_all_retry(p: &std::path::Path) -> Result<(), String> {
     Err(format!("failed to remove {}: {last}", p.display()))
 }
 
-/// Write a config file, preserving the existing mode on overwrite (else 0644).
+/// Write a config file atomically, preserving the existing mode on overwrite
+/// (else 0644). Symlink-aware (writes through to the resolved target).
 pub fn write_config_file(path: &std::path::Path, content: &str) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-    let mode = std::fs::metadata(path)
-        .map(|m| m.permissions().mode())
-        .unwrap_or(0o644);
-    std::fs::write(path, content).map_err(|e| e.to_string())?;
-    let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode));
-    Ok(())
+    crate::fsatomic::write(path, content.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())
 }
 
 /// config.PeekParent: a project's `parent_name`, or None when absent/empty/unreadable.
@@ -203,7 +199,8 @@ pub fn load_settings() -> Value {
 pub fn save_settings(s: &Value) -> Result<(), String> {
     std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
     let data = serde_json::to_vec_pretty(s).map_err(|e| e.to_string())?;
-    std::fs::write(settings_path(), data).map_err(|e| e.to_string())
+    crate::fsatomic::write(&settings_path(), &data, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())
 }
 
 pub fn generators_path() -> PathBuf {
@@ -228,7 +225,8 @@ pub fn load_generators() -> Value {
 pub fn save_generators(g: &Value) -> Result<(), String> {
     std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
     let data = serde_json::to_vec_pretty(g).map_err(|e| e.to_string())?;
-    std::fs::write(generators_path(), data).map_err(|e| e.to_string())
+    crate::fsatomic::write(&generators_path(), &data, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())
 }
 
 pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
@@ -276,7 +274,8 @@ fn valid_claude_account_id(id: &str) -> bool {
 pub fn save_claude_accounts(v: &Value) -> Result<(), String> {
     std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
     let data = serde_json::to_vec_pretty(v).map_err(|e| e.to_string())?;
-    std::fs::write(accounts_path(), data).map_err(|e| e.to_string())?;
+    crate::fsatomic::write(&accounts_path(), &data, crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())?;
     for id in claude_account_ids(v) {
         if valid_claude_account_id(&id) {
             ensure_claude_account_dir(&id)?;

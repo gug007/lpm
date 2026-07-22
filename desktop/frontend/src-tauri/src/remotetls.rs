@@ -9,7 +9,6 @@
 // (trust-on-first-use); the pairing QR also carries that fingerprint (`f=`) so a
 // QR pair can verify the leaf before trusting it.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -132,11 +131,18 @@ fn load(cert_path: &Path, key_path: &Path) -> Result<TlsMaterial, String> {
 
 fn persist(dir: &Path, cert_path: &Path, key_path: &Path, gen: &Generated) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    std::fs::write(cert_path, gen.cert_pem.as_bytes()).map_err(|e| e.to_string())?;
-    let _ = std::fs::set_permissions(cert_path, std::fs::Permissions::from_mode(0o600));
-    std::fs::write(key_path, gen.key_pem.as_bytes()).map_err(|e| e.to_string())?;
-    let _ = std::fs::set_permissions(key_path, std::fs::Permissions::from_mode(0o600));
-    Ok(())
+    crate::fsatomic::write(
+        cert_path,
+        gen.cert_pem.as_bytes(),
+        crate::fsatomic::Mode::Exact(0o600),
+    )
+    .map_err(|e| e.to_string())?;
+    crate::fsatomic::write(
+        key_path,
+        gen.key_pem.as_bytes(),
+        crate::fsatomic::Mode::Exact(0o600),
+    )
+    .map_err(|e| e.to_string())
 }
 
 fn paths() -> (PathBuf, PathBuf, PathBuf) {

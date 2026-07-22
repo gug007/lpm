@@ -6,6 +6,7 @@
 // otherwise go unseen. This bridges those filesystem edits back onto the same
 // events; listeners are read-only refreshers, so self-echo from our own writes is
 // harmless.
+use crate::syncsurface::{is_sync_global_dir, is_sync_global_file, sync_global_dirs};
 use crate::{config, peersync};
 use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
@@ -32,8 +33,8 @@ struct Dirty {
 
 /// Map a filesystem event path to the config category it affects, or `None` when
 /// the path is outside the watched surface. The global file/dir lists come from
-/// peersync so this can't drift from what config sync actually mirrors. Pure over
-/// `lpm` and the event path so it can be unit-tested without the filesystem.
+/// syncsurface so this can't drift from what config sync actually mirrors. Pure
+/// over `lpm` and the event path so it can be unit-tested without the filesystem.
 fn classify(lpm: &Path, path: &Path) -> Option<Category> {
     let rel = path.strip_prefix(lpm).ok()?;
     let segs: Vec<&str> = rel
@@ -45,12 +46,10 @@ fn classify(lpm: &Path, path: &Path) -> Option<Category> {
         .collect();
     match segs.as_slice() {
         [name] if *name == "settings.json" => Some(Category::Settings),
-        [name] => peersync::GLOBAL_FILES
-            .contains(name)
-            .then_some(Category::Projects),
+        [name] => is_sync_global_file(name).then_some(Category::Projects),
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
-        [dir, ..] if peersync::GLOBAL_DIRS.contains(dir) => Some(Category::Projects),
+        [dir, ..] if is_sync_global_dir(dir) => Some(Category::Projects),
         _ => None,
     }
 }
@@ -73,7 +72,7 @@ fn portable_settings_digest(path: &Path) -> Option<String> {
 pub fn start(app: AppHandle) {
     let lpm = config::lpm_dir();
     let mut dirs = vec![lpm.clone(), config::projects_dir(), config::templates_dir()];
-    dirs.extend(peersync::GLOBAL_DIRS.iter().map(|d| lpm.join(d)));
+    dirs.extend(sync_global_dirs().map(|d| lpm.join(d)));
     for dir in &dirs {
         if let Err(e) = std::fs::create_dir_all(dir) {
             eprintln!(
@@ -133,11 +132,7 @@ pub fn start(app: AppHandle) {
         (root.join("projects"), RecursiveMode::NonRecursive),
         (root.join("templates"), RecursiveMode::Recursive),
     ];
-    watches.extend(
-        peersync::GLOBAL_DIRS
-            .iter()
-            .map(|d| (root.join(d), RecursiveMode::Recursive)),
-    );
+    watches.extend(sync_global_dirs().map(|d| (root.join(d), RecursiveMode::Recursive)));
     for (path, mode) in &watches {
         if let Err(e) = watcher.watch(path, *mode) {
             eprintln!(
@@ -202,6 +197,12 @@ mod tests {
         );
         assert_eq!(
             classify(&lpm(), &at("commit-instructions.txt")),
+            Some(Category::Projects)
+        );
+        // branch-name-instructions.txt joined the sync surface (delta 1), so the
+        // watcher now classifies it and emits a refresh when it changes.
+        assert_eq!(
+            classify(&lpm(), &at("branch-name-instructions.txt")),
             Some(Category::Projects)
         );
     }

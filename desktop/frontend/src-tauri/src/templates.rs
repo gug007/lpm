@@ -78,7 +78,8 @@ pub fn create_template(app: AppHandle, name: String) -> Result<(), String> {
     }
     config::ensure_dirs()?;
     let path = config::templates_dir().join(format!("{name}.yml"));
-    std::fs::write(&path, "").map_err(|e| e.to_string())?;
+    crate::fsatomic::write(&path, b"", crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())?;
     let _ = app.emit("templates-changed", ());
     Ok(())
 }
@@ -126,7 +127,12 @@ fn read_instructions(key: &str) -> Result<String, String> {
 
 fn save_instructions(key: &str, content: &str) -> Result<(), String> {
     config::ensure_dirs()?;
-    std::fs::write(instructions_path(key), content).map_err(|e| e.to_string())
+    crate::fsatomic::write(
+        &instructions_path(key),
+        content.as_bytes(),
+        crate::fsatomic::Mode::Preserve(0o644),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -197,7 +203,8 @@ fn save_project_instructions_file(project: &str, key: &str, content: &str) -> Re
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    std::fs::write(&path, content).map_err(|e| e.to_string())
+    crate::fsatomic::write(&path, content.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
+        .map_err(|e| e.to_string())
 }
 
 /// A project's own instructions when set (non-blank), otherwise the global ones.

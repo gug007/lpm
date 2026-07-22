@@ -1041,7 +1041,7 @@ fn clean_terminals_entry(name: &str) {
         return;
     }
     if let Ok(data) = serde_json::to_vec_pretty(&v) {
-        let _ = std::fs::write(&path, data);
+        let _ = crate::fsatomic::write(&path, &data, crate::fsatomic::Mode::Preserve(0o644));
     }
 }
 
@@ -1092,7 +1092,7 @@ fn clean_group_references(name: &str) {
     }
     if changed {
         if let Ok(data) = serde_json::to_vec_pretty(&v) {
-            let _ = std::fs::write(&path, data);
+            let _ = crate::fsatomic::write(&path, &data, crate::fsatomic::Mode::Preserve(0o644));
         }
     }
 }
