@@ -633,25 +633,14 @@ export function CommitModal({
                       <div className="my-1 border-t border-[var(--border)]" />
                       {(
                         [
-                          {
-                            label: "Auto Commit",
-                            push: false,
-                            title:
-                              "Generates the commit message with AI, then commits in the background",
-                          },
-                          {
-                            label: "Auto Commit and Push",
-                            push: true,
-                            title:
-                              "Generates the commit message with AI, then commits and pushes in the background",
-                          },
+                          { label: "Auto Commit", push: false },
+                          { label: "Auto Commit and Push", push: true },
                         ] as const
                       ).map((opt) => (
                         <button
                           key={opt.label}
                           onClick={() => submitAuto(opt.push)}
                           disabled={!canAutoCommit}
-                          title={opt.title}
                           className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           {opt.label}

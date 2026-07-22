@@ -693,7 +693,6 @@ export function BranchSwitcher({
                         <button
                           onClick={() => runAuto(false)}
                           disabled={status.uncommitted === 0}
-                          title="Generates the commit message with AI, then commits in the background"
                           className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
@@ -711,7 +710,6 @@ export function BranchSwitcher({
                         <button
                           onClick={() => runAuto(true)}
                           disabled={status.uncommitted === 0}
-                          title="Generates the commit message with AI, then commits and pushes in the background"
                           className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
