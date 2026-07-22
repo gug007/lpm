@@ -45,6 +45,7 @@ export function TerminalFooter({
               disabled={disabled}
               onRun={onRunAction}
               onContextMenu={onActionContextMenu}
+              scope={projectName}
             />
           </ActionsSortableItem>
         ))}

@@ -61,6 +61,7 @@ export interface ActionInfo {
   env?: Record<string, string>;
   confirm: boolean;
   display: ActionDisplay;
+  primary?: string;
   type?: ActionType;
   reuse?: boolean;
   position?: number;

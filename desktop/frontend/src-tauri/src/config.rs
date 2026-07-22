@@ -707,6 +707,8 @@ struct ActionFull {
     confirm: bool,
     #[serde(default)]
     display: String,
+    #[serde(default)]
+    primary: String,
     #[serde(rename = "type", default)]
     kind: String,
     #[serde(default)]
@@ -1203,6 +1205,8 @@ pub struct ActionInfo {
     pub env: BTreeMap<String, String>,
     pub confirm: bool,
     pub display: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub primary: String,
     #[serde(rename = "type")]
     pub kind: String,
     pub reuse: bool,
@@ -1307,6 +1311,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.display.is_empty() {
         d.display = s.display.clone();
+    }
+    if d.primary.is_empty() {
+        d.primary = s.primary.clone();
     }
     if d.kind.is_empty() {
         d.kind = s.kind.clone();
@@ -1610,6 +1617,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         env: act.env.clone(),
         confirm: act.confirm,
         display: act.display.clone(),
+        primary: act.primary.clone(),
         kind: act.kind.clone(),
         reuse: act.reuse,
         position: act.position,
@@ -2651,6 +2659,37 @@ mod resolve_actions_tests {
         assert_eq!(ios_info.children.len(), 1);
         assert_eq!(ios_info.children[0].name, "Build:iOS:Release");
         assert_eq!(ios_info.children[0].cmd, "r");
+    }
+
+    #[test]
+    fn primary_stays_on_parent_and_never_leaks_to_children() {
+        let mut deploy = ActionFull {
+            primary: "last-used".into(),
+            ..Default::default()
+        };
+        deploy.actions.insert(
+            "Staging".into(),
+            ActionDef::Full(ActionFull {
+                cmd: "s".into(),
+                ..Default::default()
+            }),
+        );
+        deploy.actions.insert(
+            "Prod".into(),
+            ActionDef::Full(ActionFull {
+                cmd: "p".into(),
+                ..Default::default()
+            }),
+        );
+
+        let info = build_action_info("Deploy", "Deploy", &deploy);
+        let json = serde_json::to_value(&info).unwrap();
+        assert_eq!(json["primary"], "last-used");
+        assert_eq!(info.children.len(), 2);
+        for child in &info.children {
+            let cjson = serde_json::to_value(child).unwrap();
+            assert!(cjson.get("primary").is_none(), "child leaked primary");
+        }
     }
 }
 

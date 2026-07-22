@@ -48,6 +48,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files directl
 | Start prerequisites first | service `dependsOn` |
 | Ask for parameters | action `inputs` |
 | Default action plus alternatives | parent `cmd` plus nested `actions` |
+| Split button whose main segment repeats the last used option | parent `primary: last-used` plus nested `actions` |
 | Menu with no default | nested `actions` without parent `cmd` |
 | Hidden command with completion notification | `type: background` |
 | Send command into the focused terminal | `type: command` |

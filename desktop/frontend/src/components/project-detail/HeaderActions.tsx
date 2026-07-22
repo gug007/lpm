@@ -12,6 +12,7 @@ interface HeaderActionsProps {
   ids: string[];
   wrapped: boolean;
   disabled: boolean;
+  scope: string;
   onRun: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onAddAction: () => void;
@@ -23,6 +24,7 @@ export function HeaderActions({
   ids,
   wrapped,
   disabled,
+  scope,
   onRun,
   onContextMenu,
   onAddAction,
@@ -49,6 +51,7 @@ export function HeaderActions({
             disabled={disabled}
             onRun={onRun}
             onContextMenu={onContextMenu}
+            scope={scope}
           />
         </ActionsSortableItem>
       ))}

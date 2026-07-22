@@ -40,6 +40,26 @@ actions:
 - Children without a parent `cmd` create a dropdown.
 - Nested `actions` may continue to any depth.
 - Children inherit `cwd`, `env`, `mode`, `type`, and `portConflict` through the tree. Child values win.
+- `primary` makes the split button's main segment run one of the children instead of the parent `cmd`. See [Primary child](#primary-child).
+
+## Primary child
+
+On a parent with nested `actions`, `primary` chooses which child the split button's main segment shows and runs. The chevron still opens the full list.
+
+```yaml
+actions:
+  Deploy:
+    display: header
+    primary: last-used
+    actions:
+      Staging: ./deploy.sh staging
+      Prod: ./deploy.sh prod
+```
+
+- `primary: last-used` makes the main segment repeat whichever child was run most recently, whether from the segment or the menu. The choice is remembered per project and never written back to config.
+- `primary: <childName>` pins one child by its key, for example `primary: Prod`.
+- If the named or remembered child is missing, the main segment falls back to the first runnable child.
+- `primary` takes precedence over the parent's own `cmd`, which is then reachable only through nothing else — leave it off when using `primary`.
 
 ## Fields
 
@@ -53,6 +73,7 @@ actions:
 | `env` | string map | Environment variables. |
 | `confirm` | boolean | Confirm before destructive or irreversible commands. |
 | `display` | string | `header` by default or `footer`; `menu` is legacy. Do not use deprecated `button`. |
+| `primary` | string | On a parent with child `actions`, `last-used` or a child key; sets which child the split button's main segment runs. |
 | `type` | string | Omit for the inline runner, or use `terminal`, `command`, or `background`. |
 | `reuse` | boolean | With `type: terminal`, reuse the same pane. |
 | `mode` | string | `remote` or `sync`; see `ssh.md`. |

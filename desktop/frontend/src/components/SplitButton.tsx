@@ -7,6 +7,12 @@ import { withEmoji } from "../withEmoji";
 import { useActionsDragActive } from "./ActionsDnd";
 import { ActionMenu } from "./ActionMenu";
 import { SPRING_LOAD_MS, useSpringOver } from "./springLoad";
+import {
+  PRIMARY_LAST_USED,
+  loadRememberedChild,
+  rememberChild,
+  resolvePrimaryChild,
+} from "./splitPrimary";
 
 const SIZE_CLASSES = {
   default: {
@@ -45,10 +51,15 @@ interface SplitButtonProps {
   onRunAction: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent) => void;
   compact?: boolean;
+  scope?: string;
 }
 
-export function SplitButton({ action, disabled, onRunAction, onContextMenu, compact = false }: SplitButtonProps) {
+export function SplitButton({ action, disabled, onRunAction, onContextMenu, compact = false, scope = "global" }: SplitButtonProps) {
   const [open, setOpen] = useState(false);
+  const [remembered, setRemembered] = useState<string | null>(() => loadRememberedChild(scope, action.name));
+  useEffect(() => {
+    setRemembered(loadRememberedChild(scope, action.name));
+  }, [scope, action.name]);
   const dragActive = useActionsDragActive();
   const springOver = useSpringOver();
   // Keep this menu open through a drag only if it was already open when the
@@ -87,11 +98,31 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     side: s.side,
   });
 
-  const isSplit = !!action.cmd;
+  const primaryChild = resolvePrimaryChild(action, remembered);
+  const isSplit = !!primaryChild || !!action.cmd;
+
+  const noteRun = (child: ActionInfo) => {
+    if (action.primary !== PRIMARY_LAST_USED) return;
+    if (!child.name.startsWith(`${action.name}:`)) return;
+    const rest = child.name.slice(action.name.length + 1);
+    if (rest.includes(":")) return;
+    rememberChild(scope, action.name, rest);
+    setRemembered(rest);
+  };
 
   const handleSelectChild = (child: ActionInfo) => {
     setOpen(false);
+    noteRun(child);
     onRunAction(child);
+  };
+
+  const runPrimary = () => {
+    if (primaryChild) {
+      noteRun(primaryChild);
+      onRunAction(primaryChild);
+    } else {
+      onRunAction(action);
+    }
   };
 
   const dropdown = panelOpen && style && createPortal(
@@ -104,11 +135,11 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   const trigger = isSplit ? (
     <div className={`inline-flex items-stretch ${s.rounded} ${s.border}`}>
       <button
-        onClick={() => onRunAction(action)}
+        onClick={runPrimary}
         disabled={disabled}
         className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
-        {withEmoji(action.emoji, action.label)}
+        {primaryChild ? withEmoji(primaryChild.emoji, primaryChild.label) : withEmoji(action.emoji, action.label)}
       </button>
       <button
         onClick={() => setOpen((v) => !v)}

@@ -348,6 +348,7 @@ export function ProjectDetail({
           compact={compact}
           disabled={false}
           onRun={noop}
+          scope={project.name}
         />
       );
     },
@@ -530,6 +531,7 @@ export function ProjectDetail({
       ids={headerIds}
       wrapped={actionsWrapped}
       disabled={runningAction !== null}
+      scope={project.name}
       onRun={handleRunAction}
       onContextMenu={handleActionContextMenu}
       onAddAction={() => setShowCreateAction(true)}

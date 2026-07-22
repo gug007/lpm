@@ -10,9 +10,10 @@ interface ActionViewProps {
   disabled: boolean;
   onRun: (action: ActionInfo) => void;
   onContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
+  scope?: string;
 }
 
-export function ActionView({ action, compact, disabled, onRun, onContextMenu }: ActionViewProps) {
+export function ActionView({ action, compact, disabled, onRun, onContextMenu, scope }: ActionViewProps) {
   const handleContextMenu = onContextMenu ? (e: MouseEvent) => onContextMenu(e, action) : undefined;
 
   if (action.children?.length) {
@@ -23,6 +24,7 @@ export function ActionView({ action, compact, disabled, onRun, onContextMenu }: 
         onRunAction={onRun}
         onContextMenu={handleContextMenu}
         compact={compact}
+        scope={scope}
       />
     );
   }
