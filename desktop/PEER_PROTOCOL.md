@@ -10,11 +10,22 @@ role). Both roles ship in every lpm, so a Mac can be host and client at once.
 
 ## Transport
 
-- Plaintext WebSocket, text frames only. Each frame is one JSON object with a
-  discriminator field `t`. Unknown `t` values are ignored (forward-compatible).
+- WebSocket, text frames only. Each frame is one JSON object with a discriminator
+  field `t`. Unknown `t` values are ignored (forward-compatible).
 - Host listens on **port 8766** by default (mobile owns 8765). Binds `127.0.0.1`
-  (loopback) unless LAN is enabled, then `0.0.0.0`. Run over a Tailscale tailnet
-  for encrypted away-from-home access.
+  (loopback) unless LAN is enabled, then `0.0.0.0`.
+- **Encrypted with a pinned self-signed leaf.** The host presents the *same*
+  long-lived leaf the mobile server uses — ECDSA P-256, CN `lpm`, persisted at
+  `~/.lpm/remote-cert.pem` (see `remotetls.rs`); there is never a second identity.
+  The client pins that leaf's SHA-256 (hex of the cert DER) and connects `wss://`
+  only once pinned, so a bearer-token connection carrying executable `zdotdir`
+  config can't be read or MITM'd on the LAN. See **Encrypted transport** below.
+- **Dual-mode transition listener.** On each accepted socket the host peeks one
+  byte: `0x16` (a TLS ClientHello) takes the TLS path; anything else (`GET …`) is
+  handled as a legacy plaintext WebSocket. Everything above the stream — Origin
+  refusal, auth, all frames — is identical on both. The plaintext branch is
+  transitional so a peer paired before this shipped keeps working; a future build
+  can drop it.
 - One blocking connection thread per client on the host; one connection thread
   per paired host on the client, with auto-reconnect + backoff while enabled.
 
@@ -35,13 +46,61 @@ Holds both roles behind one shared in-memory lock:
   },
   "peers": [
     { "slug": "abcd1234", "alias": "Studio", "host": "100.64.0.5", "port": 8766,
-      "deviceId": "uuid", "token": "raw-token", "enabled": true }
+      "deviceId": "uuid", "token": "raw-token", "tlsFp": "hex-sha256", "enabled": true }
   ]
 }
 ```
 
 The host stores only `sha256(token)`; the raw `token` lives on the client. `port:
-0` means the default (8766).
+0` means the default (8766). `tlsFp` is the pinned host leaf fingerprint (hex
+sha256 of its cert DER); absent/`null` on an entry paired before this shipped —
+the first successful authenticated connect captures and pins the presented leaf.
+
+## Encrypted transport
+
+The host presents a self-signed leaf (`remotetls.rs`, shared with the mobile
+server). The client pins it by SHA-256 — no CA chain, hostname, or expiry is
+checked; the pinned fingerprint is the whole of trust, exactly as the phone pins
+its Mac. `peertls.rs` holds the rustls verifiers (pinned and capturing).
+
+**Client policy** (by whether the peer entry already has a `tlsFp`, and — when
+pairing — whether the invite carried a fingerprint `f`):
+
+| situation | transport | on success |
+| --- | --- | --- |
+| entry **has** `tlsFp` | `wss://` verifying the leaf == `tlsFp`; **no plaintext fallback** | run session |
+| entry **lacks** `tlsFp` | `wss://` accept-any, capturing the leaf; if the TLS layer fails (old plaintext host), fall back to plaintext for that attempt | on first authed connect, pin the captured leaf (`pin-after-auth`) |
+| pairing, invite **has** `f` | `wss://` verifying leaf == `f`; **hard fail** on mismatch | store `tlsFp = f` |
+| pairing, invite **lacks** `f` | `wss://` unpinned, or plaintext against an old host | pin on the first authed session (`tlsFp` starts null) |
+
+An unpinned connect pins **only after** the host answers the shared token
+(`ready`/`paired`): a stranger who merely answers the port is never pinned. A
+pinned connect never downgrades and never auto-unpins; a mismatch or TLS failure
+fails with a stable, user-facing marker (`the other Mac's identity changed …` for a
+saved peer, `couldn't verify the other Mac's identity …` for a pairing invite) and
+the peer's row surfaces it. Tap-to-approve pairing has no invite `f`, so it uses
+the capture path: the handshake is encrypted (`wss`) and, on success, pins the leaf
+captured during it (**pin-after-successful-pair**) — falling back to plaintext, and
+to pinning on the first session, only against a pre-Phase-3 host.
+
+**Invite v2.** The pairing invite is `lpm-pair:` + base64url(JSON). v2 adds the
+host fingerprint:
+
+```json
+{ "v": 2, "h": ["host", …], "p": 8766, "c": "code", "f": "hex-sha256" }
+```
+
+The decoder accepts v1 (no `f`, unpinned) and v2, ignores unknown fields, and treats
+a v2 invite without `f` as unpinned. `peer_host_start_pairing` supplies `f`
+(reading it forces the shared leaf to exist before the listener presents it).
+Note: an app built before v2 shipped rejects a v2 invite outright (its decoder
+requires `v === 1`), so during the rollout a new host's invite won't paste into a
+not-yet-updated client — both ends ship together, so this is a transition-only gap.
+
+**Rotation.** The leaf is never deliberately rotated; it is only regenerated if the
+stored PEM can no longer be loaded (surfaced by `remotetls::identity_rotated()`).
+After a rotation, pinned peers fail with the identity-changed marker until the user
+removes and re-pairs them — there is no auto-heal, by design.
 
 ## Identifier scheme
 
@@ -75,6 +134,12 @@ feature simply never receives frames that depend on it.
 
 Codes are compared case-insensitively with separators stripped, in constant time.
 Tokens are compared as `sha256` hex in constant time.
+
+Pair/auth run over the encrypted, pinned channel of **Encrypted transport** — so a
+`token` is exchanged over a proven connection whenever a fingerprint is known (a v2
+invite carrying `f`, or a saved peer with `tlsFp`). It is exchanged over an
+unpinned-but-encrypted or (against a pre-Phase-3 host) plaintext channel only in the
+transition cases that pin on the first authed connect.
 
 ## Commands (generic invoke)
 
@@ -295,3 +360,23 @@ Frontend-facing events: `peer-state-changed`, `peer-invoke` (host dispatcher),
   control so host windows show the "Take control" placeholder. The reverse — a
   host window reclaiming control while the peer keeps the terminal open — is not
   pushed to the client, so the client keeps rendering until it detaches.
+
+### Threat model — why the channel is pinned
+
+A paired client holds a durable bearer token and drives a wide command surface,
+and the config-sync surface carries `zdotdir/*` — executable shell config that
+lpm terminals source. A plaintext LAN channel guarded only by that token is not
+enough to carry executable content unattended: anyone on the path could read the
+token, read the shell config, or MITM the connection. So the channel is TLS with
+the host's leaf **pinned** — trust is a fixed fingerprint, not a CA the LAN could
+forge. Because the leaf is self-signed and stable, the first trust is established
+by TOFU: a pasted invite's `f` (or the mobile QR's) verifies it up front, and an
+unpinned upgrade pins it after the first token-authenticated connect. The TOFU
+window — where a MITM could impersonate the host — exists only for that single
+first connect on a peer that has no `f` and no stored `tlsFp`; it closes the
+moment the pin is stored, and pasted-invite-with-`f` pairing never opens it.
+Tap-to-approve pairing (no `f`) still encrypts its handshake and pins the captured
+leaf on a successful pair, so its TOFU window is the pairing exchange itself.
+Plaintext is accepted only transitionally, against a host paired before this
+shipped; such a peer pins on its first authed session and is encrypted thereafter.
+A pinned connection never downgrades.

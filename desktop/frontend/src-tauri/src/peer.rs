@@ -458,6 +458,7 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
             eprintln!("warning: peer host server could not bind {addr}");
             hub.inner.running.store(false, Ordering::Relaxed);
             crate::mdns::withdraw_peer();
+            let _ = app.emit("peer-state-changed", ());
             return;
         };
         // A newer apply() may have superseded us between binding and here; it has
@@ -469,6 +470,7 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
         }
         let _ = listener.set_nonblocking(true);
         hub.inner.running.store(true, Ordering::Relaxed);
+        let _ = app.emit("peer-state-changed", ());
         if advertise {
             crate::mdns::advertise_peer(crate::mdns::AdParams {
                 server_id: host_id,

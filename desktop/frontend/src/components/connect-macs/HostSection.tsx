@@ -95,15 +95,25 @@ export function HostSection({
           <div className="mt-0.5 flex items-center gap-1.5 text-[12px]">
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{ backgroundColor: host.enabled ? "var(--accent-green)" : "var(--text-muted)" }}
+              style={{
+                backgroundColor: !host.enabled
+                  ? "var(--text-muted)"
+                  : host.running
+                    ? "var(--accent-green)"
+                    : "var(--accent-amber)",
+              }}
             />
-            {host.enabled ? (
+            {!host.enabled ? (
+              <span className="text-[var(--text-muted)]">
+                Off — turn on to let another Mac connect
+              </span>
+            ) : host.running ? (
               <span className="text-[var(--text-secondary)]">
                 On <span className="font-mono text-[var(--text-muted)]">· port {host.port}</span>
               </span>
             ) : (
               <span className="text-[var(--text-muted)]">
-                Off — turn on to let another Mac connect
+                Waiting for port {host.port} — another copy of lpm may be using it
               </span>
             )}
           </div>

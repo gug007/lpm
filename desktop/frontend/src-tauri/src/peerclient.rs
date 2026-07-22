@@ -219,18 +219,18 @@ impl PeerClientHub {
         // cancelled when peer_pair_cancel bumps the counter again).
         let generation = self.inner.pair_gen.fetch_add(1, Ordering::SeqCst) + 1;
 
-        let mut chosen: Option<(WebSocket<TcpStream>, String)> = None;
+        let mut chosen: Option<(ClientWs, String, Option<String>)> = None;
         let mut last_err = "no candidate addresses".to_string();
         for h in &hosts {
-            match connect_ws_timeout(h, port, CONNECT_TIMEOUT) {
-                Ok(ws) => {
-                    chosen = Some((ws, h.clone()));
+            match dial_reciprocal(h, port, Some(CONNECT_TIMEOUT)) {
+                Ok((ws, fp)) => {
+                    chosen = Some((ws, h.clone(), fp));
                     break;
                 }
                 Err(e) => last_err = e,
             }
         }
-        let (mut ws, host) = match chosen {
+        let (mut ws, host, captured_fp) = match chosen {
             Some(v) => v,
             None => {
                 let e = format!("could not reach the other Mac: {last_err}");
@@ -246,7 +246,7 @@ impl PeerClientHub {
             self.emit_pair_failed(&e);
             return Err(e);
         }
-        let _ = ws.get_ref().set_read_timeout(Some(POLL));
+        let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
 
         let deadline = Instant::now() + PAIR_REQUEST_WINDOW;
         loop {
@@ -280,7 +280,7 @@ impl PeerClientHub {
                             }
                         }
                         "paired" => {
-                            return self.finish_pair_request(&mut ws, &v, &host, port);
+                            return self.finish_pair_request(&mut ws, &v, &host, port, captured_fp);
                         }
                         "error" => {
                             let e = v
@@ -317,10 +317,11 @@ impl PeerClientHub {
     /// a `reciprocalInvite` so the host can dial us. Returns the new slug.
     fn finish_pair_request(
         &self,
-        ws: &mut WebSocket<TcpStream>,
+        ws: &mut ClientWs,
         reply: &Value,
         host: &str,
         port: u16,
+        captured_fp: Option<String>,
     ) -> Result<Value, String> {
         let s = |k: &str| {
             reply
@@ -357,10 +358,10 @@ impl PeerClientHub {
                 device_id,
                 token,
                 host_id,
-                // Tap-to-approve pairs over the transitional plaintext handshake, so
-                // there is no verified leaf yet; the first authed session captures and
-                // pins it (pin-after-auth).
-                tls_fp: None,
+                // Pin the leaf captured during the encrypted pairing handshake (Some
+                // over wss). None only when we fell back to plaintext against an old
+                // host — then the first authed session pins it (pin-after-auth).
+                tls_fp: captured_fp,
                 enabled: true,
                 last_sync_at: 0,
             });
@@ -382,7 +383,7 @@ impl PeerClientHub {
     /// Enable this Mac's hosting and send the still-open socket a `reciprocalInvite`
     /// so the host can pair back and control this Mac too. Never clobbers a manual
     /// invite already in progress — an outstanding code is reused.
-    fn offer_reciprocal(&self, ws: &mut WebSocket<TcpStream>) {
+    fn offer_reciprocal(&self, ws: &mut ClientWs) {
         let Some(app) = self.app() else { return };
         let (code, out_port, out_hosts) = {
             let mut cfg = self.inner.config.lock().unwrap();
@@ -1013,6 +1014,20 @@ fn dial_for_session(entry: &PeerEntry) -> Result<(ClientWs, bool, Option<String>
     }
 }
 
+/// The pairing dial for the tap-to-approve flow: `wss` capturing the host's leaf,
+/// or plaintext against an old host. Returns the captured fingerprint (`Some` over
+/// TLS) so a successful pair can pin it at pair time.
+fn dial_reciprocal(
+    host: &str,
+    port: u16,
+    timeout: Option<Duration>,
+) -> Result<(ClientWs, Option<String>), String> {
+    match dial_capture(host, port, timeout) {
+        Ok((ws, fp)) => Ok((ws, Some(fp))),
+        Err(_) => Ok((dial_plain(host, port, timeout)?, None)),
+    }
+}
+
 /// The `tls_fp` to persist after a connection authenticates. An already-pinned entry
 /// keeps its pin (`None` = no change); an unpinned entry pins the captured leaf once
 /// the host proved the shared token — but never over a plaintext fallback.
@@ -1041,31 +1056,6 @@ fn persist_tls_fp(hub: &PeerClientHub, slug: &str, fp: &str) {
     drop(cfg);
     let _ = peer::save_config(&snapshot);
     emit_state_changed(hub);
-}
-
-/// Cap the TCP connect at `timeout` (via connect_timeout) so a dead candidate
-/// address fails fast instead of blocking on the OS default. The plaintext dial for
-/// tap-to-approve pairing, where several candidate addresses are tried in turn.
-fn connect_ws_timeout(
-    host: &str,
-    port: u16,
-    timeout: Duration,
-) -> Result<WebSocket<TcpStream>, String> {
-    let addr = (host, port)
-        .to_socket_addrs()
-        .map_err(|e| e.to_string())?
-        .next()
-        .ok_or_else(|| format!("could not resolve {host}"))?;
-    let stream = TcpStream::connect_timeout(&addr, timeout).map_err(|e| e.to_string())?;
-    finish_ws(stream, host, port)
-}
-
-fn finish_ws(stream: TcpStream, host: &str, port: u16) -> Result<WebSocket<TcpStream>, String> {
-    let _ = stream.set_nodelay(true);
-    let _ = stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
-    let url = format!("ws://{host}:{port}/");
-    let (ws, _) = tungstenite::client(url, stream).map_err(|e| e.to_string())?;
-    Ok(ws)
 }
 
 /// Dial, authenticate, then run the read/write loop until the socket drops. Ok

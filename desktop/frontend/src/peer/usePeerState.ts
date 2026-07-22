@@ -23,6 +23,7 @@ export interface PeerPairRequest {
 export interface PeerHostState {
   enabled: boolean;
   port: number;
+  running: boolean;
   hostId: string;
   pairing: PeerHostPairing | null;
   devices: PeerHostDevice[];
@@ -56,7 +57,15 @@ export interface PeerStateShape {
 }
 
 export const DEFAULT_PEER_STATE: PeerStateShape = {
-  host: { enabled: false, port: 8766, hostId: "", pairing: null, devices: [], pairRequests: [] },
+  host: {
+    enabled: false,
+    port: 8766,
+    running: false,
+    hostId: "",
+    pairing: null,
+    devices: [],
+    pairRequests: [],
+  },
   peers: [],
 };
 
