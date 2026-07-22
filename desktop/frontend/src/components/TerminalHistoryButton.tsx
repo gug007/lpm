@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { useOverlay } from "../store/overlay";
 import { ClipboardListIcon } from "./icons";
@@ -15,6 +22,11 @@ interface TerminalHistoryButtonProps {
   // Fires the chosen message straight at the terminal, skipping the composer.
   // Optional: dialog composers have no terminal, so they omit it (no send button).
   onSend?: (text: string, images: Record<string, string>) => void;
+  // Collection the popover opens on; defaults to the unfiltered "All" view.
+  initialCollection?: string;
+  icon?: ReactNode;
+  tooltip?: string;
+  ariaLabel?: string;
 }
 
 const GAP = 10;
@@ -27,6 +39,10 @@ export function TerminalHistoryButton({
   terminalLabel,
   onPick,
   onSend,
+  initialCollection,
+  icon = <ClipboardListIcon />,
+  tooltip = "Recent messages",
+  ariaLabel = "Message history",
 }: TerminalHistoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -124,12 +140,12 @@ export function TerminalHistoryButton({
 
   return (
     <>
-      <Tooltip content="Recent messages" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content={tooltip} delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
           ref={btnRef}
           type="button"
           onClick={toggleOpen}
-          aria-label="Message history"
+          aria-label={ariaLabel}
           aria-haspopup="dialog"
           aria-expanded={open}
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
@@ -138,7 +154,7 @@ export function TerminalHistoryButton({
               : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           }`}
         >
-          <ClipboardListIcon />
+          {icon}
         </button>
       </Tooltip>
 
@@ -151,6 +167,7 @@ export function TerminalHistoryButton({
             terminalId={terminalId}
             projectName={projectName}
             terminalLabel={terminalLabel}
+            initialCollection={initialCollection}
             onPick={(text, images) => {
               onPick(text, images);
               close();

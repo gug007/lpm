@@ -48,6 +48,8 @@ interface TerminalHistoryPopoverProps {
   onPick: (text: string, images: Record<string, string>) => void;
   // When set, each row gains a one-click "send to terminal" action.
   onSend?: (text: string, images: Record<string, string>) => void;
+  // Collection the popover opens on; defaults to the unfiltered "All" view.
+  initialCollection?: string;
 }
 
 export function TerminalHistoryPopover({
@@ -58,9 +60,10 @@ export function TerminalHistoryPopover({
   terminalLabel,
   onPick,
   onSend,
+  initialCollection = COLLECTION_ALL,
 }: TerminalHistoryPopoverProps) {
   const [scope, setScope] = useState<HistoryScope>("project");
-  const [collection, setCollection] = useState(COLLECTION_ALL);
+  const [collection, setCollection] = useState(initialCollection);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [confirmingClear, setConfirmingClear] = useState(false);

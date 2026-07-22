@@ -42,11 +42,11 @@ import {
   type ComposerHistoryEntry,
   type ComposerInputTab,
 } from "../store/composerDrafts";
-import { recordMessage, saveDraft } from "../store/messageHistory";
+import { COLLECTION_DRAFTS, recordMessage, saveDraft } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendSplitButton } from "./SendSplitButton";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
-import { PlusIcon } from "./icons";
+import { PencilIcon, PlusIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
@@ -1916,6 +1916,17 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               terminalLabel={targetLabel}
               onPick={loadFromHistory}
               onSend={sendFromHistory}
+            />
+            <TerminalHistoryButton
+              terminalId={historyKey}
+              projectName={projectName}
+              terminalLabel={targetLabel}
+              onPick={loadFromHistory}
+              onSend={sendFromHistory}
+              initialCollection={COLLECTION_DRAFTS}
+              icon={<PencilIcon />}
+              tooltip="Drafts"
+              ariaLabel="Drafts"
             />
           </div>
           <SendSplitButton
