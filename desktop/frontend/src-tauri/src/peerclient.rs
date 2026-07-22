@@ -169,6 +169,7 @@ impl PeerClientHub {
                     "supportsSync": supports_sync,
                     "lastSyncAt": p.last_sync_at,
                     "lastError": last_error,
+                    "autoSync": p.auto_sync,
                 })
             })
             .collect();
@@ -364,6 +365,7 @@ impl PeerClientHub {
                 tls_fp: captured_fp,
                 enabled: true,
                 last_sync_at: 0,
+                auto_sync: false,
             });
             let snapshot = cfg.clone();
             drop(cfg);
@@ -538,6 +540,16 @@ impl PeerClientHub {
         let remote = self.fetch_remote_map(slug, sync2)?;
         let local = crate::peersync::local_digest_map();
         let items = self.plan_for(&local, &remote, sync2);
+        // Heal a passive host's per-peer bases whenever its UI recomputes status.
+        // A host that only ever SERVES syncs never refreshes the base for a unit a
+        // client pulled from it, so its own preview can over-report "Both changed"
+        // until it runs a sync itself. Committing the converged bases here — facts
+        // only (units currently equal on both Macs), no item states — closes that
+        // gap cheaply and safely.
+        if sync2 && !remote.device.is_empty() {
+            let bases = crate::peersync::converged_bases(&local, &remote);
+            commit_sidecar(&remote.device, &[], &bases);
+        }
         let last = self.peer_entry(slug).map(|p| p.last_sync_at).unwrap_or(0);
         Ok(json!({ "items": items, "lastSyncAt": last }))
     }
@@ -557,6 +569,13 @@ impl PeerClientHub {
         let self_id = local.device.clone();
         let remote_id = remote.device.clone();
         let plan = self.plan_for(&local, &remote, sync2);
+        // Names of units that resolved as a both-sides change (the newer won, a
+        // backup was kept), threaded out so an unattended run can surface them.
+        let conflicts: Vec<String> = plan
+            .iter()
+            .filter(|i| i.conflict)
+            .map(|i| i.name.clone())
+            .collect();
         let (to_local, to_remote): (Vec<_>, Vec<_>) =
             plan.into_iter().partition(|i| i.direction == "toLocal");
 
@@ -748,9 +767,86 @@ impl PeerClientHub {
             let _ = peer::save_config(&snapshot);
         }
         emit_state_changed(self);
-        Ok(
-            json!({ "applied": applied, "pushed": pushed, "errors": errors, "backupPath": backup_path }),
-        )
+        Ok(json!({
+            "applied": applied,
+            "pushed": pushed,
+            "errors": errors,
+            "conflicts": conflicts,
+            "backupPath": backup_path,
+        }))
+    }
+}
+
+// --- auto-sync engine host ----------------------------------------------------
+
+/// The client hub is the auto-sync engine's I/O surface: it knows which peers opted
+/// in, their live gating state, and drives the same `sync_run` the manual button
+/// uses. See autosync.rs.
+impl crate::autosync::AutoSyncHost for PeerClientHub {
+    fn auto_slugs(&self) -> Vec<String> {
+        self.inner
+            .config
+            .lock()
+            .unwrap()
+            .peers
+            .iter()
+            .filter(|p| p.auto_sync)
+            .map(|p| p.slug.clone())
+            .collect()
+    }
+
+    fn gates(&self, slug: &str) -> crate::autosync::Gates {
+        let (auto_sync, enabled, pinned) = self
+            .peer_entry(slug)
+            .map(|p| (p.auto_sync, p.enabled, p.tls_fp.is_some()))
+            .unwrap_or((false, false, false));
+        let conns = self.inner.conns.lock().unwrap();
+        let conn = conns.get(slug);
+        crate::autosync::Gates {
+            auto_sync,
+            enabled,
+            connected: conn.map(|c| c.connected.load(Ordering::Relaxed)).unwrap_or(false),
+            supports_sync2: conn
+                .map(|c| c.supports_sync2.load(Ordering::Relaxed))
+                .unwrap_or(false),
+            pinned,
+        }
+    }
+
+    fn run_sync(&self, slug: &str) -> Result<crate::autosync::RunReport, String> {
+        self.sync_run(slug, Vec::new()).map(|v| parse_run_report(&v))
+    }
+
+    fn emit_result(&self, slug: &str, report: &crate::autosync::RunReport) {
+        if let Some(app) = self.app() {
+            let _ = app.emit(
+                "peer-autosync-result",
+                json!({
+                    "slug": slug,
+                    "applied": report.applied,
+                    "pushed": report.pushed,
+                    "errors": report.errors,
+                    "conflicts": report.conflicts,
+                }),
+            );
+        }
+    }
+}
+
+/// Extract the auto-sync report fields from a `sync_run` result JSON. Pure over the
+/// value so it can be unit-tested against the exact shape `sync_run` returns.
+fn parse_run_report(v: &Value) -> crate::autosync::RunReport {
+    let strings = |k: &str| {
+        v.get(k)
+            .and_then(Value::as_array)
+            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+            .unwrap_or_default()
+    };
+    crate::autosync::RunReport {
+        applied: v.get("applied").and_then(Value::as_u64).unwrap_or(0),
+        pushed: v.get("pushed").and_then(Value::as_u64).unwrap_or(0),
+        errors: strings("errors"),
+        conflicts: strings("conflicts"),
     }
 }
 
@@ -813,6 +909,13 @@ fn emit_state_changed(hub: &PeerClientHub) {
     if let Some(app) = hub.app() {
         let _ = app.emit("peer-state-changed", ());
     }
+}
+
+/// The auto-sync engine, if it has been set up (managed state). A no-op seam
+/// before startup and in test/headless contexts without the engine.
+fn autosync_engine(app: Option<&AppHandle>) -> Option<crate::autosync::Engine> {
+    app?.try_state::<crate::autosync::Engine>()
+        .map(|s| s.inner().clone())
 }
 
 // --- connection thread --------------------------------------------------------
@@ -1121,6 +1224,12 @@ fn connect_session(
     emit_state_changed(hub);
 
     let app = hub.app();
+    // A reconnect is a sync trigger: the peer just became reachable and its feature
+    // flags are stored, so an auto-enabled peer reconciles now (and its backoff
+    // resets). Gating still applies — a non-configSync2 or unpinned peer is skipped.
+    if let Some(engine) = autosync_engine(app.as_ref()) {
+        engine.notify_connected(&conn.slug);
+    }
     let mut last_ping = Instant::now();
     'main: loop {
         if !conn.enabled.load(Ordering::SeqCst)
@@ -1233,6 +1342,15 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                     &format!("peer-evt-{slug}"),
                     json!({ "name": name, "payload": payload }),
                 );
+                // A forwarded config-change event is a remote sync trigger: the
+                // other Mac edited its projects/templates, so an auto-enabled peer
+                // reconciles shortly after. Lossy forwarding only ever delays this
+                // (the connect + anti-entropy triggers are the safety net).
+                if matches!(name, "projects-changed" | "templates-changed") {
+                    if let Some(engine) = autosync_engine(Some(app)) {
+                        engine.notify_remote_change(slug);
+                    }
+                }
             }
         }
         _ => {}
@@ -1339,6 +1457,7 @@ pub(crate) fn add_peer_blocking(
             tls_fp: invite_fp,
             enabled: true,
             last_sync_at: 0,
+            auto_sync: false,
         });
         let snapshot = cfg.clone();
         drop(cfg);
@@ -1476,6 +1595,34 @@ pub async fn peer_set_enabled(
         hub.start_conn(&slug);
     } else {
         hub.stop_conn(&slug);
+    }
+    emit_state_changed(&hub);
+    Ok(hub.peers_state())
+}
+
+/// Turn unattended config sync on or off for one peer. Persisted in peer.json; the
+/// engine gates on it. Switching on reconciles the peer now (if it's eligible); the
+/// engine keeps it in sync thereafter.
+#[tauri::command]
+pub async fn peer_set_auto_sync(
+    app: AppHandle,
+    hub: State<'_, PeerClientHub>,
+    slug: String,
+    enabled: bool,
+) -> Result<Value, String> {
+    {
+        let mut cfg = hub.inner.config.lock().unwrap();
+        if let Some(p) = cfg.peers.iter_mut().find(|p| p.slug == slug) {
+            p.auto_sync = enabled;
+        }
+        let snapshot = cfg.clone();
+        drop(cfg);
+        peer::save_config(&snapshot)?;
+    }
+    if enabled {
+        if let Some(engine) = autosync_engine(Some(&app)) {
+            engine.notify_auto_enabled(&slug);
+        }
     }
     emit_state_changed(&hub);
     Ok(hub.peers_state())

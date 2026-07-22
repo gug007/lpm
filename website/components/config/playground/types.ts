@@ -20,6 +20,7 @@ export type ActionDef =
       display?: "header" | "menu" | "footer" | "button";
       type?: string;
       position?: number;
+      primary?: string;
       actions?: Record<string, ActionDef>;
     };
 
@@ -59,6 +60,7 @@ export type Action = {
   display: "header" | "menu" | "footer";
   type?: string;
   position?: number;
+  primary?: string;
   children: Action[];
 };
 

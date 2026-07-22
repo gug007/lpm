@@ -43,6 +43,7 @@ export function normalizeAction(key: string, def: ActionDef): Action {
     display: normalizeDisplay(def?.display),
     type: def?.type,
     position: typeof def?.position === "number" ? def.position : undefined,
+    primary: def?.primary,
     children,
   };
 }

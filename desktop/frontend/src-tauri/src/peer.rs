@@ -119,6 +119,8 @@ pub(crate) struct PeerEntry {
     pub enabled: bool,
     #[serde(default)]
     pub last_sync_at: i64, // millis of the last successful config sync, 0 = never
+    #[serde(default)]
+    pub auto_sync: bool, // keep config in sync automatically (Phase 4); old peer.json loads as false
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -1718,6 +1720,7 @@ mod tests {
                 tls_fp: Some("deadbeef".into()),
                 enabled: true,
                 last_sync_at: 0,
+                auto_sync: true,
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -1730,17 +1733,20 @@ mod tests {
         assert_eq!(back.peers[0].token, "secret");
         assert_eq!(back.peers[0].tls_fp.as_deref(), Some("deadbeef"));
         assert!(back.peers[0].enabled);
+        assert!(back.peers[0].auto_sync);
     }
 
     // Old peer.json (or a hand-written one) without the peer `enabled` field must
     // default it to true, not false, so a stored peer still connects. A pre-Phase-3
     // file also lacks `tlsFp`, which must load as None (pin on first authed connect).
+    // A pre-Phase-4 file lacks `autoSync`, which must load as false (opt-in).
     #[test]
     fn peer_entry_enabled_defaults_true() {
         let json = r#"{ "peers": [{ "slug": "aa", "host": "h", "port": 1 }] }"#;
         let cfg: PeerConfig = serde_json::from_str(json).unwrap();
         assert!(cfg.peers[0].enabled);
         assert!(cfg.peers[0].tls_fp.is_none());
+        assert!(!cfg.peers[0].auto_sync);
     }
 
     #[test]

@@ -110,6 +110,25 @@ actions:
         label: 👁️ Preview
 `;
 
+export const ACTIONS_PRIMARY_EXAMPLE = `name: myapp
+root: ~/Projects/myapp
+services:
+  web: npm run dev
+actions:
+  deploy:
+    label: 🚀 Deploy
+    display: header
+    primary: last-used           # main click repeats the last used option
+    actions:                     # chevron opens these
+      staging:
+        cmd: ./deploy.sh staging
+        label: 🟢 Staging
+      production:
+        cmd: ./deploy.sh production
+        label: 🔴 Production
+        confirm: true
+`;
+
 export const ACTIONS_DROPDOWN_EXAMPLE = `name: myapp
 root: ~/Projects/myapp
 services:

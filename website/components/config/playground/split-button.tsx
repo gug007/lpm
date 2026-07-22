@@ -12,10 +12,15 @@ export function SplitButton({
   onRun: (a: Action) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const hasCmd = !!action.cmd;
+  const [lastUsed, setLastUsed] = useState<string | null>(null);
+  const primaryChild = resolvePrimaryChild(action, lastUsed);
+  const hasCmd = !!action.cmd || !!primaryChild;
 
   const runChild = (child: Action) => {
     setOpen(false);
+    if (action.primary === "last-used" && action.children.includes(child)) {
+      setLastUsed(child.key);
+    }
     onRun(child);
   };
 
@@ -46,10 +51,10 @@ export function SplitButton({
       <div className="inline-flex items-stretch rounded-lg border border-gray-200 dark:border-gray-800">
         <button
           type="button"
-          onClick={() => onRun(action)}
+          onClick={() => (primaryChild ? runChild(primaryChild) : onRun(action))}
           className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 transition-all hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white"
         >
-          {action.label}
+          {primaryChild ? primaryChild.label : action.label}
         </button>
         <button
           type="button"
@@ -71,6 +76,19 @@ export function SplitButton({
         />
       )}
     </div>
+  );
+}
+
+function resolvePrimaryChild(
+  action: Action,
+  lastUsed: string | null,
+): Action | null {
+  if (!action.primary) return null;
+  const target = action.primary === "last-used" ? lastUsed : action.primary;
+  const match = action.children.find((c) => c.key === target);
+  if (match) return match;
+  return (
+    action.children.find((c) => !!c.cmd || c.children.length === 0) ?? null
   );
 }
 

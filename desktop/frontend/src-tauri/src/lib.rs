@@ -2,6 +2,7 @@ mod actions;
 mod agent_limits;
 mod agent_usage;
 mod aigen;
+mod autosync;
 mod bounds;
 mod browser;
 mod cli_install;
@@ -94,8 +95,8 @@ use peer::{
     peer_host_revoke_device, peer_host_set_config, peer_host_start_pairing, peer_state,
 };
 use peerclient::{
-    peer_add, peer_invoke, peer_pair_cancel, peer_pair_request, peer_remove, peer_set_enabled,
-    peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach,
+    peer_add, peer_invoke, peer_pair_cancel, peer_pair_request, peer_remove, peer_set_auto_sync,
+    peer_set_enabled, peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach,
 };
 use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
 use portforward::*;
@@ -220,7 +221,13 @@ pub fn run() {
             *peer_hub.config_arc().lock().unwrap() = peer::load_config();
             peer::start(peer_hub, handle.clone());
             let peer_client_hub = app.state::<peerclient::PeerClientHub>().inner().clone();
-            peerclient::start(peer_client_hub, handle.clone());
+            peerclient::start(peer_client_hub.clone(), handle.clone());
+            // Per-peer auto-sync engine: drives the same sync path unattended when
+            // a peer has auto-sync on. Managed so the config watcher and the peer
+            // client can nudge it; runs on its own scheduler + anti-entropy threads.
+            let autosync = autosync::Engine::new(std::sync::Arc::new(peer_client_hub));
+            autosync.start();
+            app.manage(autosync);
 
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
@@ -268,6 +275,7 @@ pub fn run() {
                 statusfwd::stop_all(app); // kill ssh -R status forwards
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
+                app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 let _ = std::fs::remove_file(config::socket_path());

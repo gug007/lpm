@@ -14,6 +14,7 @@ import {
   ACTIONS_DROPDOWN_EXAMPLE,
   ACTIONS_EXAMPLE,
   ACTIONS_NESTED_EXAMPLE,
+  ACTIONS_PRIMARY_EXAMPLE,
   ACTIONS_SHORTHAND_EXAMPLE,
   GLOBAL_CONFIG_EXAMPLE,
   GLOBAL_UTILITIES_EXAMPLE,
@@ -620,6 +621,24 @@ export default function ConfigPage() {
                 <ConfigPlayground
                   filename="actions-nested.yml"
                   initial={ACTIONS_NESTED_EXAMPLE}
+                />
+
+                <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  <strong className="font-medium text-gray-700 dark:text-gray-200">
+                    Remembering your last choice.
+                  </strong>{" "}
+                  Add <code className="font-mono">primary: last-used</code>{" "}
+                  instead of a parent <code className="font-mono">cmd</code>{" "}and
+                  the main part of the split button becomes whichever option you
+                  clicked last — deploy to staging once, and the button reads
+                  &ldquo;Staging&rdquo; until you pick something else. Set{" "}
+                  <code className="font-mono">primary</code> to a child&rsquo;s
+                  name (like <code className="font-mono">primary: staging</code>)
+                  to pin one option as the default instead:
+                </p>
+                <ConfigPlayground
+                  filename="actions-primary.yml"
+                  initial={ACTIONS_PRIMARY_EXAMPLE}
                 />
 
                 <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
