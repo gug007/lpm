@@ -23,10 +23,12 @@ export function DrillMenu({
   root,
   onClose,
   widthClassName = "w-72",
+  showClose = true,
 }: {
   root: DrillScreen;
   onClose: () => void;
   widthClassName?: string;
+  showClose?: boolean;
 }) {
   const [stack, setStack] = useState<DrillScreen[]>([]);
   const api: DrillApi = {
@@ -45,20 +47,31 @@ export function DrillMenu({
   const lastIndex = levels.length - 1;
   const crumbs = levels.flatMap((level, index) =>
     level.title
-      ? [{ title: level.title, path: level.path, index, current: index === lastIndex }]
+      ? [
+          {
+            title: level.title,
+            path: level.path,
+            index,
+            current: index === lastIndex,
+          },
+        ]
       : [],
   );
 
   return (
-    <div className={`relative ${screen.width ?? widthClassName} overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`}>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-      >
-        <XIcon />
-      </button>
+    <div
+      className={`relative ${screen.width ?? widthClassName} overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl`}
+    >
+      {showClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        >
+          <XIcon />
+        </button>
+      )}
       {drilled &&
         (crumbs.length <= 1 ? (
           <button
@@ -81,36 +94,38 @@ export function DrillMenu({
               <ChevronLeftIcon />
             </button>
             <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
-            {crumbs.map((crumb, i) => (
-              <Fragment key={crumb.index}>
-                {i > 0 && (
-                  <span className="shrink-0 select-none px-0.5 text-[12.5px] text-[var(--text-muted)]">
-                    /
-                  </span>
-                )}
-                {crumb.current ? (
-                  <span className="min-w-0 truncate px-1.5 text-[12.5px] font-medium text-[var(--text-primary)]">
-                    {crumb.title}
-                  </span>
-                ) : crumb.path ? (
-                  <DrillCrumb
-                    title={crumb.title}
-                    path={crumb.path}
-                    onNavigate={() => setStack((s) => s.slice(0, crumb.index))}
-                  />
-                ) : (
-                  <button
-                    onClick={() => setStack((s) => s.slice(0, crumb.index))}
-                    className="min-w-0 max-w-[140px] shrink truncate rounded-md px-1.5 py-0.5 text-[12.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  >
-                    {crumb.title}
-                  </button>
-                )}
-              </Fragment>
-            ))}
+              {crumbs.map((crumb, i) => (
+                <Fragment key={crumb.index}>
+                  {i > 0 && (
+                    <span className="shrink-0 select-none px-0.5 text-[12.5px] text-[var(--text-muted)]">
+                      /
+                    </span>
+                  )}
+                  {crumb.current ? (
+                    <span className="min-w-0 truncate px-1.5 text-[12.5px] font-medium text-[var(--text-primary)]">
+                      {crumb.title}
+                    </span>
+                  ) : crumb.path ? (
+                    <DrillCrumb
+                      title={crumb.title}
+                      path={crumb.path}
+                      onNavigate={() =>
+                        setStack((s) => s.slice(0, crumb.index))
+                      }
+                    />
+                  ) : (
+                    <button
+                      onClick={() => setStack((s) => s.slice(0, crumb.index))}
+                      className="min-w-0 max-w-[140px] shrink truncate rounded-md px-1.5 py-0.5 text-[12.5px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                    >
+                      {crumb.title}
+                    </button>
+                  )}
+                </Fragment>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
       {screen.render(api)}
     </div>
   );

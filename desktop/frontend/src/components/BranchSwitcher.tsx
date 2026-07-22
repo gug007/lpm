@@ -636,6 +636,7 @@ export function BranchSwitcher({
           <div className="absolute bottom-full right-0 z-10 mb-2">
             <DrillMenu
               widthClassName="w-80"
+              showClose={false}
               root={{
                 render: (api) => (
                   <>
