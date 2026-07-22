@@ -14,17 +14,19 @@
 use crate::peer::{self, PeerEntry, SharedConfig};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
+use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tungstenite::{Error as WsError, Message, WebSocket};
 
 const POLL: Duration = Duration::from_millis(25);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(3); // per-candidate dial cap when pairing
+const PAIR_REQUEST_WINDOW: Duration = Duration::from_secs(150); // wait for the other Mac to approve
 const INVOKE_TIMEOUT: Duration = Duration::from_secs(35);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // host snapshots ~/.lpm first
@@ -98,6 +100,7 @@ struct ClientInner {
     app: Mutex<Option<AppHandle>>,
     conns: Mutex<HashMap<String, Arc<PeerConn>>>,
     next_req: AtomicU64,
+    pair_gen: AtomicU64, // bumped to cancel an in-flight tap-to-approve request
 }
 
 #[derive(Clone)]
@@ -119,6 +122,7 @@ impl PeerClientHub {
                 app: Mutex::new(None),
                 conns: Mutex::new(HashMap::new()),
                 next_req: AtomicU64::new(0),
+                pair_gen: AtomicU64::new(0),
             }),
         }
     }
@@ -195,6 +199,212 @@ impl PeerClientHub {
             conn.connected.store(false, Ordering::Relaxed);
             conn.fail_pending("peer removed");
         }
+    }
+
+    fn emit_pair_failed(&self, error: &str) {
+        if let Some(app) = self.app() {
+            let _ = app.emit("peer-pair-failed", json!({ "error": error }));
+        }
+    }
+
+    /// Drive a tap-to-approve pairing request against a discovered Mac: dial the
+    /// first reachable candidate, send `pairRequest`, surface the SAS via
+    /// `peer-pair-pending`, and wait (staying cancellable) for the host's `paired`.
+    /// On success persist the peer and open its connection; if the reply asks for
+    /// reciprocal pairing, enable our own hosting and hand the requester an invite
+    /// so it can dial back. Runs blocking, off the UI thread.
+    fn pair_request_blocking(&self, hosts: Vec<String>, port: u16) -> Result<Value, String> {
+        let port = if port == 0 { 8766 } else { port };
+        // A fresh request supersedes any prior in-flight one (and is itself
+        // cancelled when peer_pair_cancel bumps the counter again).
+        let generation = self.inner.pair_gen.fetch_add(1, Ordering::SeqCst) + 1;
+
+        let mut chosen: Option<(WebSocket<TcpStream>, String)> = None;
+        let mut last_err = "no candidate addresses".to_string();
+        for h in &hosts {
+            match connect_ws_timeout(h, port, CONNECT_TIMEOUT) {
+                Ok(ws) => {
+                    chosen = Some((ws, h.clone()));
+                    break;
+                }
+                Err(e) => last_err = e,
+            }
+        }
+        let (mut ws, host) = match chosen {
+            Some(v) => v,
+            None => {
+                let e = format!("could not reach the other Mac: {last_err}");
+                self.emit_pair_failed(&e);
+                return Err(e);
+            }
+        };
+
+        if let Err(e) = ws.send(Message::text(
+            json!({ "t": "pairRequest", "name": local_name() }).to_string(),
+        )) {
+            let e = e.to_string();
+            self.emit_pair_failed(&e);
+            return Err(e);
+        }
+        let _ = ws.get_ref().set_read_timeout(Some(POLL));
+
+        let deadline = Instant::now() + PAIR_REQUEST_WINDOW;
+        loop {
+            if self.inner.pair_gen.load(Ordering::SeqCst) != generation {
+                let _ = ws.close(None);
+                let _ = ws.flush();
+                return Err("pairing cancelled".to_string());
+            }
+            if Instant::now() >= deadline {
+                let e = "pairing request timed out".to_string();
+                self.emit_pair_failed(&e);
+                return Err(e);
+            }
+            match ws.read() {
+                Ok(m) if m.is_close() => {
+                    let e = "the other Mac closed the connection".to_string();
+                    self.emit_pair_failed(&e);
+                    return Err(e);
+                }
+                Ok(m) if m.is_text() => {
+                    let Ok(txt) = m.to_text() else { continue };
+                    let Ok(v) = serde_json::from_str::<Value>(txt) else {
+                        continue;
+                    };
+                    match v.get("t").and_then(Value::as_str).unwrap_or_default() {
+                        "pairPending" => {
+                            let sas = v.get("sas").and_then(Value::as_str).unwrap_or_default();
+                            if let Some(app) = self.app() {
+                                let _ = app
+                                    .emit("peer-pair-pending", json!({ "sas": sas, "host": host }));
+                            }
+                        }
+                        "paired" => {
+                            return self.finish_pair_request(&mut ws, &v, &host, port);
+                        }
+                        "error" => {
+                            let e = v
+                                .get("error")
+                                .and_then(Value::as_str)
+                                .unwrap_or("pairing rejected")
+                                .to_string();
+                            self.emit_pair_failed(&e);
+                            return Err(e);
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(_) => {}
+                Err(WsError::Io(ref e))
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut => {}
+                Err(WsError::ConnectionClosed) | Err(WsError::AlreadyClosed) => {
+                    let e = "the other Mac closed the connection".to_string();
+                    self.emit_pair_failed(&e);
+                    return Err(e);
+                }
+                Err(e) => {
+                    let e = e.to_string();
+                    self.emit_pair_failed(&e);
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    /// Persist the paired host from a `paired` reply, start its connection, and — if
+    /// the host asked for reciprocal pairing — enable our own hosting and send back
+    /// a `reciprocalInvite` so the host can dial us. Returns the new slug.
+    fn finish_pair_request(
+        &self,
+        ws: &mut WebSocket<TcpStream>,
+        reply: &Value,
+        host: &str,
+        port: u16,
+    ) -> Result<Value, String> {
+        let s = |k: &str| {
+            reply
+                .get(k)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        let device_id = s("deviceId");
+        let token = s("token");
+        let slug = s("slug");
+        let host_id = s("hostId");
+        let host_name = {
+            let n = s("hostName");
+            if n.is_empty() {
+                "Mac".to_string()
+            } else {
+                n
+            }
+        };
+        if device_id.is_empty() || token.is_empty() || slug.len() != 8 {
+            let e = "the other Mac sent an incomplete pairing reply".to_string();
+            self.emit_pair_failed(&e);
+            return Err(e);
+        }
+        {
+            let mut cfg = self.inner.config.lock().unwrap();
+            cfg.peers.retain(|p| p.slug != slug);
+            cfg.peers.push(PeerEntry {
+                slug: slug.clone(),
+                alias: host_name,
+                host: host.to_string(),
+                port,
+                device_id,
+                token,
+                host_id,
+                // Tap-to-approve pairs over the transitional plaintext handshake, so
+                // there is no verified leaf yet; the first authed session captures and
+                // pins it (pin-after-auth).
+                tls_fp: None,
+                enabled: true,
+                last_sync_at: 0,
+            });
+            let snapshot = cfg.clone();
+            drop(cfg);
+            peer::save_config(&snapshot)?;
+        }
+        self.start_conn(&slug);
+        emit_state_changed(self);
+
+        if reply.get("reciprocal").and_then(Value::as_bool) == Some(true) {
+            self.offer_reciprocal(ws);
+        }
+        let _ = ws.close(None);
+        let _ = ws.flush();
+        Ok(json!({ "slug": slug }))
+    }
+
+    /// Enable this Mac's hosting and send the still-open socket a `reciprocalInvite`
+    /// so the host can pair back and control this Mac too. Never clobbers a manual
+    /// invite already in progress — an outstanding code is reused.
+    fn offer_reciprocal(&self, ws: &mut WebSocket<TcpStream>) {
+        let Some(app) = self.app() else { return };
+        let (code, out_port, out_hosts) = {
+            let mut cfg = self.inner.config.lock().unwrap();
+            cfg.host.enabled = true;
+            cfg.host.lan = true;
+            if cfg.host.pairing_code.is_empty() {
+                cfg.host.pairing_code = peer::gen_pairing_code();
+            }
+            let code = cfg.host.pairing_code.clone();
+            let out_port = peer::effective_port(cfg.host.port);
+            let snapshot = cfg.clone();
+            drop(cfg);
+            let _ = peer::save_config(&snapshot);
+            (code, out_port, peer::candidate_hosts())
+        };
+        let peer_hub = app.state::<peer::PeerHub>().inner().clone();
+        peer::apply(&peer_hub, &app);
+        let _ = ws.send(Message::text(
+            json!({ "t": "reciprocalInvite", "code": code, "port": out_port, "hosts": out_hosts })
+                .to_string(),
+        ));
+        let _ = ws.flush();
     }
 
     fn invoke_blocking(&self, slug: &str, cmd: &str, args: Value) -> Result<Value, String> {
@@ -639,14 +849,203 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
     }
 }
 
-fn connect_ws(host: &str, port: u16) -> Result<WebSocket<TcpStream>, String> {
-    let stream = TcpStream::connect((host, port)).map_err(|e| e.to_string())?;
-    finish_ws(stream, host, port)
+// --- encrypted transport (wss with a pinned self-signed leaf) -----------------
+//
+// A paired host presents its own long-lived leaf (the same cert the mobile server
+// uses — see remotetls.rs). The client pins that leaf by SHA-256: an entry with a
+// stored `tls_fp` connects wss-only and verifies it, never downgrading; an entry
+// without one (paired before this shipped, or via tap-to-approve) connects wss
+// capturing the leaf and pins it after the host proves the shared token, and falls
+// back to plaintext only if the TLS layer itself fails — an old host still on the
+// transitional plaintext acceptor. `peertls.rs` holds the rustls verifiers.
+
+/// Stable, user-facing markers for a failed pin. Shown verbatim in the peer row's
+/// status; deliberately in product terms (no transport jargon).
+const IDENTITY_CHANGED: &str = "the other Mac's identity changed — remove it and pair again";
+const IDENTITY_UNVERIFIED: &str = "couldn't verify the other Mac's identity — get a fresh invite and try again";
+
+/// One client connection's transport: a raw socket (legacy plaintext host) or a
+/// pinned/captured TLS session. One concrete type keeps the session loop monomorphic.
+enum ClientStream {
+    Plain(TcpStream),
+    Tls(Box<rustls::StreamOwned<rustls::ClientConnection, TcpStream>>),
 }
 
-/// Like `connect_ws` but caps the TCP connect at `timeout` (via connect_timeout),
-/// so a dead candidate address fails fast instead of blocking on the OS default.
-/// Used when pairing, where several candidate addresses are tried in turn.
+impl ClientStream {
+    fn tcp(&self) -> &TcpStream {
+        match self {
+            ClientStream::Plain(s) => s,
+            ClientStream::Tls(t) => t.get_ref(),
+        }
+    }
+}
+
+impl Read for ClientStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            ClientStream::Plain(s) => s.read(buf),
+            ClientStream::Tls(t) => t.read(buf),
+        }
+    }
+}
+
+impl Write for ClientStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            ClientStream::Plain(s) => s.write(buf),
+            ClientStream::Tls(t) => t.write(buf),
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            ClientStream::Plain(s) => s.flush(),
+            ClientStream::Tls(t) => t.flush(),
+        }
+    }
+}
+
+type ClientWs = WebSocket<ClientStream>;
+
+/// Open a socket, optionally capping the TCP connect (per-candidate dials), and set
+/// the handshake read timeout. `None` timeout uses the OS default (the persistent
+/// reconnect path).
+fn tcp_connect(host: &str, port: u16, timeout: Option<Duration>) -> Result<TcpStream, String> {
+    let tcp = match timeout {
+        Some(t) => {
+            let addr = (host, port)
+                .to_socket_addrs()
+                .map_err(|e| e.to_string())?
+                .next()
+                .ok_or_else(|| format!("could not resolve {host}"))?;
+            TcpStream::connect_timeout(&addr, t).map_err(|e| e.to_string())?
+        }
+        None => TcpStream::connect((host, port)).map_err(|e| e.to_string())?,
+    };
+    let _ = tcp.set_nodelay(true);
+    let _ = tcp.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
+    Ok(tcp)
+}
+
+/// Complete the WebSocket handshake over a live TLS session. The TLS handshake has
+/// already run (via `complete_io`), so the leaf was verified/captured before this.
+fn finish_tls_ws(
+    conn: rustls::ClientConnection,
+    tcp: TcpStream,
+    host: &str,
+    port: u16,
+) -> Result<ClientWs, String> {
+    let tls = rustls::StreamOwned::new(conn, tcp);
+    let url = format!("ws://{host}:{port}/");
+    let (ws, _) =
+        tungstenite::client(url, ClientStream::Tls(Box::new(tls))).map_err(|e| e.to_string())?;
+    Ok(ws)
+}
+
+/// wss, verifying the host's leaf against `fp`. A TCP-reach failure surfaces as-is;
+/// a TLS-handshake failure means the presented leaf did not match the pin and
+/// surfaces as `mismatch_err`. Never downgrades to plaintext.
+fn dial_pinned(
+    host: &str,
+    port: u16,
+    fp: &str,
+    timeout: Option<Duration>,
+    mismatch_err: &'static str,
+) -> Result<ClientWs, String> {
+    let mut tcp = tcp_connect(host, port, timeout)?;
+    let mut conn =
+        rustls::ClientConnection::new(crate::peertls::pinned_client_config(fp), crate::peertls::server_name())
+            .map_err(|e| e.to_string())?;
+    conn.complete_io(&mut tcp).map_err(|_| mismatch_err.to_string())?;
+    finish_tls_ws(conn, tcp, host, port)
+}
+
+/// wss accepting any leaf and recording its fingerprint. Used for an unpinned entry
+/// (trust is deferred to the caller, which pins only after the host also proves the
+/// shared token). Returns `(ws, capturedFingerprint)`.
+fn dial_capture(
+    host: &str,
+    port: u16,
+    timeout: Option<Duration>,
+) -> Result<(ClientWs, String), String> {
+    let mut tcp = tcp_connect(host, port, timeout)?;
+    let slot = Arc::new(Mutex::new(None));
+    let mut conn = rustls::ClientConnection::new(
+        crate::peertls::capturing_client_config(slot.clone()),
+        crate::peertls::server_name(),
+    )
+    .map_err(|e| e.to_string())?;
+    conn.complete_io(&mut tcp).map_err(|e| e.to_string())?;
+    let fp = slot
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| "no peer certificate captured".to_string())?;
+    let ws = finish_tls_ws(conn, tcp, host, port)?;
+    Ok((ws, fp))
+}
+
+/// Plaintext WebSocket — the transitional path for a host that predates the
+/// encrypted channel (its acceptor answers the TLS ClientHello as garbage).
+fn dial_plain(host: &str, port: u16, timeout: Option<Duration>) -> Result<ClientWs, String> {
+    let tcp = tcp_connect(host, port, timeout)?;
+    let url = format!("ws://{host}:{port}/");
+    let (ws, _) =
+        tungstenite::client(url, ClientStream::Plain(tcp)).map_err(|e| e.to_string())?;
+    Ok(ws)
+}
+
+/// Dial a persisted peer per its pin state, returning `(ws, wasTls, capturedFp)`.
+/// Pinned → wss-only, no fallback. Unpinned → wss capturing the leaf, or plaintext
+/// if the TLS layer fails.
+fn dial_for_session(entry: &PeerEntry) -> Result<(ClientWs, bool, Option<String>), String> {
+    match entry.tls_fp.as_deref() {
+        Some(fp) => {
+            let ws = dial_pinned(&entry.host, entry.port, fp, None, IDENTITY_CHANGED)?;
+            Ok((ws, true, None))
+        }
+        None => match dial_capture(&entry.host, entry.port, None) {
+            Ok((ws, fp)) => Ok((ws, true, Some(fp))),
+            Err(_) => {
+                let ws = dial_plain(&entry.host, entry.port, None)?;
+                Ok((ws, false, None))
+            }
+        },
+    }
+}
+
+/// The `tls_fp` to persist after a connection authenticates. An already-pinned entry
+/// keeps its pin (`None` = no change); an unpinned entry pins the captured leaf once
+/// the host proved the shared token — but never over a plaintext fallback.
+fn pin_after_auth(existing: Option<&str>, was_tls: bool, leaf_fp: Option<&str>) -> Option<String> {
+    if existing.is_some() || !was_tls {
+        return None;
+    }
+    leaf_fp.map(str::to_string)
+}
+
+/// Record a pin-after-auth fingerprint on the peer entry (locked read-modify-write,
+/// then persist + notify). A no-op when the entry is gone or already holds it.
+fn persist_tls_fp(hub: &PeerClientHub, slug: &str, fp: &str) {
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
+        Some(p) if p.tls_fp.as_deref() != Some(fp) => {
+            p.tls_fp = Some(fp.to_string());
+            true
+        }
+        _ => false,
+    };
+    if !changed {
+        return;
+    }
+    let snapshot = cfg.clone();
+    drop(cfg);
+    let _ = peer::save_config(&snapshot);
+    emit_state_changed(hub);
+}
+
+/// Cap the TCP connect at `timeout` (via connect_timeout) so a dead candidate
+/// address fails fast instead of blocking on the OS default. The plaintext dial for
+/// tap-to-approve pairing, where several candidate addresses are tried in turn.
 fn connect_ws_timeout(
     host: &str,
     port: u16,
@@ -677,7 +1076,7 @@ fn connect_session(
     generation: u64,
     entry: &PeerEntry,
 ) -> Result<(), String> {
-    let mut ws = connect_ws(&entry.host, entry.port)?;
+    let (mut ws, was_tls, captured_fp) = dial_for_session(entry)?;
     ws.send(Message::text(
         json!({ "t": "auth", "deviceId": entry.device_id, "token": entry.token }).to_string(),
     ))
@@ -700,6 +1099,13 @@ fn connect_session(
             .unwrap_or("authentication failed");
         return Err(err.to_string());
     }
+    // The host proved the shared token. Pin the leaf we captured if this entry was
+    // not already pinned (an unpinned upgrade or a fresh unpinned pairing); a pinned
+    // entry took the verifying wss path above and needs no change. Auth failure
+    // returned already, so a stranger answering the port is never pinned.
+    if let Some(fp) = pin_after_auth(entry.tls_fp.as_deref(), was_tls, captured_fp.as_deref()) {
+        persist_tls_fp(hub, &conn.slug, &fp);
+    }
     let features = rv.get("features").and_then(Value::as_array);
     let has_feature = |name: &str| {
         features
@@ -715,7 +1121,7 @@ fn connect_session(
     *conn.out.lock().unwrap() = Some(tx);
     conn.connected.store(true, Ordering::Relaxed);
     conn.last_error.lock().unwrap().clear();
-    let _ = ws.get_ref().set_read_timeout(Some(POLL));
+    let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
     // Re-subscribe every terminal the frontend currently has open, so a reconnect
     // transparently reseeds them.
     for id in conn.attached.lock().unwrap().iter() {
@@ -876,58 +1282,99 @@ pub async fn peer_add(
     port: u16,
     code: String,
     alias: String,
+    fp: Option<String>,
 ) -> Result<Value, String> {
     let hub = hub.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let port = if port == 0 { 8766 } else { port };
-        let (host, device_id, token, slug, host_name) =
-            first_successful(&hosts, |h| dial_pair(h, port, &code))?;
-        let alias = if alias.trim().is_empty() {
-            host_name
-        } else {
-            alias
-        };
-        {
-            let mut cfg = hub.inner.config.lock().unwrap();
-            cfg.peers.retain(|p| p.slug != slug);
-            cfg.peers.push(PeerEntry {
-                slug: slug.clone(),
-                alias,
-                host,
-                port,
-                device_id,
-                token,
-                enabled: true,
-                last_sync_at: 0,
-            });
-            let snapshot = cfg.clone();
-            drop(cfg);
-            peer::save_config(&snapshot)?;
-        }
-        hub.start_conn(&slug);
-        emit_state_changed(&hub);
-        Ok(json!({ "slug": slug }))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || add_peer_blocking(&hub, hosts, port, code, alias, fp))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Ask a discovered Mac to pair via tap-to-approve (no invite). Emits
+/// `peer-pair-pending` with the SAS to compare, then `peer-state-changed` on
+/// success or `peer-pair-failed` on error/decline/timeout. Off the UI thread.
+#[tauri::command]
+pub async fn peer_pair_request(
+    hub: State<'_, PeerClientHub>,
+    hosts: Vec<String>,
+    port: u16,
+) -> Result<Value, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || hub.pair_request_blocking(hosts, port))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Cancel an in-flight tap-to-approve request; the blocking loop notices on its
+/// next poll tick and closes the socket (which the host reads as a hang-up).
+#[tauri::command]
+pub fn peer_pair_cancel(hub: State<'_, PeerClientHub>) {
+    hub.inner.pair_gen.fetch_add(1, Ordering::SeqCst);
+}
+
+/// Dial each candidate host in turn, pair with the first that answers, persist the
+/// working address + token + slug + host id, and open its connection. Shared by the
+/// invite path (`peer_add`) and the reciprocal reverse-dial from peer.rs, so it must
+/// stay blocking and self-contained (callers run it off the UI thread).
+pub(crate) fn add_peer_blocking(
+    hub: &PeerClientHub,
+    hosts: Vec<String>,
+    port: u16,
+    code: String,
+    alias: String,
+    invite_fp: Option<String>,
+) -> Result<Value, String> {
+    let port = if port == 0 { 8766 } else { port };
+    let (host, device_id, token, slug, host_name, host_id) =
+        first_successful(&hosts, |h| dial_pair(h, port, &code, invite_fp.as_deref()))?;
+    let alias = if alias.trim().is_empty() {
+        host_name
+    } else {
+        alias
+    };
+    {
+        let mut cfg = hub.inner.config.lock().unwrap();
+        cfg.peers.retain(|p| p.slug != slug);
+        cfg.peers.push(PeerEntry {
+            slug: slug.clone(),
+            alias,
+            host,
+            port,
+            device_id,
+            token,
+            host_id,
+            // A pasted invite carrying a fingerprint pins the host up front (its cert
+            // was verified during the pairing handshake below). Without one, this stays
+            // None and the first authed session pins the captured leaf.
+            tls_fp: invite_fp,
+            enabled: true,
+            last_sync_at: 0,
+        });
+        let snapshot = cfg.clone();
+        drop(cfg);
+        peer::save_config(&snapshot)?;
+    }
+    hub.start_conn(&slug);
+    emit_state_changed(hub);
+    Ok(json!({ "slug": slug }))
 }
 
 /// Try each candidate host in order with `dial`; the first success wins, returning
-/// (workingHost, deviceId, token, slug, hostName). If all fail, the last failure
-/// is surfaced. Split out from `peer_add` so the ordering/fallback is unit-testable
-/// without real sockets.
+/// (workingHost, deviceId, token, slug, hostName, hostId). If all fail, the last
+/// failure is surfaced. Split out from `peer_add` so the ordering/fallback is
+/// unit-testable without real sockets.
 fn first_successful<F>(
     hosts: &[String],
     mut dial: F,
-) -> Result<(String, String, String, String, String), String>
+) -> Result<(String, String, String, String, String, String), String>
 where
-    F: FnMut(&str) -> Result<(String, String, String, String), String>,
+    F: FnMut(&str) -> Result<(String, String, String, String, String), String>,
 {
     let mut last_err = "no candidate addresses".to_string();
     for host in hosts {
         match dial(host) {
-            Ok((device_id, token, slug, host_name)) => {
-                return Ok((host.clone(), device_id, token, slug, host_name))
+            Ok((device_id, token, slug, host_name, host_id)) => {
+                return Ok((host.clone(), device_id, token, slug, host_name, host_id))
             }
             Err(e) => last_err = e,
         }
@@ -935,13 +1382,24 @@ where
     Err(format!("could not reach the other Mac: {last_err}"))
 }
 
-/// One-shot pairing handshake, returning (deviceId, token, slug, hostName).
+/// One-shot pairing handshake, returning (deviceId, token, slug, hostName, hostId).
+/// An invite fingerprint pins the host during the handshake (wss-only, verified —
+/// the token is exchanged over a proven channel); without one the handshake goes
+/// over wss unpinned, or plaintext against an old host, and the pin is established on
+/// the first authed session instead.
 fn dial_pair(
     host: &str,
     port: u16,
     code: &str,
-) -> Result<(String, String, String, String), String> {
-    let mut ws = connect_ws_timeout(host, port, CONNECT_TIMEOUT)?;
+    invite_fp: Option<&str>,
+) -> Result<(String, String, String, String, String), String> {
+    let mut ws = match invite_fp {
+        Some(f) => dial_pinned(host, port, f, Some(CONNECT_TIMEOUT), IDENTITY_UNVERIFIED)?,
+        None => match dial_capture(host, port, Some(CONNECT_TIMEOUT)) {
+            Ok((ws, _fp)) => ws,
+            Err(_) => dial_plain(host, port, Some(CONNECT_TIMEOUT))?,
+        },
+    };
     ws.send(Message::text(
         json!({ "t": "pair", "code": code, "name": local_name() }).to_string(),
     ))
@@ -984,10 +1442,15 @@ fn dial_pair(
         .and_then(Value::as_str)
         .unwrap_or("Mac")
         .to_string();
+    let host_id = v
+        .get("hostId")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
     if device_id.is_empty() || token.is_empty() || slug.len() != 8 {
         return Err("host sent an incomplete pairing reply".to_string());
     }
-    Ok((device_id, token, slug, host_name))
+    Ok((device_id, token, slug, host_name, host_id))
 }
 
 #[tauri::command]
@@ -1175,12 +1638,27 @@ mod tests {
         assert!(push_fully_applied(0, 0, 0));
     }
 
-    fn paired(host_name: &str) -> Result<(String, String, String, String), String> {
+    #[test]
+    fn pin_after_auth_only_pins_a_captured_leaf_on_an_unpinned_tls_connect() {
+        // Already pinned: keep it, whatever the transport reported.
+        assert_eq!(pin_after_auth(Some("aa"), true, Some("bb")), None);
+        assert_eq!(pin_after_auth(Some("aa"), false, None), None);
+        // Unpinned over TLS: pin the captured leaf (the host proved the token first).
+        assert_eq!(pin_after_auth(None, true, Some("cc")), Some("cc".to_string()));
+        // Unpinned over TLS but nothing captured (defensive): nothing to pin.
+        assert_eq!(pin_after_auth(None, true, None), None);
+        // Unpinned over plaintext fallback: never pin, even if a leaf leaked through.
+        assert_eq!(pin_after_auth(None, false, None), None);
+        assert_eq!(pin_after_auth(None, false, Some("dd")), None);
+    }
+
+    fn paired(host_name: &str) -> Result<(String, String, String, String, String), String> {
         Ok((
             "dev".into(),
             "tok".into(),
             "abcd1234".into(),
             host_name.into(),
+            "host-id".into(),
         ))
     }
 
@@ -1193,7 +1671,7 @@ mod tests {
         ];
         // The first two are dead; the third pairs — so it wins, and its address is
         // the one persisted.
-        let (host, _, _, slug, name) = first_successful(&hosts, |h| {
+        let (host, _, _, slug, name, host_id) = first_successful(&hosts, |h| {
             if h == "10.0.0.3" {
                 paired("Studio")
             } else {
@@ -1204,6 +1682,7 @@ mod tests {
         assert_eq!(host, "10.0.0.3");
         assert_eq!(slug, "abcd1234");
         assert_eq!(name, "Studio"); // hostName passthrough drives the auto-alias
+        assert_eq!(host_id, "host-id");
     }
 
     #[test]
@@ -1217,7 +1696,7 @@ mod tests {
     fn first_successful_all_fail_surfaces_last_error() {
         let hosts = vec!["a".to_string(), "b".to_string()];
         let err = first_successful(&hosts, |h| {
-            Err::<(String, String, String, String), _>(format!("refused {h}"))
+            Err::<(String, String, String, String, String), _>(format!("refused {h}"))
         })
         .unwrap_err();
         assert!(err.contains("refused b"), "last failure surfaced: {err}");

@@ -535,6 +535,9 @@ export function ReadBranchNameInstructions() {
 export function ReadClipboardFiles() {
   return invoke("read_clipboard_files");
 }
+export function ReadClipboardText() {
+  return invoke("read_clipboard_text");
+}
 export function ReadCommitInstructions() {
   return invoke("read_commit_instructions");
 }
@@ -805,11 +808,26 @@ export function PeerHostCancelPairing() {
 export function PeerHostRevokeDevice(id) {
   return invoke("peer_host_revoke_device", { id });
 }
+export function PeerHostRespondPairing(id, accept, reciprocal) {
+  return invoke("peer_host_respond_pairing", { id, accept, reciprocal });
+}
+export function PeerPairRequest(hosts, port) {
+  return invoke("peer_pair_request", { hosts, port });
+}
+export function PeerPairCancel() {
+  return invoke("peer_pair_cancel");
+}
+export function PeerDiscoveryStart() {
+  return invoke("peer_discovery_start");
+}
+export function PeerDiscoveryStop() {
+  return invoke("peer_discovery_stop");
+}
 export function PeerDispatchReply(reqId, ok, value) {
   return invoke("peer_dispatch_reply", { reqId, ok, value });
 }
-export function PeerAdd(hosts, port, code, alias) {
-  return invoke("peer_add", { hosts, port, code, alias });
+export function PeerAdd(hosts, port, code, alias, fp) {
+  return invoke("peer_add", { hosts, port, code, alias, fp });
 }
 export function PeerRemove(slug) {
   return invoke("peer_remove", { slug });

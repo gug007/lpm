@@ -22,6 +22,7 @@ import { AddCloneRepoModal } from "./components/AddCloneRepoModal";
 import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { PairApprovalHost } from "./components/PairApprovalHost";
+import { PairRequestDialog } from "./components/connect-macs/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
 import { Toaster } from "sonner";
@@ -374,6 +375,7 @@ export default function App() {
       <RemoteFolderPickerHost />
       <PortConflictDialog />
       <PairApprovalHost />
+      <PairRequestDialog />
       <FileViewerHost />
       <TerminalDropOverlayHost />
       <ProjectSwitcher

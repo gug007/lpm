@@ -32,7 +32,9 @@ mod notes_store;
 mod openin;
 mod peer;
 mod peerclient;
+mod peerdiscovery;
 mod peersync;
+mod peertls;
 mod portforward;
 mod ports;
 mod proctree;
@@ -88,13 +90,14 @@ use message_history::*;
 use notes_cmds::*;
 use openin::*;
 use peer::{
-    peer_dispatch_reply, peer_host_cancel_pairing, peer_host_revoke_device, peer_host_set_config,
-    peer_host_start_pairing, peer_state,
+    peer_dispatch_reply, peer_host_cancel_pairing, peer_host_respond_pairing,
+    peer_host_revoke_device, peer_host_set_config, peer_host_start_pairing, peer_state,
 };
 use peerclient::{
-    peer_add, peer_invoke, peer_remove, peer_set_enabled, peer_sync_run, peer_sync_status,
-    peer_term_attach, peer_term_detach,
+    peer_add, peer_invoke, peer_pair_cancel, peer_pair_request, peer_remove, peer_set_enabled,
+    peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach,
 };
+use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
 use portforward::*;
 use ports::*;
 use projects_crud::*;

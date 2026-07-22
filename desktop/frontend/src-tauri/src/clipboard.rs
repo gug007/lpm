@@ -89,6 +89,31 @@ pub fn reap_stale_clipboard_images() {
     }
 }
 
+/// Read the system clipboard's text via pbpaste — the read twin of
+/// set_clipboard_text. Returns an empty string when the clipboard holds no text.
+/// Capped at 16 KB: invites are tiny, and shipping a multi-MB clipboard to JS is
+/// wasteful.
+#[tauri::command(async)]
+pub fn read_clipboard_text() -> Result<String, String> {
+    let out = std::process::Command::new("pbpaste")
+        .env("LC_CTYPE", "UTF-8")
+        .output()
+        .map_err(|e| format!("spawn pbpaste: {e}"))?;
+    if !out.status.success() {
+        return Ok(String::new());
+    }
+    let mut s = String::from_utf8_lossy(&out.stdout).into_owned();
+    const CAP: usize = 16 * 1024;
+    if s.len() > CAP {
+        let mut end = CAP;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        s.truncate(end);
+    }
+    Ok(s)
+}
+
 /// Decode a base64 image and write it to a temp file; returns the path. The
 /// file is intentionally left on disk (matches Go — caller pastes the path).
 pub fn save_clipboard_image_impl(b64_data: &str, mime_type: &str) -> Result<String, String> {

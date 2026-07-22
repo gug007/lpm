@@ -11,13 +11,22 @@ export interface PeerHostPairing {
   code: string;
   port: number;
   hosts: string[];
+  fp?: string;
+}
+
+export interface PeerPairRequest {
+  id: string;
+  name: string;
+  sas: string;
 }
 
 export interface PeerHostState {
   enabled: boolean;
   port: number;
+  hostId: string;
   pairing: PeerHostPairing | null;
   devices: PeerHostDevice[];
+  pairRequests: PeerPairRequest[];
 }
 
 export interface PeerClient {
@@ -25,11 +34,20 @@ export interface PeerClient {
   alias: string;
   host: string;
   port: number;
+  hostId?: string;
   enabled: boolean;
   connected: boolean;
   supportsSync?: boolean;
   lastSyncAt?: number;
   lastError?: string;
+}
+
+export interface DiscoveredPeer {
+  id: string;
+  name: string;
+  hosts: string[];
+  port: number;
+  dev: boolean;
 }
 
 export interface PeerStateShape {
@@ -38,7 +56,7 @@ export interface PeerStateShape {
 }
 
 export const DEFAULT_PEER_STATE: PeerStateShape = {
-  host: { enabled: false, port: 8766, pairing: null, devices: [] },
+  host: { enabled: false, port: 8766, hostId: "", pairing: null, devices: [], pairRequests: [] },
   peers: [],
 };
 

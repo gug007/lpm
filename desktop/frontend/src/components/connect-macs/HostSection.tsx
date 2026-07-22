@@ -71,7 +71,7 @@ export function HostSection({
 
   const pairing = host.pairing;
   const invite = pairing
-    ? encodeInvite({ hosts: pairing.hosts, port: pairing.port, code: pairing.code })
+    ? encodeInvite({ hosts: pairing.hosts, port: pairing.port, code: pairing.code, fp: pairing.fp })
     : "";
 
   return (

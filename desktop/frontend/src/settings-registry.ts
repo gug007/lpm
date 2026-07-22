@@ -372,7 +372,7 @@ export const ROWS = {
     id: "connect-macs.peers",
     label: "Connect Macs",
     description: "Control another Mac's projects from this one",
-    keywords: ["peer", "remote", "mac"],
+    keywords: ["peer", "remote", "mac", "nearby", "discover"],
   },
   "connect-macs.sync": {
     kind: "row",

@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
@@ -81,6 +82,7 @@ pub(crate) struct HostConfig {
     pub lan: bool,            // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1; no UI — the app always sets true, loopback-only is a manual-config escape hatch
     pub port: u16,            // 0 => DEFAULT_PORT
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
+    pub host_id: String,      // this Mac's stable peer identity, advertised over mDNS; minted on first load
     pub devices: Vec<PeerDevice>,
 }
 
@@ -91,6 +93,7 @@ impl Default for HostConfig {
             lan: false,
             port: 0,
             pairing_code: String::new(),
+            host_id: String::new(),
             devices: Vec::new(),
         }
     }
@@ -108,6 +111,10 @@ pub(crate) struct PeerEntry {
     pub port: u16,
     pub device_id: String,
     pub token: String,
+    #[serde(default)]
+    pub host_id: String, // the remote Mac's stable peer identity, so discovery can hide an already-paired Mac
+    #[serde(default)]
+    pub tls_fp: Option<String>, // pinned host leaf fingerprint (hex sha256 of cert DER); None until the first authed TLS connect pins it
     #[serde(default = "default_true")]
     pub enabled: bool,
     #[serde(default)]
@@ -123,7 +130,7 @@ pub(crate) struct PeerConfig {
 
 pub(crate) type SharedConfig = Arc<Mutex<PeerConfig>>;
 
-fn effective_port(p: u16) -> u16 {
+pub(crate) fn effective_port(p: u16) -> u16 {
     if p == 0 {
         DEFAULT_PORT
     } else {
@@ -133,6 +140,11 @@ fn effective_port(p: u16) -> u16 {
 
 #[cfg(test)]
 static TEST_CONFIG_PATH: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
+
+// Serializes tests that share the single TEST_CONFIG_PATH slot (cargo runs tests
+// in parallel; save_config writes go to whichever path is currently installed).
+#[cfg(test)]
+static TEST_CFG_GUARD: Mutex<()> = Mutex::new(());
 
 fn config_path() -> std::path::PathBuf {
     #[cfg(test)]
@@ -175,11 +187,29 @@ struct PendingDispatch {
     deadline: Instant,
 }
 
+/// The user's decision on a pending tap-to-approve pairing request.
+struct PairDecision {
+    accept: bool,
+    reciprocal: bool,
+}
+
+/// An outstanding tap-to-approve pairing request (a Mac that discovered this one
+/// on the LAN and asked to pair without an invite). The connection thread owns the
+/// receiving half of `decision`; `peer_host_respond_pairing` sends the user's
+/// Accept/Deny + reciprocal choice through it, matched by `id`.
+struct PendingPair {
+    id: String,
+    name: String,
+    sas: String, // 6-digit short-authentication string shown on both Macs
+    decision: SyncSender<PairDecision>,
+}
+
 struct HostInner {
     config: SharedConfig,
     clients: Mutex<HashMap<u64, Conn>>,
     rings: Mutex<HashMap<String, VecDeque<u8>>>,
     pending: Mutex<HashMap<u64, PendingDispatch>>,
+    pair_requests: Mutex<Vec<PendingPair>>,
     next_id: AtomicU64,
     next_dispatch: AtomicU64,
     generation: AtomicU64,
@@ -206,6 +236,7 @@ impl PeerHub {
                 clients: Mutex::new(HashMap::new()),
                 rings: Mutex::new(HashMap::new()),
                 pending: Mutex::new(HashMap::new()),
+                pair_requests: Mutex::new(Vec::new()),
                 next_id: AtomicU64::new(0),
                 next_dispatch: AtomicU64::new(0),
                 generation: AtomicU64::new(0),
@@ -222,6 +253,41 @@ impl PeerHub {
 
     fn host_config(&self) -> HostConfig {
         self.inner.config.lock().unwrap().host.clone()
+    }
+
+    pub(crate) fn host_id(&self) -> String {
+        self.inner.config.lock().unwrap().host.host_id.clone()
+    }
+
+    /// Register a new tap-to-approve pairing request, returning its id, the
+    /// human-verified SAS, and the receiver the connection thread parks on.
+    fn begin_pair_request(&self, name: &str) -> (String, String, mpsc::Receiver<PairDecision>) {
+        let id = uuid::Uuid::new_v4().to_string();
+        let sas = gen_sas();
+        let (tx, rx) = mpsc::sync_channel::<PairDecision>(1);
+        self.inner.pair_requests.lock().unwrap().push(PendingPair {
+            id: id.clone(),
+            name: name.chars().take(64).collect(),
+            sas: sas.clone(),
+            decision: tx,
+        });
+        (id, sas, rx)
+    }
+
+    /// Deliver the user's decision to the waiting connection thread and clear the
+    /// pending slot. No-op if the request already resolved (timeout / hang-up).
+    fn resolve_pair_request(&self, id: &str, accept: bool, reciprocal: bool) {
+        let mut reqs = self.inner.pair_requests.lock().unwrap();
+        if let Some(pos) = reqs.iter().position(|p| p.id == id) {
+            let p = reqs.remove(pos);
+            let _ = p.decision.try_send(PairDecision { accept, reciprocal });
+        }
+    }
+
+    /// Drop a pending request (idempotent teardown for the timeout / requester-
+    /// disconnect endings).
+    fn remove_pair_request(&self, id: &str) {
+        self.inner.pair_requests.lock().unwrap().retain(|p| p.id != id);
     }
 
     fn device_exists(&self, id: &str) -> bool {
@@ -339,9 +405,22 @@ fn peer_owner(hub: &PeerHub, device_id: &str) -> crate::control::Owner {
 /// Install event forwarders and start the server if enabled. The shared config is
 /// loaded once by lib.rs before both hubs start.
 pub fn start(hub: PeerHub, app: AppHandle) {
+    ensure_host_id(&hub);
     install_forwarders(&hub, &app);
     spawn_dispatch_reaper(hub.clone());
     apply(&hub, &app);
+}
+
+/// Mint and persist this Mac's stable peer identity on first run (empty on an old
+/// peer.json). Lazy: only writes when it actually assigns one.
+fn ensure_host_id(hub: &PeerHub) {
+    let mut cfg = hub.inner.config.lock().unwrap();
+    if cfg.host.host_id.is_empty() {
+        cfg.host.host_id = uuid::Uuid::new_v4().to_string();
+        let snapshot = cfg.clone();
+        drop(cfg);
+        let _ = save_config(&snapshot);
+    }
 }
 
 /// (Re)start or stop the listener to match the current config. Bumping the
@@ -352,10 +431,14 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
     hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
+        crate::mdns::withdraw_peer();
         return;
     }
     let bind = if cfg.lan { "0.0.0.0" } else { "127.0.0.1" };
-    let addr = format!("{bind}:{}", effective_port(cfg.port));
+    let port = effective_port(cfg.port);
+    let addr = format!("{bind}:{port}");
+    let advertise = cfg.lan;
+    let host_id = cfg.host_id.clone();
     let (hub, app) = (hub.clone(), app.clone());
     std::thread::spawn(move || {
         let mut bound = None;
@@ -374,10 +457,28 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
         let Some(listener) = bound else {
             eprintln!("warning: peer host server could not bind {addr}");
             hub.inner.running.store(false, Ordering::Relaxed);
+            crate::mdns::withdraw_peer();
             return;
         };
+        // A newer apply() may have superseded us between binding and here; it has
+        // already run its own advertise/withdraw, so re-advertising now would point
+        // a Bonjour record at a listener the accept loop abandons on its first
+        // generation check. Bail without touching mDNS.
+        if hub.inner.generation.load(Ordering::SeqCst) != generation {
+            return;
+        }
         let _ = listener.set_nonblocking(true);
         hub.inner.running.store(true, Ordering::Relaxed);
+        if advertise {
+            crate::mdns::advertise_peer(crate::mdns::AdParams {
+                server_id: host_id,
+                server_name: machine_name(),
+                port,
+                dev: cfg!(debug_assertions),
+            });
+        } else {
+            crate::mdns::withdraw_peer();
+        }
         accept_loop(listener, hub, app, generation);
     });
 }
@@ -388,6 +489,7 @@ pub fn stop(hub: &PeerHub) {
     hub.inner.enabled.store(false, Ordering::Relaxed);
     hub.inner.running.store(false, Ordering::Relaxed);
     hub.inner.clients.lock().unwrap().clear();
+    crate::mdns::withdraw_peer();
 }
 
 fn accept_loop(listener: TcpListener, hub: PeerHub, app: AppHandle, generation: u64) {
@@ -412,14 +514,73 @@ fn accept_loop(listener: TcpListener, hub: PeerHub, app: AppHandle, generation: 
     }
 }
 
-fn accept_ws(stream: TcpStream) -> Option<WebSocket<TcpStream>> {
+/// One peer connection's transport. The listener accepts both this build's
+/// TLS-wrapped clients and, transitionally, the plaintext clients of pre-Phase-3
+/// builds — picked per connection by peeking the first byte. Everything above the
+/// stream (WebSocket handshake, Origin refusal, auth, frames) is identical on
+/// both; a single concrete type keeps `WebSocket<T>` monomorphic per conn thread.
+enum PeerStream {
+    Plain(TcpStream),
+    Tls(Box<rustls::StreamOwned<rustls::ServerConnection, TcpStream>>),
+}
+
+impl PeerStream {
+    /// The underlying TCP socket — for read-timeout tuning on either variant.
+    fn tcp(&self) -> &TcpStream {
+        match self {
+            PeerStream::Plain(s) => s,
+            PeerStream::Tls(t) => t.get_ref(),
+        }
+    }
+}
+
+impl Read for PeerStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            PeerStream::Plain(s) => s.read(buf),
+            PeerStream::Tls(t) => t.read(buf),
+        }
+    }
+}
+
+impl Write for PeerStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            PeerStream::Plain(s) => s.write(buf),
+            PeerStream::Tls(t) => t.write(buf),
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            PeerStream::Plain(s) => s.flush(),
+            PeerStream::Tls(t) => t.flush(),
+        }
+    }
+}
+
+type ConnWs = WebSocket<PeerStream>;
+
+fn accept_ws(stream: TcpStream) -> Option<ConnWs> {
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
+    // Peek one byte to choose the transport: 0x16 is a TLS ClientHello (this
+    // build); anything else is a legacy plaintext WebSocket upgrade (`GET …`). The
+    // byte stays buffered in the socket for the handshake that follows. This is the
+    // transitional acceptor — a future build can drop the plaintext branch.
+    let mut first = [0u8; 1];
+    let inner = match stream.peek(&mut first) {
+        Ok(0) | Err(_) => return None,
+        Ok(_) if crate::peertls::sniff_is_tls(first[0]) => {
+            let conn = rustls::ServerConnection::new(crate::remotetls::server_config()).ok()?;
+            PeerStream::Tls(Box::new(rustls::StreamOwned::new(conn, stream)))
+        }
+        Ok(_) => PeerStream::Plain(stream),
+    };
     // Refuse any handshake that carries an Origin header. The native peer client
     // never sends one; a browser always does — so this rejects DNS-rebinding /
     // drive-by JavaScript trying to reach the pairing endpoint on a LAN-bound
     // socket, without affecting the real client.
-    accept_hdr(stream, |req: &Request, resp: Response| {
+    accept_hdr(inner, |req: &Request, resp: Response| {
         if req.headers().contains_key("origin") {
             let mut deny = ErrorResponse::new(Some("origin not allowed".to_string()));
             *deny.status_mut() = tungstenite::http::StatusCode::FORBIDDEN;
@@ -455,7 +616,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
             device_id: device_id.clone(),
         },
     );
-    let _ = ws.get_ref().set_read_timeout(Some(POLL));
+    let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
 
     'main: loop {
         if hub.inner.generation.load(Ordering::SeqCst) != generation
@@ -513,7 +674,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
 
 // --- auth / pairing -----------------------------------------------------------
 
-fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -> Option<String> {
+fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<String> {
     let txt = loop {
         match ws.read() {
             Ok(m) if m.is_text() => break m.to_text().ok()?.to_string(),
@@ -531,7 +692,7 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -
                 Some((id, token, slug)) => {
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token,
-                            "slug": slug, "hostName": machine_name() })
+                            "slug": slug, "hostName": machine_name(), "hostId": hub.host_id() })
                         .to_string(),
                     ));
                     let _ = app.emit("peer-state-changed", ());
@@ -544,6 +705,10 @@ fn authenticate(ws: &mut WebSocket<TcpStream>, hub: &PeerHub, app: &AppHandle) -
                     None
                 }
             }
+        }
+        Some("pairRequest") => {
+            let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
+            handle_pair_request(ws, hub, app, name)
         }
         Some("auth") => {
             let id = v
@@ -576,12 +741,11 @@ fn normalize_code(s: &str) -> String {
         .to_uppercase()
 }
 
-fn pair_device(hub: &PeerHub, code: &str, name: &str) -> Option<(String, String, String)> {
+/// Mint and persist a new device (token, slug) for `name`, returning
+/// (id, token, slug). Shared by both pairing paths; unlike `pair_device` it never
+/// touches `pairing_code` — a tap-to-approve pairing has no code to consume.
+fn mint_device(hub: &PeerHub, name: &str) -> (String, String, String) {
     let mut cfg = hub.inner.config.lock().unwrap();
-    let expected = normalize_code(&cfg.host.pairing_code);
-    if expected.is_empty() || !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
-        return None;
-    }
     let token = gen_token();
     let slug = gen_slug(&cfg.host.devices);
     let device = PeerDevice {
@@ -593,11 +757,186 @@ fn pair_device(hub: &PeerHub, code: &str, name: &str) -> Option<(String, String,
     };
     let id = device.id.clone();
     cfg.host.devices.push(device);
-    cfg.host.pairing_code.clear(); // single use — the next device needs a fresh code
     let snapshot = cfg.clone();
     drop(cfg);
     let _ = save_config(&snapshot);
-    Some((id, token, slug))
+    (id, token, slug)
+}
+
+fn pair_device(hub: &PeerHub, code: &str, name: &str) -> Option<(String, String, String)> {
+    {
+        let mut cfg = hub.inner.config.lock().unwrap();
+        let expected = normalize_code(&cfg.host.pairing_code);
+        if expected.is_empty() || !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
+            return None;
+        }
+        cfg.host.pairing_code.clear(); // single use — the next device needs a fresh code
+        let snapshot = cfg.clone();
+        drop(cfg);
+        let _ = save_config(&snapshot);
+    }
+    Some(mint_device(hub, name))
+}
+
+const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(120);
+const RECIPROCAL_WINDOW: Duration = Duration::from_secs(30);
+
+/// Drive a tap-to-approve pairing request: emit it to the UI, park on the user's
+/// decision (staying responsive so a cancelled requester is noticed), and on
+/// approval mint the device and reply `paired`. Returns the device id on success
+/// so the connection promotes to an authed session, else None.
+fn handle_pair_request(
+    ws: &mut ConnWs,
+    hub: &PeerHub,
+    app: &AppHandle,
+    name: &str,
+) -> Option<String> {
+    let (id, sas, rx) = hub.begin_pair_request(name);
+    let _ = ws.send(Message::text(
+        json!({ "t": "pairPending", "sas": sas }).to_string(),
+    ));
+    let _ = app.emit("peer-state-changed", ());
+    let _ = app.emit(
+        "peer-pair-request",
+        json!({ "id": id, "name": name, "sas": sas }),
+    );
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+
+    // Poll the decision channel and the socket together: a short read timeout lets
+    // us notice the requester hanging up (so the pending entry is cleaned up)
+    // without missing the user's Accept/Deny.
+    let _ = ws
+        .get_ref()
+        .tcp()
+        .set_read_timeout(Some(Duration::from_millis(250)));
+    let deadline = Instant::now() + PAIR_APPROVE_WINDOW;
+    let decision = loop {
+        match rx.try_recv() {
+            Ok(d) => break Some(d),
+            Err(TryRecvError::Disconnected) => break None,
+            Err(TryRecvError::Empty) => {}
+        }
+        if Instant::now() >= deadline {
+            break None;
+        }
+        match ws.read() {
+            Ok(m) if m.is_close() => {
+                hub.remove_pair_request(&id);
+                let _ = app.emit("peer-state-changed", ());
+                return None;
+            }
+            Ok(_) => {}
+            Err(WsError::Io(ref e))
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut => {}
+            Err(_) => {
+                hub.remove_pair_request(&id);
+                let _ = app.emit("peer-state-changed", ());
+                return None;
+            }
+        }
+    };
+    hub.remove_pair_request(&id);
+    let _ = app.emit("peer-state-changed", ());
+
+    match decision {
+        Some(d) if d.accept => {
+            let (dev_id, token, slug) = mint_device(hub, name);
+            let _ = ws.send(Message::text(
+                json!({ "t": "paired", "deviceId": dev_id, "token": token, "slug": slug,
+                    "hostName": machine_name(), "hostId": hub.host_id(), "reciprocal": d.reciprocal })
+                .to_string(),
+            ));
+            if d.reciprocal {
+                wait_reciprocal(ws, app);
+            }
+            Some(dev_id)
+        }
+        Some(_) => {
+            let _ = ws.send(Message::text(
+                json!({ "t": "error", "error": "pairing declined" }).to_string(),
+            ));
+            None
+        }
+        None => {
+            let _ = ws.send(Message::text(
+                json!({ "t": "error", "error": "pairing request timed out" }).to_string(),
+            ));
+            None
+        }
+    }
+}
+
+/// After approving with the reciprocal option, wait briefly for the requester's
+/// `reciprocalInvite` and dial it back so this Mac can also control the requester.
+/// The reverse dial is handed to a background thread so the WS handshake never
+/// blocks on it (and retries a few times while the requester's host finishes
+/// binding).
+fn wait_reciprocal(ws: &mut ConnWs, app: &AppHandle) {
+    let deadline = Instant::now() + RECIPROCAL_WINDOW;
+    loop {
+        if Instant::now() >= deadline {
+            return;
+        }
+        match ws.read() {
+            Ok(m) if m.is_close() => return,
+            Ok(m) if m.is_text() => {
+                let Ok(txt) = m.to_text() else { continue };
+                let Ok(v) = serde_json::from_str::<Value>(txt) else {
+                    continue;
+                };
+                if v.get("t").and_then(Value::as_str) != Some("reciprocalInvite") {
+                    continue;
+                }
+                let code = v
+                    .get("code")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let port = v.get("port").and_then(Value::as_u64).unwrap_or(0) as u16;
+                let hosts: Vec<String> = v
+                    .get("hosts")
+                    .and_then(Value::as_array)
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|x| x.as_str().map(str::to_string))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !code.is_empty() && !hosts.is_empty() {
+                    let app = app.clone();
+                    std::thread::spawn(move || {
+                        let hub = app.state::<crate::peerclient::PeerClientHub>();
+                        for attempt in 0..6 {
+                            match crate::peerclient::add_peer_blocking(
+                                hub.inner(),
+                                hosts.clone(),
+                                port,
+                                code.clone(),
+                                String::new(),
+                                None, // reciprocal reverse-dial carries no invite fingerprint; pins on first authed session
+                            ) {
+                                Ok(_) => return,
+                                Err(_) if attempt < 5 => {
+                                    std::thread::sleep(Duration::from_millis(400))
+                                }
+                                Err(_) => return,
+                            }
+                        }
+                    });
+                }
+                return;
+            }
+            Ok(_) => {}
+            Err(WsError::Io(ref e))
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut => {}
+            Err(_) => return,
+        }
+    }
 }
 
 fn check_device(hub: &PeerHub, id: &str, token: &str) -> bool {
@@ -617,12 +956,12 @@ fn check_device(hub: &PeerHub, id: &str, token: &str) -> bool {
 
 // --- request dispatch ---------------------------------------------------------
 
-fn send(ws: &mut WebSocket<TcpStream>, val: Value) -> Result<(), ()> {
+fn send(ws: &mut ConnWs, val: Value) -> Result<(), ()> {
     ws.send(Message::text(val.to_string())).map_err(|_| ())
 }
 
 fn handle_msg(
-    ws: &mut WebSocket<TcpStream>,
+    ws: &mut ConnWs,
     txt: &str,
     hub: &PeerHub,
     app: &AppHandle,
@@ -1054,6 +1393,7 @@ fn pairing_value(cfg: &HostConfig) -> Value {
         "code": cfg.pairing_code,
         "port": effective_port(cfg.port),
         "hosts": candidate_hosts(),
+        "fp": crate::remotetls::fingerprint(),
     })
 }
 
@@ -1064,13 +1404,23 @@ fn host_state_value(hub: &PeerHub) -> Value {
         .iter()
         .map(|d| json!({ "id": d.id, "name": d.name }))
         .collect();
+    let pair_requests: Vec<Value> = hub
+        .inner
+        .pair_requests
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|p| json!({ "id": p.id, "name": p.name, "sas": p.sas }))
+        .collect();
     json!({
         "enabled": cfg.enabled,
         "port": effective_port(cfg.port),
         "lan": cfg.lan,
         "running": hub.inner.running.load(Ordering::Relaxed),
+        "hostId": cfg.host_id,
         "pairing": pairing_value(&cfg),
         "devices": devices,
+        "pairRequests": pair_requests,
     })
 }
 
@@ -1127,7 +1477,10 @@ pub async fn peer_host_start_pairing(
     };
     apply(&hub, &app);
     let _ = app.emit("peer-state-changed", ());
-    Ok(json!({ "code": code, "port": port, "hosts": hosts }))
+    // The invite carries this Mac's leaf fingerprint so the joining Mac can pin it
+    // up front (like the phone's pairing QR). Reading it here also forces the shared
+    // identity to exist before the listener starts presenting it.
+    Ok(json!({ "code": code, "port": port, "hosts": hosts, "fp": crate::remotetls::fingerprint() }))
 }
 
 #[tauri::command]
@@ -1170,6 +1523,21 @@ pub async fn peer_host_revoke_device(
     Ok(host_state_value(&hub))
 }
 
+/// Resolve a pending tap-to-approve pairing request with the user's decision.
+/// `reciprocal` also pairs the reverse direction (this Mac controls the requester).
+#[tauri::command]
+pub async fn peer_host_respond_pairing(
+    app: AppHandle,
+    hub: State<'_, PeerHub>,
+    id: String,
+    accept: bool,
+    reciprocal: bool,
+) -> Result<Value, String> {
+    hub.resolve_pair_request(&id, accept, reciprocal);
+    let _ = app.emit("peer-state-changed", ());
+    Ok(host_state_value(&hub))
+}
+
 /// Called by the host's main-window dispatcher with the outcome of running a
 /// re-emitted command, delivering the result back to the waiting client.
 #[tauri::command]
@@ -1192,11 +1560,26 @@ fn base64_url(b: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b)
 }
 
-fn gen_pairing_code() -> String {
+pub(crate) fn gen_pairing_code() -> String {
     let mut b = [0u8; 4];
     let _ = getrandom::fill(&mut b);
     let n = u32::from_be_bytes(b);
     format!("{:04X}-{:04X}", (n >> 16) & 0xFFFF, n & 0xFFFF)
+}
+
+/// A 6-digit short-authentication string shown on both Macs for a tap-to-approve
+/// pairing. Rejection-sampled to stay uniform over 000000..=999999 (no modulo
+/// bias): 32-bit draws land in [0, 4_294_000_000) before the % 1_000_000.
+fn gen_sas() -> String {
+    const LIMIT: u32 = 4_294_000_000; // largest multiple of 1_000_000 below 2^32
+    loop {
+        let mut b = [0u8; 4];
+        getrandom::fill(&mut b).expect("csprng");
+        let n = u32::from_be_bytes(b);
+        if n < LIMIT {
+            return format!("{:06}", n % 1_000_000);
+        }
+    }
 }
 
 /// An 8-char lowercase-hex slug, unique among already-paired devices.
@@ -1285,7 +1668,7 @@ fn tailscale_ip() -> Option<String> {
 
 /// Addresses to advertise for pairing, most-preferred first: LAN IP then
 /// Tailscale IP, falling back to loopback.
-fn candidate_hosts() -> Vec<String> {
+pub(crate) fn candidate_hosts() -> Vec<String> {
     let mut hosts = Vec::new();
     if let Some(ip) = primary_lan_ip() {
         hosts.push(ip);
@@ -1313,6 +1696,7 @@ mod tests {
                 lan: true,
                 port: 9100,
                 pairing_code: "AB12-CD34".into(),
+                host_id: "host-1".into(),
                 devices: vec![PeerDevice {
                     id: "d1".into(),
                     name: "Studio".into(),
@@ -1328,6 +1712,8 @@ mod tests {
                 port: 8766,
                 device_id: "x".into(),
                 token: "secret".into(),
+                host_id: "hid".into(),
+                tls_fp: Some("deadbeef".into()),
                 enabled: true,
                 last_sync_at: 0,
             }],
@@ -1340,16 +1726,19 @@ mod tests {
         assert_eq!(back.peers.len(), 1);
         assert_eq!(back.peers[0].slug, "beefcafe");
         assert_eq!(back.peers[0].token, "secret");
+        assert_eq!(back.peers[0].tls_fp.as_deref(), Some("deadbeef"));
         assert!(back.peers[0].enabled);
     }
 
     // Old peer.json (or a hand-written one) without the peer `enabled` field must
-    // default it to true, not false, so a stored peer still connects.
+    // default it to true, not false, so a stored peer still connects. A pre-Phase-3
+    // file also lacks `tlsFp`, which must load as None (pin on first authed connect).
     #[test]
     fn peer_entry_enabled_defaults_true() {
         let json = r#"{ "peers": [{ "slug": "aa", "host": "h", "port": 1 }] }"#;
         let cfg: PeerConfig = serde_json::from_str(json).unwrap();
         assert!(cfg.peers[0].enabled);
+        assert!(cfg.peers[0].tls_fp.is_none());
     }
 
     #[test]
@@ -1424,6 +1813,7 @@ mod tests {
 
     #[test]
     fn pairs_through_nonblocking_listener() {
+        let _guard = TEST_CFG_GUARD.lock().unwrap();
         let tmp = std::env::temp_dir().join(format!("lpm-peer-test-{}.json", std::process::id()));
         *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
 
@@ -1484,5 +1874,160 @@ mod tests {
         let text = reply.to_text().unwrap();
         assert!(text.contains("paired"), "expected paired, got: {text}");
         assert!(text.contains("slug"), "paired reply must carry a slug");
+    }
+
+    #[test]
+    fn gen_sas_is_six_decimal_digits() {
+        for _ in 0..64 {
+            let s = gen_sas();
+            assert_eq!(s.len(), 6, "sas must be 6 chars: {s}");
+            assert!(s.chars().all(|c| c.is_ascii_digit()), "sas must be digits: {s}");
+        }
+    }
+
+    #[test]
+    fn mint_device_keeps_pairing_code_while_pair_device_clears_it() {
+        let _guard = TEST_CFG_GUARD.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!("lpm-peer-mint-{}.json", std::process::id()));
+        *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
+
+        let hub = PeerHub::default();
+        {
+            let mut cfg = hub.inner.config.lock().unwrap();
+            cfg.host.host_id = "host-xyz".into();
+            cfg.host.pairing_code = "AAAA-BBBB".into();
+        }
+
+        // A tap-to-approve mint never consumes the outstanding code.
+        let (id, token, slug) = mint_device(&hub, "Laptop");
+        assert!(!id.is_empty() && !token.is_empty() && slug.len() == 8);
+        assert_eq!(hub.host_config().pairing_code, "AAAA-BBBB");
+        assert_eq!(hub.host_config().devices.len(), 1);
+
+        // A code-based pair still consumes it.
+        assert!(pair_device(&hub, "AAAA-BBBB", "Studio").is_some());
+        assert!(hub.host_config().pairing_code.is_empty());
+        assert_eq!(hub.host_config().devices.len(), 2);
+
+        *TEST_CONFIG_PATH.lock().unwrap() = None;
+        let _ = std::fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn pair_request_resolve_delivers_decision_and_removes_entry() {
+        let hub = PeerHub::default();
+        let (id, sas, rx) = hub.begin_pair_request("Laptop");
+        assert_eq!(sas.len(), 6);
+        assert_eq!(hub.inner.pair_requests.lock().unwrap().len(), 1);
+        hub.resolve_pair_request(&id, true, true);
+        let decision = rx.recv().expect("decision delivered");
+        assert!(decision.accept && decision.reciprocal);
+        assert!(hub.inner.pair_requests.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn remove_pair_request_drops_pending_on_requester_disconnect() {
+        let hub = PeerHub::default();
+        let (id, _sas, _rx) = hub.begin_pair_request("Laptop");
+        assert_eq!(hub.inner.pair_requests.lock().unwrap().len(), 1);
+        hub.remove_pair_request(&id);
+        assert!(hub.inner.pair_requests.lock().unwrap().is_empty());
+    }
+
+    // Drive the tap-to-approve wire path over a real socket, exercising the real
+    // begin/resolve/mint hub methods (only the AppHandle emit/window glue in
+    // handle_pair_request is omitted — it needs a Tauri app). `accept` toggles the
+    // approve vs deny branch.
+    fn run_pair_request_socket(accept: bool) -> Value {
+        let _guard = TEST_CFG_GUARD.lock().unwrap();
+        let tmp = std::env::temp_dir().join(format!(
+            "lpm-peer-req-{}-{accept}.json",
+            std::process::id()
+        ));
+        *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
+
+        let hub = PeerHub::default();
+        hub.inner.config.lock().unwrap().host.host_id = "host-xyz".to_string();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let hub2 = hub.clone();
+        let server = std::thread::spawn(move || loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let _ = stream.set_nonblocking(false);
+                    let mut ws = accept_ws(stream).expect("server handshake");
+                    let txt = loop {
+                        match ws.read() {
+                            Ok(m) if m.is_text() => break m.to_text().unwrap().to_string(),
+                            Ok(_) => continue,
+                            Err(_) => return,
+                        }
+                    };
+                    let v: Value = serde_json::from_str(&txt).unwrap();
+                    let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
+                    let (id, sas, rx) = hub2.begin_pair_request(name);
+                    let _ = ws.send(Message::text(
+                        json!({ "t": "pairPending", "sas": sas }).to_string(),
+                    ));
+                    hub2.resolve_pair_request(&id, accept, false);
+                    let decision = rx.recv().expect("decision");
+                    hub2.remove_pair_request(&id);
+                    if decision.accept {
+                        let (dev, token, slug) = mint_device(&hub2, name);
+                        let _ = ws.send(Message::text(
+                            json!({ "t": "paired", "deviceId": dev, "token": token, "slug": slug,
+                                "hostName": machine_name(), "hostId": hub2.host_id(), "reciprocal": false })
+                            .to_string(),
+                        ));
+                    } else {
+                        let _ = ws.send(Message::text(
+                            json!({ "t": "error", "error": "pairing declined" }).to_string(),
+                        ));
+                    }
+                    return;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => return,
+            }
+        });
+
+        let (mut c, _) = tungstenite::connect(format!("ws://{addr}/")).expect("client connect");
+        c.send(Message::text(
+            json!({ "t": "pairRequest", "name": "Laptop" }).to_string(),
+        ))
+        .unwrap();
+        let pending: Value = serde_json::from_str(c.read().unwrap().to_text().unwrap()).unwrap();
+        assert_eq!(pending.get("t").and_then(Value::as_str), Some("pairPending"));
+        assert_eq!(pending.get("sas").and_then(Value::as_str).map(str::len), Some(6));
+        let reply: Value = serde_json::from_str(c.read().unwrap().to_text().unwrap()).unwrap();
+        server.join().unwrap();
+
+        *TEST_CONFIG_PATH.lock().unwrap() = None;
+        let _ = std::fs::remove_file(&tmp);
+        reply
+    }
+
+    #[test]
+    fn pair_request_approve_replies_paired_with_host_id() {
+        let reply = run_pair_request_socket(true);
+        assert_eq!(reply.get("t").and_then(Value::as_str), Some("paired"));
+        assert!(reply.get("deviceId").and_then(Value::as_str).is_some_and(|s| !s.is_empty()));
+        assert!(reply.get("token").and_then(Value::as_str).is_some_and(|s| !s.is_empty()));
+        assert_eq!(reply.get("slug").and_then(Value::as_str).map(str::len), Some(8));
+        assert_eq!(reply.get("hostId").and_then(Value::as_str), Some("host-xyz"));
+    }
+
+    #[test]
+    fn pair_request_deny_replies_pairing_declined() {
+        let reply = run_pair_request_socket(false);
+        assert_eq!(reply.get("t").and_then(Value::as_str), Some("error"));
+        assert_eq!(
+            reply.get("error").and_then(Value::as_str),
+            Some("pairing declined")
+        );
     }
 }

@@ -15,7 +15,7 @@ export function ConnectMacsPane() {
         sidebar and open just like local ones.
       </p>
       <HostSection host={state.host} refresh={refresh} />
-      <ClientSection peers={state.peers} refresh={refresh} />
+      <ClientSection peers={state.peers} host={state.host} refresh={refresh} />
       {state.peers.length > 0 && <SyncSection peers={state.peers} />}
     </div>
   );
