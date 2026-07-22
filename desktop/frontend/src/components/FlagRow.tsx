@@ -17,7 +17,7 @@ export function FlagRow({
     <button
       onClick={onToggle}
       disabled={disabled}
-      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+      className="mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
     >
       <span
         className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
@@ -28,8 +28,12 @@ export function FlagRow({
       >
         {checked && <CheckIcon />}
       </span>
-      <span className={checked ? "text-[var(--text-primary)]" : ""}>{label}</span>
-      <span className="ml-auto font-mono text-[11px] text-[var(--text-muted)]">{flag}</span>
+      <span className={checked ? "text-[var(--text-primary)]" : ""}>
+        {label}
+      </span>
+      <span className="ml-auto font-mono text-[11px] text-[var(--text-muted)]">
+        {flag}
+      </span>
     </button>
   );
 }

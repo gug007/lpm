@@ -25,7 +25,13 @@ export function FetchSplitRow({
   );
 }
 
-function FetchConfigBody({ busy, onRun }: { busy: boolean; onRun: () => void }) {
+function FetchConfigBody({
+  busy,
+  onRun,
+}: {
+  busy: boolean;
+  onRun: () => void;
+}) {
   const cfg = useSettingsStore((s) => s.gitFetch) ?? DEFAULT_FETCH_CONFIG;
   const patch = (p: Partial<GitFetchConfig>) =>
     void saveSettings({ gitFetch: { ...cfg, ...p } });
@@ -62,7 +68,7 @@ function FetchConfigBody({ busy, onRun }: { busy: boolean; onRun: () => void }) 
       <button
         onClick={onRun}
         disabled={busy}
-        className="mt-1 flex w-full items-center justify-center px-4 py-2 text-[13px] font-medium text-[var(--accent-green)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+        className="mx-1.5 mt-1 flex w-[calc(100%-12px)] items-center justify-center rounded-lg px-2.5 py-2 text-[13px] font-medium text-[var(--accent-green)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
       >
         Run fetch
       </button>
@@ -70,7 +76,10 @@ function FetchConfigBody({ busy, onRun }: { busy: boolean; onRun: () => void }) 
   );
 }
 
-export function fetchConfigScreen(opts: { busy: boolean; onRun: () => void }): DrillScreen {
+export function fetchConfigScreen(opts: {
+  busy: boolean;
+  onRun: () => void;
+}): DrillScreen {
   return {
     title: "Fetch",
     render: () => <FetchConfigBody busy={opts.busy} onRun={opts.onRun} />,

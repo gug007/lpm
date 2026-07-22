@@ -42,7 +42,8 @@ function PushConfigBody({
   onAdvanced: () => void;
 }) {
   const cfg = useSettingsStore((s) => s.gitPush) ?? DEFAULT_PUSH_CONFIG;
-  const setMode = (mode: PushMode) => void saveSettings({ gitPush: { ...cfg, mode } });
+  const setMode = (mode: PushMode) =>
+    void saveSettings({ gitPush: { ...cfg, mode } });
   return (
     <>
       <div className="px-4 pb-1 pt-1 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
@@ -55,19 +56,21 @@ function PushConfigBody({
             key={m}
             onClick={() => setMode(m)}
             disabled={busy}
-            className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+            className="mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
           >
-            <span className="flex w-3.5 shrink-0">{active && <CheckIcon />}</span>
+            <span className="flex w-3.5 shrink-0">
+              {active && <CheckIcon />}
+            </span>
             <span className={active ? "text-[var(--text-primary)]" : ""}>
               {PUSH_MODE_LABELS[m]}
             </span>
           </button>
         );
       })}
-      <div className="my-1 border-t border-[var(--border)]" />
+      <div className="mx-3 my-1 border-t border-[var(--border)]" />
       <button
         onClick={onAdvanced}
-        className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        className="mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
       >
         Advanced flags
         <span className="ml-auto flex text-[var(--text-muted)]">
@@ -77,7 +80,7 @@ function PushConfigBody({
       <button
         onClick={onRun}
         disabled={busy}
-        className="mt-1 flex w-full items-center justify-center px-4 py-2 text-[13px] font-medium text-[var(--accent-green)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
+        className="mx-1.5 mt-1 flex w-[calc(100%-12px)] items-center justify-center rounded-lg px-2.5 py-2 text-[13px] font-medium text-[var(--accent-green)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
       >
         Run push
       </button>
@@ -109,7 +112,10 @@ function PushAdvancedBody({ busy }: { busy: boolean }) {
   );
 }
 
-export function pushConfigScreen(opts: { busy: boolean; onRun: () => void }): DrillScreen {
+export function pushConfigScreen(opts: {
+  busy: boolean;
+  onRun: () => void;
+}): DrillScreen {
   return {
     title: "Push",
     render: (api: DrillApi) => (
