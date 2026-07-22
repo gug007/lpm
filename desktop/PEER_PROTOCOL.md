@@ -71,7 +71,8 @@ pairing — whether the invite carried a fingerprint `f`):
 | entry **has** `tlsFp` | `wss://` verifying the leaf == `tlsFp`; **no plaintext fallback** | run session |
 | entry **lacks** `tlsFp` | `wss://` accept-any, capturing the leaf; if the TLS layer fails (old plaintext host), fall back to plaintext for that attempt | on first authed connect, pin the captured leaf (`pin-after-auth`) |
 | pairing, invite **has** `f` | `wss://` verifying leaf == `f`; **hard fail** on mismatch | store `tlsFp = f` |
-| pairing, invite **lacks** `f` | `wss://` unpinned, or plaintext against an old host | pin on the first authed session (`tlsFp` starts null) |
+| pairing, **pasted invite lacks** `f` | `wss://` unpinned (encrypted), or plaintext against an old host | pin on the first authed session (`tlsFp` starts null) |
+| pairing, **tap-to-approve** (no `f`) | `wss://` capturing the leaf, or plaintext against an old host | pin the captured leaf on a successful pair (**pin-after-successful-pair**); plaintext → first-session |
 
 An unpinned connect pins **only after** the host answers the shared token
 (`ready`/`paired`): a stranger who merely answers the port is never pinned. A
