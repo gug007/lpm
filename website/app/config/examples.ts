@@ -119,8 +119,6 @@ services:
   web: npm run dev
 actions:
   deploy:
-    label: Deploy
-    emoji: 🚀
     display: header
     primary: last-used           # main click repeats the last used option
     actions:                     # chevron opens these

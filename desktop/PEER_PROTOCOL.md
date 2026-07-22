@@ -294,10 +294,13 @@ ping-pong).
 
 After a sync the client records the new base for every unit synced and every unit
 already equal; the host records it for units it received via apply. A pull leaves
-the host's base for that unit stale until the next exchange refreshes it (an equal
-unit re-establishes it, a divergence resolves as a fast-forward), so a host-initiated
-sync in that window may over-report a conflict — the winner is still correct and a
-backup is still taken.
+the *source* host's base for that unit stale until the next exchange refreshes it,
+so a passive host that only ever serves syncs could over-report a conflict in its
+own preview until it synced itself. To close that gap, computing sync status (either
+side's Settings pane, or an auto-sync status exchange) also commits the converged
+bases — facts only, the units currently equal on both Macs, no item states — so a
+host's bases heal as soon as its UI recomputes. The conflict winner is deterministic
+regardless, and a backup is always taken.
 
 ### Legacy interop
 
@@ -309,6 +312,53 @@ backup is still taken.
 
 Deletions and revision fields are therefore never sent to, nor accepted from, a peer
 that does not speak `configSync2`.
+
+### Auto sync
+
+Per peer, config sync can run unattended (opt-in, off by default — the peer's
+`autoSync` flag in peer.json). A client-side engine (`autosync.rs`) drives the same
+`sync_run` the manual button uses — never a separate protocol. The host needs no
+auto-sync code: it answers the sync frames and forwards its config-change events as
+always.
+
+**Triggers** (each coalesces into a per-peer "wants to sync" flag):
+
+- **Local change** — the config watcher's own debounced projects/templates
+  classification also nudges every auto-enabled peer.
+- **Remote change** — a forwarded `projects-changed` / `templates-changed` event
+  for a peer nudges that peer.
+- **Connect** — a peer session reaching `ready` (feature flags stored) nudges it
+  and clears its backoff.
+- **Anti-entropy** — every enabled+connected auto peer is nudged every 30 minutes,
+  so a dropped (lossy) forwarded event is only ever a delay, never a lost change.
+
+**Pacing.** A 2s quiet-period debounce per peer coalesces a burst of edits; a hard
+rate floor keeps consecutive runs for one peer at least 5s apart (the safety valve
+so a convergence pull→push can't become a hot loop); one run at a time per peer (a
+trigger during a run reruns once it finishes). On a run failure the peer backs off
+30s → 2min → 10min (capped), reset on the next success or reconnect.
+
+**Gating.** An auto run happens ONLY when auto-sync is on AND the peer is enabled,
+connected, advertises `configSync2`, and is identity-pinned (`tlsFp` set).
+Unattended mode never takes the legacy mtime path and never an unpinned/plaintext
+channel; a manual "Sync now" still works for a legacy or unpinned peer exactly as
+before. When the toggle is on but a gate is unmet the engine does nothing quietly
+(the Settings row hints why).
+
+**Convergence & echo.** An auto run right after applying a remote change computes an
+empty plan (the digests are equal and the sidecar echo guard suppresses a re-bump)
+— a cheap no-op, not a loop. The settings.json fixpoint's single push-back is a
+normal small push right after a pull, spaced by the rate floor.
+
+**Surfacing.** After each run the engine emits `peer-autosync-result`
+`{ slug, applied, pushed, errors[], conflicts[] }` (`conflicts` = plan items that
+resolved as a both-sides change). The frontend toasts only on a conflict (kept the
+newer change, backup saved) or an error (throttled per peer); clean runs are silent.
+
+**Dual driver.** Both Macs may enable auto-sync for each other. That stays stable:
+the conflict resolver is symmetric (both pick the same winner) and digests converge,
+so runs are idempotent — once a change has propagated, the follow-up runs on both
+sides compute empty plans and stop.
 
 ## Keepalive
 
@@ -335,11 +385,13 @@ Client role:
 - `peer_add({ host, port, code, alias }) -> { slug }`
 - `peer_remove(slug)`
 - `peer_set_enabled(slug, enabled)`
+- `peer_set_auto_sync(slug, enabled)` (unattended config sync; nudges a run when on)
 - `peer_invoke({ slug, cmd, args }) -> value` (blocks up to 35s)
 - `peer_term_attach(prefixedId)` / `peer_term_detach(prefixedId)`
 
 Frontend-facing events: `peer-state-changed`, `peer-invoke` (host dispatcher),
-`peer-evt-{slug}`, `pty-output-peer-{slug}-…`, `pty-exit-peer-{slug}-…`.
+`peer-evt-{slug}`, `peer-autosync-result` (one per unattended run),
+`pty-output-peer-{slug}-…`, `pty-exit-peer-{slug}-…`.
 
 ## Limitations / trust model
 
