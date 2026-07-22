@@ -40,6 +40,7 @@ import {
 } from "../paneTree";
 import { useBrowserUrls } from "../store/browserUrls";
 import { canForkSession } from "../forkSession";
+import { actionTextColor } from "../actionColors";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -79,7 +80,10 @@ function TabIcon({ tab }: { tab: TerminalInstance }) {
   if (tab.kind === "review") return <CodeIcon />;
   if (tab.emoji)
     return (
-      <span className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none">
+      <span
+        className="flex h-3.5 w-3.5 items-center justify-center text-[12px] leading-none"
+        style={{ color: actionTextColor(tab.color) }}
+      >
         {tab.emoji}
       </span>
     );
