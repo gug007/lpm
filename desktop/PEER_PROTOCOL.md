@@ -46,7 +46,8 @@ Holds both roles behind one shared in-memory lock:
   },
   "peers": [
     { "slug": "abcd1234", "alias": "Studio", "host": "100.64.0.5", "port": 8766,
-      "deviceId": "uuid", "token": "raw-token", "tlsFp": "hex-sha256", "enabled": true }
+      "deviceId": "uuid", "token": "raw-token", "tlsFp": "hex-sha256", "enabled": true,
+      "autoSync": false }
   ]
 }
 ```
