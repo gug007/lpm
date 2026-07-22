@@ -255,6 +255,7 @@ export function BrowserForward(...args: any[]): Promise<any>;
 export function BrowserReload(...args: any[]): Promise<any>;
 export function HideBrowser(...args: any[]): Promise<any>;
 export function CloseBrowser(...args: any[]): Promise<any>;
+export function CopyClaudeSessionForFork(...args: any[]): Promise<void>;
 export function SetBrowserTheme(...args: any[]): Promise<any>;
 export function VoiceToTextAvailable(...args: any[]): Promise<boolean>;
 export function VoiceToTextToggle(...args: any[]): Promise<void>;

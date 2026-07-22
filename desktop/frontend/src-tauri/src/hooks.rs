@@ -159,6 +159,64 @@ fn claude_settings_path() -> PathBuf {
     home().join(".claude").join("settings.json")
 }
 
+// ---- fork-into-copy transcript copy -----------------------------------------
+//
+// Claude Code keys session transcripts by cwd: `<config>/projects/<slug>/
+// <session-id>.jsonl`, where slug is the absolute path with every
+// non-alphanumeric byte replaced by '-'. Forking a session into a duplicated
+// project therefore needs the source transcript copied under the copy's slug
+// before `claude --resume --fork-session` runs there.
+
+fn claude_project_slug(root: &str) -> String {
+    root.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect()
+}
+
+/// The config dir a project's `claude` actually reads sessions from, matching
+/// the env decision `resolve_spawn` applies at pty spawn (pinned account dir,
+/// ambient CLAUDE_CONFIG_DIR, or ~/.claude).
+fn claude_sessions_root(project: &str) -> PathBuf {
+    match crate::config::claude_env_for_project(project) {
+        crate::config::ClaudeEnv::Dir(dir) => PathBuf::from(dir),
+        crate::config::ClaudeEnv::Inherit => std::env::var(crate::config::CLAUDE_CONFIG_DIR_ENV)
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| home().join(".claude")),
+        crate::config::ClaudeEnv::Scrub => home().join(".claude"),
+    }
+}
+
+#[tauri::command(async)]
+pub fn copy_claude_session_for_fork(
+    source_project: String,
+    dest_project: String,
+    session_id: String,
+) -> Result<(), String> {
+    if session_id.is_empty()
+        || !session_id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err("invalid session id".into());
+    }
+    let src_root = crate::config::spawn_info(&source_project)?.root;
+    let dst_root = crate::config::spawn_info(&dest_project)?.root;
+    let file = format!("{session_id}.jsonl");
+    let src = claude_sessions_root(&source_project)
+        .join("projects")
+        .join(claude_project_slug(&src_root))
+        .join(&file);
+    if !src.is_file() {
+        return Err("session transcript not found".into());
+    }
+    let dst_dir = claude_sessions_root(&dest_project)
+        .join("projects")
+        .join(claude_project_slug(&dst_root));
+    std::fs::create_dir_all(&dst_dir).map_err(|e| e.to_string())?;
+    std::fs::copy(&src, dst_dir.join(&file)).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[derive(Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeHooksStatus {
@@ -1729,6 +1787,18 @@ mod tests {
         let p = dir.join("settings.json");
         std::fs::write(&p, body).unwrap();
         p
+    }
+
+    #[test]
+    fn claude_project_slug_dashes_every_non_alphanumeric() {
+        assert_eq!(
+            claude_project_slug("/Users/me/Projects/lpm"),
+            "-Users-me-Projects-lpm"
+        );
+        assert_eq!(
+            claude_project_slug("/Users/me/t_e.st dir"),
+            "-Users-me-t-e-st-dir"
+        );
     }
 
     #[test]

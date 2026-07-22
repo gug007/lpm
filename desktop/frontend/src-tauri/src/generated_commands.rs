@@ -33,6 +33,7 @@ macro_rules! all_command_handlers {
             browser_forward,
             browser_reload,
             close_browser,
+            copy_claude_session_for_fork,
             hide_browser,
             navigate_browser,
             open_browser,

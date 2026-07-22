@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildForkLaunch, canForkSession } from "./forkSession";
+import {
+  buildForkLaunch,
+  canForkSession,
+  claudeSessionIdOf,
+} from "./forkSession";
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/;
 
@@ -25,6 +29,20 @@ describe("canForkSession", () => {
     expect(canForkSession("claude --resume")).toBe(false);
     expect(canForkSession("codex --resume s1")).toBe(false);
     expect(canForkSession("codex resume")).toBe(false);
+  });
+});
+
+describe("claudeSessionIdOf", () => {
+  it("extracts the resumed claude session id", () => {
+    expect(claudeSessionIdOf("FOO=bar claude --resume abc-123 --model opus")).toBe(
+      "abc-123",
+    );
+  });
+
+  it("returns null for codex and unforkable commands", () => {
+    expect(claudeSessionIdOf("codex resume s1")).toBeNull();
+    expect(claudeSessionIdOf("bash")).toBeNull();
+    expect(claudeSessionIdOf(undefined)).toBeNull();
   });
 });
 

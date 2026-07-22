@@ -79,7 +79,22 @@ export interface ActionInfo {
 // composer send.
 export type SpawnTask =
   | { kind: "action"; actionName: string; prompt?: string | string[] }
-  | { kind: "command"; command: string; prompt?: string | string[] };
+  | { kind: "command"; command: string; prompt?: string | string[] }
+  // Continue a forked agent conversation in the copy: `command` launches the
+  // fork; startCmd/resumeCmd become the new tab's persisted restore identity.
+  // `claudeSession` asks the copy to pull the source transcript into its own
+  // session directory first (Claude keys transcripts by cwd; Codex doesn't).
+  | {
+      kind: "fork";
+      command: string;
+      label: string;
+      startCmd?: string;
+      resumeCmd?: string;
+      actionName?: string;
+      emoji?: string;
+      color?: string;
+      claudeSession?: { sourceProject: string; sessionId: string };
+    };
 
 // What a duplicated copy runs once created: nothing, a project action, or an
 // ad-hoc command — the authoring side of SpawnTask in the "Bulk Duplicate" flow.

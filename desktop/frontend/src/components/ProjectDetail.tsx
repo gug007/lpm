@@ -45,6 +45,7 @@ import {
   type PersistedHistoryEntry,
 } from "../terminals";
 import { useAppStore } from "../store/app";
+import { CopyClaudeSessionForFork } from "../../bridge/commands";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
 import { type StructuralOp, structuralSubject } from "../actionsGesture";
 import { findActionByPath, resolveRunnableAction } from "../actionTree";
@@ -196,6 +197,31 @@ export function ProjectDetail({
           task.command,
           { prompt: task.prompt },
         );
+      } else if (task.kind === "fork") {
+        switchDetailView("terminal");
+        // Claude keys transcripts by cwd, so the source session must land in
+        // this copy's session directory before the fork command can resume it.
+        const ready = task.claudeSession
+          ? CopyClaudeSessionForFork(
+              task.claudeSession.sourceProject,
+              project.name,
+              task.claudeSession.sessionId,
+            )
+          : Promise.resolve();
+        const forkTask = task;
+        ready
+          .then(() =>
+            terminalRef.current?.createTerminalWithCmd(forkTask.label, forkTask.command, {
+              actionName: forkTask.actionName,
+              emoji: forkTask.emoji,
+              color: forkTask.color,
+              startCmd: forkTask.startCmd,
+              resumeCmd: forkTask.resumeCmd,
+            }),
+          )
+          .catch((err) =>
+            toast.error(`Couldn't fork the session into ${project.name}: ${String(err)}`),
+          );
       } else {
         const action = resolveRunnableAction(actions, task.actionName);
         if (action) handleRunAction(action, { prompt: task.prompt });

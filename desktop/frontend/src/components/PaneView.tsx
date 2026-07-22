@@ -129,6 +129,11 @@ export interface PaneViewProps {
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
   onForkTerminal: (paneId: string, termId: string) => void;
+  // Fork the tab's agent session into a fresh duplicate of the project.
+  // Disabled (false) for peer-hosted and SSH-remote projects, whose sessions
+  // this Mac can't duplicate.
+  canForkIntoCopy: boolean;
+  onForkTerminalIntoCopy: (paneId: string, termId: string, label: string) => void;
   onRenameTerminal: (
     paneId: string,
     tabIdx: number,
@@ -192,6 +197,8 @@ function PaneViewImpl(props: PaneViewProps) {
     onCloseTerminal,
     onCloseOtherTerminals,
     onForkTerminal,
+    canForkIntoCopy,
+    onForkTerminalIntoCopy,
     onRenameTerminal,
     onTogglePinTab,
     onSplit,
@@ -584,16 +591,19 @@ function PaneViewImpl(props: PaneViewProps) {
         const canCloseOthers = targetPane.tabs.some(
           (t, i) => i !== tabMenu.tabIdx && t.pinned !== true,
         );
+        const forkable = isTerminalTab(tab) && canForkSession(tab.resumeCmd);
         return (
           <TabContextMenu
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
-            canFork={isTerminalTab(tab) && canForkSession(tab.resumeCmd)}
+            canFork={forkable}
+            canForkCopy={forkable && canForkIntoCopy}
             canCloseOthers={canCloseOthers}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
             onFork={() => onForkTerminal(tabMenu.paneId, tab.id)}
+            onForkCopy={() => onForkTerminalIntoCopy(tabMenu.paneId, tab.id, tab.label)}
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}

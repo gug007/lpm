@@ -35,6 +35,7 @@ import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
 import { isPeerName } from "../peer/markers";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { isPendingClose } from "../pendingClose";
 
 interface TerminalViewProps {
@@ -105,6 +106,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     adoptTerminal,
     resumeFromHistory,
     forkTerminal,
+    forkTerminalIntoCopy,
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
@@ -655,6 +657,21 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     setDuplicateNonce((n) => n + 1);
   }, []);
 
+  // "Fork into copy" from a tab's context menu: sessions on this Mac only —
+  // a peer-hosted or SSH-remote project's transcripts live on the other machine.
+  const canForkIntoCopy =
+    !isPeerName(projectName) && !(duplicateProject?.isRemote ?? false);
+  const [forkCopyRequest, setForkCopyRequest] = useState<{
+    paneId: string;
+    termId: string;
+    label: string;
+  } | null>(null);
+  const requestForkIntoCopy = useCallback(
+    (paneId: string, termId: string, label: string) =>
+      setForkCopyRequest({ paneId, termId, label }),
+    [],
+  );
+
   // Final wiring for the generator run-flow. Once the freshly created project
   // is the active one this view is showing, open a terminal that launches the
   // configured agent CLI with the init prompt as a command-line argument
@@ -774,6 +791,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}
             onForkTerminal={forkTerminal}
+            canForkIntoCopy={canForkIntoCopy}
+            onForkTerminalIntoCopy={requestForkIntoCopy}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
@@ -808,6 +827,26 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       )}
       <TTSControls />
       </div>
+      <ConfirmDialog
+        open={forkCopyRequest !== null}
+        title="Fork into a copy"
+        body={
+          <>
+            Create a copy of this project and continue the{" "}
+            <span className="font-medium text-[var(--text-primary)]">
+              {forkCopyRequest?.label}
+            </span>{" "}
+            conversation there. The original keeps running here.
+          </>
+        }
+        confirmLabel="Create copy"
+        onCancel={() => setForkCopyRequest(null)}
+        onConfirm={() => {
+          const req = forkCopyRequest;
+          setForkCopyRequest(null);
+          if (req) void forkTerminalIntoCopy(req.paneId, req.termId);
+        }}
+      />
       {duplicateSeed !== null && (
         <BulkDuplicateDialog
           key={duplicateNonce}

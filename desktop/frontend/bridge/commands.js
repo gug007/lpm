@@ -781,6 +781,9 @@ export function HideBrowser(id) {
 export function CloseBrowser(id) {
   return invoke("close_browser", { id });
 }
+export function CopyClaudeSessionForFork(sourceProject, destProject, sessionId) {
+  return invoke("copy_claude_session_for_fork", { sourceProject, destProject, sessionId });
+}
 export function SetBrowserTheme(id, dark) {
   return invoke("set_browser_theme", { id, dark });
 }

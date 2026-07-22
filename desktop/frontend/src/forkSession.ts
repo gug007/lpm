@@ -36,6 +36,16 @@ export function canForkSession(resumeCmd: string | undefined): boolean {
   );
 }
 
+// The session id a Claude tab would resume — the transcript that must be
+// copied into a duplicate before the fork can run there. Null for Codex
+// (rollouts are stored globally, not per-directory) and unforkable commands.
+export function claudeSessionIdOf(resumeCmd: string | undefined): string | null {
+  if (!canForkSession(resumeCmd)) return null;
+  const { tokens, prog } = parse(resumeCmd)!;
+  if (prog !== "claude") return null;
+  return tokens[tokens.indexOf("--resume") + 1];
+}
+
 export function buildForkLaunch(resumeCmd: string): ForkLaunch | null {
   if (!canForkSession(resumeCmd)) return null;
   const { tokens, progIdx, prog } = parse(resumeCmd)!;

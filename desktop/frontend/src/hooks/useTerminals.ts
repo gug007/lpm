@@ -5,7 +5,7 @@ import { EventsOn } from "../../bridge/runtime";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { detectAICLI } from "../slashCommands";
 import { buildCodexResumeCmd } from "../codexResume";
-import { buildForkLaunch } from "../forkSession";
+import { buildForkLaunch, claudeSessionIdOf } from "../forkSession";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead } from "../components/InteractivePane";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { showUndoCloseToast } from "../components/UndoCloseToast";
@@ -74,6 +74,11 @@ export interface TerminalStartOpts {
   // quiet — e.g. an initial task for an AI agent started by `cmd`. A string is
   // a text prompt; an array is ordered paste parts (text runs and image paths).
   prompt?: string | string[];
+  // Persisted restore identity for the new tab (fork-into-copy): on restart the
+  // tab relaunches with resumeCmd instead of re-running `cmd` (which would fork
+  // again). Ignored on the configName path — the backend owns those cmds.
+  startCmd?: string;
+  resumeCmd?: string;
 }
 
 // Injection waits for pty output to go quiet for PROMPT_IDLE_MS before
@@ -104,6 +109,7 @@ export interface UseTerminalsResult {
   ) => Promise<void>;
   resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
   forkTerminal: (paneId: string, termId: string) => Promise<void>;
+  forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
   addBrowserToPane: (paneId?: string) => void;
   addReviewToPane: (paneId?: string) => void;
@@ -630,6 +636,8 @@ export function useTerminals(
           actionName: opts?.actionName,
           emoji: opts?.emoji,
           color: opts?.color,
+          startCmd: opts?.startCmd,
+          resumeCmd: opts?.resumeCmd,
         }),
       );
       const folded = foldAgentPrompt(cmd, opts?.prompt);
@@ -692,12 +700,52 @@ export function useTerminals(
           resumeCmd: launch.resumeCmd,
           actionName: tab.actionName,
           emoji: tab.emoji,
+          color: tab.color,
         }),
         paneId,
       );
       scheduleCmdInject(id, launch.cmd);
     },
     [projectName, addTerminal, scheduleCmdInject, forward],
+  );
+
+  // Fork a live agent session into a fresh duplicate of the project: create
+  // one copy (working tree as-is — no pull, uncommitted kept) and queue a
+  // "fork" spawn task that continues the conversation in the copy's terminal.
+  const forkTerminalIntoCopy = useCallback(
+    async (paneId: string, termId: string) => {
+      if (IS_MIRROR_WINDOW) return forward("forkTerminalIntoCopy", paneId, termId);
+      const current = treeRef.current;
+      if (!current) return;
+      const tab = findPane(current, paneId)?.tabs.find((t) => t.id === termId);
+      if (!tab?.resumeCmd || !isTerminalTab(tab)) return;
+      const launch = buildForkLaunch(tab.resumeCmd);
+      if (!launch) return;
+      const sessionId = claudeSessionIdOf(tab.resumeCmd);
+      await useAppStore.getState().bulkDuplicate(projectName, 1, {
+        excludeUncommitted: false,
+        reinstallDeps: false,
+        pullLatest: false,
+        tasksPerCopy: [
+          [
+            {
+              kind: "fork",
+              command: launch.cmd,
+              label: tab.label,
+              startCmd: tab.startCmd,
+              resumeCmd: launch.resumeCmd,
+              actionName: tab.actionName,
+              emoji: tab.emoji,
+              color: tab.color,
+              ...(sessionId
+                ? { claudeSession: { sourceProject: projectName, sessionId } }
+                : {}),
+            },
+          ],
+        ],
+      });
+    },
+    [projectName, forward],
   );
 
   const addTerminalToPane = useCallback(
@@ -1301,6 +1349,7 @@ export function useTerminals(
     createTerminalWithCmd,
     resumeFromHistory,
     forkTerminal,
+    forkTerminalIntoCopy,
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
@@ -1379,6 +1428,7 @@ export function useTerminals(
     adoptTerminal,
     resumeFromHistory,
     forkTerminal,
+    forkTerminalIntoCopy,
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,

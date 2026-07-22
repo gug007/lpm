@@ -1,4 +1,4 @@
-import { GitFork, Pin, PinOff } from "lucide-react";
+import { Copy, GitFork, Pin, PinOff } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
@@ -8,10 +8,12 @@ interface TabContextMenuProps {
   y: number;
   pinned: boolean;
   canFork: boolean;
+  canForkCopy: boolean;
   canCloseOthers: boolean;
   onRename: () => void;
   onTogglePin: () => void;
   onFork: () => void;
+  onForkCopy: () => void;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onClose: () => void;
@@ -22,10 +24,12 @@ export function TabContextMenu({
   y,
   pinned,
   canFork,
+  canForkCopy,
   canCloseOthers,
   onRename,
   onTogglePin,
   onFork,
+  onForkCopy,
   onCloseTab,
   onCloseOthers,
   onClose,
@@ -51,6 +55,13 @@ export function TabContextMenu({
           label="Fork session"
           icon={<GitFork size={12} />}
           onClick={close(onFork)}
+        />
+      )}
+      {canForkCopy && (
+        <ContextMenuItem
+          label="Fork into copy"
+          icon={<Copy size={12} />}
+          onClick={close(onForkCopy)}
         />
       )}
       <ContextMenuItem
