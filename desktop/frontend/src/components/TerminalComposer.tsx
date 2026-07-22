@@ -46,7 +46,7 @@ import { COLLECTION_DRAFTS, recordMessage, saveDraft } from "../store/messageHis
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendSplitButton } from "./SendSplitButton";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
-import { PencilIcon, PlusIcon } from "./icons";
+import { PlusIcon, SquarePenIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
@@ -1924,7 +1924,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               onPick={loadFromHistory}
               onSend={sendFromHistory}
               initialCollection={COLLECTION_DRAFTS}
-              icon={<PencilIcon />}
+              icon={<SquarePenIcon />}
               tooltip="Drafts"
               ariaLabel="Drafts"
             />

@@ -32,7 +32,7 @@ import {
 } from "../store/messageHistory";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
-import { FolderIcon, HistoryIcon, PencilIcon, PlusIcon, SearchIcon, SendIcon, StarIcon, TrashIcon, XIcon } from "./icons";
+import { FolderIcon, HistoryIcon, PlusIcon, SearchIcon, SendIcon, SquarePenIcon, StarIcon, TrashIcon, XIcon } from "./icons";
 import { MessageFolderMenu } from "./MessageFolderMenu";
 import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
@@ -323,7 +323,7 @@ function CollectionBar({
         <Chip
           active={collection === COLLECTION_DRAFTS}
           onClick={() => onSelect(COLLECTION_DRAFTS)}
-          icon={<PencilIcon />}
+          icon={<SquarePenIcon />}
         >
           Drafts
         </Chip>

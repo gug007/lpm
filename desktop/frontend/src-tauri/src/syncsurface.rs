@@ -52,14 +52,15 @@ const GLOBAL_DIRS: &[GlobalDir] = &[
 
 /// Machine-local settings.json keys: stripped on export, kept (never overwritten
 /// by an incoming value) on import and peer sync, and excluded from the portable
-/// settings digest so they never trigger a sync. Window geometry, sidebar width,
-/// last-selected project, and per-project detached-window state.
-pub(crate) const PER_MACHINE_KEYS: [&str; 7] = [
+/// settings digest so they never trigger a sync. Window geometry, sidebar width
+/// and project order, last-selected project, and per-project detached-window state.
+pub(crate) const PER_MACHINE_KEYS: [&str; 8] = [
     "windowWidth",
     "windowHeight",
     "windowX",
     "windowY",
     "sidebarWidth",
+    "sidebarOrder",
     "lastSelectedProject",
     "detachedWindows",
 ];
@@ -158,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn per_machine_keys_are_old_six_plus_detached_windows() {
+    fn per_machine_keys_are_old_six_plus_detached_windows_and_sidebar_order() {
         assert_eq!(
             PER_MACHINE_KEYS,
             [
@@ -167,6 +168,7 @@ mod tests {
                 "windowX",
                 "windowY",
                 "sidebarWidth",
+                "sidebarOrder",
                 "lastSelectedProject",
                 "detachedWindows",
             ]

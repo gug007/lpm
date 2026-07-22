@@ -8,7 +8,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useOverlay } from "../store/overlay";
-import { ClipboardListIcon } from "./icons";
+import { HistoryIcon } from "./icons";
 import { TerminalHistoryPopover } from "./TerminalHistoryPopover";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -40,7 +40,7 @@ export function TerminalHistoryButton({
   onPick,
   onSend,
   initialCollection,
-  icon = <ClipboardListIcon />,
+  icon = <HistoryIcon />,
   tooltip = "Recent messages",
   ariaLabel = "Message history",
 }: TerminalHistoryButtonProps) {

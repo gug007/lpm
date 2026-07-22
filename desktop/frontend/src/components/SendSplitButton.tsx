@@ -6,7 +6,7 @@ import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import { SEND_SHELL_CLASS, sendFaceClass, sendGlow, sendShellTint } from "./composerSendStyles";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
-import { ChevronUpIcon, CopyIcon, PencilIcon, SendIcon } from "./icons";
+import { ChevronUpIcon, CopyIcon, SendIcon, SquarePenIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 
 interface SendSplitButtonProps {
@@ -115,7 +115,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
             <ContextMenuItem
               label="Save as draft"
               description="Keep this prompt to send later"
-              icon={<PencilIcon size={13} />}
+              icon={<SquarePenIcon size={13} />}
               shortcut="⌘↵"
               onClick={() => {
                 setOpen(false);
