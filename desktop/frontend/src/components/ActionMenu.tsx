@@ -49,6 +49,7 @@ export function ActionMenu({
     <DrillMenu
       root={screenFor(action.name, withEmoji(action.emoji, action.label))}
       onClose={onClose}
+      showClose={false}
     />
   );
 }
