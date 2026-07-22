@@ -5,6 +5,8 @@ import {
   CreateBranch,
   DeleteBranch,
   DeleteRemoteTrackingRef,
+  GenerateCommitMessage,
+  GitChangedFiles,
   GitDiscardAll,
   GitFetchAll,
   GitPruneRemotes,
@@ -12,7 +14,10 @@ import {
   PullBranch,
   RenameBranch,
 } from "../../bridge/commands";
-import { getSettings } from "../store/settings";
+import { getSettings, useSettingsStore } from "../store/settings";
+import { aiEffectiveFast } from "../types";
+import { runAutoCommit } from "../autoCommit";
+import { useAIPicker } from "../hooks/useAIPicker";
 import {
   DEFAULT_PULL_CONFIG,
   DEFAULT_PUSH_CONFIG,
@@ -44,6 +49,7 @@ import {
   CloudOffIcon,
   CopyIcon,
   PencilIcon,
+  SparkleIcon,
   TrashIcon,
   UndoIcon,
 } from "./icons";
@@ -83,6 +89,9 @@ export function BranchSwitcher({
   const [pruning, setPruning] = useState(false);
   const pruningRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const ai = useAIPicker(commitMenuOpen);
+  const autoGenerate =
+    useSettingsStore((s) => s.autoGenerateCommitMessage) ?? false;
 
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
@@ -227,6 +236,46 @@ export function BranchSwitcher({
 
   const runFetchDefault = () =>
     runFetch(getSettings().gitFetch ?? DEFAULT_FETCH_CONFIG);
+
+  const runAuto = async (andPush: boolean) => {
+    setCommitMenuOpen(false);
+    const cli = ai.selectedCLI;
+    const model = ai.selectedModel;
+    const effort = ai.selectedEffort;
+    const fast = aiEffectiveFast(
+      ai.selectedCLI,
+      ai.selectedModel,
+      ai.selectedFast,
+    );
+    let paths: string[];
+    try {
+      const files = await GitChangedFiles(projectPath);
+      paths = (files || []).map((f: main.ChangedFile) => f.path);
+    } catch (err) {
+      toast.error(`${projectName}: auto commit failed: ${err}`);
+      return;
+    }
+    if (paths.length === 0) return;
+    await runAutoCommit({
+      projectName,
+      projectPath,
+      paths,
+      andPush,
+      generate: () =>
+        GenerateCommitMessage(
+          projectName,
+          projectPath,
+          cli,
+          model,
+          effort,
+          fast,
+          paths,
+          "",
+          crypto.randomUUID(),
+        ),
+    });
+    refresh();
+  };
 
   const runSync = async () => {
     if (busy) return;
@@ -586,20 +635,10 @@ export function BranchSwitcher({
         {commitMenuOpen && (
           <div className="absolute bottom-full right-0 z-10 mb-2">
             <DrillMenu
+              widthClassName="w-80"
               root={{
                 render: (api) => (
                   <>
-                    <button
-                      onClick={() => {
-                        setCommitMenuOpen(false);
-                        setCommitting(true);
-                      }}
-                      disabled={status.uncommitted === 0}
-                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                    >
-                      <CommitIcon size={14} />
-                      Commit
-                    </button>
                     <PullSplitRow
                       busy={busy}
                       onRun={runPullDefault}
@@ -648,6 +687,47 @@ export function BranchSwitcher({
                       <MergeMenuIcon />
                       Merge
                     </button>
+                    {autoGenerate && ai.anyAvailable && (
+                      <>
+                        <div className="my-1.5 border-t border-[var(--border)]" />
+                        <button
+                          onClick={() => runAuto(false)}
+                          disabled={status.uncommitted === 0}
+                          title="Generates the commit message with AI, then commits in the background"
+                          className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
+                            <SparkleIcon />
+                          </span>
+                          <span className="flex flex-col">
+                            <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                              Auto Commit
+                            </span>
+                            <span className="text-[11px] text-[var(--text-muted)]">
+                              AI writes the message, then commits
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => runAuto(true)}
+                          disabled={status.uncommitted === 0}
+                          title="Generates the commit message with AI, then commits and pushes in the background"
+                          className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
+                            <SparkleIcon />
+                          </span>
+                          <span className="flex flex-col">
+                            <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                              Auto Commit and Push
+                            </span>
+                            <span className="text-[11px] text-[var(--text-muted)]">
+                              AI writes the message, commits, and pushes
+                            </span>
+                          </span>
+                        </button>
+                      </>
+                    )}
                     <div className="my-1.5 border-t border-[var(--border)]" />
                     <button
                       onClick={() => {

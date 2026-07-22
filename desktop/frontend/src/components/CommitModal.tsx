@@ -27,6 +27,7 @@ import { aiEffectiveFast } from "../types";
 import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "../gitOptions";
+import { runAutoCommit } from "../autoCommit";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { Tooltip } from "./ui/Tooltip";
@@ -86,6 +87,7 @@ export function CommitModal({
   const [diffLoading, setDiffLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const loadedForOpen = useRef(false);
+  const genPromise = useRef<Promise<string> | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -232,23 +234,27 @@ export function CommitModal({
 
   const generateMessage = async () => {
     if (generating || selected.size === 0) return;
+    const p = gen.run((genId) =>
+      GenerateCommitMessage(
+        projectName,
+        projectPath,
+        ai.selectedCLI,
+        ai.selectedModel,
+        ai.selectedEffort,
+        aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+        Array.from(selected),
+        taskDescription.trim(),
+        genId,
+      ),
+    );
+    genPromise.current = p;
     try {
-      const msg = await gen.run((genId) =>
-        GenerateCommitMessage(
-          projectName,
-          projectPath,
-          ai.selectedCLI,
-          ai.selectedModel,
-          ai.selectedEffort,
-          aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
-          Array.from(selected),
-          taskDescription.trim(),
-          genId,
-        ),
-      );
+      const msg = await p;
       if (msg) setMessage(msg);
     } catch (err) {
       if (!isCanceledError(err)) toast.error(`AI generate failed: ${err}`);
+    } finally {
+      if (genPromise.current === p) genPromise.current = null;
     }
   };
 
@@ -276,6 +282,9 @@ export function CommitModal({
   const canCommit =
     !busy && !generating && message.trim().length > 0 && selected.size > 0;
 
+  const canAutoCommit =
+    !busy && autoGenerate && ai.anyAvailable && selected.size > 0;
+
   const submit = async (andPush = false) => {
     if (!canCommit) return;
     setBusy("commit");
@@ -296,6 +305,58 @@ export function CommitModal({
     } finally {
       setBusy(false);
     }
+  };
+
+  const submitAuto = async (andPush: boolean) => {
+    if (!canAutoCommit) return;
+    const paths = Array.from(selected);
+    const task = taskDescription.trim();
+    const existing = message.trim();
+    const pending = genPromise.current;
+    const cli = ai.selectedCLI;
+    const model = ai.selectedModel;
+    const effort = ai.selectedEffort;
+    const fast = aiEffectiveFast(
+      ai.selectedCLI,
+      ai.selectedModel,
+      ai.selectedFast,
+    );
+    setCommitMenuOpen(false);
+    // onClose (not closeModal): closeModal cancels the in-flight generation the background flow still needs.
+    onClose();
+    await runAutoCommit({
+      projectName,
+      projectPath,
+      paths,
+      andPush,
+      generate: async () => {
+        let msg = existing;
+        if (pending) {
+          try {
+            msg = (await pending)?.trim() || msg;
+          } catch (err) {
+            if (!isCanceledError(err)) throw err;
+          }
+        }
+        if (!msg)
+          msg =
+            (
+              await GenerateCommitMessage(
+                projectName,
+                projectPath,
+                cli,
+                model,
+                effort,
+                fast,
+                paths,
+                task,
+                crypto.randomUUID(),
+              )
+            )?.trim() || "";
+        return msg;
+      },
+    });
+    onCommitted();
   };
 
   return (
@@ -542,13 +603,13 @@ export function CommitModal({
               </button>
               <button
                 onClick={() => setCommitMenuOpen(!commitMenuOpen)}
-                disabled={!canCommit}
+                disabled={!canCommit && !canAutoCommit}
                 className="rounded-r-lg border-l border-[var(--bg-primary)]/20 bg-[var(--text-primary)] px-1.5 py-1.5 text-[var(--bg-primary)]/70 transition-all hover:text-[var(--bg-primary)] hover:opacity-90 disabled:opacity-30"
               >
                 <ChevronDownIcon />
               </button>
               {commitMenuOpen && (
-                <div className="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
+                <div className="absolute bottom-full right-0 z-10 mb-1 w-48 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-lg">
                   {(
                     [
                       { label: "Commit", push: false },
@@ -561,11 +622,43 @@ export function CommitModal({
                         setCommitMenuOpen(false);
                         submit(opt.push);
                       }}
-                      className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                      disabled={!canCommit}
+                      className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {opt.label}
                     </button>
                   ))}
+                  {autoGenerate && ai.anyAvailable && (
+                    <>
+                      <div className="my-1 border-t border-[var(--border)]" />
+                      {(
+                        [
+                          {
+                            label: "Auto Commit",
+                            push: false,
+                            title:
+                              "Generates the commit message with AI, then commits in the background",
+                          },
+                          {
+                            label: "Auto Commit and Push",
+                            push: true,
+                            title:
+                              "Generates the commit message with AI, then commits and pushes in the background",
+                          },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.label}
+                          onClick={() => submitAuto(opt.push)}
+                          disabled={!canAutoCommit}
+                          title={opt.title}
+                          className="flex w-full items-center px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </>
+                  )}
                 </div>
               )}
             </div>
