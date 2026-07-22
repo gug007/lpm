@@ -109,6 +109,12 @@ final class AppModel {
     // pairing succeeds (the new Mac becomes active) or the user cancels.
     var addingMac = false
 
+    // True while the offline Demo Mode is active: an in-memory "Demo Mac" backed by
+    // a fake in-process server (no network, no pairing, no persistence). Kill and
+    // relaunch lands back on the pairing screen. Gates the persistence/push side
+    // effects that only make sense for a real paired Mac.
+    var demoMode = false
+
     // A brief status shown while automatic endpoint recovery is finding the active
     // Mac on the local network and reconnecting to it ("Found <name>,
     // reconnecting…"). Nil when idle; cleared once the link comes back.
@@ -343,6 +349,7 @@ final class AppModel {
     }
 
     private func persistMacs() {
+        guard !demoMode else { return } // demo state is in-memory only
         MacStore.saveRecords(macs)
         MacStore.saveActiveId(activeMacId)
     }
@@ -350,6 +357,7 @@ final class AppModel {
     /// Probe the remembered addresses and connect to whichever the phone can
     /// reach right now — the LAN IP at home, the Tailscale IP away from home.
     private func connectBest(credential: LpmClient.Credential) {
+        guard !demoMode else { return } // Demo Mode owns its own in-process client
         let hosts = savedHosts()
         let port = savedPort()
         attemptHosts = hosts
@@ -510,6 +518,7 @@ final class AppModel {
     }
 
     func connect(host: String, port: Int, credential: LpmClient.Credential) {
+        guard !demoMode else { return } // never dial a socket while in Demo Mode
         client?.disconnect()
         currentHost = host
         identityMismatch = false
@@ -646,8 +655,41 @@ final class AppModel {
     }
 
     /// Open the "Add a Mac" pairing sheet. Pairing there creates (or, by serverId,
-    /// re-adopts) a saved-Mac record and switches to it on success.
-    func beginAddMac() { addingMac = true }
+    /// re-adopts) a saved-Mac record and switches to it on success. In Demo Mode
+    /// there's no Mac to add alongside — leave the demo and land on real pairing.
+    func beginAddMac() {
+        if demoMode { exitDemo(); return }
+        addingMac = true
+    }
+
+    // MARK: Demo Mode
+
+    /// Enter the offline Demo Mode: a single in-memory "Demo Mac" backed by a fake
+    /// in-process server, wired through the normal client so every screen and store
+    /// runs unchanged. Nothing is persisted, so a relaunch returns to pairing.
+    func enterDemo() {
+        resetSessionState()
+        demoMode = true
+        let record = MacRecord(localId: UUID(), serverId: DemoServer.serverId,
+                               name: DemoServer.serverName, hosts: [], port: MacStore.defaultPort)
+        macs = [record]
+        activeMacId = record.localId
+        let c = LpmClient(demoServer: DemoServer(), deviceName: UIDevice.current.name)
+        wire(c)
+        client = c
+        c.connect()
+    }
+
+    /// Leave Demo Mode: tear down the fake client and clear the in-memory demo Mac,
+    /// then restore whatever real pairing state was on disk (usually none — the demo
+    /// is offered on the fresh pairing screen).
+    func exitDemo() {
+        demoMode = false
+        resetSessionState()
+        macs = MacStore.loadRecords()
+        activeMacId = MacStore.loadActiveId() ?? macs.first?.localId
+        if let cred = activeCredential() { connectBest(credential: cred) }
+    }
 
     /// Dismiss the "Add a Mac" sheet: reconnect to the Mac that was active before,
     /// whose session `pair()` tore down. A pairing attempt still in flight (or
@@ -706,6 +748,7 @@ final class AppModel {
     /// credential, then switch to another saved Mac if one remains — otherwise
     /// return to the pairing screen.
     func removeActiveMac() {
+        if demoMode { exitDemo(); return }
         guard let id = activeMacId else { return }
         let next = nextMacAfterRemoval
         resetSessionState()
@@ -1848,8 +1891,11 @@ final class AppModel {
                 c.requestSidebar()
                 c.requestDuplicateDefaults()
                 c.requestJobs()
-                self.requestPushRegistration()
-                self.sendApnsTokenIfPossible()
+                // Demo Mode has no APNs identity and no relay — skip push registration.
+                if !self.demoMode {
+                    self.requestPushRegistration()
+                    self.sendApnsTokenIfPossible()
+                }
             }
         }
         c.onPaired = { [weak self] deviceId, token, serverId, serverName in

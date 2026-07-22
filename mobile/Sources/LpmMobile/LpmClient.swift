@@ -249,11 +249,17 @@ final class LpmClient: NSObject {
     /// it has completed. The model reads it after a `paired`/`ready` reply to pin it.
     var observedFingerprint: String? { pinning.observed }
 
+    // Non-nil in offline Demo Mode: outbound frames route here instead of a socket,
+    // and `connect()` injects a scripted `ready` instead of dialing (no URLSession,
+    // no pinning, no reconnect loop). See DemoServer.
+    private let demoServer: DemoServer?
+
     init(endpoint: Endpoint, credential: Credential?, deviceName: String,
          pinProvider: (() -> String?)? = nil, expectedFingerprint: String? = nil) {
         self.endpoint = endpoint
         self.credential = credential
         self.deviceName = deviceName
+        self.demoServer = nil
         self.pinning = PinningDelegate(pinProvider: pinProvider, expected: expectedFingerprint)
         super.init()
         pinning.client = self
@@ -263,6 +269,26 @@ final class LpmClient: NSObject {
         config.waitsForConnectivity = false
         config.timeoutIntervalForRequest = 30
         session = URLSession(configuration: config, delegate: pinning, delegateQueue: nil)
+    }
+
+    /// Build a client backed by an in-process `DemoServer` (offline Demo Mode). No
+    /// socket is ever opened; a pre-set demo credential (deviceId "demo-device")
+    /// makes control-ownership comparisons work before the scripted `ready` lands.
+    init(demoServer: DemoServer, deviceName: String) {
+        self.endpoint = Endpoint(host: "demo", port: 0)
+        self.credential = Credential(deviceId: DemoServer.deviceId, token: "demo")
+        self.deviceName = deviceName
+        self.demoServer = demoServer
+        self.pinning = PinningDelegate(pinProvider: nil, expected: nil)
+        super.init()
+        demoServer.deliver = { [weak self] text in self?.injectInbound(text) }
+    }
+
+    /// Feed a server frame into the normal inbound path (Demo Mode only): parse it
+    /// and dispatch on the main queue, exactly as `receiveLoop` does for a socket.
+    func injectInbound(_ text: String) {
+        let frame = Wire.Inbound.parse(text)
+        main { [weak self] in self?.dispatch(frame) }
     }
 
     /// A certificate pin check failed during the TLS handshake. Turn it into a
@@ -279,10 +305,28 @@ final class LpmClient: NSObject {
     /// resets backoff and starts a fresh attempt, which is what foregrounding
     /// wants (a clean chance rather than continuing a long backoff).
     func connect() {
+        if demoServer != nil { return connectDemo() }
         guard endpoint.url != nil else { return fatal("bad host") }
         wantConnected = true
         cancelReconnect()
         startAttempt()
+    }
+
+    /// Demo Mode "connect": no socket and no auth. After a short simulated handshake
+    /// inject a protocol-correct `ready` frame through the normal inbound path, so
+    /// `dispatch(.ready)` runs its usual effects (state→ready, re-sub, flushPending,
+    /// onIdentity). Idempotent — a re-entrant connect while live is a no-op.
+    private func connectDemo() {
+        wantConnected = true
+        if case .ready = state { return }
+        set(.connecting)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, self.demoServer != nil, self.wantConnected else { return }
+            if case .ready = self.state { return }
+            self.injectInbound(Wire.json([
+                "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
+            ]))
+        }
     }
 
     /// Connect to consume a one-time pairing code scanned from the desktop QR.
@@ -315,6 +359,7 @@ final class LpmClient: NSObject {
     /// its own (on a dead path the ping itself can hang far longer than the user
     /// will wait), and hand a failure to the normal reconnect loop.
     func verifyNow() {
+        if demoServer != nil { return } // the demo link never goes stale
         guard case .ready = state, let t = task, probeDeadline == nil else { return }
         let deadline = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -483,6 +528,7 @@ final class LpmClient: NSObject {
     }
 
     private func startHeartbeat() {
+        if demoServer != nil { return } // no socket to keep warm in Demo Mode
         stopHeartbeat()
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + heartbeatInterval, repeating: heartbeatInterval)
@@ -740,6 +786,7 @@ final class LpmClient: NSObject {
     /// Reliable request send: queued while the link isn't ready, re-queued when
     /// the socket turns out to be dead, flushed on the next `ready`.
     private func send(_ text: String) {
+        if let demoServer { demoServer.receive(text); return }
         guard task != nil, case .ready = state else {
             enqueue(text)
             return
@@ -751,11 +798,13 @@ final class LpmClient: NSObject {
     /// dropped rather than replayed stale after a reconnect. Requires a live,
     /// authenticated link — a not-yet-`ready` socket would discard it silently.
     private func sendLive(_ text: String) {
+        if let demoServer { demoServer.receive(text); return }
         guard task != nil, case .ready = state else { return }
         transmit(text, requeueOnFailure: false)
     }
 
     private func transmit(_ text: String, requeueOnFailure: Bool) {
+        if let demoServer { demoServer.receive(text); return }
         guard let t = task else {
             if requeueOnFailure { enqueue(text) }
             return

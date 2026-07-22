@@ -213,6 +213,42 @@ struct PairingView: View {
                 }
                 .buttonStyle(.plain)
 
+                if onCancel == nil {
+                    Button {
+                        model.enterDemo()
+                    } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 23, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(width: 42, height: 42)
+                                .background(.purple, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Try Demo")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("See how lpm works with sample projects — no Mac needed")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer()
+
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(16)
+                        .background(
+                            Color(uiColor: .secondarySystemGroupedBackground),
+                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 if !discovery.found.isEmpty {
                     NearbyMacsView(
                         macs: discovery.found,
@@ -609,8 +645,35 @@ struct ProjectsView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .safeAreaInset(edge: .top) {
+            if model.demoMode {
+                DemoBanner { model.exitDemo() }
+            }
+        }
         .animation(.default, value: model.duplicateProgress == nil)
         .animation(.default, value: model.recoveryStatus)
+    }
+}
+
+/// A slim banner across the top of the projects list while Demo Mode is active,
+/// with an Exit affordance back to the pairing screen.
+struct DemoBanner: View {
+    let onExit: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "play.circle.fill")
+                .font(.footnote.weight(.semibold))
+            Text("Demo — sample projects")
+                .font(.footnote.weight(.medium))
+            Spacer()
+            Button("Exit", action: onExit)
+                .font(.footnote.weight(.semibold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(.purple)
     }
 }
 

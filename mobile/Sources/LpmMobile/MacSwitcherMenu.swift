@@ -9,22 +9,30 @@ struct MacSwitcherMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(model.macs) { mac in
+            if model.demoMode {
                 Button {
-                    model.switchTo(mac)
+                    model.exitDemo()
                 } label: {
-                    if mac.localId == model.activeMacId {
-                        Label(mac.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(mac.displayName)
+                    Label("Exit Demo", systemImage: "xmark.circle")
+                }
+            } else {
+                ForEach(model.macs) { mac in
+                    Button {
+                        model.switchTo(mac)
+                    } label: {
+                        if mac.localId == model.activeMacId {
+                            Label(mac.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(mac.displayName)
+                        }
                     }
                 }
-            }
-            Divider()
-            Button {
-                model.beginAddMac()
-            } label: {
-                Label("Add a Mac…", systemImage: "plus")
+                Divider()
+                Button {
+                    model.beginAddMac()
+                } label: {
+                    Label("Add a Mac…", systemImage: "plus")
+                }
             }
         } label: {
             HStack(spacing: 4) {
