@@ -143,16 +143,40 @@ export function TerminalHistoryPopover({
     setConfirmingClear(false);
   };
 
-  const emptyLabel =
-    collection === COLLECTION_FAVORITES
-      ? "No favorites yet"
+  const emptyState: EmptyStateProps = search.trim()
+    ? {
+        icon: <SearchIcon />,
+        title: "No matching messages",
+        hint: `Nothing matches “${search.trim()}”. Try a different search.`,
+      }
+    : collection === COLLECTION_FAVORITES
+      ? {
+          icon: <StarIcon />,
+          title: "No favorites yet",
+          hint: "Hover a message and click the star to keep it here.",
+        }
       : collection === COLLECTION_DRAFTS
-        ? "No drafts yet"
+        ? {
+            icon: <SquarePenIcon />,
+            title: "No drafts yet",
+            hint: (
+              <>
+                Write a prompt in the composer and press <Kbd>⌘↵</Kbd> to save it here for later
+                instead of sending it.
+              </>
+            ),
+          }
         : collection !== COLLECTION_ALL
-          ? "Folder is empty"
-          : search.trim()
-            ? "No matching messages"
-            : "Nothing sent yet";
+          ? {
+              icon: <FolderIcon />,
+              title: "Folder is empty",
+              hint: "Hover a message and use the folder button to file it here.",
+            }
+          : {
+              icon: <HistoryIcon />,
+              title: "Nothing sent yet",
+              hint: "Prompts you send from the composer will show up here.",
+            };
 
   return (
     <div
@@ -213,9 +237,11 @@ export function TerminalHistoryPopover({
 
       <div ref={scrollRef} data-history-scroll className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] p-1.5">
         {items.length === 0 ? (
-          <div className="px-3 py-10 text-center text-xs text-[var(--text-muted)]">
-            {query.isLoading ? "Loading…" : emptyLabel}
-          </div>
+          query.isLoading ? (
+            <div className="px-3 py-10 text-center text-xs text-[var(--text-muted)]">Loading…</div>
+          ) : (
+            <EmptyState {...emptyState} />
+          )
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
             {virtualItems.map((vi) => {
@@ -291,6 +317,32 @@ export function TerminalHistoryPopover({
         }}
       />
     </div>
+  );
+}
+
+interface EmptyStateProps {
+  icon: ReactNode;
+  title: string;
+  hint: ReactNode;
+}
+
+function EmptyState({ icon, title, hint }: EmptyStateProps) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-1 px-6 py-9 text-center">
+      <span className="mb-1.5 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--text-muted)] [&>svg]:h-4 [&>svg]:w-4">
+        {icon}
+      </span>
+      <span className="text-xs font-medium text-[var(--text-secondary)]">{title}</span>
+      <span className="max-w-[300px] text-[11px] leading-relaxed text-[var(--text-muted)]">{hint}</span>
+    </div>
+  );
+}
+
+function Kbd({ children }: { children: string }) {
+  return (
+    <kbd className="rounded border border-[var(--border)] bg-[var(--bg-secondary)] px-1 py-px font-mono text-[10px] text-[var(--text-secondary)]">
+      {children}
+    </kbd>
   );
 }
 
