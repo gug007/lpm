@@ -39,6 +39,7 @@ import {
   type TerminalInstance,
 } from "../paneTree";
 import { useBrowserUrls } from "../store/browserUrls";
+import { canForkSession } from "../forkSession";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -127,6 +128,7 @@ export interface PaneViewProps {
   onAddReview: (paneId: string) => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
+  onForkTerminal: (paneId: string, termId: string) => void;
   onRenameTerminal: (
     paneId: string,
     tabIdx: number,
@@ -189,6 +191,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddReview,
     onCloseTerminal,
     onCloseOtherTerminals,
+    onForkTerminal,
     onRenameTerminal,
     onTogglePinTab,
     onSplit,
@@ -585,9 +588,11 @@ function PaneViewImpl(props: PaneViewProps) {
             x={tabMenu.x}
             y={tabMenu.y}
             pinned={tab.pinned === true}
+            canFork={isTerminalTab(tab) && canForkSession(tab.resumeCmd)}
             canCloseOthers={canCloseOthers}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
+            onFork={() => onForkTerminal(tabMenu.paneId, tab.id)}
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}

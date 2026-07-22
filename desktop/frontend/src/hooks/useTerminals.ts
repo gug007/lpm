@@ -5,6 +5,7 @@ import { EventsOn } from "../../bridge/runtime";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { detectAICLI } from "../slashCommands";
 import { buildCodexResumeCmd } from "../codexResume";
+import { buildForkLaunch } from "../forkSession";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead } from "../components/InteractivePane";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { showUndoCloseToast } from "../components/UndoCloseToast";
@@ -101,6 +102,7 @@ export interface UseTerminalsResult {
     opts?: { startCmd?: string; resumeCmd?: string; actionName?: string },
   ) => Promise<void>;
   resumeFromHistory: (entry: PersistedHistoryEntry) => Promise<void>;
+  forkTerminal: (paneId: string, termId: string) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
   addBrowserToPane: (paneId?: string) => void;
   addReviewToPane: (paneId?: string) => void;
@@ -656,6 +658,41 @@ export function useTerminals(
       });
       addTerminal(term);
       scheduleCmdInject(id, entry.resumeCmd);
+    },
+    [projectName, addTerminal, scheduleCmdInject, forward],
+  );
+
+  // Fork a live agent session into a sibling tab: the new terminal continues
+  // the tab's conversation (Claude --fork-session / Codex resume) while the
+  // original keeps running. Id-addressed so a mirror-forwarded fork can't hit
+  // the wrong tab after a concurrent reorder/close.
+  const forkTerminal = useCallback(
+    async (paneId: string, termId: string) => {
+      if (IS_MIRROR_WINDOW) return forward("forkTerminal", paneId, termId);
+      const current = treeRef.current;
+      if (!current) return;
+      const tab = findPane(current, paneId)?.tabs.find((t) => t.id === termId);
+      if (!tab?.resumeCmd || !isTerminalTab(tab)) return;
+      const launch = buildForkLaunch(tab.resumeCmd);
+      if (!launch) return;
+      let id: string;
+      try {
+        id = tab.actionName
+          ? await StartTerminalForRestore(projectName, tab.actionName)
+          : await StartTerminal(projectName);
+      } catch {
+        return;
+      }
+      addTerminal(
+        makeTerminal(id, tab.label, {
+          startCmd: tab.startCmd,
+          resumeCmd: launch.resumeCmd,
+          actionName: tab.actionName,
+          emoji: tab.emoji,
+        }),
+        paneId,
+      );
+      scheduleCmdInject(id, launch.cmd);
     },
     [projectName, addTerminal, scheduleCmdInject, forward],
   );
@@ -1260,6 +1297,7 @@ export function useTerminals(
     createTerminal,
     createTerminalWithCmd,
     resumeFromHistory,
+    forkTerminal,
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
@@ -1337,6 +1375,7 @@ export function useTerminals(
     createTerminalWithCmd,
     adoptTerminal,
     resumeFromHistory,
+    forkTerminal,
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,

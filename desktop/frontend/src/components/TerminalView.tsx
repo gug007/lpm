@@ -104,6 +104,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     createTerminalWithCmd,
     adoptTerminal,
     resumeFromHistory,
+    forkTerminal,
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
@@ -772,6 +773,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddReview={openReviewInPane}
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}
+            onForkTerminal={forkTerminal}
             onRenameTerminal={renameTerminal}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
