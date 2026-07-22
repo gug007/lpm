@@ -191,6 +191,7 @@
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
+            "color": { "type": "string", "description": "Optional accent color for the action's button and the terminal tab it launches. A named accent (red, orange, claude, amber, green, teal, cyan, blue, indigo, purple, pink, slate) adapts to the theme; any CSS color (e.g. #8b5cf6) also works.", "examples": ["red", "orange", "claude", "amber", "green", "teal", "cyan", "blue", "indigo", "purple", "pink", "slate", "#8b5cf6"] },
             "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Must include cmd or alt." },
             "cwd": { "type": "string" },
             "port": {
@@ -293,6 +294,7 @@
             "cmd": { "type": "string" },
             "label": { "type": "string" },
             "emoji": { "type": "string", "description": "Optional emoji shown as the terminal tab's icon." },
+            "color": { "type": "string", "description": "Optional accent color for the terminal tab's label. A named accent (red, orange, claude, amber, green, teal, cyan, blue, indigo, purple, pink, slate) adapts to the theme; any CSS color (e.g. #8b5cf6) also works.", "examples": ["red", "orange", "claude", "amber", "green", "teal", "cyan", "blue", "indigo", "purple", "pink", "slate", "#8b5cf6"] },
             "cwd": { "type": "string" },
             "port": {
               "oneOf": [

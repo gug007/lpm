@@ -10,6 +10,8 @@ export interface ActionTemplate {
   runMode: RunMode;
   reuse?: boolean;
   confirm?: boolean;
+  // Accent color prefilled for the action (named accent or CSS color).
+  color?: string;
   // Overrides where the action saves when this template is picked. Defaults to
   // whatever layer the wizard is currently on (usually "project").
   configLayer?: ActionConfigLayer;

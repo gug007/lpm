@@ -1,4 +1,5 @@
 import type { MouseEvent } from "react";
+import { actionButtonStyle } from "../actionColors";
 
 const actionStyles = {
   primary:
@@ -17,18 +18,21 @@ export function ActionButton({
   disabled,
   variant,
   label,
+  color,
 }: {
   onClick: () => void;
   onContextMenu?: (e: MouseEvent) => void;
   disabled: boolean;
   variant: keyof typeof actionStyles;
   label: string;
+  color?: string;
 }) {
   return (
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
       disabled={disabled}
+      style={actionButtonStyle(color)}
       className={`shrink-0 cursor-grab select-none whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${actionStyles[variant]}`}
     >
       {label}

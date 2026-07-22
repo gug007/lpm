@@ -96,6 +96,7 @@ export function useProjectActions({
             actionName: action.name,
             reuse: action.reuse,
             emoji: action.emoji,
+            color: action.color,
             prompt: opts.prompt,
           });
           return;
@@ -110,6 +111,7 @@ export function useProjectActions({
           actionName: action.name,
           reuse: action.reuse,
           emoji: action.emoji,
+          color: action.color,
           prompt: opts.prompt,
         });
       } catch (err) {

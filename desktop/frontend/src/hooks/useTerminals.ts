@@ -69,6 +69,7 @@ export interface TerminalStartOpts {
   actionName?: string;
   reuse?: boolean;
   emoji?: string;
+  color?: string;
   // Submitted into the terminal after `cmd`, once the launched program goes
   // quiet — e.g. an initial task for an AI agent started by `cmd`. A string is
   // a text prompt; an array is ordered paste parts (text runs and image paths).
@@ -605,6 +606,7 @@ export function useTerminals(
           ...(launch.resumeCmd && { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd }),
           actionName: opts.actionName,
           emoji: opts.emoji,
+          color: opts.color,
         });
         addTerminal(term);
         if (launch.startCmd) {
@@ -627,6 +629,7 @@ export function useTerminals(
         makeTerminal(id, label, {
           actionName: opts?.actionName,
           emoji: opts?.emoji,
+          color: opts?.color,
         }),
       );
       const folded = foldAgentPrompt(cmd, opts?.prompt);
@@ -1444,6 +1447,7 @@ async function reifyTreeWithFreshPtys(
           actionName: persistedTabs[i].actionName,
           pinned: persistedTabs[i].pinned,
           emoji: persistedTabs[i].emoji,
+          color: persistedTabs[i].color,
         }),
       );
       const pane = makePaneLeaf(nextId("pane"), tabs, clampIdx(node.activeTabIdx, tabs.length));
@@ -1491,6 +1495,7 @@ function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.actionName ? { actionName: t.actionName } : {}),
           ...(t.pinned ? { pinned: true } : {}),
           ...(t.emoji ? { emoji: t.emoji } : {}),
+          ...(t.color ? { color: t.color } : {}),
         })),
     };
   }

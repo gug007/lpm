@@ -21,6 +21,9 @@ export interface TerminalInstance {
   // Custom emoji shown as the tab icon (in place of the terminal icon).
   // Inherited from the action that launched the terminal.
   emoji?: string;
+  // Accent color tinting the tab label. Inherited from the action that
+  // launched the terminal (a named accent or any CSS color).
+  color?: string;
   // Absent == terminal; "browser" tabs render an in-pane web browser, "review"
   // tabs render the git diff review pane. Neither has a PTY.
   kind?: "terminal" | "browser" | "review";
@@ -67,6 +70,7 @@ export function makeTerminal(
     actionName?: string;
     pinned?: boolean;
     emoji?: string;
+    color?: string;
     historyKey?: string;
   },
 ): TerminalInstance {
@@ -79,6 +83,7 @@ export function makeTerminal(
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
+    ...(opts?.color ? { color: opts.color } : {}),
   };
 }
 

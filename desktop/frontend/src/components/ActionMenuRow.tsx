@@ -2,6 +2,7 @@ import { useCallback, type CSSProperties } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import type { ActionInfo } from "../types";
 import { withEmoji } from "../withEmoji";
+import { actionTextColor } from "../actionColors";
 import { MenuSplitRow } from "./MenuSplitRow";
 import { useActionsActiveId, useMenuDrop } from "./ActionsDnd";
 
@@ -45,7 +46,12 @@ export function ActionMenuRow({ child, onRun, onDrill }: Props) {
   if (!hasChildren) {
     row = (
       <button onClick={() => onRun(child)} className={`${leafClass} cursor-grab`}>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span
+          className="min-w-0 flex-1 truncate"
+          style={{ color: actionTextColor(child.color) }}
+        >
+          {label}
+        </span>
       </button>
     );
   } else if (child.cmd) {

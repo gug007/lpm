@@ -10,6 +10,7 @@ export interface PersistedTab {
   actionName?: string;
   pinned?: boolean;
   emoji?: string;
+  color?: string;
   // Live pty id, stored ONLY for a peer-adopted tab parked while its project is
   // unmounted, so a later peer-close can find and drop it. Ignored on restore
   // (the tab relaunches with a fresh pty); normal persistence never sets it.

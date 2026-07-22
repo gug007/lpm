@@ -381,6 +381,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     done={!isActive && isDone}
                     waiting={isWaiting}
                     error={!isActive && isError}
+                    color={t.color}
                     onClick={(e) => {
                       if (isDone) onClearStatus(t.id, "Done");
                       if (isError) onClearStatus(t.id, "Error");

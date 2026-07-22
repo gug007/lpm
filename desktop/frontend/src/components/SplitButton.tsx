@@ -4,6 +4,7 @@ import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import type { ActionInfo } from "../types";
 import { ChevronDownIcon } from "./icons";
 import { withEmoji } from "../withEmoji";
+import { actionButtonStyle, actionTextColor } from "../actionColors";
 import { useActionsDragActive } from "./ActionsDnd";
 import { ActionMenu } from "./ActionMenu";
 import { SPRING_LOAD_MS, useSpringOver } from "./springLoad";
@@ -132,11 +133,17 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     document.body,
   );
 
+  const primaryColor = primaryChild?.color || action.color;
+
   const trigger = isSplit ? (
-    <div className={`inline-flex items-stretch ${s.rounded} ${s.border}`}>
+    <div
+      style={actionButtonStyle(action.color)}
+      className={`inline-flex items-stretch ${s.rounded} ${s.border}`}
+    >
       <button
         onClick={runPrimary}
         disabled={disabled}
+        style={{ color: actionTextColor(primaryColor) }}
         className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         {primaryChild ? withEmoji(primaryChild.emoji, primaryChild.label) : withEmoji(action.emoji, action.label)}
@@ -153,6 +160,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
     <button
       onClick={() => setOpen((v) => !v)}
       disabled={disabled}
+      style={actionButtonStyle(action.color)}
       className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
     >
       {withEmoji(action.emoji, action.label)}

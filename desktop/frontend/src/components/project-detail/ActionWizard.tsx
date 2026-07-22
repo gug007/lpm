@@ -40,6 +40,8 @@ import { ACTION_MODEL_URI } from "../../monaco-setup";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
+import { actionButtonStyle } from "../../actionColors";
+import { ActionColorButton } from "../ActionColorButton";
 import { isFooterDisplay, type ActionInfo } from "../../types";
 import { forEachAction } from "../../actionTree";
 import { useShortcutCapture } from "../../hooks/useShortcutCapture";
@@ -218,6 +220,7 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     name: "AI coding session",
     cmd: "claude",
     runMode: "terminal",
+    color: "claude",
   },
   {
     id: "claude-ultracode",
@@ -226,6 +229,7 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     cmd: `claude --settings '{"ultracode":true}'`,
     runMode: "terminal",
     configLayer: "global",
+    color: "claude",
   },
 ];
 
@@ -311,6 +315,7 @@ function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
     shape: "button",
     name: template.name,
     emoji: template.emoji,
+    color: template.color ?? "",
     cmd: template.cmd,
     runMode: template.runMode,
     reuse: template.reuse ?? false,
@@ -342,6 +347,7 @@ interface FormDraft {
   shape: Shape;
   name: string;
   emoji: string;
+  color: string;
   shortcut: string;
   cmd: string;
   cwd: string;
@@ -430,6 +436,7 @@ function buildActionPatch({
   shape,
   name,
   emoji,
+  color,
   shortcut,
   cmd,
   cwd,
@@ -446,6 +453,9 @@ function buildActionPatch({
 
   if (emoji.trim()) set.emoji = emoji.trim();
   else remove.push("emoji");
+
+  if (color.trim()) set.color = color.trim();
+  else remove.push("color");
 
   // A shortcut runs the action's own command, so it only applies to the
   // command-bearing shapes; dropdowns have no command to fire.
@@ -582,6 +592,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     shape: inferShape(action),
     name: action.label,
     emoji: action.emoji ?? "",
+    color: action.color ?? "",
     shortcut: action.shortcut ?? "",
     cmd: action.cmd,
     cwd: action.cwd ?? "",
@@ -603,6 +614,7 @@ function defaultDraft(): FormDraft {
     shape: "button",
     name: "",
     emoji: "",
+    color: "",
     shortcut: "",
     cmd: "",
     cwd: "",
@@ -760,6 +772,7 @@ export function ActionWizard({
     shape,
     name,
     emoji,
+    color,
     shortcut,
     cmd,
     cwd,
@@ -1185,7 +1198,11 @@ export function ActionWizard({
                         handleNameEnter();
                       }}
                       placeholder="Run tests"
-                      className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-4 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                      className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-12 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                    />
+                    <ActionColorButton
+                      value={color}
+                      onChange={(next) => updateField("color", next)}
                     />
                   </div>
                 </FieldSection>
@@ -1319,6 +1336,7 @@ export function ActionWizard({
               <ActionPreviewPanel
                 name={name}
                 emoji={emoji}
+                color={color}
                 shape={shape}
                 options={children}
                 runMode={runMode}
@@ -1866,6 +1884,7 @@ function useDemoScript(
 function ActionPreviewPanel({
   name,
   emoji,
+  color,
   shape,
   options,
   runMode,
@@ -1876,6 +1895,7 @@ function ActionPreviewPanel({
 }: {
   name: string;
   emoji: string;
+  color: string;
   shape: Shape;
   options: ChildDraft[];
   runMode: RunMode;
@@ -1887,6 +1907,7 @@ function ActionPreviewPanel({
   const trimmedName = name.trim();
   const hasName = trimmedName.length > 0;
   const displayLabel = withEmoji(emoji, trimmedName);
+  const colorStyle = actionButtonStyle(color);
   const [menuOpen, setMenuOpen] = useState(false);
   const [running, setRunning] = useState<DemoState>(null);
   const [replayNonce, setReplayNonce] = useState(0);
@@ -1982,6 +2003,7 @@ function ActionPreviewPanel({
                   <button
                     type="button"
                     onClick={triggerRun}
+                    style={colorStyle}
                     className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
                   >
                     {displayLabel}
@@ -1989,6 +2011,7 @@ function ActionPreviewPanel({
                 ) : shape === "split" ? (
                   <div ref={menuRef} className="relative">
                     <span
+                      style={colorStyle}
                       className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
                     >
                       <button
@@ -2013,6 +2036,7 @@ function ActionPreviewPanel({
                     <button
                       type="button"
                       onClick={() => setMenuOpen((v) => !v)}
+                      style={colorStyle}
                       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
                     >
                       {displayLabel}

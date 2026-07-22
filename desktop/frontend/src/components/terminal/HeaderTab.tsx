@@ -3,6 +3,7 @@ import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
+import { actionTextColor } from "../../actionColors";
 
 export function HeaderTab({
   label,
@@ -16,6 +17,7 @@ export function HeaderTab({
   done,
   waiting,
   error,
+  color,
   trailing,
 }: {
   label: string;
@@ -29,6 +31,9 @@ export function HeaderTab({
   done?: boolean;
   waiting?: boolean;
   error?: boolean;
+  // Accent tint for the label (from the action that launched the tab). Status
+  // colors (error/waiting/shimmer/done) take precedence while active.
+  color?: string;
   trailing?: ReactNode;
 }) {
   const closable = !!onClose && !pinned;
@@ -42,8 +47,13 @@ export function HeaderTab({
     : shimmer
     ? "sidebar-shimmer"
     : "";
+  const hasStatus = shimmer || waiting || error;
   const statusStyle =
-    done && !shimmer && !waiting && !error ? { color: "var(--accent-blue)" } : undefined;
+    done && !hasStatus
+      ? { color: "var(--accent-blue)" }
+      : !done && !hasStatus && color
+        ? { color: actionTextColor(color) }
+        : undefined;
 
   const labelNode = (
     <span ref={labelRef} className={`min-w-0 truncate ${statusClassName}`} style={statusStyle}>

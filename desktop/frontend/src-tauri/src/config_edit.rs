@@ -50,6 +50,7 @@ const SERVICE_REMOVE_KEYS: &[&str] = &["cwd", "port", "portConflict", "env", "de
 const MANAGED_ACTION_KEYS: &[&str] = &[
     "label",
     "emoji",
+    "color",
     "shortcut",
     "cmd",
     "cwd",

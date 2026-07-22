@@ -53,6 +53,7 @@ export interface ActionInfo {
   name: string;
   label: string;
   emoji?: string;
+  color?: string;
   shortcut?: string;
   cmd: string;
   cwd?: string;

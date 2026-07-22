@@ -694,6 +694,8 @@ struct ActionFull {
     #[serde(default)]
     emoji: String,
     #[serde(default)]
+    color: String,
+    #[serde(default)]
     shortcut: String,
     #[serde(default)]
     cwd: String,
@@ -1194,6 +1196,8 @@ pub struct ActionInfo {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub emoji: String,
     #[serde(skip_serializing_if = "String::is_empty")]
+    pub color: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub shortcut: String,
     pub cmd: String,
     pub cwd: String,
@@ -1290,6 +1294,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.emoji.is_empty() {
         d.emoji = s.emoji.clone();
+    }
+    if d.color.is_empty() {
+        d.color = s.color.clone();
     }
     if d.shortcut.is_empty() {
         d.shortcut = s.shortcut.clone();
@@ -1609,6 +1616,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         name: id.to_string(),
         label,
         emoji: act.emoji.clone(),
+        color: act.color.clone(),
         shortcut: act.shortcut.clone(),
         cmd: act.cmd.clone(),
         cwd: act.cwd.clone(),

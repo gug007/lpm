@@ -8,6 +8,7 @@ import type { RunMode } from "./actionInference";
 export const MANAGED_ACTION_KEYS = new Set<string>([
   "label",
   "emoji",
+  "color",
   "shortcut",
   "cmd",
   "cwd",
@@ -116,6 +117,7 @@ export function actionInfoFromPayload(obj: Record<string, unknown>): ActionInfo 
     name: "",
     label: typeof obj.label === "string" ? obj.label : "",
     emoji: typeof obj.emoji === "string" ? obj.emoji : undefined,
+    color: typeof obj.color === "string" ? obj.color : undefined,
     shortcut: typeof obj.shortcut === "string" ? obj.shortcut : undefined,
     cmd: typeof obj.cmd === "string" ? obj.cmd : "",
     cwd: typeof obj.cwd === "string" ? obj.cwd : undefined,
