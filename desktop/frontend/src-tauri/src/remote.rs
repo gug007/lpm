@@ -20,13 +20,16 @@
 //
 // Security posture: a per-device bearer token established by a single-use
 // pairing code (shown as a QR in Settings); token hashes are stored in
-// ~/.lpm/remote.json (0600). The transport is wss:// only (see remotetls.rs):
-// every connection is wrapped in a rustls server session presenting a persisted,
-// self-signed leaf (ECDSA P-256, CN "lpm") before the WebSocket handshake — there
-// is no plaintext fallback. The phone pins the leaf's SHA-256 on first pair/auth
-// (TOFU); the pairing QR carries that fingerprint (`f=`) so a QR pair can verify
-// the leaf up front. When enabled the server binds every interface (0.0.0.0) so a
-// paired phone can reach it over the LAN or tailnet.
+// ~/.lpm/remote.json (0600). Current clients speak wss:// (see remotetls.rs):
+// each connection is wrapped in a rustls server session presenting a persisted,
+// self-signed leaf (ECDSA P-256, CN "lpm") before the WebSocket handshake. The
+// phone pins the leaf's SHA-256 on first pair/auth (TOFU); the pairing QR carries
+// that fingerprint (`f=`) so a QR pair can verify the leaf up front. As a
+// transitional measure the acceptor also accepts legacy plaintext ws:// clients
+// (the pre-TLS mobile app still on the App Store), chosen per connection by
+// sniffing the first byte; that branch can be dropped once the pinned app ships.
+// When enabled the server binds every interface (0.0.0.0) so a paired phone can
+// reach it over the LAN or tailnet.
 use crate::status::{StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use crate::{config, pty, services};
 use aes_gcm::aead::{Aead, KeyInit};
@@ -36,6 +39,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, SyncSender, TryRecvError};
@@ -44,9 +48,51 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
-// Every connection is a TLS session (remotetls.rs) before the WebSocket layer.
-type TlsStream = rustls::StreamOwned<rustls::ServerConnection, TcpStream>;
-type ClientWs = WebSocket<TlsStream>;
+// One phone connection's transport. The acceptor handles both this build's
+// TLS-wrapped clients (remotetls.rs) and, transitionally, the plaintext clients
+// of the pre-TLS mobile app — picked per connection by sniffing the first byte.
+// Everything above the stream (WebSocket handshake, Origin refusal, auth, frames)
+// is identical on both; a single concrete type keeps `WebSocket<T>` monomorphic.
+enum RemoteStream {
+    Plain(TcpStream),
+    Tls(Box<rustls::StreamOwned<rustls::ServerConnection, TcpStream>>),
+}
+
+impl RemoteStream {
+    /// The underlying TCP socket — for read-timeout tuning on either variant.
+    fn tcp(&self) -> &TcpStream {
+        match self {
+            RemoteStream::Plain(s) => s,
+            RemoteStream::Tls(t) => t.get_ref(),
+        }
+    }
+}
+
+impl Read for RemoteStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            RemoteStream::Plain(s) => s.read(buf),
+            RemoteStream::Tls(t) => t.read(buf),
+        }
+    }
+}
+
+impl Write for RemoteStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            RemoteStream::Plain(s) => s.write(buf),
+            RemoteStream::Tls(t) => t.write(buf),
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            RemoteStream::Plain(s) => s.flush(),
+            RemoteStream::Tls(t) => t.flush(),
+        }
+    }
+}
+
+type ClientWs = WebSocket<RemoteStream>;
 
 const DEFAULT_PORT: u16 = 8765;
 const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining phone
@@ -712,21 +758,34 @@ fn accept_ws(stream: TcpStream) -> Option<ClientWs> {
         .unwrap_or_else(|_| "unknown".into());
     let _ = stream.set_nodelay(true);
     let _ = stream.set_read_timeout(Some(AUTH_TIMEOUT));
-    // Wrap the raw socket in a rustls server session before the WebSocket
-    // handshake; the TLS handshake itself runs lazily inside accept()'s first
-    // reads/writes, bounded by the read timeout just set on the socket.
-    let conn = rustls::ServerConnection::new(crate::remotetls::server_config()).ok()?;
-    let tls = rustls::StreamOwned::new(conn, stream);
-    match accept(tls) {
-        Ok(ws) => Some(ws),
-        Err(e) => {
-            // A failed handshake is the one moment the phone can't tell us what
-            // went wrong (its screen just says the secure connection failed), so
-            // record who tried and why here — both for the dev console and for
-            // support, in a file next to the rest of the remote state.
-            log_handshake_failure(&peer, &e.to_string());
-            None
+    // Peek one byte to choose the transport: 0x16 is a TLS ClientHello (current
+    // clients); anything else is a legacy plaintext WebSocket upgrade (`GET …`).
+    // The byte stays buffered in the socket for the handshake that follows.
+    let mut first = [0u8; 1];
+    match stream.peek(&mut first) {
+        Ok(0) | Err(_) => None,
+        Ok(_) if crate::peertls::sniff_is_tls(first[0]) => {
+            // Wrap the raw socket in a rustls server session before the WebSocket
+            // handshake; the TLS handshake itself runs lazily inside accept()'s
+            // first reads/writes, bounded by the read timeout just set above.
+            let conn = rustls::ServerConnection::new(crate::remotetls::server_config()).ok()?;
+            let tls = RemoteStream::Tls(Box::new(rustls::StreamOwned::new(conn, stream)));
+            match accept(tls) {
+                Ok(ws) => Some(ws),
+                Err(e) => {
+                    // A failed handshake is the one moment the phone can't tell us
+                    // what went wrong (its screen just says the secure connection
+                    // failed), so record who tried and why here — both for the dev
+                    // console and for support, next to the rest of the remote state.
+                    log_handshake_failure(&peer, &e.to_string());
+                    None
+                }
+            }
         }
+        // Transitional plaintext branch for the pre-TLS mobile app still on the
+        // App Store: run the WebSocket handshake directly on the plain socket.
+        // This can be dropped once the pinned (wss-only) app is live in the store.
+        Ok(_) => accept(RemoteStream::Plain(stream)).ok(),
     }
 }
 
@@ -782,7 +841,7 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
             device_id: device_id.clone(),
         },
     );
-    let _ = ws.get_ref().get_ref().set_read_timeout(Some(POLL));
+    let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
 
     // Per-connection working-tree watchers (project -> watcher). Local to this
     // connection so they stop deterministically on teardown below, which also
@@ -1006,7 +1065,7 @@ fn handle_pair_request(
     // user's Allow/Deny.
     let _ = ws
         .get_ref()
-        .get_ref()
+        .tcp()
         .set_read_timeout(Some(Duration::from_millis(250)));
     let deadline = Instant::now() + PAIR_APPROVE_WINDOW;
     let outcome = loop {
@@ -4852,6 +4911,60 @@ mod tests {
         assert!(
             matches!(auth, FirstFrame::Done(Some(_))),
             "authenticate did not pair through a non-blocking listener"
+        );
+        assert!(
+            reply.to_text().unwrap().contains("paired"),
+            "expected paired, got: {reply:?}"
+        );
+    }
+
+    // Transitional plaintext path: the pre-TLS mobile app connects over ws://
+    // (no TLS ClientHello) and must still pair through the same acceptor, which
+    // sniffs the first byte and takes the plaintext branch. Drop this test when
+    // the plaintext branch in accept_ws is removed.
+    #[test]
+    fn legacy_plaintext_client_still_pairs() {
+        let tmp = std::env::temp_dir()
+            .join(format!("lpm-remote-plain-test-{}.json", std::process::id()));
+        *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
+
+        let hub = RemoteHub::default();
+        hub.inner.config.lock().unwrap().pairing_code = "AAAA-BBBB".to_string();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap(); // reproduce accept_loop
+        let addr = listener.local_addr().unwrap();
+
+        let hub2 = hub.clone();
+        let server = std::thread::spawn(move || loop {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    let _ = stream.set_nonblocking(false);
+                    let mut ws = accept_ws(stream).expect("server handshake");
+                    return authenticate(&mut ws, &hub2);
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => return FirstFrame::Done(None),
+            }
+        });
+
+        let tcp = TcpStream::connect(addr).expect("tcp connect");
+        let (mut c, _) =
+            tungstenite::client(format!("ws://{addr}/"), tcp).expect("client connect");
+        c.send(Message::text(
+            json!({ "t": "pair", "code": "AAAA-BBBB", "name": "t" }).to_string(),
+        ))
+        .unwrap();
+        let reply = c.read().expect("no reply frame");
+        let auth = server.join().unwrap();
+
+        *TEST_CONFIG_PATH.lock().unwrap() = None;
+        let _ = std::fs::remove_file(&tmp);
+
+        assert!(
+            matches!(auth, FirstFrame::Done(Some(_))),
+            "authenticate did not pair a legacy plaintext client"
         );
         assert!(
             reply.to_text().unwrap().contains("paired"),
