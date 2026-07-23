@@ -45,6 +45,7 @@ import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import {
   BranchIcon,
+  ChevronDownIcon,
   CloudBranchIcon,
   CloudOffIcon,
   CopyIcon,
@@ -387,7 +388,7 @@ export function BranchSwitcher({
           title={
             busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`
           }
-          className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:opacity-40"
         >
           <SyncIcon spinning={busy} />
           {status.behind > 0 && (
@@ -403,10 +404,10 @@ export function BranchSwitcher({
           onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
-          className={`flex items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${
+          className={`flex items-center gap-1.5 rounded-md border border-[var(--border)] px-2.5 py-1 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:opacity-40 ${
             open
               ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           }`}
         >
           <BranchIcon size={12} />
@@ -419,7 +420,7 @@ export function BranchSwitcher({
               title={`${status.uncommitted} uncommitted file${status.uncommitted === 1 ? "" : "s"}`}
             />
           )}
-          <ChevronDown />
+          <ChevronDownIcon />
         </button>
 
         {open && (
@@ -613,7 +614,7 @@ export function BranchSwitcher({
           title={
             status.uncommitted > 0 ? "Commit changes" : "No changes to commit"
           }
-          className="flex items-center gap-1 rounded-l-md px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-l-md px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <CommitIcon />
           <span>Commit</span>
@@ -624,13 +625,13 @@ export function BranchSwitcher({
         <button
           onClick={() => setCommitMenuOpen(!commitMenuOpen)}
           disabled={busy}
-          className={`flex items-center rounded-r-md border-l border-[var(--border)] px-2 py-1 transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40 ${
+          className={`flex items-center rounded-r-md border-l border-[var(--border)] px-1.5 py-1 transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:opacity-40 ${
             commitMenuOpen
               ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
               : "text-[var(--text-secondary)]"
           }`}
         >
-          <ChevronDown />
+          <ChevronDownIcon />
         </button>
         {commitMenuOpen && (
           <div className="absolute bottom-full right-0 z-10 mb-2">
@@ -877,23 +878,6 @@ function SyncIcon({ spinning }: { spinning: boolean }) {
       <polyline points="23 4 23 10 17 10" />
       <polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  );
-}
-
-function ChevronDown() {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="6 9 12 15 18 9" />
     </svg>
   );
 }
