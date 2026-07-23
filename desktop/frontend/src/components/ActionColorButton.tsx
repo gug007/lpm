@@ -15,8 +15,13 @@ import {
   ACTION_COLOR_HUES,
   ACTION_COLOR_NEUTRALS,
   actionAccentColor,
+  actionColorLabel,
+  actionColorVariants,
   isNamedActionColor,
 } from "../actionColors";
+
+const DEEP_HUES = actionColorVariants(ACTION_COLOR_HUES, "deep");
+const DEEP_NEUTRALS = actionColorVariants(ACTION_COLOR_NEUTRALS, "deep");
 
 const RAINBOW =
   "conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444)";
@@ -134,30 +139,30 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
           <div
             ref={panelRef}
             style={panelStyle}
-            className="z-[70] w-max rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 shadow-2xl"
+            className="z-[70] w-max overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 shadow-2xl"
           >
-            <div className="grid grid-cols-6 gap-1">
-              {ACTION_COLOR_HUES.map((name) => (
-                <Swatch
-                  key={name}
-                  color={actionAccentColor(name)!}
-                  selected={value === name}
-                  onClick={() => pick(name)}
-                  label={name}
-                />
-              ))}
+            <SwatchGrid values={ACTION_COLOR_HUES} selected={value} onPick={pick} />
+            <SwatchGrid
+              values={ACTION_COLOR_NEUTRALS}
+              selected={value}
+              onPick={pick}
+              className="mt-1"
+            />
+            <div className="mt-2.5 border-t border-[var(--border)] pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+              Deep
             </div>
-            <div className="mt-1 grid grid-cols-6 gap-1">
-              {ACTION_COLOR_NEUTRALS.map((name) => (
-                <Swatch
-                  key={name}
-                  color={actionAccentColor(name)!}
-                  selected={value === name}
-                  onClick={() => pick(name)}
-                  label={name}
-                />
-              ))}
-            </div>
+            <SwatchGrid
+              values={DEEP_HUES}
+              selected={value}
+              onPick={pick}
+              className="mt-1.5"
+            />
+            <SwatchGrid
+              values={DEEP_NEUTRALS}
+              selected={value}
+              onPick={pick}
+              className="mt-1"
+            />
             <div className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
               <label
                 title="Custom color"
@@ -233,6 +238,7 @@ function useAnchorBelowRight(
         position: "fixed",
         top: rect.bottom + PANEL_GAP_PX,
         right: window.innerWidth - rect.right,
+        maxHeight: window.innerHeight - rect.bottom - PANEL_GAP_PX * 2,
       });
     };
     update();
@@ -241,6 +247,32 @@ function useAnchorBelowRight(
   }, [open, anchorRef]);
 
   return style;
+}
+
+function SwatchGrid({
+  values,
+  selected,
+  onPick,
+  className = "",
+}: {
+  values: readonly string[];
+  selected: string;
+  onPick: (value: string) => void;
+  className?: string;
+}) {
+  return (
+    <div className={`grid grid-cols-6 gap-1 ${className}`}>
+      {values.map((value) => (
+        <Swatch
+          key={value}
+          color={actionAccentColor(value)!}
+          selected={selected === value}
+          onClick={() => onPick(value)}
+          label={actionColorLabel(value)}
+        />
+      ))}
+    </div>
+  );
 }
 
 function Swatch({
