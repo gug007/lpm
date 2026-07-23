@@ -271,6 +271,13 @@ export function BulkDuplicateDialog({
     setOpenSession((n) => n + 1);
   }, [open, project?.name]);
 
+  // Persist the copy method the moment it's toggled so the dialog reopens on the
+  // last selected one — even if the user cancels. It still defaults to
+  // standalone copy the first time, before any choice is saved.
+  const pickDuplicateMode = (next: DuplicateMode) => {
+    setDuplicateMode(next);
+    saveSettings({ duplicateMode: next });
+  };
   const toggleRunOpen = () => {
     const next = !runOpen;
     setRunOpen(next);
@@ -517,7 +524,6 @@ export function BulkDuplicateDialog({
     // "run on each copy" defaults for the normal Duplicate flow.
     if (!seeded) {
       saveSettings({
-        duplicateMode,
         duplicateExcludeUncommitted: excludeUncommitted,
         duplicateReinstallDeps: reinstallDeps,
         duplicatePullLatest: pullLatest,
@@ -634,7 +640,7 @@ export function BulkDuplicateDialog({
             <SegmentedControl
               value={duplicateMode}
               options={DUPLICATE_MODE_OPTIONS}
-              onChange={setDuplicateMode}
+              onChange={pickDuplicateMode}
               ariaLabel="Copy method"
             />
           </div>
