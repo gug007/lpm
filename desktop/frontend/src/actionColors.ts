@@ -47,7 +47,7 @@ export function actionButtonStyle(
 ): CSSProperties | undefined {
   const accent = actionAccentColor(color);
   if (!accent) return undefined;
-  const border = `color-mix(in srgb, ${accent} 45%, transparent)`;
+  const border = `color-mix(in srgb, ${accent} 25%, transparent)`;
   return {
     color: actionTextColor(color),
     borderColor: border,
