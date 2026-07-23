@@ -40,7 +40,7 @@ const FAQ_ITEMS = [
   {
     question: "How do I customize a Claude Code statusline in LPM Desktop?",
     answer:
-      "Open LPM Settings, choose AI Agents, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. LPM applies valid changes while you work.",
+      "Open Settings from the bottom of the LPM sidebar, choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. LPM applies valid changes while you work.",
   },
   {
     question: "What can I change in the Claude Code statusline?",
@@ -176,14 +176,14 @@ const steps = [
   {
     step: "01",
     icon: Settings2,
-    title: "Open AI Agent settings",
-    copy: "In LPM Desktop, open Settings and select AI Agents.",
+    title: "Open AI & Integrations",
+    copy: "In LPM Desktop, click Settings at the bottom of the sidebar and select AI & Integrations.",
   },
   {
     step: "02",
     icon: FileSliders,
     title: "Choose the statusline",
-    copy: "Click Customize beside Claude Code or Codex, then pick a starting layout.",
+    copy: "Click Customize beside Claude Code status line or Codex CLI status line, then pick a starting layout.",
   },
   {
     step: "03",

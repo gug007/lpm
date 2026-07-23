@@ -162,6 +162,14 @@ export const ROWS = {
       "Teach AI coding agents to author configs and drive lpm from the command line.",
     keywords: ["skill", "cli", "claude code", "codex", "gemini"],
   },
+  "general.removeApp": {
+    kind: "row",
+    tab: "general",
+    id: "general.removeApp",
+    label: "Remove app",
+    description: "Uninstall lpm and everything it installed on this Mac",
+    keywords: ["uninstall", "delete", "trash"],
+  },
   "notifications.sound": {
     kind: "row",
     tab: "notifications",

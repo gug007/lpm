@@ -284,6 +284,7 @@ macro_rules! all_command_handlers {
             transform_text,
             trash_project,
             uninstall_kokoro,
+            uninstall_app,
             upload_and_quote_for_terminal,
             upload_clipboard_image_for_terminal,
             vault_export_key,

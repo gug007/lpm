@@ -270,6 +270,47 @@ pub fn install_agent_hooks() {
     install_codex_hooks();
 }
 
+/// App uninstall: restore the user's Claude status line (drop the usage-limit
+/// forwarder first — it chains whatever sat underneath, possibly our template),
+/// then strip the lpm hooks from Claude and Codex settings. Every step runs
+/// regardless of earlier failures; the first error is returned for surfacing.
+pub fn remove_agent_hooks_for_uninstall() -> Result<(), String> {
+    let settings = claude_settings_path();
+    let forwarder = remove_claude_statusline_at(&settings);
+    let statusline = restore_statusline_at(&settings, &statuslines_dir());
+    let claude = strip_hooks_json_at(&settings);
+    let codex = strip_hooks_json_at(&home().join(".codex").join("hooks.json"));
+    forwarder.and(statusline).and(claude).and(codex)
+}
+
+/// Remove the lpm-marked hook entries from a `{"hooks": {event: [entries]}}`
+/// JSON document (both Claude settings.json and Codex hooks.json use this
+/// shape), returning Some(new bytes) only on change. User hooks and every
+/// other key are preserved.
+fn strip_hooks_json(data: &[u8]) -> Option<Vec<u8>> {
+    let mut settings = serde_json::from_slice::<Value>(data).ok()?;
+    let original = settings.clone();
+    let hooks = settings.get_mut("hooks")?.as_object_mut()?;
+    strip_lpm_hooks(hooks);
+    if settings == original {
+        return None;
+    }
+    serde_json::to_string_pretty(&settings)
+        .ok()
+        .map(String::into_bytes)
+}
+
+fn strip_hooks_json_at(path: &Path) -> Result<(), String> {
+    let Ok(data) = std::fs::read(path) else {
+        return Ok(()); // no file -> nothing to strip
+    };
+    if let Some(out) = strip_hooks_json(&data) {
+        crate::fsatomic::write(path, &out, crate::fsatomic::Mode::Preserve(0o644))
+            .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    }
+    Ok(())
+}
+
 /// Merge the six lpm Claude hooks into settings JSON `data`, returning Some(new
 /// bytes) when a change is needed and None when unchanged or the input is not a
 /// JSON object (invalid JSON is never rewritten). Pure — the transport (local fs
@@ -1948,6 +1989,31 @@ mod tests {
         );
         // Invalid JSON never rewritten.
         assert!(merge_claude_hooks(b"{ not json").is_none());
+    }
+
+    #[test]
+    fn strip_hooks_json_removes_ours_and_keeps_user_hooks() {
+        let installed = merge_claude_hooks(
+            br#"{"model":"opus","hooks":{"Stop":[{"matcher":"","hooks":[{"type":"command","command":"my-own-hook"}]}]}}"#,
+        )
+        .unwrap();
+        let stripped = strip_hooks_json(&installed).expect("strip changes settings");
+        let v: Value = serde_json::from_slice(&stripped).unwrap();
+        assert_eq!(v["model"], "opus");
+        assert!(!has_marker(&v["hooks"]), "lpm hooks gone");
+        assert_eq!(
+            v["hooks"]["Stop"][0]["hooks"][0]["command"], "my-own-hook",
+            "user hook kept"
+        );
+        assert!(strip_hooks_json(&stripped).is_none(), "second strip is a no-op");
+        assert!(strip_hooks_json(br#"{"model":"opus"}"#).is_none());
+        assert!(strip_hooks_json(b"{ not json").is_none());
+    }
+
+    #[test]
+    fn strip_hooks_json_at_handles_missing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        strip_hooks_json_at(&dir.path().join("settings.json")).unwrap();
     }
 
     #[test]

@@ -45,7 +45,7 @@ struct Asset {
     browser_download_url: String,
 }
 
-fn current_version() -> String {
+pub(crate) fn current_version() -> String {
     option_env!("LPM_VERSION").unwrap_or("dev").to_string()
 }
 
@@ -198,7 +198,7 @@ fn command_failure(out: &std::process::Output) -> String {
 }
 
 /// Walk up from the current executable to the enclosing `*.app` bundle.
-fn app_bundle_path() -> Result<PathBuf, String> {
+pub(crate) fn app_bundle_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let mut dir = exe.parent();
     while let Some(d) = dir {
@@ -402,7 +402,7 @@ fn copy_with_progress(
     Ok(())
 }
 
-fn spawn_detached_bash(script: &str) -> Result<(), String> {
+pub(crate) fn spawn_detached_bash(script: &str) -> Result<(), String> {
     use std::os::unix::process::CommandExt;
     let mut cmd = Command::new("bash");
     cmd.arg("-c").arg(script);
@@ -417,7 +417,7 @@ fn spawn_detached_bash(script: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn shell_quote(s: &str) -> String {
+pub(crate) fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
 }
 

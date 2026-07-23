@@ -142,6 +142,28 @@ fn install_at(dir: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
+const SKILL_DIRS: &[&str] = &["lpm-config", "lpm-cli", "lpm"];
+
+fn remove_at(dir: &std::path::Path) -> Result<(), String> {
+    for sub in SKILL_DIRS {
+        let path = dir.join(sub);
+        if path.exists() {
+            std::fs::remove_dir_all(&path)
+                .map_err(|e| format!("cannot remove {}: {e}", path.display()))?;
+        }
+    }
+    Ok(())
+}
+
+/// App uninstall: delete the lpm skills from every target dir. Other skills in
+/// the same dirs are untouched.
+pub fn remove_agent_skills() -> Result<(), String> {
+    for d in targets() {
+        remove_at(&d)?;
+    }
+    Ok(())
+}
+
 /// Opted in = any entry skill present in any target. A partial presence still
 /// counts so an install predating the second target dir upgrades gracefully:
 /// it reads as "outdated" and Update/refresh fills both dirs, instead of
@@ -301,6 +323,28 @@ mod tests {
         install_at(dir.path()).unwrap();
         assert!(!stale.exists());
         assert_eq!(status_at(dir.path()), "installed");
+    }
+
+    #[test]
+    fn remove_deletes_lpm_skills_and_keeps_others() {
+        let dir = tempfile::tempdir().unwrap();
+        install_at(dir.path()).unwrap();
+        let other = dir.path().join("other-skill").join("SKILL.md");
+        std::fs::create_dir_all(other.parent().unwrap()).unwrap();
+        std::fs::write(&other, "keep me").unwrap();
+        remove_at(dir.path()).unwrap();
+        assert_eq!(status_at(dir.path()), "not-installed");
+        for sub in SKILL_DIRS {
+            assert!(!dir.path().join(sub).exists(), "{sub} not removed");
+        }
+        assert!(other.exists());
+    }
+
+    #[test]
+    fn remove_is_a_noop_when_nothing_installed() {
+        let dir = tempfile::tempdir().unwrap();
+        remove_at(dir.path()).unwrap();
+        assert!(is_empty(dir.path()));
     }
 
     #[test]

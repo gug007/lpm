@@ -241,6 +241,7 @@ export function TmuxInstalled(...args: any[]): Promise<any>;
 export function ToggleProjectService(...args: any[]): Promise<any>;
 export function TransformText(...args: any[]): Promise<any>;
 export function TrashProject(...args: any[]): Promise<any>;
+export function UninstallApp(...args: any[]): Promise<any>;
 export function UninstallKokoro(...args: any[]): Promise<any>;
 export function UploadAndQuoteForTerminal(...args: any[]): Promise<any>;
 export function UploadClipboardImageForTerminal(...args: any[]): Promise<any>;

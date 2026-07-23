@@ -736,6 +736,9 @@ export function TransformText(projectName, cwd, cli, model, effort, fast, instru
 export function TrashProject(name) {
   return invoke("trash_project", { name });
 }
+export function UninstallApp(removeData) {
+  return invoke("uninstall_app", { removeData });
+}
 export function UninstallKokoro() {
   return invoke("uninstall_kokoro");
 }

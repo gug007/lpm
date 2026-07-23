@@ -49,6 +49,7 @@ import {
   ImportConfig,
   CheckKokoroInstalled,
   InstallKokoro,
+  UninstallApp,
   UninstallKokoro,
   VaultExportKey,
   VaultImportKey,
@@ -272,6 +273,9 @@ export function Settings({
   const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
   const [query, setQuery] = useState("");
   const [pendingRevealId, setPendingRevealId] = useState<string | null>(null);
+  const [showRemoveApp, setShowRemoveApp] = useState(false);
+  const [removeAppData, setRemoveAppData] = useState(false);
+  const [removingApp, setRemovingApp] = useState(false);
 
   const searchEntries = useMemo(
     () => buildSearchEntries({ experimentalTTS: Boolean(experimentalTTS) }),
@@ -325,6 +329,10 @@ export function Settings({
   useEffect(() => {
     if (showImportOptions) setImportOverwrite(false);
   }, [showImportOptions]);
+
+  useEffect(() => {
+    if (showRemoveApp) setRemoveAppData(false);
+  }, [showRemoveApp]);
 
   useEffect(() => {
     if (activeTab === "ai") void refreshAccountStatuses();
@@ -451,6 +459,18 @@ export function Settings({
     }
   };
 
+  const handleRemoveApp = async () => {
+    setShowRemoveApp(false);
+    setRemovingApp(true);
+    try {
+      await UninstallApp(removeAppData);
+      // The app quits itself once removal is scheduled; the overlay stays up.
+    } catch (err) {
+      setRemovingApp(false);
+      toast.error(String(err));
+    }
+  };
+
   const handleVaultImport = async (passphrase: string) => {
     setShowVaultImport(false);
     try {
@@ -470,6 +490,7 @@ export function Settings({
   return (
     <div className="-mx-6 flex flex-1 overflow-hidden">
       {updateStatus === "installing" && <InstallingOverlay phase={installPhase} progress={installProgress} />}
+      {removingApp && <RemovingOverlay />}
 
       <nav className="flex w-52 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--bg-sidebar)] px-3 pt-6">
         <h1 className="mb-3 px-2 text-lg font-semibold tracking-tight text-[var(--text-primary)]">Settings</h1>
@@ -610,6 +631,14 @@ export function Settings({
                 }
               >
                 <SkillInstallControl />
+              </SettingsRow>
+              <SettingsRow {...rowProps("general.removeApp")}>
+                <button
+                  onClick={() => setShowRemoveApp(true)}
+                  className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-active)]"
+                >
+                  Remove…
+                </button>
               </SettingsRow>
             </SettingsSection>
             </>
@@ -1031,6 +1060,37 @@ export function Settings({
           <ImportReportModal report={importReport} onClose={() => setImportReport(null)} />
 
           <ConfirmDialog
+            open={showRemoveApp}
+            title="Remove lpm"
+            variant="destructive"
+            confirmLabel="Remove"
+            body={
+              <>
+                <p>
+                  The app, its command line tool, and its agent skills will be
+                  removed from this Mac. Your project folders won't be touched.
+                </p>
+                <label className="mt-4 flex cursor-pointer items-start gap-2 text-[var(--text-primary)]">
+                  <input
+                    type="checkbox"
+                    checked={removeAppData}
+                    onChange={(e) => setRemoveAppData(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Also delete settings and project configurations
+                    <span className="block text-[11px] text-[var(--text-muted)]">
+                      Removes every lpm setting, note, and project configuration.
+                    </span>
+                  </span>
+                </label>
+              </>
+            }
+            onCancel={() => setShowRemoveApp(false)}
+            onConfirm={handleRemoveApp}
+          />
+
+          <ConfirmDialog
             open={confirmDeleteTemplate !== null}
             title="Delete template"
             variant="destructive"
@@ -1393,6 +1453,18 @@ function InstallingOverlay({ phase, progress }: { phase: "checking" | "downloadi
         ) : (
           <p className="text-xs text-[var(--text-muted)]">The app will restart when finished</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function RemovingOverlay() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-6 py-5 shadow-lg">
+        <RefreshIcon spinning size={24} />
+        <p className="text-sm font-medium text-[var(--text-primary)]">Removing lpm...</p>
+        <p className="text-xs text-[var(--text-muted)]">The app will close when finished</p>
       </div>
     </div>
   );

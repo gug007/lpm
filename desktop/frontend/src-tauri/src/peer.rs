@@ -1338,6 +1338,7 @@ fn is_denied(cmd: &str) -> bool {
             | "uninstall_kokoro"
             | "install_cli"
             | "install_agent_skill"
+            | "uninstall_app"
             // accounts / login
             | "load_claude_accounts"
             | "save_claude_accounts"

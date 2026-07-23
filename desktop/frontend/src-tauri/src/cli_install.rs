@@ -152,6 +152,27 @@ fn symlink_direct(expected: &Path, link: &Path, replace: bool) -> std::io::Resul
     std::os::unix::fs::symlink(expected, link)
 }
 
+/// Run a shell command via the macOS admin prompt.
+fn escalated_shell(inner: &str, cancel_msg: &str, fail_prefix: &str) -> Result<(), String> {
+    let script = format!(
+        "do shell script \"{}\" with administrator privileges",
+        applescript_escape(inner)
+    );
+    let out = std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| format!("failed to run osascript: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        // User-cancelled auth dialog is AppleScript error -128.
+        if err.contains("-128") {
+            return Err(cancel_msg.into());
+        }
+        return Err(format!("{fail_prefix}: {}", err.trim()));
+    }
+    Ok(())
+}
+
 /// Escalate via the macOS admin prompt. `ln -sf` covers both create and
 /// replace-ours; the foreign-occupant cases are already rejected before we get
 /// here, so force is safe.
@@ -163,23 +184,7 @@ fn symlink_escalated(expected: &Path, link: &Path) -> Result<(), String> {
         shell_quote(&expected.to_string_lossy()),
         shell_quote(&link.to_string_lossy()),
     );
-    let script = format!(
-        "do shell script \"{}\" with administrator privileges",
-        applescript_escape(&inner)
-    );
-    let out = std::process::Command::new("osascript")
-        .args(["-e", &script])
-        .output()
-        .map_err(|e| format!("failed to run osascript: {e}"))?;
-    if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr);
-        // User-cancelled auth dialog is AppleScript error -128.
-        if err.contains("-128") {
-            return Err("Installation cancelled.".into());
-        }
-        return Err(format!("failed to create symlink: {}", err.trim()));
-    }
-    Ok(())
+    escalated_shell(&inner, "Installation cancelled.", "failed to create symlink")
 }
 
 fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String> {
@@ -287,6 +292,30 @@ fn status_value_in(state: &PathState, expected: &Path, dirs: &[String]) -> Value
 fn repair_at(expected: &Path, link: &Path) {
     if let InstallPlan::ReplaceOurs = plan_install(&current_state(link), expected) {
         let _ = symlink_direct(expected, link, true);
+    }
+}
+
+/// Whether `link` is a symlink we own and may remove.
+fn removable(state: &PathState) -> bool {
+    matches!(state, PathState::OurSymlink(_))
+}
+
+/// App uninstall: remove /usr/local/bin/lpm when it is our symlink; foreign
+/// occupants are left untouched. Permission-denied escalates via the admin
+/// prompt; a cancelled prompt surfaces as Err the caller treats as non-fatal.
+pub fn remove_managed_symlink() -> Result<(), String> {
+    let link = link_path();
+    if !removable(&current_state(&link)) {
+        return Ok(());
+    }
+    match std::fs::remove_file(&link) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => escalated_shell(
+            &format!("rm {}", shell_quote(&link.to_string_lossy())),
+            "Removal cancelled.",
+            "failed to remove symlink",
+        ),
+        Err(e) => Err(format!("failed to remove symlink: {e}")),
     }
 }
 
@@ -586,6 +615,14 @@ mod tests {
         let v = status_value_in(&PathState::Absent, &expected(), &dirs);
         assert_eq!(v["status"], "not-installed");
         assert!(v["shadowedBy"].is_null());
+    }
+
+    #[test]
+    fn removable_only_for_our_symlink() {
+        assert!(removable(&PathState::OurSymlink(expected())));
+        assert!(!removable(&PathState::Absent));
+        assert!(!removable(&PathState::Foreign));
+        assert!(!removable(&PathState::ForeignSymlink(PathBuf::from("/x"))));
     }
 
     #[test]
