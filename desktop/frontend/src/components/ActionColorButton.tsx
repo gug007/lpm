@@ -1,7 +1,16 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { Palette } from "lucide-react";
 import { XIcon } from "./icons";
-import { useOutsideClick } from "../hooks/useOutsideClick";
+import { useEventListener } from "../hooks/useEventListener";
+import { useOverlay } from "../store/overlay";
 import {
   ACTION_COLOR_NAMES,
   actionAccentColor,
@@ -10,6 +19,8 @@ import {
 
 const RAINBOW =
   "conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444)";
+
+const PANEL_GAP_PX = 8;
 
 // Double ring: a bg-colored gap, then the color itself — reads as selection on
 // any swatch color in either theme.
@@ -37,17 +48,48 @@ interface ActionColorButtonProps {
 /**
  * A trailing color slot for the action wizard's name field: shows the chosen
  * accent as a dot and opens a swatch popover with the named palette plus a
- * custom color (native picker or typed CSS color).
+ * custom color (native picker or typed CSS color). The popover is portaled to
+ * the body so the wizard's scroll/overflow containers can't clip it.
  */
 export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
   const [open, setOpen] = useState(false);
-  const wrapRef = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelStyle = useAnchorBelowRight(toggleRef, open);
   const isCustom = !!value && !isNamedActionColor(value);
   const [customDraft, setCustomDraft] = useState(isCustom ? value : "");
+
+  // Park the in-pane webview so it can't float over the open popover.
+  useOverlay(open);
 
   useEffect(() => {
     if (open) setCustomDraft(isCustom ? value : "");
   }, [open, value, isCustom]);
+
+  useEventListener(
+    "mousedown",
+    (e) => {
+      const target = e.target as Node;
+      if (toggleRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+    },
+    document,
+    open,
+  );
+
+  // Capture-phase Escape so the popover closes before the host modal does.
+  useEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOpen(false);
+    },
+    document,
+    open,
+    true,
+  );
 
   const pick = (next: string) => {
     onChange(next);
@@ -62,8 +104,9 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
   };
 
   return (
-    <div ref={wrapRef} className="absolute right-2 top-1/2 -translate-y-1/2">
+    <div className="absolute right-2 top-1/2 -translate-y-1/2">
       <button
+        ref={toggleRef}
         type="button"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => setOpen((v) => !v)}
@@ -84,70 +127,108 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
           <Palette size={16} />
         )}
       </button>
-      {open && (
-        <div className="absolute right-0 top-full z-30 mt-2 w-max rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 shadow-2xl">
-          <div className="grid grid-cols-6 gap-1">
-            {ACTION_COLOR_NAMES.map((name) => (
-              <Swatch
-                key={name}
-                color={actionAccentColor(name)!}
-                selected={value === name}
-                onClick={() => pick(name)}
-                label={name}
-              />
-            ))}
-          </div>
-          <div className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
-            <label
-              title="Custom color"
-              className="relative grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-full transition-transform hover:scale-110"
-            >
-              <span
-                className="h-4 w-4 rounded-full"
-                style={{
-                  background: isCustom ? actionAccentColor(value) : RAINBOW,
-                  boxShadow: isCustom
-                    ? selectionRing(actionAccentColor(value)!)
-                    : undefined,
-                }}
-              />
-              <input
-                type="color"
-                value={toColorInputValue(value)}
-                onChange={(e) => onChange(e.target.value)}
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              />
-            </label>
-            <input
-              type="text"
-              value={customDraft}
-              onChange={(e) => setCustomDraft(e.target.value)}
-              onBlur={applyCustomDraft}
-              onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
-                e.preventDefault();
-                applyCustomDraft();
-              }}
-              placeholder="#8b5cf6"
-              spellCheck={false}
-              className="w-24 rounded-md border border-transparent bg-[var(--bg-primary)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
-            />
-            {value && (
-              <button
-                type="button"
-                onClick={() => pick("")}
-                aria-label="Clear color"
-                title="Clear color"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+      {open &&
+        panelStyle &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={panelStyle}
+            className="z-[70] w-max rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 shadow-2xl"
+          >
+            <div className="grid grid-cols-6 gap-1">
+              {ACTION_COLOR_NAMES.map((name) => (
+                <Swatch
+                  key={name}
+                  color={actionAccentColor(name)!}
+                  selected={value === name}
+                  onClick={() => pick(name)}
+                  label={name}
+                />
+              ))}
+            </div>
+            <div className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
+              <label
+                title="Custom color"
+                className="relative grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-full transition-transform hover:scale-110"
               >
-                <XIcon />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+                <span
+                  className="h-4 w-4 rounded-full"
+                  style={{
+                    background: isCustom ? actionAccentColor(value) : RAINBOW,
+                    boxShadow: isCustom
+                      ? selectionRing(actionAccentColor(value)!)
+                      : undefined,
+                  }}
+                />
+                <input
+                  type="color"
+                  value={toColorInputValue(value)}
+                  onChange={(e) => onChange(e.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </label>
+              <input
+                type="text"
+                value={customDraft}
+                onChange={(e) => setCustomDraft(e.target.value)}
+                onBlur={applyCustomDraft}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  e.preventDefault();
+                  applyCustomDraft();
+                }}
+                placeholder="#8b5cf6"
+                spellCheck={false}
+                className="w-24 rounded-md border border-transparent bg-[var(--bg-primary)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+              />
+              {value && (
+                <button
+                  type="button"
+                  onClick={() => pick("")}
+                  aria-label="Clear color"
+                  title="Clear color"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+                >
+                  <XIcon />
+                </button>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
+}
+
+// Pin the panel's top-right corner just below the trigger button, in fixed
+// (viewport) coordinates so no scroll/overflow ancestor can clip it.
+function useAnchorBelowRight(
+  anchorRef: RefObject<HTMLElement | null>,
+  open: boolean,
+): CSSProperties | null {
+  const [style, setStyle] = useState<CSSProperties | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setStyle(null);
+      return;
+    }
+    const update = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setStyle({
+        position: "fixed",
+        top: rect.bottom + PANEL_GAP_PX,
+        right: window.innerWidth - rect.right,
+      });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [open, anchorRef]);
+
+  return style;
 }
 
 function Swatch({
