@@ -5,6 +5,7 @@ import {
   CLAUDE_ACCOUNTS_PATH,
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Commands from "./_components/commands";
@@ -105,6 +106,12 @@ export default function ConnectAiAgentsPage() {
             title: "Multiple Claude Code accounts",
             description:
               "Pin a Claude account to each project — work and personal run in parallel, signed in once.",
+          },
+          {
+            href: WORKTREE_ALTERNATIVE_PATH,
+            title: "A Git worktree alternative for AI agents",
+            description:
+              "Compare linked worktrees with lpm’s standalone project copies for parallel Claude Code and Codex runs.",
           },
           {
             href: CONFIG_PATH,

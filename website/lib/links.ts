@@ -16,6 +16,7 @@ export const GIT_TERMINAL_MAC_PATH = "/git-terminal-for-mac";
 export const SSH_TERMINAL_MAC_PATH = "/ssh-terminal-for-mac";
 export const REVIEW_CHANGES_PATH = "/review-changes-in-terminal";
 export const CONNECT_AGENTS_PATH = "/connect-ai-agents";
+export const WORKTREE_ALTERNATIVE_PATH = "/git-worktree-alternative";
 export const TOKEN_USAGE_PATH = "/claude-code-codex-token-usage";
 export const MOBILE_PATH = "/mobile";
 export const APP_STORE_URL =

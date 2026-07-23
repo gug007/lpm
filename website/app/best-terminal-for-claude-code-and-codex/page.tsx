@@ -7,6 +7,7 @@ import {
   CONNECT_AGENTS_PATH,
   REVIEW_CHANGES_PATH,
   TOKEN_USAGE_PATH,
+  WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
@@ -88,6 +89,12 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
             title: "Connect AI agents to your projects",
             description:
               "Give Claude Code and Codex a CLI to start, stop, and restart services, read logs, and fan out into parallel copies.",
+          },
+          {
+            href: WORKTREE_ALTERNATIVE_PATH,
+            title: "A Git worktree alternative for AI agents",
+            description:
+              "See when a standalone lpm Duplicate is a better fit than a linked worktree.",
           },
           {
             href: CLAUDE_ACCOUNTS_PATH,

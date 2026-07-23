@@ -1,0 +1,1 @@
+Git worktree branching from one shared repository into three standalone lpm project copies for parallel AI agents.

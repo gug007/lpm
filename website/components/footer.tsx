@@ -15,6 +15,7 @@ import {
   TERMS_PATH,
   TOKEN_USAGE_PATH,
   VS_SLUGS,
+  WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
 import { GitHubStarButton } from "./github-star-button";
@@ -78,6 +79,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Git terminal for Mac
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={WORKTREE_ALTERNATIVE_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Git worktree alternative
           </Link>
           <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
             ·
