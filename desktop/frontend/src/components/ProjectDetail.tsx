@@ -66,9 +66,7 @@ interface ProjectDetailProps {
   onStart: (name: string, profile: string) => Promise<void>;
   onToggleService: (name: string, serviceName: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
-  onRestart: (name: string, profile: string) => Promise<void>;
   onRefresh: (newName?: string) => void;
-  onRemove: (name: string) => Promise<void>;
 }
 
 // A short, readable terminal-tab label from an ad-hoc command (first word,
@@ -85,15 +83,11 @@ export function ProjectDetail({
   onStart,
   onToggleService,
   onStop,
-  onRestart,
   onRefresh,
-  onRemove,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
-  const [confirmRemove, setConfirmRemove] = useState(false);
   const [showCreateAction, setShowCreateAction] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionInfo | null>(null);
-  const [showQuickMenu, setShowQuickMenu] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [actionMenu, setActionMenu] = useState<{ x: number; y: number; action: ActionInfo } | null>(null);
   const [actionToDelete, setActionToDelete] = useState<ActionInfo | null>(null);
@@ -143,7 +137,7 @@ export function ProjectDetail({
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
   const paneStatus = usePaneStatus(project.statusEntries);
-  const { headerActions, footerActions, menuActions, headerIds, footerIds, layout: actionsLayout } =
+  const { headerActions, footerActions, headerIds, footerIds, layout: actionsLayout } =
     useActionsByDisplay(project.actions);
 
   const { detailView, switchDetailView } = useDetailView({
@@ -161,7 +155,6 @@ export function ProjectDetail({
     projectName: project.name,
     terminalViewRef: terminalRef,
     onSwitchToTerminal: () => switchDetailView("terminal"),
-    onCloseRunning: () => setShowQuickMenu(false),
   });
   const { runningAction, handleRunAction, modals: actionModals } = projectActions;
 
@@ -273,6 +266,26 @@ export function ProjectDetail({
     switchDetailView,
     clearPendingRemoteAction,
   ]);
+
+  // Sidebar context menu asked to open this project's config/notes/AI view. The
+  // store selected+mounted us; switch the local detail view once per nonce.
+  const pendingDetailView = useAppStore((s) => s.pendingDetailView);
+  const clearPendingDetailView = useAppStore((s) => s.clearPendingDetailView);
+  const detailViewConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingDetailView ||
+      pendingDetailView.projectName !== project.name ||
+      selectedProject !== project.name ||
+      detailViewConsumed.current === pendingDetailView.nonce
+    ) {
+      return;
+    }
+    detailViewConsumed.current = pendingDetailView.nonce;
+    const view = pendingDetailView.view;
+    clearPendingDetailView();
+    switchDetailView(view);
+  }, [pendingDetailView, selectedProject, project.name, switchDetailView, clearPendingDetailView]);
 
   // Mobile relay: close / rename / pin a terminal tab, addressed by id. Same
   // nonce ref-latch as run-action so StrictMode can't double-fire.
@@ -569,31 +582,14 @@ export function ProjectDetail({
       project={project}
       loading={loading}
       activeProfile={activeProfile}
-      menuActions={menuActions}
-      runningAction={runningAction}
       runningServiceNames={runningServiceNames}
-      showQuickMenu={showQuickMenu}
       showProfileMenu={showProfileMenu}
       profileMenuRef={profileMenuRef}
-      onToggleQuickMenu={() => {
-        setShowProfileMenu(false);
-        setShowQuickMenu((v) => !v);
-      }}
-      onCloseQuickMenu={() => setShowQuickMenu(false)}
-      onToggleProfileMenu={() => {
-        setShowQuickMenu(false);
-        setShowProfileMenu((v) => !v);
-      }}
+      onToggleProfileMenu={() => setShowProfileMenu((v) => !v)}
       onStart={handleStart}
       onStop={handleStop}
       onPickProfile={handlePickProfile}
       onToggleService={handleToggleServiceClick}
-      onRunAction={handleRunAction}
-      onEditConfig={() => switchDetailView("config")}
-      onOpenNotes={() => switchDetailView("notes")}
-      onOpenAI={() => switchDetailView("ai")}
-      onRestart={() => withLoading(() => onRestart(project.name, activeProfile))}
-      onRequestRemove={() => setConfirmRemove(true)}
       onAddService={() => {
         setShowProfileMenu(false);
         serviceEditor.startCreate();
@@ -705,17 +701,7 @@ export function ProjectDetail({
           </div>
         )}
 
-        <Modals
-          projectName={project.name}
-          actionModals={actionModals}
-          confirmRemoveOpen={confirmRemove}
-          removeBusy={loading}
-          onCancelRemove={() => setConfirmRemove(false)}
-          onConfirmRemove={async () => {
-            await onRemove(project.name);
-            setConfirmRemove(false);
-          }}
-        />
+        <Modals projectName={project.name} actionModals={actionModals} />
 
         <ActionWizard
           open={showCreateAction || editingAction !== null}

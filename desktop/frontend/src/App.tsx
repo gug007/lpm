@@ -67,12 +67,12 @@ export default function App() {
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setTmuxReady = useAppStore((s) => s.setTmuxReady);
   const selectProject = useAppStore((s) => s.selectProject);
+  const openProjectDetailView = useAppStore((s) => s.openProjectDetailView);
   const clearSelection = useAppStore((s) => s.clearSelection);
   const markVisited = useAppStore((s) => s.markVisited);
   const pruneVisitedToProjects = useAppStore((s) => s.pruneVisitedToProjects);
   const startProject = useAppStore((s) => s.startProject);
   const stopProject = useAppStore((s) => s.stopProject);
-  const restartProject = useAppStore((s) => s.restartProject);
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
   const toggleService = useAppStore((s) => s.toggleService);
   const addProject = useAppStore((s) => s.addProject);
@@ -256,6 +256,7 @@ export default function App() {
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
           onSelect={handleSelect}
+          onOpenProjectView={openProjectDetailView}
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
           onStats={() => setView("stats")}
@@ -351,9 +352,7 @@ export default function App() {
                   onStart={startProject}
                   onToggleService={toggleService}
                   onStop={stopProject}
-                  onRestart={restartProject}
                   onRefresh={refreshAfterRename}
-                  onRemove={removeProject}
                 />
               </div>
             );

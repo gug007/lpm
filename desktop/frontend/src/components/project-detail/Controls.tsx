@@ -1,35 +1,23 @@
 import { type MouseEvent, type RefObject } from "react";
 import { OpenInDropdown } from "../OpenInDropdown";
-import { ChevronDownIcon, MenuIcon } from "../icons";
+import { ChevronDownIcon } from "../icons";
 import { NO_DRAG_STYLE } from "./constants";
 import { PortsButton } from "./PortsButton";
-import { QuickPopover } from "./QuickPopover";
 import { StartMenu } from "./StartMenu";
-import type { ActionInfo, ProfileInfo, ProjectInfo, ServiceInfo } from "../../types";
+import type { ProfileInfo, ProjectInfo, ServiceInfo } from "../../types";
 
 interface ControlsProps {
   project: ProjectInfo;
   loading: boolean;
   activeProfile: string;
-  menuActions: ActionInfo[];
-  runningAction: ActionInfo | null;
   runningServiceNames: Set<string> | null;
-  showQuickMenu: boolean;
   showProfileMenu: boolean;
   profileMenuRef: RefObject<HTMLDivElement | null>;
-  onToggleQuickMenu: () => void;
-  onCloseQuickMenu: () => void;
   onToggleProfileMenu: () => void;
   onStart: () => void;
   onStop: () => void;
   onPickProfile: (name: string) => void;
   onToggleService: (name: string) => void;
-  onRunAction: (action: ActionInfo) => void;
-  onEditConfig: () => void;
-  onOpenNotes: () => void;
-  onOpenAI: () => void;
-  onRestart: () => void;
-  onRequestRemove: () => void;
   onAddService: () => void;
   onAddProfile: () => void;
   onEditService: (service: ServiceInfo) => void;
@@ -42,25 +30,14 @@ export function Controls({
   project,
   loading,
   activeProfile,
-  menuActions,
-  runningAction,
   runningServiceNames,
-  showQuickMenu,
   showProfileMenu,
   profileMenuRef,
-  onToggleQuickMenu,
-  onCloseQuickMenu,
   onToggleProfileMenu,
   onStart,
   onStop,
   onPickProfile,
   onToggleService,
-  onRunAction,
-  onEditConfig,
-  onOpenNotes,
-  onOpenAI,
-  onRestart,
-  onRequestRemove,
   onAddService,
   onAddProfile,
   onEditService,
@@ -73,33 +50,6 @@ export function Controls({
       {project.isRemote && <PortsButton projectName={project.name} />}
       <div style={NO_DRAG_STYLE}>
         <OpenInDropdown projectPath={project.root} isRemote={project.isRemote} />
-      </div>
-      <div className="relative" style={NO_DRAG_STYLE}>
-        <button
-          onClick={onToggleQuickMenu}
-          aria-label="Project actions"
-          className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
-            showQuickMenu
-              ? "border-transparent bg-[var(--bg-active)] text-[var(--text-primary)]"
-              : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          <MenuIcon />
-        </button>
-        {showQuickMenu && (
-          <QuickPopover
-            actions={menuActions}
-            running={project.running}
-            actionBusy={runningAction !== null}
-            onClose={onCloseQuickMenu}
-            onRunAction={onRunAction}
-            onEditConfig={onEditConfig}
-            onOpenNotes={onOpenNotes}
-            onOpenAI={onOpenAI}
-            onRestart={onRestart}
-            onRemove={onRequestRemove}
-          />
-        )}
       </div>
       <StartStopGroup
         project={project}

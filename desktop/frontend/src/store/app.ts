@@ -230,6 +230,16 @@ interface AppState {
     confirmed?: boolean,
   ) => void;
   clearPendingRemoteAction: () => void;
+  // A "switch to config/notes/AI view" request from the sidebar context menu.
+  // Selects+mounts the project, then parks the target view for the mounted
+  // ProjectDetail's consumer effect (nonce lets an already-mounted detail re-fire).
+  pendingDetailView: {
+    projectName: string;
+    view: "config" | "notes" | "ai";
+    nonce: number;
+  } | null;
+  openProjectDetailView: (projectName: string, view: "config" | "notes" | "ai") => void;
+  clearPendingDetailView: () => void;
   // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
   // app. Addressed by terminal id, except reorder which carries the full new id
   // order. Consumed by the mounted ProjectDetail.
@@ -1104,6 +1114,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   clearPendingRemoteAction: () => set({ pendingRemoteAction: null }),
+
+  pendingDetailView: null,
+
+  openProjectDetailView: (projectName, view) =>
+    set((s) => ({
+      selected: projectName,
+      selectedTemplate: null,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      mruProjects: [projectName, ...s.mruProjects.filter((n) => n !== projectName)],
+      pendingDetailView: { projectName, view, nonce: ++remoteRequestNonce },
+    })),
+
+  clearPendingDetailView: () => set({ pendingDetailView: null }),
 
   pendingRemoteTerminalOp: null,
 

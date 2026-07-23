@@ -6,20 +6,9 @@ import type { ProjectActionsModals } from "../../hooks/useProjectActions";
 interface ModalsProps {
   projectName: string;
   actionModals: ProjectActionsModals;
-  confirmRemoveOpen: boolean;
-  removeBusy: boolean;
-  onCancelRemove: () => void;
-  onConfirmRemove: () => Promise<void> | void;
 }
 
-export function Modals({
-  projectName,
-  actionModals,
-  confirmRemoveOpen,
-  removeBusy,
-  onCancelRemove,
-  onConfirmRemove,
-}: ModalsProps) {
+export function Modals({ projectName, actionModals }: ModalsProps) {
   const { confirm, inputs, running } = actionModals;
   return (
     <>
@@ -47,23 +36,6 @@ export function Modals({
       {running.action && (
         <ActionTerminal label={running.action.label} onClose={running.onClose} />
       )}
-
-      <ConfirmDialog
-        open={confirmRemoveOpen}
-        title="Remove project"
-        body={
-          <>
-            Are you sure you want to remove{" "}
-            <span className="font-medium text-[var(--text-primary)]">{projectName}</span>
-            ? This will delete the config file and stop any running session.
-          </>
-        }
-        confirmLabel="Remove"
-        variant="destructive"
-        disabled={removeBusy}
-        onCancel={onCancelRemove}
-        onConfirm={onConfirmRemove}
-      />
     </>
   );
 }

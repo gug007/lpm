@@ -71,6 +71,7 @@ interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   onSelect: (name: string) => void;
+  onOpenProjectView: (name: string, view: "config" | "notes" | "ai") => void;
   onToggle: (name: string) => void;
   onTerminals: () => void;
   onStats: () => void;
@@ -138,7 +139,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onToggle, onTerminals, onStats, onUsage, onScheduled, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onStats, onUsage, onScheduled, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -941,6 +942,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             groups={groups}
             currentGroupId={memberOf.get(contextMenu.name) ?? null}
             onRename={() => setRenamingName(contextMenu.name)}
+            onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
+            onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
+            onOpenAI={() => onOpenProjectView(contextMenu.name, "ai")}
             onBulkDuplicate={() => setBulkDuplicateName(contextMenu.name)}
             onCopyPath={() => {
               // Copy the host-native path; the /@peer-… marker is a routing key,

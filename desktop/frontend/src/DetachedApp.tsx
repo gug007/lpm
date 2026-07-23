@@ -33,7 +33,6 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const startProject = useAppStore((s) => s.startProject);
   const stopProject = useAppStore((s) => s.stopProject);
-  const restartProject = useAppStore((s) => s.restartProject);
   const toggleService = useAppStore((s) => s.toggleService);
   const toggleProjectRunning = useAppStore((s) => s.toggleProjectRunning);
   const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
@@ -107,6 +106,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
           onSelect={handleSelect}
+          onOpenProjectView={(name) => void handleSelect(name)}
           onToggle={toggleProjectRunning}
           onTerminals={() => FocusMainWindow(undefined, "terminals")}
           onStats={() => FocusMainWindow(undefined, "stats")}
@@ -154,9 +154,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
               onStart={startProject}
               onToggleService={toggleService}
               onStop={stopProject}
-              onRestart={restartProject}
               onRefresh={refreshAfterRename}
-              onRemove={removeProject}
             />
           </div>
         </main>

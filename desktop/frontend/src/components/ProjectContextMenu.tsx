@@ -1,4 +1,4 @@
-import { CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, HardDriveIcon, PencilIcon, TrashIcon } from "./icons";
+import { CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, HardDriveIcon, MessageIcon, PencilIcon, SparkleIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -32,6 +32,9 @@ interface ProjectContextMenuProps {
   groups: ProjectGroup[];
   currentGroupId: string | null;
   onRename: () => void;
+  onEditConfig: () => void;
+  onOpenNotes: () => void;
+  onOpenAI: () => void;
   onBulkDuplicate: () => void;
   onCopyPath: () => void;
   onDetach: () => void;
@@ -65,6 +68,9 @@ export function ProjectContextMenu({
   groups,
   currentGroupId,
   onRename,
+  onEditConfig,
+  onOpenNotes,
+  onOpenAI,
   onBulkDuplicate,
   onCopyPath,
   onDetach,
@@ -136,6 +142,13 @@ export function ProjectContextMenu({
           services={services}
           onClose={onClose}
         />
+      )}
+      {!remote && (
+        <>
+          <ContextMenuItem label="Edit Config" icon={<PencilIcon />} shortcut="⌘E" onClick={close(onEditConfig)} />
+          <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut="⌘⇧N" onClick={close(onOpenNotes)} />
+          <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
+        </>
       )}
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
