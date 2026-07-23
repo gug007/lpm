@@ -2069,6 +2069,10 @@ fn handle_msg(
                 .get("pullLatest")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
+            let worktree = v
+                .get("worktree")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
             let group_name = str_field("groupName").unwrap_or_default();
             let run_mode = str_field("runMode").unwrap_or_default();
 
@@ -2081,14 +2085,24 @@ fn handle_msg(
                     .get(i)
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty());
-                match crate::projects_crud::duplicate_project(
-                    app.clone(),
-                    name.clone(),
-                    label,
-                    exclude_uncommitted,
-                    reinstall_deps,
-                    pull_latest,
-                ) {
+                let result = if worktree {
+                    crate::projects_crud::duplicate_worktree_project(
+                        app.clone(),
+                        name.clone(),
+                        label,
+                        reinstall_deps,
+                    )
+                } else {
+                    crate::projects_crud::duplicate_project(
+                        app.clone(),
+                        name.clone(),
+                        label,
+                        exclude_uncommitted,
+                        reinstall_deps,
+                        pull_latest,
+                    )
+                };
+                match result {
                     Ok(n) => {
                         created.push(n.clone());
                         send(
@@ -2159,6 +2173,7 @@ fn handle_msg(
                     "excludeUncommitted": b("duplicateExcludeUncommitted", false),
                     "reinstallDeps": b("duplicateReinstallDeps", false),
                     "pullLatest": b("duplicatePullLatest", true),
+                    "worktree": s.get("duplicateMode").and_then(Value::as_str) == Some("worktree"),
                 }),
             )?;
         }

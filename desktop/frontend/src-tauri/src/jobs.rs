@@ -831,13 +831,14 @@ enum Dispatch {
     Error,
 }
 
-fn duplicate_defaults() -> (bool, bool, bool) {
+fn duplicate_defaults() -> (bool, bool, bool, bool) {
     let s = config::load_settings();
     let b = |k: &str, d: bool| s.get(k).and_then(Value::as_bool).unwrap_or(d);
     (
         b("duplicateExcludeUncommitted", false),
         b("duplicateReinstallDeps", false),
         b("duplicatePullLatest", true),
+        s.get("duplicateMode").and_then(Value::as_str) == Some("worktree"),
     )
 }
 
@@ -1713,15 +1714,25 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
     }
 
     let (target, copy) = if job.duplicate && !project.is_empty() {
-        let (excl, reinstall, pull) = duplicate_defaults();
-        match crate::projects_crud::duplicate_project(
-            app.clone(),
-            project.to_string(),
-            None,
-            excl,
-            reinstall,
-            pull,
-        ) {
+        let (excl, reinstall, pull, worktree) = duplicate_defaults();
+        let result = if worktree {
+            crate::projects_crud::duplicate_worktree_project(
+                app.clone(),
+                project.to_string(),
+                None,
+                reinstall,
+            )
+        } else {
+            crate::projects_crud::duplicate_project(
+                app.clone(),
+                project.to_string(),
+                None,
+                excl,
+                reinstall,
+                pull,
+            )
+        };
+        match result {
             Ok(c) => (c.clone(), Some(c)),
             Err(e) => return err_outcome(format!("Couldn't duplicate the project: {e}")),
         }

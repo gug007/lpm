@@ -118,6 +118,9 @@ export function StartCloneProject(name, url, branch, destParent) {
 export function StartDuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest) {
   return invoke("start_duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest });
 }
+export function StartDuplicateWorktreeProject(name, label, reinstallDeps) {
+  return invoke("start_duplicate_worktree_project", { name, label, reinstallDeps });
+}
 export function DuplicateStatus(name) {
   return invoke("duplicate_status", { name });
 }
@@ -150,6 +153,9 @@ export function DismissPortSuggestion(project, port) {
 }
 export function DuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest) {
   return invoke("duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest });
+}
+export function DuplicateWorktreeProject(name, label, reinstallDeps) {
+  return invoke("duplicate_worktree_project", { name, label, reinstallDeps });
 }
 export function DuplicateProjects(name, count, excludeUncommitted, reinstallDeps, pullLatest) {
   return invoke("duplicate_projects", { name, count, excludeUncommitted, reinstallDeps, pullLatest });

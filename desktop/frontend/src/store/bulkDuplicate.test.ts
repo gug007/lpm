@@ -22,7 +22,9 @@ const h = vi.hoisted(() => {
       for (const cb of [...(listeners.get(name) ?? [])]) cb(payload);
     },
     DuplicateProject: vi.fn(),
+    DuplicateWorktreeProject: vi.fn(),
     StartDuplicateProject: vi.fn(),
+    StartDuplicateWorktreeProject: vi.fn(),
     DuplicateStatus: vi.fn(async () => "running" as unknown),
     PeerState: vi.fn(async () => ({ peers: [] })),
   };
@@ -34,7 +36,9 @@ vi.mock("../../bridge/commands", () =>
     get: (_t, prop) => {
       if (prop === "then") return undefined;
       if (prop === "DuplicateProject") return h.DuplicateProject;
+      if (prop === "DuplicateWorktreeProject") return h.DuplicateWorktreeProject;
       if (prop === "StartDuplicateProject") return h.StartDuplicateProject;
+      if (prop === "StartDuplicateWorktreeProject") return h.StartDuplicateWorktreeProject;
       if (prop === "DuplicateStatus") return h.DuplicateStatus;
       if (prop === "PeerState") return h.PeerState;
       return vi.fn();
@@ -58,7 +62,9 @@ describe("bulkDuplicate per-copy targets", () => {
   beforeEach(() => {
     h.listeners.clear();
     h.DuplicateProject.mockReset();
+    h.DuplicateWorktreeProject.mockReset();
     h.StartDuplicateProject.mockReset();
+    h.StartDuplicateWorktreeProject.mockReset();
     h.DuplicateStatus.mockReset();
     h.DuplicateStatus.mockResolvedValue("running");
     useAppStore.setState({
@@ -115,6 +121,44 @@ describe("bulkDuplicate per-copy targets", () => {
     expect(h.StartDuplicateProject.mock.calls.every((c) => c[0] === peerApp)).toBe(true);
     expect(h.listeners.get("duplicate-done")?.size ?? 0).toBe(0);
     expect(h.listeners.get("peer-state-changed")?.size ?? 0).toBe(0);
+  });
+
+  it("uses the worktree commands locally and on peers", async () => {
+    h.DuplicateWorktreeProject.mockResolvedValue("app-worktree-1");
+    h.StartDuplicateWorktreeProject.mockImplementation(async () => {
+      h.emit("duplicate-done", { name: `${peerApp}-w1`, ok: true, error: null });
+      return `${peerApp}-w1`;
+    });
+
+    await useAppStore.getState().bulkDuplicate("app", 2, {
+      mode: "worktree",
+      labels: ["Local", "Remote"],
+      reinstallDeps: true,
+      targetsPerCopy: ["app", peerApp],
+    });
+
+    expect(h.DuplicateWorktreeProject).toHaveBeenCalledWith("app", "Local", true);
+    expect(h.StartDuplicateWorktreeProject).toHaveBeenCalledWith(
+      peerApp,
+      "Remote",
+      true,
+    );
+    expect(h.DuplicateProject).not.toHaveBeenCalled();
+    expect(h.StartDuplicateProject).not.toHaveBeenCalled();
+  });
+
+  it("does not fall back to a standalone copy on an older peer", async () => {
+    h.StartDuplicateWorktreeProject.mockRejectedValue(
+      "Command start_duplicate_worktree_project not found",
+    );
+
+    await useAppStore.getState().bulkDuplicate(peerApp, 1, {
+      mode: "worktree",
+    });
+
+    expect(h.StartDuplicateWorktreeProject).toHaveBeenCalledTimes(1);
+    expect(h.DuplicateProject).not.toHaveBeenCalled();
+    expect(h.DuplicateWorktreeProject).not.toHaveBeenCalled();
   });
 
   it("surfaces a failed peer duplicate without creating later copies", async () => {

@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { useYamlEditor } from "../hooks/useYamlEditor";
+import { validateYaml } from "../yamlValidation";
 import { ChevronLeftIcon } from "./icons";
 import { MonacoEditor } from "./MonacoEditor";
 
@@ -23,8 +24,16 @@ export function YamlConfigEditor({
   onBack,
   docsUrl,
 }: YamlConfigEditorProps) {
-  const { content, setContent, dirty, saving, error, handleSave } =
-    useYamlEditor(load, save);
+  const {
+    content,
+    setContent,
+    dirty,
+    saving,
+    error,
+    validationError,
+    handleSave,
+  } = useYamlEditor(load, save, validateYaml);
+  const activeError = validationError ?? error;
 
   return (
     <div className="flex flex-1 flex-col pt-6">
@@ -59,15 +68,15 @@ export function YamlConfigEditor({
             onSave={handleSave}
           />
         </div>
-        {(dirty || error) && (
+        {(dirty || activeError) && (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2">
-            {error && (
-              <span className="flex-1 text-xs text-[var(--accent-red)]">{error}</span>
+            {activeError && (
+              <span className="flex-1 text-xs text-[var(--accent-red)]">{activeError}</span>
             )}
             <span className="text-[10px] text-[var(--text-muted)]">{"⌘"}S</span>
             <button
               onClick={handleSave}
-              disabled={!dirty || saving}
+              disabled={!dirty || saving || Boolean(validationError)}
               className="rounded-md bg-[var(--text-primary)] px-3 py-1 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85 disabled:opacity-40"
             >
               {saving ? "Saving..." : "Save"}

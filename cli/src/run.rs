@@ -350,6 +350,7 @@ mod tests {
             label: String::new(),
             is_remote: false,
             parent_name: String::new(),
+            worktree: false,
             services: Vec::new(),
             profiles: Default::default(),
             terminals: vec![parent],

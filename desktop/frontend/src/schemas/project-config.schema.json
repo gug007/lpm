@@ -6,6 +6,15 @@
     { "required": ["root"] },
     { "required": ["ssh"] }
   ],
+  "allOf": [
+    {
+      "if": {
+        "required": ["worktree"],
+        "properties": { "worktree": { "const": true } }
+      },
+      "then": { "required": ["parent_name"] }
+    }
+  ],
   "additionalProperties": false,
   "properties": {
     "extends": {
@@ -28,6 +37,10 @@
     "parent_name": {
       "type": "string",
       "description": "Inherit services/actions/terminals/profiles from another project."
+    },
+    "worktree": {
+      "type": "boolean",
+      "description": "Whether this duplicate is managed as a linked Git worktree."
     },
     "claudeAccount": {
       "type": "string",

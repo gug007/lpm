@@ -23,6 +23,7 @@ import { SegmentedControl } from "./ui/SegmentedControl";
 import { AIGenerateModal } from "./AIGenerateModal";
 import { type AICLI } from "../types";
 import { getSettings, saveSettings } from "../store/settings";
+import { validateYaml } from "../yamlValidation";
 
 type ConfigTarget = "user" | "repo" | "global";
 
@@ -72,9 +73,9 @@ export function ConfigEditor({
     [],
   );
 
-  const userEditor = useYamlEditor(userLoad, userSave);
-  const repoEditor = useYamlEditor(repoLoad, repoSave);
-  const globalEditor = useYamlEditor(globalLoad, globalSave);
+  const userEditor = useYamlEditor(userLoad, userSave, validateYaml);
+  const repoEditor = useYamlEditor(repoLoad, repoSave, validateYaml);
+  const globalEditor = useYamlEditor(globalLoad, globalSave, validateYaml);
   const active =
     target === "user" ? userEditor : target === "repo" ? repoEditor : globalEditor;
   const modelUri =
@@ -87,6 +88,7 @@ export function ConfigEditor({
   // Form view binds to project identity, which only exists in user config \u2014
   // force YAML for repo and global targets.
   const effectiveMode = target === "user" ? mode : "yaml";
+  const activeError = active.validationError ?? active.error;
 
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -186,7 +188,12 @@ export function ConfigEditor({
       )}
 
       {effectiveMode === "form" ? (
-        <VisualConfigEditor content={active.content} onChange={active.setContent} isRemote={isRemote} />
+        <VisualConfigEditor
+          content={active.content}
+          onChange={active.setContent}
+          onEditYaml={() => changeMode("yaml")}
+          isRemote={isRemote}
+        />
       ) : (
         <div className="relative flex-1 overflow-hidden">
           <MonacoEditor
@@ -200,17 +207,17 @@ export function ConfigEditor({
         </div>
       )}
 
-      {(active.dirty || active.error) && (
+      {(active.dirty || activeError) && (
         <div className="absolute bottom-4 right-4 z-10 flex items-end gap-2">
-          {active.error && (
+          {activeError && (
             <pre className="max-w-[420px] whitespace-pre-wrap rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/10 px-3 py-2 text-left text-[11px] leading-relaxed text-[var(--accent-red)] shadow-lg">
-              {active.error}
+              {activeError}
             </pre>
           )}
           <span className="mb-2 text-[10px] text-[var(--text-muted)]">{"\u2318"}S</span>
           <button
             onClick={active.handleSave}
-            disabled={!active.dirty || active.saving}
+            disabled={!active.dirty || active.saving || Boolean(active.validationError)}
             className="rounded-lg bg-[var(--text-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--bg-primary)] shadow-lg transition-all hover:opacity-85 disabled:opacity-40"
           >
             {active.saving ? "Saving..." : "Save"}

@@ -128,7 +128,10 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   // Duplicate commands return freshly created host project name(s); prefix them
   // so the client selects / marks / spawns against the id it can actually see.
   if (
-    (cmd === "duplicate_project" || cmd === "start_duplicate_project") &&
+    (cmd === "duplicate_project" ||
+      cmd === "start_duplicate_project" ||
+      cmd === "duplicate_worktree_project" ||
+      cmd === "start_duplicate_worktree_project") &&
     typeof result === "string"
   ) {
     return prefixName(slug, result);

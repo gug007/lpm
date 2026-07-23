@@ -15,6 +15,7 @@ interface ProjectContextMenuProps {
   duplicateDisabled: boolean;
   removeDisabled: boolean;
   isDuplicate: boolean;
+  isWorktree: boolean;
   isDetached: boolean;
   canSelect: boolean;
   // A project living on a paired Mac. Hides items that would act on the wrong
@@ -57,6 +58,7 @@ export function ProjectContextMenu({
   duplicateDisabled,
   removeDisabled,
   isDuplicate,
+  isWorktree,
   isDetached,
   canSelect,
   remote,
@@ -186,7 +188,13 @@ export function ProjectContextMenu({
       <ContextMenuSeparator />
       <ContextMenuItem
         destructive
-        label={isDuplicate ? "Delete duplicate" : "Remove from lpm"}
+        label={
+          isWorktree
+            ? "Delete worktree"
+            : isDuplicate
+              ? "Delete duplicate"
+              : "Remove from lpm"
+        }
         icon={<TrashIcon />}
         onClick={close(onRemove)}
         disabled={removeDisabled}

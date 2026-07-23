@@ -11,15 +11,16 @@
 //   start_service <project> <service>
 //   stop_service <project> <service>
 //   restart_service <project> <service>
-//   duplicate_project <project> [--count=N] [--group=NAME] [--exclude-uncommitted=BOOL]
-//                     [--reinstall-deps=BOOL] [--pull-latest=BOOL]
-//                     [--run-action=X | --run-command=X] [--prompt=TEXT]
+//   duplicate_project|duplicate_worktree <project> [--count=N] [--group=NAME]
+//                     [--exclude-uncommitted=BOOL] [--reinstall-deps=BOOL]
+//                     [--pull-latest=BOOL] [--run-action=X | --run-command=X]
+//                     [--prompt=TEXT]
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
 //   set_resume <project> <pane_id> <session_id>
 //   list_jobs <project>
 //   run_job <project> <job_id>
-// Each line gets a single-line reply, EXCEPT `duplicate_project`, which streams
+// Each line gets a single-line reply, EXCEPT the duplicate verbs, which stream
 // zero or more `PROGRESS <done> <total> <copy-name>` lines and then a final JSON
 // line (`{"ok":true,"names":[...]}` / `{"ok":false,"error":...}`) — cloning N
 // copies can take minutes. set_status/clear_status mutate the StatusStore and
@@ -123,7 +124,7 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
         if line.is_empty() {
             continue;
         }
-        // `duplicate_project` streams its own PROGRESS lines + final JSON; every
+        // Duplicate commands stream their own PROGRESS lines + final JSON; every
         // other verb maps one request line to exactly one reply line.
         let first = shell_split(&line)
             .into_iter()
@@ -132,8 +133,8 @@ fn handle_client(stream: UnixStream, store: &StatusStore, app: &AppHandle, restr
             .to_lowercase();
         let write_result = if restricted && !remote_allowed(&first) {
             writeln!(writer, "ERROR: not allowed on remote socket")
-        } else if first == "duplicate_project" {
-            cmd_duplicate_project(&line, app, &mut writer)
+        } else if first == "duplicate_project" || first == "duplicate_worktree" {
+            cmd_duplicate_project(&line, app, &mut writer, first == "duplicate_worktree")
         } else {
             writeln!(writer, "{}", process_command(&line, store, app))
         };
@@ -254,14 +255,25 @@ fn bool_opt(options: &HashMap<String, String>, key: &str, default: bool) -> bool
 /// Mirrors the `remote.rs` "duplicate" handler exactly (stop at first failure,
 /// keep copies made, optional group + run-task relay). Returns the last write's
 /// result so `handle_client` can drop a dead connection like the other verbs.
-fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std::io::Result<()> {
+fn cmd_duplicate_project(
+    line: &str,
+    app: &AppHandle,
+    w: &mut impl Write,
+    worktree: bool,
+) -> std::io::Result<()> {
     let parts = shell_split(line);
     let (positional, options) = parse_options(&parts[1..]);
     let Some(name) = positional.first().cloned() else {
+        let command = if worktree {
+            "duplicate_worktree"
+        } else {
+            "duplicate_project"
+        };
+        let error = format!("usage: {command} <project> [--count=N] ...");
         return writeln!(
             w,
             "{}",
-            serde_json::json!({ "ok": false, "error": "usage: duplicate_project <project> [--count=N] ..." })
+            serde_json::json!({ "ok": false, "error": error })
         );
     };
     let count = options
@@ -311,14 +323,24 @@ fn cmd_duplicate_project(line: &str, app: &AppHandle, w: &mut impl Write) -> std
             .get(i)
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
-        match crate::projects_crud::duplicate_project(
-            app.clone(),
-            name.clone(),
-            label,
-            exclude_uncommitted,
-            reinstall_deps,
-            pull_latest,
-        ) {
+        let result = if worktree {
+            crate::projects_crud::duplicate_worktree_project(
+                app.clone(),
+                name.clone(),
+                label,
+                reinstall_deps,
+            )
+        } else {
+            crate::projects_crud::duplicate_project(
+                app.clone(),
+                name.clone(),
+                label,
+                exclude_uncommitted,
+                reinstall_deps,
+                pull_latest,
+            )
+        };
+        match result {
             Ok(n) => {
                 created.push(n.clone());
                 writeln!(w, "PROGRESS {} {} {}", created.len(), count, n)?;
@@ -835,6 +857,7 @@ mod tests {
             "remove_project",
             "run_task",
             "duplicate_project",
+            "duplicate_worktree",
             "list_jobs",
             "list_all_jobs",
             "run_job",

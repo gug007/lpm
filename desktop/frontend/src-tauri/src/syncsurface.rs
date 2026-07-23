@@ -67,7 +67,8 @@ pub(crate) const PER_MACHINE_KEYS: [&str; 8] = [
 
 /// Project YAML keys stripped before the portable digest and preserved locally on
 /// apply — the machine-specific parts a synced project must not carry between Macs.
-pub(crate) const PROJECT_LOCAL_KEYS: [&str; 4] = ["root", "ssh", "claudeAccount", "parent_name"];
+pub(crate) const PROJECT_LOCAL_KEYS: [&str; 5] =
+    ["root", "ssh", "claudeAccount", "parent_name", "worktree"];
 
 /// Whole-file global config units mirrored by peer sync (settings.json among them,
 /// via its special digest/merge). Old peersync GLOBAL_FILES + branch-name.
@@ -179,7 +180,7 @@ mod tests {
     fn project_local_keys_unchanged() {
         assert_eq!(
             PROJECT_LOCAL_KEYS,
-            ["root", "ssh", "claudeAccount", "parent_name"]
+            ["root", "ssh", "claudeAccount", "parent_name", "worktree"]
         );
     }
 

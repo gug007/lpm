@@ -248,6 +248,7 @@ pub fn start_clone_project(
 struct SrcInfo {
     root: String,
     parent: Option<String>,
+    worktree: bool,
 }
 
 fn load_root_and_parent(name: &str) -> Result<SrcInfo, String> {
@@ -258,6 +259,7 @@ fn load_root_and_parent(name: &str) -> Result<SrcInfo, String> {
     Ok(SrcInfo {
         root,
         parent: config::peek_parent(name),
+        worktree: config::peek_worktree(name),
     })
 }
 
@@ -367,6 +369,159 @@ fn git_in(dir: &Path, args: &[&str]) -> Result<(), String> {
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
+    Ok(())
+}
+
+fn git_output_message(output: &std::process::Output) -> String {
+    let mut combined = output.stdout.clone();
+    combined.extend_from_slice(&output.stderr);
+    clean_git_output(&String::from_utf8_lossy(&combined))
+}
+
+fn ensure_worktree_source(root: &Path) -> Result<(), String> {
+    let inside = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|e| format!("could not run git: {e}"))?;
+    if !inside.status.success()
+        || String::from_utf8_lossy(&inside.stdout).trim() != "true"
+    {
+        return Err("Git worktrees require a local Git repository.".into());
+    }
+    let top_level = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .map_err(|e| format!("could not inspect Git repository: {e}"))?;
+    let top_level_path = PathBuf::from(String::from_utf8_lossy(&top_level.stdout).trim());
+    let is_top_level = std::fs::canonicalize(root)
+        .ok()
+        .zip(std::fs::canonicalize(top_level_path).ok())
+        .is_some_and(|(root, top_level)| root == top_level);
+    if !top_level.status.success() || !is_top_level {
+        return Err("Git worktrees require the project root to be the repository root.".into());
+    }
+    let head = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--verify", "HEAD"])
+        .output()
+        .map_err(|e| format!("could not run git: {e}"))?;
+    if !head.status.success() {
+        return Err("Git worktrees require a repository with at least one commit.".into());
+    }
+    Ok(())
+}
+
+fn worktree_branch_name(name: &str) -> String {
+    let mut component = String::with_capacity(name.len());
+    for ch in name.chars() {
+        let normalized = if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+            ch
+        } else {
+            '-'
+        };
+        if normalized != '-' || !component.ends_with('-') {
+            component.push(normalized);
+        }
+    }
+    let component = component.trim_matches('-');
+    format!(
+        "lpm/{}",
+        if component.is_empty() {
+            "worktree"
+        } else {
+            component
+        }
+    )
+}
+
+fn create_linked_worktree(
+    source_root: &Path,
+    worktree_root: &Path,
+    branch: &str,
+) -> Result<(), String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(source_root)
+        .args(["worktree", "add", "-b"])
+        .arg(branch)
+        .arg(worktree_root)
+        .arg("HEAD")
+        .output()
+        .map_err(|e| format!("could not create Git worktree: {e}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let message = git_output_message(&output);
+    Err(if message.is_empty() {
+        "could not create Git worktree".into()
+    } else {
+        format!("could not create Git worktree: {message}")
+    })
+}
+
+fn remove_linked_worktree(
+    repository_root: &Path,
+    worktree_root: &Path,
+    branch: &str,
+) -> Result<(), String> {
+    let common_output = Command::new("git")
+        .arg("-C")
+        .arg(repository_root)
+        .args(["rev-parse", "--git-common-dir"])
+        .output()
+        .map_err(|e| format!("could not inspect Git worktree: {e}"))?;
+    if !common_output.status.success() {
+        let message = git_output_message(&common_output);
+        return Err(if message.is_empty() {
+            "could not inspect Git worktree".into()
+        } else {
+            format!("could not inspect Git worktree: {message}")
+        });
+    }
+    let common_value = String::from_utf8_lossy(&common_output.stdout)
+        .trim()
+        .to_string();
+    let common_dir = {
+        let path = PathBuf::from(common_value);
+        if path.is_absolute() {
+            path
+        } else {
+            repository_root.join(path)
+        }
+    };
+    let output = if worktree_root.exists() {
+        Command::new("git")
+            .arg("-C")
+            .arg(repository_root)
+            .args(["worktree", "remove", "--force"])
+            .arg(worktree_root)
+            .output()
+    } else {
+        Command::new("git")
+            .arg("-C")
+            .arg(repository_root)
+            .args(["worktree", "prune"])
+            .output()
+    }
+    .map_err(|e| format!("could not remove Git worktree: {e}"))?;
+    if !output.status.success() {
+        let message = git_output_message(&output);
+        return Err(if message.is_empty() {
+            "could not remove Git worktree".into()
+        } else {
+            format!("could not remove Git worktree: {message}")
+        });
+    }
+    let _ = Command::new("git")
+        .arg("--git-dir")
+        .arg(common_dir)
+        .args(["branch", "-D", branch])
+        .output();
     Ok(())
 }
 
@@ -520,8 +675,16 @@ fn run_duplicate(
 ) -> Result<(), String> {
     let label = label.map(str::trim).filter(|l| !l.is_empty());
     let new_root = &plan.new_root;
+    let source_root = Path::new(&plan.src_root);
 
-    if let Err(e) = cp_clone(Path::new(&plan.src_root), new_root, reinstall_deps) {
+    if source_root.join(".git").is_file() {
+        return Err(
+            "This project is a linked Git checkout. Choose Git worktree mode to duplicate it."
+                .into(),
+        );
+    }
+
+    if let Err(e) = cp_clone(source_root, new_root, reinstall_deps) {
         let _ = std::fs::remove_dir_all(new_root);
         return Err(e);
     }
@@ -565,6 +728,54 @@ fn run_duplicate(
     Ok(())
 }
 
+fn prepare_worktree_duplicate(name: &str) -> Result<DuplicatePlan, String> {
+    let plan = prepare_duplicate(name)?;
+    ensure_worktree_source(Path::new(&plan.src_root))?;
+    Ok(plan)
+}
+
+fn run_worktree_duplicate(
+    app: &AppHandle,
+    plan: &DuplicatePlan,
+    label: Option<&str>,
+    reinstall_deps: bool,
+) -> Result<(), String> {
+    let label = label.map(str::trim).filter(|l| !l.is_empty());
+    let source_root = Path::new(&plan.src_root);
+    let branch = worktree_branch_name(&plan.new_name);
+    create_linked_worktree(source_root, &plan.new_root, &branch)?;
+
+    let write = write_project_yaml(&plan.new_name, |m| {
+        yset(m, "name", plan.new_name.as_str());
+        yset(
+            m,
+            "root",
+            config::collapse_home(&plan.new_root.to_string_lossy()).as_str(),
+        );
+        yset(m, "parent_name", plan.original.as_str());
+        yset(m, "worktree", true);
+        if let Some(l) = label {
+            yset(m, "label", l);
+        }
+    });
+    if let Err(error) = write {
+        if let Err(cleanup_error) =
+            remove_linked_worktree(source_root, &plan.new_root, &branch)
+        {
+            return Err(format!("{error}; cleanup failed: {cleanup_error}"));
+        }
+        return Err(error);
+    }
+    let _ = app.emit("projects-changed", ());
+
+    if reinstall_deps {
+        if let Some(pm) = detect_package_manager(&plan.new_root) {
+            run_install(&plan.new_root, pm)?;
+        }
+    }
+    Ok(())
+}
+
 fn duplicate_one(
     app: &AppHandle,
     name: &str,
@@ -585,6 +796,17 @@ fn duplicate_one(
     Ok(plan.new_name)
 }
 
+fn duplicate_worktree_one(
+    app: &AppHandle,
+    name: &str,
+    label: Option<&str>,
+    reinstall_deps: bool,
+) -> Result<String, String> {
+    let plan = prepare_worktree_duplicate(name)?;
+    run_worktree_duplicate(app, &plan, label, reinstall_deps)?;
+    Ok(plan.new_name)
+}
+
 #[tauri::command(async)]
 pub fn duplicate_project(
     app: AppHandle,
@@ -602,6 +824,16 @@ pub fn duplicate_project(
         reinstall_deps,
         pull_latest,
     )
+}
+
+#[tauri::command(async)]
+pub fn duplicate_worktree_project(
+    app: AppHandle,
+    name: String,
+    label: Option<String>,
+    reinstall_deps: bool,
+) -> Result<String, String> {
+    duplicate_worktree_one(&app, &name, label.as_deref(), reinstall_deps)
 }
 
 /// Outcome of a `start_duplicate_project` copy, delivered via the
@@ -693,6 +925,33 @@ pub fn start_duplicate_project(
             reinstall_deps,
             pull_latest,
         );
+        let ok = result.is_ok();
+        let error = result.err();
+        dup_status_finish(&plan.new_name, ok, error.clone());
+        let _ = app.emit(
+            "duplicate-done",
+            DuplicateDone {
+                name: plan.new_name,
+                ok,
+                error,
+            },
+        );
+    });
+    Ok(new_name)
+}
+
+#[tauri::command(async)]
+pub fn start_duplicate_worktree_project(
+    app: AppHandle,
+    name: String,
+    label: Option<String>,
+    reinstall_deps: bool,
+) -> Result<String, String> {
+    let plan = prepare_worktree_duplicate(&name)?;
+    let new_name = plan.new_name.clone();
+    dup_status_start(&new_name);
+    std::thread::spawn(move || {
+        let result = run_worktree_duplicate(&app, &plan, label.as_deref(), reinstall_deps);
         let ok = result.is_ok();
         let error = result.err();
         dup_status_finish(&plan.new_name, ok, error.clone());
@@ -845,6 +1104,15 @@ pub fn move_project_root(
     if is_remote || old_expanded.trim().is_empty() {
         return Err("This project has no local folder to move.".into());
     }
+    if config::peek_worktree(&name) {
+        return Err("Git worktree folders cannot be moved from lpm.".into());
+    }
+    if config::duplicates_of(&name)?
+        .into_iter()
+        .any(|duplicate| config::peek_worktree(&duplicate))
+    {
+        return Err("Remove this project's Git worktrees before moving its folder.".into());
+    }
     let old_path = Path::new(&old_expanded);
 
     let meta = std::fs::symlink_metadata(old_path)
@@ -918,6 +1186,18 @@ fn move_to_trash(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn worktree_repository_root(info: &SrcInfo) -> Option<PathBuf> {
+    let parent_root = info.parent.as_deref().and_then(|parent| {
+        let (root, is_remote) = config::project_root(parent).ok()?;
+        (!is_remote && !root.trim().is_empty() && Path::new(&root).exists())
+            .then(|| PathBuf::from(root))
+    });
+    parent_root.or_else(|| {
+        (!info.root.trim().is_empty() && Path::new(&info.root).exists())
+            .then(|| PathBuf::from(&info.root))
+    })
+}
+
 /// Tear down a single project: stop its session/forwards/sync, delete its
 /// folder if it's a duplicate (originals keep their source folder), and drop
 /// its config + settings references. Does not emit; callers emit once.
@@ -925,6 +1205,16 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
     let info = load_root_and_parent(name).ok();
     let is_duplicate = info.as_ref().and_then(|i| i.parent.as_ref()).is_some();
     let root = info.as_ref().map(|i| i.root.clone()).unwrap_or_default();
+    if info.as_ref().is_some_and(|i| i.worktree) && !is_duplicate {
+        return Err("Git worktree project is missing its parent project.".into());
+    }
+    let worktree_root = info
+        .as_ref()
+        .filter(|i| i.worktree)
+        .and_then(|i| worktree_repository_root(i));
+    if info.as_ref().is_some_and(|i| i.worktree) && worktree_root.is_none() {
+        return Err("Could not find the Git repository for this worktree.".into());
+    }
 
     // Stop the running session before deleting files (session name == file name
     // for created projects), then tear down port forwards/poller + sync mirror.
@@ -933,7 +1223,13 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
     crate::sshsync::remove_project_sync(app, name); // watcher + local cache dir
 
     if is_duplicate {
-        if !root.trim().is_empty() {
+        if info.as_ref().is_some_and(|i| i.worktree) {
+            remove_linked_worktree(
+                worktree_root.as_ref().unwrap(),
+                Path::new(&root),
+                &worktree_branch_name(name),
+            )?;
+        } else if !root.trim().is_empty() {
             config::remove_dir_all_retry(Path::new(&root))?;
         }
         // Numbered duplicate names get reused; purge per-name state so the
@@ -971,6 +1267,20 @@ pub fn remove_project(app: AppHandle, name: String) -> Result<(), String> {
 /// the call aborts before the lpm entry (or any duplicate) is touched.
 #[tauri::command(async)]
 pub fn trash_project(app: AppHandle, name: String) -> Result<(), String> {
+    if config::peek_worktree(&name) {
+        return Err("Remove Git worktrees from lpm instead of moving them to Trash.".into());
+    }
+    let worktrees: Vec<String> = config::duplicates_of(&name)?
+        .into_iter()
+        .filter(|duplicate| config::peek_worktree(duplicate))
+        .collect();
+    if !worktrees.is_empty() {
+        return Err(format!(
+            "Remove the Git worktree{} before moving this project to Trash: {}",
+            if worktrees.len() == 1 { "" } else { "s" },
+            worktrees.join(", ")
+        ));
+    }
     let (root, is_remote) = config::project_root(&name)?;
     if is_remote {
         return Err(format!(
@@ -1288,5 +1598,57 @@ mod tests {
         assert!(!d.join("website/node_modules").exists());
         assert!(!d.join("website/.next").exists());
         assert!(!d.join(".next").exists());
+    }
+
+    #[test]
+    fn worktree_branch_name_is_a_valid_namespaced_ref() {
+        assert_eq!(
+            worktree_branch_name("Project name/@{draft}.lock"),
+            "lpm/Project-name-draft-lock"
+        );
+        assert_eq!(worktree_branch_name("---"), "lpm/worktree");
+    }
+
+    #[test]
+    fn linked_worktree_create_and_remove_manages_branch() {
+        let temp = tempfile::tempdir().unwrap();
+        let repository = temp.path().join("repository");
+        let worktree = temp.path().join("worktree");
+        std::fs::create_dir_all(&repository).unwrap();
+        git_in(&repository, &["init", "--quiet"]).unwrap();
+        git_in(&repository, &["config", "user.email", "test@example.com"]).unwrap();
+        git_in(&repository, &["config", "user.name", "Test"]).unwrap();
+        write_file(&repository.join("README.md"), "test");
+        git_in(&repository, &["add", "README.md"]).unwrap();
+        git_in(&repository, &["commit", "--quiet", "-m", "initial"]).unwrap();
+
+        let branch = worktree_branch_name("repository-test123");
+        ensure_worktree_source(&repository).unwrap();
+        let nested = repository.join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        assert!(ensure_worktree_source(&nested)
+            .unwrap_err()
+            .contains("repository root"));
+        create_linked_worktree(&repository, &worktree, &branch).unwrap();
+
+        assert!(worktree.join(".git").is_file());
+        let current = Command::new("git")
+            .arg("-C")
+            .arg(&worktree)
+            .args(["branch", "--show-current"])
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&current.stdout).trim(), branch);
+
+        remove_linked_worktree(&repository, &worktree, &branch).unwrap();
+        assert!(!worktree.exists());
+        let branch_exists = Command::new("git")
+            .arg("-C")
+            .arg(&repository)
+            .args(["show-ref", "--verify", "--quiet"])
+            .arg(format!("refs/heads/{branch}"))
+            .status()
+            .unwrap();
+        assert!(!branch_exists.success());
     }
 }

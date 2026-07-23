@@ -8,6 +8,14 @@ use crate::error::{resolve_or_infer, RunError};
 use crate::statussock::{self, quote_arg};
 use serde_json::{json, Value};
 
+fn duplicate_command(worktree: bool) -> &'static str {
+    if worktree {
+        "duplicate_worktree"
+    } else {
+        "duplicate_project"
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     ctx: &Ctx,
@@ -15,6 +23,7 @@ pub fn run(
     count: u32,
     labels: &[String],
     group: Option<&str>,
+    worktree: bool,
     run_action: Option<&str>,
     run_command: Option<&str>,
     prompt: Option<&str>,
@@ -49,10 +58,8 @@ pub fn run(
         None => None,
     };
 
-    let mut line = format!(
-        "duplicate_project {} --count={count}",
-        quote_arg(&file_name)
-    );
+    let command = duplicate_command(worktree);
+    let mut line = format!("{command} {} --count={count}", quote_arg(&file_name));
     if let Some(flag) = labels_flag(labels)
         .map_err(|e| RunError::Internal(format!("could not encode labels: {e}")))?
     {
@@ -93,6 +100,15 @@ pub fn run(
     })
     .map_err(RunError::Internal)?;
 
+    if let Some(message) = final_line.strip_prefix("ERROR:") {
+        let message = message.trim();
+        return Err(RunError::Internal(if message == "unknown command" {
+            "the running lpm app doesn't support this command — restart the app with a newer build"
+                .into()
+        } else {
+            message.to_string()
+        }));
+    }
     let parsed: Value = serde_json::from_str(&final_line)
         .map_err(|e| RunError::Internal(format!("unexpected reply from app: {e}: {final_line}")))?;
     let ok = parsed.get("ok").and_then(Value::as_bool).unwrap_or(false);
@@ -128,6 +144,7 @@ pub fn run(
                 .map(|(name, path)| json!({ "name": name, "path": path }))
                 .collect::<Vec<_>>(),
             "group": group,
+            "mode": if worktree { "worktree" } else { "copy" },
             "task": task_echo(resolved_action.as_deref(), run_command, prompt),
             "warning": warning,
         }));
@@ -205,6 +222,12 @@ fn build_copies(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worktree_mode_uses_the_worktree_socket_verb() {
+        assert_eq!(duplicate_command(false), "duplicate_project");
+        assert_eq!(duplicate_command(true), "duplicate_worktree");
+    }
 
     #[test]
     fn exclude_uncommitted_flag_is_tri_state() {

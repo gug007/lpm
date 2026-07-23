@@ -92,6 +92,12 @@ describe("translateResult", () => {
     expect(translateResult("start_duplicate_project", A, "app-copy-1")).toBe(
       prefixName(A, "app-copy-1"),
     );
+    expect(translateResult("duplicate_worktree_project", A, "app-copy-1")).toBe(
+      prefixName(A, "app-copy-1"),
+    );
+    expect(translateResult("start_duplicate_worktree_project", A, "app-copy-1")).toBe(
+      prefixName(A, "app-copy-1"),
+    );
     expect(translateResult("duplicate_projects", A, ["app-1", "app-2"])).toEqual([
       prefixName(A, "app-1"),
       prefixName(A, "app-2"),

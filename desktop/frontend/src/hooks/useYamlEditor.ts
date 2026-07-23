@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useKeyboardShortcut } from "./useKeyboardShortcut";
 
 export function useYamlEditor(
   load: () => Promise<string>,
   save: (content: string) => Promise<void>,
+  validate?: (content: string) => string | null,
 ) {
   const [content, setContent] = useState("");
   const [original, setOriginal] = useState("");
@@ -11,6 +12,10 @@ export function useYamlEditor(
   const [error, setError] = useState<string | null>(null);
 
   const dirty = content !== original;
+  const validationError = useMemo(
+    () => validate?.(content) ?? null,
+    [content, validate],
+  );
 
   useEffect(() => {
     load()
@@ -19,6 +24,10 @@ export function useYamlEditor(
   }, [load]);
 
   const handleSave = useCallback(async () => {
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -29,7 +38,7 @@ export function useYamlEditor(
     } finally {
       setSaving(false);
     }
-  }, [content, save]);
+  }, [content, save, validationError]);
 
   useKeyboardShortcut({ key: "s", meta: true, whileTyping: false }, () => {
     if (dirty) handleSave();
@@ -49,5 +58,14 @@ export function useYamlEditor(
     }
   };
 
-  return { content, setContent, dirty, saving, error, handleSave, handleTab };
+  return {
+    content,
+    setContent,
+    dirty,
+    saving,
+    error,
+    validationError,
+    handleSave,
+    handleTab,
+  };
 }

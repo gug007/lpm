@@ -977,11 +977,11 @@ mod tests {
     #[test]
     fn project_digest_ignores_machine_local_keys() {
         let a = "name: web\nroot: /Users/alice/web\nservices:\n  api:\n    cmd: go run .\n";
-        let b = "name: web\nroot: /Users/bob/projects/web\nssh:\n  host: h\n  user: u\nclaudeAccount: work\nparent_name: base\nservices:\n  api:\n    cmd: go run .\n";
+        let b = "name: web\nroot: /Users/bob/projects/web\nssh:\n  host: h\n  user: u\nclaudeAccount: work\nparent_name: base\nworktree: true\nservices:\n  api:\n    cmd: go run .\n";
         assert_eq!(
             digest(a),
             digest(b),
-            "only root/ssh/claudeAccount/parent_name differ"
+            "only root/ssh/claudeAccount/parent_name/worktree differ"
         );
     }
 

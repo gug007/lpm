@@ -94,6 +94,12 @@ pub fn peek_parent(name: &str) -> Option<String> {
     }
 }
 
+pub fn peek_worktree(name: &str) -> bool {
+    parse_project_yaml(name)
+        .map(|y| y.worktree)
+        .unwrap_or(false)
+}
+
 /// Project file names whose `parent_name` == `name` (i.e. duplicates of it).
 pub fn duplicates_of(name: &str) -> Result<Vec<String>, String> {
     Ok(project_names()
@@ -772,6 +778,8 @@ struct ProjectYaml {
     label: String,
     #[serde(default)]
     parent_name: String,
+    #[serde(default)]
+    worktree: bool,
     ssh: Option<SshSettings>,
     #[serde(rename = "claudeAccount", default)]
     claude_account: Option<String>,
@@ -1861,6 +1869,7 @@ fn to_project_info(
         "activeProfile": active_profile,
         "statusEntries": [],
         "parentName": yaml.parent_name,
+        "worktree": yaml.worktree,
         "isRemote": is_remote,
     })
 }
@@ -1904,6 +1913,7 @@ fn config_error_info(file_name: &str, err: &str) -> Value {
         "activeProfile": "",
         "statusEntries": [],
         "configError": err,
+        "worktree": false,
         "isRemote": false,
     })
 }

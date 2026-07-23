@@ -202,7 +202,7 @@ enum Commands {
         #[arg(long, short = 'p')]
         project: Option<String>,
     },
-    /// Duplicate a project into N throwaway copies (via the running app).
+    /// Duplicate a project into standalone copies or linked Git worktrees.
     Duplicate {
         /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
         name: Option<String>,
@@ -217,6 +217,12 @@ enum Commands {
         /// Group the copies under this sidebar folder.
         #[arg(long)]
         group: Option<String>,
+        /// Create linked Git worktrees instead of standalone APFS copies.
+        #[arg(
+            long,
+            conflicts_with_all = ["exclude_uncommitted", "include_uncommitted", "no_pull"]
+        )]
+        worktree: bool,
         /// Action to queue on each copy (conflicts with --command).
         #[arg(long = "run", conflicts_with = "command")]
         run: Option<String>,
@@ -358,6 +364,7 @@ fn main() -> ExitCode {
             count,
             label,
             group,
+            worktree,
             run,
             command,
             prompt,
@@ -372,6 +379,7 @@ fn main() -> ExitCode {
             count,
             &label,
             group.as_deref(),
+            worktree,
             run.as_deref(),
             command.as_deref(),
             prompt.as_deref(),

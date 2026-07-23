@@ -287,6 +287,8 @@ struct ProjectYaml {
     label: String,
     #[serde(default)]
     parent_name: String,
+    #[serde(default)]
+    worktree: bool,
     ssh: Option<SshSettings>,
     #[serde(default)]
     services: BTreeMap<String, ServiceDef>,
@@ -699,6 +701,7 @@ pub struct ResolvedProject {
     pub label: String,
     pub is_remote: bool,
     pub parent_name: String,
+    pub worktree: bool,
     pub services: Vec<ResolvedService>,
     pub profiles: BTreeMap<String, Vec<String>>,
     /// Merged entries from `terminals:` blocks (launchable terminals).
@@ -854,6 +857,7 @@ pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, St
         label: y.label,
         is_remote,
         parent_name: y.parent_name,
+        worktree: y.worktree,
         services,
         profiles,
         terminals,

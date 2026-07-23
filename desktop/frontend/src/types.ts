@@ -100,6 +100,8 @@ export type SpawnTask =
 // ad-hoc command — the authoring side of SpawnTask in the "Bulk Duplicate" flow.
 export type RunMode = "none" | "action" | "command";
 
+export type DuplicateMode = "copy" | "worktree";
+
 // A copy's per-run override of the shared default. `null` at the call site means
 // the copy inherits the default; an override carries its own prompt — the same
 // composer value as the shared default, including any attached images.
@@ -128,6 +130,7 @@ export interface ProjectInfo {
   statusEntries: StatusEntry[];
   configError?: string;
   parentName?: string;
+  worktree?: boolean;
   isRemote: boolean;
 }
 

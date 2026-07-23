@@ -183,6 +183,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "root",
             "label",
             "parent_name",
+            "worktree",
             "ssh",
             "claudeAccount",
             "services",
@@ -199,6 +200,11 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
     validate_string_field(root, "root", "config.root", &mut report);
     validate_string_field(root, "label", "config.label", &mut report);
     validate_string_field(root, "parent_name", "config.parent_name", &mut report);
+    if let Some(value) = root.get(Value::String("worktree".into())) {
+        if value.as_bool().is_none() {
+            report.error("config.worktree", "expected a boolean");
+        }
+    }
     validate_extends(root, &mut report);
 
     let local_root = local_root(path, kind, root);
@@ -287,6 +293,16 @@ fn validate_project_identity(ctx: &Ctx, root: &Mapping, report: &mut Report) {
                 report.error("config", format!("duplicate projects cannot define {key}"));
             }
         }
+    }
+    if root
+        .get(Value::String("worktree".into()))
+        .and_then(Value::as_bool)
+        == Some(true)
+        && string_at(root, "parent_name")
+            .unwrap_or_default()
+            .is_empty()
+    {
+        report.error("config.worktree", "worktree projects must set parent_name");
     }
 }
 
@@ -1122,5 +1138,23 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("dependency cycle")));
+    }
+
+    #[test]
+    fn validator_requires_a_parent_for_worktree_projects() {
+        let (_dir, ctx) = context();
+        std::fs::write(ctx.project_path("base"), "root: /tmp/base\n").unwrap();
+        let path = ctx.project_path("copy");
+        let valid: Value =
+            serde_yaml::from_str("root: /tmp/copy\nparent_name: base\nworktree: true\n").unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &valid);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+
+        let invalid: Value = serde_yaml::from_str("root: /tmp/copy\nworktree: true\n").unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &invalid);
+        assert!(report
+            .errors
+            .iter()
+            .any(|error| error.contains("must set parent_name")));
     }
 }

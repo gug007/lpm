@@ -19,6 +19,7 @@ struct Row {
     root: String,
     is_remote: bool,
     parent_name: String,
+    worktree: bool,
     running: bool,
     services_running: usize,
     services_total: usize,
@@ -59,6 +60,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
                     root: p.root,
                     is_remote: p.is_remote,
                     parent_name: p.parent_name,
+                    worktree: p.worktree,
                     running,
                     services_running,
                     services_total,
@@ -72,6 +74,7 @@ pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
                 root: String::new(),
                 is_remote: false,
                 parent_name: String::new(),
+                worktree: false,
                 running: false,
                 services_running: 0,
                 services_total: 0,
@@ -106,6 +109,7 @@ fn render_json(rows: &[Row]) -> Value {
                 "root": r.root,
                 "isRemote": r.is_remote,
                 "parentName": r.parent_name,
+                "worktree": r.worktree,
                 "running": r.running,
                 "servicesRunning": r.services_running,
                 "servicesTotal": r.services_total,
@@ -157,6 +161,9 @@ fn render_human(s: &Style, rows: &[Row]) -> String {
         }
         if r.is_remote {
             parts.push(s.dim("remote"));
+        }
+        if r.worktree {
+            parts.push(s.dim("worktree"));
         }
         if !r.root.is_empty() {
             parts.push(s.dim(&shorten_home(&r.root)));

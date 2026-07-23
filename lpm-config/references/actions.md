@@ -3,6 +3,7 @@
 Read this reference for actions, buttons, terminals, input prompts, ports, shortcuts, and nested menus. An action entry is either a command string or the mapping described below.
 
 - [Shapes](#shapes)
+- [Command quoting](#command-quoting)
 - [Fields](#fields)
 - [Action types](#action-types)
 - [Inputs](#inputs)
@@ -60,6 +61,19 @@ actions:
 - `primary: <childName>` pins one child by its key, for example `primary: Prod`.
 - If the named or remembered child is missing, the main segment falls back to the first runnable child.
 - `primary` takes precedence over the parent's own `cmd`, which is then reachable only through nothing else — leave it off when using `primary`.
+
+## Command quoting
+
+Use a block scalar when a command contains YAML-sensitive text such as `: `, ` #`, shell quotes, or input placeholders:
+
+```yaml
+actions:
+  review:
+    cmd: >-
+      claude "PR links to review: {{prs}}. Follow the review instructions."
+```
+
+Shell quotes inside an otherwise plain YAML value do not quote the value for YAML. Validate the finished file before continuing.
 
 ## Fields
 

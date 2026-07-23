@@ -371,6 +371,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const renamingParent = renamingProject?.parentName
     ? allByName.get(renamingProject.parentName)
     : undefined;
+  const renamingHasWorktrees = projects.some(
+    (project) => project.parentName === renamingProject?.name && project.worktree,
+  );
   const renamingGroup = renamingGroupId ? groups.find((g) => g.id === renamingGroupId) : undefined;
   const deletingGroup = deletingGroupId ? groups.find((g) => g.id === deletingGroupId) : undefined;
 
@@ -413,7 +416,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const removeDialog =
     removeMode === "duplicate"
       ? {
-          title: "Delete duplicate",
+          title: pendingRemove?.worktree ? "Delete worktree" : "Delete duplicate",
           confirmLabel: "Delete",
           confirmText: undefined as string | undefined,
           onConfirm: onRemoveProject,
@@ -423,8 +426,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               <span className="font-medium text-[var(--text-primary)]">
                 {pendingRemoveLabel}
               </span>
-              ? Its folder and everything inside is permanently deleted from
-              disk. This can't be undone.
+              ? Its {pendingRemove?.worktree ? "worktree" : "folder"} and
+              everything inside is permanently deleted from disk. This can't be
+              undone.
             </>
           ),
         }
@@ -624,7 +628,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <span
             className="truncate"
             style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-            title={project.configError || (project.parentName ? `Duplicate of ${project.parentName}` : undefined)}
+            title={
+              project.configError ||
+              (project.parentName
+                ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
+                : undefined)
+            }
           >
             {status.className ? <span className={status.className}>{name}</span> : name}
           </span>
@@ -931,6 +940,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               duplicatingNames.includes(contextMenu.name)
             }
             isDuplicate={Boolean(contextProject?.parentName)}
+            isWorktree={Boolean(contextProject?.worktree)}
             isDetached={detached.has(contextMenu.name)}
             canSelect={projects.length > 1}
             remote={isPeerName(contextMenu.name)}
@@ -965,6 +975,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               contextProject &&
               !contextProject.parentName &&
               !contextProject.isRemote &&
+              !projects.some(
+                (project) =>
+                  project.parentName === contextProject.name && project.worktree,
+              ) &&
               contextProject.root
                 ? () => setConfirmTrash(contextMenu.name)
                 : undefined
@@ -1110,7 +1124,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         }
         currentRoot={renamingProject?.root ?? ""}
         canRenameFolder={
-          Boolean(renamingProject) && !renamingProject?.isRemote && !isPeerName(renamingName ?? "")
+          Boolean(renamingProject) &&
+          !renamingProject?.isRemote &&
+          !renamingProject?.worktree &&
+          !renamingHasWorktrees &&
+          !isPeerName(renamingName ?? "")
         }
         folderBusy={Boolean(renamingProject?.running)}
         onClose={() => setRenamingName(null)}

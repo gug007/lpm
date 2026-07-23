@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { AddNewPicker, type NewItemType } from "./AddNewPicker";
-import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon } from "./icons";
+import { PlusIcon, TrashIcon, ChevronDownIcon, ChevronRightIcon, ZapIcon, PlayIcon, TerminalIcon, LayersIcon, AlertCircleIcon, CodeIcon } from "./icons";
 import { uniqueKey } from "../uniqueKey";
 import { useAccountsStore } from "../store/accounts";
 import { useAppStore } from "../store/app";
@@ -283,11 +283,21 @@ function CardHeader({
 interface VisualConfigEditorProps {
   content: string;
   onChange: (yaml: string) => void;
+  onEditYaml: () => void;
   isRemote?: boolean;
 }
 
-export function VisualConfigEditor({ content, onChange, isRemote = false }: VisualConfigEditorProps) {
-  const form = useMemo(() => parseYaml(content), [content]);
+export function VisualConfigEditor({ content, onChange, onEditYaml, isRemote = false }: VisualConfigEditorProps) {
+  const parsed = useMemo(() => {
+    try {
+      return { form: parseYaml(content), error: "" };
+    } catch (error) {
+      return {
+        form: null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }, [content]);
   const accounts = useAccountsStore((s) => s.accounts);
   const accountStatuses = useAccountsStore((s) => s.statuses);
   const setView = useAppStore((s) => s.setView);
@@ -299,6 +309,41 @@ export function VisualConfigEditor({ content, onChange, isRemote = false }: Visu
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
+  if (!parsed.form) {
+    return (
+      <div className="flex flex-1 items-center justify-center overflow-y-auto px-6 py-5">
+        <div
+          role="alert"
+          className="flex w-full max-w-xl flex-col items-center gap-4 rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 p-6 text-center"
+        >
+          <div className="text-[var(--accent-red)]">
+            <AlertCircleIcon />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-[var(--text-primary)]">
+              Form view is unavailable
+            </p>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              Fix the invalid YAML in source view, then return to the form.
+            </p>
+          </div>
+          <pre className="max-h-40 w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--bg-primary)] p-3 text-left text-[11px] leading-relaxed text-[var(--accent-red)]">
+            {parsed.error}
+          </pre>
+          <button
+            type="button"
+            onClick={onEditYaml}
+            className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
+          >
+            <CodeIcon />
+            Edit YAML source
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const form = parsed.form;
   const update = (patch: Partial<ConfigForm>) => onChange(serializeToYaml({ ...form, ...patch }, content));
 
   const toggleExpand = (id: number) => {

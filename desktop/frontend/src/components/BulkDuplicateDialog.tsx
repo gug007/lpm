@@ -31,6 +31,7 @@ import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import type {
   CopyOverride,
   CopyRunMode,
+  DuplicateMode,
   ProjectInfo,
   RunMode,
   SpawnTask,
@@ -43,6 +44,10 @@ const MAX_COUNT = 50;
 // copy would otherwise be given.
 const NAME_ALPHABET =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const DUPLICATE_MODE_OPTIONS: { value: DuplicateMode; label: string }[] = [
+  { value: "copy", label: "Standalone copy" },
+  { value: "worktree", label: "Git worktree" },
+];
 
 function randomId6(): string {
   const bytes = new Uint8Array(6);
@@ -65,6 +70,7 @@ interface CopyDraft {
 }
 
 export interface BulkDuplicateOptions {
+  mode: DuplicateMode;
   excludeUncommitted: boolean;
   reinstallDeps: boolean;
   pullLatest: boolean;
@@ -130,6 +136,7 @@ export function BulkDuplicateDialog({
   const [composer, setComposer] = useState<ComposerValue>(EMPTY_COMPOSER);
   // Which copy's override editor is expanded (`null` = none).
   const [editing, setEditing] = useState<number | null>(null);
+  const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("copy");
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [pullLatest, setPullLatest] = useState(true);
@@ -251,6 +258,7 @@ export function BulkDuplicateDialog({
     setCommand(seed?.command ?? s.duplicateCommand ?? "");
     setComposer(seed?.prompt ?? EMPTY_COMPOSER);
     setEditing(null);
+    setDuplicateMode(s.duplicateMode ?? "copy");
     setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
     setPullLatest(s.duplicatePullLatest ?? true);
@@ -342,8 +350,10 @@ export function BulkDuplicateDialog({
   };
 
   const single = count === 1;
-  const noun = single ? "copy" : "copies";
-  const copyRef = single ? "the copy" : "each copy";
+  const isWorktree = duplicateMode === "worktree";
+  const item = isWorktree ? "worktree" : "copy";
+  const noun = single ? item : isWorktree ? "worktrees" : "copies";
+  const copyRef = single ? `the ${item}` : `each ${item}`;
   // With a per-copy Mac picker the dialog's "remote-ness" is per copy; without
   // one it falls back to the source-level `remote` prop.
   const targetOf = (c: CopyDraft) => c.target || sourceName;
@@ -371,8 +381,8 @@ export function BulkDuplicateDialog({
       ? `Run ${count + 1} in parallel`
       : defaultRuns
         ? single
-          ? "Run on the copy"
-          : `Run on ${count} copies`
+          ? `Run on the ${item}`
+          : `Run on ${count} ${noun}`
         : `Create ${count} ${noun}`;
 
   // The same history recall + AI-edit wiring is shared by the default composer
@@ -415,9 +425,10 @@ export function BulkDuplicateDialog({
         : selectedAction?.label || selectedAction?.name || "Action";
   const optionsSummary =
     [
-      excludeUncommitted && "Committed only",
-      pullLatest && "Pull latest",
-      reinstallDeps && "Reinstall",
+      isWorktree && "New Git branch",
+      !isWorktree && excludeUncommitted && "Committed only",
+      !isWorktree && pullLatest && "Pull latest",
+      reinstallDeps && (isWorktree ? "Install deps" : "Reinstall"),
     ]
       .filter(Boolean)
       .join(" · ") || "None";
@@ -506,6 +517,7 @@ export function BulkDuplicateDialog({
     // "run on each copy" defaults for the normal Duplicate flow.
     if (!seeded) {
       saveSettings({
+        duplicateMode,
         duplicateExcludeUncommitted: excludeUncommitted,
         duplicateReinstallDeps: reinstallDeps,
         duplicatePullLatest: pullLatest,
@@ -517,9 +529,10 @@ export function BulkDuplicateDialog({
     const valid = new Set(targets.map((t) => t.name));
     const fallback = valid.has(sourceName) || targets.length === 0 ? sourceName : targets[0].name;
     onConfirm(count, {
-      excludeUncommitted,
+      mode: duplicateMode,
+      excludeUncommitted: isWorktree ? false : excludeUncommitted,
       reinstallDeps,
-      pullLatest,
+      pullLatest: isWorktree ? false : pullLatest,
       labels: copies.map((c) => c.label.trim()),
       tasksPerCopy: buildTasksPerCopy(),
       targetsPerCopy: copies.map((c) => {
@@ -595,7 +608,9 @@ export function BulkDuplicateDialog({
             Duplicate
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
-            Create independent copies of{" "}
+            {isWorktree
+              ? "Create linked Git worktrees for "
+              : "Create standalone copies of "}
             <span className="font-mono text-[var(--text-secondary)]">
               {projectDisplay}
             </span>{" "}
@@ -615,7 +630,28 @@ export function BulkDuplicateDialog({
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-6 pt-5">
         <div className={CARD_CLASS}>
           <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className={SECTION_LABEL}>{seeded ? "Parallel runs" : "Copies"}</span>
+            <span className={SECTION_LABEL}>Copy method</span>
+            <SegmentedControl
+              value={duplicateMode}
+              options={DUPLICATE_MODE_OPTIONS}
+              onChange={setDuplicateMode}
+              ariaLabel="Copy method"
+            />
+          </div>
+          <p
+            className={`border-t border-[var(--border)] px-4 py-3 ${HELPER_TEXT}`}
+          >
+            {isWorktree
+              ? "Creates a branch from the current commit and shares Git history. Uncommitted and ignored files stay behind; the project root must be the Git root."
+              : "Creates an independent APFS copy that can also include uncommitted and ignored files."}
+          </p>
+        </div>
+
+        <div className={CARD_CLASS}>
+          <div className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className={SECTION_LABEL}>
+              {seeded ? "Parallel runs" : isWorktree ? "Worktrees" : "Copies"}
+            </span>
             <div className="inline-flex items-center overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
               <button
                 type="button"
@@ -671,7 +707,7 @@ export function BulkDuplicateDialog({
                   )}
                 </div>
                 <p className={`mt-2 ${HELPER_TEXT}`}>
-                  A label to recognize the copy by. Leave blank to name it
+                  A label to recognize the {item} by. Leave blank to name it
                   automatically.
                   {showTargets &&
                     anyRemoteCopy &&
@@ -801,7 +837,7 @@ export function BulkDuplicateDialog({
         </div>
 
         <CollapsibleSection
-          title={single ? "Run on the copy" : "Run on each copy"}
+          title={single ? `Run on the ${item}` : `Run on each ${item}`}
           open={runOpen}
           onToggle={toggleRunOpen}
           summary={runSummary}
@@ -871,26 +907,36 @@ export function BulkDuplicateDialog({
           summary={optionsSummary}
         >
           <div className="divide-y divide-[var(--border)]">
-            <SwitchRow
-              checked={excludeUncommitted}
-              onChange={setExcludeUncommitted}
-              icon={<GitBranch size={18} />}
-              title="Committed work only"
-              description={`Reset ${copyRef} to the last commit, dropping uncommitted changes.`}
-            />
-            <SwitchRow
-              checked={pullLatest}
-              onChange={setPullLatest}
-              icon={<RefreshCw size={18} />}
-              title="Pull latest changes"
-              description={`Bring ${copyRef} up to the newest commits on its branch.`}
-            />
+            {!isWorktree && (
+              <>
+                <SwitchRow
+                  checked={excludeUncommitted}
+                  onChange={setExcludeUncommitted}
+                  icon={<GitBranch size={18} />}
+                  title="Committed work only"
+                  description={`Reset ${copyRef} to the last commit, dropping uncommitted changes.`}
+                />
+                <SwitchRow
+                  checked={pullLatest}
+                  onChange={setPullLatest}
+                  icon={<RefreshCw size={18} />}
+                  title="Pull latest changes"
+                  description={`Bring ${copyRef} up to the newest commits on its branch.`}
+                />
+              </>
+            )}
             <SwitchRow
               checked={reinstallDeps}
               onChange={setReinstallDeps}
               icon={<Package size={18} />}
-              title="Reinstall dependencies"
-              description={`Copy without dependencies, then install them fresh in ${copyRef}.`}
+              title={
+                isWorktree ? "Install dependencies" : "Reinstall dependencies"
+              }
+              description={
+                isWorktree
+                  ? `Install dependencies in ${copyRef} after Git creates it.`
+                  : `Copy without dependencies, then install them fresh in ${copyRef}.`
+              }
             />
           </div>
         </CollapsibleSection>

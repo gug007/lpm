@@ -7,6 +7,7 @@ import {
   isHeaderDisplay,
   type ActionInfo,
   type ActionsLayout,
+  type DuplicateMode,
   type GeneratorRunSpec,
   type ProjectGroup,
   type ProjectInfo,
@@ -24,6 +25,7 @@ import {
   DetachProject,
   DuplicateProject,
   DuplicateStatus,
+  DuplicateWorktreeProject,
   FocusDetachedWindow,
   ListDetachedProjects,
   ListProjects,
@@ -40,6 +42,7 @@ import {
   SetProjectLabel,
   StartCloneProject,
   StartDuplicateProject,
+  StartDuplicateWorktreeProject,
   StartProject,
   StopProject,
   ToggleProjectService,
@@ -289,6 +292,7 @@ interface AppState {
     name: string,
     count: number,
     opts?: {
+      mode?: DuplicateMode;
       excludeUncommitted?: boolean;
       reinstallDeps?: boolean;
       pullLatest?: boolean;
@@ -1297,8 +1301,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   bulkDuplicate: async (name, count, opts = {}) => {
     if (count < 1) return;
     const tasksPerCopy = opts.tasksPerCopy ?? [];
+    const worktree = opts.mode === "worktree";
     set((s) => ({ duplicatingNames: [...s.duplicatingNames, name] }));
-    const noun = (n: number) => (n === 1 ? "copy" : "copies");
+    const noun = (n: number) =>
+      n === 1
+        ? worktree
+          ? "worktree"
+          : "copy"
+        : worktree
+          ? "worktrees"
+          : "copies";
     const toastId = toast.loading(`Creating ${count} ${noun(count)} of ${name}…`);
     const created: string[] = [];
     const createdLocal: string[] = [];
@@ -1316,6 +1328,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         opts.reinstallDeps ?? false,
         opts.pullLatest ?? true,
       ] as const;
+    const worktreeArgs = (i: number) =>
+      [(opts.labels?.[i] ?? "").trim(), opts.reinstallDeps ?? false] as const;
     const collectors = new Map<string, ReturnType<typeof collectRemoteDuplicates>>();
     for (let i = 0; i < count; i++) {
       const slug = peerSlugOf(sourceAt(i));
@@ -1342,16 +1356,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         try {
           if (slug && !legacyPeerDuplicate) {
             try {
-              const prefixed = await StartDuplicateProject(source, ...copyArgs(i));
+              const prefixed = worktree
+                ? await StartDuplicateWorktreeProject(source, ...worktreeArgs(i))
+                : await StartDuplicateProject(source, ...copyArgs(i));
               await collectors.get(slug)!.wait(prefixed);
               newName = prefixed;
             } catch (err) {
-              if (!isMissingStartCommand(err)) throw err;
+              if (worktree || !isMissingStartCommand(err)) throw err;
               legacyPeerDuplicate = true;
               newName = await DuplicateProject(source, ...copyArgs(i));
             }
           } else {
-            newName = await DuplicateProject(source, ...copyArgs(i));
+            newName = worktree
+              ? await DuplicateWorktreeProject(source, ...worktreeArgs(i))
+              : await DuplicateProject(source, ...copyArgs(i));
           }
         } catch (err) {
           if (created.length === 0) throw err;

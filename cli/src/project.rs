@@ -188,6 +188,7 @@ fn render_json(
         "root": p.root,
         "isRemote": p.is_remote,
         "parentName": p.parent_name,
+        "worktree": p.worktree,
         "running": session_running,
         "panes": panes_json,
         "services": services,
@@ -237,6 +238,9 @@ fn render_human(
     }
     if !p.parent_name.is_empty() {
         o.push_str(&format!("  {}   {}\n", s.dim("parent"), p.parent_name));
+    }
+    if p.worktree {
+        o.push_str(&format!("  {} {}\n", s.dim("worktree"), "yes"));
     }
     let run_label = if session_running {
         s.green(&format!(
@@ -428,6 +432,7 @@ mod tests {
             label: String::new(),
             is_remote: false,
             parent_name: String::new(),
+            worktree: false,
             services: Vec::new(),
             profiles: Default::default(),
             terminals: Vec::new(),
