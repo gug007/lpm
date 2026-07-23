@@ -58,6 +58,7 @@ import {
   type ProjectInfo,
   type ServiceInfo,
 } from "../types";
+import { projectStartProfile } from "../projectStartProfile";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -114,9 +115,7 @@ export function ProjectDetail({
     onChanged: onRefresh,
   });
 
-  const [activeProfile, setActiveProfile] = useState(
-    project.activeProfile || project.profiles?.[0]?.name || "",
-  );
+  const [activeProfile, setActiveProfile] = useState(() => projectStartProfile(project));
   useEffect(() => {
     if (project.activeProfile && project.activeProfile !== activeProfile) {
       setActiveProfile(project.activeProfile);

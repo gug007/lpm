@@ -77,6 +77,7 @@ import { menuChildOrderFor } from "../actionTree";
 import { applyMove } from "../components/actionsDndLayout";
 import type { StructuralOp } from "../actionsGesture";
 import type { ActionLevel } from "../actionLevels";
+import { projectStartProfile } from "../projectStartProfile";
 
 export type View =
   | "projects"
@@ -965,7 +966,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       await get().stopProject(name);
       return;
     }
-    await get().startProject(name, "");
+    await get().startProject(name, projectStartProfile(project));
   },
 
   cancelPortConflict: () => {
