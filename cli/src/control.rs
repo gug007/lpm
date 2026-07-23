@@ -43,7 +43,9 @@ mod tests {
     use std::os::unix::net::UnixListener;
 
     /// A Ctx whose socket is served by a one-shot thread replying `reply`.
-    fn ctx_with_server(reply: &'static str) -> (tempfile::TempDir, Ctx, std::thread::JoinHandle<()>) {
+    fn ctx_with_server(
+        reply: &'static str,
+    ) -> (tempfile::TempDir, Ctx, std::thread::JoinHandle<()>) {
         let dir = tempfile::tempdir().unwrap();
         let ctx = Ctx {
             lpm_dir: dir.path().to_path_buf(),

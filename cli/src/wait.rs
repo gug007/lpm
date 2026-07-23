@@ -28,7 +28,11 @@ enum Target {
     Port(i64),
     /// The session must exist and — if the service has a port — that port must
     /// listen (portless services follow the session, per `service_status`).
-    Service { name: String, session: String, port: i64 },
+    Service {
+        name: String,
+        session: String,
+        port: i64,
+    },
     /// The session must exist and every declared port must be listening.
     Ready { session: String, ports: Vec<i64> },
 }
@@ -121,7 +125,11 @@ pub fn run(
         let file_name = resolve_or_infer(ctx, project)?;
         let p = config::resolve_project(ctx, &file_name).map_err(RunError::Internal)?;
         let session = p.session.clone();
-        let services = p.services.iter().map(|s| (s.name.clone(), s.port)).collect();
+        let services = p
+            .services
+            .iter()
+            .map(|s| (s.name.clone(), s.port))
+            .collect();
         (session, services)
     };
 
@@ -143,7 +151,9 @@ pub fn run(
             let ms = start.elapsed().as_millis() as u64;
             let waiting_for = target.describe();
             if as_json {
-                crate::util::print_json(&json!({ "ok": false, "elapsedMs": ms, "waitingFor": waiting_for }));
+                crate::util::print_json(
+                    &json!({ "ok": false, "elapsedMs": ms, "waitingFor": waiting_for }),
+                );
             }
             return Err(RunError::Internal(format!(
                 "timed out after {timeout}s waiting for {waiting_for}"
@@ -208,7 +218,11 @@ fn run_agent(
                     on: std::io::stdout().is_terminal(),
                 };
                 for e in &entries {
-                    println!("  {}  {}", style.bold(&e.key), status_value(&style, &e.value));
+                    println!(
+                        "  {}  {}",
+                        style.bold(&e.key),
+                        status_value(&style, &e.value)
+                    );
                 }
             }
             return Ok(());

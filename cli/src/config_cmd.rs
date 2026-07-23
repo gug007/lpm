@@ -1,11 +1,24 @@
 use crate::config::{self, Ctx, ResolvedAction, ResolvedProject};
+use crate::control;
+use crate::error;
 use crate::error::RunError;
 use crate::util::print_json;
-use clap::Subcommand;
-use serde_json::json;
+use clap::{Subcommand, ValueEnum};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value as JsonValue};
 use serde_yaml::{Mapping, Value};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum ConfigLayer {
+    Project,
+    Repo,
+    Global,
+    Template,
+}
 
 #[derive(Subcommand)]
 pub enum Command {
@@ -26,12 +39,91 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Read one config layer with a revision for a safe later apply.
+    Get {
+        /// Config layer to read.
+        #[arg(long, value_enum)]
+        layer: ConfigLayer,
+        /// Project stem, name, or prefix. Omit to infer it.
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+        /// Template name when --layer=template.
+        #[arg(long)]
+        template: Option<String>,
+        /// Allow reading a missing project or template as a new blank config.
+        #[arg(long)]
+        create: bool,
+        /// Emit content, path, and revision as JSON instead of raw YAML.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Validate and atomically apply a config candidate through the running app.
+    Apply {
+        /// Config layer to replace.
+        #[arg(long, value_enum)]
+        layer: ConfigLayer,
+        /// Project stem, name, or prefix. Omit to infer it.
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+        /// Template name when --layer=template.
+        #[arg(long)]
+        template: Option<String>,
+        /// Allow creating a missing project or template.
+        #[arg(long)]
+        create: bool,
+        /// Read the candidate YAML from standard input.
+        #[arg(long, conflicts_with = "file", required_unless_present = "file")]
+        stdin: bool,
+        /// Read the candidate YAML from this file.
+        #[arg(long, value_name = "PATH", conflicts_with = "stdin")]
+        file: Option<PathBuf>,
+        /// Revision returned by `lpm config get`.
+        #[arg(long = "if-revision")]
+        expected_revision: String,
+        /// Emit a machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 pub fn run(ctx: &Ctx, command: Command) -> Result<(), RunError> {
     match command {
         Command::Resolve { cwd, json } => resolve(ctx, cwd.as_deref(), json),
         Command::Validate { file, json } => validate(ctx, &file, json),
+        Command::Get {
+            layer,
+            project,
+            template,
+            create,
+            json,
+        } => get(
+            ctx,
+            layer,
+            project.as_deref(),
+            template.as_deref(),
+            create,
+            json,
+        ),
+        Command::Apply {
+            layer,
+            project,
+            template,
+            create,
+            stdin,
+            file,
+            expected_revision,
+            json,
+        } => apply(
+            ctx,
+            layer,
+            project.as_deref(),
+            template.as_deref(),
+            create,
+            stdin,
+            file.as_deref(),
+            &expected_revision,
+            json,
+        ),
     }
 }
 
@@ -77,6 +169,306 @@ enum ConfigKind {
     Template,
 }
 
+impl ConfigLayer {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Project => "project",
+            Self::Repo => "repo",
+            Self::Global => "global",
+            Self::Template => "template",
+        }
+    }
+
+    fn kind(self) -> ConfigKind {
+        match self {
+            Self::Project => ConfigKind::Project,
+            Self::Repo => ConfigKind::Repo,
+            Self::Global => ConfigKind::Global,
+            Self::Template => ConfigKind::Template,
+        }
+    }
+}
+
+struct ConfigTarget {
+    layer: ConfigLayer,
+    project: String,
+    template: String,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigSnapshot {
+    layer: String,
+    project: String,
+    template: String,
+    path: PathBuf,
+    exists: bool,
+    content: String,
+    revision: String,
+}
+
+#[derive(Deserialize)]
+struct ConfigSocketReply {
+    ok: bool,
+    snapshot: Option<ConfigSnapshot>,
+    code: Option<String>,
+    error: Option<String>,
+}
+
+fn validate_target_name(name: &str, kind: &str) -> Result<(), RunError> {
+    if name.is_empty() || name.contains(['/', '\\']) || matches!(name, "." | ".." | "__global__") {
+        return Err(RunError::NotFound(format!("invalid {kind} name: {name:?}")));
+    }
+    Ok(())
+}
+
+fn resolve_project_target(
+    ctx: &Ctx,
+    project: Option<&str>,
+    create: bool,
+) -> Result<String, RunError> {
+    let Some(query) = project else {
+        return error::resolve_or_infer(ctx, None);
+    };
+    match config::resolve_project_name(ctx, query) {
+        Ok(project) => Ok(project),
+        Err(config::ResolveError::NotFound { .. }) if create => {
+            validate_target_name(query, "project")?;
+            Ok(query.to_string())
+        }
+        Err(error) => Err(error::resolve_error(error)),
+    }
+}
+
+fn resolve_config_target(
+    ctx: &Ctx,
+    layer: ConfigLayer,
+    project: Option<&str>,
+    template: Option<&str>,
+    create: bool,
+) -> Result<ConfigTarget, RunError> {
+    match layer {
+        ConfigLayer::Project => {
+            if template.is_some() {
+                return Err(RunError::NotFound(
+                    "--template is only valid with --layer=template".into(),
+                ));
+            }
+            Ok(ConfigTarget {
+                layer,
+                project: resolve_project_target(ctx, project, create)?,
+                template: String::new(),
+            })
+        }
+        ConfigLayer::Repo => {
+            if template.is_some() {
+                return Err(RunError::NotFound(
+                    "--template is only valid with --layer=template".into(),
+                ));
+            }
+            Ok(ConfigTarget {
+                layer,
+                project: error::resolve_or_infer(ctx, project)?,
+                template: String::new(),
+            })
+        }
+        ConfigLayer::Global => {
+            if project.is_some() || template.is_some() {
+                return Err(RunError::NotFound(
+                    "--layer=global does not accept --project or --template".into(),
+                ));
+            }
+            Ok(ConfigTarget {
+                layer,
+                project: String::new(),
+                template: String::new(),
+            })
+        }
+        ConfigLayer::Template => {
+            if project.is_some() {
+                return Err(RunError::NotFound(
+                    "--project is not valid with --layer=template".into(),
+                ));
+            }
+            let name = template
+                .ok_or_else(|| RunError::NotFound("--layer=template requires --template".into()))?;
+            validate_target_name(name, "template")?;
+            let exists = ["yml", "yaml"]
+                .iter()
+                .any(|ext| ctx.templates_dir().join(format!("{name}.{ext}")).exists());
+            if !exists && !create {
+                return Err(RunError::NotFound(format!(
+                    "template {name:?} does not exist; pass --create to create it"
+                )));
+            }
+            Ok(ConfigTarget {
+                layer,
+                project: String::new(),
+                template: name.to_string(),
+            })
+        }
+    }
+}
+
+fn hex_encode(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len() * 2);
+    for byte in value.as_bytes() {
+        write!(encoded, "{byte:02x}").unwrap();
+    }
+    encoded
+}
+
+fn request_config_snapshot(
+    ctx: &Ctx,
+    command: &str,
+    payload: JsonValue,
+    as_json: bool,
+) -> Result<ConfigSnapshot, RunError> {
+    let payload = serde_json::to_string(&payload)
+        .map_err(|e| RunError::Internal(format!("cannot encode config request: {e}")))?;
+    let line = format!("{command} --payload-hex={}", hex_encode(&payload));
+    let reply = control::send_command(ctx, &line)?;
+    let reply: ConfigSocketReply = serde_json::from_str(&reply)
+        .map_err(|e| RunError::Internal(format!("invalid config reply from app: {e}")))?;
+    if !reply.ok {
+        let error = reply
+            .error
+            .unwrap_or_else(|| "config command failed".to_string());
+        if as_json {
+            print_json(&json!({
+                "applied": false,
+                "code": reply.code.unwrap_or_else(|| "config_error".to_string()),
+                "error": error,
+            }));
+        }
+        return Err(RunError::Internal(error));
+    }
+    reply
+        .snapshot
+        .ok_or_else(|| RunError::Internal("config reply did not include a snapshot".into()))
+}
+
+fn target_payload(target: &ConfigTarget) -> JsonValue {
+    json!({
+        "layer": target.layer.as_str(),
+        "project": target.project,
+        "template": target.template,
+    })
+}
+
+fn get(
+    ctx: &Ctx,
+    layer: ConfigLayer,
+    project: Option<&str>,
+    template: Option<&str>,
+    create: bool,
+    as_json: bool,
+) -> Result<(), RunError> {
+    let target = resolve_config_target(ctx, layer, project, template, create)?;
+    control::require_app(ctx)?;
+    let snapshot = request_config_snapshot(ctx, "config_get", target_payload(&target), as_json)?;
+    if as_json {
+        print_json(&json!(snapshot));
+    } else {
+        print!("{}", snapshot.content);
+    }
+    Ok(())
+}
+
+fn read_candidate(from_stdin: bool, file: Option<&Path>) -> Result<String, RunError> {
+    if let Some(path) = file {
+        return std::fs::read_to_string(path)
+            .map_err(|e| RunError::NotFound(format!("{}: {e}", path.display())));
+    }
+    if !from_stdin {
+        return Err(RunError::NotFound(
+            "pass --stdin or --file <path> for the candidate YAML".into(),
+        ));
+    }
+    let mut source = String::new();
+    std::io::stdin()
+        .read_to_string(&mut source)
+        .map_err(|e| RunError::Internal(format!("cannot read candidate YAML: {e}")))?;
+    Ok(source)
+}
+
+fn apply(
+    ctx: &Ctx,
+    layer: ConfigLayer,
+    project: Option<&str>,
+    template: Option<&str>,
+    create: bool,
+    from_stdin: bool,
+    file: Option<&Path>,
+    expected_revision: &str,
+    as_json: bool,
+) -> Result<(), RunError> {
+    let target = resolve_config_target(ctx, layer, project, template, create)?;
+    control::require_app(ctx)?;
+    let before = request_config_snapshot(ctx, "config_get", target_payload(&target), as_json)?;
+    if before.revision != expected_revision {
+        if as_json {
+            print_json(&json!({
+                "applied": false,
+                "code": "revision_conflict",
+                "path": before.path,
+                "expectedRevision": expected_revision,
+                "currentRevision": before.revision,
+            }));
+        }
+        return Err(RunError::Internal(format!(
+            "revision conflict: expected {expected_revision}, current revision is {}",
+            before.revision
+        )));
+    }
+
+    let source = read_candidate(from_stdin, file)?;
+    let report = validate_candidate(ctx, &target, &before.path, &source);
+    if !report.errors.is_empty() {
+        if as_json {
+            print_json(&json!({
+                "applied": false,
+                "path": before.path,
+                "valid": false,
+                "errors": report.errors,
+                "warnings": report.warnings,
+            }));
+        } else {
+            for error in &report.errors {
+                println!("error: {error}");
+            }
+            for warning in &report.warnings {
+                println!("warning: {warning}");
+            }
+        }
+        return Err(RunError::Internal(
+            "config validation failed; destination was not changed".into(),
+        ));
+    }
+
+    let payload = json!({
+        "layer": target.layer.as_str(),
+        "project": target.project,
+        "template": target.template,
+        "expectedRevision": expected_revision,
+        "content": source,
+    });
+    let after = request_config_snapshot(ctx, "config_apply", payload, as_json)?;
+    if as_json {
+        print_json(&json!({
+            "applied": true,
+            "snapshot": after,
+            "warnings": report.warnings,
+        }));
+    } else {
+        println!("applied {}", after.path.display());
+        for warning in &report.warnings {
+            println!("warning: {warning}");
+        }
+    }
+    Ok(())
+}
+
 struct Report {
     errors: Vec<String>,
     warnings: Vec<String>,
@@ -96,6 +488,66 @@ impl Report {
 
     fn warning(&mut self, path: &str, message: impl AsRef<str>) {
         self.warnings.push(format!("{path}: {}", message.as_ref()));
+    }
+}
+
+fn validate_candidate(ctx: &Ctx, target: &ConfigTarget, path: &Path, source: &str) -> Report {
+    let value: Value = match serde_yaml::from_str(source) {
+        Ok(value) => value,
+        Err(error) => {
+            let mut report = Report::new();
+            report.error("config", format!("invalid YAML: {error}"));
+            return report;
+        }
+    };
+    let mut report = validate_value(ctx, path, target.layer.kind(), &value);
+    if !report.errors.is_empty() {
+        return report;
+    }
+
+    match target.layer {
+        ConfigLayer::Project | ConfigLayer::Repo => {
+            validate_effective_candidate(ctx, &target.project, path, source, &mut report);
+        }
+        ConfigLayer::Global | ConfigLayer::Template => {
+            for project in config::project_names(ctx) {
+                let mut effective = Report::new();
+                validate_effective_candidate(ctx, &project, path, source, &mut effective);
+                report.errors.extend(
+                    effective
+                        .errors
+                        .into_iter()
+                        .map(|error| format!("project {project}: {error}")),
+                );
+                report.warnings.extend(
+                    effective
+                        .warnings
+                        .into_iter()
+                        .map(|warning| format!("project {project}: {warning}")),
+                );
+            }
+        }
+    }
+    report
+}
+
+fn validate_effective_candidate(
+    ctx: &Ctx,
+    project_name: &str,
+    path: &Path,
+    source: &str,
+    report: &mut Report,
+) {
+    let project = match config::resolve_project_with_override(ctx, project_name, path, source) {
+        Ok(project) => project,
+        Err(error) => {
+            report.error("config", error);
+            return;
+        }
+    };
+    validate_effective_services(&project, report);
+    for action in project.actions.iter().chain(project.terminals.iter()) {
+        validate_effective_action(&project, action, report);
     }
 }
 
@@ -1156,5 +1608,87 @@ mod tests {
             .errors
             .iter()
             .any(|error| error.contains("must set parent_name")));
+    }
+
+    #[test]
+    fn candidate_validation_rejects_broken_yaml_without_touching_the_file() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        let path = ctx.project_path("web");
+        let original = format!("root: {}\nservices:\n  web: run-web\n", root.display());
+        std::fs::write(&path, &original).unwrap();
+        let target = ConfigTarget {
+            layer: ConfigLayer::Project,
+            project: "web".into(),
+            template: String::new(),
+        };
+        let candidate = format!(
+            "root: {}\nservices:\n  web: run-web\nactions:\n  review:\n    cmd: claude \"Review: {{{{prs}}}}\"\n",
+            root.display()
+        );
+
+        let report = validate_candidate(&ctx, &target, &path, &candidate);
+
+        assert!(report
+            .errors
+            .iter()
+            .any(|error| error.contains("invalid YAML")));
+        assert_eq!(std::fs::read_to_string(path).unwrap(), original);
+    }
+
+    #[test]
+    fn candidate_validation_uses_the_candidate_for_effective_checks() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join(".lpm.yml"), "services:\n  db: run-db\n").unwrap();
+        let path = ctx.project_path("web");
+        let original = format!("root: {}\nservices:\n  web: run-web\n", root.display());
+        std::fs::write(&path, &original).unwrap();
+        let target = ConfigTarget {
+            layer: ConfigLayer::Project,
+            project: "web".into(),
+            template: String::new(),
+        };
+        let candidate = format!(
+            "root: {}\nservices:\n  api:\n    cmd: run-api\n    dependsOn: [missing]\n",
+            root.display()
+        );
+
+        let report = validate_candidate(&ctx, &target, &path, &candidate);
+
+        assert!(report
+            .errors
+            .iter()
+            .any(|error| error.contains("unknown service \"missing\"")));
+        assert_eq!(std::fs::read_to_string(path).unwrap(), original);
+    }
+
+    #[test]
+    fn candidate_validation_accepts_a_valid_effective_config() {
+        let (dir, ctx) = context();
+        let root = dir.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join(".lpm.yml"), "services:\n  db: run-db\n").unwrap();
+        let path = ctx.project_path("web");
+        std::fs::write(
+            &path,
+            format!("root: {}\nservices:\n  web: run-web\n", root.display()),
+        )
+        .unwrap();
+        let target = ConfigTarget {
+            layer: ConfigLayer::Project,
+            project: "web".into(),
+            template: String::new(),
+        };
+        let candidate = format!(
+            "root: {}\nservices:\n  api:\n    cmd: run-api\n    dependsOn: [db]\n",
+            root.display()
+        );
+
+        let report = validate_candidate(&ctx, &target, &path, &candidate);
+
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
     }
 }

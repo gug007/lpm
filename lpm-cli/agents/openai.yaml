@@ -1,4 +1,4 @@
 interface:
   display_name: "lpm CLI"
-  short_description: "Operate and inspect running lpm projects"
+  short_description: "Operate lpm projects, copies, and worktrees"
   default_prompt: "Use $lpm-cli to inspect or control my lpm project."

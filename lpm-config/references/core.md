@@ -1,6 +1,6 @@
 # Projects, services, and profiles
 
-Read this reference for project creation, identity, services, dependencies, profiles, and duplicates.
+Read this reference for project creation, identity, services, dependencies, profiles, duplicates, and linked Git worktrees.
 
 - [Project files](#project-files)
 - [Services](#services)
@@ -27,6 +27,7 @@ services:
 | `root` | Local project root. Set this or `ssh`, never both. |
 | `label` | Optional display name. |
 | `parent_name` | Existing project inherited by a duplicate. |
+| `worktree` | Set to `true` only for a linked Git worktree duplicate created by lpm; requires `parent_name`. |
 | `extends` | Template names that provide actions. |
 | `services` | Long-running commands. |
 | `actions` | One-shot commands and buttons. |
@@ -84,7 +85,7 @@ Starting without an explicit profile uses `default` when present; otherwise it s
 
 ## Duplicate projects
 
-A duplicate contains only its identity, root, and parent:
+A standalone duplicate contains only its identity, root, and parent:
 
 ```yaml
 name: myapp-feature
@@ -92,7 +93,20 @@ root: ~/Projects/myapp-feature
 parent_name: myapp
 ```
 
-The parent must exist and load successfully. A duplicate inherits the parent’s services, actions, and profiles without per-entry overrides.
+A linked Git worktree duplicate also contains the lifecycle marker:
+
+```yaml
+name: myapp-feature
+root: ~/Projects/myapp-feature
+parent_name: myapp
+worktree: true
+```
+
+Create it with `lpm duplicate myapp --worktree --label myapp-feature`. Do not add or remove `worktree: true` manually to convert an existing project: lpm must create the Git worktree registration and its `lpm/<copy-name>` branch.
+
+The source must be a local Git repository whose lpm root equals the repository root, with at least one commit. The worktree starts at the source’s current `HEAD` and does not include uncommitted changes. Remove it with `lpm remove <copy-name>` so lpm also removes the worktree registration and generated branch; do not move, trash, or delete its folder directly.
+
+The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, and profiles without per-entry overrides.
 
 ## Project detection
 

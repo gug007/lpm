@@ -173,9 +173,10 @@ mod tests {
             writeln!(stream, r#"{{"ok":true,"names":["copyA","copyB"]}}"#).unwrap();
         });
         let mut progress: Vec<String> = Vec::new();
-        let final_line =
-            request_lines(&path, "duplicate_project 'x' --count=2", |p| progress.push(p.to_string()))
-                .unwrap();
+        let final_line = request_lines(&path, "duplicate_project 'x' --count=2", |p| {
+            progress.push(p.to_string())
+        })
+        .unwrap();
         assert_eq!(progress, ["1 2 copyA", "2 2 copyB"]);
         assert!(final_line.contains("\"ok\":true"));
         server.join().unwrap();

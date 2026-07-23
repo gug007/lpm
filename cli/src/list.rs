@@ -145,14 +145,21 @@ fn render_human(s: &Style, rows: &[Row]) -> String {
             continue;
         }
         let mut parts = vec![
-            if r.running { s.green("●") } else { s.dim("○") },
+            if r.running {
+                s.green("●")
+            } else {
+                s.dim("○")
+            },
             s.bold(&r.name),
         ];
         if !r.label.is_empty() && r.label != r.name {
             parts.push(s.dim(&r.label));
         }
         if r.services_total > 0 {
-            parts.push(format!("{}/{} services", r.services_running, r.services_total));
+            parts.push(format!(
+                "{}/{} services",
+                r.services_running, r.services_total
+            ));
         }
         if let Some(agents) = &r.agents {
             if !agents.is_empty() {

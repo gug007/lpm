@@ -50,7 +50,12 @@ pub fn run(
     control::require_app(ctx)?;
     let file_name = resolve_or_infer(ctx, project)?;
 
-    let line = format!("{} {} {}", op.verb(), quote_arg(&file_name), quote_arg(service));
+    let line = format!(
+        "{} {} {}",
+        op.verb(),
+        quote_arg(&file_name),
+        quote_arg(service)
+    );
     match control::send_command(ctx, &line) {
         Ok(_) => {
             if as_json {
@@ -67,12 +72,9 @@ pub fn run(
         }
         // An "unknown service" reply is more useful with the declared list; other
         // failures (e.g. "not running") pass straight through.
-        Err(RunError::Internal(msg)) if msg.contains("not found") => {
-            Err(RunError::Internal(format!(
-                "{msg}\n{}",
-                declared_services_hint(ctx, &file_name)
-            )))
-        }
+        Err(RunError::Internal(msg)) if msg.contains("not found") => Err(RunError::Internal(
+            format!("{msg}\n{}", declared_services_hint(ctx, &file_name)),
+        )),
         Err(e) => Err(e),
     }
 }

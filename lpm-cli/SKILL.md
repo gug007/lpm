@@ -1,7 +1,7 @@
 ---
 name: lpm-cli
-version: 1.0.0
-description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, and duplicate projects for parallel work. Use when the user asks to operate or inspect lpm runtime state. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
+version: 1.2.0
+description: "Operate lpm-managed projects through the `lpm` CLI: start or stop projects and services, inspect logs and agent status, wait for readiness, run actions, and duplicate projects as standalone copies or linked Git worktrees. Use when the user asks to operate or inspect lpm runtime state. `LPM_PROJECT_NAME` selects the default project after the skill triggers; it is not a trigger by itself. For editing YAML configuration, use `lpm-config`."
 ---
 
 `lpm` is a command-line companion to the lpm desktop app. Verify it is available with `lpm --version`; if it is missing, install it from the lpm app's Settings.
@@ -11,7 +11,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - The project name is inferred from `LPM_PROJECT_NAME` or the current directory — omit it inside lpm terminals.
 - Default output is compact text (cheapest); add `--json` only when you need to parse the result.
 - Exit codes: `0` ok, `2` usage / not found / app not running, `1` failure / timeout.
-- Control commands (everything except the read commands) need the lpm app running.
+- `config get`, `config apply`, and control commands need the lpm app running; other inspection commands do not.
 
 ### Commands
 
@@ -19,13 +19,15 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - `lpm project [name] [--full]` — one project in full (`--full` adds env maps, action details, terminal history).
 - `lpm config resolve [--cwd PATH] [--json]` — match a directory to its deepest project root without using `LPM_PROJECT_NAME`.
 - `lpm config validate <file> [--json]` — validate syntax, fields, layer rules, and effective merged configuration.
+- `lpm config get --layer project|repo|global|template [--project NAME | --template NAME] [--create] [--json]` — read a config layer with the revision required for a safe write.
+- `lpm config apply --layer project|repo|global|template [--project NAME | --template NAME] [--create] --if-revision HASH (--stdin | --file PATH) [--json]` — validate a candidate and atomically apply it through the running app. Never edit a live config file directly.
 - `lpm logs [service] [-n 30] [-p proj]` — service scrollback, exactly N lines.
 - `lpm status [project]` — live agent statuses (Running/Waiting/Done/Error).
 - `lpm start [project] [--profile X]` / `lpm stop [project]` — start / stop a project's services.
 - `lpm service <name> start|stop|restart [-p proj]` — one service.
 - `lpm wait [project] [--service X | --port N | --agent] [--timeout 60]` — block until ready; `--agent` waits for the project's agents to settle.
-- `lpm duplicate [project] [-n N] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — clone into parallel copies. Always pass a `--label` describing the copy's purpose so it's identifiable in the app — one repeated `--label` per copy in creation order, `<project-name>-<short-description>` style such as `lpm-fix-auth`. Only omit it when you genuinely can't infer a purpose. Output lists each copy's path. By default the app's duplicate setting decides whether uncommitted changes are copied; the two flags override it for this run.
-- `lpm remove <copy-name>` — duplicates only; originals need `--force` (don't use `--force` unless the user explicitly asks).
+- `lpm duplicate [project] [-n N] [--worktree] [--label TEXT]... [--group X] [--run ACTION | --command CMD] [--prompt TEXT] [--include-uncommitted | --exclude-uncommitted]` — create parallel working directories. Always pass a `--label` describing the copy's purpose so it's identifiable in the app — one repeated `--label` per copy in creation order, `<project-name>-<short-description>` style such as `lpm-fix-auth`. Only omit it when you genuinely can't infer a purpose. Output lists each copy's path.
+- `lpm remove <copy-name>` — remove a duplicate. For a linked worktree, this also removes its Git worktree registration and lpm-created branch. Originals need `--force`; don't use `--force` unless the user explicitly asks.
 - `lpm run [action | --command CMD] [--prompt TEXT] [-p proj]` — queue in a new app terminal, fire-and-forget.
 - `lpm set-status <key> <value>` / `lpm clear-status <key>` — report status to the app UI.
 
@@ -36,8 +38,18 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 - Read logs with a small `-n` first (e.g. `-n 30`); increase only if needed.
 - Errors already name the fix — unknown project/service errors list the valid names. Read the error before retrying.
 
+### Duplicate modes
+
+- Omit `--worktree` for a standalone APFS copy. The app's duplicate setting decides whether uncommitted changes are copied; `--include-uncommitted` and `--exclude-uncommitted` override it.
+- Pass `--worktree` for a linked Git checkout with its own branch and shared repository data. The source must be a local Git repository, its lpm root must equal the repository root, and it must have at least one commit.
+- A worktree starts at the source's current `HEAD` on an lpm-created `lpm/<copy-name>` branch. It does not include uncommitted changes, so `--worktree` conflicts with `--include-uncommitted`, `--exclude-uncommitted`, and `--no-pull`.
+- Remove worktrees with `lpm remove`; do not move, trash, or delete their folders directly.
+- If a standalone duplicate reports that the source is a linked Git checkout, retry with `--worktree`.
+
 ### Fan-out (parallel agents)
 
 `lpm duplicate -n 3 --label <proj>-<purpose> --label <proj>-<purpose> --label <proj>-<purpose> --run <action> --prompt "..."` clones the project into 3 labeled copies and queues the task in each. Then, per copy: `lpm wait --agent -p <copy>` until it settles, review its work at the printed path (e.g. `git diff` there), and `lpm remove <copy>`.
+
+Add `--worktree` to the fan-out command when each copy should use an independent Git branch without duplicating repository data.
 
 To create or edit project configs (services/actions/YAML), use the `lpm-config` skill.

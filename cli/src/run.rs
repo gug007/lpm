@@ -62,7 +62,10 @@ pub fn resolve_run_target(targets: &[RunTarget], query: &str) -> Result<String, 
     if let Some(t) = targets.iter().find(|t| t.id == query) {
         return Ok(t.id.clone());
     }
-    let leaf: Vec<&RunTarget> = targets.iter().filter(|t| leaf_key(&t.id) == query).collect();
+    let leaf: Vec<&RunTarget> = targets
+        .iter()
+        .filter(|t| leaf_key(&t.id) == query)
+        .collect();
     match leaf.len() {
         1 => return Ok(leaf[0].id.clone()),
         0 => {}
@@ -290,10 +293,7 @@ mod tests {
 
     #[test]
     fn ambiguous_prefix_and_leaf_are_errors() {
-        let t = vec![
-            target("a:claude", "Claude"),
-            target("b:claude", "Claude"),
-        ];
+        let t = vec![target("a:claude", "Claude"), target("b:claude", "Claude")];
         let err = resolve_run_target(&t, "claude").unwrap_err();
         assert!(err.contains("ambiguous"));
         assert!(err.contains("a:claude"));

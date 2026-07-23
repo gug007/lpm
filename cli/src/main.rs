@@ -50,7 +50,8 @@ const VERSION: &str = match option_env!("LPM_CLI_VERSION") {
 configuration from ~/.lpm and live state from tmux and the app's status socket, and can \
 control projects — start, stop, restart services, set agent status — by asking the running \
 app over that socket (so the app stays the single owner of run-state).\n\n\
-Read commands: `list`, `project`, `logs`, `status`, `config`. Control commands (need the app running): \
+Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
+Config transactions (need the app running): `config get`, `config apply`. Control commands: \
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`, `automations`. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
@@ -66,7 +67,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Resolve and validate lpm YAML configuration.
+    /// Resolve, validate, and safely apply lpm YAML configuration.
     Config {
         #[command(subcommand)]
         command: config_cmd::Command,

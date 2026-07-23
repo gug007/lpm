@@ -122,7 +122,11 @@ pub fn run(
     let names: Vec<String> = parsed
         .get("names")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
         .unwrap_or_default();
     let warning = parsed.get("warning").and_then(Value::as_str);
 
@@ -213,10 +217,7 @@ fn build_copies(
     names: &[String],
     resolve: impl Fn(&str) -> Option<String>,
 ) -> Vec<(String, Option<String>)> {
-    names
-        .iter()
-        .map(|n| (n.clone(), resolve(n)))
-        .collect()
+    names.iter().map(|n| (n.clone(), resolve(n))).collect()
 }
 
 #[cfg(test)]

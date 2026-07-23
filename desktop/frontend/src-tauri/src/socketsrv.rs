@@ -161,6 +161,8 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "start_service" => cmd_set_service(args, app, true),
         "stop_service" => cmd_set_service(args, app, false),
         "restart_service" => cmd_restart_service(args, app),
+        "config_get" => cmd_config_get(args),
+        "config_apply" => cmd_config_apply(args, app),
         "remove_project" => cmd_remove_project(args, app),
         "run_task" => cmd_run_task(args, app),
         "set_resume" => cmd_set_resume(args, app),
@@ -183,6 +185,77 @@ fn reply(r: Result<(), String>) -> String {
     match r {
         Ok(()) => "OK".into(),
         Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigGetPayload {
+    layer: String,
+    #[serde(default)]
+    project: String,
+    #[serde(default)]
+    template: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigApplyPayload {
+    layer: String,
+    #[serde(default)]
+    project: String,
+    #[serde(default)]
+    template: String,
+    expected_revision: String,
+    content: String,
+}
+
+fn decode_config_payload<T: serde::de::DeserializeOwned>(args: &[String]) -> Result<T, String> {
+    let (_, options) = parse_options(args);
+    let encoded = options
+        .get("payload-hex")
+        .ok_or_else(|| "missing --payload-hex".to_string())?;
+    let payload = hex_decode(encoded).ok_or_else(|| "invalid payload encoding".to_string())?;
+    serde_json::from_str(&payload).map_err(|e| format!("invalid config payload: {e}"))
+}
+
+fn config_error(error: String) -> String {
+    let code = if error.starts_with("revision conflict:") {
+        "revision_conflict"
+    } else if error.starts_with("invalid YAML:") {
+        "invalid_yaml"
+    } else {
+        "config_error"
+    };
+    serde_json::json!({ "ok": false, "code": code, "error": error }).to_string()
+}
+
+fn cmd_config_get(args: &[String]) -> String {
+    let payload = match decode_config_payload::<ConfigGetPayload>(args) {
+        Ok(payload) => payload,
+        Err(error) => return config_error(error),
+    };
+    match crate::config_cmds::config_snapshot(&payload.project, &payload.layer, &payload.template) {
+        Ok(snapshot) => serde_json::json!({ "ok": true, "snapshot": snapshot }).to_string(),
+        Err(error) => config_error(error),
+    }
+}
+
+fn cmd_config_apply(args: &[String], app: &AppHandle) -> String {
+    let payload = match decode_config_payload::<ConfigApplyPayload>(args) {
+        Ok(payload) => payload,
+        Err(error) => return config_error(error),
+    };
+    match crate::config_cmds::apply_config_candidate(
+        app,
+        &payload.project,
+        &payload.layer,
+        &payload.template,
+        &payload.expected_revision,
+        &payload.content,
+    ) {
+        Ok(snapshot) => serde_json::json!({ "ok": true, "snapshot": snapshot }).to_string(),
+        Err(error) => config_error(error),
     }
 }
 
@@ -854,6 +927,8 @@ mod tests {
             "start_service",
             "stop_service",
             "restart_service",
+            "config_get",
+            "config_apply",
             "remove_project",
             "run_task",
             "duplicate_project",
@@ -934,6 +1009,30 @@ mod tests {
     fn followup_hex_preserves_message_text() {
         assert_eq!(hex_decode("646f6e2774").as_deref(), Some("don't"));
         assert!(hex_decode("xyz").is_none());
+    }
+
+    #[test]
+    fn config_payload_preserves_yaml_source() {
+        let content = "actions:\n  review:\n    cmd: |\n      claude \"Review: {{prs}}\"\n";
+        let payload = serde_json::json!({
+            "layer": "repo",
+            "project": "web",
+            "expectedRevision": "abc",
+            "content": content,
+        })
+        .to_string();
+        let encoded = payload
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let parsed =
+            decode_config_payload::<ConfigApplyPayload>(&[format!("--payload-hex={encoded}")])
+                .unwrap();
+        assert_eq!(parsed.layer, "repo");
+        assert_eq!(parsed.project, "web");
+        assert_eq!(parsed.expected_revision, "abc");
+        assert_eq!(parsed.content, content);
     }
 
     use std::sync::atomic::{AtomicU32, Ordering};

@@ -1,8 +1,8 @@
 [package]
 name = "lpm-cli"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
-description = "Read-only command-line companion for the lpm desktop app"
+description = "Command-line companion for the lpm desktop app"
 
 [[bin]]
 name = "lpm"

@@ -323,15 +323,41 @@ fn read_yaml<T: for<'de> Deserialize<'de>>(path: &Path) -> Option<T> {
     serde_yaml::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
-fn parse_project_yaml(ctx: &Ctx, name: &str) -> Result<ProjectYaml, String> {
+struct SourceOverride<'a> {
+    path: &'a Path,
+    source: &'a str,
+}
+
+fn read_yaml_with<T: for<'de> Deserialize<'de>>(
+    path: &Path,
+    source_override: Option<&SourceOverride<'_>>,
+) -> Option<T> {
+    match source_override.filter(|candidate| candidate.path == path) {
+        Some(candidate) => serde_yaml::from_str(candidate.source).ok(),
+        None => read_yaml(path),
+    }
+}
+
+fn parse_project_yaml_with(
+    ctx: &Ctx,
+    name: &str,
+    source_override: Option<&SourceOverride<'_>>,
+) -> Result<ProjectYaml, String> {
     let path = ctx.project_path(name);
+    if let Some(candidate) = source_override.filter(|candidate| candidate.path == path) {
+        return serde_yaml::from_str(candidate.source).map_err(|e| e.to_string());
+    }
     let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_yaml::from_slice::<ProjectYaml>(&bytes).map_err(|e| e.to_string())
+    serde_yaml::from_slice(&bytes).map_err(|e| e.to_string())
 }
 
 /// `config.PeekParent`: a project's non-empty `parent_name`, or None.
-fn peek_parent(ctx: &Ctx, name: &str) -> Option<String> {
-    let y = parse_project_yaml(ctx, name).ok()?;
+fn peek_parent_with(
+    ctx: &Ctx,
+    name: &str,
+    source_override: Option<&SourceOverride<'_>>,
+) -> Option<String> {
+    let y = parse_project_yaml_with(ctx, name, source_override).ok()?;
     (!y.parent_name.is_empty()).then_some(y.parent_name)
 }
 
@@ -445,8 +471,8 @@ pub fn infer_project_name(ctx: &Ctx) -> Result<String, String> {
         }
     }
 
-    let cwd = std::env::current_dir()
-        .map_err(|e| format!("cannot determine current directory: {e}"))?;
+    let cwd =
+        std::env::current_dir().map_err(|e| format!("cannot determine current directory: {e}"))?;
     let resolution = resolve_project_for_cwd(ctx, &cwd);
     match resolution.candidates.len() {
         1 => Ok(resolution.candidates[0].clone()),
@@ -565,12 +591,16 @@ fn build_base_layer(y: &ActionsYaml) -> BTreeMap<String, ActionFull> {
 }
 
 /// A layer + one flatten pass of its `extends` templates (declaring layer wins).
-fn build_layer(ctx: &Ctx, y: &ActionsYaml) -> BTreeMap<String, ActionFull> {
+fn build_layer_with(
+    ctx: &Ctx,
+    y: &ActionsYaml,
+    source_override: Option<&SourceOverride<'_>>,
+) -> BTreeMap<String, ActionFull> {
     let mut m = build_base_layer(y);
     for tref in &y.extends {
         for ext in ["yml", "yaml"] {
             let tp = ctx.templates_dir().join(format!("{tref}.{ext}"));
-            if let Some(ty) = read_yaml::<ActionsYaml>(&tp) {
+            if let Some(ty) = read_yaml_with::<ActionsYaml>(&tp, source_override) {
                 merge_action_fallback(&mut m, build_base_layer(&ty));
                 break;
             }
@@ -768,7 +798,25 @@ pub fn sort_by_position(names: &mut [String], pos_of: impl Fn(&str) -> Option<f6
 /// Fully resolve a project by file-name stem: services + actions/terminals
 /// merged across all layers, ready to render.
 pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, String> {
-    let y = parse_project_yaml(ctx, file_name)?;
+    resolve_project_with_source(ctx, file_name, None)
+}
+
+pub fn resolve_project_with_override(
+    ctx: &Ctx,
+    file_name: &str,
+    path: &Path,
+    source: &str,
+) -> Result<ResolvedProject, String> {
+    let source_override = SourceOverride { path, source };
+    resolve_project_with_source(ctx, file_name, Some(&source_override))
+}
+
+fn resolve_project_with_source(
+    ctx: &Ctx,
+    file_name: &str,
+    source_override: Option<&SourceOverride<'_>>,
+) -> Result<ResolvedProject, String> {
+    let y = parse_project_yaml_with(ctx, file_name, source_override)?;
     let session = if y.name.is_empty() {
         file_name.to_string()
     } else {
@@ -786,8 +834,8 @@ pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, St
         .collect();
     let mut profiles = y.profiles;
 
-    if let Some(parent) = peek_parent(ctx, file_name) {
-        if let Ok(py) = parse_project_yaml(ctx, &parent) {
+    if let Some(parent) = peek_parent_with(ctx, file_name, source_override) {
+        if let Ok(py) = parse_project_yaml_with(ctx, &parent, source_override) {
             let ps: BTreeMap<String, ServiceFull> = py
                 .services
                 .into_iter()
@@ -797,7 +845,9 @@ pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, St
         }
     }
     if !is_remote && !root.is_empty() {
-        if let Some(ry) = read_yaml::<ProjectYaml>(&Path::new(&root).join(".lpm.yml")) {
+        if let Some(ry) =
+            read_yaml_with::<ProjectYaml>(&Path::new(&root).join(".lpm.yml"), source_override)
+        {
             let rs: BTreeMap<String, ServiceFull> = ry
                 .services
                 .into_iter()
@@ -806,7 +856,7 @@ pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, St
             merge_services_under(&mut services, &mut profiles, rs, ry.profiles);
         }
     }
-    if let Some(gy) = read_yaml::<ProjectYaml>(&ctx.global_path()) {
+    if let Some(gy) = read_yaml_with::<ProjectYaml>(&ctx.global_path(), source_override) {
         let gs: BTreeMap<String, ServiceFull> = gy
             .services
             .into_iter()
@@ -830,22 +880,25 @@ pub fn resolve_project(ctx: &Ctx, file_name: &str) -> Result<ResolvedProject, St
 
     // ---- actions/terminals: project(+extends) -> parent -> repo -> global ----
     let mut amap: BTreeMap<String, ActionFull> =
-        match read_yaml::<ActionsYaml>(&ctx.project_path(file_name)) {
-            Some(ay) => build_layer(ctx, &ay),
+        match read_yaml_with::<ActionsYaml>(&ctx.project_path(file_name), source_override) {
+            Some(ay) => build_layer_with(ctx, &ay, source_override),
             None => BTreeMap::new(),
         };
-    if let Some(parent) = peek_parent(ctx, file_name) {
-        if let Some(py) = read_yaml::<ActionsYaml>(&ctx.project_path(&parent)) {
-            merge_action_fallback(&mut amap, build_layer(ctx, &py));
+    if let Some(parent) = peek_parent_with(ctx, file_name, source_override) {
+        if let Some(py) = read_yaml_with::<ActionsYaml>(&ctx.project_path(&parent), source_override)
+        {
+            merge_action_fallback(&mut amap, build_layer_with(ctx, &py, source_override));
         }
     }
     if !is_remote && !root.is_empty() {
-        if let Some(ry) = read_yaml::<ActionsYaml>(&Path::new(&root).join(".lpm.yml")) {
-            merge_action_fallback(&mut amap, build_layer(ctx, &ry));
+        if let Some(ry) =
+            read_yaml_with::<ActionsYaml>(&Path::new(&root).join(".lpm.yml"), source_override)
+        {
+            merge_action_fallback(&mut amap, build_layer_with(ctx, &ry, source_override));
         }
     }
-    if let Some(gy) = read_yaml::<ActionsYaml>(&ctx.global_path()) {
-        merge_action_fallback(&mut amap, build_layer(ctx, &gy));
+    if let Some(gy) = read_yaml_with::<ActionsYaml>(&ctx.global_path(), source_override) {
+        merge_action_fallback(&mut amap, build_layer_with(ctx, &gy, source_override));
     }
 
     let (terminals, actions) = split_actions(&amap);
@@ -955,7 +1008,10 @@ mod tests {
         std::fs::create_dir_all(&sub).unwrap();
         let (_d, ctx) = ctx_with(
             &[
-                ("outer", &format!("name: outer\nroot: {}\n", outer.path().display())),
+                (
+                    "outer",
+                    &format!("name: outer\nroot: {}\n", outer.path().display()),
+                ),
                 ("dup", &format!("name: dup\nroot: {}\n", dup.display())),
             ],
             None,
@@ -996,7 +1052,10 @@ mod tests {
         let elsewhere = tmp_dir();
         let here = tmp_dir();
         let (_d, ctx) = ctx_with(
-            &[("a", &format!("name: a\nroot: {}\n", elsewhere.path().display()))],
+            &[(
+                "a",
+                &format!("name: a\nroot: {}\n", elsewhere.path().display()),
+            )],
             None,
         );
         let prev = std::env::current_dir().unwrap();

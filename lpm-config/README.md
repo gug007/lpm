@@ -36,7 +36,7 @@ When you tell your agent things like:
 - "Group the database commands together"
 - "Duplicate this project for my other checkout"
 
-The skill guides the agent to write correct lpm YAML configs at `~/.lpm/projects/<name>.yml`, asking smart follow-up questions (button or menu? reuse terminal? needs confirmation?).
+The skill guides the agent to prepare correct lpm YAML and apply it through a revision-checked CLI transaction. Invalid candidates never replace the live config.
 
 ## Supported features
 
@@ -50,7 +50,7 @@ The skill guides the agent to write correct lpm YAML configs at `~/.lpm/projects
 - **Duplicate projects** — inherit config from a parent project (`parent_name`)
 - **Global config** — shared actions across all projects
 - **Repo and template layers** — `.lpm.yml`, reusable templates, and sparse overrides
-- **Deterministic validation** — target resolution and semantic checks through `lpm config`
+- **Safe config writes** — pre-save validation, revision conflict detection, and atomic replacement through `lpm config get/apply`
 
 ## Prerequisites
 

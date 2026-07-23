@@ -21,6 +21,6 @@ In Claude Code you can also trigger it explicitly as a slash command: `/lpm-cli`
 
 ## What it does
 
-The skill uses `LPM_PROJECT_NAME` or the current directory to select a project after an lpm operation is requested. It can start/stop services, tail logs, check live agent status, wait for readiness, validate config files, and fan work out across duplicate copies with token-lean output by default.
+The skill uses `LPM_PROJECT_NAME` or the current directory to select a project after an lpm operation is requested. It can start/stop services, tail logs, check live agent status, wait for readiness, safely read and apply revision-checked config changes, and fan work out across duplicate copies with token-lean output by default.
 
 For creating or editing lpm project YAML configs, use the companion [`lpm-config`](../lpm-config/README.md) skill.
