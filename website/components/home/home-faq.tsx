@@ -18,7 +18,7 @@ const FAQS: QA[] = [
   {
     question: "Which Macs and macOS versions are supported?",
     answer:
-      "lpm runs on macOS 12 or later, with separate native builds for Apple Silicon and Intel Macs. Both builds are signed and notarized by Apple, and there is no Electron runtime.",
+      "lpm runs on macOS 12 or later, with separate native builds for Apple Silicon and Intel Macs. Both builds are signed with an Apple-issued Developer ID and notarized by Apple, and there is no Electron runtime.",
   },
   {
     question: "Does lpm replace my terminal or editor?",
@@ -34,6 +34,11 @@ const FAQS: QA[] = [
     question: "Does lpm collect my code or telemetry?",
     answer:
       "No. The desktop app runs entirely on your machine — no analytics, no telemetry, no account, and nothing is sent to any server we control. Only this website uses basic visitor analytics; see the privacy policy for details.",
+  },
+  {
+    question: "How do I uninstall lpm?",
+    answer:
+      "Quit lpm and move lpm.app from Applications to Trash. If you installed the optional command-line link, remove /usr/local/bin/lpm. Delete ~/.lpm only if you also want to erase local settings, project configuration, and notes.",
   },
 ];
 

@@ -51,8 +51,17 @@ export function HeroDownload() {
           aria-hidden
         />
       </a>
-      <div className="flex justify-center">
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
         <SignatureBadge />
+        <span className="text-gray-300 dark:text-gray-700" aria-hidden>
+          ·
+        </span>
+        <a
+          href="#download-safety"
+          className="text-[11px] text-gray-500 underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white transition-colors"
+        >
+          Safety, checksums &amp; removal
+        </a>
       </div>
     </div>
   );

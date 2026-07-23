@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ConfigExample } from "@/components/home/config-example";
 import { CtaBand } from "@/components/home/cta-band";
 import { DemoSection } from "@/components/home/demo";
+import { DownloadSafety } from "@/components/home/download-safety";
 import { Downloads } from "@/components/home/downloads";
 import { Features } from "@/components/home/features";
 import { Hero } from "@/components/home/hero";
@@ -68,7 +69,9 @@ export default function HomePage() {
           },
         ]}
       />
-      <Downloads />
+      <Downloads>
+        <DownloadSafety />
+      </Downloads>
     </>
   );
 }

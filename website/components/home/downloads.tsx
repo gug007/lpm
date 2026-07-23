@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   ArrowRight,
   Laptop,
@@ -41,7 +42,7 @@ const DOWNLOADS: Download[] = [
   },
 ];
 
-export function Downloads() {
+export function Downloads({ children }: { children?: ReactNode }) {
   return (
     <section
       id="download"
@@ -89,6 +90,7 @@ export function Downloads() {
             <ArrowRight className="w-3.5 h-3.5" />
           </a>
         </div>
+        {children}
       </div>
     </section>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { ChevronDownIcon } from "./icons";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { launchOpenInTarget, useOpenInTargets, OPEN_IN_SELECTED_KEY, type OpenInTarget } from "../hooks/useOpenInTargets";
 
@@ -32,22 +33,22 @@ export function OpenInDropdown({ projectPath, isRemote = false }: {
 
   return (
     <div ref={ref} className="relative shrink-0">
-      <div className="inline-flex items-stretch rounded-lg border border-[var(--border)]">
+      <div className="inline-flex items-stretch rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
         <button
           onClick={() => launch(selected)}
           title={`Open in ${selected.label}`}
-          className="flex items-center rounded-l-lg border-r border-[var(--border)] px-2 py-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
+          className="flex items-center rounded-l-lg px-2.5 py-1.5 text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)] active:scale-[0.97]"
         >
           <img src={selected.icon} alt="" className="h-4 w-4 shrink-0" />
         </button>
         <button
           onClick={() => setOpen((v) => !v)}
           title="Choose app"
-          className={`flex items-center rounded-r-lg px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${
+          className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-all duration-100 hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)] active:scale-[0.97] ${
             open ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >
-          <ChevronDown />
+          <ChevronDownIcon />
         </button>
       </div>
       {open && (
@@ -67,13 +68,5 @@ export function OpenInDropdown({ projectPath, isRemote = false }: {
         </div>
       )}
     </div>
-  );
-}
-
-function ChevronDown() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
   );
 }

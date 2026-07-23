@@ -117,41 +117,51 @@ function StartStopGroup({
   // profiles even when the project has zero or one service. Only the
   // primary Start/Stop button is hidden when there are no services to run.
   const hasServices = project.allServices.length > 0;
+  const segmentHover = project.running
+    ? "hover:bg-black/10"
+    : "hover:bg-[var(--bg-primary)]/15";
   return (
     <div ref={profileMenuRef} className="relative flex" style={NO_DRAG_STYLE}>
       {hasServices ? (
-        project.running ? (
+        <div
+          className={`inline-flex items-stretch rounded-lg border ${
+            project.running
+              ? "border-[var(--accent-red)] bg-[var(--accent-red)] text-white"
+              : "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)]"
+          }`}
+        >
           <button
-            onClick={onStop}
+            onClick={project.running ? onStop : onStart}
             disabled={loading}
-            className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--accent-red)] text-white hover:opacity-85"
+            className={`rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${segmentHover}`}
           >
-            Stop
+            {project.running ? "Stop" : "Start"}
           </button>
-        ) : (
           <button
-            onClick={onStart}
+            onClick={onToggleProfileMenu}
             disabled={loading}
-            className="rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all disabled:opacity-40 bg-[var(--text-primary)] text-[var(--bg-primary)] hover:opacity-85"
+            aria-label="Services and profiles"
+            className={`flex items-center rounded-r-lg border-l px-1.5 transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${
+              project.running ? "border-white/20" : "border-[var(--bg-primary)]/20"
+            } ${segmentHover} ${showProfileMenu ? (project.running ? "bg-black/10" : "bg-[var(--bg-primary)]/15") : ""}`}
           >
-            Start
+            <ChevronDownIcon />
           </button>
-        )
-      ) : null}
-      <button
-        onClick={onToggleProfileMenu}
-        disabled={loading}
-        aria-label="Services and profiles"
-        className={`${hasServices ? "rounded-r-lg border-l" : "rounded-lg border"} px-1.5 py-1.5 transition-all disabled:opacity-40 hover:opacity-85 ${
-          hasServices
-            ? project.running
-              ? "border-white/20 bg-[var(--accent-red)] text-white"
-              : "border-[var(--bg-primary)]/20 bg-[var(--text-primary)] text-[var(--bg-primary)]"
-            : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        <ChevronDownIcon />
-      </button>
+        </div>
+      ) : (
+        <button
+          onClick={onToggleProfileMenu}
+          disabled={loading}
+          aria-label="Services and profiles"
+          className={`rounded-lg border border-[var(--border)] px-1.5 py-1.5 transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)] ${
+            showProfileMenu
+              ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+              : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+          }`}
+        >
+          <ChevronDownIcon />
+        </button>
+      )}
       {showProfileMenu && (
         <StartMenu
           profiles={project.profiles}

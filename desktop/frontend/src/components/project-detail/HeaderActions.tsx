@@ -71,7 +71,7 @@ export function HeaderActions({
           type="button"
           onClick={onAddAction}
           aria-label="Create action"
-          className="flex h-7 shrink-0 items-center gap-1 rounded-lg border border-dashed border-[var(--border)] px-2 text-xs text-[var(--text-muted)] transition-colors hover:border-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className="flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] transition-all duration-100 hover:border-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97]"
         >
           <PlusIcon />
           <span>Action</span>
