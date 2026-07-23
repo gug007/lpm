@@ -12,7 +12,8 @@ import { XIcon } from "./icons";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOverlay } from "../store/overlay";
 import {
-  ACTION_COLOR_NAMES,
+  ACTION_COLOR_HUES,
+  ACTION_COLOR_NEUTRALS,
   actionAccentColor,
   isNamedActionColor,
 } from "../actionColors";
@@ -136,7 +137,18 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
             className="z-[70] w-max rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 shadow-2xl"
           >
             <div className="grid grid-cols-6 gap-1">
-              {ACTION_COLOR_NAMES.map((name) => (
+              {ACTION_COLOR_HUES.map((name) => (
+                <Swatch
+                  key={name}
+                  color={actionAccentColor(name)!}
+                  selected={value === name}
+                  onClick={() => pick(name)}
+                  label={name}
+                />
+              ))}
+            </div>
+            <div className="mt-1 grid grid-cols-6 gap-1">
+              {ACTION_COLOR_NEUTRALS.map((name) => (
                 <Swatch
                   key={name}
                   color={actionAccentColor(name)!}

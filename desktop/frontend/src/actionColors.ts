@@ -4,20 +4,34 @@ import type { CSSProperties } from "react";
 // accent CSS vars so it adapts to light/dark. Any other string is treated as a
 // raw CSS color (e.g. a hand-authored hex in YAML).
 // Ordered as a hue wheel for the picker grid; "claude" is the Claude Code
-// brand coral, "slate" a colored-but-neutral option.
-export const ACTION_COLOR_NAMES = [
+// brand coral.
+export const ACTION_COLOR_HUES = [
   "red",
   "orange",
   "claude",
   "amber",
+  "yellow",
+  "lime",
   "green",
+  "emerald",
   "teal",
   "cyan",
+  "sky",
   "blue",
   "indigo",
+  "violet",
   "purple",
+  "fuchsia",
   "pink",
-  "slate",
+  "rose",
+] as const;
+
+// Colored-but-neutral options, kept as a distinct group in the picker.
+export const ACTION_COLOR_NEUTRALS = ["slate", "gray", "stone"] as const;
+
+export const ACTION_COLOR_NAMES = [
+  ...ACTION_COLOR_HUES,
+  ...ACTION_COLOR_NEUTRALS,
 ] as const;
 
 export type ActionColorName = (typeof ACTION_COLOR_NAMES)[number];
