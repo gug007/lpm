@@ -13,6 +13,7 @@ import {
   SITE_URL,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
+  STATUSLINE_PATH,
   TERMS_PATH,
   TOKEN_USAGE_PATH,
   VS_BASE_PATH,
@@ -34,6 +35,7 @@ const LAST_MODIFIED: Record<string, string> = {
   [CONNECT_AGENTS_PATH]: "2026-07-16",
   [WORKTREE_ALTERNATIVE_PATH]: "2026-07-23",
   [TOKEN_USAGE_PATH]: "2026-07-20",
+  [STATUSLINE_PATH]: "2026-07-23",
   [MOBILE_PATH]: "2026-07-16",
   [VS_BASE_PATH]: "2026-07-16",
   [vsPath("foreman")]: "2026-07-16",
@@ -132,6 +134,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE_URL}${TOKEN_USAGE_PATH}`,
       lastModified: lastModified(TOKEN_USAGE_PATH),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${STATUSLINE_PATH}`,
+      lastModified: lastModified(STATUSLINE_PATH),
       changeFrequency: "monthly",
       priority: 0.8,
     },

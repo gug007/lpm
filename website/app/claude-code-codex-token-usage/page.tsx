@@ -5,6 +5,7 @@ import {
   CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
   REVIEW_CHANGES_PATH,
+  STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
 } from "@/lib/links";
 import {
@@ -91,6 +92,12 @@ export default function ClaudeCodeCodexTokenUsagePage() {
       <Faq />
       <RelatedPages
         links={[
+          {
+            href: STATUSLINE_PATH,
+            title: "Customize statuslines in LPM Desktop",
+            description:
+              "Visually customize Claude Code and Codex statuslines with presets, live preview, colors, meters, and automatic local saving.",
+          },
           {
             href: AI_AGENTS_PATH,
             title: "Best terminal for Claude Code & Codex",

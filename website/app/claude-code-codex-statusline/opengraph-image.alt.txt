@@ -1,0 +1,1 @@
+LPM Desktop visual statusline customization for Claude Code and Codex with orange and teal terminal status bars.

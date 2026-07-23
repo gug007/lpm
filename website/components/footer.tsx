@@ -11,6 +11,7 @@ import {
   REVIEW_CHANGES_PATH,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
+  STATUSLINE_PATH,
   TELEGRAM_URL,
   TERMS_PATH,
   TOKEN_USAGE_PATH,
@@ -142,6 +143,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Claude Code &amp; Codex token usage
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={STATUSLINE_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            LPM statusline customization
           </Link>
           <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
             ·
