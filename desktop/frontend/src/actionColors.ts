@@ -38,21 +38,18 @@ export function actionTextColor(color: string | undefined): string | undefined {
   return NAMED.has(color) ? `var(--accent-${color}-text)` : color;
 }
 
-// Inline style for an action button: colored label, softened border, and
-// tint variables the button classes pick up for fills, dividers, and hover
-// states. Uncolored actions return undefined, so every var() consumer falls
-// back to the neutral look.
+// Inline style for an action button: colored label plus tint variables the
+// button classes pick up for fills and hover states; the border stays the
+// neutral var(--border) like uncolored buttons. Uncolored actions return
+// undefined, so every var() consumer falls back to the neutral look.
 export function actionButtonStyle(
   color: string | undefined,
 ): CSSProperties | undefined {
   const accent = actionAccentColor(color);
   if (!accent) return undefined;
-  const border = `color-mix(in srgb, ${accent} 25%, transparent)`;
   return {
     color: actionTextColor(color),
-    borderColor: border,
     "--action-text": actionTextColor(color),
-    "--action-border": border,
     "--action-tint": `color-mix(in srgb, ${accent} 10%, transparent)`,
     "--action-tint-strong": `color-mix(in srgb, ${accent} 20%, transparent)`,
   } as CSSProperties;
