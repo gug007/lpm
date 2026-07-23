@@ -114,11 +114,12 @@ export async function DownloadSafety() {
             Easy to remove
           </p>
           <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-            Quit lpm and move <code className="font-mono">lpm.app</code> from
-            Applications to Trash. If you installed the optional CLI link,
-            remove <code className="font-mono">/usr/local/bin/lpm</code>.
-            Delete <code className="font-mono">~/.lpm</code> only if you also
-            want to erase local settings, project configuration, and notes.
+            Choose Remove app in lpm&apos;s settings and it removes itself —
+            the app, the CLI link, and the agent skills it installed — with an
+            option to also erase local settings, project configuration, and
+            notes. Or do it manually: quit lpm, move{" "}
+            <code className="font-mono">lpm.app</code> to Trash, and delete{" "}
+            <code className="font-mono">~/.lpm</code>.
           </p>
         </div>
       </div>

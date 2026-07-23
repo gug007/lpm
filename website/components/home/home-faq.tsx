@@ -38,7 +38,7 @@ const FAQS: QA[] = [
   {
     question: "How do I uninstall lpm?",
     answer:
-      "Quit lpm and move lpm.app from Applications to Trash. If you installed the optional command-line link, remove /usr/local/bin/lpm. Delete ~/.lpm only if you also want to erase local settings, project configuration, and notes.",
+      "Open Settings → General → Remove app and lpm removes itself: the app, its command line tool, and its agent skills, with an option to also erase local settings, project configuration, and notes. Your project folders are never touched. You can also do it manually — quit lpm, move lpm.app from Applications to Trash, remove /usr/local/bin/lpm, and delete ~/.lpm.",
   },
 ];
 
