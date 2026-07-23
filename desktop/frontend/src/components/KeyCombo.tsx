@@ -25,7 +25,7 @@ function splitKeys(label: string): string[] {
 
 function Keycap({ label }: { label: string }) {
   return (
-    <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-[var(--bg-active)] px-1.5 text-[11px] font-medium leading-none text-[var(--text-secondary)]">
+    <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-[var(--composer-active-bg)] px-1.5 text-[11px] font-medium leading-none text-[var(--composer-fg-secondary)]">
       {label}
     </kbd>
   );
@@ -37,7 +37,7 @@ export function Combo({ label }: { label: string }) {
       {splitKeys(label).map((key, i) => (
         <Fragment key={i}>
           {i > 0 && (
-            <span className="text-[9px] text-[var(--text-muted)]">+</span>
+            <span className="text-[9px] text-[var(--composer-fg-muted)]">+</span>
           )}
           <Keycap label={key} />
         </Fragment>

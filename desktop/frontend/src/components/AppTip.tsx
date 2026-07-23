@@ -69,7 +69,7 @@ export function AppTip({ hasCli = true }: { hasCli?: boolean }) {
               onClick={() => setShowAll(true)}
               aria-label="Show all tips"
               title="Show all tips"
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--accent-amber)] transition-colors hover:bg-[var(--bg-hover)]"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[var(--accent-amber)] transition-colors hover:bg-[var(--composer-hover-bg)]"
             >
               <Lightbulb className="h-3.5 w-3.5" />
             </button>
@@ -78,7 +78,7 @@ export function AppTip({ hasCli = true }: { hasCli?: boolean }) {
           )}
           <span
             key={tip.id}
-            className="app-tip-in flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--text-secondary)]"
+            className="app-tip-in flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--composer-fg-muted)]"
           >
             {renderSegments(tip.segments)}
           </span>

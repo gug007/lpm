@@ -80,6 +80,13 @@ export function terminalThemeCssVars(colors: TerminalThemeColors): Record<string
     "--terminal-header-text": colors.headerText,
     "--terminal-header-hover": colors.headerHover,
     "--terminal-header-active": colors.headerActive,
+    "--terminal-header-border": `color-mix(in srgb, ${colors.fg} 32%, transparent)`,
     "--terminal-tab-active": colors.tabActive,
+    // The active tab pill and its hairline are derived from the theme's own
+    // fg/bg so they read as an elevated dark chip on any terminal theme —
+    // instead of the app's light #ffffff pill, which clashed on a dark
+    // terminal strip in light app theme.
+    "--terminal-tab-active-bg": `color-mix(in srgb, ${colors.fg} 15%, ${colors.bg})`,
+    "--terminal-tab-shadow": "inset 0 0 0 1px rgba(255, 255, 255, 0.08)",
   };
 }

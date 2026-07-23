@@ -388,7 +388,7 @@ export function BranchSwitcher({
           title={
             busy ? "Syncing…" : `Pull ${status.behind}, push ${status.ahead}`
           }
-          className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:opacity-40"
+          className="flex items-center gap-1 rounded-md border border-[var(--composer-border)] bg-[var(--composer-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--composer-fg-secondary)] transition-all duration-100 hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] active:scale-[0.97] disabled:opacity-40"
         >
           <SyncIcon spinning={busy} />
           {status.behind > 0 && (
@@ -404,10 +404,10 @@ export function BranchSwitcher({
           onClick={toggleOpen}
           title={busy ? "Switching branch…" : "Switch branch"}
           disabled={busy}
-          className={`flex items-center gap-1.5 rounded-md border border-[var(--border)] px-2.5 py-1 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:opacity-40 ${
+          className={`flex items-center gap-1.5 rounded-md border border-[var(--composer-border)] px-2.5 py-1 text-[11px] font-medium transition-all duration-100 active:scale-[0.97] disabled:opacity-40 ${
             open
-              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-              : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              ? "bg-[var(--composer-hover-bg)] text-[var(--composer-fg)]"
+              : "bg-[var(--composer-surface)] text-[var(--composer-fg-secondary)] hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
           }`}
         >
           <BranchIcon size={12} />
@@ -606,7 +606,7 @@ export function BranchSwitcher({
       </div>
       <div
         ref={commitMenuRef}
-        className="relative flex rounded-md border border-[var(--border)] bg-[var(--bg-secondary)]"
+        className="relative flex rounded-md border border-[var(--composer-border)] bg-[var(--composer-surface)]"
       >
         <button
           onClick={() => setCommitting(true)}
@@ -614,7 +614,7 @@ export function BranchSwitcher({
           title={
             status.uncommitted > 0 ? "Commit changes" : "No changes to commit"
           }
-          className="flex items-center gap-1 rounded-l-md px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex items-center gap-1 rounded-l-md px-2.5 py-1 text-[11px] font-medium text-[var(--composer-fg-secondary)] transition-all duration-100 hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <CommitIcon />
           <span>Commit</span>
@@ -625,10 +625,10 @@ export function BranchSwitcher({
         <button
           onClick={() => setCommitMenuOpen(!commitMenuOpen)}
           disabled={busy}
-          className={`flex items-center rounded-r-md border-l border-[var(--border)] px-1.5 py-1 transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:opacity-40 ${
+          className={`flex items-center rounded-r-md border-l border-[var(--composer-border)] px-1.5 py-1 transition-all duration-100 hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] active:scale-[0.97] disabled:opacity-40 ${
             commitMenuOpen
-              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-              : "text-[var(--text-secondary)]"
+              ? "bg-[var(--composer-hover-bg)] text-[var(--composer-fg)]"
+              : "text-[var(--composer-fg-secondary)]"
           }`}
         >
           <ChevronDownIcon />

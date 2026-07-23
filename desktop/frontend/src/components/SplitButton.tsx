@@ -36,11 +36,11 @@ const SIZE_CLASSES = {
     padding: "px-2.5 py-1 text-[11px]",
     chevronPad: "px-1.5",
     side: "above",
-    border: "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))]",
-    dividerBorder: "border-l border-[var(--action-border,var(--border))]",
-    text: "text-[var(--action-text,var(--text-secondary))]",
-    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--text-primary))]",
-    active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--text-primary))]",
+    border: "border border-[var(--composer-border)] bg-[var(--action-tint,var(--composer-surface))]",
+    dividerBorder: "border-l border-[var(--action-border,var(--composer-border))]",
+    text: "text-[var(--action-text,var(--composer-fg-secondary))]",
+    hover: "hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--action-text,var(--composer-fg))]",
+    active: "bg-[var(--action-tint-strong,var(--terminal-header-active))] text-[var(--action-text,var(--composer-fg))]",
   },
 } as const;
 
