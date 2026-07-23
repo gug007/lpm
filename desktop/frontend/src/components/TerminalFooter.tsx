@@ -30,7 +30,7 @@ export function TerminalFooter({
   const isGitRepo = !!gitState.status?.isGitRepo;
 
   return (
-    <div className="composer-terminal-surface flex items-center gap-2 border-x border-[var(--border)] bg-[var(--terminal-bg)] px-2 py-1">
+    <div className="composer-terminal-surface flex items-center gap-2 bg-[var(--terminal-bg)] px-3 py-2">
       <AppTip />
       <ActionsGroup
         group="footer"

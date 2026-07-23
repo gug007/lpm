@@ -756,7 +756,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border-t border-x border-[var(--border)] bg-[var(--terminal-bg)]"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden border-t border-[var(--border)] bg-[var(--terminal-bg)]"
       style={containerStyle}
     >
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
