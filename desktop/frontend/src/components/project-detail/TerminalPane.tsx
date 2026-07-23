@@ -64,7 +64,7 @@ export function TerminalPane({
 }: TerminalPaneProps) {
   return (
     <div
-      className={active ? "relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
+      className={active ? "relative mt-1.5 -ml-[calc(1.5rem+1px)] -mr-[calc(1.5rem+1px)] -mb-[calc(1.5rem+1px)] flex min-h-0 flex-1 flex-col overflow-hidden" : "hidden"}
       style={themeStyle}
     >
       <div className={showEmptyState ? "hidden" : "contents"}>
