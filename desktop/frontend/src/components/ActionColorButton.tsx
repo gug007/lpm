@@ -12,26 +12,24 @@ import { XIcon } from "./icons";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOverlay } from "../store/overlay";
 import {
-  ACTION_COLOR_HUES,
-  ACTION_COLOR_NEUTRALS,
+  ACTION_COLOR_NAMES,
   actionAccentColor,
   actionColorLabel,
   actionColorVariants,
   isNamedActionColor,
 } from "../actionColors";
 
-const DEEP_HUES = actionColorVariants(ACTION_COLOR_HUES, "deep");
-const DEEP_NEUTRALS = actionColorVariants(ACTION_COLOR_NEUTRALS, "deep");
+const DEEP_COLORS = actionColorVariants(ACTION_COLOR_NAMES, "deep");
 
 const RAINBOW =
   "conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #3b82f6, #a855f7, #ef4444)";
 
 const PANEL_GAP_PX = 8;
 
-// Double ring: a bg-colored gap, then the color itself — reads as selection on
-// any swatch color in either theme.
-function selectionRing(color: string): string {
-  return `0 0 0 2px var(--bg-secondary), 0 0 0 4px ${color}`;
+// Selection ring via outline so the gap stays transparent — a box-shadow gap
+// would paint an opaque disc over the translucent panel.
+function selectionStyle(color: string): CSSProperties {
+  return { outline: `2px solid ${color}`, outlineOffset: "2px" };
 }
 
 function isValidCssColor(value: string): boolean {
@@ -139,43 +137,30 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
           <div
             ref={panelRef}
             style={panelStyle}
-            className="z-[70] w-max overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3 shadow-2xl"
+            className="z-[70] w-max origin-top-right overflow-y-auto rounded-2xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg-secondary)_86%,transparent)] p-3 shadow-[0_16px_44px_-12px_rgba(0,0,0,0.4),0_2px_10px_-2px_rgba(0,0,0,0.2)] backdrop-blur-xl motion-safe:animate-[color-pop-in_130ms_ease-out]"
           >
-            <SwatchGrid values={ACTION_COLOR_HUES} selected={value} onPick={pick} />
+            <SwatchGrid values={ACTION_COLOR_NAMES} selected={value} onPick={pick} />
             <SwatchGrid
-              values={ACTION_COLOR_NEUTRALS}
+              values={DEEP_COLORS}
               selected={value}
               onPick={pick}
-              className="mt-1"
+              className="mt-2"
             />
-            <div className="mt-2.5 border-t border-[var(--border)] pt-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-              Deep
-            </div>
-            <SwatchGrid
-              values={DEEP_HUES}
-              selected={value}
-              onPick={pick}
-              className="mt-1.5"
-            />
-            <SwatchGrid
-              values={DEEP_NEUTRALS}
-              selected={value}
-              onPick={pick}
-              className="mt-1"
-            />
-            <div className="mt-2.5 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
+            <div className="mt-3 flex items-center gap-1.5">
               <label
                 title="Custom color"
-                className="relative grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-full transition-transform hover:scale-110"
+                className="relative grid h-6 w-6 shrink-0 cursor-pointer place-items-center rounded-full transition-transform duration-100 hover:scale-[1.15]"
               >
                 <span
                   className="h-4 w-4 rounded-full"
-                  style={{
-                    background: isCustom ? actionAccentColor(value) : RAINBOW,
-                    boxShadow: isCustom
-                      ? selectionRing(actionAccentColor(value)!)
-                      : undefined,
-                  }}
+                  style={
+                    isCustom
+                      ? {
+                          background: actionAccentColor(value),
+                          ...selectionStyle(actionAccentColor(value)!),
+                        }
+                      : { background: RAINBOW }
+                  }
                 />
                 <input
                   type="color"
@@ -196,7 +181,7 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
                 }}
                 placeholder="#8b5cf6"
                 spellCheck={false}
-                className="w-24 rounded-md border border-transparent bg-[var(--bg-primary)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                className="w-24 rounded-lg border border-transparent bg-[color-mix(in_srgb,var(--bg-primary)_65%,transparent)] px-2 py-1 font-mono text-[11px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
               />
               {value && (
                 <button
@@ -204,7 +189,7 @@ export function ActionColorButton({ value, onChange }: ActionColorButtonProps) {
                   onClick={() => pick("")}
                   aria-label="Clear color"
                   title="Clear color"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
                 >
                   <XIcon />
                 </button>
@@ -261,7 +246,7 @@ function SwatchGrid({
   className?: string;
 }) {
   return (
-    <div className={`grid grid-cols-6 gap-1 ${className}`}>
+    <div className={`grid grid-cols-7 gap-1 ${className}`}>
       {values.map((value) => (
         <Swatch
           key={value}
@@ -292,13 +277,13 @@ function Swatch({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="grid h-7 w-7 place-items-center rounded-full transition-transform hover:scale-110"
+      className="grid h-6 w-6 place-items-center rounded-full transition-transform duration-100 hover:scale-[1.15]"
     >
       <span
         className="h-4 w-4 rounded-full"
         style={{
           backgroundColor: color,
-          boxShadow: selected ? selectionRing(color) : undefined,
+          ...(selected ? selectionStyle(color) : undefined),
         }}
       />
     </button>
