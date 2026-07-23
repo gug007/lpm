@@ -20,7 +20,7 @@ export function ComposerMicButton({ disabled }: { disabled?: boolean }) {
           onClick={() => void toggle()}
           disabled={disabled}
           aria-label="Dictate"
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:pointer-events-none disabled:opacity-40"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--composer-fg-muted)] transition-colors hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] disabled:pointer-events-none disabled:opacity-40"
         >
           <MicIcon />
         </button>

@@ -1787,7 +1787,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const showActions = ai.anyAvailable;
 
   return (
-    <div className="border-t border-[var(--border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
+    <div className="composer-terminal-surface border-t border-[var(--composer-border)] bg-[var(--terminal-bg)] px-3 pb-1 pt-2">
       {tabView.length > 1 && (
         <ComposerTabStrip
           tabs={tabView}
@@ -1819,10 +1819,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           if (!next || !e.currentTarget.contains(next)) setDragOver(false);
         }}
         onDrop={handleDrop}
-        className={`relative rounded-xl bg-[var(--bg-secondary)] transition-colors ${
+        className={`relative rounded-xl bg-[var(--composer-surface)] transition-colors ${
           busy
             ? "border border-transparent"
-            : "border border-[var(--border)] focus-within:border-[var(--text-muted)]"
+            : "border border-[var(--composer-border)] focus-within:border-[var(--composer-border-focus)]"
         }`}
       >
         {dragOver && <TerminalDropOverlay compact label="Drop files to add" />}
@@ -1866,12 +1866,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onMouseLeave={dismissPreview}
           onScroll={dismissPreview}
           style={textStyle}
-          className="block max-h-[200px] min-h-[24px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3.5 py-1.5 text-[var(--text-primary)] outline-none [overflow-wrap:anywhere]"
+          className="block max-h-[200px] min-h-[24px] w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent px-3.5 py-1.5 text-[var(--composer-fg)] outline-none [overflow-wrap:anywhere]"
         />
         {blank && (
           <div
             style={textStyle}
-            className="pointer-events-none absolute left-3.5 top-1.5 text-[var(--text-muted)]"
+            className="pointer-events-none absolute left-3.5 top-1.5 text-[var(--composer-fg-muted)]"
           >
             {composerPlaceholder(targetLabel)}
           </div>
@@ -1880,7 +1880,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           <div
             aria-hidden
             style={{ fontSize, left: hint.left, top: hint.top, height: hint.height, lineHeight: `${hint.height}px` }}
-            className="pointer-events-none absolute whitespace-pre text-[var(--text-muted)]"
+            className="pointer-events-none absolute whitespace-pre text-[var(--composer-fg-muted)]"
           >
             {hint.text}
           </div>
@@ -1905,7 +1905,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 type="button"
                 onClick={addTab}
                 aria-label="New input"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--composer-fg-muted)] transition-colors hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
               >
                 <PlusIcon />
               </button>

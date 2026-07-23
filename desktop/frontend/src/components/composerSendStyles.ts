@@ -8,7 +8,7 @@ import type { CSSProperties } from "react";
 export const SEND_SHELL_CLASS = "flex items-center rounded-lg transition-colors duration-150";
 
 export const sendShellTint = (inert: boolean) =>
-  inert ? "bg-[var(--bg-active)]/60" : "bg-[var(--accent-blue)]";
+  inert ? "bg-[var(--composer-inert-bg)]" : "bg-[var(--accent-blue)]";
 
 export const sendGlow = (inert: boolean): CSSProperties | undefined =>
   inert
@@ -19,5 +19,5 @@ export const sendGlow = (inert: boolean): CSSProperties | undefined =>
 // side, the standalone button rounds the whole pill.
 export const sendFaceClass = (inert: boolean, radius: string) =>
   `flex h-7 items-center justify-center ${radius} pl-2.5 pr-2 transition-colors [&>svg]:rotate-45 ${
-    inert ? "text-[var(--text-muted)]" : "text-[var(--bg-primary)] hover:bg-black/10 active:bg-black/20"
+    inert ? "text-[var(--composer-fg-muted)]" : "text-[var(--bg-primary)] hover:bg-black/10 active:bg-black/20"
   }`;

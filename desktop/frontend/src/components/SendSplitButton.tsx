@@ -67,7 +67,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
     if (inert && open) setOpen(false);
   }, [inert, open]);
 
-  const divider = inert ? "bg-[var(--border)]" : "bg-[var(--bg-primary)]/20";
+  const divider = inert ? "bg-[var(--composer-border)]" : "bg-[var(--bg-primary)]/20";
 
   return (
     <div
@@ -99,7 +99,7 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
         aria-expanded={open}
         className={`flex h-7 items-center justify-center rounded-r-lg pl-1.5 pr-2 transition-colors [&>svg]:h-3 [&>svg]:w-3 ${
           inert
-            ? "text-[var(--text-muted)]"
+            ? "text-[var(--composer-fg-muted)]"
             : `text-[var(--bg-primary)]/70 hover:bg-black/10 hover:text-[var(--bg-primary)] ${
                 open ? "bg-black/10 text-[var(--bg-primary)]" : ""
               }`

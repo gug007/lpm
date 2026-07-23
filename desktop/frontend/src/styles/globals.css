@@ -99,6 +99,39 @@
   --terminal-tab-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
 }
 
+/* Semantic tokens for the terminal composer's surface. They default to the app
+   chrome tokens so the composer renders identically wherever it's reused (dialogs,
+   jobs, prompt improver). Inside .composer-terminal-surface they're remapped onto
+   the active terminal theme (see below) so the composer stays cohesive with the
+   terminal — including whichever terminal theme is selected — instead of clashing
+   with it. As indirections they follow the app light/dark theme automatically. */
+:root {
+  --composer-fg: var(--text-primary);
+  --composer-fg-muted: var(--text-muted);
+  --composer-hover-bg: var(--bg-hover);
+  --composer-surface: var(--bg-secondary);
+  --composer-active-bg: var(--bg-active);
+  --composer-border: var(--border);
+  --composer-border-focus: var(--text-muted);
+  --composer-inert-bg: color-mix(in srgb, var(--bg-active) 60%, transparent);
+}
+
+/* The terminal composer is part of the terminal surface: remap its semantic
+   tokens onto the active terminal theme's --terminal-* vars. Elevations are
+   derived from the theme's own fg/bg via color-mix, so the input box and its
+   controls stay legible on any terminal theme in either app theme. Popovers
+   portal to <body> — outside this scope — so they keep the app-chrome defaults. */
+.composer-terminal-surface {
+  --composer-fg: var(--terminal-fg);
+  --composer-fg-muted: color-mix(in srgb, var(--terminal-fg) 65%, var(--terminal-bg));
+  --composer-hover-bg: var(--terminal-header-hover);
+  --composer-surface: color-mix(in srgb, var(--terminal-fg) 7%, var(--terminal-bg));
+  --composer-active-bg: color-mix(in srgb, var(--terminal-fg) 14%, var(--terminal-bg));
+  --composer-border: color-mix(in srgb, var(--terminal-fg) 18%, transparent);
+  --composer-border-focus: color-mix(in srgb, var(--terminal-fg) 40%, transparent);
+  --composer-inert-bg: color-mix(in srgb, var(--terminal-fg) 12%, transparent);
+}
+
 body {
   margin: 0;
   font-family:
@@ -580,7 +613,7 @@ body {
   );
 }
 .composer-tab-active {
-  background-color: var(--bg-active);
+  background-color: var(--composer-active-bg);
   box-shadow: 0 1px 2px -1px rgba(0, 0, 0, 0.18);
 }
 

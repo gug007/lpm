@@ -86,7 +86,7 @@ function SortableComposerTab({
           ref={active ? activeRef : undefined}
           className={`group flex h-6 w-[160px] min-w-[52px] shrink items-center rounded-t-lg text-[11px] font-medium transition-colors ${
             active
-              ? "composer-tab-active text-[var(--text-primary)]"
+              ? "composer-tab-active text-[var(--composer-fg)]"
               : "text-[var(--terminal-header-text)] hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
           }`}
         >
@@ -115,7 +115,7 @@ function SortableComposerTab({
       {separator && (
         <span
           aria-hidden
-          className={`h-3.5 w-px shrink-0 bg-[var(--border)] transition-opacity ${
+          className={`h-3.5 w-px shrink-0 bg-[var(--composer-border)] transition-opacity ${
             separatorHidden ? "opacity-0" : "opacity-100"
           }`}
         />
@@ -193,7 +193,7 @@ export function ComposerTabStrip({ tabs, activeId, onSelect, onClose, onAdd, onR
             onClick={onAdd}
             aria-label="New input"
             title="New input"
-            className="ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--terminal-header-hover)] hover:text-[var(--text-primary)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+            className="ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--composer-fg-muted)] outline-none transition-colors hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] [&>svg]:h-3.5 [&>svg]:w-3.5"
           >
             <PlusIcon />
           </button>

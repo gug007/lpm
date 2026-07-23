@@ -160,8 +160,8 @@ export function ComposerActionsButton({
           aria-expanded={open}
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
             open
-              ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-              : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+              ? "bg-[var(--composer-hover-bg)] text-[var(--composer-fg)]"
+              : "text-[var(--composer-fg-muted)] hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
           }`}
         >
           {showStop ? (
