@@ -91,7 +91,7 @@ type Shape = "button" | "split" | "dropdown";
 type PreviewHint = "shape" | "placement" | "runMode" | "confirm";
 
 const SHAPE_PREVIEW_BUTTON_CLASS =
-  "border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-primary)]";
+  "border-[var(--border)] text-[var(--text-primary)]";
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
@@ -2004,7 +2004,7 @@ function ActionPreviewPanel({
                     type="button"
                     onClick={triggerRun}
                     style={colorStyle}
-                    className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+                    className={`inline-flex whitespace-nowrap rounded-lg border bg-[var(--action-tint,var(--bg-primary))] px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
                   >
                     {displayLabel}
                   </button>
@@ -2012,19 +2012,19 @@ function ActionPreviewPanel({
                   <div ref={menuRef} className="relative">
                     <span
                       style={colorStyle}
-                      className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+                      className={`inline-flex items-stretch rounded-lg border bg-[var(--action-tint,var(--bg-primary))] text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
                     >
                       <button
                         type="button"
                         onClick={triggerRun}
-                        className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--bg-hover)]"
+                        className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))]"
                       >
                         {displayLabel}
                       </button>
                       <button
                         type="button"
                         onClick={() => setMenuOpen((v) => !v)}
-                        className={`flex items-center rounded-r-lg border-l border-[var(--border)] px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
+                        className={`flex items-center rounded-r-lg border-l border-[var(--action-border,var(--border))] px-1.5 transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${menuOpen ? "bg-[var(--action-tint-strong,var(--bg-hover))]" : ""}`}
                       >
                         <ChevronDownIcon />
                       </button>
@@ -2037,7 +2037,7 @@ function ActionPreviewPanel({
                       type="button"
                       onClick={() => setMenuOpen((v) => !v)}
                       style={colorStyle}
-                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--bg-hover)] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--bg-hover)]" : ""}`}
+                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--action-tint-strong,var(--bg-hover))]" : "bg-[var(--action-tint,var(--bg-primary))]"}`}
                     >
                       {displayLabel}
                       <ChevronDownIcon />
@@ -2495,7 +2495,7 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
   if (shape === "button") {
     return (
       <span
-        className={`inline-flex whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+        className={`inline-flex whitespace-nowrap rounded-lg border bg-[var(--bg-primary)] px-3.5 py-1.5 text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
       >
         {label}
       </span>
@@ -2505,7 +2505,7 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
   if (shape === "split") {
     return (
       <span
-        className={`inline-flex items-stretch rounded-lg border text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+        className={`inline-flex items-stretch rounded-lg border bg-[var(--bg-primary)] text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
       >
         <span className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5">
           {label}
@@ -2519,7 +2519,7 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border bg-[var(--bg-primary)] px-3.5 py-1.5 text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
     >
       {label}
       <ChevronDownIcon />

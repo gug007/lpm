@@ -38,7 +38,7 @@ export function ActionView({ action, compact, disabled, onRun, onContextMenu, sc
         disabled={disabled}
         title={displayLabel}
         style={actionButtonStyle(action.color)}
-        className="flex cursor-grab select-none items-center rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex cursor-grab select-none items-center rounded-md border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))] px-2.5 py-1 text-[11px] font-medium text-[var(--text-secondary)] transition-all duration-100 hover:bg-[var(--action-tint-strong,var(--bg-hover))] hover:text-[var(--text-primary)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
       >
         {displayLabel}
       </button>

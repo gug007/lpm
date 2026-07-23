@@ -7,7 +7,7 @@ const actionStyles = {
   destructive:
     "bg-[var(--accent-red)] text-white hover:opacity-85",
   secondary:
-    "border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)]",
+    "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))] text-[var(--text-secondary)] hover:bg-[var(--action-tint-strong,var(--terminal-header-active))] hover:text-[var(--text-primary)]",
   ghost:
     "text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--terminal-header-active)]",
 } as const;
