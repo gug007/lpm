@@ -1,14 +1,19 @@
 # Agent Guide — lpm
 
-## Overview
+lpm starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running AI coding agents alongside services. macOS only.
 
-lpm starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running AI coding agents alongside services. The repo ships a macOS desktop app (Tauri 2 — React/TypeScript frontend, Rust backend), and a Next.js marketing site under `website/`
+## Layout
+
+- `desktop/frontend/` — Tauri 2 desktop app: React/TypeScript UI in `src/`, Rust backend in `src-tauri/`
+- `cli/` — Rust CLI (`lpm`)
+- `mobile/` — iOS companion app (SwiftUI); `.xcodeproj` is generated — run `xcodegen generate` after adding files
+- `website/` — Next.js marketing site (lpm.cx)
+
 
 ## Conventions
 
-- Use clean code and best practices
-- Do not add comments. Only comment when the purpose or reasoning is unclear from the code itself
+- Clean code and best practices; no comments unless the reasoning isn't clear from the code itself
 - macOS-only: don't add Windows/Linux code paths
-- For each react component use separate file
-- Bump `version` in `cli/Cargo.toml` whenever you change the CLI (`cli/`) — patch for fixes, minor for new commands/flags. It's the version `lpm --version` reports on local builds, so bumping it keeps a stale installed binary detectable
+- One React component per file
+- Bump `version` in `cli/Cargo.toml` on any `cli/` change — patch for fixes, minor for new commands/flags — so stale installed binaries stay detectable via `lpm --version`
 - Never commit or push any changes
