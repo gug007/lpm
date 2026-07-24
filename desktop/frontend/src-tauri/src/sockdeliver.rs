@@ -37,6 +37,28 @@ pub fn delivery_group() -> String {
     s
 }
 
+/// Recover the LPM_* vars a hook needs when it runs without them — the case when
+/// an agent runs inside a tmux server that predates the lpm terminal (panes
+/// inherit the SERVER's env, not ours, so `$LPM_SOCKET_PATH` is unset/dead and
+/// delivery is silent). Emitted as a single-line, single-quote-free POSIX-sh
+/// preamble so it stays safe once the whole hook command is embedded in JSON and
+/// again in `sh` single quotes on install. Two passes:
+///  1. When the socket is dead AND we're in tmux, pull each var from the tmux
+///     GLOBAL env (`showenv -g` prints `NAME=value`; `${v#*=}` strips through the
+///     first `=`). The socket is refreshed unconditionally (it's dead by the
+///     guard); project/pane only when still empty, never overriding inherited
+///     values.
+///  2. If the socket is STILL not a socket, glob for one: the forwarded remote
+///     socket first (`status-*.sock`), then the local Mac socket (`lpm.sock`).
+///     An unmatched glob stays a literal pattern and fails `-S`. The remote-relay
+///     socket (`lpm-remote.sock`) is deliberately never a candidate.
+/// The caller must place this BEFORE it stages `m` (which interpolates the vars).
+pub fn env_recover_group() -> String {
+    String::from(
+        r#"if [ ! -S "$LPM_SOCKET_PATH" ] && [ -n "$TMUX" ]; then v=$(tmux showenv -g LPM_SOCKET_PATH 2>/dev/null); LPM_SOCKET_PATH=${v#*=}; [ -n "$LPM_PROJECT_NAME" ] || { v=$(tmux showenv -g LPM_PROJECT_NAME 2>/dev/null); LPM_PROJECT_NAME=${v#*=}; }; [ -n "$LPM_PANE_ID" ] || { v=$(tmux showenv -g LPM_PANE_ID 2>/dev/null); LPM_PANE_ID=${v#*=}; }; fi; if [ ! -S "$LPM_SOCKET_PATH" ]; then for s in "$HOME"/.lpm/fwd/status-*.sock "$HOME"/.lpm/lpm.sock; do [ -S "$s" ] && LPM_SOCKET_PATH=$s && break; done; fi;"#,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,5 +108,36 @@ mod tests {
         let g = delivery_group();
         assert!(g.starts_with("{ "), "opens a brace group");
         assert!(g.ends_with("; }"), "closes the brace group");
+    }
+
+    #[test]
+    fn env_recover_pulls_each_var_from_tmux_global_env() {
+        let r = env_recover_group();
+        // Gated on a dead socket while inside tmux.
+        assert!(r.contains("[ ! -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$TMUX\" ]"));
+        for v in ["LPM_SOCKET_PATH", "LPM_PROJECT_NAME", "LPM_PANE_ID"] {
+            assert!(r.contains(&format!("tmux showenv -g {v}")), "{v}: {r}");
+            assert!(r.contains(&format!("{v}=${{v#*=}}")), "{v} strip: {r}");
+        }
+        // Project/pane are only filled when still empty, never overridden.
+        assert!(r.contains("[ -n \"$LPM_PROJECT_NAME\" ] || {"));
+        assert!(r.contains("[ -n \"$LPM_PANE_ID\" ] || {"));
+    }
+
+    #[test]
+    fn env_recover_globs_fwd_socket_before_local_socket() {
+        let r = env_recover_group();
+        let fwd = r.find("\"$HOME\"/.lpm/fwd/status-*.sock").expect("fwd glob");
+        let local = r.find("\"$HOME\"/.lpm/lpm.sock").expect("local socket");
+        assert!(fwd < local, "forwarded socket tried before lpm.sock: {r}");
+        // The remote-relay socket is never a delivery target from a hook.
+        assert!(!r.contains("lpm-remote.sock"), "must not target the relay socket");
+    }
+
+    #[test]
+    fn env_recover_has_no_single_quotes() {
+        // The preamble is embedded in JSON and later inside sh single quotes on
+        // install, so it must contain no single quote of its own.
+        assert!(!env_recover_group().contains('\''), "no single quotes allowed");
     }
 }

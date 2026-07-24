@@ -594,12 +594,17 @@ fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Backgrounded socket write; only runs when the socket exists. Ends with the
-/// `# lpm-hook` marker so installs are idempotent. The message is staged in `m`
-/// so the portable nc/python3/perl fallback chain can regenerate it.
+/// `# lpm-hook` marker so installs are idempotent. A recovery preamble first
+/// restores LPM_* from the tmux global env / a socket glob (agents in a
+/// pre-existing tmux server otherwise see none), then the message is staged in
+/// `m` so the portable nc/python3/perl fallback chain can regenerate it. The gate
+/// also requires a known project and pane so a recovered-socket-only case never
+/// sends `set_status ''`.
 fn send_cmd(cmd: &str) -> String {
+    let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -620,9 +625,10 @@ fn codex_entry(cmd: &str) -> Value {
 /// so the backgrounded delivery (and its nc/python3/perl fallbacks) never re-read
 /// the already-drained stdin. Ends with the `# lpm-hook` marker like the others.
 fn capture_resume_cmd() -> String {
+    let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2063,11 +2069,16 @@ mod tests {
     #[test]
     fn send_cmd_stages_message_and_guards_backgrounded_delivery() {
         let s = send_cmd("clear_status 'x' k");
-        // Message staged in `m` (single quotes literal, $VARS still expand), then a
-        // socket-guarded, backgrounded, silent delivery ending in the marker.
-        assert!(s.starts_with(
-            r#"m="clear_status 'x' k"; { [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && "#
-        ));
+        // The env-recovery preamble runs BEFORE the message is staged (staging
+        // interpolates project/pane, which recovery may have just restored).
+        let recover = s.find("tmux showenv -g LPM_SOCKET_PATH").expect("recovery preamble");
+        let stage = s.find(r#"m="clear_status 'x' k""#).expect("message staged in m");
+        assert!(recover < stage, "recovery must precede staging: {s}");
+        // Gate: live socket AND known project AND known pane, so a socket-only
+        // recovery never sends `set_status ''`.
+        assert!(s.contains(
+            r#"{ [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && [ -n "$LPM_PROJECT_NAME" ] && [ -n "$LPM_PANE_ID" ] && "#
+        ), "{s}");
         assert!(s.contains("& } >/dev/null 2>&1; "), "backgrounded and silenced");
         assert!(s.ends_with(MARKER));
     }
@@ -2109,6 +2120,30 @@ mod tests {
         let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
         assert!(cmd.contains("python3 -c") && cmd.contains("perl -MIO::Socket::UNIX"));
         assert!(!cmd.contains("echo \""), "old echo-based delivery gone");
+        assert_ne!(cmd, old, "command text actually changed");
+    }
+
+    #[test]
+    fn merge_upgrades_pre_recovery_claude_hook_to_add_env_recovery() {
+        // A marker'd command from the python/perl generation that predates the
+        // tmux env-recovery preamble. Strip-by-marker must replace it with the
+        // current text, which now recovers LPM_* before delivering.
+        let old = "m=\"set_status 'x' claude_code_$LPM_PANE_ID Done\"; { [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && printf '%s\\n' \"$m\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & } >/dev/null 2>&1; # lpm-hook";
+        let body = format!(
+            r#"{{ "hooks": {{ "Stop": [ {{ "matcher": "", "hooks": [ {{ "type": "command", "command": {} }} ] }} ] }} }}"#,
+            serde_json::to_string(old).unwrap()
+        );
+
+        let out = merge_claude_hooks(body.as_bytes()).expect("pre-recovery hook must upgrade");
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        let stop = v["hooks"]["Stop"].as_array().unwrap();
+        let lpm: Vec<&Value> = stop.iter().filter(|e| has_marker(e)).collect();
+        assert_eq!(lpm.len(), 1, "old lpm hook replaced, not duplicated");
+        let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
+        assert!(
+            cmd.contains("tmux showenv -g LPM_SOCKET_PATH"),
+            "env recovery added on upgrade: {cmd}"
+        );
         assert_ne!(cmd, old, "command text actually changed");
     }
 
@@ -2249,6 +2284,12 @@ mod tests {
         assert!(s.contains("session_id"), "extracts session_id from stdin");
         assert!(s.contains("set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid"));
         assert!(s.contains("[ -S \"$LPM_SOCKET_PATH\" ]") && s.contains("[ -n \"$sid\" ]"));
+        // Now also gated on a known project (not just pane) so we never resume ''.
+        assert!(s.contains("[ -n \"$LPM_PROJECT_NAME\" ]"), "project gate added: {s}");
+        // Recovery preamble precedes the staged message.
+        let recover = s.find("tmux showenv").expect("recovery preamble");
+        let stage = s.find("m=\"set_resume").expect("message staged in m");
+        assert!(recover < stage, "recovery must precede staging: {s}");
         assert!(s.ends_with(MARKER));
     }
 

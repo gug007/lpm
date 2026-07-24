@@ -56,6 +56,27 @@ pub fn remote_socket_env_expr() -> String {
     format!("\"$HOME/.lpm/fwd/{}\"", socket_basename())
 }
 
+/// Inner command an SSH terminal's login shell runs: export the absolute remote
+/// status-socket path, then best-effort seed a PRE-EXISTING tmux server's GLOBAL
+/// environment with the LPM_* vars before exec'ing the login shell. Panes in a
+/// tmux server that predates this shell inherit the server's env, not ours, so
+/// their agent hooks would otherwise see no LPM_* and stay silent; a server the
+/// user starts LATER inherits the exported vars directly. The seed is guarded by
+/// `command -v tmux` and its failure (no tmux, no running server) must never
+/// block the exec — hence `;` before exec, not `&&`. LPM_PROJECT_NAME/
+/// LPM_PANE_ID are exported by the surrounding remote script, so the `"$VAR"`
+/// refs resolve.
+pub fn remote_inner_cmd() -> String {
+    format!(
+        "export LPM_SOCKET_PATH={expr} && command -v tmux >/dev/null 2>&1 && \
+         tmux setenv -g LPM_SOCKET_PATH \"$LPM_SOCKET_PATH\" \\; \
+         setenv -g LPM_PROJECT_NAME \"$LPM_PROJECT_NAME\" \\; \
+         setenv -g LPM_PANE_ID \"$LPM_PANE_ID\" >/dev/null 2>&1; \
+         exec \"$SHELL\" -l",
+        expr = remote_socket_env_expr()
+    )
+}
+
 fn remote_socket_abs(home: &str) -> String {
     format!(
         "{}/.lpm/fwd/{}",
@@ -282,6 +303,26 @@ mod tests {
             remote_socket_abs("/Users/dev/"),
             format!("/Users/dev/.lpm/fwd/{base}")
         );
+    }
+
+    #[test]
+    fn remote_inner_cmd_seeds_tmux_then_execs_unconditionally() {
+        let s = remote_inner_cmd();
+        assert!(
+            s.contains(&format!("export LPM_SOCKET_PATH={}", remote_socket_env_expr())),
+            "{s}"
+        );
+        // One guarded tmux invocation seeds all three vars via `\;` separators.
+        assert!(s.contains("command -v tmux >/dev/null 2>&1 && tmux setenv -g"));
+        assert_eq!(s.matches("tmux setenv -g").count(), 1, "single tmux call: {s}");
+        assert_eq!(s.matches(" \\; ").count(), 2, "two `\\;` separators: {s}");
+        for v in ["LPM_SOCKET_PATH", "LPM_PROJECT_NAME", "LPM_PANE_ID"] {
+            assert!(s.contains(&format!("setenv -g {v} \"${v}\"")), "{s}");
+        }
+        // A failed seed must not short-circuit the exec: `;` before exec, not `&&`.
+        assert!(s.contains(">/dev/null 2>&1; exec \"$SHELL\" -l"), "{s}");
+        assert!(!s.contains("2>&1 && exec"), "seed failure must not gate exec: {s}");
+        assert!(s.ends_with("exec \"$SHELL\" -l"));
     }
 
     #[test]

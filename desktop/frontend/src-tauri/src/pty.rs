@@ -287,10 +287,7 @@ fn start_internal(
         for (k, v) in extra_env {
             remote_env.insert(k.clone(), v.clone());
         }
-        let inner = format!(
-            "export LPM_SOCKET_PATH={} && exec \"$SHELL\" -l",
-            crate::statusfwd::remote_socket_env_expr()
-        );
+        let inner = crate::statusfwd::remote_inner_cmd();
         let argv = config::ssh_command_argv(ssh, raw_cwd, &remote_env, &inner);
         crate::statusfwd::ensure_status_forward(app, ssh);
         crate::hooks::install_remote_agent_hooks_once(ssh);
