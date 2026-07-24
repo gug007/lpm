@@ -861,6 +861,12 @@ pub fn ssh_args(ssh: &SshSettings) -> Vec<String> {
         format!("ControlPath={}", ssh_control_path()),
         "-o".into(),
         "ControlPersist=10m".into(),
+        "-o".into(),
+        "ServerAliveInterval=15".into(),
+        "-o".into(),
+        "ServerAliveCountMax=3".into(),
+        "-o".into(),
+        "ConnectTimeout=10".into(),
     ];
     if ssh.port > 0 && ssh.port != 22 {
         args.push("-p".into());
@@ -887,6 +893,12 @@ pub fn ssh_exec_args(ssh: &SshSettings) -> Vec<String> {
         format!("ControlPath={}", ssh_control_path()),
         "-o".into(),
         "ControlPersist=10m".into(),
+        "-o".into(),
+        "ServerAliveInterval=15".into(),
+        "-o".into(),
+        "ServerAliveCountMax=3".into(),
+        "-o".into(),
+        "ConnectTimeout=10".into(),
     ];
     if ssh.port > 0 && ssh.port != 22 {
         args.push("-p".into());
@@ -912,6 +924,12 @@ pub fn scp_args(ssh: &SshSettings) -> Vec<String> {
         format!("ControlPath={}", ssh_control_path()),
         "-o".into(),
         "ControlPersist=10m".into(),
+        "-o".into(),
+        "ServerAliveInterval=15".into(),
+        "-o".into(),
+        "ServerAliveCountMax=3".into(),
+        "-o".into(),
+        "ConnectTimeout=10".into(),
     ];
     if ssh.port > 0 && ssh.port != 22 {
         args.push("-P".into());
@@ -2733,6 +2751,9 @@ mod ssh_exec_tests {
             "exec must be tty-less: {args:?}"
         );
         assert!(args.iter().any(|a| a == "ControlMaster=auto"));
+        assert!(args.iter().any(|a| a == "ServerAliveInterval=15"));
+        assert!(args.iter().any(|a| a == "ServerAliveCountMax=3"));
+        assert!(args.iter().any(|a| a == "ConnectTimeout=10"));
         assert_eq!(args.last().unwrap(), "dev@example.com");
     }
 

@@ -39,6 +39,7 @@ import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { registerFileDropHandler } from "../fileDrop";
 import { logDiagnostic } from "../diagnostics";
 import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
+import { SSH_TRANSPORT_EXIT_CODE } from "../reconnect";
 import {
   IS_MIRROR_WINDOW,
   REALM,
@@ -879,7 +880,20 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   const cleanupExit = EventsOn(
     "pty-exit-" + terminalId,
     (exitCode: number) => {
-      markDead(`[Process exited with code ${exitCode}]`, "90");
+      // A remote terminal's SSH transport dropping exits 255; useTerminals then
+      // auto-respawns the pane, so surface the recovery instead of a raw code.
+      if (exitCode === SSH_TRANSPORT_EXIT_CODE) {
+        session.remote.then((remote) => {
+          markDead(
+            remote
+              ? "[Connection lost — reconnecting…]"
+              : `[Process exited with code ${exitCode}]`,
+            "90",
+          );
+        });
+      } else {
+        markDead(`[Process exited with code ${exitCode}]`, "90");
+      }
       session.onExit?.(exitCode);
     },
   );
