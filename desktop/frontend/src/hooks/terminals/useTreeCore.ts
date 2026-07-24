@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, type RefObject } from "react";
 import { getProjectTerminals, saveProjectTerminals } from "../../terminals";
-import { type PaneNode, collectTerminals, panePath } from "../../paneTree";
+import { type PaneNode, collectTerminals, isTerminalTab, panePath } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { treeToPersisted } from "./persistedTree";
 
@@ -25,11 +25,23 @@ export function useTreeCore({ projectName, onCountRef }: UseTreeCoreProps) {
 
   const deferredPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Set when a restore found saved tabs but couldn't relaunch any of them (the
+  // project root moved, an SSH host is down, the config failed to parse). The
+  // tree is empty in that case, and writing it out would drop the saved tabs —
+  // and their resume commands — for good, turning a transient failure into
+  // permanent loss. Hold the saved panes until a real terminal exists again.
+  const holdPanesRef = useRef(false);
+
+  const holdPersistedPanes = useCallback(() => {
+    holdPanesRef.current = true;
+  }, []);
+
   const persist = useCallback(
     (next: PaneNode | null) => {
       // A mirror window never owns the persisted tree — the owner (main
       // window) is the single source of truth for terminals.json.
       if (IS_MIRROR_WINDOW) return;
+      if (next && collectTerminals(next).some(isTerminalTab)) holdPanesRef.current = false;
       const focusedId = focusedRef.current;
       // serviceFilterModes is a removed field (filter mode is now a single
       // global setting); strip it so a dead key from an earlier build doesn't
@@ -39,6 +51,11 @@ export function useTreeCore({ projectName, onCountRef }: UseTreeCoreProps) {
       ) as ReturnType<typeof getProjectTerminals> & {
         serviceFilterModes?: unknown;
       };
+      // Everything but the tree still persists while the panes are held.
+      if (holdPanesRef.current) {
+        saveProjectTerminals(projectName, state);
+        return;
+      }
       saveProjectTerminals(projectName, {
         ...state,
         panes: next ? treeToPersisted(next) : undefined,
@@ -102,6 +119,7 @@ export function useTreeCore({ projectName, onCountRef }: UseTreeCoreProps) {
     focusedRef,
     deferredPersistTimer,
     persist,
+    holdPersistedPanes,
     cancelDeferredPersist,
     schedulePersist,
     applyTree,

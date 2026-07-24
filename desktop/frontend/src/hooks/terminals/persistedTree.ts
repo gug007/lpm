@@ -1,10 +1,12 @@
 import { StartTerminal, StartTerminalForRestore } from "../../../bridge/commands";
 import {
   type PersistedPaneNode,
+  type PersistedTab,
   type PersistedTerminalEntry,
 } from "../../terminals";
 import {
   type PaneNode,
+  type TerminalInstance,
   makePaneLeaf,
   makeTerminal,
   clampIdx,
@@ -15,53 +17,72 @@ import { nextId } from "./util";
 /**
  * Walks a persisted tree and launches a fresh PTY for each terminal in
  * every leaf pane. Tabs within a pane are started in parallel; split
- * subtrees (`a` and `b`) are also reified in parallel. On any failure
- * partway through, the caller is responsible for stopping PTYs launched
- * so far via `startedIds`.
+ * subtrees (`a` and `b`) are also reified in parallel.
+ *
+ * Tolerant of partial failure: a tab whose PTY won't start is dropped into
+ * `dropped` and the rest of the tree still comes back, and a split whose side
+ * came back empty collapses to its sibling. Losing every tab because one
+ * action was renamed or one SSH host is unreachable would strand whole
+ * sessions. Returns null only when nothing at all could be restored; the
+ * caller stops the PTYs launched so far via `startedIds`.
  */
 export async function reifyTreeWithFreshPtys(
   node: PersistedPaneNode,
   projectName: string,
   startedIds: string[],
+  dropped: PersistedTab[] = [],
 ): Promise<PaneNode | null> {
   if (node.kind === "leaf") {
     const persistedTabs = node.tabs ?? [];
     // A service-only pane (no interactive terminals, just an active service
     // tab) is allowed. A truly empty pane is dropped.
     if (persistedTabs.length === 0 && !node.activeServiceName) return null;
-    try {
-      const ids = await Promise.all(
-        persistedTabs.map((t) =>
-          t.actionName
-            ? StartTerminalForRestore(projectName, t.actionName)
-            : StartTerminal(projectName),
-        ),
-      );
-      ids.forEach((id) => startedIds.push(id));
-      const tabs = ids.map((id, i) =>
-        makeTerminal(id, persistedTabs[i].label ?? "Terminal", {
-          historyKey: persistedTabs[i].historyKey,
-          startCmd: persistedTabs[i].startCmd,
-          resumeCmd: persistedTabs[i].resumeCmd,
-          actionName: persistedTabs[i].actionName,
-          pinned: persistedTabs[i].pinned,
-          emoji: persistedTabs[i].emoji,
-          color: persistedTabs[i].color,
+    const results = await Promise.allSettled(
+      persistedTabs.map((t) =>
+        t.actionName
+          ? StartTerminalForRestore(projectName, t.actionName)
+          : StartTerminal(projectName),
+      ),
+    );
+    const tabs: TerminalInstance[] = [];
+    // Persisted index -> index in the surviving tabs, so the active tab stays
+    // selected when an earlier tab dropped out.
+    const newIdx: number[] = [];
+    results.forEach((result, i) => {
+      const t = persistedTabs[i];
+      if (result.status !== "fulfilled") {
+        newIdx.push(-1);
+        dropped.push(t);
+        return;
+      }
+      startedIds.push(result.value);
+      newIdx.push(tabs.length);
+      tabs.push(
+        makeTerminal(result.value, t.label ?? "Terminal", {
+          historyKey: t.historyKey,
+          startCmd: t.startCmd,
+          resumeCmd: t.resumeCmd,
+          actionName: t.actionName,
+          pinned: t.pinned,
+          emoji: t.emoji,
+          color: t.color,
         }),
       );
-      const pane = makePaneLeaf(nextId("pane"), tabs, clampIdx(node.activeTabIdx, tabs.length));
-      if (node.activeServiceName) pane.activeServiceName = node.activeServiceName;
-      return pane;
-    } catch {
-      return null;
-    }
+    });
+    if (tabs.length === 0 && !node.activeServiceName) return null;
+    const savedActive = newIdx[clampIdx(node.activeTabIdx, persistedTabs.length)] ?? -1;
+    const activeTabIdx =
+      savedActive >= 0 ? savedActive : clampIdx(node.activeTabIdx, tabs.length);
+    const pane = makePaneLeaf(nextId("pane"), tabs, activeTabIdx);
+    if (node.activeServiceName) pane.activeServiceName = node.activeServiceName;
+    return pane;
   }
   if (!node.a || !node.b) return null;
   const [a, b] = await Promise.all([
-    reifyTreeWithFreshPtys(node.a, projectName, startedIds),
-    reifyTreeWithFreshPtys(node.b, projectName, startedIds),
+    reifyTreeWithFreshPtys(node.a, projectName, startedIds, dropped),
+    reifyTreeWithFreshPtys(node.b, projectName, startedIds, dropped),
   ]);
-  if (!a || !b) return null;
+  if (!a || !b) return a ?? b;
   return {
     kind: "split",
     direction: node.direction === "col" ? "col" : "row",

@@ -41,6 +41,7 @@ export function useTerminals(
     applyTree,
     schedulePersist,
     flushDeferredPersist,
+    holdPersistedPanes,
   } = useTreeCore({ projectName, onCountRef });
 
   const { scheduleCmdInject, scheduleSeedInject, cancelPendingInjects } = useCmdInject({
@@ -64,6 +65,7 @@ export function useTerminals(
     setTree,
     setFocusedPaneId,
     applyTree,
+    holdPersistedPanes,
     scheduleCmdInject,
   });
 
@@ -120,6 +122,7 @@ export function useTerminals(
     projectName,
     treeRef,
     focusedRef,
+    restoreSettled,
     setTree,
     setFocusedPaneId,
     applyTree,

@@ -70,6 +70,21 @@ export interface TerminalsConfig {
 
 let cached: TerminalsConfig = { projects: {} };
 
+const changeListeners = new Set<() => void>();
+
+// Lets a view re-read the cache when another code path writes it — a tab closed
+// behind the undo toast files its resume entry long after the view last read.
+export function subscribeTerminalsChanged(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => {
+    changeListeners.delete(listener);
+  };
+}
+
+function notifyTerminalsChanged(): void {
+  for (const listener of changeListeners) listener();
+}
+
 export async function loadTerminals(): Promise<TerminalsConfig> {
   try {
     const c = await LoadTerminals();
@@ -101,6 +116,7 @@ export async function saveProjectTerminals(
     ...cached,
     projects: { ...cached.projects, [projectName]: state },
   };
+  notifyTerminalsChanged();
   await SaveTerminals(main.TerminalsConfig.createFrom(cached));
 }
 
@@ -114,6 +130,7 @@ export function updateProjectTerminalsCache(
     ...cached,
     projects: { ...cached.projects, [projectName]: next },
   };
+  notifyTerminalsChanged();
 }
 
 // The backend deletes the persisted entry when it removes the project; this
@@ -187,6 +204,39 @@ export function removePersistedTabById(id: string): boolean {
     }
   }
   return false;
+}
+
+export function collectPersistedTabs(
+  node: PersistedPaneNode | undefined,
+): PersistedTab[] {
+  if (!node) return [];
+  if (node.kind === "leaf") return node.tabs ?? [];
+  return [...collectPersistedTabs(node.a), ...collectPersistedTabs(node.b)];
+}
+
+// Records tabs that couldn't be relaunched into the resume history. Closing a
+// tab is otherwise the only thing that files a session there, so a tab that
+// vanished on restore would leave its session with no way back — the one case
+// where the history matters most. The in-memory cache updates synchronously so
+// a caller can refresh the list without awaiting the disk write.
+export function rememberLostSessions(
+  projectName: string,
+  tabs: PersistedTab[],
+): Promise<void> {
+  const resumable = tabs.filter((t) => t.resumeCmd);
+  if (resumable.length === 0) return Promise.resolve();
+  let state = getProjectTerminals(projectName);
+  const closedAt = Date.now();
+  for (const t of resumable) {
+    state = appendHistoryEntry(state, {
+      label: t.label,
+      startCmd: t.startCmd,
+      resumeCmd: t.resumeCmd!,
+      actionName: t.actionName,
+      closedAt,
+    });
+  }
+  return saveProjectTerminals(projectName, state);
 }
 
 export function appendHistoryEntry(

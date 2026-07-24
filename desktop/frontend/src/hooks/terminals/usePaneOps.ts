@@ -23,6 +23,7 @@ interface UsePaneOpsProps {
   projectName: string;
   treeRef: RefObject<PaneNode | null>;
   focusedRef: RefObject<string | null>;
+  restoreSettled: RefObject<Promise<void>>;
   setTree: Dispatch<SetStateAction<PaneNode | null>>;
   setFocusedPaneId: Dispatch<SetStateAction<string | null>>;
   applyTree: (next: PaneNode | null, focus?: string | null) => void;
@@ -34,6 +35,7 @@ export function usePaneOps({
   projectName,
   treeRef,
   focusedRef,
+  restoreSettled,
   setTree,
   setFocusedPaneId,
   applyTree,
@@ -91,10 +93,16 @@ export function usePaneOps({
   );
 
   const ensureRootPane = useCallback(
-    (initialServiceName?: string) => {
+    async (initialServiceName?: string) => {
       if (treeRef.current) return;
       // Owner-only: the pane id must be minted once, in the tree of record.
       if (IS_MIRROR_WINDOW) return forward("ensureRootPane", initialServiceName);
+      // A running project calls this on mount, while the restore is still
+      // spawning its PTYs and the tree is legitimately null. Creating a root
+      // pane now would persist an empty tab list over the saved one before the
+      // restored tabs land, so the next launch would have nothing to restore.
+      await restoreSettled.current;
+      if (treeRef.current) return;
       const paneId = nextId("pane");
       const pane = makePaneLeaf(paneId, [], 0);
       if (initialServiceName) pane.activeServiceName = initialServiceName;

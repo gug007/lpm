@@ -59,7 +59,7 @@ export interface UseTerminalsResult {
   closePane: (paneId: string) => void;
   setRatio: (path: number[], ratio: number) => void;
   focusPane: (paneId: string) => void;
-  ensureRootPane: (initialServiceName?: string) => void;
+  ensureRootPane: (initialServiceName?: string) => Promise<void>;
   getFocusedPane: () => PaneLeaf | null;
   getPane: (paneId: string) => PaneLeaf | null;
 }

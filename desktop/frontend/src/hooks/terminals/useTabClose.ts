@@ -12,6 +12,7 @@ import {
 import {
   appendHistoryEntry,
   getProjectTerminals,
+  saveProjectTerminals,
   updateProjectTerminalsCache,
 } from "../../terminals";
 import {
@@ -61,8 +62,12 @@ export function useTabClose({
     [applyTree],
   );
 
+  // `flush` writes history to disk right away. Callers that go on to persist the
+  // tree in the same turn leave it off and let that write carry the entry; the
+  // deferred undo-toast finalize has no such follow-up, so it must flush or the
+  // entry only survives in memory until some unrelated tree change.
   const recordClosingTabs = useCallback(
-    (tabs: TerminalInstance[]) => {
+    (tabs: TerminalInstance[], flush = false) => {
       const eligible = tabs.filter((t): t is TerminalInstance & { resumeCmd: string } =>
         Boolean(t.resumeCmd),
       );
@@ -78,7 +83,8 @@ export function useTabClose({
           closedAt,
         });
       }
-      updateProjectTerminalsCache(projectName, state);
+      if (flush) void saveProjectTerminals(projectName, state);
+      else updateProjectTerminalsCache(projectName, state);
     },
     [projectName],
   );
@@ -87,7 +93,7 @@ export function useTabClose({
   // clear any pane status) and records them in history. Both close paths — one
   // tab, or all-but-one — funnel through here so teardown lives in one place.
   const disposeTabs = useCallback(
-    (tabs: TerminalInstance[], stop = true) => {
+    (tabs: TerminalInstance[], stop = true, flush = false) => {
       for (const t of tabs) {
         // A peer-closed terminal is already dead on the backend; skip the stop
         // so no redundant stop_terminal is issued.
@@ -96,7 +102,7 @@ export function useTabClose({
           ClearPaneStatus(projectName, t.id).catch(() => {});
         }
       }
-      recordClosingTabs(tabs);
+      recordClosingTabs(tabs, flush);
     },
     [recordClosingTabs, projectName],
   );
@@ -110,7 +116,7 @@ export function useTabClose({
       const entry = takePendingClose(id);
       if (!entry || entry.finalized) return;
       entry.finalized = true;
-      disposeTabs([entry.tab]);
+      disposeTabs([entry.tab], true, true);
       disposeInteractivePaneSession(id);
       forgetComposerDraft(id);
       toast.dismiss(entry.toastId);

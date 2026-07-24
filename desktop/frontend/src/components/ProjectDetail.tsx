@@ -42,6 +42,7 @@ import {
   getProjectTerminals,
   removeHistoryEntry,
   saveProjectTerminals,
+  subscribeTerminalsChanged,
   type PersistedHistoryEntry,
 } from "../terminals";
 import { useAppStore } from "../store/app";
@@ -130,6 +131,16 @@ export function ProjectDetail({
   useEffect(() => {
     setHistoryEntries(getProjectTerminals(project.name).history ?? []);
   }, [project.name, terminalCount]);
+
+  // A tab closed behind the undo toast files its session ~3s later, with no tree
+  // change to re-run the effect above.
+  useEffect(
+    () =>
+      subscribeTerminalsChanged(() => {
+        setHistoryEntries(getProjectTerminals(project.name).history ?? []);
+      }),
+    [project.name],
+  );
 
   const terminalRef = useRef<TerminalViewHandle>(null);
 

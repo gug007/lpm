@@ -1,7 +1,12 @@
 import { useEffect, type Dispatch, type SetStateAction, type RefObject } from "react";
 import { StopTerminal } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
-import { getProjectTerminals } from "../../terminals";
+import {
+  collectPersistedTabs,
+  getProjectTerminals,
+  rememberLostSessions,
+  type PersistedTab,
+} from "../../terminals";
 import { buildCodexResumeCmd } from "../../codexResume";
 import {
   type PaneNode,
@@ -28,6 +33,7 @@ interface UseSessionRestoreProps {
   setTree: Dispatch<SetStateAction<PaneNode | null>>;
   setFocusedPaneId: Dispatch<SetStateAction<string | null>>;
   applyTree: (next: PaneNode | null, focus?: string | null) => void;
+  holdPersistedPanes: () => void;
   scheduleCmdInject: (id: string, cmd: string, prompt?: string | string[]) => void;
 }
 
@@ -40,6 +46,7 @@ export function useSessionRestore({
   setTree,
   setFocusedPaneId,
   applyTree,
+  holdPersistedPanes,
   scheduleCmdInject,
 }: UseSessionRestoreProps) {
   // Restore saved tree on mount. Each leaf's terminals get re-launched
@@ -92,13 +99,27 @@ export function useSessionRestore({
     const allStartedIds: string[] = [];
 
     (async () => {
-      const restored = await reifyTreeWithFreshPtys(persistedTree, projectName, allStartedIds);
+      const dropped: PersistedTab[] = [];
+      const restored = await reifyTreeWithFreshPtys(
+        persistedTree,
+        projectName,
+        allStartedIds,
+        dropped,
+      );
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
-        if (!cancelled) onCountRef.current?.(0);
+        if (!cancelled) {
+          // Nothing came back. Keep the saved tabs on disk so a transient
+          // failure doesn't erase them, and file their sessions in history so
+          // they stay reachable from "Resume session" meanwhile.
+          holdPersistedPanes();
+          void rememberLostSessions(projectName, collectPersistedTabs(persistedTree));
+          onCountRef.current?.(0);
+        }
         settle();
         return;
       }
+      if (dropped.length > 0) void rememberLostSessions(projectName, dropped);
       setTree(restored);
       // Sync the ref now: a create awaiting `restoreSettled` resumes in a
       // microtask, before the re-render updates treeRef, and must append to
