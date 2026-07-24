@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
 import { ActionsGroup, useActionsDragActive } from "../ActionsDnd";
 import { ActionView } from "../ActionView";
-import { GripVerticalIcon, MousePointerClickIcon, PlusIcon } from "../icons";
+import { GripVerticalIcon, MousePointerClickIcon, PlusIcon, SparkleIcon, TerminalIcon } from "../icons";
 import { ActionsSortableItem } from "../ActionsSortableItem";
 import { Tooltip } from "../ui/Tooltip";
 import type { ActionInfo } from "../../types";
@@ -58,18 +58,38 @@ export function HeaderActions({
       <Tooltip
         content={
           <span className="flex flex-col">
-            <span className="flex items-center gap-2">
-              <span className="magic-ring h-[22px] w-[22px] shrink-0 rounded-md p-[1px]">
+            <span className="flex items-center gap-2.5">
+              <span className="magic-ring h-6 w-6 shrink-0 rounded-md p-[1px]">
                 <span className="flex h-full w-full items-center justify-center rounded-[5px] bg-[var(--bg-secondary)] text-[color-mix(in_srgb,#a855f7_60%,var(--text-muted))]">
                   <PlusIcon />
                 </span>
               </span>
-              <span className="font-semibold text-[var(--text-primary)]">Create action</span>
+              <span className="flex flex-col">
+                <span className="text-[13px] font-semibold leading-tight text-[var(--text-primary)]">Create action</span>
+                <span className="mt-0.5 text-[11.5px] leading-tight text-[var(--text-muted)]">One-click shortcuts for the things you run often</span>
+              </span>
             </span>
-            <span className="mt-1.5 text-[var(--text-secondary)]">
-              One-click shortcuts for the commands you run all the time — tests, builds, deploys, log tails, or anything else.
+            <span className="mt-3 flex flex-col gap-2">
+              <span className="flex items-center gap-2.5">
+                <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-secondary)]">
+                  <TerminalIcon />
+                </span>
+                <span className="flex flex-col">
+                  <span className="font-medium leading-tight text-[var(--text-primary)]">Run commands</span>
+                  <span className="mt-0.5 text-[11.5px] leading-tight text-[var(--text-muted)]">Tests, builds, deploys, migrations, log tails</span>
+                </span>
+              </span>
+              <span className="flex items-center gap-2.5">
+                <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-hover)] text-[color-mix(in_srgb,#a855f7_70%,var(--text-secondary))]">
+                  <SparkleIcon />
+                </span>
+                <span className="flex flex-col">
+                  <span className="font-medium leading-tight text-[var(--text-primary)]">Launch AI agents</span>
+                  <span className="mt-0.5 text-[11.5px] leading-tight text-[var(--text-muted)]">Claude Code or Codex, each in its own tab</span>
+                </span>
+              </span>
             </span>
-            <span className="mt-2.5 flex flex-col gap-1.5 border-t border-[var(--border)] pt-2.5 text-[var(--text-muted)]">
+            <span className="mt-3 flex flex-col gap-1.5 border-t border-[var(--border)] pt-2.5 text-[11.5px] text-[var(--text-muted)]">
               <span className="flex items-center gap-2">
                 <GripVerticalIcon size={13} />
                 <span>Drag to arrange in the header or footer</span>
