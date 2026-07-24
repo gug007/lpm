@@ -88,12 +88,19 @@ import {
 import { Modal } from "../ui/Modal";
 import { AIButton } from "../ui/AIButton";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { SegmentedControl } from "../ui/SegmentedControl";
+import { Switch } from "../ui/Switch";
 import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
 const MODE_STORAGE_KEY = "lpm.actionWizard.mode";
+
+const MODE_SEGMENTS = [
+  { value: "form", label: "Form", tooltip: "Guided fields" },
+  { value: "editor", label: "YAML", tooltip: "Raw YAML editor" },
+] as const;
 
 function readStoredMode(): "form" | "editor" {
   try {
@@ -808,6 +815,9 @@ export function ActionWizard({
     nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
   const missingHint = getMissingHint(draft, hasMenuOption);
   const formIsValid = missingHint === null;
+  const step1Complete = nameFilled && (shape === "dropdown" || cmdFilled);
+  const step2Complete = showShape && (shape === "button" || hasMenuOption);
+  const step3Complete = showRunMode;
   const actionLabel = withEmoji(emoji, name.trim() || PLACEHOLDER_LABEL);
   const { title, primary: primaryLabel } = wizardCopy(isEditing);
   const savingLabel = isEditing ? "Saving..." : "Creating...";
@@ -1088,54 +1098,61 @@ export function ActionWizard({
           }`}
           onKeyDown={onKeyDown}
         >
-          <header className="px-7 pb-4 pt-6">
+          <header className="px-7 pb-4 pt-5">
             <div className="flex items-start justify-between gap-4">
-              <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
+              <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
                   <ZapIcon />
                 </div>
-                <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
-                  {title}
-                </h2>
+                <div className="min-w-0">
+                  <h2 className="text-[17px] font-semibold tracking-tight text-[var(--text-primary)]">
+                    {title}
+                  </h2>
+                  <div className="mt-0.5">
+                    {isEditing ? (
+                      editSource ? (
+                        <ConfigLayerMenu
+                          value={moveTarget ?? editSource}
+                          onChange={(next) =>
+                            setMoveTarget(next === editSource ? null : next)
+                          }
+                        />
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+                          <FolderIcon />
+                          Locating config…
+                        </div>
+                      )
+                    ) : (
+                      <ConfigLayerMenu
+                        value={configLayer}
+                        onChange={(next) => updateField("configLayer", next)}
+                      />
+                    )}
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={requestClose}
-                aria-label="Close"
-                className="-mr-2 -mt-2 rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                <XIcon />
-              </button>
-            </div>
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                {isEditing ? (
-                  editSource ? (
-                    <ConfigLayerMenu
-                      value={moveTarget ?? editSource}
-                      onChange={(next) =>
-                        setMoveTarget(next === editSource ? null : next)
-                      }
-                    />
-                  ) : (
-                    <div className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-                      <FolderIcon />
-                      Locating config…
-                    </div>
-                  )
-                ) : (
-                  <ConfigLayerMenu
-                    value={configLayer}
-                    onChange={(next) => updateField("configLayer", next)}
-                  />
-                )}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <SegmentedControl
+                  value={mode}
+                  options={MODE_SEGMENTS}
+                  onChange={(next) => {
+                    if (next === mode) return;
+                    if (next === "editor") switchToEditor();
+                    else switchToForm();
+                  }}
+                  variant="subtle"
+                  ariaLabel="Editing mode"
+                />
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  aria-label="Close"
+                  className="-mr-2 rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  <XIcon />
+                </button>
               </div>
-              <ModeMenu
-                mode={mode}
-                onChange={(next) =>
-                  next === "editor" ? switchToEditor() : switchToForm()
-                }
-              />
             </div>
             {mode === "form" && unmanagedActionKeys(workingBase).length > 0 && (
               <div className="mt-3">
@@ -1200,7 +1217,12 @@ export function ActionWizard({
                     </div>
                   ))}
                 <div>
-                  <WizardStep number={1} title="What it does" revealed>
+                  <WizardStep
+                    number={1}
+                    title="What it does"
+                    revealed
+                    complete={step1Complete}
+                  >
                     <FieldSection label="Name">
                       <div className="relative">
                         <EmojiSlotButton
@@ -1220,7 +1242,7 @@ export function ActionWizard({
                             handleNameEnter();
                           }}
                           placeholder="Run tests"
-                          className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-12 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                          className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-12 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_15%,transparent)]"
                         />
                         <ActionColorButton
                           value={color}
@@ -1251,6 +1273,7 @@ export function ActionWizard({
                     title="How it looks"
                     teaser="Style and placement."
                     revealed={showShape}
+                    complete={step2Complete}
                     last={shape === "dropdown"}
                   >
                     <div
@@ -1296,6 +1319,7 @@ export function ActionWizard({
                       title="How it runs"
                       teaser="A terminal, a pop-up, or the background."
                       revealed={showRunMode}
+                      complete={step3Complete}
                       last
                     >
                       <div
@@ -1412,7 +1436,7 @@ export function ActionWizard({
                 type="button"
                 onClick={() => void submit()}
                 disabled={saving || (mode === "form" && !formIsValid)}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
               >
                 {saving ? savingLabel : primaryLabel}
                 {!saving && (
@@ -1447,81 +1471,6 @@ export function ActionWizard({
         }}
       />
     </>
-  );
-}
-
-type WizardMode = "form" | "editor";
-
-const MODE_OPTIONS: Array<{ value: WizardMode; label: string; hint: string }> =
-  [
-    { value: "form", label: "Form", hint: "Guided fields" },
-    { value: "editor", label: "Editor", hint: "Raw YAML" },
-  ];
-
-function ModeMenu({
-  mode,
-  onChange,
-}: {
-  mode: WizardMode;
-  onChange: (next: WizardMode) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
-  const current =
-    MODE_OPTIONS.find((opt) => opt.value === mode) ?? MODE_OPTIONS[0];
-
-  const choose = (next: WizardMode) => {
-    setOpen(false);
-    if (next !== mode) onChange(next);
-  };
-
-  return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 rounded-md border border-[var(--border)] px-2 py-1 text-[11px] font-medium transition-colors ${
-          open
-            ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
-            : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-        }`}
-      >
-        <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          View
-        </span>
-        <span>{current.label}</span>
-        <ChevronDownIcon />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-50 mt-1.5 min-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-2xl">
-          {MODE_OPTIONS.map((opt) => {
-            const active = opt.value === mode;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => choose(opt.value)}
-                className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
-              >
-                <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--text-primary)]">
-                  {active && <CheckIcon />}
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span
-                    className={`text-[12px] font-medium ${active ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
-                  >
-                    {opt.label}
-                  </span>
-                  <span className="text-[11px] text-[var(--text-muted)]">
-                    {opt.hint}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1638,7 +1587,7 @@ function ShortcutField({
         ? `${formatShortcut(parsed)} is already used by “${holder}”`
         : null;
   const borderClass = recording
-    ? "border-[var(--accent-cyan)] bg-[var(--bg-secondary)]"
+    ? "border-[var(--accent-cyan)] bg-[var(--bg-secondary)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_15%,transparent)]"
     : warning
       ? "border-[var(--text-error,#e15252)] bg-[var(--bg-secondary)]"
       : "border-transparent bg-[var(--bg-secondary)]";
@@ -1697,7 +1646,7 @@ function TemplateButton({
     <button
       type="button"
       onClick={() => onPick(template)}
-      className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:border-[var(--border)] hover:bg-[var(--bg-hover)]"
+      className="flex min-w-0 flex-col gap-0.5 rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition hover:-translate-y-px hover:border-[var(--border)] hover:bg-[var(--bg-hover)] hover:shadow-sm active:translate-y-0"
     >
       <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
         {template.emoji} {template.name}
@@ -2060,7 +2009,7 @@ function CommandField({
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
-        className="block max-h-40 w-full resize-none overflow-y-auto rounded-lg border border-transparent bg-[var(--bg-secondary)] px-4 py-3 font-mono text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+        className="block max-h-40 w-full resize-none overflow-y-auto rounded-lg border border-transparent bg-[var(--bg-secondary)] px-4 py-3 font-mono text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_15%,transparent)]"
       />
     </label>
   );
@@ -2147,7 +2096,7 @@ function MenuOptionsEditor({
                   value={child.label}
                   onChange={(e) => updateField(child, "label", e.target.value)}
                   placeholder="Label"
-                  className="rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-cyan)]"
+                  className="rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-cyan)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_15%,transparent)]"
                 />
                 <input
                   value={child.cmd}
@@ -2157,7 +2106,7 @@ function MenuOptionsEditor({
                   autoCorrect="off"
                   autoCapitalize="off"
                   spellCheck={false}
-                  className="rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-cyan)]"
+                  className="rounded-lg border border-transparent bg-[var(--bg-secondary)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-cyan)] focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-cyan)_15%,transparent)]"
                 />
                 <button
                   type="button"
@@ -2327,14 +2276,18 @@ function RunModePicker({
         )}
       </div>
       {runMode === "terminal" && (
-        <label className="mt-3 flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-          <input
-            type="checkbox"
-            checked={reuse}
-            onChange={(e) => onReuse(e.target.checked)}
-          />
-          Reuse the same terminal when I run this action again
-        </label>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={reuse}
+          onClick={() => onReuse(!reuse)}
+          className="mt-3 flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--bg-secondary)] px-4 py-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+        >
+          <span className="text-[12px] text-[var(--text-secondary)]">
+            Reuse the same terminal when I run this action again
+          </span>
+          <Switch checked={reuse} />
+        </button>
       )}
     </div>
   );

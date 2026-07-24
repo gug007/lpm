@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { withEmoji } from "../../withEmoji";
 import { actionButtonStyle } from "../../actionColors";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
-import { ChevronDownIcon, RefreshIcon } from "../icons";
+import { ChevronDownIcon } from "../icons";
 import type { RunMode } from "./actionInference";
 import {
   MockActionPlaceholder,
@@ -77,17 +77,17 @@ export function ActionPreviewPanel({
     setDemoFinished(false);
   }, [running, replayNonce]);
 
+  // Clicking the preview button always (re)runs the demo: bumping the nonce
+  // remounts RunModeDemo even when the demo state itself is unchanged.
   const triggerRun = () => {
     if (!canRun) return;
+    setDemoFinished(false);
+    setReplayNonce((n) => n + 1);
     setRunning(confirm ? "confirm" : runMode);
   };
 
   const handleConfirm = () => setRunning(runMode);
   const handleCancel = () => setRunning(null);
-  const replayDemo = () => {
-    setDemoFinished(false);
-    setReplayNonce((n) => n + 1);
-  };
 
   const shownRunning: DemoState =
     hoveredHint === "confirm" && confirm ? "confirm" : running;
@@ -120,8 +120,21 @@ export function ActionPreviewPanel({
   );
 
   return (
-    <aside className="flex border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-6 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
-      <div className="flex min-h-[140px] flex-1 flex-col lg:min-h-0">
+    <aside className="relative flex overflow-hidden border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-6 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          backgroundImage:
+            "radial-gradient(color-mix(in srgb, var(--text-muted) 22%, transparent) 1px, transparent 1px)",
+          backgroundSize: "14px 14px",
+          maskImage:
+            "radial-gradient(ellipse 90% 70% at 50% 45%, black 25%, transparent 78%)",
+          WebkitMaskImage:
+            "radial-gradient(ellipse 90% 70% at 50% 45%, black 25%, transparent 78%)",
+        }}
+      />
+      <div className="relative flex min-h-[140px] flex-1 flex-col lg:min-h-0">
         <div className="mb-4 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
           Preview
         </div>
@@ -152,7 +165,7 @@ export function ActionPreviewPanel({
                     type="button"
                     onClick={triggerRun}
                     style={colorStyle}
-                    className={`inline-flex whitespace-nowrap rounded-lg border bg-[var(--action-tint,var(--bg-primary))] px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
+                    className={`inline-flex whitespace-nowrap rounded-lg border bg-[var(--action-tint,var(--bg-primary))] px-3.5 py-1.5 text-xs font-medium transition hover:bg-[var(--action-tint-strong,var(--bg-hover))] active:scale-[0.96] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
                   >
                     {displayLabel}
                   </button>
@@ -165,7 +178,7 @@ export function ActionPreviewPanel({
                       <button
                         type="button"
                         onClick={triggerRun}
-                        className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))]"
+                        className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition hover:bg-[var(--action-tint-strong,var(--bg-hover))] active:scale-[0.96]"
                       >
                         {displayLabel}
                       </button>
@@ -209,20 +222,11 @@ export function ActionPreviewPanel({
                     onCancel={handleCancel}
                     onFinished={() => setDemoFinished(true)}
                   />
-                  {demoFinished ? (
-                    <button
-                      type="button"
-                      onClick={replayDemo}
-                      className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
-                    >
-                      <RefreshIcon />
-                      Replay
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-[var(--text-muted)]">
-                      Click the button to try it.
-                    </span>
-                  )}
+                  <span className="text-[11px] text-[var(--text-muted)]">
+                    {demoFinished
+                      ? "Click the button to run it again."
+                      : "Click the button to try it."}
+                  </span>
                 </>
               )}
 
@@ -341,7 +345,7 @@ function ActionSummary({
   }
 
   return (
-    <div className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-3">
+    <div className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-3 shadow-sm">
       <div className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
         What this does
       </div>

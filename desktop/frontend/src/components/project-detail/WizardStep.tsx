@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
+import { CheckIcon } from "../icons";
 
 // One numbered section of the action form. Steps that haven't unlocked yet stay
 // visible as a dimmed title + teaser, so the whole flow reads as a roadmap
-// before the user has typed anything.
+// before the user has typed anything. Once a step's requirements are met its
+// number turns into a check, so filling the form reads as visible progress.
 // Earlier steps stack above later ones so a step's open dropdown paints over
 // the steps below it; the reveal animation traps absolutely-positioned menus
 // in each step's own stacking context, so DOM order alone can't do it.
@@ -13,6 +15,7 @@ export function WizardStep({
   title,
   teaser,
   revealed,
+  complete = false,
   last = false,
   children,
 }: {
@@ -20,6 +23,7 @@ export function WizardStep({
   title: string;
   teaser?: string;
   revealed: boolean;
+  complete?: boolean;
   last?: boolean;
   children: ReactNode;
 }) {
@@ -29,15 +33,23 @@ export function WizardStep({
     >
       <div className="flex flex-col items-center">
         <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ring-1 ring-inset transition-colors ${
-            revealed
-              ? "bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-[var(--accent-cyan)]/25"
-              : "bg-[var(--bg-secondary)] text-[var(--text-muted)] ring-[var(--border)]"
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ring-1 ring-inset transition-colors duration-200 ${
+            complete
+              ? "bg-[var(--accent-cyan)] text-[var(--bg-primary)] ring-[var(--accent-cyan)]"
+              : revealed
+                ? "bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-[var(--accent-cyan)]/25"
+                : "bg-[var(--bg-secondary)] text-[var(--text-muted)] ring-[var(--border)]"
           }`}
         >
-          {number}
+          {complete ? <CheckIcon /> : number}
         </span>
-        {!last && <span className="mt-2 w-px flex-1 bg-[var(--border)]" />}
+        {!last && (
+          <span
+            className={`mt-2 w-px flex-1 transition-colors duration-200 ${
+              complete ? "bg-[var(--accent-cyan)]/35" : "bg-[var(--border)]"
+            }`}
+          />
+        )}
       </div>
       <div className={`min-w-0 flex-1 ${last ? "" : "pb-7"}`}>
         <div className="flex min-h-6 items-center">
