@@ -1369,6 +1369,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       // its tasks, refresh so it (with its actions) enters the list, then mark
       // it visited — that mounts its detail and fires the auto-run effect.
       for (let i = 0; i < count; i++) {
+        if (count > 1) {
+          toast.loading(`Creating ${noun(1)} ${i + 1} of ${count} of ${name}…`, {
+            id: toastId,
+          });
+        }
         const source = sourceAt(i);
         const slug = peerSlugOf(source);
         let newName: string | null;

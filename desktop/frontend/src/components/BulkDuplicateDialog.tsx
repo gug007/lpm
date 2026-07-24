@@ -58,9 +58,12 @@ function randomId6(): string {
 // One draft copy: its display label, an optional per-copy run override
 // (`override === null` means the copy runs the shared default below), and the
 // project it's duplicated from — the source itself, or the same project on
-// another connected Mac.
+// another connected Mac. `suggested` is the auto-name shown as the label
+// field's placeholder and submitted when the field is left blank, so the copy
+// always ends up displayed under the name the dialog showed.
 interface CopyDraft {
   label: string;
+  suggested: string;
   override: CopyOverride | null;
   target: string;
 }
@@ -126,7 +129,7 @@ export function BulkDuplicateDialog({
 }: BulkDuplicateDialogProps) {
   const seeded = seed !== undefined;
   const [copies, setCopies] = useState<CopyDraft[]>([
-    { label: "", override: null, target: "" },
+    { label: "", suggested: "", override: null, target: "" },
   ]);
   const count = copies.length;
   // The shared default applied to every copy that doesn't override it.
@@ -159,9 +162,9 @@ export function BulkDuplicateDialog({
     ? projectDisplayName(project, findParentProject(project, projects))
     : "";
 
-  // Default each label to the copy's would-be name (`<original>-<id>`), the
-  // same scheme the backend uses for the folder, so the field shows the copy's
-  // name rather than the original's.
+  // Suggest each copy a would-be name (`<original>-<id>`), the same scheme the
+  // backend uses for the folder. It's shown as the label field's placeholder so
+  // typing a custom label needs no clearing first.
   const base = project?.parentName || project?.name;
   const genLabel = () => (base ? `${base}-${randomId6()}` : "");
   // Shown as run #1 in the seeded (composer) flow — the current project runs the
@@ -239,7 +242,8 @@ export function BulkDuplicateDialog({
     const initialCount = seed?.count ? clamp(seed.count) : 1;
     setCopies(
       Array.from({ length: initialCount }, () => ({
-        label: genLabel(),
+        label: "",
+        suggested: genLabel(),
         override: null,
         target: project?.name ?? "",
       })),
@@ -297,7 +301,12 @@ export function BulkDuplicateDialog({
       }
       const out = prev.slice();
       while (out.length < n)
-        out.push({ label: genLabel(), override: null, target: project?.name ?? "" });
+        out.push({
+          label: "",
+          suggested: genLabel(),
+          override: null,
+          target: project?.name ?? "",
+        });
       return out;
     });
     setEditing((e) => (e !== null && e >= n ? null : e));
@@ -530,7 +539,7 @@ export function BulkDuplicateDialog({
       excludeUncommitted: isWorktree ? false : excludeUncommitted,
       reinstallDeps,
       pullLatest: isWorktree ? false : pullLatest,
-      labels: copies.map((c) => c.label.trim()),
+      labels: copies.map((c) => c.label.trim() || c.suggested),
       tasksPerCopy: buildTasksPerCopy(),
       targetsPerCopy: copies.map((c) => {
         const t = targetOf(c);
@@ -658,6 +667,7 @@ export function BulkDuplicateDialog({
                   if (!Number.isNaN(n)) changeCount(seeded ? n - 1 : n);
                 }}
                 inputMode="numeric"
+                aria-label={seeded ? "Number of parallel runs" : "Number of copies"}
                 className="h-8 w-11 border-x border-[var(--border)] bg-transparent text-center text-[13px] font-semibold tabular-nums text-[var(--text-primary)] outline-none"
               />
               <button
@@ -684,7 +694,7 @@ export function BulkDuplicateDialog({
                     spellCheck={false}
                     autoCapitalize="off"
                     autoCorrect="off"
-                    placeholder="Auto-named"
+                    placeholder={copies[0]?.suggested || "Auto-named"}
                     className={`${FIELD_CLASS} h-9 flex-1 px-3`}
                   />
                   {showTargets && (
@@ -784,6 +794,7 @@ export function BulkDuplicateDialog({
                       key={i}
                       index={seeded ? i + 1 : i}
                       label={copy.label}
+                      placeholder={copy.suggested}
                       onLabelChange={(value) => setLabelAt(i, value)}
                       override={copy.override}
                       summary={overrideSummary(copy.override)}
@@ -878,9 +889,8 @@ export function BulkDuplicateDialog({
                       aiCwd={aiCwd}
                     />
                     <p className={`mt-1.5 ${HELPER_TEXT}`}>
-                      Sent to {copyRef}'s terminal once it's ready — e.g. a task
-                      for the agent, with any attached images. Leave blank to
-                      send nothing.
+                      Sent to {copyRef}'s terminal once it's ready. Leave blank
+                      to send nothing.
                     </p>
                   </div>
                 )}

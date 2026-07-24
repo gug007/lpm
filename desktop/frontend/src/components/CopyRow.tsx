@@ -8,6 +8,7 @@ import type { ActionInfo, CopyOverride, CopyRunMode } from "../types";
 interface CopyRowProps {
   index: number;
   label: string;
+  placeholder?: string;
   onLabelChange: (value: string) => void;
   override: CopyOverride | null;
   summary: string;
@@ -27,6 +28,7 @@ interface CopyRowProps {
 export function CopyRow({
   index,
   label,
+  placeholder,
   onLabelChange,
   override,
   summary,
@@ -56,7 +58,7 @@ export function CopyRow({
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          placeholder="Auto-named"
+          placeholder={placeholder || "Auto-named"}
           className={`${FIELD_CLASS} h-9 min-w-0 flex-1 px-3`}
         />
         {showTargets && (
