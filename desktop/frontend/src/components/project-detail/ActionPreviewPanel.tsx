@@ -225,22 +225,20 @@ export function ActionPreviewPanel({
                   )}
                 </>
               )}
+
+              <ActionSummary
+                shape={shape}
+                label={displayLabel}
+                display={display}
+                runMode={runMode}
+                reuse={reuse}
+                confirm={confirm}
+                cmd={cmd}
+                optionCount={visibleOptions.length}
+              />
             </div>
           )}
         </div>
-
-        {hasName && (
-          <ActionSummary
-            shape={shape}
-            label={displayLabel}
-            display={display}
-            runMode={runMode}
-            reuse={reuse}
-            confirm={confirm}
-            cmd={cmd}
-            optionCount={visibleOptions.length}
-          />
-        )}
       </div>
     </aside>
   );
@@ -255,7 +253,7 @@ function Strong({ children }: { children: ReactNode }) {
 }
 
 function CmdChip({ cmd }: { cmd: string }) {
-  const shown = cmd.length > 44 ? `${cmd.slice(0, 43)}…` : cmd;
+  const shown = cmd.length > 34 ? `${cmd.slice(0, 33)}…` : cmd;
   return (
     <code
       title={cmd}
@@ -343,7 +341,7 @@ function ActionSummary({
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-3">
+    <div className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 py-3">
       <div className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
         What this does
       </div>

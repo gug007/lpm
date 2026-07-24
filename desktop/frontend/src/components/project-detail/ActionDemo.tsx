@@ -12,7 +12,7 @@ export type FrameHighlight = "header" | "footer" | "content" | null;
 const PREVIEW_TINT = "color-mix(in srgb, var(--accent-cyan) 16%, transparent)";
 const PREVIEW_CONTENT_RING =
   "inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 45%, transparent)";
-const DEMO_OUTPUT_WIDTHS = ["72%", "48%", "62%"];
+const DEMO_OUTPUT_WIDTHS = ["72%", "48%", "62%", "38%", "55%"];
 
 function useDemoScript(
   cmd: string,
@@ -87,12 +87,12 @@ function MockAppFrame({
   children: ReactNode;
 }) {
   return (
-    <div className="relative w-full max-w-[240px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-md">
+    <div className="relative w-full max-w-[260px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-md">
       <div className="flex h-[14px] items-center gap-1 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-2">
         <TrafficLights size="sm" />
       </div>
 
-      <div className="flex h-[140px]">
+      <div className="flex h-[160px]">
         <div className="flex w-[36px] shrink-0 flex-col gap-1 border-r border-[var(--border)] bg-[var(--bg-secondary)] p-1.5">
           <div className="h-1.5 rounded bg-[var(--border)]" />
           <div className="h-1.5 rounded bg-[var(--border)]" />
@@ -278,11 +278,15 @@ function TerminalDemo({
   priorPrompt?: boolean;
   onFinished: () => void;
 }) {
-  const { typed, typingDone, step } = useDemoScript(cmd, 3, onFinished);
+  const { typed, typingDone, step } = useDemoScript(
+    cmd,
+    DEMO_OUTPUT_WIDTHS.length,
+    onFinished,
+  );
   return (
     <div className="demo-terminal absolute inset-0 overflow-hidden bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
       {priorPrompt && <div className="truncate text-white/40">{prompt}</div>}
-      <div className="truncate">
+      <div className="break-all">
         {prompt} {typed}
         {!typingDone && (
           <span className="demo-cursor ml-[1px] inline-block h-[6px] w-[3px] translate-y-[1px] bg-white/80" />
@@ -299,7 +303,7 @@ function TerminalDemo({
           ))}
         </div>
       )}
-      {step >= 3 && (
+      {step >= DEMO_OUTPUT_WIDTHS.length && (
         <div className="mt-1 flex items-center gap-1 text-white/50">
           <span>{prompt}</span>
           <span className="demo-cursor inline-block h-[6px] w-[3px] bg-white/80" />
