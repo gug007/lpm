@@ -76,6 +76,7 @@ export function HeaderTab({
         <span className="flex shrink-0 items-center">
           <span
             className={`flex items-center transition-opacity ${active ? "opacity-90" : "opacity-60 group-hover:opacity-80"} [&>svg]:h-3.5 [&>svg]:w-3.5 ${hasHoverIcon ? "group-hover:hidden" : ""}`}
+            style={statusStyle}
           >
             {icon}
           </span>
