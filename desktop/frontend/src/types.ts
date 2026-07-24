@@ -63,6 +63,9 @@ export interface ActionInfo {
   confirm: boolean;
   display: ActionDisplay;
   primary?: string;
+  // Task handed to the AI agent the command launches, submitted once the agent
+  // is ready. Only meaningful for terminal actions whose cmd starts an agent CLI.
+  prompt?: string;
   type?: ActionType;
   reuse?: boolean;
   position?: number;

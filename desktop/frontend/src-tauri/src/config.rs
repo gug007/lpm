@@ -717,6 +717,8 @@ struct ActionFull {
     display: String,
     #[serde(default)]
     primary: String,
+    #[serde(default)]
+    prompt: String,
     #[serde(rename = "type", default)]
     kind: String,
     #[serde(default)]
@@ -1237,6 +1239,8 @@ pub struct ActionInfo {
     pub display: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub primary: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub prompt: String,
     #[serde(rename = "type")]
     pub kind: String,
     pub reuse: bool,
@@ -1347,6 +1351,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.primary.is_empty() {
         d.primary = s.primary.clone();
+    }
+    if d.prompt.is_empty() {
+        d.prompt = s.prompt.clone();
     }
     if d.kind.is_empty() {
         d.kind = s.kind.clone();
@@ -1652,6 +1659,7 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         confirm: act.confirm,
         display: act.display.clone(),
         primary: act.primary.clone(),
+        prompt: act.prompt.clone(),
         kind: act.kind.clone(),
         reuse: act.reuse,
         position: act.position,

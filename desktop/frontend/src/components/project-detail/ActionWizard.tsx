@@ -42,7 +42,15 @@ import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
 import { ActionColorButton } from "../ActionColorButton";
-import { isFooterDisplay, type ActionInfo } from "../../types";
+import { AI_CLI_OPTIONS, isFooterDisplay, type ActionInfo } from "../../types";
+import { detectAICLI } from "../../slashCommands";
+import { InputComposer } from "../InputComposer";
+import {
+  composerValueToText,
+  EMPTY_COMPOSER,
+  textToPrompt,
+  type ComposerValue,
+} from "../../composerValue";
 import { forEachAction } from "../../actionTree";
 import { useShortcutCapture } from "../../hooks/useShortcutCapture";
 import { useSettingsStore } from "../../store/settings";
@@ -339,6 +347,7 @@ function getMissingHint(
   const nameFilled = Boolean(draft.name.trim());
   const cmdFilled = Boolean(draft.cmd.trim());
   if (!nameFilled) return "Name is required";
+  if (draft.prompt.pending) return "An attached image is still saving";
   if (draft.shape === "button") return cmdFilled ? null : "Command is required";
   if (draft.shape === "split") {
     if (!cmdFilled) return "Default command is required";
@@ -356,6 +365,9 @@ interface FormDraft {
   shortcut: string;
   cmd: string;
   cwd: string;
+  // Task for the AI agent the command launches, submitted once it's ready.
+  // Only saved while cmd actually starts a known agent CLI.
+  prompt: ComposerValue;
   port: string;
   portConflict: string;
   configLayer: ActionConfigLayer;
@@ -445,6 +457,7 @@ function buildActionPatch({
   shortcut,
   cmd,
   cwd,
+  prompt,
   port,
   portConflict,
   children,
@@ -471,12 +484,25 @@ function buildActionPatch({
   else remove.push("display");
 
   if (shape === "dropdown") {
-    remove.push("cmd", "cwd", "type", "reuse", "confirm", "port", "portConflict");
+    remove.push(
+      "cmd",
+      "cwd",
+      "prompt",
+      "type",
+      "reuse",
+      "confirm",
+      "port",
+      "portConflict",
+    );
   } else {
     set.cmd = cmd.trim();
     const cwdTrim = cwd.trim();
     if (cwdTrim) set.cwd = cwdTrim;
     else remove.push("cwd");
+    const promptText =
+      runMode === "terminal" && detectAICLI(cmd) ? composerValueToText(prompt) : "";
+    if (promptText) set.prompt = promptText;
+    else remove.push("prompt");
     if (runMode !== "once") set.type = runMode;
     else remove.push("type");
     if (runMode === "terminal" && reuse) set.reuse = true;
@@ -601,6 +627,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     shortcut: action.shortcut ?? "",
     cmd: action.cmd,
     cwd: action.cwd ?? "",
+    prompt: textToPrompt(action.prompt ?? ""),
     port: (action.port ?? []).join(", "),
     portConflict: toPickerValue(action.portConflict),
     configLayer: "project",
@@ -623,6 +650,7 @@ function defaultDraft(): FormDraft {
     shortcut: "",
     cmd: "",
     cwd: "",
+    prompt: EMPTY_COMPOSER,
     port: "",
     portConflict: "",
     configLayer: "project",
@@ -672,6 +700,10 @@ export function ActionWizard({
     projectRoot,
   });
   const [draft, setDraft] = useState<FormDraft>(defaultDraft);
+  // Keys the prompt composer. Its editor is seeded once on mount, so bump this
+  // whenever the draft is replaced programmatically (open, editor→form, AI
+  // result) to re-seed it from the new draft.
+  const [promptSeed, setPromptSeed] = useState(0);
   const [hoveredHint, setHoveredHint] = useState<PreviewHint | null>(null);
   const [showYaml, setShowYaml] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -721,6 +753,7 @@ export function ActionWizard({
     if (!open) return;
     const nextDraft = editing ? actionToDraft(editing) : defaultDraft();
     setDraft(nextDraft);
+    setPromptSeed((n) => n + 1);
     setBaselineDraft(nextDraft);
     setShowYaml(false);
     setSaving(false);
@@ -784,6 +817,7 @@ export function ActionWizard({
     shortcut,
     cmd,
     cwd,
+    prompt,
     port,
     portConflict,
     configLayer,
@@ -811,6 +845,13 @@ export function ActionWizard({
   const showShape = nameFilled;
   const showCommand = shape !== "dropdown";
   const showRunMode = showCommand && cmdFilled;
+  // The command launches an AI agent in a terminal, so a saved prompt has
+  // somewhere to land — that's when the prompt composer appears.
+  const promptCli =
+    showCommand && runMode === "terminal" ? detectAICLI(cmd) : null;
+  const promptCliLabel = promptCli
+    ? (AI_CLI_OPTIONS.find((o) => o.value === promptCli)?.label ?? promptCli)
+    : null;
   const showMenuOptions =
     nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
   const missingHint = getMissingHint(draft, hasMenuOption);
@@ -1018,6 +1059,7 @@ export function ActionWizard({
       ...actionToDraft(actionInfoFromPayload(payload)),
       configLayer: prev.configLayer,
     }));
+    setPromptSeed((n) => n + 1);
     setWorkingBase(payload);
     setEditorError(null);
     setMode("form");
@@ -1055,6 +1097,7 @@ export function ActionWizard({
         ...actionToDraft(info),
         configLayer: prev.configLayer,
       }));
+      setPromptSeed((n) => n + 1);
       toast.success(
         editing ? "AI updated the action" : "AI generated an action",
       );
@@ -1266,6 +1309,29 @@ export function ActionWizard({
                         }
                       />
                     )}
+
+                    {promptCli && (
+                      <Reveal>
+                        <div className="space-y-2.5">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <div className="text-[12px] font-medium text-[var(--text-secondary)]">
+                              Prompt
+                            </div>
+                            <div className="text-[12px] text-[var(--text-muted)]">
+                              Optional — sent to {promptCliLabel} once it
+                              starts.
+                            </div>
+                          </div>
+                          <InputComposer
+                            key={`action-prompt-${promptSeed}`}
+                            defaultValue={prompt}
+                            onChange={(value) => updateField("prompt", value)}
+                            placeholder="Review my uncommitted changes and fix anything broken"
+                            aiCwd={isRemote ? undefined : projectRoot}
+                          />
+                        </div>
+                      </Reveal>
+                    )}
                   </WizardStep>
 
                   <WizardStep
@@ -1401,6 +1467,11 @@ export function ActionWizard({
                 cmd={cmd}
                 display={display}
                 hoveredHint={hoveredHint}
+                promptFor={
+                  promptCli && composerValueToText(prompt)
+                    ? promptCliLabel
+                    : null
+                }
               />
             </div>
           )}

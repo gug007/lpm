@@ -71,6 +71,7 @@
             "emoji": { "type": "string", "description": "Optional emoji shown as the action's icon and on the terminal tab it launches." },
             "shortcut": { "type": "string", "description": "Optional keyboard shortcut that runs the action while the project is open, e.g. \"cmd+shift+b\". Must include cmd or alt." },
             "cwd": { "type": "string" },
+            "prompt": { "type": "string", "description": "Prompt handed to the AI agent the command launches (claude, codex, ...), submitted once the agent is ready." },
             "port": {
               "oneOf": [
                 { "type": "integer", "minimum": 0, "maximum": 65535 },
@@ -162,6 +163,7 @@
             "label": { "type": "string" },
             "emoji": { "type": "string", "description": "Optional emoji shown as the terminal tab's icon." },
             "cwd": { "type": "string" },
+            "prompt": { "type": "string", "description": "Prompt handed to the AI agent the command launches (claude, codex, ...), submitted once the agent is ready." },
             "port": {
               "oneOf": [
                 { "type": "integer", "minimum": 0, "maximum": 65535 },

@@ -8,6 +8,7 @@ import {
 } from "../../bridge/commands";
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
+import { promptTextToSeed } from "../composerValue";
 import { useAppStore } from "../store/app";
 import {
   showBackgroundRunToast,
@@ -76,6 +77,23 @@ export function useProjectActions({
     }
   };
 
+  // A caller-supplied prompt (a duplicate's seeded task, a mobile run) wins
+  // over the prompt saved on the action itself; input placeholders substitute
+  // into the saved prompt the same way they do into cmd.
+  const actionPrompt = (
+    action: ActionInfo,
+    inputValues: Record<string, string>,
+    opts: RunActionOpts,
+  ): string | string[] | undefined => {
+    if (opts.prompt !== undefined) return opts.prompt;
+    if (!action.prompt?.trim()) return undefined;
+    const substituted = Object.entries(inputValues).reduce(
+      (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
+      action.prompt,
+    );
+    return promptTextToSeed(substituted);
+  };
+
   const executeAction = async (
     action: ActionInfo,
     inputValues: Record<string, string> = {},
@@ -97,7 +115,7 @@ export function useProjectActions({
             reuse: action.reuse,
             emoji: action.emoji,
             color: action.color,
-            prompt: opts.prompt,
+            prompt: actionPrompt(action, inputValues, opts),
           });
           return;
         }
@@ -112,7 +130,7 @@ export function useProjectActions({
           reuse: action.reuse,
           emoji: action.emoji,
           color: action.color,
-          prompt: opts.prompt,
+          prompt: actionPrompt(action, inputValues, opts),
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

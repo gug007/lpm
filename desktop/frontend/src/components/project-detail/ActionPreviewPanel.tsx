@@ -39,6 +39,7 @@ export function ActionPreviewPanel({
   cmd,
   display,
   hoveredHint,
+  promptFor = null,
 }: {
   name: string;
   emoji: string;
@@ -51,6 +52,8 @@ export function ActionPreviewPanel({
   cmd: string;
   display: "header" | "footer";
   hoveredHint: PreviewHint | null;
+  // Name of the AI agent a saved prompt is handed to, or null when none is set.
+  promptFor?: string | null;
 }) {
   const trimmedName = name.trim();
   const hasName = trimmedName.length > 0;
@@ -239,6 +242,7 @@ export function ActionPreviewPanel({
                 confirm={confirm}
                 cmd={cmd}
                 optionCount={visibleOptions.length}
+                promptFor={promptFor}
               />
             </div>
           )}
@@ -279,6 +283,7 @@ function ActionSummary({
   confirm,
   cmd,
   optionCount,
+  promptFor,
 }: {
   shape: Shape;
   label: string;
@@ -288,6 +293,7 @@ function ActionSummary({
   confirm: boolean;
   cmd: string;
   optionCount: number;
+  promptFor: string | null;
 }) {
   const place = display === "footer" ? "the footer bar" : "the header";
   const trimmed = cmd.trim();
@@ -316,7 +322,18 @@ function ActionSummary({
     const clause =
       runMode === "terminal" ? (
         reuse ? (
-          <>run {chip}, reusing the same terminal each time</>
+          promptFor ? (
+            <>
+              run {chip}, reusing the same terminal and sending {promptFor}{" "}
+              your prompt
+            </>
+          ) : (
+            <>run {chip}, reusing the same terminal each time</>
+          )
+        ) : promptFor ? (
+          <>
+            open a new terminal, run {chip}, and send {promptFor} your prompt
+          </>
         ) : (
           <>open a new terminal and run {chip}</>
         )

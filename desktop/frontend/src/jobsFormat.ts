@@ -2,8 +2,8 @@
 // React and the bridge so the schedule <-> human-string mapping and the YAML
 // jobs-block round-trip can be unit tested directly.
 
-import { composerValueToText, EMPTY_COMPOSER, isImagePath } from "./composerValue";
-import type { ComposerImage, ComposerValue } from "./composerValue";
+import { composerValueToText, EMPTY_COMPOSER, textToPrompt } from "./composerValue";
+import type { ComposerValue } from "./composerValue";
 
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -460,24 +460,6 @@ function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
     block.days = orderDays(draft.days);
   }
   return block;
-}
-
-// An absolute path standing on its own in the prompt text — the shape an
-// attachment serializes to, and what parsing turns back into a chip.
-const ABS_PATH_RE = /(?<![^\s])\/\S+/g;
-
-// Reverse of composerValueToText: every standalone absolute image path becomes an
-// attachment token again, so an edited job shows its chips back. Any other path
-// stays literal text, and re-serializing reproduces the stored string verbatim.
-function textToPrompt(text: string): ComposerValue {
-  const images: ComposerImage[] = [];
-  const out = text.replace(ABS_PATH_RE, (path) => {
-    if (!isImagePath(path)) return path;
-    const token = images.length + 1;
-    images.push({ token, path });
-    return `[Image #${token}]`;
-  });
-  return { text: out, images, pending: false };
 }
 
 function buildRunBlock(draft: JobDraft): Record<string, unknown> {

@@ -38,6 +38,12 @@ vi.mock("./AIActionModal", () => ({
   AIActionModal: () => null,
 }));
 
+// InputComposer transitively initializes the Tauri window bridge at import
+// time, which doesn't exist under vitest.
+vi.mock("../InputComposer", () => ({
+  InputComposer: () => <div data-testid="prompt-composer" />,
+}));
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
