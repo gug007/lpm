@@ -52,7 +52,7 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `remove`, `run`, `automations`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `automations`. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
@@ -203,7 +203,7 @@ enum Commands {
         #[arg(long, short = 'p')]
         project: Option<String>,
     },
-    /// Duplicate a project into standalone copies or linked Git worktrees.
+    /// Duplicate a project into standalone copies.
     Duplicate {
         /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
         name: Option<String>,
@@ -218,12 +218,6 @@ enum Commands {
         /// Group the copies under this sidebar folder.
         #[arg(long)]
         group: Option<String>,
-        /// Create linked Git worktrees instead of standalone APFS copies.
-        #[arg(
-            long,
-            conflicts_with_all = ["exclude_uncommitted", "include_uncommitted", "no_pull"]
-        )]
-        worktree: bool,
         /// Action to queue on each copy (conflicts with --command).
         #[arg(long = "run", conflicts_with = "command")]
         run: Option<String>,
@@ -245,6 +239,37 @@ enum Commands {
         /// Do not git-pull latest in each copy (overrides the app default).
         #[arg(long)]
         no_pull: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Create linked Git worktrees of a project via the running app.
+    Worktree {
+        /// Project stem, `name:` field, or unambiguous prefix. Omit to infer it.
+        name: Option<String>,
+        /// Number of worktrees to create (1..=50).
+        #[arg(long, short = 'n', default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=50))]
+        count: u32,
+        #[arg(
+            long,
+            help = "Display label in <project-name>-<short-description> form. Repeat in creation order"
+        )]
+        label: Vec<String>,
+        /// Group the worktrees under this sidebar folder.
+        #[arg(long)]
+        group: Option<String>,
+        /// Action to queue on each worktree (conflicts with --command).
+        #[arg(long = "run", conflicts_with = "command")]
+        run: Option<String>,
+        /// Command to queue on each worktree (conflicts with --run).
+        #[arg(long)]
+        command: Option<String>,
+        /// Prompt to send to the queued action/command.
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Reinstall dependencies in each worktree.
+        #[arg(long)]
+        reinstall_deps: bool,
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
@@ -365,7 +390,6 @@ fn main() -> ExitCode {
             count,
             label,
             group,
-            worktree,
             run,
             command,
             prompt,
@@ -380,13 +404,38 @@ fn main() -> ExitCode {
             count,
             &label,
             group.as_deref(),
-            worktree,
+            false,
             run.as_deref(),
             command.as_deref(),
             prompt.as_deref(),
             exclude_uncommitted_override(exclude_uncommitted, include_uncommitted),
             reinstall_deps,
             no_pull,
+            json,
+        ),
+        Commands::Worktree {
+            name,
+            count,
+            label,
+            group,
+            run,
+            command,
+            prompt,
+            reinstall_deps,
+            json,
+        } => duplicate::run(
+            &ctx,
+            name.as_deref(),
+            count,
+            &label,
+            group.as_deref(),
+            true,
+            run.as_deref(),
+            command.as_deref(),
+            prompt.as_deref(),
+            None,
+            reinstall_deps,
+            false,
             json,
         ),
         Commands::Remove { name, force, json } => remove::run(&ctx, &name, force, json),

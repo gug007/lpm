@@ -854,6 +854,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           key={duplicateNonce}
           open
           project={duplicateProject}
+          mode="copy"
           remote={isPeerName(projectName)}
           folderNames={folderNames}
           seed={duplicateSeed}

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { LoadSettings, SaveSettings } from "../../bridge/commands";
 import type { main } from "../../bridge/models";
 import type { Theme } from "../theme";
-import type { DuplicateMode, RunMode } from "../types";
+import type { RunMode } from "../types";
 import {
   normalizeGitPull,
   normalizeGitPush,
@@ -60,7 +60,6 @@ export interface Settings {
   preferredEditor?: string;
   detachedWindows?: Record<string, DetachedWindowState>;
   searchFilterMode?: boolean;
-  duplicateMode?: DuplicateMode;
   duplicateExcludeUncommitted?: boolean;
   duplicateReinstallDeps?: boolean;
   duplicatePullLatest?: boolean;
@@ -133,10 +132,6 @@ function normalize(s: main.Settings): Settings {
     ttsSpeed: s.ttsSpeed,
     preferredEditor: s.preferredEditor || undefined,
     searchFilterMode: s.searchFilterMode,
-    duplicateMode:
-      s.duplicateMode === "copy" || s.duplicateMode === "worktree"
-        ? s.duplicateMode
-        : undefined,
     duplicateExcludeUncommitted: s.duplicateExcludeUncommitted,
     duplicateReinstallDeps: s.duplicateReinstallDeps,
     duplicatePullLatest: s.duplicatePullLatest,

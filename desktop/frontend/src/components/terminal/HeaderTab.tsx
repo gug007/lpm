@@ -1,9 +1,9 @@
-import { type MouseEvent, type ReactNode } from "react";
+import { type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
-import { actionTextColor } from "../../actionColors";
+import { actionAccentColor, actionTextColor } from "../../actionColors";
 
 export function HeaderTab({
   label,
@@ -55,6 +55,20 @@ export function HeaderTab({
         ? { color: actionTextColor(color) }
         : undefined;
 
+  // Tint the active pill (and inactive hover) with the launching action's
+  // accent, gated exactly like the label above so status colors and done-blue
+  // still win. Neutral fallbacks in the classes cover uncolored tabs.
+  const accent =
+    !done && !hasStatus && color ? actionAccentColor(color) : undefined;
+  const accentStyle =
+    accent !== undefined
+      ? ({
+          "--tab-accent-bg": `color-mix(in srgb, ${accent} 12%, var(--terminal-tab-active-bg))`,
+          "--tab-accent-ring": `inset 0 0 0 1px color-mix(in srgb, ${accent} 30%, transparent), 0 1px 2px rgba(0,0,0,0.10)`,
+          "--tab-accent-hover": `color-mix(in srgb, ${accent} 10%, transparent)`,
+        } as CSSProperties)
+      : undefined;
+
   const labelNode = (
     <span ref={labelRef} className={`min-w-0 truncate ${statusClassName}`} style={statusStyle}>
       {label}
@@ -65,11 +79,18 @@ export function HeaderTab({
     <button
       onClick={onClick}
       onContextMenu={onContextMenu}
+      onAuxClick={(e) => {
+        if (e.button === 1 && closable) {
+          e.preventDefault();
+          onClose!();
+        }
+      }}
       data-active-tab={active || undefined}
+      style={accentStyle}
       className={`group flex h-6 max-w-[200px] select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
         active
-          ? "bg-[var(--terminal-tab-active-bg)] text-[var(--terminal-tab-active)] shadow-[var(--terminal-tab-shadow)]"
-          : "text-[var(--terminal-header-text)] hover:bg-[var(--terminal-header-hover)] hover:text-[var(--terminal-tab-active)]"
+          ? "bg-[var(--tab-accent-bg,var(--terminal-tab-active-bg))] text-[var(--terminal-tab-active)] shadow-[var(--tab-accent-ring,var(--terminal-tab-shadow))]"
+          : "text-[var(--terminal-header-text)] hover:bg-[var(--tab-accent-hover,var(--terminal-header-hover))] hover:text-[var(--terminal-tab-active)]"
       }`}
     >
       {icon && (

@@ -132,7 +132,7 @@
   --terminal-header-border: rgba(255, 255, 255, 0.35);
   --terminal-tab-active: #e5e5e5;
   --terminal-tab-active-bg: #3c3c3c;
-  --terminal-tab-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --terminal-tab-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 /* Semantic tokens for app-chrome that sits on the terminal surface — the terminal

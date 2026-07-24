@@ -23,12 +23,14 @@ import {
 import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon } from "./icons";
+import { Columns2 } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
 import { TerminalComposer } from "./TerminalComposer";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { ComposerReopenBar } from "./ComposerReopenBar";
 import { useScrollFade } from "../hooks/useScrollFade";
+import { useWheelScrollX } from "../hooks/useWheelScrollX";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
 import {
@@ -281,6 +283,7 @@ function PaneViewImpl(props: PaneViewProps) {
     services,
     activeServiceName,
   ]);
+  useWheelScrollX(scrollRef);
 
   // Keep the focused tab on screen. The margin clears the w-6 fade gradient at
   // each edge so the tab isn't left half-hidden under it.
@@ -337,7 +340,7 @@ function PaneViewImpl(props: PaneViewProps) {
           {hasMultipleServices && (
             <HeaderTab
               label="All"
-              icon={<ZapIcon />}
+              icon={<Columns2 size={14} />}
               active={isAllActive}
               onClick={(e) => {
                 onFocusService(pane.id, ALL_SERVICES);

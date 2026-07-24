@@ -1,4 +1,4 @@
-import { CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, HardDriveIcon, MessageIcon, PencilIcon, SparkleIcon, TrashIcon } from "./icons";
+import { BranchIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, HardDriveIcon, MessageIcon, PencilIcon, SparkleIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -37,6 +37,7 @@ interface ProjectContextMenuProps {
   onOpenNotes: () => void;
   onOpenAI: () => void;
   onBulkDuplicate: () => void;
+  onWorktree: () => void;
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
@@ -74,6 +75,7 @@ export function ProjectContextMenu({
   onOpenNotes,
   onOpenAI,
   onBulkDuplicate,
+  onWorktree,
   onCopyPath,
   onDetach,
   onAttach,
@@ -135,6 +137,12 @@ export function ProjectContextMenu({
         label="Duplicate"
         icon={<CopyIcon />}
         onClick={close(onBulkDuplicate)}
+        disabled={duplicateDisabled}
+      />
+      <ContextMenuItem
+        label="New Worktree"
+        icon={<BranchIcon />}
+        onClick={close(onWorktree)}
         disabled={duplicateDisabled}
       />
       {!remote && (

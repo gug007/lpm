@@ -1,6 +1,8 @@
-//! `lpm duplicate [project] ...` — clone N throwaway copies via the running app,
-//! optionally grouping them and queueing an action/command on each. Streams a
-//! `created <name> (i/N)` line per copy as the app reports progress.
+//! Shared core behind `lpm duplicate [project] ...` and `lpm worktree
+//! [project] ...` — clone N throwaway copies (standalone or linked Git
+//! worktrees) via the running app, optionally grouping them and queueing an
+//! action/command on each. Streams a `created <name> (i/N)` line per copy as
+//! the app reports progress.
 
 use crate::config::{self, Ctx};
 use crate::control;
@@ -153,8 +155,13 @@ pub fn run(
             "warning": warning,
         }));
     } else {
+        let verb = if worktree {
+            "created worktrees of"
+        } else {
+            "duplicated"
+        };
         println!(
-            "duplicated {file_name} -> {}",
+            "{verb} {file_name} -> {}",
             if names.is_empty() {
                 "(none)".to_string()
             } else {

@@ -44,10 +44,6 @@ const MAX_COUNT = 50;
 // copy would otherwise be given.
 const NAME_ALPHABET =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-const DUPLICATE_MODE_OPTIONS: { value: DuplicateMode; label: string }[] = [
-  { value: "copy", label: "Standalone copy" },
-  { value: "worktree", label: "Git worktree" },
-];
 
 function randomId6(): string {
   const bytes = new Uint8Array(6);
@@ -100,6 +96,9 @@ export interface DuplicatePromptSeed {
 interface BulkDuplicateDialogProps {
   open: boolean;
   project: ProjectInfo | null;
+  // "copy" creates standalone copies; "worktree" creates linked Git worktrees.
+  // Chosen by the caller (a separate menu item / entry point), not toggled here.
+  mode: DuplicateMode;
   // The target lives on a paired Mac. Sidebar folders are a local-only concept
   // (peer projects render in their own flat section), so the folder-grouping
   // field is hidden — the copies are created on the host.
@@ -118,6 +117,7 @@ interface BulkDuplicateDialogProps {
 export function BulkDuplicateDialog({
   open,
   project,
+  mode: duplicateMode,
   remote = false,
   folderNames,
   seed,
@@ -136,7 +136,6 @@ export function BulkDuplicateDialog({
   const [composer, setComposer] = useState<ComposerValue>(EMPTY_COMPOSER);
   // Which copy's override editor is expanded (`null` = none).
   const [editing, setEditing] = useState<number | null>(null);
-  const [duplicateMode, setDuplicateMode] = useState<DuplicateMode>("copy");
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [pullLatest, setPullLatest] = useState(true);
@@ -258,7 +257,6 @@ export function BulkDuplicateDialog({
     setCommand(seed?.command ?? s.duplicateCommand ?? "");
     setComposer(seed?.prompt ?? EMPTY_COMPOSER);
     setEditing(null);
-    setDuplicateMode(s.duplicateMode ?? "copy");
     setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
     setPullLatest(s.duplicatePullLatest ?? true);
@@ -271,13 +269,6 @@ export function BulkDuplicateDialog({
     setOpenSession((n) => n + 1);
   }, [open, project?.name]);
 
-  // Persist the copy method the moment it's toggled so the dialog reopens on the
-  // last selected one — even if the user cancels. It still defaults to
-  // standalone copy the first time, before any choice is saved.
-  const pickDuplicateMode = (next: DuplicateMode) => {
-    setDuplicateMode(next);
-    saveSettings({ duplicateMode: next });
-  };
   const toggleRunOpen = () => {
     const next = !runOpen;
     setRunOpen(next);
@@ -595,23 +586,27 @@ export function BulkDuplicateDialog({
         className="flex shrink-0 items-start gap-3 px-6 pb-1 pt-6"
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)] ring-1 ring-inset ring-[var(--accent-cyan)]/20">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="8" y="8" width="12" height="12" rx="2" />
-            <path d="M4 16V6a2 2 0 0 1 2-2h10" />
-          </svg>
+          {isWorktree ? (
+            <GitBranch size={18} />
+          ) : (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="8" y="8" width="12" height="12" rx="2" />
+              <path d="M4 16V6a2 2 0 0 1 2-2h10" />
+            </svg>
+          )}
         </div>
         <div className="min-w-0">
           <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
-            Duplicate
+            {isWorktree ? "New Worktree" : "Duplicate"}
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
             {isWorktree
@@ -622,6 +617,13 @@ export function BulkDuplicateDialog({
             </span>{" "}
             to run agents or services in parallel.
           </p>
+          {isWorktree && (
+            <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
+              Creates a branch from the current commit and shares Git history.
+              Uncommitted and ignored files stay behind; the project root must be
+              the Git root.
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -634,25 +636,6 @@ export function BulkDuplicateDialog({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 pb-6 pt-5">
-        <div className={CARD_CLASS}>
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className={SECTION_LABEL}>Copy method</span>
-            <SegmentedControl
-              value={duplicateMode}
-              options={DUPLICATE_MODE_OPTIONS}
-              onChange={pickDuplicateMode}
-              ariaLabel="Copy method"
-            />
-          </div>
-          <p
-            className={`border-t border-[var(--border)] px-4 py-3 ${HELPER_TEXT}`}
-          >
-            {isWorktree
-              ? "Creates a branch from the current commit and shares Git history. Uncommitted and ignored files stay behind; the project root must be the Git root."
-              : "Creates an independent APFS copy that can also include uncommitted and ignored files."}
-          </p>
-        </div>
-
         <div className={CARD_CLASS}>
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <span className={SECTION_LABEL}>

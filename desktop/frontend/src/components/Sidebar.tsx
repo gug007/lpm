@@ -16,7 +16,7 @@ import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
-import { isDuplicate, type ProjectGroup, type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
+import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
 import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
@@ -155,7 +155,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // null = closed; otherwise the create-folder modal is open, optionally
   // seeded with a project to drop into the new folder.
   const [createFolder, setCreateFolder] = useState<{ initialMembers?: string[] } | null>(null);
-  const [bulkDuplicateName, setBulkDuplicateName] = useState<string | null>(null);
+  const [bulkDuplicate, setBulkDuplicate] = useState<{ name: string; mode: DuplicateMode } | null>(null);
   const [gitModal, setGitModal] = useState<GitModalTarget | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
@@ -955,7 +955,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
             onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
             onOpenAI={() => onOpenProjectView(contextMenu.name, "ai")}
-            onBulkDuplicate={() => setBulkDuplicateName(contextMenu.name)}
+            onBulkDuplicate={() => setBulkDuplicate({ name: contextMenu.name, mode: "copy" })}
+            onWorktree={() => setBulkDuplicate({ name: contextMenu.name, mode: "worktree" })}
             onCopyPath={() => {
               // Copy the host-native path; the /@peer-… marker is a routing key,
               // meaningless outside lpm (a no-op strip for local projects).
@@ -1107,14 +1108,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         }}
       />
       <BulkDuplicateDialog
-        open={bulkDuplicateName !== null}
-        project={bulkDuplicateName ? allByName.get(bulkDuplicateName) ?? null : null}
-        remote={isPeerName(bulkDuplicateName ?? "")}
+        open={bulkDuplicate !== null}
+        project={bulkDuplicate ? allByName.get(bulkDuplicate.name) ?? null : null}
+        mode={bulkDuplicate?.mode ?? "copy"}
+        remote={isPeerName(bulkDuplicate?.name ?? "")}
         folderNames={groups.map((g) => g.name)}
-        onCancel={() => setBulkDuplicateName(null)}
+        onCancel={() => setBulkDuplicate(null)}
         onConfirm={(count, opts) => {
-          if (bulkDuplicateName) onBulkDuplicate(bulkDuplicateName, count, opts);
-          setBulkDuplicateName(null);
+          if (bulkDuplicate) onBulkDuplicate(bulkDuplicate.name, count, opts);
+          setBulkDuplicate(null);
         }}
       />
       <ProjectRenameModal
