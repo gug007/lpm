@@ -41,7 +41,6 @@ import { ACTION_MODEL_URI } from "../../monaco-setup";
 import { slugify } from "../../slugify";
 import { uniqueKey } from "../../uniqueKey";
 import { withEmoji } from "../../withEmoji";
-import { actionButtonStyle } from "../../actionColors";
 import { ActionColorButton } from "../ActionColorButton";
 import { isFooterDisplay, type ActionInfo } from "../../types";
 import { forEachAction } from "../../actionTree";
@@ -56,6 +55,13 @@ import {
 } from "../../shortcutParse";
 import { AIActionModal } from "./AIActionModal";
 import { ModeButton } from "./ModeButton";
+import {
+  ActionPreviewPanel,
+  SHAPE_PREVIEW_BUTTON_CLASS,
+  type PreviewHint,
+  type Shape,
+} from "./ActionPreviewPanel";
+import { WizardStep } from "./WizardStep";
 import {
   PortConflictPicker,
   isExplicitPolicy,
@@ -73,7 +79,6 @@ import {
   PanelTopIcon,
   PlayIcon,
   PlusIcon,
-  RefreshIcon,
   SendIcon,
   TerminalIcon,
   TrashIcon,
@@ -83,16 +88,8 @@ import {
 import { Modal } from "../ui/Modal";
 import { AIButton } from "../ui/AIButton";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { TrafficLights } from "../ui/TrafficLights";
 import { EmojiSlotButton } from "../EmojiPickerButton";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
-
-type Shape = "button" | "split" | "dropdown";
-
-type PreviewHint = "shape" | "placement" | "runMode" | "confirm";
-
-const SHAPE_PREVIEW_BUTTON_CLASS =
-  "border-[var(--border)] text-[var(--text-primary)]";
 
 const NEW_ACTION_KEY = "new-action";
 const PLACEHOLDER_LABEL = "New action";
@@ -1202,53 +1199,62 @@ export function ActionWizard({
                       )}
                     </div>
                   ))}
-                <FieldSection label="Name">
-                  <div className="relative">
-                    <EmojiSlotButton
-                      inputRef={nameRef}
-                      value={emoji}
-                      onSelect={(next) => updateField("emoji", next)}
-                      size="md"
-                      placeholder={<TerminalIcon />}
-                    />
-                    <input
-                      ref={nameRef}
-                      value={name}
-                      onChange={(e) => updateName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        handleNameEnter();
-                      }}
-                      placeholder="Run tests"
-                      className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-12 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
-                    />
-                    <ActionColorButton
-                      value={color}
-                      onChange={(next) => updateField("color", next)}
-                    />
-                  </div>
-                </FieldSection>
+                <div>
+                  <WizardStep number={1} title="What it does" revealed>
+                    <FieldSection label="Name">
+                      <div className="relative">
+                        <EmojiSlotButton
+                          inputRef={nameRef}
+                          value={emoji}
+                          onSelect={(next) => updateField("emoji", next)}
+                          size="md"
+                          placeholder={<TerminalIcon />}
+                        />
+                        <input
+                          ref={nameRef}
+                          value={name}
+                          onChange={(e) => updateName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            handleNameEnter();
+                          }}
+                          placeholder="Run tests"
+                          className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] py-3 pl-12 pr-12 text-[14px] text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+                        />
+                        <ActionColorButton
+                          value={color}
+                          onChange={(next) => updateField("color", next)}
+                        />
+                      </div>
+                    </FieldSection>
 
-                {showCommand && (
-                  <CommandField
-                    inputRef={commandRef}
-                    label={shape === "split" ? "Default command" : "Command"}
-                    value={cmd}
-                    onChange={updateCmd}
-                    onEnter={() => void submit()}
-                    multiline
-                    placeholder={
-                      shape === "split"
-                        ? "npm run deploy:staging"
-                        : "npm run dev"
-                    }
-                  />
-                )}
+                    {showCommand && (
+                      <CommandField
+                        inputRef={commandRef}
+                        label={shape === "split" ? "Default command" : "Command"}
+                        value={cmd}
+                        onChange={updateCmd}
+                        onEnter={() => void submit()}
+                        multiline
+                        placeholder={
+                          shape === "split"
+                            ? "npm run deploy:staging"
+                            : "npm run dev"
+                        }
+                      />
+                    )}
+                  </WizardStep>
 
-                {showShape && (
-                  <Reveal className="relative z-20">
+                  <WizardStep
+                    number={2}
+                    title="How it looks"
+                    teaser="Style and placement."
+                    revealed={showShape}
+                    last={shape === "dropdown"}
+                  >
                     <div
+                      className="relative z-20"
                       onMouseEnter={() => setHoveredHint("shape")}
                       onMouseLeave={() => setHoveredHint(null)}
                     >
@@ -1261,11 +1267,18 @@ export function ActionWizard({
                         />
                       </FieldSection>
                     </div>
-                  </Reveal>
-                )}
 
-                {showShape && (
-                  <Reveal>
+                    {showMenuOptions && (
+                      <Reveal>
+                        <MenuOptionsEditor
+                          options={children}
+                          onChange={(options) =>
+                            updateField("children", options)
+                          }
+                        />
+                      </Reveal>
+                    )}
+
                     <div
                       onMouseEnter={() => setHoveredHint("placement")}
                       onMouseLeave={() => setHoveredHint(null)}
@@ -1275,12 +1288,16 @@ export function ActionWizard({
                         onChange={(value) => updateField("display", value)}
                       />
                     </div>
-                  </Reveal>
-                )}
+                  </WizardStep>
 
-                {showRunMode && (
-                  <Reveal>
-                    <div className="space-y-6">
+                  {shape !== "dropdown" && (
+                    <WizardStep
+                      number={3}
+                      title="How it runs"
+                      teaser="A terminal, a pop-up, or the background."
+                      revealed={showRunMode}
+                      last
+                    >
                       <div
                         onMouseEnter={() => setHoveredHint("runMode")}
                         onMouseLeave={() => setHoveredHint(null)}
@@ -1328,18 +1345,9 @@ export function ActionWizard({
                           onChange={(value) => updateField("shortcut", value)}
                         />
                       </AdvancedDisclosure>
-                    </div>
-                  </Reveal>
-                )}
-
-                {showMenuOptions && (
-                  <Reveal>
-                    <MenuOptionsEditor
-                      options={children}
-                      onChange={(options) => updateField("children", options)}
-                    />
-                  </Reveal>
-                )}
+                    </WizardStep>
+                  )}
+                </div>
 
                 {formIsValid && (
                   <Reveal>
@@ -1364,6 +1372,7 @@ export function ActionWizard({
                 shape={shape}
                 options={children}
                 runMode={runMode}
+                reuse={reuse}
                 confirm={confirm}
                 cmd={cmd}
                 display={display}
@@ -1856,579 +1865,6 @@ function YamlPreview({
           )}
         </pre>
       )}
-    </div>
-  );
-}
-
-type DemoState = RunMode | "confirm" | null;
-
-type FrameHighlight = "header" | "footer" | "content" | null;
-
-const PREVIEW_RING =
-  "0 0 0 3px color-mix(in srgb, var(--accent-cyan) 35%, transparent)";
-const PREVIEW_TINT = "color-mix(in srgb, var(--accent-cyan) 16%, transparent)";
-const PREVIEW_CONTENT_RING =
-  "inset 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 45%, transparent)";
-const DEMO_OUTPUT_WIDTHS = ["72%", "48%", "62%"];
-
-function useDemoScript(
-  cmd: string,
-  steps: number,
-  onFinished?: () => void,
-) {
-  const [chars, setChars] = useState(0);
-  const [step, setStep] = useState(0);
-  const finishedRef = useRef(onFinished);
-  finishedRef.current = onFinished;
-
-  useEffect(() => {
-    setChars(0);
-    setStep(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const charMs = 28;
-    const stepMs = 260;
-    let typed = 0;
-    const typeNext = () => {
-      typed += 1;
-      setChars(typed);
-      if (typed < cmd.length) {
-        timers.push(setTimeout(typeNext, charMs));
-        return;
-      }
-      for (let s = 1; s <= steps; s += 1) {
-        timers.push(
-          setTimeout(() => {
-            setStep(s);
-            if (s === steps) finishedRef.current?.();
-          }, s * stepMs),
-        );
-      }
-      if (steps === 0) finishedRef.current?.();
-    };
-    timers.push(setTimeout(typeNext, charMs));
-    return () => timers.forEach(clearTimeout);
-  }, [cmd, steps]);
-
-  return { typed: cmd.slice(0, chars), typingDone: chars >= cmd.length, step };
-}
-
-function ActionPreviewPanel({
-  name,
-  emoji,
-  color,
-  shape,
-  options,
-  runMode,
-  confirm,
-  cmd,
-  display,
-  hoveredHint,
-}: {
-  name: string;
-  emoji: string;
-  color: string;
-  shape: Shape;
-  options: ChildDraft[];
-  runMode: RunMode;
-  confirm: boolean;
-  cmd: string;
-  display: "header" | "footer";
-  hoveredHint: PreviewHint | null;
-}) {
-  const trimmedName = name.trim();
-  const hasName = trimmedName.length > 0;
-  const displayLabel = withEmoji(emoji, trimmedName);
-  const colorStyle = actionButtonStyle(color);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [running, setRunning] = useState<DemoState>(null);
-  const [replayNonce, setReplayNonce] = useState(0);
-  const [demoFinished, setDemoFinished] = useState(false);
-  const menuRef = useOutsideClick<HTMLDivElement>(
-    () => setMenuOpen(false),
-    menuOpen,
-  );
-  const visibleOptions = options.filter(
-    (option) => option.label.trim() || option.cmd.trim(),
-  );
-  const canRun = shape !== "dropdown" && cmd.trim().length > 0;
-
-  useEffect(() => {
-    setRunning(canRun ? runMode : null);
-  }, [runMode, canRun]);
-
-  useEffect(() => {
-    setDemoFinished(false);
-  }, [running, replayNonce]);
-
-  const triggerRun = () => {
-    if (!canRun) return;
-    setRunning(confirm ? "confirm" : runMode);
-  };
-
-  const handleConfirm = () => setRunning(runMode);
-  const handleCancel = () => setRunning(null);
-  const replayDemo = () => {
-    setDemoFinished(false);
-    setReplayNonce((n) => n + 1);
-  };
-
-  const shownRunning: DemoState =
-    hoveredHint === "confirm" && confirm ? "confirm" : running;
-  const frameHighlight: FrameHighlight =
-    hoveredHint === "placement"
-      ? display
-      : hoveredHint === "runMode"
-        ? "content"
-        : null;
-
-  const dropdown = menuOpen && (
-    <div className="absolute right-0 top-full z-10 mt-2 w-56 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1.5 shadow-2xl">
-      {visibleOptions.length === 0 ? (
-        <div className="px-4 py-2 text-[12px] italic text-[var(--text-muted)]">
-          Add menu options to fill this menu.
-        </div>
-      ) : (
-        visibleOptions.map((option, index) => (
-          <div
-            key={option.id}
-            className="flex items-center gap-2.5 px-4 py-2 text-[12px] text-[var(--text-secondary)]"
-          >
-            <span className="flex-1 truncate">
-              {option.label.trim() || `Option ${index + 1}`}
-            </span>
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  return (
-    <aside className="flex border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-6 lg:w-[300px] lg:shrink-0 lg:border-l lg:border-t-0">
-      <div className="flex min-h-[140px] flex-1 flex-col lg:min-h-0">
-        <div className="mb-4 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
-          Preview
-        </div>
-
-        <div className="flex flex-1 flex-col items-center justify-center">
-          {!hasName ? (
-            <div className="flex w-full flex-col items-center gap-3">
-              <MockActionPlaceholder
-                display={display}
-                highlight={frameHighlight}
-              />
-              <span className="text-[11px] text-[var(--text-muted)]">
-                Your action appears here.
-              </span>
-            </div>
-          ) : (
-            <div className="flex w-full flex-col items-center gap-4">
-              <div
-                className="rounded-lg transition-shadow duration-150"
-                style={
-                  hoveredHint === "shape"
-                    ? { boxShadow: PREVIEW_RING }
-                    : undefined
-                }
-              >
-                {shape === "button" ? (
-                  <button
-                    type="button"
-                    onClick={triggerRun}
-                    style={colorStyle}
-                    className={`inline-flex whitespace-nowrap rounded-lg border bg-[var(--action-tint,var(--bg-primary))] px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${SHAPE_PREVIEW_BUTTON_CLASS}`}
-                  >
-                    {displayLabel}
-                  </button>
-                ) : shape === "split" ? (
-                  <div ref={menuRef} className="relative">
-                    <span
-                      style={colorStyle}
-                      className={`inline-flex items-stretch rounded-lg border bg-[var(--action-tint,var(--bg-primary))] text-xs font-medium ${SHAPE_PREVIEW_BUTTON_CLASS}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={triggerRun}
-                        className="whitespace-nowrap rounded-l-lg px-3.5 py-1.5 transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))]"
-                      >
-                        {displayLabel}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMenuOpen((v) => !v)}
-                        className={`flex items-center rounded-r-lg border-l border-[var(--action-border,var(--border))] px-1.5 transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${menuOpen ? "bg-[var(--action-tint-strong,var(--bg-hover))]" : ""}`}
-                      >
-                        <ChevronDownIcon />
-                      </button>
-                    </span>
-                    {dropdown}
-                  </div>
-                ) : (
-                  <div ref={menuRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setMenuOpen((v) => !v)}
-                      style={colorStyle}
-                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-[var(--action-tint-strong,var(--bg-hover))] ${SHAPE_PREVIEW_BUTTON_CLASS} ${menuOpen ? "bg-[var(--action-tint-strong,var(--bg-hover))]" : "bg-[var(--action-tint,var(--bg-primary))]"}`}
-                    >
-                      {displayLabel}
-                      <ChevronDownIcon />
-                    </button>
-                    {dropdown}
-                  </div>
-                )}
-              </div>
-
-              {canRun && (
-                <>
-                  <RunModeDemo
-                    key={`${running ?? "idle"}-${replayNonce}`}
-                    running={shownRunning}
-                    cmd={cmd}
-                    label={displayLabel}
-                    display={display}
-                    highlight={frameHighlight}
-                    onTrigger={triggerRun}
-                    onConfirm={handleConfirm}
-                    onCancel={handleCancel}
-                    onFinished={() => setDemoFinished(true)}
-                  />
-                  {demoFinished ? (
-                    <button
-                      type="button"
-                      onClick={replayDemo}
-                      className="inline-flex items-center gap-1 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
-                    >
-                      <RefreshIcon />
-                      Replay
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-[var(--text-muted)]">
-                      Click the button to try it.
-                    </span>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function MockModalShell({
-  width,
-  children,
-}: {
-  width: number;
-  children: ReactNode;
-}) {
-  return (
-    <>
-      <div className="demo-dim absolute inset-0 bg-black/45" />
-      <div
-        className="demo-modal absolute left-1/2 top-1/2 overflow-hidden rounded border border-[var(--border)] bg-[var(--bg-primary)] shadow-lg"
-        style={{ width }}
-      >
-        {children}
-      </div>
-    </>
-  );
-}
-
-function MockAppFrame({
-  headerSlot,
-  footerSlot,
-  highlight = null,
-  children,
-}: {
-  headerSlot: ReactNode;
-  footerSlot?: ReactNode;
-  highlight?: FrameHighlight;
-  children: ReactNode;
-}) {
-  return (
-    <div className="relative w-full max-w-[240px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] shadow-md">
-      <div className="flex h-[14px] items-center gap-1 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-2">
-        <TrafficLights size="sm" />
-      </div>
-
-      <div className="flex h-[140px]">
-        <div className="flex w-[36px] shrink-0 flex-col gap-1 border-r border-[var(--border)] bg-[var(--bg-secondary)] p-1.5">
-          <div className="h-1.5 rounded bg-[var(--border)]" />
-          <div className="h-1.5 rounded bg-[var(--border)]" />
-          <div className="h-1.5 w-2/3 rounded bg-[var(--border)] opacity-70" />
-        </div>
-
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <div
-            className="flex h-[16px] items-center justify-end border-b border-[var(--border)] px-1.5 transition-colors duration-150"
-            style={
-              highlight === "header"
-                ? { backgroundColor: PREVIEW_TINT }
-                : undefined
-            }
-          >
-            {headerSlot}
-          </div>
-
-          <div
-            className="relative flex-1 overflow-hidden p-2 transition-shadow duration-150"
-            style={
-              highlight === "content"
-                ? { boxShadow: PREVIEW_CONTENT_RING }
-                : undefined
-            }
-          >
-            {children}
-          </div>
-
-          {footerSlot && (
-            <div
-              className="flex h-[16px] items-center border-t border-[var(--border)] px-1.5 transition-colors duration-150"
-              style={
-                highlight === "footer"
-                  ? { backgroundColor: PREVIEW_TINT }
-                  : undefined
-              }
-            >
-              {footerSlot}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MockBodyLines() {
-  return (
-    <div className="space-y-1">
-      <div className="h-[3px] w-3/4 rounded bg-[var(--border)] opacity-70" />
-      <div className="h-[3px] w-1/2 rounded bg-[var(--border)] opacity-70" />
-      <div className="h-[3px] w-2/3 rounded bg-[var(--border)] opacity-70" />
-      <div className="h-[3px] w-1/3 rounded bg-[var(--border)] opacity-70" />
-    </div>
-  );
-}
-
-function MockActionPlaceholder({
-  display,
-  highlight = null,
-}: {
-  display: "header" | "footer";
-  highlight?: FrameHighlight;
-}) {
-  const slot = (
-    <span
-      key={display}
-      className="demo-slot-in h-[9px] w-[34px] rounded-[3px] border border-dashed border-[var(--border)]"
-    />
-  );
-  return (
-    <MockAppFrame
-      headerSlot={display === "header" ? slot : null}
-      footerSlot={display === "footer" ? slot : undefined}
-      highlight={highlight}
-    >
-      <MockBodyLines />
-    </MockAppFrame>
-  );
-}
-
-function RunModeDemo({
-  running,
-  cmd,
-  label,
-  display,
-  highlight,
-  onTrigger,
-  onConfirm,
-  onCancel,
-  onFinished,
-}: {
-  running: DemoState;
-  cmd: string;
-  label: string;
-  display: "header" | "footer";
-  highlight: FrameHighlight;
-  onTrigger: () => void;
-  onConfirm: () => void;
-  onCancel: () => void;
-  onFinished: () => void;
-}) {
-  const actionButton = (
-    <button
-      key={display}
-      type="button"
-      onClick={onTrigger}
-      className="demo-slot-in max-w-[80px] truncate rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1 py-[1px] text-[7px] font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
-    >
-      {label}
-    </button>
-  );
-  return (
-    <MockAppFrame
-      headerSlot={display === "header" ? actionButton : null}
-      footerSlot={display === "footer" ? actionButton : undefined}
-      highlight={highlight}
-    >
-      <MockBodyLines />
-
-      {running === "confirm" && (
-        <MockModalShell width={140}>
-          <div className="space-y-1 px-2 py-1.5">
-            <div className="text-[8px] font-medium text-[var(--text-primary)]">
-              Run {label}?
-            </div>
-            <div className="truncate font-mono text-[7px] text-[var(--text-muted)]">
-              $ {cmd}
-            </div>
-          </div>
-          <div className="flex justify-end gap-1 border-t border-[var(--border)] px-1.5 py-1">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded px-1.5 py-[1px] text-[7px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onConfirm}
-              className="rounded bg-[var(--text-primary)] px-1.5 py-[1px] text-[7px] font-medium text-[var(--bg-primary)]"
-            >
-              Run
-            </button>
-          </div>
-        </MockModalShell>
-      )}
-
-      {running === "once" && (
-        <OnceDemo
-          cmd={cmd}
-          label={label}
-          onCancel={onCancel}
-          onFinished={onFinished}
-        />
-      )}
-
-      {running === "terminal" && (
-        <TerminalDemo prompt="$" cmd={cmd} onFinished={onFinished} />
-      )}
-
-      {running === "command" && (
-        <TerminalDemo prompt="~ %" cmd={cmd} priorPrompt onFinished={onFinished} />
-      )}
-
-      {running === "background" && (
-        <BackgroundDemo label={label} onFinished={onFinished} />
-      )}
-    </MockAppFrame>
-  );
-}
-
-function TerminalDemo({
-  prompt,
-  cmd,
-  priorPrompt = false,
-  onFinished,
-}: {
-  prompt: string;
-  cmd: string;
-  priorPrompt?: boolean;
-  onFinished: () => void;
-}) {
-  const { typed, typingDone, step } = useDemoScript(cmd, 3, onFinished);
-  return (
-    <div className="demo-terminal absolute inset-0 overflow-hidden bg-black p-1.5 font-mono text-[7px] leading-tight text-white/90">
-      {priorPrompt && <div className="truncate text-white/40">{prompt}</div>}
-      <div className="truncate">
-        {prompt} {typed}
-        {!typingDone && (
-          <span className="demo-cursor ml-[1px] inline-block h-[6px] w-[3px] translate-y-[1px] bg-white/80" />
-        )}
-      </div>
-      {typingDone && (
-        <div className="mt-1 space-y-1">
-          {DEMO_OUTPUT_WIDTHS.map((width, i) => (
-            <div
-              key={i}
-              className="h-[3px] rounded bg-white/25 transition-opacity duration-200"
-              style={{ width, opacity: step > i ? 1 : 0 }}
-            />
-          ))}
-        </div>
-      )}
-      {step >= 3 && (
-        <div className="mt-1 flex items-center gap-1 text-white/50">
-          <span>{prompt}</span>
-          <span className="demo-cursor inline-block h-[6px] w-[3px] bg-white/80" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function OnceDemo({
-  cmd,
-  label,
-  onCancel,
-  onFinished,
-}: {
-  cmd: string;
-  label: string;
-  onCancel: () => void;
-  onFinished: () => void;
-}) {
-  const { typed, typingDone, step } = useDemoScript(cmd, 2, onFinished);
-  return (
-    <MockModalShell width={124}>
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-1.5 py-1">
-        <span className="truncate text-[7px] font-medium text-[var(--text-primary)]">
-          {label}
-        </span>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded text-[7px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-        >
-          ×
-        </button>
-      </div>
-      <div className="space-y-0.5 px-1.5 py-1 font-mono text-[6px] leading-tight">
-        <div className="truncate text-[var(--text-primary)]">
-          $ {typed}
-          {!typingDone && (
-            <span className="demo-cursor ml-[1px] inline-block h-[5px] w-[2px] translate-y-[1px] bg-[var(--text-primary)]" />
-          )}
-        </div>
-        {step >= 1 && <div className="text-[var(--text-muted)]">output…</div>}
-        {step >= 2 && <div className="text-[var(--text-muted)]">✓ Done</div>}
-      </div>
-    </MockModalShell>
-  );
-}
-
-function BackgroundDemo({
-  label,
-  onFinished,
-}: {
-  label: string;
-  onFinished: () => void;
-}) {
-  const finishedRef = useRef(onFinished);
-  finishedRef.current = onFinished;
-  useEffect(() => {
-    const timer = setTimeout(() => finishedRef.current(), 1200);
-    return () => clearTimeout(timer);
-  }, []);
-  return (
-    <div className="demo-toast absolute right-1.5 top-1.5 flex items-center gap-1 rounded border border-[var(--border)] bg-[var(--bg-primary)] px-1.5 py-1 shadow">
-      <span className="h-1 w-1 animate-pulse rounded-full bg-[var(--text-secondary)]" />
-      <span className="max-w-[90px] truncate text-[7px] text-[var(--text-secondary)]">
-        {label} running…
-      </span>
     </div>
   );
 }
