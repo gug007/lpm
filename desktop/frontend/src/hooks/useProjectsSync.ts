@@ -15,8 +15,12 @@ interface ProjectsSyncOptions {
 export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
   const isMain = (options.mode ?? "main") === "main";
   useEffect(() => {
-    const { refreshProjects, refreshTemplates, refreshDetached } =
-      useAppStore.getState();
+    const {
+      refreshProjects,
+      refreshTemplates,
+      refreshDetached,
+      rehydrateSidebarLayout,
+    } = useAppStore.getState();
     refreshProjects();
     refreshDetached();
     if (isMain) refreshTemplates();
@@ -28,6 +32,7 @@ export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
     const cancelChanged = EventsOn("projects-changed", refreshProjects);
     const cancelStatus = EventsOn("status-changed", refreshProjects);
     const cancelDetached = EventsOn("detached-changed", refreshDetached);
+    const cancelSidebar = EventsOn("sidebar-changed", rehydrateSidebarLayout);
     const cancelTemplates = isMain
       ? EventsOn("templates-changed", refreshTemplates)
       : null;
@@ -53,6 +58,7 @@ export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
       if (typeof cancelChanged === "function") cancelChanged();
       if (typeof cancelStatus === "function") cancelStatus();
       if (typeof cancelDetached === "function") cancelDetached();
+      if (typeof cancelSidebar === "function") cancelSidebar();
       if (typeof cancelTemplates === "function") cancelTemplates();
     };
   }, [isMain]);

@@ -23,12 +23,18 @@ enum Category {
     // settings.json under ~/.lpm: a projects-category file, but its writes are
     // gated on a real portable-digest change (window drags rewrite it constantly).
     Settings,
+    // groups.json (sidebar folders): per-machine and off the sync surface, but a
+    // second local instance's write must re-hydrate this instance's layout —
+    // every persist is a full overwrite from memory, so a stale layout would
+    // otherwise clobber it right back.
+    Sidebar,
 }
 
 #[derive(Default)]
 struct Dirty {
     projects: bool,
     templates: bool,
+    sidebar: bool,
 }
 
 /// Map a filesystem event path to the config category it affects, or `None` when
@@ -46,6 +52,7 @@ fn classify(lpm: &Path, path: &Path) -> Option<Category> {
         .collect();
     match segs.as_slice() {
         [name] if *name == "settings.json" => Some(Category::Settings),
+        [name] if *name == "groups.json" => Some(Category::Sidebar),
         [name] => is_sync_global_file(name).then_some(Category::Projects),
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
@@ -97,7 +104,7 @@ pub fn start(app: AppHandle) {
     let mut watcher =
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
-            let (mut projects, mut templates) = (false, false);
+            let (mut projects, mut templates, mut sidebar) = (false, false, false);
             for p in &ev.paths {
                 match classify(&cb_root, p) {
                     Some(Category::Projects) => projects = true,
@@ -109,13 +116,15 @@ pub fn start(app: AppHandle) {
                         }
                         settings_cache = new;
                     }
+                    Some(Category::Sidebar) => sidebar = true,
                     None => {}
                 }
             }
-            if projects || templates {
+            if projects || templates || sidebar {
                 let mut d = cb_dirty.lock().unwrap();
                 d.projects |= projects;
                 d.templates |= templates;
+                d.sidebar |= sidebar;
                 let _ = tx.try_send(());
             }
         }) {
@@ -166,9 +175,13 @@ pub fn start(app: AppHandle) {
             if d.templates {
                 let _ = app.emit("templates-changed", ());
             }
+            if d.sidebar {
+                let _ = app.emit("sidebar-changed", ());
+            }
             // Same debounced classification that emits the events also nudges the
             // auto-sync engine: a local config edit reconciles every auto-enabled
-            // peer shortly after. A no-op until the engine is set up.
+            // peer shortly after. A no-op until the engine is set up. Sidebar
+            // changes don't participate — groups.json is off the sync surface.
             if d.projects || d.templates {
                 if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
                     engine.notify_local_change();
@@ -199,9 +212,10 @@ mod tests {
             classify(&lpm(), &at("global.yml")),
             Some(Category::Projects)
         );
-        // groups.json (sidebar folders) is per-machine and off the sync surface,
-        // so external edits no longer classify.
-        assert_eq!(classify(&lpm(), &at("groups.json")), None);
+        // groups.json (sidebar folders) is per-machine and off the sync surface;
+        // it classifies as Sidebar so another local instance's write re-hydrates
+        // this instance's layout instead of being clobbered by it.
+        assert_eq!(classify(&lpm(), &at("groups.json")), Some(Category::Sidebar));
         assert_eq!(
             classify(&lpm(), &at("commit-instructions.txt")),
             Some(Category::Projects)

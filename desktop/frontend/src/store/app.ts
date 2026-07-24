@@ -324,6 +324,7 @@ interface AppState {
   applySidebarLayout: (layout: SidebarLayout) => Promise<void>;
   // Drop stale entries + append new projects after a project list refresh.
   reconcileSidebarLayout: (projects: ProjectInfo[]) => void;
+  rehydrateSidebarLayout: () => Promise<void>;
 
   detachProject: (name: string) => Promise<void>;
   attachProject: (name: string) => Promise<void>;
@@ -875,6 +876,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (layoutsEqual(before, after)) return;
     set({ sidebarOrder: after.order, groups: after.groups });
     persistSidebarLayout(after).catch(() => undefined);
+  },
+
+  // Adopt an external groups.json write (another lpm instance sharing ~/.lpm).
+  // Every persist here is a full overwrite from memory, so a layout change this
+  // instance didn't see would be clobbered on its next save.
+  rehydrateSidebarLayout: async () => {
+    try {
+      const [cfg, fresh] = await Promise.all([loadGroups(), loadSettings()]);
+      const next: SidebarLayout = {
+        order: fresh.sidebarOrder ?? [],
+        groups: cfg.groups,
+      };
+      const prev: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+      if (layoutsEqual(prev, next)) return;
+      set({ sidebarOrder: next.order, groups: next.groups });
+    } catch (err) {
+      reportError("sidebar.rehydrate_failed", err);
+    }
   },
 
   refreshTemplates: async () => {
