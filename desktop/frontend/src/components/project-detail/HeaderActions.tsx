@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
 import { ActionsGroup, useActionsDragActive } from "../ActionsDnd";
 import { ActionView } from "../ActionView";
-import { PlusIcon } from "../icons";
+import { GripVerticalIcon, MousePointerClickIcon, PlusIcon } from "../icons";
 import { ActionsSortableItem } from "../ActionsSortableItem";
 import { Tooltip } from "../ui/Tooltip";
 import type { ActionInfo } from "../../types";
@@ -57,10 +57,27 @@ export function HeaderActions({
       ))}
       <Tooltip
         content={
-          <span className="flex flex-col gap-0.5">
-            <span className="font-medium text-[var(--text-primary)]">Create action</span>
-            <span className="text-[var(--text-secondary)]">
-              One-click shortcuts for the commands you run all the time — tests, builds, deploys, migrations, log tails, or anything else. Drag actions to rearrange them between the header and the footer, or right-click one for more options.
+          <span className="flex flex-col">
+            <span className="flex items-center gap-2">
+              <span className="magic-ring h-[22px] w-[22px] shrink-0 rounded-md p-[1px]">
+                <span className="flex h-full w-full items-center justify-center rounded-[5px] bg-[var(--bg-secondary)] text-[color-mix(in_srgb,#a855f7_60%,var(--text-muted))]">
+                  <PlusIcon />
+                </span>
+              </span>
+              <span className="font-semibold text-[var(--text-primary)]">Create action</span>
+            </span>
+            <span className="mt-1.5 text-[var(--text-secondary)]">
+              One-click shortcuts for the commands you run all the time — tests, builds, deploys, log tails, or anything else.
+            </span>
+            <span className="mt-2.5 flex flex-col gap-1.5 border-t border-[var(--border)] pt-2.5 text-[var(--text-muted)]">
+              <span className="flex items-center gap-2">
+                <GripVerticalIcon size={13} />
+                <span>Drag to arrange in the header or footer</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <MousePointerClickIcon size={13} />
+                <span>Right-click an action for more options</span>
+              </span>
             </span>
           </span>
         }
@@ -71,10 +88,14 @@ export function HeaderActions({
           type="button"
           onClick={onAddAction}
           aria-label="Create action"
-          className="flex shrink-0 items-center gap-1 rounded-lg border border-dashed border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-muted)] transition-all duration-100 hover:border-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] active:scale-[0.97]"
+          className="magic-ring group shrink-0 rounded-lg p-[1px] transition-all duration-150 active:scale-[0.97]"
         >
-          <PlusIcon />
-          <span>Action</span>
+          <span className="flex items-center gap-1 rounded-[calc(0.5rem-1px)] bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,#a855f7_5%,var(--bg-primary))]">
+            <span className="text-[color-mix(in_srgb,#a855f7_60%,var(--text-muted))]">
+              <PlusIcon />
+            </span>
+            <span className="text-[var(--text-secondary)] transition-colors duration-150 group-hover:text-[var(--text-primary)]">Action</span>
+          </span>
         </button>
       </Tooltip>
     </ActionsGroup>

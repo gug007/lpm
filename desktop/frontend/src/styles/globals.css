@@ -256,6 +256,36 @@ body {
   inherits: false;
 }
 
+/* The AI conic palette muted toward the theme border, so a "magic" ring reads
+   as a faintly tinted border at rest and only wakes up on hover. */
+.magic-ring {
+  background: conic-gradient(
+    from var(--gradient-angle),
+    color-mix(in srgb, #6366f1 40%, var(--border)),
+    color-mix(in srgb, #a855f7 40%, var(--border)),
+    color-mix(in srgb, #ec4899 40%, var(--border)),
+    color-mix(in srgb, #06b6d4 40%, var(--border)),
+    color-mix(in srgb, #6366f1 40%, var(--border))
+  );
+}
+.magic-ring:hover {
+  background: conic-gradient(
+    from var(--gradient-angle),
+    color-mix(in srgb, #6366f1 65%, var(--border)),
+    color-mix(in srgb, #a855f7 65%, var(--border)),
+    color-mix(in srgb, #ec4899 65%, var(--border)),
+    color-mix(in srgb, #06b6d4 65%, var(--border)),
+    color-mix(in srgb, #6366f1 65%, var(--border))
+  );
+  animation: gradient-spin 2.5s linear infinite;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .magic-ring:hover {
+    animation: none;
+  }
+}
+
 .pr-check-animate polyline {
   stroke-dasharray: 24;
   stroke-dashoffset: 24;
@@ -435,6 +465,27 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .app-tip-in {
+    animation: none;
+  }
+}
+
+/* Translate-only (no scale): the tooltip is measured with getBoundingClientRect
+   right after mount to position it, and a scale at time 0 would skew that. */
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tooltip-in {
+  animation: tooltip-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-in {
     animation: none;
   }
 }

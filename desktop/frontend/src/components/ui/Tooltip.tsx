@@ -107,10 +107,10 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
           ref={tooltipRef}
           role="tooltip"
           style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? "visible" : "hidden" }}
-          className={`pointer-events-none fixed z-[9999] rounded-lg bg-[var(--bg-secondary)] px-3 py-1.5 text-[var(--text-primary)] shadow-[0_8px_24px_rgba(0,0,0,0.22)] ${
+          className={`tooltip-in pointer-events-none fixed z-[9999] border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.22)] ${
             wide
-              ? "max-w-[260px] whitespace-normal text-[12px] leading-relaxed"
-              : "whitespace-nowrap text-[12px]"
+              ? "max-w-[280px] whitespace-normal rounded-xl px-3.5 py-3 text-[12px] leading-relaxed"
+              : "whitespace-nowrap rounded-lg px-3 py-1.5 text-[12px]"
           }`}
         >
           {content}
