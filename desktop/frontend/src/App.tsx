@@ -33,6 +33,7 @@ import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useAppEvents } from "./hooks/useAppEvents";
+import { useSshEnvMismatchToasts } from "./hooks/useSshEnvMismatchToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
@@ -121,6 +122,7 @@ export default function App() {
   usePeerDispatcher();
   const { state: peerState } = usePeerState();
   usePeerAutoSyncToasts(peerState.peers);
+  useSshEnvMismatchToasts();
   const isFullscreen = useIsFullscreen();
 
   // A selected remote project whose peer dropped: keep the selection and show a

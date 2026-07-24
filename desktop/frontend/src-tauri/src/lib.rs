@@ -50,6 +50,7 @@ mod socketsrv;
 mod sound;
 mod sshconfig;
 mod sshexec;
+mod sshprobe;
 mod sshsync;
 mod status;
 mod statusfwd;

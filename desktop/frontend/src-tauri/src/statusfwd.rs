@@ -5,11 +5,11 @@
 // teardown). The remote socket path is `$HOME/.lpm/fwd/status-<local-host>.sock`
 // — local-hostname-scoped so two Macs forwarding to one host don't collide.
 use crate::config::{self, SshSettings};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -22,6 +22,19 @@ pub struct StatusFwdState {
     // Serializes forward setup so concurrent spawns to one host don't race two
     // children onto the same remote socket.
     setup: Mutex<()>,
+    // host_keys whose pty-vs-exec $HOME mismatch has been probed this app run.
+    probed: Mutex<HashSet<String>>,
+}
+
+/// Emitted once per host when the pty session's `$HOME` differs from the exec
+/// channel's, i.e. the forwarded status socket is bound where the terminal can't
+/// reach it.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SshEnvMismatch {
+    host_label: String,
+    exec_home: String,
+    pty_home: String,
 }
 
 fn host_key(ssh: &SshSettings) -> String {
@@ -82,7 +95,7 @@ fn forward_argv(ssh: &SshSettings, remote_sock: &str, local_sock: &str) -> Vec<S
 }
 
 /// Spawn a command, capture stdout, SIGKILL it if it overruns `timeout`.
-fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Vec<u8>> {
+pub(crate) fn run_with_timeout(mut cmd: Command, timeout: Duration) -> Option<Vec<u8>> {
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
@@ -142,6 +155,36 @@ fn forward_alive(state: &StatusFwdState, ssh: &SshSettings) -> bool {
     false
 }
 
+/// True the first time `key` is seen, false thereafter — one env-mismatch probe
+/// per host per app run.
+fn mark_probed_once(probed: &Mutex<HashSet<String>>, key: &str) -> bool {
+    probed.lock().unwrap().insert(key.to_string())
+}
+
+/// Off the setup mutex: compare the pty session's `$HOME` against the exec
+/// channel's (already resolved) and warn the UI if they diverge. Silent on probe
+/// failure or a matching home.
+fn spawn_env_mismatch_probe(app: &AppHandle, ssh: &SshSettings, exec_home: String) {
+    let app = app.clone();
+    let ssh = ssh.clone();
+    std::thread::spawn(move || {
+        let Some(pty_home) = crate::sshprobe::probe_pty_home(&ssh) else {
+            return;
+        };
+        if pty_home == exec_home {
+            return;
+        }
+        let _ = app.emit(
+            "ssh-env-mismatch",
+            SshEnvMismatch {
+                host_label: format!("{}@{}", ssh.user, ssh.host),
+                exec_home,
+                pty_home,
+            },
+        );
+    });
+}
+
 /// Idempotent: ensure a live status forward for `ssh`. The liveness check is
 /// cheap and non-blocking (safe on the UI thread); the actual setup — which does
 /// blocking ssh round trips — runs on a background thread.
@@ -186,13 +229,17 @@ fn ensure_forward_blocking(app: &AppHandle, ssh: &SshSettings) {
     state.forwards.lock().unwrap().insert(key.clone(), pid);
     // Reap the child and drop its entry when it dies, so the next spawn re-establishes.
     let forwards = state.forwards.clone();
+    let reap_key = key.clone();
     std::thread::spawn(move || {
         let _ = child.wait();
         let mut f = forwards.lock().unwrap();
-        if f.get(&key) == Some(&pid) {
-            f.remove(&key);
+        if f.get(&reap_key) == Some(&pid) {
+            f.remove(&reap_key);
         }
     });
+    if mark_probed_once(&state.probed, &key) {
+        spawn_env_mismatch_probe(app, ssh, home);
+    }
 }
 
 /// Kill every status forward on app exit (mirrors portforward::stop_all_forwards).
@@ -264,5 +311,13 @@ mod tests {
     #[test]
     fn host_key_includes_user_host_port() {
         assert_eq!(host_key(&ssh()), "dev@host:0");
+    }
+
+    #[test]
+    fn probe_guard_fires_once_per_host() {
+        let probed = Mutex::new(HashSet::new());
+        assert!(mark_probed_once(&probed, "dev@host:0"));
+        assert!(!mark_probed_once(&probed, "dev@host:0"));
+        assert!(mark_probed_once(&probed, "dev@other:0"));
     }
 }
