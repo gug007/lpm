@@ -56,24 +56,47 @@ pub fn remote_socket_env_expr() -> String {
     format!("\"$HOME/.lpm/fwd/{}\"", socket_basename())
 }
 
+/// Configure the running tmux server so every FUTURE `tmux new`/`attach` from an
+/// lpm tab copies THAT tab's LPM_* values into the SESSION environment — which
+/// then flows into newly created panes' process env, overriding the single
+/// server-global slot the seed above can only set once. Appended after the seed,
+/// as its own `;`-terminated statement, so it never gates the caller's `exec`.
+///
+/// Guarded three ways: tmux must exist; tmux must be >= 3.0 — only there is
+/// `update-environment` an ARRAY where each `set-option -ga` appends a SEPARATE
+/// entry; on older tmux `-ga` concatenates into the trailing string and would
+/// corrupt it, so we skip entirely; and the append is skipped when the option
+/// already lists our vars, keeping repeated logins idempotent. All output silenced.
+fn tmux_update_environment_seed() -> String {
+    String::from(
+        "{ command -v tmux >/dev/null 2>&1 && tmux -V 2>/dev/null | grep -qE \"tmux (3|[4-9]|[1-9][0-9])\" && \
+         { tmux show-option -gv update-environment 2>/dev/null | grep -q LPM_PANE_ID || \
+         tmux set-option -ga update-environment LPM_SOCKET_PATH \\; \
+         set-option -ga update-environment LPM_PROJECT_NAME \\; \
+         set-option -ga update-environment LPM_PANE_ID; }; } >/dev/null 2>&1; "
+    )
+}
+
 /// Inner command an SSH terminal's login shell runs: export the absolute remote
-/// status-socket path, then best-effort seed a PRE-EXISTING tmux server's GLOBAL
-/// environment with the LPM_* vars before exec'ing the login shell. Panes in a
-/// tmux server that predates this shell inherit the server's env, not ours, so
-/// their agent hooks would otherwise see no LPM_* and stay silent; a server the
-/// user starts LATER inherits the exported vars directly. The seed is guarded by
-/// `command -v tmux` and its failure (no tmux, no running server) must never
-/// block the exec — hence `;` before exec, not `&&`. LPM_PROJECT_NAME/
-/// LPM_PANE_ID are exported by the surrounding remote script, so the `"$VAR"`
-/// refs resolve.
+/// status-socket path, then best-effort (1) seed a PRE-EXISTING tmux server's
+/// GLOBAL environment with the LPM_* vars and (2) extend the server's
+/// `update-environment` so future attaches maintain per-session identity, before
+/// exec'ing the login shell. Panes in a tmux server that predates this shell
+/// inherit the server's env, not ours, so their agent hooks would otherwise see no
+/// LPM_* (or a stale one); a server the user starts LATER inherits the exported
+/// vars directly. Both tmux steps are guarded by `command -v tmux` and their
+/// failure (no tmux, no running server, old tmux) must never block the exec —
+/// hence `;` before exec, not `&&`. LPM_PROJECT_NAME/LPM_PANE_ID are exported by
+/// the surrounding remote script, so the `"$VAR"` refs resolve.
 pub fn remote_inner_cmd() -> String {
     format!(
         "export LPM_SOCKET_PATH={expr} && command -v tmux >/dev/null 2>&1 && \
          tmux setenv -g LPM_SOCKET_PATH \"$LPM_SOCKET_PATH\" \\; \
          setenv -g LPM_PROJECT_NAME \"$LPM_PROJECT_NAME\" \\; \
          setenv -g LPM_PANE_ID \"$LPM_PANE_ID\" >/dev/null 2>&1; \
-         exec \"$SHELL\" -l",
-        expr = remote_socket_env_expr()
+         {update}exec \"$SHELL\" -l",
+        expr = remote_socket_env_expr(),
+        update = tmux_update_environment_seed(),
     )
 }
 
@@ -312,17 +335,44 @@ mod tests {
             s.contains(&format!("export LPM_SOCKET_PATH={}", remote_socket_env_expr())),
             "{s}"
         );
-        // One guarded tmux invocation seeds all three vars via `\;` separators.
+        // One guarded seed sets all three vars via `\;` separators.
         assert!(s.contains("command -v tmux >/dev/null 2>&1 && tmux setenv -g"));
-        assert_eq!(s.matches("tmux setenv -g").count(), 1, "single tmux call: {s}");
-        assert_eq!(s.matches(" \\; ").count(), 2, "two `\\;` separators: {s}");
+        assert_eq!(s.matches("tmux setenv -g").count(), 1, "single seed call: {s}");
         for v in ["LPM_SOCKET_PATH", "LPM_PROJECT_NAME", "LPM_PANE_ID"] {
             assert!(s.contains(&format!("setenv -g {v} \"${v}\"")), "{s}");
         }
-        // A failed seed must not short-circuit the exec: `;` before exec, not `&&`.
-        assert!(s.contains(">/dev/null 2>&1; exec \"$SHELL\" -l"), "{s}");
-        assert!(!s.contains("2>&1 && exec"), "seed failure must not gate exec: {s}");
+        // The seed (2) plus the update-environment appends (2) => four `\;`.
+        assert_eq!(s.matches(" \\; ").count(), 4, "four `\\;` separators: {s}");
+        // Exec is unconditional: `;` before it, never gated on either tmux step.
         assert!(s.ends_with("exec \"$SHELL\" -l"));
+        assert!(s.contains(">/dev/null 2>&1; exec \"$SHELL\" -l"), "{s}");
+        assert!(!s.contains("2>&1 && exec"), "tmux steps must not gate exec: {s}");
+        // The whole inner command is single-quote-free (re-wrapped on install).
+        assert!(!s.contains('\''), "no single quotes allowed: {s}");
+    }
+
+    #[test]
+    fn remote_inner_cmd_extends_update_environment_guarded() {
+        let s = remote_inner_cmd();
+        // Version guard: only tmux >= 3.0, where update-environment is an array.
+        assert!(
+            s.contains("tmux -V 2>/dev/null | grep -qE \"tmux (3|[4-9]|[1-9][0-9])\""),
+            "version guard missing: {s}"
+        );
+        // Duplicate guard: append only when our vars are not already listed.
+        assert!(
+            s.contains("tmux show-option -gv update-environment 2>/dev/null | grep -q LPM_PANE_ID ||"),
+            "duplicate guard missing: {s}"
+        );
+        // Each var appended as its OWN array entry via `set-option -ga`.
+        for v in ["LPM_SOCKET_PATH", "LPM_PROJECT_NAME", "LPM_PANE_ID"] {
+            assert!(
+                s.contains(&format!("set-option -ga update-environment {v}")),
+                "{v} not appended: {s}"
+            );
+        }
+        // The update-environment step is its own silenced statement, before exec.
+        assert!(s.contains("; }; } >/dev/null 2>&1; exec \"$SHELL\" -l"), "{s}");
     }
 
     #[test]

@@ -327,13 +327,17 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
     // the user's own hooks are kept.
     strip_lpm_hooks(hooks);
 
-    // Per-pane key: a shared key collides in the StatusStore (keyed by project+key),
-    // so only one pane would show as running.
-    let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
-    let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
-    let set_error = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
-    let set_waiting = send_cmd("set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
-    let clear = send_cmd("clear_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID");
+    // Key by claude's own session id (falling back to the pane id if a payload ever
+    // lacks one): a per-pane key breaks when the resolved pane id shifts mid-session
+    // (orphaning a Running under the old key) or when two claude sessions share a
+    // tab (they would clobber one key); a per-session key survives both. `--pane`
+    // still carries the resolved tab attribution. Keys must not collide in the
+    // StatusStore (keyed by project+key), or only one would show as running.
+    let set_running = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
+    let set_done = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    let set_error = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
+    let set_waiting = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
+    let clear = send_cmd_with_sid("clear_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID}");
 
     append_hook(hooks, "UserPromptSubmit", claude_hook(&set_running, ""));
     append_hook(hooks, "PreToolUse", claude_hook(&set_running, ""));
@@ -605,6 +609,25 @@ fn send_cmd(cmd: &str) -> String {
     let deliver = crate::sockdeliver::delivery_group();
     format!(
         "{recover} m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// Claude status hook: like `send_cmd`, but first drains the JSON hook payload on
+/// stdin to capture claude's own `session_id` (same `sed` as `capture_resume_cmd`),
+/// so the caller keys the status by session id — `claude_code_${sid:-$LPM_PANE_ID}`.
+/// Keying by session id means one claude session's Running->Done/Error/clear shares
+/// a key even if the resolved pane id changes mid-session, and two claude sessions
+/// visible in one tab never clobber each other; `--pane=$LPM_PANE_ID` still carries
+/// the (now correctly resolved) tab attribution. `${sid:-$LPM_PANE_ID}` expands at
+/// staging time — after the id is captured — and keeps a defensive pane-keyed path
+/// if a payload ever lacks session_id. stdin is consumed synchronously by `sed`
+/// BEFORE the backgrounded delivery, which reads only the staged `$m`: a failed or
+/// backgrounded reader must never re-read the already-drained stdin.
+fn send_cmd_with_sid(cmd: &str) -> String {
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -1919,7 +1942,7 @@ mod tests {
     }
 
     #[test]
-    fn install_uses_per_pane_status_key() {
+    fn install_uses_per_session_status_key_with_pane_attribution() {
         let dir = tempfile::tempdir().unwrap();
         let path = settings_at(dir.path(), "{}");
         install_claude_hooks_at(&path).unwrap();
@@ -1934,10 +1957,27 @@ mod tests {
         ] {
             for e in v["hooks"][ev].as_array().unwrap() {
                 let cmd = e["hooks"][0]["command"].as_str().unwrap();
+                // Keyed by claude's session id, with a defensive pane fallback.
                 assert!(
-                    cmd.contains("claude_code_$LPM_PANE_ID"),
-                    "{ev} not per-pane: {cmd}"
+                    cmd.contains("claude_code_${sid:-$LPM_PANE_ID}"),
+                    "{ev} not per-session: {cmd}"
                 );
+                // The session id is captured synchronously from stdin first.
+                assert!(
+                    cmd.contains("session_id") && cmd.contains("sid=$(sed -n"),
+                    "{ev} must capture session_id from stdin: {cmd}"
+                );
+                let sid = cmd.find("sid=$(sed -n").unwrap();
+                let stage = cmd.find("m=\"").unwrap();
+                assert!(sid < stage, "{ev} must drain stdin before staging: {cmd}");
+                // Tab attribution stays on the resolved pane id (clear_status, on
+                // SessionEnd, keys without a --pane, matching the socket verb).
+                if cmd.contains("set_status") {
+                    assert!(
+                        cmd.contains("--pane=$LPM_PANE_ID"),
+                        "{ev} keeps pane attribution: {cmd}"
+                    );
+                }
             }
         }
     }
@@ -1965,13 +2005,13 @@ mod tests {
         assert!(stop
             .iter()
             .any(|e| e["hooks"][0]["command"] == "my-own-hook"));
-        // exactly one lpm hook in Stop — old one replaced, not duplicated — and per-pane
+        // exactly one lpm hook in Stop — old one replaced, not duplicated — now per-session
         let lpm: Vec<&Value> = stop.iter().filter(|e| has_marker(e)).collect();
         assert_eq!(lpm.len(), 1, "stale lpm hook replaced, not duplicated");
         let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
         assert!(
-            cmd.contains("claude_code_$LPM_PANE_ID"),
-            "migrated to per-pane key: {cmd}"
+            cmd.contains("claude_code_${sid:-$LPM_PANE_ID}"),
+            "migrated to per-session key: {cmd}"
         );
     }
 
