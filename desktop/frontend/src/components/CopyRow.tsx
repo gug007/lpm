@@ -5,10 +5,20 @@ import type { ComposerHistory } from "./InputComposer";
 import { FIELD_CLASS } from "./ui/fields";
 import type { ActionInfo, CopyOverride, CopyRunMode } from "../types";
 
+// Focus a label input pre-filled with an auto-name (`<project>-<id6>`),
+// selecting the random suffix so typing replaces just that part while keeping
+// the project prefix — e.g. `lpm-ewr7we` → `lpm-task-name`. Module-level so
+// its identity is stable when used directly as a ref.
+export function focusLabelSuffix(el: HTMLInputElement | null) {
+  if (!el) return;
+  el.focus();
+  const n = el.value.length;
+  if (/-[A-Za-z0-9]{6}$/.test(el.value)) el.setSelectionRange(n - 6, n);
+}
+
 interface CopyRowProps {
   index: number;
   label: string;
-  placeholder?: string;
   onLabelChange: (value: string) => void;
   override: CopyOverride | null;
   summary: string;
@@ -28,7 +38,6 @@ interface CopyRowProps {
 export function CopyRow({
   index,
   label,
-  placeholder,
   onLabelChange,
   override,
   summary,
@@ -54,11 +63,11 @@ export function CopyRow({
         <input
           value={label}
           onChange={(e) => onLabelChange(e.target.value)}
-          autoFocus={autoFocus}
+          ref={autoFocus ? focusLabelSuffix : undefined}
           spellCheck={false}
           autoCapitalize="off"
           autoCorrect="off"
-          placeholder={placeholder || "Auto-named"}
+          placeholder="Auto-named"
           className={`${FIELD_CLASS} h-9 min-w-0 flex-1 px-3`}
         />
         {showTargets && (

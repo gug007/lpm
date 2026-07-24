@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -632,17 +633,17 @@ function defaultDraft(): FormDraft {
 }
 
 // Canonical shortcuts already bound by other actions in the tree (the action
-// being edited is excluded so re-saving it doesn't flag itself), used to warn
-// about duplicates in the wizard.
+// being edited is excluded so re-saving it doesn't flag itself), mapped to the
+// holding action's label so the duplicate warning can name it.
 function collectTakenShortcuts(
   actions: ActionInfo[],
   editingName: string | undefined,
-): Set<string> {
-  const taken = new Set<string>();
+): Map<string, string> {
+  const taken = new Map<string, string>();
   forEachAction(actions, (action) => {
     if (!action.shortcut || action.name === editingName) return;
     const parsed = parseShortcut(action.shortcut);
-    if (parsed) taken.add(canonicalShortcut(parsed));
+    if (parsed) taken.set(canonicalShortcut(parsed), action.label);
   });
   return taken;
 }
@@ -681,6 +682,8 @@ export function ActionWizard({
   const [moveTarget, setMoveTarget] = useState<ActionConfigLayer | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  // Create mode: re-opens the template gallery after typing has collapsed it.
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   // The action's full on-disk payload (edit mode only). Null until the read
   // resolves; drives the editor merge so unmanaged fields survive a save.
   const [editingPayload, setEditingPayload] =
@@ -696,7 +699,7 @@ export function ActionWizard({
   const [baselineDraft, setBaselineDraft] = useState<FormDraft | null>(null);
   const [editorBaseline, setEditorBaseline] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
-  const commandRef = useRef<HTMLInputElement>(null);
+  const commandRef = useRef<HTMLTextAreaElement>(null);
   // Mirrors for the async payload read: it must seed the editor iff the editor
   // is showing when it resolves, from the draft as it is then — the stored mode
   // and the draft captured at open may both be stale by that point.
@@ -722,6 +725,7 @@ export function ActionWizard({
     setMoveTarget(null);
     setAiModalOpen(false);
     setDiscardOpen(false);
+    setTemplatesOpen(false);
     setEditingPayload(null);
     setWorkingBase({});
     const initialMode = readStoredMode();
@@ -1173,12 +1177,31 @@ export function ActionWizard({
           ) : (
             <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
               <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-7 py-6">
-                {!isEditing && !nameFilled && !cmdFilled && (
-                  <TemplateGallery
-                    onPick={pickTemplate}
-                    suggestions={projectSuggestions}
-                  />
-                )}
+                {!isEditing &&
+                  (!nameFilled && !cmdFilled ? (
+                    <TemplateGallery
+                      onPick={pickTemplate}
+                      suggestions={projectSuggestions}
+                    />
+                  ) : (
+                    <div className="space-y-2.5">
+                      <DisclosureToggle
+                        open={templatesOpen}
+                        label="Start from a template"
+                        onClick={() => setTemplatesOpen((value) => !value)}
+                      />
+                      {templatesOpen && (
+                        <TemplateGallery
+                          onPick={(template) => {
+                            pickTemplate(template);
+                            setTemplatesOpen(false);
+                          }}
+                          suggestions={projectSuggestions}
+                          showDivider={false}
+                        />
+                      )}
+                    </div>
+                  ))}
                 <FieldSection label="Name">
                   <div className="relative">
                     <EmojiSlotButton
@@ -1214,6 +1237,7 @@ export function ActionWizard({
                     value={cmd}
                     onChange={updateCmd}
                     onEnter={() => void submit()}
+                    multiline
                     placeholder={
                       shape === "split"
                         ? "npm run deploy:staging"
@@ -1369,9 +1393,9 @@ export function ActionWizard({
                 {isEditing ? "Edit with AI" : "Generate with AI"}
               </AIButton>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center gap-3">
               {mode === "form" && missingHint && !isPristine && (
-                <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
+                <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">
                   {missingHint}
                 </span>
               )}
@@ -1379,9 +1403,14 @@ export function ActionWizard({
                 type="button"
                 onClick={() => void submit()}
                 disabled={saving || (mode === "form" && !formIsValid)}
-                className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
               >
                 {saving ? savingLabel : primaryLabel}
+                {!saving && (
+                  <kbd className="font-sans text-[11px] font-normal opacity-50">
+                    ⌘↵
+                  </kbd>
+                )}
               </button>
             </div>
           </footer>
@@ -1579,7 +1608,7 @@ function ShortcutField({
   onChange,
 }: {
   value: string;
-  taken: Set<string>;
+  taken: Map<string, string>;
   onChange: (next: string) => void;
 }) {
   const hotkeys = useSettingsStore((s) => s.hotkeys);
@@ -1591,13 +1620,13 @@ function ShortcutField({
 
   const parsed = value ? parseShortcut(value) : null;
   const reserved = parsed ? isReservedShortcut(parsed, reservedCombos) : false;
-  const duplicate = parsed ? taken.has(canonicalShortcut(parsed)) : false;
+  const holder = parsed ? taken.get(canonicalShortcut(parsed)) : undefined;
 
   const warning =
     parsed && reserved
       ? `${formatShortcut(parsed)} is reserved by lpm`
-      : parsed && duplicate
-        ? `${formatShortcut(parsed)} is already used by another action`
+      : parsed && holder
+        ? `${formatShortcut(parsed)} is already used by “${holder}”`
         : null;
   const borderClass = recording
     ? "border-[var(--accent-cyan)] bg-[var(--bg-secondary)]"
@@ -1716,9 +1745,11 @@ const VISIBLE_SUGGESTIONS = 6;
 function TemplateGallery({
   onPick,
   suggestions,
+  showDivider = true,
 }: {
   onPick: (template: ActionTemplate) => void;
   suggestions: ActionTemplate[];
+  showDivider?: boolean;
 }) {
   const hasSuggestions = suggestions.length > 0;
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
@@ -1737,7 +1768,7 @@ function TemplateGallery({
         <FieldSection label="Start with a template">
           <TemplateGrid templates={staticTemplates} onPick={onPick} />
         </FieldSection>
-        <PathDivider />
+        {showDivider && <PathDivider />}
       </div>
     );
   }
@@ -1771,7 +1802,7 @@ function TemplateGallery({
           )}
         </div>
       )}
-      <PathDivider />
+      {showDivider && <PathDivider />}
     </div>
   );
 }
@@ -2527,6 +2558,9 @@ function ShapePreviewButton({ shape, label }: { shape: Shape; label: string }) {
   );
 }
 
+// Commands routinely outgrow one line (long CLI invocations with flags), so
+// the field is an auto-growing textarea rather than a truncating input. Enter
+// still submits; Shift+Enter inserts a newline when `multiline` allows it.
 function CommandField({
   inputRef,
   label,
@@ -2535,15 +2569,32 @@ function CommandField({
   onChange,
   onEnter,
   placeholder,
+  multiline = false,
 }: {
-  inputRef?: Ref<HTMLInputElement>;
+  inputRef?: Ref<HTMLTextAreaElement>;
   label: string;
   hint?: string;
   value: string;
   onChange: (value: string) => void;
   onEnter?: () => void;
   placeholder: string;
+  multiline?: boolean;
 }) {
+  const innerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    el.style.height = "0";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
+
+  const setRefs = (el: HTMLTextAreaElement | null) => {
+    innerRef.current = el;
+    if (typeof inputRef === "function") inputRef(el);
+    else if (inputRef) inputRef.current = el;
+  };
+
   return (
     <label className="block">
       <span className="mb-2 flex items-center justify-between gap-3 text-[12px] font-medium text-[var(--text-secondary)]">
@@ -2554,21 +2605,26 @@ function CommandField({
           </span>
         )}
       </span>
-      <input
-        ref={inputRef}
+      <textarea
+        ref={setRefs}
         value={value}
+        rows={1}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
-          if (!onEnter || e.key !== "Enter") return;
+          if (e.key !== "Enter") return;
+          if (multiline && e.shiftKey) return;
           e.preventDefault();
-          onEnter();
+          if (onEnter && !e.shiftKey) {
+            e.stopPropagation();
+            onEnter();
+          }
         }}
         placeholder={placeholder}
         autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}
-        className="w-full rounded-lg border border-transparent bg-[var(--bg-secondary)] px-4 py-3 font-mono text-[13px] text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
+        className="block max-h-40 w-full resize-none overflow-y-auto rounded-lg border border-transparent bg-[var(--bg-secondary)] px-4 py-3 font-mono text-[13px] leading-5 text-[var(--text-primary)] outline-none transition placeholder:font-sans placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]"
       />
     </label>
   );

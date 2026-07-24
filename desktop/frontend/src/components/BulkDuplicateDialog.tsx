@@ -9,7 +9,7 @@ import {
   type ComposerValue,
 } from "./InputComposer";
 import { splitByImageTokens } from "./composerEditor";
-import { CopyRow } from "./CopyRow";
+import { CopyRow, focusLabelSuffix } from "./CopyRow";
 import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
@@ -58,12 +58,9 @@ function randomId6(): string {
 // One draft copy: its display label, an optional per-copy run override
 // (`override === null` means the copy runs the shared default below), and the
 // project it's duplicated from — the source itself, or the same project on
-// another connected Mac. `suggested` is the auto-name shown as the label
-// field's placeholder and submitted when the field is left blank, so the copy
-// always ends up displayed under the name the dialog showed.
+// another connected Mac.
 interface CopyDraft {
   label: string;
-  suggested: string;
   override: CopyOverride | null;
   target: string;
 }
@@ -129,7 +126,7 @@ export function BulkDuplicateDialog({
 }: BulkDuplicateDialogProps) {
   const seeded = seed !== undefined;
   const [copies, setCopies] = useState<CopyDraft[]>([
-    { label: "", suggested: "", override: null, target: "" },
+    { label: "", override: null, target: "" },
   ]);
   const count = copies.length;
   // The shared default applied to every copy that doesn't override it.
@@ -162,9 +159,11 @@ export function BulkDuplicateDialog({
     ? projectDisplayName(project, findParentProject(project, projects))
     : "";
 
-  // Suggest each copy a would-be name (`<original>-<id>`), the same scheme the
-  // backend uses for the folder. It's shown as the label field's placeholder so
-  // typing a custom label needs no clearing first.
+  // Default each label to the copy's would-be name (`<original>-<id>`), the
+  // same scheme the backend uses for the folder, so the field shows the copy's
+  // name rather than the original's. The focused field selects just the random
+  // suffix (focusLabelSuffix) so typing swaps it for a meaningful name while
+  // keeping the project prefix.
   const base = project?.parentName || project?.name;
   const genLabel = () => (base ? `${base}-${randomId6()}` : "");
   // Shown as run #1 in the seeded (composer) flow — the current project runs the
@@ -242,8 +241,7 @@ export function BulkDuplicateDialog({
     const initialCount = seed?.count ? clamp(seed.count) : 1;
     setCopies(
       Array.from({ length: initialCount }, () => ({
-        label: "",
-        suggested: genLabel(),
+        label: genLabel(),
         override: null,
         target: project?.name ?? "",
       })),
@@ -301,12 +299,7 @@ export function BulkDuplicateDialog({
       }
       const out = prev.slice();
       while (out.length < n)
-        out.push({
-          label: "",
-          suggested: genLabel(),
-          override: null,
-          target: project?.name ?? "",
-        });
+        out.push({ label: genLabel(), override: null, target: project?.name ?? "" });
       return out;
     });
     setEditing((e) => (e !== null && e >= n ? null : e));
@@ -539,7 +532,7 @@ export function BulkDuplicateDialog({
       excludeUncommitted: isWorktree ? false : excludeUncommitted,
       reinstallDeps,
       pullLatest: isWorktree ? false : pullLatest,
-      labels: copies.map((c) => c.label.trim() || c.suggested),
+      labels: copies.map((c) => c.label.trim()),
       tasksPerCopy: buildTasksPerCopy(),
       targetsPerCopy: copies.map((c) => {
         const t = targetOf(c);
@@ -690,11 +683,11 @@ export function BulkDuplicateDialog({
                   <input
                     value={copies[0]?.label ?? ""}
                     onChange={(e) => setLabelAt(0, e.target.value)}
-                    autoFocus
+                    ref={focusLabelSuffix}
                     spellCheck={false}
                     autoCapitalize="off"
                     autoCorrect="off"
-                    placeholder={copies[0]?.suggested || "Auto-named"}
+                    placeholder="Auto-named"
                     className={`${FIELD_CLASS} h-9 flex-1 px-3`}
                   />
                   {showTargets && (
@@ -794,7 +787,6 @@ export function BulkDuplicateDialog({
                       key={i}
                       index={seeded ? i + 1 : i}
                       label={copy.label}
-                      placeholder={copy.suggested}
                       onLabelChange={(value) => setLabelAt(i, value)}
                       override={copy.override}
                       summary={overrideSummary(copy.override)}
