@@ -108,9 +108,9 @@ export function HeaderActions({
           type="button"
           onClick={onAddAction}
           aria-label="Create action"
-          className="magic-ring group shrink-0 rounded-lg p-[1px] transition-all duration-150 active:scale-[0.97]"
+          className="magic-ring group h-8 shrink-0 rounded-lg p-[1px] transition-all duration-150 active:scale-[0.97]"
         >
-          <span className="flex items-center gap-1 rounded-[calc(0.5rem-1px)] bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs font-medium transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,#a855f7_5%,var(--bg-primary))]">
+          <span className="flex h-full items-center gap-1 rounded-[calc(0.5rem-1px)] bg-[var(--bg-primary)] px-2.5 text-xs font-medium transition-colors duration-150 group-hover:bg-[color-mix(in_srgb,#a855f7_5%,var(--bg-primary))]">
             <span className="text-[color-mix(in_srgb,#a855f7_60%,var(--text-muted))]">
               <PlusIcon />
             </span>

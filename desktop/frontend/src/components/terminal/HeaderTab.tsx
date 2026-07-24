@@ -48,6 +48,7 @@ export function HeaderTab({
     ? "sidebar-shimmer"
     : "";
   const hasStatus = shimmer || waiting || error;
+  const running = !!shimmer && !waiting && !error;
   const statusStyle =
     done && !hasStatus
       ? { color: "var(--accent-blue)" }
@@ -56,10 +57,14 @@ export function HeaderTab({
         : undefined;
 
   // Tint the active pill (and inactive hover) with the launching action's
-  // accent, gated exactly like the label above so status colors and done-blue
-  // still win. Neutral fallbacks in the classes cover uncolored tabs.
-  const accent =
-    !done && !hasStatus && color ? actionAccentColor(color) : undefined;
+  // accent. A running tab swaps in the violet "working" accent instead;
+  // error/waiting/done keep the neutral pill so their label color stands
+  // alone. Neutral fallbacks in the classes cover uncolored tabs.
+  const accent = running
+    ? "var(--accent-violet)"
+    : !done && !hasStatus && color
+      ? actionAccentColor(color)
+      : undefined;
   const accentStyle =
     accent !== undefined
       ? ({
@@ -96,7 +101,7 @@ export function HeaderTab({
       {icon && (
         <span className="flex shrink-0 items-center">
           <span
-            className={`flex items-center transition-opacity ${active ? "opacity-90" : "opacity-60 group-hover:opacity-80"} [&>svg]:h-3.5 [&>svg]:w-3.5 ${hasHoverIcon ? "group-hover:hidden" : ""}`}
+            className={`flex items-center transition-opacity ${running ? "sidebar-shimmer-icon opacity-100" : active ? "opacity-90" : "opacity-60 group-hover:opacity-80"} [&>svg]:h-3.5 [&>svg]:w-3.5 ${hasHoverIcon ? "group-hover:hidden" : ""}`}
             style={statusStyle}
           >
             {icon}

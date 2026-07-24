@@ -124,7 +124,7 @@ function StartStopGroup({
     <div ref={profileMenuRef} className="relative flex" style={NO_DRAG_STYLE}>
       {hasServices ? (
         <div
-          className={`inline-flex items-stretch rounded-lg border ${
+          className={`inline-flex h-8 items-stretch rounded-lg border ${
             project.running
               ? "border-[var(--accent-red)] bg-[var(--accent-red)] text-white"
               : "border-[var(--text-primary)] bg-[var(--text-primary)] text-[var(--bg-primary)]"
@@ -133,7 +133,7 @@ function StartStopGroup({
           <button
             onClick={project.running ? onStop : onStart}
             disabled={loading}
-            className={`rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${segmentHover}`}
+            className={`flex items-center rounded-l-lg px-3.5 text-xs font-medium transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${segmentHover}`}
           >
             {project.running ? "Stop" : "Start"}
           </button>
@@ -153,7 +153,7 @@ function StartStopGroup({
           onClick={onToggleProfileMenu}
           disabled={loading}
           aria-label="Services and profiles"
-          className={`rounded-lg border border-[var(--border)] px-1.5 py-1.5 transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)] ${
+          className={`flex h-8 items-center rounded-lg border border-[var(--border)] px-1.5 transition-all duration-100 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)] ${
             showProfileMenu
               ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
               : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"

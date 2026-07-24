@@ -17,10 +17,11 @@ import {
 
 const SIZE_CLASSES = {
   default: {
+    height: "h-8",
     rounded: "rounded-lg",
     roundedL: "rounded-l-lg",
     roundedR: "rounded-r-lg",
-    padding: "px-3.5 py-1.5 text-xs",
+    padding: "px-3.5 text-xs",
     chevronPad: "px-1.5",
     side: "below",
     border: "border border-[var(--border)] bg-[var(--action-tint,var(--bg-secondary))]",
@@ -30,6 +31,7 @@ const SIZE_CLASSES = {
     active: "bg-[var(--action-tint-strong,var(--bg-active))] text-[var(--action-text,var(--text-primary))]",
   },
   compact: {
+    height: "",
     rounded: "rounded-md",
     roundedL: "rounded-l-md",
     roundedR: "rounded-r-md",
@@ -143,13 +145,13 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
   const trigger = isSplit ? (
     <div
       style={actionButtonStyle(action.color)}
-      className={`inline-flex items-stretch ${s.rounded} ${s.border}`}
+      className={`inline-flex items-stretch ${s.height} ${s.rounded} ${s.border}`}
     >
       <button
         onClick={runPrimary}
         disabled={disabled}
         style={{ color: actionTextColor(primaryColor) }}
-        className={`whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
+        className={`flex items-center whitespace-nowrap ${s.roundedL} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
       >
         {primaryChild ? withEmoji(primaryChild.emoji, primaryChild.label) : withEmoji(action.emoji, action.label)}
       </button>
@@ -166,7 +168,7 @@ export function SplitButton({ action, disabled, onRunAction, onContextMenu, comp
       onClick={() => setOpen((v) => !v)}
       disabled={disabled}
       style={actionButtonStyle(action.color)}
-      className={`inline-flex items-center gap-1 whitespace-nowrap ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
+      className={`inline-flex items-center gap-1 whitespace-nowrap ${s.height} ${s.rounded} ${s.border} ${s.padding} font-medium ${s.text} transition-all duration-100 active:scale-[0.97] ${s.hover} disabled:cursor-not-allowed disabled:opacity-40`}
     >
       {withEmoji(action.emoji, action.label)}
       <ChevronDownIcon />

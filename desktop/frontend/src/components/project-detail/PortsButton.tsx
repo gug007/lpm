@@ -72,7 +72,7 @@ export function PortsButton({ projectName }: PortsButtonProps) {
       <button
         onClick={() => setShowPopover((v) => !v)}
         aria-label="Forwarded ports"
-        className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
+        className={`flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors ${
           active
             ? "border-transparent bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"

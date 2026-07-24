@@ -226,6 +226,35 @@ body {
   }
 }
 
+/* Icon companion to .sidebar-shimmer: SVG strokes can't take background-clip:
+   text, so cycle currentColor through the same palette on the same 4s clock,
+   phase-advanced slightly so hues appear at the icon before sweeping the label. */
+.sidebar-shimmer-icon {
+  color: var(--accent-blue);
+  animation:
+    shimmer-icon 4s ease-in-out -0.3s infinite,
+    shimmer-glow 2s ease-in-out infinite;
+}
+
+@keyframes shimmer-icon {
+  0%,
+  100% {
+    color: var(--accent-blue);
+  }
+  20% {
+    color: #8b5cf6;
+  }
+  40% {
+    color: #ec4899;
+  }
+  60% {
+    color: #06b6d4;
+  }
+  80% {
+    color: #6366f1;
+  }
+}
+
 .sidebar-waiting {
   color: #f59e0b;
   animation: waiting-pulse 2s ease-in-out infinite;

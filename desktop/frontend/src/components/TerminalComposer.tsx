@@ -52,6 +52,7 @@ import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
+import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
 import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -199,6 +200,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // they're uploaded to the host (which returns a host-valid path) at attach time
   // via UploadClipboardImageForTerminal; other file types stay unsupported.
   const isRemotePeer = isPeerName(terminalId);
+  // The input reads better slightly larger than the terminal text it feeds.
+  const inputFontSize = fontSize + 2;
   // `blank` drives the placeholder (no content at all); `disabled` drives the
   // send button (nothing but whitespace).
   const [blank, setBlank] = useState(true);
@@ -1312,7 +1315,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       text,
       left: caret.left - rect.left,
       top: caret.top - rect.top,
-      height: caret.height || fontSize * 1.5,
+      height: caret.height || inputFontSize * 1.5,
     });
   };
 
@@ -1781,7 +1784,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   // The placeholder is absolutely positioned over the editor's first line, so
   // both must share identical font metrics or the placeholder drifts.
-  const textStyle = { fontSize, lineHeight: 1.5 };
+  const textStyle = { fontSize: inputFontSize, lineHeight: 1.5, fontFamily: TERMINAL_FONT_FAMILY };
 
   const busy = transformingId !== null;
   const showActions = ai.anyAvailable;
@@ -1879,7 +1882,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         {hint && (
           <div
             aria-hidden
-            style={{ fontSize, left: hint.left, top: hint.top, height: hint.height, lineHeight: `${hint.height}px` }}
+            style={{ fontSize: inputFontSize, fontFamily: TERMINAL_FONT_FAMILY, left: hint.left, top: hint.top, height: hint.height, lineHeight: `${hint.height}px` }}
             className="pointer-events-none absolute whitespace-pre text-[var(--composer-fg-muted)]"
           >
             {hint.text}
