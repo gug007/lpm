@@ -45,6 +45,7 @@ mod remote;
 mod remotetls;
 mod services;
 mod skill_install;
+mod sockdeliver;
 mod socketsrv;
 mod sound;
 mod sshconfig;

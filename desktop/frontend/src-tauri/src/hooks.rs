@@ -367,26 +367,34 @@ fn install_claude_hooks_at(path: &Path) -> Result<(), String> {
 }
 
 /// Best-effort: install the Claude status hooks into the REMOTE
-/// ~/.claude/settings.json over ssh, so agents on the host report status. Reads
-/// via `cat` (skips a missing/unreadable file — never creates it), reuses the
-/// shared merge, and writes back only on change via a temp file + atomic rename.
-pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) {
-    let read = crate::sshexec::remote_command(
-        ssh,
-        "",
-        "bash",
-        &["-lc", "cat \"$HOME/.claude/settings.json\" 2>/dev/null"],
-        &[],
-    )
-    .output();
-    let Ok(out) = read else { return };
-    if !out.status.success() || out.stdout.is_empty() {
-        return; // missing/unreadable settings — never create
+/// ~/.claude/settings.json over ssh, so agents on the host report status. A
+/// reachable host with a missing/empty file is treated as `{}` and the file is
+/// created (fresh servers had no hooks otherwise); an unreachable host, an
+/// unreadable or unparseable existing file, or a failed write is a failure the
+/// caller retries — never overwrite content that couldn't be read and merged.
+/// Returns whether the host is now installed (wrote successfully, or was
+/// already up to date).
+pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) -> bool {
+    // `cat` failing on an EXISTING file (perms) must fail the script, so it is
+    // distinguishable from "missing" — only a missing file may become `{}`.
+    let script = "if [ -e \"$HOME/.claude/settings.json\" ]; then cat \"$HOME/.claude/settings.json\"; else printf %s '{}'; fi";
+    let read = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[]).output();
+    let Ok(out) = read else { return false };
+    if !out.status.success() {
+        return false;
     }
-    let Some(merged) = merge_claude_hooks(&out.stdout) else {
-        return;
+    let data: Vec<u8> = if out.stdout.is_empty() {
+        b"{}".to_vec()
+    } else {
+        out.stdout
     };
-    write_remote_file(ssh, "\"$HOME/.claude/settings.json\"", &merged);
+    if serde_json::from_slice::<Value>(&data).is_err() {
+        return false; // corrupt settings — merge would misreport it as up to date
+    }
+    match merge_claude_hooks(&data) {
+        Some(merged) => write_remote_file(ssh, "\"$HOME/.claude/settings.json\"", &merged),
+        None => true, // already up to date
+    }
 }
 
 /// Best-effort: install the Codex status hooks on the REMOTE host — enable the
@@ -394,7 +402,10 @@ pub fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) {
 /// ~/.codex/hooks.json. Gated on the remote ~/.codex dir existing (never
 /// created), the same gate the local install applies; within it, config.toml
 /// and hooks.json are created when missing, also matching local.
-pub fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) {
+/// Returns whether the host is now installed. A missing remote ~/.codex is
+/// success (nothing to do — the dir is never created); an unreachable host or a
+/// failed read/write is a failure the caller retries.
+pub fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) -> bool {
     let read = |script: &str| {
         crate::sshexec::remote_command(ssh, "", "bash", &["-lc", script], &[])
             .output()
@@ -403,60 +414,89 @@ pub fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) {
             .map(|o| o.stdout)
     };
     let Some(gate) = read("[ -d \"$HOME/.codex\" ] && echo yes || true") else {
-        return;
+        return false;
     };
     if String::from_utf8_lossy(&gate).trim() != "yes" {
-        return;
+        return true; // no remote codex — nothing to install
     }
-    if let Some(config) = read("cat \"$HOME/.codex/config.toml\" 2>/dev/null || true") {
-        if let Some(new) = merge_codex_feature(&String::from_utf8_lossy(&config)) {
-            write_remote_file(ssh, "\"$HOME/.codex/config.toml\"", new.as_bytes());
+    let mut ok = true;
+    match read("cat \"$HOME/.codex/config.toml\" 2>/dev/null || true") {
+        Some(config) => {
+            if let Some(new) = merge_codex_feature(&String::from_utf8_lossy(&config)) {
+                ok = write_remote_file(ssh, "\"$HOME/.codex/config.toml\"", new.as_bytes()) && ok;
+            }
         }
+        None => ok = false,
     }
-    if let Some(hooks) = read("cat \"$HOME/.codex/hooks.json\" 2>/dev/null || true") {
-        if let Some(new) = merge_codex_hooks(&hooks) {
-            write_remote_file(ssh, "\"$HOME/.codex/hooks.json\"", &new);
+    match read("cat \"$HOME/.codex/hooks.json\" 2>/dev/null || true") {
+        Some(hooks) => {
+            if let Some(new) = merge_codex_hooks(&hooks) {
+                ok = write_remote_file(ssh, "\"$HOME/.codex/hooks.json\"", &new) && ok;
+            }
         }
+        None => ok = false,
     }
+    ok
 }
 
 /// Overwrite a remote file atomically (temp + rename) with `bytes` piped over
-/// stdin. `path_expr` is a shell expression the remote login shell expands —
-/// callers pass it quoted, e.g. `"$HOME/.claude/settings.json"`.
-fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, bytes: &[u8]) {
-    let script = format!("t={path_expr}.lpmtmp; cat > \"$t\" && mv -f \"$t\" {path_expr}");
+/// stdin, creating the parent directory first. `path_expr` is a shell expression
+/// the remote login shell expands — callers pass it quoted, e.g.
+/// `"$HOME/.claude/settings.json"`. The byte-count check keeps a connection
+/// dropped mid-pipe from renaming a truncated temp file over the real one.
+/// Returns whether the remote write succeeded.
+fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, bytes: &[u8]) -> bool {
+    let script = format!(
+        "mkdir -p \"$(dirname {path_expr})\" && t={path_expr}.lpmtmp && cat > \"$t\" && [ \"$(wc -c < \"$t\")\" -eq {} ] && mv -f \"$t\" {path_expr}",
+        bytes.len()
+    );
     let child = crate::sshexec::remote_command(ssh, "", "bash", &["-lc", &script], &[])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
-    let Ok(mut child) = child else { return };
+    let Ok(mut child) = child else { return false };
     if let Some(mut stdin) = child.stdin.take() {
         use std::io::Write;
         let _ = stdin.write_all(bytes); // stdin drops here -> EOF so `cat` finishes
     }
-    let _ = child.wait();
+    child.wait().map(|s| s.success()).unwrap_or(false)
 }
 
-/// Install the remote Claude + Codex hooks once per host per app run
-/// (best-effort, off-thread). Called on remote terminal spawn.
+#[derive(Default)]
+struct HookInstallState {
+    done: std::collections::HashSet<String>,
+    in_flight: std::collections::HashSet<String>,
+}
+
+fn hook_install_state() -> &'static std::sync::Mutex<HookInstallState> {
+    static STATE: std::sync::OnceLock<std::sync::Mutex<HookInstallState>> =
+        std::sync::OnceLock::new();
+    STATE.get_or_init(Default::default)
+}
+
+/// Install the remote Claude + Codex hooks per host per app run (best-effort,
+/// off-thread). Called on every remote terminal spawn: the host key is recorded
+/// only after a fully successful install, so a failed attempt (host briefly
+/// unreachable, etc.) is retried on the next spawn. An in-flight guard keeps
+/// concurrent spawns from running two installs for one host at once.
 pub fn install_remote_agent_hooks_once(ssh: &crate::config::SshSettings) {
-    use std::collections::HashSet;
-    use std::sync::{Mutex, OnceLock};
-    static DONE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     let key = format!("{}@{}:{}", ssh.user, ssh.host, ssh.port);
-    let first = DONE
-        .get_or_init(Default::default)
-        .lock()
-        .unwrap()
-        .insert(key);
-    if !first {
-        return;
+    {
+        let mut st = hook_install_state().lock().unwrap();
+        if st.done.contains(&key) || !st.in_flight.insert(key.clone()) {
+            return; // already installed, or an install is already running
+        }
     }
     let ssh = ssh.clone();
     std::thread::spawn(move || {
-        install_remote_claude_hooks(&ssh);
-        install_remote_codex_hooks(&ssh);
+        let claude_ok = install_remote_claude_hooks(&ssh);
+        let codex_ok = install_remote_codex_hooks(&ssh);
+        let mut st = hook_install_state().lock().unwrap();
+        st.in_flight.remove(&key);
+        if claude_ok && codex_ok {
+            st.done.insert(key);
+        }
     });
 }
 
@@ -554,10 +594,12 @@ fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Backgrounded socket write; only runs when the socket exists. Ends with the
-/// `# lpm-hook` marker so installs are idempotent.
+/// `# lpm-hook` marker so installs are idempotent. The message is staged in `m`
+/// so the portable nc/python3/perl fallback chain can regenerate it.
 fn send_cmd(cmd: &str) -> String {
+    let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && echo \"{cmd}\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & }} >/dev/null 2>&1; {MARKER}"
+        "m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -574,12 +616,13 @@ fn codex_entry(cmd: &str) -> Value {
 /// SessionStart resume hook: read Codex's JSON payload from stdin, extract
 /// `session_id`, and report it to the socket as `set_resume` so the tab can
 /// later resume this exact session (Codex has no --session-id-at-launch). stdin
-/// is consumed synchronously by `sed` before the send is backgrounded — the
-/// plain `send_cmd` helper ignores stdin, so this hook needs its own shape.
-/// Ends with the `# lpm-hook` marker like the others so strip/idempotency works.
+/// is consumed synchronously by `sed` first, then the message is staged in `m`,
+/// so the backgrounded delivery (and its nc/python3/perl fallbacks) never re-read
+/// the already-drained stdin. Ends with the `# lpm-hook` marker like the others.
 fn capture_resume_cmd() -> String {
+    let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && echo \"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & }} >/dev/null 2>&1; {MARKER}"
+        "sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -610,9 +653,10 @@ fn statusline_command(original: &Value) -> String {
         "acct=default; case \"${{{env}:-}}\" in */claude-accounts/*) acct=\"${{{env}##*/}}\";; esac; "
     );
     s.push_str("i=$(cat); ");
-    s.push_str(
-        "printf %s \"$i\" | base64 | tr -d '\\n' | { IFS= read -r b; [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && printf 'agent_limits %s --payload-b64=%s\\n' \"${acct:-default}\" \"$b\" | nc -w1 -U \"$LPM_SOCKET_PATH\"; } >/dev/null 2>&1 &",
-    );
+    let deliver = crate::sockdeliver::delivery_group();
+    s.push_str(&format!(
+        "printf %s \"$i\" | base64 | tr -d '\\n' | {{ IFS= read -r b; m=\"agent_limits ${{acct:-default}} --payload-b64=$b\"; [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && {deliver}; }} >/dev/null 2>&1 &"
+    ));
     if let Some(orig) = original_cmd {
         s.push(' ');
         s.push_str("printf %s \"$i\" | ( ");
@@ -2017,10 +2061,73 @@ mod tests {
     }
 
     #[test]
-    fn send_cmd_shape_matches_go() {
+    fn send_cmd_stages_message_and_guards_backgrounded_delivery() {
         let s = send_cmd("clear_status 'x' k");
-        assert!(s.starts_with(r#"{ [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && echo "clear_status 'x' k" | nc -w1 -U "$LPM_SOCKET_PATH" & } >/dev/null 2>&1; "#));
+        // Message staged in `m` (single quotes literal, $VARS still expand), then a
+        // socket-guarded, backgrounded, silent delivery ending in the marker.
+        assert!(s.starts_with(
+            r#"m="clear_status 'x' k"; { [ -n "$LPM_SOCKET_PATH" ] && [ -S "$LPM_SOCKET_PATH" ] && "#
+        ));
+        assert!(s.contains("& } >/dev/null 2>&1; "), "backgrounded and silenced");
         assert!(s.ends_with(MARKER));
+    }
+
+    #[test]
+    fn send_cmd_uses_portable_nc_python_perl_chain() {
+        let s = send_cmd("clear_status 'x' k");
+        let nc = s.find("nc -w1 -U").expect("nc primary");
+        let py = s.find("python3 -c").expect("python3 fallback");
+        let pl = s.find("perl -MIO::Socket::UNIX").expect("perl fallback");
+        assert!(nc < py && py < pl, "nc -> python3 -> perl order");
+        // The nc send reads the staged variable, not stdin (a failed nc can drain it).
+        assert!(s.contains("printf '%s\\n' \"$m\" | nc -w1 -U \"$LPM_SOCKET_PATH\""));
+        // Fallbacks receive the payload via the environment, never inlined.
+        assert!(s.contains("LPM_MSG=\"$m\" LPM_SOCK=\"$LPM_SOCKET_PATH\" python3"));
+        assert!(s.contains("LPM_MSG=\"$m\" LPM_SOCK=\"$LPM_SOCKET_PATH\" perl"));
+    }
+
+    #[test]
+    fn merge_upgrades_old_nc_only_claude_hook() {
+        // The exact command an older lpm installed (echo | nc -U, no fallbacks).
+        let old = "{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && echo \"set_status '$LPM_PROJECT_NAME' claude_code_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & } >/dev/null 2>&1; # lpm-hook";
+        let body = format!(
+            r#"{{ "hooks": {{ "Stop": [
+                {{ "matcher": "", "hooks": [ {{ "type": "command", "command": {} }} ] }},
+                {{ "matcher": "", "hooks": [ {{ "type": "command", "command": "my-own-hook" }} ] }}
+            ] }} }}"#,
+            serde_json::to_string(old).unwrap()
+        );
+
+        let out = merge_claude_hooks(body.as_bytes()).expect("old command must be upgraded");
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        let stop = v["hooks"]["Stop"].as_array().unwrap();
+
+        // User hook survives; exactly one lpm hook remains, now on the new chain.
+        assert!(stop.iter().any(|e| e["hooks"][0]["command"] == "my-own-hook"));
+        let lpm: Vec<&Value> = stop.iter().filter(|e| has_marker(e)).collect();
+        assert_eq!(lpm.len(), 1, "old lpm hook replaced, not duplicated");
+        let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
+        assert!(cmd.contains("python3 -c") && cmd.contains("perl -MIO::Socket::UNIX"));
+        assert!(!cmd.contains("echo \""), "old echo-based delivery gone");
+        assert_ne!(cmd, old, "command text actually changed");
+    }
+
+    #[test]
+    fn merge_upgrades_old_nc_only_codex_hook() {
+        let old = "{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && echo \"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID\" | nc -w1 -U \"$LPM_SOCKET_PATH\" & } >/dev/null 2>&1; # lpm-hook";
+        let body = format!(
+            r#"{{ "hooks": {{ "Stop": [ {{ "hooks": [ {{ "type": "command", "command": {} }} ] }} ] }} }}"#,
+            serde_json::to_string(old).unwrap()
+        );
+
+        let out = merge_codex_hooks(body.as_bytes()).expect("old codex command must be upgraded");
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        let stop = v["hooks"]["Stop"].as_array().unwrap();
+        let lpm: Vec<&Value> = stop.iter().filter(|e| has_marker(e)).collect();
+        assert_eq!(lpm.len(), 1, "old lpm hook replaced, not duplicated");
+        let cmd = lpm[0]["hooks"][0]["command"].as_str().unwrap();
+        assert!(cmd.contains("python3 -c") && cmd.contains("perl -MIO::Socket::UNIX"));
+        assert_ne!(cmd, old, "command text actually changed");
     }
 
     fn codex_dir_with(body: Option<&str>) -> tempfile::TempDir {
@@ -2154,6 +2261,39 @@ mod tests {
         assert!(cmd.contains(STATUSLINE_MARKER));
         // No prior statusline -> nothing chained.
         assert!(!cmd.contains("printf %s \"$i\" | ( "));
+    }
+
+    #[test]
+    fn statusline_forwarder_uses_portable_chain_over_staged_message() {
+        let cmd = statusline_command(&Value::Null);
+        // stdin is drained first (i=$(cat)), the base64 payload is staged into `m`,
+        // then the portable nc -> python3 -> perl chain sends it.
+        let cat = cmd.find("i=$(cat)").expect("stdin drained first");
+        let stage = cmd.find("m=\"agent_limits").expect("payload staged in m");
+        let nc = cmd.find("nc -w1 -U").expect("nc primary");
+        let py = cmd.find("python3 -c").expect("python3 fallback");
+        let pl = cmd.find("perl -MIO::Socket::UNIX").expect("perl fallback");
+        assert!(cat < stage && stage < nc && nc < py && py < pl, "ordering preserved");
+        // agent_limits keeps its own trailing-`&` backgrounding, not the `{ … & }` form.
+        assert!(cmd.contains("} >/dev/null 2>&1 &"));
+    }
+
+    #[test]
+    fn merge_claude_hooks_creates_hooks_from_empty_object() {
+        // Fresh remote servers read as `{}`; the merge must still install the hooks.
+        let out = merge_claude_hooks(b"{}").expect("empty object gets hooks");
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        for ev in [
+            "UserPromptSubmit",
+            "PreToolUse",
+            "Notification",
+            "Stop",
+            "StopFailure",
+            "SessionEnd",
+        ] {
+            let cmd = v["hooks"][ev][0]["hooks"][0]["command"].as_str().unwrap();
+            assert!(cmd.contains("python3 -c"), "{ev} uses the portable chain");
+        }
     }
 
     #[test]
