@@ -199,10 +199,9 @@ mod tests {
             classify(&lpm(), &at("global.yml")),
             Some(Category::Projects)
         );
-        assert_eq!(
-            classify(&lpm(), &at("groups.json")),
-            Some(Category::Projects)
-        );
+        // groups.json (sidebar folders) is per-machine and off the sync surface,
+        // so external edits no longer classify.
+        assert_eq!(classify(&lpm(), &at("groups.json")), None);
         assert_eq!(
             classify(&lpm(), &at("commit-instructions.txt")),
             Some(Category::Projects)

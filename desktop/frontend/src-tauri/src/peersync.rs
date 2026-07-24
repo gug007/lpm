@@ -287,6 +287,12 @@ fn is_deletable_global(rel: &str) -> bool {
     sync_global_dirs().any(|d| p.starts_with(d) && p.components().count() > 1)
 }
 
+/// Whether a global name is on this build's sync surface: a top-level sync file or
+/// a synced-dir member.
+fn syncable_global(rel: &str) -> bool {
+    is_sync_global_file(rel) || is_deletable_global(rel)
+}
+
 /// Strip every configSync2-only field, so a legacy peer sees the pre-Phase-2 map:
 /// no revision/author, and no tombstone entries (which it would otherwise re-create
 /// as empty files).
@@ -428,6 +434,9 @@ fn plan_core(
     }
     let mut global_keys: BTreeSet<&String> = local.globals.keys().collect();
     global_keys.extend(remote.globals.keys());
+    // A peer running an older surface may still advertise units this build no
+    // longer syncs (e.g. groups.json); planning them would only fail at apply.
+    global_keys.retain(|n| syncable_global(n));
     for name in global_keys {
         if let Some(it) = resolve_pair(
             "global",
@@ -1119,15 +1128,21 @@ mod tests {
         let mut local = DigestMap::default();
         let mut remote = DigestMap::default();
         local.globals.insert("global.yml".into(), id("x", 5));
-        // Only remote has groups.json -> created locally.
-        remote.globals.insert("groups.json".into(), id("y", 9));
+        // Only remote has composer-actions.json -> created locally.
+        remote.globals.insert("composer-actions.json".into(), id("y", 9));
+        // An older peer still advertising groups.json is ignored, not pulled.
+        remote.globals.insert("groups.json".into(), id("z", 9));
         let plan = compute_plan(&local, &remote);
-        let g = plan.iter().find(|i| i.name == "groups.json").unwrap();
+        let g = plan
+            .iter()
+            .find(|i| i.name == "composer-actions.json")
+            .unwrap();
         assert_eq!(g.direction, "toLocal");
         assert_eq!(g.kind, "global");
         // A global present on only one side flows to the other (create, never delete).
         let l = plan.iter().find(|i| i.name == "global.yml").unwrap();
         assert_eq!(l.direction, "toRemote");
+        assert!(plan.iter().all(|i| i.name != "groups.json"));
     }
 
     #[test]
@@ -1155,6 +1170,8 @@ mod tests {
     #[test]
     fn safe_global_rel_blocks_escape_and_unknowns() {
         assert!(safe_global_rel("global.yml").is_ok());
+        // groups.json left the sync surface — a peer may no longer write it.
+        assert!(safe_global_rel("groups.json").is_err());
         // branch-name-instructions.txt joined the sync surface (delta 1), so the
         // apply-side allowlist now accepts it, like its sibling instruction files.
         assert!(safe_global_rel("branch-name-instructions.txt").is_ok());

@@ -35,7 +35,7 @@ struct GlobalDir {
 const GLOBAL_FILES: &[GlobalFile] = &[
     GlobalFile { name: "global.yml", sync: true, export: true },
     GlobalFile { name: "settings.json", sync: true, export: false },
-    GlobalFile { name: "groups.json", sync: true, export: false },
+    GlobalFile { name: "groups.json", sync: false, export: false },
     GlobalFile { name: "composer-actions.json", sync: true, export: false },
     GlobalFile { name: "generators.json", sync: true, export: false },
     GlobalFile { name: "terminals.json", sync: false, export: true },
@@ -117,13 +117,15 @@ mod tests {
 
     #[test]
     fn sync_files_are_old_global_files_plus_branch_name() {
+        // groups.json (sidebar folders) is per-machine, like sidebarOrder in
+        // PER_MACHINE_KEYS — a peer's stale in-memory layout used to sync over
+        // and wipe local folders.
         let got: Vec<&str> = sync_global_files().collect();
         assert_eq!(
             got,
             vec![
                 "global.yml",
                 "settings.json",
-                "groups.json",
                 "composer-actions.json",
                 "generators.json",
                 "commit-instructions.txt",
@@ -203,5 +205,7 @@ mod tests {
         // Export-only file is not a sync unit.
         assert!(!is_sync_global_file("terminals.json"));
         assert!(!is_sync_global_file("peer.json"));
+        // Sidebar folders stay per-machine.
+        assert!(!is_sync_global_file("groups.json"));
     }
 }
