@@ -5,7 +5,7 @@ import { TrafficLights } from "../ui/TrafficLights";
 // Miniature app frame + animated run-mode demos backing the action wizard's
 // live preview panel.
 
-export type DemoState = RunMode | "confirm" | null;
+export type DemoState = RunMode | "questions" | "confirm" | null;
 
 export type FrameHighlight = "header" | "footer" | "content" | null;
 
@@ -55,7 +55,7 @@ function useDemoScript(
   return { typed: cmd.slice(0, chars), typingDone: chars >= cmd.length, step };
 }
 
-function MockModalShell({
+export function MockModalShell({
   width,
   children,
 }: {
@@ -181,6 +181,7 @@ export function RunModeDemo({
   label,
   display,
   highlight,
+  questions,
   onTrigger,
   onConfirm,
   onCancel,
@@ -191,6 +192,9 @@ export function RunModeDemo({
   label: string;
   display: "header" | "footer";
   highlight: FrameHighlight;
+  // Rendered in the "questions" state; the panel owns the answers so the
+  // command below updates as they change.
+  questions?: ReactNode;
   onTrigger: () => void;
   onConfirm: () => void;
   onCancel: () => void;
@@ -213,6 +217,8 @@ export function RunModeDemo({
       highlight={highlight}
     >
       <MockBodyLines />
+
+      {running === "questions" && questions}
 
       {running === "confirm" && (
         <MockModalShell width={140}>

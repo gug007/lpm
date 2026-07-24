@@ -1,5 +1,10 @@
 import YAML from "yaml";
-import type { ActionInfo, ActionPortConflict } from "../../types";
+import type {
+  ActionInfo,
+  ActionInputInfo,
+  ActionInputOption,
+  ActionPortConflict,
+} from "../../types";
 import type { RunMode } from "./actionInference";
 
 // Fields the wizard form surfaces and writes on its own. Anything outside this
@@ -20,6 +25,7 @@ export const MANAGED_ACTION_KEYS = new Set<string>([
   "portConflict",
   "display",
   "actions",
+  "inputs",
   "position",
 ]);
 
@@ -109,6 +115,64 @@ function yamlChildMapToList(actions: unknown): ActionInfo[] | undefined {
   return out.length ? out : undefined;
 }
 
+function yamlOptionsToInfo(value: unknown): ActionInputOption[] {
+  if (!Array.isArray(value)) return [];
+  const out: ActionInputOption[] = [];
+  for (const entry of value) {
+    if (typeof entry === "string") {
+      out.push({ label: entry, value: entry });
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    const o = entry as Record<string, unknown>;
+    const val = typeof o.value === "string" ? o.value : "";
+    if (!val) continue;
+    out.push({ label: typeof o.label === "string" ? o.label : val, value: val });
+  }
+  return out;
+}
+
+// Parses an `inputs:` mapping the same way the backend does, including its
+// ordering rule: positioned inputs first in numeric order, the rest after them
+// in key order. Without this the form would show YAML key order and then
+// silently reorder on the next read.
+function yamlInputsToInfos(value: unknown): ActionInputInfo[] | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(
+      (entry): entry is [string, Record<string, unknown>] =>
+        Boolean(entry[1]) &&
+        typeof entry[1] === "object" &&
+        !Array.isArray(entry[1]),
+    )
+    .map(([key, body]) => ({
+      key,
+      body,
+      position: typeof body.position === "number" ? body.position : null,
+    }));
+
+  entries.sort((a, b) => {
+    if (a.position !== null && b.position !== null) {
+      return a.position - b.position || a.key.localeCompare(b.key);
+    }
+    if (a.position !== null) return -1;
+    if (b.position !== null) return 1;
+    return a.key.localeCompare(b.key);
+  });
+
+  const infos = entries.map(({ key, body }) => ({
+    key,
+    label: typeof body.label === "string" ? body.label : key,
+    type: typeof body.type === "string" ? body.type : "text",
+    required: Boolean(body.required),
+    placeholder: typeof body.placeholder === "string" ? body.placeholder : "",
+    default: typeof body.default === "string" ? body.default : "",
+    persist: Boolean(body.persist),
+    options: yamlOptionsToInfo(body.options),
+  }));
+  return infos.length ? infos : undefined;
+}
+
 // Coerces a parsed action mapping into the ActionInfo shape so the form can
 // re-use actionToDraft. Unknown fields are dropped from the ActionInfo (the
 // form only surfaces what it understands); the caller keeps the raw payload
@@ -129,6 +193,7 @@ export function actionInfoFromPayload(obj: Record<string, unknown>): ActionInfo 
     display: typeof obj.display === "string" ? obj.display : "header",
     type: typeof obj.type === "string" ? obj.type : undefined,
     reuse: Boolean(obj.reuse),
+    inputs: yamlInputsToInfos(obj.inputs),
     children: yamlChildMapToList(obj.actions),
   };
 }

@@ -1091,6 +1091,7 @@ fn validate_inputs(map: &Mapping, path: &str, report: &mut Report) {
                 "default",
                 "persist",
                 "options",
+                "position",
             ],
             &input_path,
             report,
@@ -1103,6 +1104,11 @@ fn validate_inputs(map: &Mapping, path: &str, report: &mut Report) {
                 if value.as_bool().is_none() {
                     report.error(&format!("{input_path}.{field}"), "expected a boolean");
                 }
+            }
+        }
+        if let Some(value) = input.get(Value::String("position".into())) {
+            if value.as_f64().is_none() {
+                report.error(&format!("{input_path}.position"), "expected a number");
             }
         }
         validate_choice(
@@ -1482,6 +1488,28 @@ mod tests {
         .unwrap();
         let result = config::resolve_project_for_cwd(&ctx, &child);
         assert_eq!(result.candidates, vec!["web"]);
+    }
+
+    #[test]
+    fn validator_accepts_input_position_and_rejects_a_non_number() {
+        let (_dir, ctx) = context();
+        let path = ctx.project_path("web");
+        let ok: Value = serde_yaml::from_str(
+            "root: /tmp\nactions:\n  deploy:\n    cmd: ./deploy.sh {{env}}\n    inputs:\n      env:\n        position: 1\n",
+        )
+        .unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &ok);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+
+        let bad: Value = serde_yaml::from_str(
+            "root: /tmp\nactions:\n  deploy:\n    cmd: ./deploy.sh {{env}}\n    inputs:\n      env:\n        position: first\n",
+        )
+        .unwrap();
+        let report = validate_value(&ctx, &path, ConfigKind::Project, &bad);
+        assert!(report
+            .errors
+            .iter()
+            .any(|error| error.contains("inputs.env.position")));
     }
 
     #[test]

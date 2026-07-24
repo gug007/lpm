@@ -10,10 +10,17 @@ import {
   type DemoState,
   type FrameHighlight,
 } from "./ActionDemo";
+import { QuestionsDemo } from "./ActionQuestionsDemo";
+import { initialAnswers, resolveCommand, type InputDraft } from "./actionInputs";
 
 export type Shape = "button" | "split" | "dropdown";
 
-export type PreviewHint = "shape" | "placement" | "runMode" | "confirm";
+export type PreviewHint =
+  | "shape"
+  | "placement"
+  | "runMode"
+  | "confirm"
+  | "questions";
 
 export const SHAPE_PREVIEW_BUTTON_CLASS =
   "border-[var(--border)] text-[var(--text-primary)]";
@@ -39,6 +46,7 @@ export function ActionPreviewPanel({
   cmd,
   display,
   hoveredHint,
+  inputs = [],
   promptFor = null,
 }: {
   name: string;
@@ -52,6 +60,9 @@ export function ActionPreviewPanel({
   cmd: string;
   display: "header" | "footer";
   hoveredHint: PreviewHint | null;
+  // Questions asked before the run; the demo asks them for real so the answers
+  // can be seen landing in the command.
+  inputs?: InputDraft[];
   // Name of the AI agent a saved prompt is handed to, or null when none is set.
   promptFor?: string | null;
 }) {
@@ -63,6 +74,13 @@ export function ActionPreviewPanel({
   const [running, setRunning] = useState<DemoState>(null);
   const [replayNonce, setReplayNonce] = useState(0);
   const [demoFinished, setDemoFinished] = useState(false);
+  // Only what the user picked in the demo dialog. Layering it over the current
+  // defaults keeps a pick alive while the form is edited, without an effect
+  // that would reset it on every keystroke.
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  const answers = { ...initialAnswers(inputs), ...picked };
+  const hasQuestions = inputs.length > 0;
+  const resolvedCmd = resolveCommand(cmd, inputs, answers);
   const menuRef = useOutsideClick<HTMLDivElement>(
     () => setMenuOpen(false),
     menuOpen,
@@ -86,14 +104,19 @@ export function ActionPreviewPanel({
     if (!canRun) return;
     setDemoFinished(false);
     setReplayNonce((n) => n + 1);
-    setRunning(confirm ? "confirm" : runMode);
+    setRunning(hasQuestions ? "questions" : confirm ? "confirm" : runMode);
   };
 
   const handleConfirm = () => setRunning(runMode);
   const handleCancel = () => setRunning(null);
+  const handleAnswered = () => setRunning(confirm ? "confirm" : runMode);
 
   const shownRunning: DemoState =
-    hoveredHint === "confirm" && confirm ? "confirm" : running;
+    hoveredHint === "questions" && hasQuestions
+      ? "questions"
+      : hoveredHint === "confirm" && confirm
+        ? "confirm"
+        : running;
   const frameHighlight: FrameHighlight =
     hoveredHint === "placement"
       ? display
@@ -216,10 +239,25 @@ export function ActionPreviewPanel({
                   <RunModeDemo
                     key={`${running ?? "idle"}-${replayNonce}`}
                     running={shownRunning}
-                    cmd={cmd}
+                    cmd={resolvedCmd}
                     label={displayLabel}
                     display={display}
                     highlight={frameHighlight}
+                    questions={
+                      hasQuestions ? (
+                        <QuestionsDemo
+                          label={displayLabel}
+                          inputs={inputs}
+                          answers={answers}
+                          submitLabel={confirm ? "Next" : "Run"}
+                          onAnswer={(key, value) =>
+                            setPicked((prev) => ({ ...prev, [key]: value }))
+                          }
+                          onCancel={handleCancel}
+                          onSubmit={handleAnswered}
+                        />
+                      ) : null
+                    }
                     onTrigger={triggerRun}
                     onConfirm={handleConfirm}
                     onCancel={handleCancel}
@@ -240,8 +278,9 @@ export function ActionPreviewPanel({
                 runMode={runMode}
                 reuse={reuse}
                 confirm={confirm}
-                cmd={cmd}
+                cmd={resolvedCmd}
                 optionCount={visibleOptions.length}
+                questionCount={inputs.length}
                 promptFor={promptFor}
               />
             </div>
@@ -283,6 +322,7 @@ function ActionSummary({
   confirm,
   cmd,
   optionCount,
+  questionCount,
   promptFor,
 }: {
   shape: Shape;
@@ -293,6 +333,7 @@ function ActionSummary({
   confirm: boolean;
   cmd: string;
   optionCount: number;
+  questionCount: number;
   promptFor: string | null;
 }) {
   const place = display === "footer" ? "the footer bar" : "the header";
@@ -356,6 +397,13 @@ function ActionSummary({
           ) : (
             <> The arrow next to it opens the menu options you add.</>
           ))}
+        {questionCount > 0 && (
+          <>
+            {" "}
+            It asks for {questionCount === 1 ? "a value" : `${questionCount} values`}{" "}
+            first and fills {questionCount === 1 ? "it" : "them"} into the command.
+          </>
+        )}
         {confirm && <> It asks for confirmation first.</>}
       </>
     );

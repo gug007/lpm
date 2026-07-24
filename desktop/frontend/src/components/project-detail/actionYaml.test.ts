@@ -13,15 +13,11 @@ describe("unmanagedActionKeys", () => {
       label: "Dev",
       cmd: "npm run dev",
       type: "terminal",
-      inputs: [{ name: "branch" }],
+      inputs: { branch: {} },
       env: { PORT: "3000" },
       depends_on: ["db"],
     };
-    expect(unmanagedActionKeys(payload)).toEqual([
-      "depends_on",
-      "env",
-      "inputs",
-    ]);
+    expect(unmanagedActionKeys(payload)).toEqual(["depends_on", "env"]);
   });
 
   it("is empty when every field is managed", () => {
@@ -43,9 +39,10 @@ describe("pickUnmanaged", () => {
         label: "Dev",
         cmd: "npm run dev",
         env: { PORT: "3000" },
-        inputs: [{ name: "branch" }],
+        inputs: { branch: {} },
+        depends_on: ["db"],
       }),
-    ).toEqual({ env: { PORT: "3000" }, inputs: [{ name: "branch" }] });
+    ).toEqual({ env: { PORT: "3000" }, depends_on: ["db"] });
   });
 });
 
@@ -63,10 +60,10 @@ describe("unmanagedFieldsChanged", () => {
   });
 
   it("is true when an unmanaged field is added or removed", () => {
-    expect(unmanagedFieldsChanged({ cmd: "x" }, { cmd: "x", inputs: [] })).toBe(
-      true,
-    );
-    expect(unmanagedFieldsChanged({ inputs: [] }, {})).toBe(true);
+    expect(
+      unmanagedFieldsChanged({ cmd: "x" }, { cmd: "x", depends_on: ["db"] }),
+    ).toBe(true);
+    expect(unmanagedFieldsChanged({ depends_on: ["db"] }, {})).toBe(true);
   });
 
   it("treats null base as no unmanaged fields", () => {

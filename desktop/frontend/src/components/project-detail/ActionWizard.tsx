@@ -23,6 +23,16 @@ import {
 } from "../../actionConfig";
 import { applyAutoSettings, type RunMode } from "./actionInference";
 import {
+  firstInputProblem,
+  inputDraftsFromInfos,
+  inputsToYamlMap,
+  newInputDraft,
+  newOptionDraft,
+  syncInputsToCommand,
+  type InputDraft,
+} from "./actionInputs";
+import { ActionInputsEditor, CommandPreview } from "./ActionInputsEditor";
+import {
   actionInfoFromPayload,
   pickUnmanaged,
   reorderById,
@@ -228,6 +238,25 @@ const ACTION_TEMPLATES: ActionTemplate[] = [
     confirm: true,
   },
   {
+    id: "deploy-env",
+    emoji: "🚢",
+    name: "Deploy to environment",
+    cmd: "./deploy.sh --env {{env}}",
+    runMode: "once",
+    confirm: true,
+    inputs: [
+      {
+        key: "env",
+        label: "Environment",
+        type: "radio",
+        options: ["staging", "production"],
+        default: "staging",
+        required: true,
+        persist: true,
+      },
+    ],
+  },
+  {
     id: "ai-agent",
     emoji: "🤖",
     name: "AI coding session",
@@ -323,6 +352,17 @@ function wizardCopy(editing: boolean): {
 }
 
 function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
+  const inputs = (template.inputs ?? []).map((input) =>
+    newInputDraft(input.key, {
+      label: input.label,
+      type: input.type ?? "text",
+      required: input.required ?? false,
+      default: input.default ?? "",
+      persist: input.persist ?? false,
+      options: (input.options ?? []).map((value) => newOptionDraft(value)),
+      autoKey: true,
+    }),
+  );
   return {
     ...base,
     shape: "button",
@@ -330,6 +370,7 @@ function applyTemplate(template: ActionTemplate, base: FormDraft): FormDraft {
     emoji: template.emoji,
     color: template.color ?? "",
     cmd: template.cmd,
+    inputs: syncInputsToCommand(inputs, template.cmd),
     runMode: template.runMode,
     reuse: template.reuse ?? false,
     confirm: template.confirm ?? false,
@@ -348,13 +389,18 @@ function getMissingHint(
   const cmdFilled = Boolean(draft.cmd.trim());
   if (!nameFilled) return "Name is required";
   if (draft.prompt.pending) return "An attached image is still saving";
-  if (draft.shape === "button") return cmdFilled ? null : "Command is required";
-  if (draft.shape === "split") {
-    if (!cmdFilled) return "Default command is required";
-    if (!hasMenuOption) return "Add at least one menu option";
-    return null;
+  if (draft.shape === "dropdown") {
+    return hasMenuOption ? null : "Add at least one menu option";
   }
-  return hasMenuOption ? null : "Add at least one menu option";
+  if (!cmdFilled) {
+    return draft.shape === "split"
+      ? "Default command is required"
+      : "Command is required";
+  }
+  if (draft.shape === "split" && !hasMenuOption) {
+    return "Add at least one menu option";
+  }
+  return firstInputProblem(draft.inputs);
 }
 
 interface FormDraft {
@@ -368,6 +414,9 @@ interface FormDraft {
   // Task for the AI agent the command launches, submitted once it's ready.
   // Only saved while cmd actually starts a known agent CLI.
   prompt: ComposerValue;
+  // Questions asked before the action runs, ordered by where their `{{key}}`
+  // token sits in the command.
+  inputs: InputDraft[];
   port: string;
   portConflict: string;
   configLayer: ActionConfigLayer;
@@ -458,6 +507,7 @@ function buildActionPatch({
   cmd,
   cwd,
   prompt,
+  inputs,
   port,
   portConflict,
   children,
@@ -488,6 +538,7 @@ function buildActionPatch({
       "cmd",
       "cwd",
       "prompt",
+      "inputs",
       "type",
       "reuse",
       "confirm",
@@ -503,6 +554,9 @@ function buildActionPatch({
       runMode === "terminal" && detectAICLI(cmd) ? composerValueToText(prompt) : "";
     if (promptText) set.prompt = promptText;
     else remove.push("prompt");
+    const inputMap = inputsToYamlMap(inputs);
+    if (inputMap) set.inputs = inputMap;
+    else remove.push("inputs");
     if (runMode !== "once") set.type = runMode;
     else remove.push("type");
     if (runMode === "terminal" && reuse) set.reuse = true;
@@ -628,6 +682,7 @@ function actionToDraft(action: ActionInfo): FormDraft {
     cmd: action.cmd,
     cwd: action.cwd ?? "",
     prompt: textToPrompt(action.prompt ?? ""),
+    inputs: syncInputsToCommand(inputDraftsFromInfos(action.inputs), action.cmd),
     port: (action.port ?? []).join(", "),
     portConflict: toPickerValue(action.portConflict),
     configLayer: "project",
@@ -651,6 +706,7 @@ function defaultDraft(): FormDraft {
     cmd: "",
     cwd: "",
     prompt: EMPTY_COMPOSER,
+    inputs: [],
     port: "",
     portConflict: "",
     configLayer: "project",
@@ -818,6 +874,7 @@ export function ActionWizard({
     cmd,
     cwd,
     prompt,
+    inputs,
     port,
     portConflict,
     configLayer,
@@ -852,6 +909,9 @@ export function ActionWizard({
   const promptCliLabel = promptCli
     ? (AI_CLI_OPTIONS.find((o) => o.value === promptCli)?.label ?? promptCli)
     : null;
+  // Questions substitute into the command, so they only make sense once there
+  // is one to substitute into.
+  const showQuestions = showCommand && cmdFilled;
   const showMenuOptions =
     nameFilled && (shape === "dropdown" || (shape === "split" && cmdFilled));
   const missingHint = getMissingHint(draft, hasMenuOption);
@@ -887,6 +947,7 @@ export function ActionWizard({
     setDraft((prev) => ({
       ...prev,
       cmd: value,
+      inputs: syncInputsToCommand(prev.inputs, value),
       ...applyAutoSettings(
         {
           name: prev.name,
@@ -897,6 +958,15 @@ export function ActionWizard({
         "terminal",
       ),
     }));
+
+  // Questions and the command move together: adding, renaming, or removing a
+  // question rewrites its token, and the command's token order decides the
+  // order they're asked in.
+  const updateInputs = (next: { cmd?: string; inputs: InputDraft[] }) =>
+    setDraft((prev) => {
+      const cmd = next.cmd ?? prev.cmd;
+      return { ...prev, cmd, inputs: syncInputsToCommand(next.inputs, cmd) };
+    });
 
   const setRunMode = (mode: RunMode) =>
     setDraft((prev) => ({ ...prev, runMode: mode, runModeTouched: true }));
@@ -1310,6 +1380,24 @@ export function ActionWizard({
                       />
                     )}
 
+                    {showQuestions && (
+                      <Reveal>
+                        <div
+                          className="space-y-3"
+                          onMouseEnter={() => setHoveredHint("questions")}
+                          onMouseLeave={() => setHoveredHint(null)}
+                        >
+                          <CommandPreview cmd={cmd} inputs={inputs} />
+                          <ActionInputsEditor
+                            inputs={inputs}
+                            cmd={cmd}
+                            commandRef={commandRef}
+                            onChange={updateInputs}
+                          />
+                        </div>
+                      </Reveal>
+                    )}
+
                     {promptCli && (
                       <Reveal>
                         <div className="space-y-2.5">
@@ -1467,6 +1555,7 @@ export function ActionWizard({
                 cmd={cmd}
                 display={display}
                 hoveredHint={hoveredHint}
+                inputs={shape === "dropdown" ? [] : inputs}
                 promptFor={
                   promptCli && composerValueToText(prompt)
                     ? promptCliLabel

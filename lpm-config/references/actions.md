@@ -126,7 +126,9 @@ actions:
         placeholder: v1.0.0
 ```
 
-Input fields support `label`, `type`, `required`, `placeholder`, `default`, `persist`, and `options`. Types are `text` (default), `password`, and `radio`. A radio input requires options, and its default must match an option value. Options may be strings or `{label, value}` mappings.
+Input fields support `label`, `type`, `required`, `placeholder`, `default`, `persist`, `options`, and `position`. Types are `text` (default), `password`, and `radio`. A radio input requires options, and its default must match an option value. Options may be strings or `{label, value}` mappings.
+
+Inputs are prompted in `position` order, then in key order. Set `position` when the prompt order should follow the command rather than the alphabet; leave it off when key order already reads correctly.
 
 ## Ports
 

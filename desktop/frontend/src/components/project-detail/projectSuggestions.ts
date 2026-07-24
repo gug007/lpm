@@ -1,6 +1,19 @@
 import { slugify } from "../../slugify";
 import { inferRunMode, shouldConfirm, type RunMode } from "./actionInference";
 import type { ActionConfigLayer } from "../../actionConfig";
+import type { InputType } from "./actionInputs";
+
+// A question a template prefills, declared plainly: the wizard turns it into a
+// draft and matches it to the `{{key}}` token in the template's command.
+export interface TemplateInput {
+  key: string;
+  label: string;
+  type?: InputType;
+  options?: string[];
+  default?: string;
+  required?: boolean;
+  persist?: boolean;
+}
 
 export interface ActionTemplate {
   id: string;
@@ -12,6 +25,7 @@ export interface ActionTemplate {
   confirm?: boolean;
   // Accent color prefilled for the action (named accent or CSS color).
   color?: string;
+  inputs?: TemplateInput[];
   // Overrides where the action saves when this template is picked. Defaults to
   // whatever layer the wizard is currently on (usually "project").
   configLayer?: ActionConfigLayer;

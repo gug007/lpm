@@ -45,10 +45,10 @@ const ACTION_SECTIONS: [&str; 2] = ["actions", "terminals"];
 const SERVICE_REMOVE_KEYS: &[&str] = &["cwd", "port", "portConflict", "env", "dependsOn", "depends_on"];
 
 // Fields the desktop action wizard manages (MANAGED_ACTION_KEYS in
-// actionYaml.ts). Everything else (env, inputs, hand-authored keys) is
-// unmanaged and rides along untouched through an edit. `prompt` is managed on
-// desktop but deliberately absent here: the phone editor doesn't surface it,
-// so keeping it unmanaged stops a phone edit from clearing it.
+// actionYaml.ts). Everything else (env, hand-authored keys) is unmanaged and
+// rides along untouched through an edit. `prompt` and `inputs` are managed on
+// desktop but deliberately absent here: the phone editor doesn't surface
+// either, so keeping them unmanaged stops a phone edit from clearing them.
 const MANAGED_ACTION_KEYS: &[&str] = &[
     "label",
     "emoji",

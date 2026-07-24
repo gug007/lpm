@@ -761,6 +761,8 @@ struct ActionInputDef {
     persist: bool,
     #[serde(default)]
     options: Vec<ActionInputOptionDef>,
+    #[serde(default)]
+    position: Option<f64>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -1583,9 +1585,14 @@ fn resolved_child(parent: &ActionFull, child: &ActionFull) -> ActionFull {
     c
 }
 
+// Prompt order follows `position` (the wizard emits it from the order the
+// `{{key}}` tokens appear in the command), with unpositioned inputs after it in
+// key order — the same rule actions and menu children already use.
 fn build_input_infos(inputs: &BTreeMap<String, ActionInputDef>) -> Vec<ActionInputInfo> {
-    inputs
-        .iter()
+    let mut keys: Vec<String> = inputs.keys().cloned().collect();
+    sort_action_names(&mut keys, |k| inputs.get(k).and_then(|i| i.position));
+    keys.iter()
+        .filter_map(|key| inputs.get_key_value(key))
         .map(|(key, inp)| {
             let kind = if inp.kind.is_empty() {
                 "text".to_string()
@@ -2833,5 +2840,54 @@ mod ssh_exec_tests {
             .pop()
             .unwrap()
             .contains("LPM_SOCKET_PATH"));
+    }
+}
+
+#[cfg(test)]
+mod action_input_tests {
+    use super::*;
+
+    fn input(position: Option<f64>) -> ActionInputDef {
+        ActionInputDef {
+            label: String::new(),
+            kind: String::new(),
+            required: false,
+            placeholder: String::new(),
+            default: String::new(),
+            persist: false,
+            options: Vec::new(),
+            position,
+        }
+    }
+
+    fn keys(map: BTreeMap<String, ActionInputDef>) -> Vec<String> {
+        build_input_infos(&map)
+            .into_iter()
+            .map(|info| info.key)
+            .collect()
+    }
+
+    #[test]
+    fn positioned_inputs_are_asked_in_command_order() {
+        let mut map = BTreeMap::new();
+        map.insert("tag".to_string(), input(Some(1.0)));
+        map.insert("env".to_string(), input(Some(2.0)));
+        assert_eq!(keys(map), vec!["tag", "env"]);
+    }
+
+    #[test]
+    fn unpositioned_inputs_follow_in_key_order() {
+        let mut map = BTreeMap::new();
+        map.insert("zeta".to_string(), input(None));
+        map.insert("alpha".to_string(), input(None));
+        map.insert("last".to_string(), input(Some(1.0)));
+        assert_eq!(keys(map), vec!["last", "alpha", "zeta"]);
+    }
+
+    #[test]
+    fn kind_defaults_to_text() {
+        let mut map = BTreeMap::new();
+        map.insert("tag".to_string(), input(None));
+        assert_eq!(build_input_infos(&map)[0].kind, "text");
     }
 }

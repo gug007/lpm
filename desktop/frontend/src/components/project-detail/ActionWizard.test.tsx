@@ -105,7 +105,113 @@ async function render(props: Record<string, unknown>) {
   });
 }
 
+function setValue(el: HTMLTextAreaElement | HTMLInputElement, value: string) {
+  const proto =
+    el instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, "value")!.set!.call(el, value);
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function commandField() {
+  return document.querySelector<HTMLTextAreaElement>(
+    'textarea[placeholder="npm run dev"]',
+  )!;
+}
+
+describe("ActionWizard questions", () => {
+  beforeEach(() => {
+    localStorage.setItem("lpm.actionWizard.mode", "form");
+  });
+
+  it("shows a saved question and the command it fills in", async () => {
+    const editing = {
+      name: "deploy",
+      label: "Deploy",
+      cmd: "./deploy.sh --env {{env}}",
+      type: "once",
+      inputs: [
+        {
+          key: "env",
+          label: "Environment",
+          type: "radio",
+          required: true,
+          placeholder: "",
+          default: "staging",
+          persist: true,
+          options: [
+            { label: "staging", value: "staging" },
+            { label: "production", value: "production" },
+          ],
+        },
+      ],
+    } as unknown as ActionInfo;
+
+    await render({ editing, existingActionKeys: ["deploy"] });
+
+    expect(document.body.textContent).toContain("Before running, ask");
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[placeholder="What to ask for"]',
+      )?.value,
+    ).toBe("Environment");
+    expect(document.body.textContent).toContain("{{env}}");
+    // The "Runs" line resolves the token to the value the dialog starts on.
+    expect(document.body.textContent).toContain("./deploy.sh --env ");
+    expect(document.body.textContent).toContain("staging");
+  });
+
+  it("creates a question when a token is typed into the command", async () => {
+    await render({ existingActionKeys: [] });
+
+    await act(async () => {
+      setValue(
+        document.querySelector<HTMLInputElement>(
+          'input[placeholder="Run tests"]',
+        )!,
+        "Deploy",
+      );
+    });
+    await act(async () => {
+      setValue(commandField(), "./deploy.sh --env {{env}}");
+    });
+
+    expect(document.body.textContent).toContain("Before running, ask");
+    expect(document.body.textContent).toContain("{{env}}");
+  });
+
+  it("adds a token to the command when a question is added", async () => {
+    await render({ existingActionKeys: [] });
+
+    await act(async () => {
+      setValue(
+        document.querySelector<HTMLInputElement>(
+          'input[placeholder="Run tests"]',
+        )!,
+        "Deploy",
+      );
+    });
+    await act(async () => {
+      setValue(commandField(), "./deploy.sh");
+    });
+
+    const add = [...document.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Ask for a value"),
+    )!;
+    await act(async () => {
+      add.click();
+    });
+
+    expect(commandField().value).toBe("./deploy.sh {{value}}");
+  });
+});
+
 describe("ActionWizard edit-mode editor seeding", () => {
+  beforeEach(() => {
+    localStorage.setItem("lpm.actionWizard.mode", "editor");
+  });
+
   it("shows the action payload in the editor once the read resolves", async () => {
     const editing = makeEditing();
     await render({ editing, existingActionKeys: ["deploy"] });
