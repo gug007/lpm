@@ -31,6 +31,44 @@ export const ACTION_MODEL_URI = "inmemory://lpm/action.yml";
 
 let configured = false;
 
+interface LegacyWebWorkerOptions {
+  moduleId: string;
+  label?: string;
+  createData?: unknown;
+  host?: Record<string, (...args: unknown[]) => unknown>;
+  keepIdleModels?: boolean;
+}
+
+// monaco-editor 0.53 removed the { moduleId, label, createData } form of
+// createWebWorker, but monaco-yaml (via monaco-worker-manager) still calls it
+// that way — worker creation fails and YAML schema validation/completions/
+// hover silently die. Translate legacy calls into the current { worker } form
+// the same way monaco's own language services boot their workers (see
+// esm/vs/common/workers.js): the first posted message wakes the worker's
+// bootstrap handler, the second carries createData.
+function restoreLegacyCreateWebWorker() {
+  const original = monaco.editor.createWebWorker;
+  const patched = <T extends object>(
+    opts: monaco.editor.IInternalWebWorkerOptions | LegacyWebWorkerOptions,
+  ): monaco.editor.MonacoWebWorker<T> => {
+    if ("worker" in opts) return original(opts);
+    const worker = Promise.resolve(
+      window.MonacoEnvironment!.getWorker!("", opts.label ?? ""),
+    ).then((w) => {
+      w.postMessage("ignore");
+      w.postMessage(opts.createData);
+      return w;
+    });
+    return original({
+      worker,
+      host: opts.host,
+      keepIdleModels: opts.keepIdleModels,
+    });
+  };
+  (monaco.editor as { createWebWorker: typeof patched }).createWebWorker =
+    patched;
+}
+
 export function setupMonaco(): typeof monaco {
   if (configured) return monaco;
   configured = true;
@@ -42,6 +80,8 @@ export function setupMonaco(): typeof monaco {
       return new EditorWorker();
     },
   };
+
+  restoreLegacyCreateWebWorker();
 
   // The diff review models get .ts/.tsx URIs, so Monaco spins up the TypeScript
   // language worker for validation — but only the editor + yaml workers are wired
