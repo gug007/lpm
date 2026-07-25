@@ -43,22 +43,18 @@ export function useContentZoom(enabled: boolean, storageKey?: string): ContentZo
   const [surface, setSurface] = useState<HTMLElement | null>(null);
   const wheel = useRef({ delta: 0, scheduled: false });
 
-  const apply = useCallback(
-    (next: (z: number) => number) => {
-      setZoom((z) => {
-        const value = clamp(next(z));
-        if (storageKey) {
-          try {
-            localStorage.setItem(storageKey, String(value));
-          } catch {
-            /* storage unavailable — the level just won't survive the mount */
-          }
-        }
-        return value;
-      });
-    },
-    [storageKey],
-  );
+  const apply = useCallback((next: (z: number) => number) => {
+    setZoom((z) => clamp(next(z)));
+  }, []);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, String(zoom));
+    } catch {
+      /* storage unavailable — the level just won't survive the mount */
+    }
+  }, [storageKey, zoom]);
 
   const zoomIn = useCallback(() => apply((z) => z + ZOOM_STEP), [apply]);
   const zoomOut = useCallback(() => apply((z) => z - ZOOM_STEP), [apply]);
