@@ -24,7 +24,7 @@ export function QuestionSettings({
     });
 
   return (
-    <div className="space-y-2.5 border-t border-[var(--border)] pt-2.5">
+    <div className="space-y-2.5 pb-1">
       {choices ? (
         <div className="space-y-1.5">
           <SettingLabel>Choices</SettingLabel>
@@ -37,16 +37,14 @@ export function QuestionSettings({
                 placeholder={`Choice ${index + 1}`}
                 className={FIELD_CLASS}
               />
-              {option.label.trim() !== "" && (
-                <input
-                  value={option.label}
-                  onChange={(e) =>
-                    setOption(option.id, { label: e.target.value })
-                  }
-                  placeholder="Shown as"
-                  className={FIELD_CLASS}
-                />
-              )}
+              <input
+                value={option.label}
+                onChange={(e) =>
+                  setOption(option.id, { label: e.target.value })
+                }
+                placeholder="Shown as (optional)"
+                className={FIELD_CLASS}
+              />
               <button
                 type="button"
                 onClick={() =>

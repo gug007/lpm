@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { SegmentedControl } from "../ui/SegmentedControl";
+import { useOutsideClick } from "../../hooks/useOutsideClick";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon } from "../icons";
 import { QuestionSettings } from "./ActionQuestionSettings";
-import { FIELD_CLASS } from "./actionInputsStyles";
 import {
   commandSegments,
   inputKeyFromLabel,
@@ -20,15 +19,11 @@ import {
 const TYPE_OPTIONS: ReadonlyArray<{
   value: InputType;
   label: string;
-  tooltip: string;
+  hint: string;
 }> = [
-  { value: "text", label: "Type it in", tooltip: "A box to type anything into." },
-  { value: "radio", label: "Pick one", tooltip: "A short list to choose from." },
-  {
-    value: "password",
-    label: "Secret",
-    tooltip: "Hides what's typed, for tokens and passwords.",
-  },
+  { value: "text", label: "Text", hint: "A box to type anything into." },
+  { value: "radio", label: "Choice", hint: "A short list to pick from." },
+  { value: "password", label: "Secret", hint: "Hidden, for tokens and passwords." },
 ];
 
 // The command as it will actually run, with each answer standing in for its
@@ -158,15 +153,8 @@ export function ActionInputsEditor({
 
   return (
     <div className="space-y-2.5">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="text-[12px] font-medium text-[var(--text-secondary)]">
-          Before running, ask
-        </div>
-        {inputs.length > 0 && (
-          <div className="text-[12px] text-[var(--text-muted)]">
-            Answers fill in the command.
-          </div>
-        )}
+      <div className="text-[12px] font-medium text-[var(--text-secondary)]">
+        Before running, ask
       </div>
 
       {inputs.length === 0 ? (
@@ -174,7 +162,7 @@ export function ActionInputsEditor({
           Ask a question before running — like which environment to deploy to.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="divide-y divide-[var(--border)]/60">
           {inputs.map((input) => (
             <QuestionRow
               key={input.id}
@@ -203,7 +191,7 @@ export function ActionInputsEditor({
       <button
         type="button"
         onClick={addInput}
-        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        className="-mx-1 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
       >
         <PlusIcon /> Ask for a value
       </button>
@@ -246,52 +234,44 @@ function QuestionRow({
   const problem = inputProblem(input);
 
   return (
-    <div className="space-y-2 rounded-lg bg-[var(--bg-secondary)] px-3 py-2.5">
-      <div className="flex items-center gap-2">
+    <div className="group -mx-1 rounded-lg px-1 transition-colors hover:bg-[var(--bg-hover)]/40">
+      <div className="flex items-center gap-1.5 py-1">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-label={open ? "Hide settings" : "Show settings"}
+          className={`shrink-0 rounded p-1 text-[var(--text-muted)] transition-transform hover:text-[var(--text-primary)] ${open ? "rotate-90" : ""}`}
+        >
+          <ChevronRightIcon />
+        </button>
         <input
           ref={labelRef}
           value={input.label}
           onChange={(e) => onLabel(e.target.value)}
           placeholder="What to ask for"
-          className={FIELD_CLASS}
+          className="min-w-0 flex-1 bg-transparent py-1 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
+        <code
+          title="Replaced with the answer when the command runs"
+          className="shrink-0 font-mono text-[11px] text-[var(--text-muted)] opacity-70"
+        >
+          {`{{${input.key}}}`}
+        </code>
+        <TypeMenu value={input.type} onChange={onType} />
         <button
           type="button"
           onClick={onRemove}
           aria-label="Remove question"
-          className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className="shrink-0 rounded p-1 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
         >
           <TrashIcon />
         </button>
       </div>
 
-      <div className="flex items-center gap-2">
-        <SegmentedControl
-          value={input.type}
-          options={TYPE_OPTIONS}
-          onChange={onType}
-          variant="subtle"
-          ariaLabel="Answer type"
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-        >
-          {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-          {open ? "Less" : "More"}
-        </button>
-        <code
-          title="This is what gets replaced in the command"
-          className="ml-auto shrink-0 font-mono text-[11px] text-[var(--text-muted)]"
-        >
-          {`{{${input.key}}}`}
-        </code>
-      </div>
-
       {unused && (
-        <div className="flex items-center gap-2 text-[11px] text-[var(--accent-amber)]">
-          <span>Not used in the command.</span>
+        <div className="flex items-center gap-2 pb-1.5 pl-7 text-[11px] text-[var(--accent-amber)]">
+          <span>Not in the command</span>
           <button
             type="button"
             onClick={onAddToCommand}
@@ -301,12 +281,71 @@ function QuestionRow({
           </button>
         </div>
       )}
-
-      {open && (
-        <QuestionSettings input={input} problem={problem} onPatch={onPatch} />
-      )}
       {!open && problem && (
-        <div className="text-[11px] text-[var(--accent-red)]">{problem}</div>
+        <div className="pb-1.5 pl-7 text-[11px] text-[var(--accent-red)]">
+          {problem}
+        </div>
+      )}
+      {open && (
+        <div className="pb-2 pl-7 pr-1">
+          <QuestionSettings input={input} problem={problem} onPatch={onPatch} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One quiet control instead of three visible segments: the current type reads
+// as a word, the alternatives (with what they do) live in the menu.
+function TypeMenu({
+  value,
+  onChange,
+}: {
+  value: InputType;
+  onChange: (type: InputType) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
+  const current = TYPE_OPTIONS.find((option) => option.value === value);
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Answer type"
+        className={`flex items-center gap-0.5 rounded px-1.5 py-1 text-[11px] transition-colors ${
+          open
+            ? "text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        }`}
+      >
+        {current?.label}
+        <ChevronDownIcon />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-52 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-xl">
+          {TYPE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                if (option.value !== value) onChange(option.value);
+              }}
+              className="flex w-full flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+            >
+              <span
+                className={`text-[12px] ${option.value === value ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"}`}
+              >
+                {option.label}
+              </span>
+              <span className="text-[11px] text-[var(--text-muted)]">
+                {option.hint}
+              </span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

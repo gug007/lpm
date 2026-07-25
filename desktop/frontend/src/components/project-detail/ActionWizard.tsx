@@ -1381,21 +1381,22 @@ export function ActionWizard({
                     )}
 
                     {showQuestions && (
-                      <Reveal>
-                        <div
-                          className="space-y-3"
-                          onMouseEnter={() => setHoveredHint("questions")}
-                          onMouseLeave={() => setHoveredHint(null)}
-                        >
-                          <CommandPreview cmd={cmd} inputs={inputs} />
-                          <ActionInputsEditor
-                            inputs={inputs}
-                            cmd={cmd}
-                            commandRef={commandRef}
-                            onChange={updateInputs}
-                          />
-                        </div>
-                      </Reveal>
+                      // Positioned, not wrapped in <Reveal>: the reveal
+                      // animation makes a stacking context that would trap the
+                      // type menu behind later fields (see WizardStep).
+                      <div
+                        className="relative z-30 space-y-3"
+                        onMouseEnter={() => setHoveredHint("questions")}
+                        onMouseLeave={() => setHoveredHint(null)}
+                      >
+                        <CommandPreview cmd={cmd} inputs={inputs} />
+                        <ActionInputsEditor
+                          inputs={inputs}
+                          cmd={cmd}
+                          commandRef={commandRef}
+                          onChange={updateInputs}
+                        />
+                      </div>
                     )}
 
                     {promptCli && (
