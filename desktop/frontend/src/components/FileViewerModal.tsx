@@ -6,6 +6,8 @@ import { GitDiff, ReadFile, WriteFile } from "../../bridge/commands";
 import { ensureLang, getLang, tokenizeLines, type Token } from "../highlight";
 import { basename, relTo } from "../path";
 import { useEventListener } from "../hooks/useEventListener";
+import { useContentZoom } from "../hooks/useContentZoom";
+import { ZoomControl } from "./ui/ZoomControl";
 import { MonacoEditor } from "./MonacoEditor";
 import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
 
@@ -13,14 +15,7 @@ import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
 // back to a single column with del-then-add stacking.
 const SIDE_BY_SIDE_MIN_PX = 1100;
 
-const BASE_ZOOM = 1;
-const ZOOM_MIN = 0.6;
-const ZOOM_MAX = 2.5;
-const ZOOM_STEP = 0.1;
 const BASE_FONT_PX = 12;
-
-const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
 
 type CellKind = "context" | "add" | "del" | "empty";
 
@@ -201,18 +196,10 @@ export function FileViewerModal({
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [zoom, setZoom] = useState(BASE_ZOOM);
-  const wheelStateRef = useRef<{ delta: number; scheduled: boolean }>({
-    delta: 0,
-    scheduled: false,
-  });
   const wide = useIsWide(SIDE_BY_SIDE_MIN_PX);
-
-  const zoomIn = () =>
-    setZoom((z) => clamp(+(z + ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
-  const zoomOut = () =>
-    setZoom((z) => clamp(+(z - ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
-  const zoomReset = () => setZoom(BASE_ZOOM);
+  // Monaco owns the zoom gestures inside its own surface, so stand down while
+  // editing.
+  const zoom = useContentZoom(open && !editing);
 
   // Capture phase on window so we beat xterm's keydown handler — xterm calls
   // stopPropagation on keys it consumes, which would otherwise eat Escape
@@ -229,37 +216,6 @@ export function FileViewerModal({
     open && !editing,
     true,
   );
-
-  // Cmd/Ctrl + (= / - / 0) to zoom; Cmd/Ctrl + scroll-wheel (and trackpad
-  // pinch, which fires wheel with ctrlKey=true) to zoom continuously. Skip
-  // when editing — Monaco owns these gestures inside its own editor surface.
-  useEffect(() => {
-    if (!open || editing) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key === "=" || e.key === "+") { e.preventDefault(); zoomIn(); }
-      else if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomOut(); }
-      else if (e.key === "0") { e.preventDefault(); zoomReset(); }
-    };
-    const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-      wheelStateRef.current.delta += e.deltaY;
-      if (wheelStateRef.current.scheduled) return;
-      wheelStateRef.current.scheduled = true;
-      requestAnimationFrame(() => {
-        const d = wheelStateRef.current.delta;
-        wheelStateRef.current = { delta: 0, scheduled: false };
-        setZoom((z) => clamp(+(z - d * 0.01).toFixed(2), ZOOM_MIN, ZOOM_MAX));
-      });
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("wheel", onWheel, { passive: false });
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("wheel", onWheel);
-    };
-  }, [open, editing]);
 
   useEffect(() => {
     setEditing(false);
@@ -402,36 +358,14 @@ export function FileViewerModal({
               </>
             ) : (
               <>
-                <div className="flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-0.5 text-[var(--text-muted)]">
-                  <button
-                    type="button"
-                    onClick={zoomOut}
-                    disabled={zoom <= ZOOM_MIN}
-                    aria-label="Zoom out"
-                    title="Zoom out (⌘-)"
-                    className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                  >
-                    −
-                  </button>
-                  <button
-                    type="button"
-                    onClick={zoomReset}
-                    title="Reset zoom (⌘0)"
-                    className="min-w-[42px] rounded px-1.5 text-[11px] tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                  >
-                    {Math.round(zoom * 100)}%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={zoomIn}
-                    disabled={zoom >= ZOOM_MAX}
-                    aria-label="Zoom in"
-                    title="Zoom in (⌘+)"
-                    className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-                  >
-                    +
-                  </button>
-                </div>
+                <ZoomControl
+                  percent={zoom.percent}
+                  onZoomIn={zoom.zoomIn}
+                  onZoomOut={zoom.zoomOut}
+                  onReset={zoom.zoomReset}
+                  canZoomIn={zoom.canZoomIn}
+                  canZoomOut={zoom.canZoomOut}
+                />
                 {canEdit && (
                   <button
                     type="button"
@@ -456,8 +390,9 @@ export function FileViewerModal({
         </header>
 
         <div
+          ref={zoom.surfaceRef}
           className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono leading-[1.55]"
-          style={editing ? undefined : { fontSize: `${BASE_FONT_PX * zoom}px` }}
+          style={editing ? undefined : { fontSize: `${BASE_FONT_PX * zoom.zoom}px` }}
         >
           {editing ? (
             <MonacoEditor

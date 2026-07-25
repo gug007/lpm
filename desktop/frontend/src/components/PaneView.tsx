@@ -558,7 +558,11 @@ function PaneViewImpl(props: PaneViewProps) {
                   />
                 </ErrorBoundary>
               ) : t.kind === "memory" ? (
-                <MemoryView projectName={projectName} visible={visible && isActive} />
+                <MemoryView
+                  projectName={projectName}
+                  visible={visible && isActive}
+                  focused={focused}
+                />
               ) : (
                 <InteractiveTab
                   terminalId={t.id}
