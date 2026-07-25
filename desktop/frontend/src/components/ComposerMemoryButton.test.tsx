@@ -84,7 +84,7 @@ describe("ComposerMemoryButton", () => {
     render({ sessions: [], infoById: new Map(), onPick });
     click(trigger());
 
-    expect(document.body.textContent).toContain("No saved sessions yet");
+    expect(document.body.textContent).toContain("Nothing remembered yet");
     click(rows()[0]);
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ kind: "memory-save", insert: "" }));
   });

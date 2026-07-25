@@ -114,8 +114,8 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
                   Remember this conversation
                 </span>
                 <span className="mt-1 block text-[11px] leading-[15px] text-[var(--text-muted)]">
-                  Writes down what the agent has worked out so far, so another agent — or a
-                  later session — can pick it up. Run it at any point: start, middle, or end.
+                  Saves the goal, decisions, and progress so far, so any agent can pick the work
+                  up later. Run it at the start, middle, or end of a conversation.
                 </span>
               </span>
             </button>
