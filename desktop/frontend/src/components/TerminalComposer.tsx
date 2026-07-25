@@ -43,6 +43,7 @@ import {
   type ComposerHistoryEntry,
   type ComposerInputTab,
 } from "../store/composerDrafts";
+import { stepRecall } from "./composerRecall";
 import { COLLECTION_DRAFTS, recordMessage, saveDraft } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendSplitButton } from "./SendSplitButton";
@@ -328,6 +329,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [activeTabId, setActiveTabId] = useState("");
   // -1 means "the live draft"; 0..n-1 index into history, newest first.
   const histIdx = useRef(-1);
+  // The draft recall stepped off, held until the cursor returns to -1.
+  const histStash = useRef<ComposerHistoryEntry | null>(null);
   // [Image #N] index -> local file path, swapped back in when the draft is sent.
   const imagePaths = useRef<Map<number, string>>(new Map());
   const imgCounter = useRef(0);
@@ -427,6 +430,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     imagePaths.current = new Map(tab.imagePaths);
     imgCounter.current = tab.imgCounter;
     histIdx.current = tab.histIdx;
+    histStash.current = tab.stash;
     activeId.current = tab.id;
     setEditorContent(editor, tab.text);
     setBlank(isEditorEmpty(editor));
@@ -535,6 +539,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       active.imagePaths = new Map(imagePaths.current);
       active.imgCounter = imgCounter.current;
       active.histIdx = histIdx.current;
+      active.stash = histStash.current;
     }
     saveComposerDraft(terminalId, {
       tabs: tabs.current,
@@ -927,6 +932,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     } else if (idx !== -1) {
       if (sentId === activeId.current) {
         histIdx.current = -1;
+        histStash.current = null;
         imagePaths.current.clear();
         setEditorContent(editor, "");
         setPreview(null);
@@ -936,6 +942,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         tab.imagePaths = new Map();
         tab.imgCounter = 0;
         tab.histIdx = -1;
+        tab.stash = null;
       }
     }
     syncState();
@@ -1254,22 +1261,22 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [],
   );
 
+  // Arrow Up/Down through the sent-message ring. The cursor is advanced before
+  // the field is rewritten so applyHistoryEntry's syncState parks the new
+  // position (and stash) with the draft it belongs to.
   const recall = (delta: 1 | -1): boolean => {
     const editor = editorRef.current;
-    const hist = history.current;
-    if (!editor || hist.length === 0) return false;
-    const next = Math.min(hist.length - 1, Math.max(-1, histIdx.current + delta));
-    if (next === histIdx.current) return false;
-    if (next === -1) {
-      imagePaths.current = new Map();
-      setEditorContent(editor, "");
-      syncState();
-      placeCaretAtEnd(editor);
-    } else {
-      applyHistoryEntry(editor, hist[next]);
-    }
+    if (!editor) return false;
+    const step = stepRecall({ index: histIdx.current, stash: histStash.current }, delta, history.current, {
+      text: serializeEditor(editor),
+      images: Object.fromEntries(imagePaths.current),
+    });
+    if (!step) return false;
+    histIdx.current = step.index;
+    histStash.current = step.stash;
+    applyHistoryEntry(editor, step.entry);
+    highlightCommand(editor, isSlashCommand, memorySessionIds);
     resetUndo();
-    histIdx.current = next;
     return true;
   };
 

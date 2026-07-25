@@ -20,6 +20,9 @@ export interface ComposerInputTab {
   imagePaths: Map<number, string>; // token index -> local file path
   imgCounter: number;
   histIdx: number; // -1 == live draft; 0..n-1 indexes the shared history ring
+  // The unsent draft Arrow-Up recall stepped off, restored when the cursor comes
+  // back down past the newest message (the field is its only other copy).
+  stash: ComposerHistoryEntry | null;
 }
 
 export interface ComposerDraft {
@@ -38,6 +41,7 @@ function cloneTab(tab: ComposerInputTab): ComposerInputTab {
     imagePaths: new Map(tab.imagePaths),
     imgCounter: tab.imgCounter,
     histIdx: tab.histIdx,
+    stash: tab.stash ? { text: tab.stash.text, images: { ...tab.stash.images } } : null,
   };
 }
 
@@ -50,7 +54,7 @@ function cloneDraft(draft: ComposerDraft): ComposerDraft {
 }
 
 export function createInputTab(): ComposerInputTab {
-  return { id: crypto.randomUUID(), text: "", imagePaths: new Map(), imgCounter: 0, histIdx: -1 };
+  return { id: crypto.randomUUID(), text: "", imagePaths: new Map(), imgCounter: 0, histIdx: -1, stash: null };
 }
 
 // loadComposerDraft hands back a deep clone so each composer owns an isolated
