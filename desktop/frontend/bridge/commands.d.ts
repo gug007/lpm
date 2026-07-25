@@ -42,6 +42,7 @@ export function CreatePullRequest(...args: any[]): Promise<any>;
 export function CreateSSHProject(...args: any[]): Promise<any>;
 export function CreateTemplate(...args: any[]): Promise<any>;
 export function DeleteBranch(...args: any[]): Promise<any>;
+export function DeleteMemorySession(...args: any[]): Promise<any>;
 export function DeleteRemoteTrackingRef(...args: any[]): Promise<any>;
 export function DeleteTemplate(...args: any[]): Promise<any>;
 export function DetachProject(...args: any[]): Promise<any>;

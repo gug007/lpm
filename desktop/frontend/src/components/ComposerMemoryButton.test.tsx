@@ -39,7 +39,7 @@ function click(el: Element) {
   });
 }
 
-const trigger = () => container.querySelector("button[aria-label='Memory']")!;
+const trigger = () => container.querySelector("button[aria-label='Project memory']")!;
 const rows = () =>
   Array.from(document.querySelectorAll("body button")).filter((b) => !container.contains(b));
 
@@ -84,7 +84,7 @@ describe("ComposerMemoryButton", () => {
     render({ sessions: [], infoById: new Map(), onPick });
     click(trigger());
 
-    expect(document.body.textContent).toContain("Nothing remembered yet");
+    expect(document.body.textContent).toContain("Nothing saved yet");
     click(rows()[0]);
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ kind: "memory-save", insert: "" }));
   });

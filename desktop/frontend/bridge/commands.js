@@ -136,6 +136,9 @@ export function CreateTemplate(name) {
 export function DeleteBranch(cwd, name) {
   return invoke("delete_branch", { cwd, name });
 }
+export function DeleteMemorySession(project, name) {
+  return invoke("delete_memory_session", { project, name });
+}
 export function DeleteRemoteTrackingRef(cwd, remote, name) {
   return invoke("delete_remote_tracking_ref", { cwd, remote, name });
 }

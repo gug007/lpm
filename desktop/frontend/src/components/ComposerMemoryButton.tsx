@@ -75,12 +75,12 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
 
   return (
     <div ref={triggerRef}>
-      <Tooltip content="Memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content="Project memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
           type="button"
           onMouseDown={keepEditorFocus}
           onClick={toggle}
-          aria-label="Memory"
+          aria-label="Project memory"
           aria-expanded={open}
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
             open
@@ -114,8 +114,8 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
                   Remember this conversation
                 </span>
                 <span className="mt-1 block text-[11px] leading-[15px] text-[var(--text-muted)]">
-                  Saves the goal, decisions, and progress so far, so any agent can pick the work
-                  up later. Run it at the start, middle, or end of a conversation.
+                  The agent writes down the goal, decisions, and next steps — and keeps it updated
+                  as you work. Any agent can continue from it later.
                 </span>
               </span>
             </button>
@@ -123,7 +123,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
             <div className="border-t border-[var(--border)]">
               {sessions.length === 0 ? (
                 <p className="px-3 py-3 text-center text-[11px] leading-[15px] text-[var(--text-muted)]">
-                  Nothing remembered yet. Saved sessions show up here to continue.
+                  Nothing saved yet. Sessions you save show up here.
                 </p>
               ) : (
                 <>

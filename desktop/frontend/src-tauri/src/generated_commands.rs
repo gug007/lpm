@@ -68,6 +68,7 @@ macro_rules! all_command_handlers {
             create_ssh_project,
             create_template,
             delete_branch,
+            delete_memory_session,
             delete_remote_tracking_ref,
             delete_template,
             detach_project,

@@ -1,14 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ReadMemorySessions, WriteMemorySession } from "../../bridge/commands";
+import {
+  DeleteMemorySession,
+  ReadMemorySessions,
+  WriteMemorySession,
+} from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { MEMORY_CHANGED_EVENT, type MemorySession } from "../types";
 import { useNow } from "../hooks/useNow";
 import { useContentZoom } from "../hooks/useContentZoom";
-import { relativeTime } from "../relativeTime";
+import { MemorySessionList } from "./MemorySessionList";
+import { MemoryStamp } from "./MemoryStamp";
 import { MessageMarkdown } from "./MessageMarkdown";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { ZoomControl } from "./ui/ZoomControl";
-import { BrainIcon, ChevronLeftIcon, PencilIcon, PlusIcon } from "./icons";
+import { BrainIcon, ChevronLeftIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
 
 interface MemoryViewProps {
   projectName: string;
@@ -33,29 +39,6 @@ const slugify = (raw: string) =>
 const SKELETON = (title: string) =>
   `# ${title}\n\n## Goal\n\n\n## Current state\n\n\n## Timeline\n`;
 
-// The first line under "## Goal" — the card's one-line answer to "what is this
-// workstream about", far more telling than repeating the slug.
-function goalOf(content: string): string {
-  const lines = content.split("\n");
-  const start = lines.findIndex((l) => /^##\s+Goal\b/i.test(l.trim()));
-  if (start < 0) return "";
-  for (let i = start + 1; i < lines.length; i++) {
-    const t = lines[i].trim();
-    if (t.startsWith("##")) break;
-    if (t) return t;
-  }
-  return "";
-}
-
-// The agent named by the newest timeline entry ("### <date> — <agent>"): who
-// remembered last, the freshness signal a continuation decision actually needs.
-function lastAgentOf(content: string): string {
-  const entries = content.match(/^###\s.*—\s*(\S+)\s*$/gm);
-  if (!entries || entries.length === 0) return "";
-  const last = entries[entries.length - 1];
-  return last.slice(last.lastIndexOf("—") + 1).trim();
-}
-
 // The session-memory tab (`kind: "memory"`, like the review tab): browses and
 // edits the project's shared agent session memory in ~/.lpm/memory/<project>/.
 // Agents write the same files, so saves are compare-and-swap and the list
@@ -68,6 +51,7 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
   const [baseline, setBaseline] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<MemorySession | null>(null);
   const zoom = useContentZoom(visible && focused, ZOOM_KEY);
   useNow(visible, 30000);
 
@@ -149,15 +133,17 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
     setView({ kind: "list" });
   };
 
-  const stamp = (s: MemorySession) => {
-    const agent = lastAgentOf(s.content);
-    return (
-      <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--text-muted)]">
-        {agent && <span className="text-[var(--accent-purple)]">{agent}</span>}
-        {agent && " · "}
-        {relativeTime(s.updatedAt)}
-      </span>
-    );
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const gone = pendingDelete;
+    setPendingDelete(null);
+    try {
+      await DeleteMemorySession(projectName, gone.name);
+      if (view.kind === "detail" && view.name === gone.name) backToList();
+      await refresh();
+    } catch (err) {
+      toast.error(`Delete memory: ${String(err)}`);
+    }
   };
 
   return (
@@ -202,13 +188,21 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
         )}
         {detail && !editing && (
           <>
-            {stamp(detail)}
+            <MemoryStamp session={detail} />
             <button
               onClick={() => startEdit(detail)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <PencilIcon size={12} />
               Edit
+            </button>
+            <button
+              onClick={() => setPendingDelete(detail)}
+              aria-label="Delete session"
+              title="Delete session"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
+            >
+              <TrashIcon />
             </button>
           </>
         )}
@@ -246,36 +240,12 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
       )}
 
       {view.kind === "list" && sessions.length > 0 && (
-        <div className="min-h-0 flex-1 overflow-y-auto" ref={zoom.surfaceRef}>
-          <div className="mx-auto max-w-2xl px-6 py-5" style={{ zoom: zoom.zoom }}>
-            <ul className="flex flex-col gap-2.5">
-              {sessions.map((s) => {
-                const goal = goalOf(s.content);
-                const subtitle = goal || (s.name !== s.title ? s.name : "");
-                return (
-                  <li key={s.name}>
-                    <button
-                      onClick={() => setView({ kind: "detail", name: s.name })}
-                      className="flex w-full flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/50 px-4 py-3.5 text-left transition-colors hover:border-[var(--accent-purple)]/40 hover:bg-[var(--bg-hover)]"
-                    >
-                      <span className="flex w-full items-baseline gap-3">
-                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">
-                          {s.title}
-                        </span>
-                        {stamp(s)}
-                      </span>
-                      {subtitle && (
-                        <span className="line-clamp-1 text-xs leading-5 text-[var(--text-muted)]">
-                          {subtitle}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </div>
+        <MemorySessionList
+          sessions={sessions}
+          zoom={zoom}
+          onOpen={(name) => setView({ kind: "detail", name })}
+          onDelete={setPendingDelete}
+        />
       )}
 
       {view.kind === "detail" && !detail && (
@@ -370,6 +340,24 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete session?"
+        body={
+          <>
+            <span className="font-medium text-[var(--text-primary)]">
+              {pendingDelete?.title}
+            </span>{" "}
+            will be gone for good — agents won't be able to pick this work up
+            again.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

@@ -203,6 +203,28 @@ fn write_session_at(
     .map_err(|e| format!("cannot write {}: {e}", path.display()))
 }
 
+/// Deleting takes no baseline: the user is throwing the whole session away, so
+/// an agent having appended to it since the pane loaded doesn't change the
+/// decision. An already-missing file is success — another window or an agent
+/// getting there first is the same outcome the caller asked for.
+#[tauri::command(async)]
+pub fn delete_memory_session(project: String, name: String) -> Result<(), String> {
+    ensure_local_project(&project)?;
+    delete_session_at(&project_memory_dir(&project)?, &name)
+}
+
+fn delete_session_at(dir: &Path, name: &str) -> Result<(), String> {
+    if !is_valid_name(name) {
+        return Err("A session name may only use lowercase letters, numbers and dashes.".into());
+    }
+    let path = dir.join(format!("{name}.md"));
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("cannot delete {}: {e}", path.display())),
+    }
+}
+
 /// Drop a removed project's memory. Numbered duplicate names get reused, so the
 /// next project under a reused name must not inherit the old one's sessions —
 /// the same reason notes and the instructions dir are purged there. Routed
@@ -388,6 +410,34 @@ mod tests {
             std::fs::read_to_string(tmp.path().join("fresh.md")).unwrap(),
             "mine"
         );
+    }
+
+    #[test]
+    fn delete_removes_only_the_named_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_memory(tmp.path(), "auth.md", "# Auth");
+        write_memory(tmp.path(), "freeze.md", "# Freeze");
+
+        delete_session_at(tmp.path(), "auth").unwrap();
+        assert!(!tmp.path().join("auth.md").exists());
+        assert!(tmp.path().join("freeze.md").exists());
+
+        // Whoever deletes second must not see an error.
+        delete_session_at(tmp.path(), "auth").unwrap();
+    }
+
+    #[test]
+    fn delete_rejects_a_bad_name_before_touching_the_disk() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("memory").join("web");
+        write_memory(&dir, "keep.md", "# Keep");
+        // `..md` would resolve to the parent directory's file without the guard.
+        std::fs::write(tmp.path().join("memory").join("escape.md"), "# Escape").unwrap();
+
+        assert!(delete_session_at(&dir, "../escape").is_err());
+        assert!(delete_session_at(&dir, "Keep").is_err());
+        assert!(tmp.path().join("memory").join("escape.md").exists());
+        assert!(dir.join("keep.md").exists());
     }
 
     #[test]
