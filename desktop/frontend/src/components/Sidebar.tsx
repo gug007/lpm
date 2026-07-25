@@ -77,6 +77,7 @@ interface SidebarProps {
   onStats: () => void;
   onUsage: () => void;
   onScheduled: () => void;
+  onMobile: () => void;
   onFeedback: () => void;
   onSettings: () => void;
   onAddProject: () => void;
@@ -101,6 +102,7 @@ interface SidebarProps {
   showTerminals: boolean;
   showStats: boolean;
   showUsage: boolean;
+  showMobile: boolean;
   showScheduled: boolean;
   showSettings: boolean;
   duplicatingNames: string[];
@@ -139,7 +141,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onStats, onUsage, onScheduled, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -1224,6 +1226,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onUsage={onUsage}
             showStats={showStats}
             onStats={onStats}
+            showMobile={showMobile}
+            onMobile={onMobile}
             onFeedback={onFeedback}
           />
         </div>

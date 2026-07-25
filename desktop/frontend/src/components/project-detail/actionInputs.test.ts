@@ -84,7 +84,7 @@ describe("commandSegments", () => {
     const inputs = [draft("env", { default: "staging" })];
     expect(commandSegments("go --env {{env}}", inputs)).toEqual([
       { text: "go --env ", filled: false },
-      { text: "staging", filled: true },
+      { text: "staging", filled: true, key: "env" },
     ]);
   });
 

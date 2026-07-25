@@ -63,6 +63,8 @@ export default function App() {
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
 
   const setView = useAppStore((s) => s.setView);
+  const settingsTab = useAppStore((s) => s.settingsTab);
+  const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
@@ -110,6 +112,7 @@ export default function App() {
     view !== "terminals" &&
     view !== "stats" &&
     view !== "scheduled";
+  const isMobileSettings = view === "settings" && settingsTab === "mobile";
   const selectedProject = projects.find((p) => p.name === selected) || null;
 
   const [globalTerminalsVisited, setGlobalTerminalsVisited] = useState(false);
@@ -264,6 +267,10 @@ export default function App() {
           onStats={() => setView("stats")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
+          onMobile={() => {
+            setSettingsTab("mobile");
+            setView("settings");
+          }}
           onFeedback={() => setFeedbackOpen(true)}
           onSettings={() => setView("settings")}
           onAddProject={addProject}
@@ -287,6 +294,7 @@ export default function App() {
           showTerminals={isTerminalsView}
           showStats={isStatsView}
           showUsage={usageOpen}
+          showMobile={isMobileSettings}
           showScheduled={isScheduledView}
           showSettings={isSettingsView}
           duplicatingNames={duplicatingNames}

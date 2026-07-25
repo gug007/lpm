@@ -3,7 +3,14 @@ import { EventsOn } from "../../bridge/runtime";
 import { ListAllJobs } from "../../bridge/commands";
 import { useEventListener } from "../hooks/useEventListener";
 import { useOutsideClick } from "../hooks/useOutsideClick";
-import { HistoryIcon, MessageIcon, MoreHorizontalIcon, StatsIcon, ZapIcon } from "./icons";
+import {
+  HistoryIcon,
+  MessageIcon,
+  MoreHorizontalIcon,
+  SmartphoneIcon,
+  StatsIcon,
+  ZapIcon,
+} from "./icons";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
@@ -13,6 +20,8 @@ interface SidebarFooterMoreProps {
   onUsage: () => void;
   showStats: boolean;
   onStats: () => void;
+  showMobile: boolean;
+  onMobile: () => void;
   onFeedback: () => void;
 }
 
@@ -55,7 +64,7 @@ function useJobsAmbient(showScheduled: boolean): {
   return { running, attention };
 }
 
-export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsage, showStats, onStats, onFeedback }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsage, showStats, onStats, showMobile, onMobile, onFeedback }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
   useEventListener("keydown", (e) => {
@@ -80,7 +89,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
       <button
         onClick={() => setOpen((v) => !v)}
         className={`relative flex h-full w-8 items-center justify-center rounded-md transition-colors ${
-          open || showScheduled || showUsage || showStats
+          open || showScheduled || showUsage || showStats || showMobile
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
@@ -132,6 +141,12 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
               <StatsIcon />
             </span>
             Stats
+          </button>
+          <button onClick={pick(onMobile)} className={itemClass(showMobile)}>
+            <span className="shrink-0">
+              <SmartphoneIcon />
+            </span>
+            Mobile app
           </button>
           <button onClick={pick(onFeedback)} className={itemClass(false)}>
             <MessageIcon />

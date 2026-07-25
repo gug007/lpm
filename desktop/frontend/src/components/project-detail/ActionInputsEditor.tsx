@@ -43,24 +43,36 @@ export function CommandPreview({
 }) {
   const segments = commandSegments(cmd, inputs);
   if (!segments.some((segment) => segment.filled)) return null;
+  const labelOf = (key: string | undefined) => {
+    const input = inputs.find((item) => item.key === key);
+    return input ? input.label.trim() || input.key : "";
+  };
+
+  // A shell line, not a form field: the same black terminal surface the preview
+  // panel's run demo uses. The prompt does the labelling, and answers are
+  // distinguished the way a terminal does it — by color, not by chrome.
   return (
-    <div className="flex gap-2 px-1 text-[12px] leading-relaxed">
-      <span className="shrink-0 text-[var(--text-muted)]">Runs</span>
-      <code className="min-w-0 break-all font-mono text-[var(--text-secondary)]">
-        {segments.map((segment, index) => (
-          <span
-            key={index}
-            className={
-              segment.filled
-                ? "rounded bg-[color-mix(in_srgb,var(--accent-cyan)_16%,transparent)] px-1 text-[var(--text-primary)]"
-                : undefined
-            }
-          >
-            {segment.text}
-          </span>
-        ))}
-      </code>
-    </div>
+    <code className="-mt-4 flex max-h-24 gap-2 overflow-y-auto rounded-md bg-black px-3 py-2 font-mono text-[12px] leading-[1.6] text-white/80 ring-1 ring-inset ring-white/[0.08]">
+      <span aria-hidden className="shrink-0 select-none text-white/30">
+        $
+      </span>
+      <span className="min-w-0 break-all">
+        {segments.map((segment, index) =>
+          segment.filled ? (
+            <span
+              key={index}
+              title={`Answer to “${labelOf(segment.key)}”`}
+              className="text-[var(--accent-cyan)]"
+            >
+              {segment.text}
+            </span>
+          ) : (
+            <span key={index}>{segment.text}</span>
+          ),
+        )}
+        <span className="demo-cursor ml-[3px] inline-block h-[11px] w-[6px] translate-y-[2px] bg-white/60" />
+      </span>
+    </code>
   );
 }
 

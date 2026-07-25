@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal } from "./ui/Modal";
-import { PlusIcon } from "./icons";
+import { PlusIcon, SmartphoneIcon } from "./icons";
 import {
   RemoteState,
   RemoteSetConfig,
@@ -49,24 +49,6 @@ const DEFAULT_STATE: RemoteStateShape = {
   hasPendingCode: false,
   devices: [],
 };
-
-function SmartphoneIcon({ size = 18 }: { size?: number } = {}) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="5" y="2" width="14" height="20" rx="2.5" />
-      <path d="M11 18h2" />
-    </svg>
-  );
-}
 
 function AppleIcon({ size = 18 }: { size?: number } = {}) {
   return (
@@ -224,7 +206,7 @@ export function MobileSettingsPane() {
             color: live ? "var(--accent-green)" : "var(--text-muted)",
           }}
         >
-          <SmartphoneIcon />
+          <SmartphoneIcon size={18} />
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--text-primary)]">Remote control</p>

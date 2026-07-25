@@ -112,6 +112,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           onStats={() => FocusMainWindow(undefined, "stats")}
           onUsage={() => FocusMainWindow(undefined, "usage")}
           onScheduled={() => FocusMainWindow(undefined, "scheduled")}
+          onMobile={() => FocusMainWindow(undefined, "mobile")}
           onFeedback={() => setFeedbackOpen(true)}
           onSettings={() => FocusMainWindow(undefined, "settings")}
           onAddProject={() => FocusMainWindow(undefined, undefined, true)}
@@ -136,6 +137,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           showTerminals={false}
           showStats={false}
           showUsage={false}
+          showMobile={false}
           showScheduled={false}
           showSettings={false}
           duplicatingNames={duplicatingNames}

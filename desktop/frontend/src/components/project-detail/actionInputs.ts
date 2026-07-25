@@ -155,6 +155,8 @@ export interface CommandSegment {
   text: string;
   // True for text substituted in place of a token, which the preview tints.
   filled: boolean;
+  // The question that filled this segment, so the preview can name it.
+  key?: string;
 }
 
 // The command with every token replaced, split so the substituted values can be
@@ -176,6 +178,7 @@ export function commandSegments(
     segments.push({
       text: answer?.trim() ? answer : previewValue(input),
       filled: true,
+      key: input.key,
     });
     last = at + match[0].length;
   }

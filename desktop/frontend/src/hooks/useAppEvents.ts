@@ -55,6 +55,7 @@ export function useAppEvents(): void {
       selectProject,
       setView,
       setUsageOpen,
+      setSettingsTab,
       setFeedbackOpen,
       addProject,
       triggerRemoteAction,
@@ -140,6 +141,12 @@ export function useAppEvents(): void {
       // for it via FocusMainWindow("usage")), so route it to the modal.
       if (view === "usage") {
         setUsageOpen(true);
+        return;
+      }
+      // "mobile" is a Settings tab rather than a view of its own.
+      if (view === "mobile") {
+        setSettingsTab("mobile");
+        setView("settings");
         return;
       }
       setView(view as Parameters<typeof setView>[0]);
