@@ -25,7 +25,7 @@ import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
 import { buildTree, flattenNodes } from "../ChangedFilesTree";
 import { DiffSourceModeToggle } from "./DiffSourceModeToggle";
-import { DiffZoomControl } from "./DiffZoomControl";
+import { ZoomControl } from "../ui/ZoomControl";
 import {
   REVIEW_SOURCES,
   isPathEditable,
@@ -669,13 +669,13 @@ export function DiffReviewPane({
             Save
           </button>
         )}
-        <DiffZoomControl
-          fontSize={fontSize}
-          baseFontSize={baseFontSize}
-          min={FONT_SIZE_MIN}
-          max={FONT_SIZE_MAX}
-          onZoom={zoomBy}
+        <ZoomControl
+          percent={Math.round((fontSize / baseFontSize) * 100)}
+          onZoomIn={() => zoomBy(1)}
+          onZoomOut={() => zoomBy(-1)}
           onReset={zoomReset}
+          canZoomIn={fontSize < FONT_SIZE_MAX}
+          canZoomOut={fontSize > FONT_SIZE_MIN}
         />
         <div className="h-4 w-px shrink-0 bg-[var(--border)]" />
         <Tooltip content="Refresh changes" side="bottom">

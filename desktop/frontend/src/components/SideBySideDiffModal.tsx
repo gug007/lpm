@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "./ui/Modal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { ZoomControl } from "./ui/ZoomControl";
+import { useContentZoom } from "../hooks/useContentZoom";
 import { XIcon } from "./icons";
 import { main } from "../../bridge/models";
 import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./review/MonacoDiffPool";
@@ -22,13 +24,6 @@ import {
 type ChangedFile = main.ChangedFile;
 
 const BASE_DIFF_FONT_PX = 11;
-const BASE_ZOOM = 1;
-const ZOOM_MIN = 0.6;
-const ZOOM_MAX = 2.5;
-const ZOOM_STEP = 0.1;
-
-const clamp = (v: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, v));
 
 interface Props {
   open: boolean;
@@ -51,20 +46,10 @@ export function SideBySideDiffModal({
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(BASE_ZOOM);
   const [dirtyCount, setDirtyCount] = useState(0);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const stackRef = useRef<MonacoDiffPoolHandle>(null);
-  const wheelStateRef = useRef<{ delta: number; scheduled: boolean }>({
-    delta: 0,
-    scheduled: false,
-  });
-
-  const zoomIn = () =>
-    setZoom((z) => clamp(+(z + ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
-  const zoomOut = () =>
-    setZoom((z) => clamp(+(z - ZOOM_STEP).toFixed(2), ZOOM_MIN, ZOOM_MAX));
-  const zoomReset = () => setZoom(BASE_ZOOM);
+  const zoom = useContentZoom(open);
 
   const tree = useMemo(() => buildTree(files), [files]);
   // Render the diff stack in the same order the tree lists files.
@@ -77,37 +62,6 @@ export function SideBySideDiffModal({
     setConfirmDiscard(false);
     setDirtyCount(0);
   }, [open, orderedFiles]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key === "=" || e.key === "+") { e.preventDefault(); zoomIn(); }
-      else if (e.key === "-" || e.key === "_") { e.preventDefault(); zoomOut(); }
-      else if (e.key === "0") { e.preventDefault(); zoomReset(); }
-    };
-    // Trackpad pinch fires wheel events with ctrlKey=true in Chromium/WebKit;
-    // Cmd/Ctrl + scroll-wheel is the equivalent on a mouse.
-    // rAF-throttled so a 60Hz pinch gesture batches into one re-render per frame.
-    const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-      wheelStateRef.current.delta += e.deltaY;
-      if (wheelStateRef.current.scheduled) return;
-      wheelStateRef.current.scheduled = true;
-      requestAnimationFrame(() => {
-        const d = wheelStateRef.current.delta;
-        wheelStateRef.current = { delta: 0, scheduled: false };
-        setZoom((z) => clamp(+(z - d * 0.01).toFixed(2), ZOOM_MIN, ZOOM_MAX));
-      });
-    };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("wheel", onWheel, { passive: false });
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("wheel", onWheel);
-    };
-  }, [open]);
 
   const toggleCollapse = (path: string) => {
     setCollapsed((prev) => {
@@ -151,33 +105,14 @@ export function SideBySideDiffModal({
           </span>
         </h3>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] p-0.5 text-[var(--text-muted)]">
-            <button
-              onClick={zoomOut}
-              disabled={zoom <= ZOOM_MIN}
-              aria-label="Zoom out"
-              title="Zoom out (⌘-)"
-              className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-            >
-              −
-            </button>
-            <button
-              onClick={zoomReset}
-              title="Reset zoom (⌘0)"
-              className="min-w-[42px] rounded px-1.5 text-[11px] tabular-nums transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              onClick={zoomIn}
-              disabled={zoom >= ZOOM_MAX}
-              aria-label="Zoom in"
-              title="Zoom in (⌘+)"
-              className="rounded px-1.5 text-[13px] leading-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
-            >
-              +
-            </button>
-          </div>
+          <ZoomControl
+            percent={zoom.percent}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onReset={zoom.zoomReset}
+            canZoomIn={zoom.canZoomIn}
+            canZoomOut={zoom.canZoomOut}
+          />
           <button
             onClick={handleClose}
             aria-label="Close"
@@ -206,14 +141,14 @@ export function SideBySideDiffModal({
           ))}
         </div>
 
-        <div className="min-w-0 min-h-0 flex-1">
+        <div className="min-w-0 min-h-0 flex-1" ref={zoom.surfaceRef}>
           <MonacoDiffPool
             ref={stackRef}
             projectRoot={projectPath}
             files={orderedFiles}
             mode="working"
             baseBranch=""
-            fontSize={BASE_DIFF_FONT_PX * zoom}
+            fontSize={BASE_DIFF_FONT_PX * zoom.zoom}
             active={open}
             selected={selected}
             authority="commit"

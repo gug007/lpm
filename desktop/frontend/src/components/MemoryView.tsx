@@ -4,14 +4,22 @@ import { ReadMemorySessions, WriteMemorySession } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { MEMORY_CHANGED_EVENT, type MemorySession } from "../types";
 import { useNow } from "../hooks/useNow";
+import { useContentZoom } from "../hooks/useContentZoom";
 import { relativeTime } from "../relativeTime";
 import { MessageMarkdown } from "./MessageMarkdown";
+import { ZoomControl } from "./ui/ZoomControl";
 import { BrainIcon, ChevronLeftIcon, PencilIcon, PlusIcon } from "./icons";
 
 interface MemoryViewProps {
   projectName: string;
   visible: boolean;
+  // The pane owns the zoom shortcuts only while it has focus, so ⌘+/⌘− still
+  // resize the terminal font from anywhere else.
+  focused: boolean;
 }
+
+const ZOOM_KEY = "lpm.memory-zoom";
+const EDITOR_FONT_PX = 13;
 
 type View = { kind: "list" } | { kind: "detail"; name: string } | { kind: "create" };
 
@@ -52,7 +60,7 @@ function lastAgentOf(content: string): string {
 // edits the project's shared agent session memory in ~/.lpm/memory/<project>/.
 // Agents write the same files, so saves are compare-and-swap and the list
 // follows the memory watcher.
-export function MemoryView({ projectName, visible }: MemoryViewProps) {
+export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
   const [sessions, setSessions] = useState<MemorySession[]>([]);
   const [view, setView] = useState<View>({ kind: "list" });
   const [editing, setEditing] = useState(false);
@@ -60,6 +68,7 @@ export function MemoryView({ projectName, visible }: MemoryViewProps) {
   const [baseline, setBaseline] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [saving, setSaving] = useState(false);
+  const zoom = useContentZoom(visible && focused, ZOOM_KEY);
   useNow(visible, 30000);
 
   const refresh = useCallback(async () => {
@@ -181,6 +190,16 @@ export function MemoryView({ projectName, visible }: MemoryViewProps) {
           </>
         )}
         <div className="flex-1" />
+        {(detail || (view.kind === "list" && sessions.length > 0)) && (
+          <ZoomControl
+            percent={zoom.percent}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onReset={zoom.zoomReset}
+            canZoomIn={zoom.canZoomIn}
+            canZoomOut={zoom.canZoomOut}
+          />
+        )}
         {detail && !editing && (
           <>
             {stamp(detail)}
@@ -227,8 +246,8 @@ export function MemoryView({ projectName, visible }: MemoryViewProps) {
       )}
 
       {view.kind === "list" && sessions.length > 0 && (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-2xl px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto" ref={zoom.surfaceRef}>
+          <div className="mx-auto max-w-2xl px-6 py-5" style={{ zoom: zoom.zoom }}>
             <ul className="flex flex-col gap-2.5">
               {sessions.map((s) => {
                 const goal = goalOf(s.content);
@@ -269,8 +288,9 @@ export function MemoryView({ projectName, visible }: MemoryViewProps) {
         <div
           className="min-h-0 flex-1 cursor-text overflow-y-auto"
           onDoubleClick={() => startEdit(detail)}
+          ref={zoom.surfaceRef}
         >
-          <div className="mx-auto w-full max-w-2xl px-8 py-6">
+          <div className="mx-auto max-w-2xl px-8 py-6" style={{ zoom: zoom.zoom }}>
             <MessageMarkdown text={detail.content} />
           </div>
         </div>
@@ -292,7 +312,8 @@ export function MemoryView({ projectName, visible }: MemoryViewProps) {
             }}
             spellCheck={false}
             autoFocus
-            className="min-h-0 w-full flex-1 resize-none bg-[var(--bg-primary)] px-8 py-5 font-mono text-[13px] leading-6 text-[var(--text-primary)] focus:outline-none"
+            style={{ fontSize: EDITOR_FONT_PX * zoom.zoom, lineHeight: 1.7 }}
+            className="min-h-0 w-full flex-1 resize-none bg-[var(--bg-primary)] px-8 py-5 font-mono text-[var(--text-primary)] focus:outline-none"
           />
           <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-2.5">
             <span className="flex-1 text-[11px] text-[var(--text-muted)]">⌘⏎ save · esc cancel</span>
