@@ -1,6 +1,6 @@
 ---
 name: lpm-memory
-version: 1.3.0
+version: 1.4.1
 argument-hint: "[session-id]"
 description: "Shared project memory for AI coding agents: save or recall work-session logs in `~/.lpm/memory/<project>/<session>.md` so another agent CLI (Claude Code, Codex, Gemini) or a future session can continue the work by session name. Invoke with a session id (e.g. `/lpm-memory auth-refactor`) to continue that session. Use when the user asks to remember or save the session or progress, hand off work, record what was done, or recall/continue/resume/join a named work session. This is per-project memory shared between agent CLIs — distinct from any CLI's own built-in memory."
 ---
@@ -35,12 +35,14 @@ Invocation:
 
    ```markdown
    ### <YYYY-MM-DD HH:MM> — <agent>
-   - what was accomplished
-   - key decisions and why
-   - unfinished work / next step
+   - Done: what shipped or changed, in outcome terms
+   - Decided: choices made and why, including approaches tried and dropped
+   - Learned: surprises and gotchas the next agent must know
+   - Open: unresolved questions / blockers
+   - Next: unfinished work / immediate next step
    ```
 
-   `<agent>` = your CLI name (claude, codex, ...), local time. Keep it brief — a briefing, not a diary.
+   `<agent>` = your CLI name (claude, codex, ...), local time. Drop empty lines; keep it brief.
 
 ## Recall (continue / join)
 
