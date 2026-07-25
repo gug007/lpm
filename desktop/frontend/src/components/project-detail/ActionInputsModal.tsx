@@ -20,9 +20,11 @@ export function ActionInputsModal({ projectName, action, onCancel, onSubmit }: A
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const inp of inputs) {
-      const remembered = inp.persist
-        ? localStorage.getItem(persistKey(projectName, action.name, inp.key))
-        : null;
+      // Secrets never touch localStorage, even if the YAML says persist.
+      const remembered =
+        inp.persist && inp.type !== "password"
+          ? localStorage.getItem(persistKey(projectName, action.name, inp.key))
+          : null;
       init[inp.key] = remembered ?? inp.default ?? "";
     }
     return init;
@@ -37,7 +39,7 @@ export function ActionInputsModal({ projectName, action, onCancel, onSubmit }: A
     e.preventDefault();
     if (!canSubmit) return;
     for (const inp of inputs) {
-      if (inp.persist) {
+      if (inp.persist && inp.type !== "password") {
         localStorage.setItem(persistKey(projectName, action.name, inp.key), values[inp.key] ?? "");
       }
     }

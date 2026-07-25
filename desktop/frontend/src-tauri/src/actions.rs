@@ -167,6 +167,38 @@ struct ActionPlan {
     on_exit: Option<Box<dyn FnOnce() + Send>>,
 }
 
+/// Characters that pass through a POSIX shell unquoted. Values outside this
+/// set are single-quoted before they land in `cmd`, so a space stays one
+/// argument and a `;` stays data. Matches shellSafeValue in actionInputs.ts.
+fn shell_safe_value(v: &str) -> bool {
+    !v.is_empty()
+        && v.bytes()
+            .all(|b| b.is_ascii_alphanumeric() | matches!(b, b'_' | b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'-'))
+}
+
+/// Substitute {{key}} inputs into the resolved action. `cmd` is a shell
+/// context, so values are quoted unless they're plainly safe; `{{key|raw}}`
+/// opts a token out for users deliberately splicing command fragments. `cwd`
+/// and `env` values are not shell text — they substitute verbatim. (The saved
+/// `prompt` substitutes frontend-side in useProjectActions.)
+fn substitute_inputs(a: &mut config::ActionResolved, input_values: &HashMap<String, String>) {
+    for (k, v) in input_values {
+        let escaped = if shell_safe_value(v) {
+            v.clone()
+        } else {
+            config::shell_quote(v)
+        };
+        a.cmd = a
+            .cmd
+            .replace(&format!("{{{{{k}|raw}}}}"), v)
+            .replace(&format!("{{{{{k}}}}}"), &escaped);
+        a.cwd = a.cwd.replace(&format!("{{{{{k}}}}}"), v);
+        for val in a.env.values_mut() {
+            *val = val.replace(&format!("{{{{{k}}}}}"), v);
+        }
+    }
+}
+
 /// resolveActionCommand: resolve the action, substitute {{key}} inputs, and build
 /// the local script or the remote ssh command line.
 fn resolve_action_command(
@@ -177,15 +209,7 @@ fn resolve_action_command(
 ) -> Result<ActionPlan, String> {
     let mut a = config::resolve_action_full(project, action)
         .ok_or_else(|| format!("action {action:?} not found in project {project:?}"))?;
-
-    // Literal {{key}} -> value. Tokens are disjoint, so sequential replace is
-    // equivalent to Go's single-pass strings.Replacer. Keys are user tokens —
-    // no case conversion.
-    if !input_values.is_empty() {
-        for (k, v) in input_values {
-            a.cmd = a.cmd.replace(&format!("{{{{{k}}}}}"), v);
-        }
-    }
+    substitute_inputs(&mut a, input_values);
 
     let info = config::spawn_info(project)?;
     if info.is_remote {
@@ -508,4 +532,80 @@ pub fn cancel_action_background(run_id: String) -> Result<(), String> {
         proctree::kill_tree_async(pid);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod input_substitution_tests {
+    use super::*;
+
+    fn action(cmd: &str, cwd: &str, env: &[(&str, &str)]) -> config::ActionResolved {
+        config::ActionResolved {
+            cmd: cmd.into(),
+            cwd: cwd.into(),
+            ports: Vec::new(),
+            env: env
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            mode: String::new(),
+            kind: String::new(),
+        }
+    }
+
+    fn values(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn safe_values_substitute_verbatim() {
+        let mut a = action("./deploy.sh --env {{env}}", "", &[]);
+        substitute_inputs(&mut a, &values(&[("env", "staging")]));
+        assert_eq!(a.cmd, "./deploy.sh --env staging");
+    }
+
+    #[test]
+    fn a_space_stays_one_argument() {
+        let mut a = action("git tag {{tag}}", "", &[]);
+        substitute_inputs(&mut a, &values(&[("tag", "v1 final")]));
+        assert_eq!(a.cmd, "git tag 'v1 final'");
+    }
+
+    #[test]
+    fn shell_metacharacters_stay_data() {
+        let mut a = action("echo {{msg}}", "", &[]);
+        substitute_inputs(&mut a, &values(&[("msg", "hi; rm -rf /")]));
+        assert_eq!(a.cmd, "echo 'hi; rm -rf /'");
+    }
+
+    #[test]
+    fn embedded_quotes_are_escaped() {
+        let mut a = action("echo {{msg}}", "", &[]);
+        substitute_inputs(&mut a, &values(&[("msg", "it's")]));
+        assert_eq!(a.cmd, "echo 'it'\\''s'");
+    }
+
+    #[test]
+    fn empty_value_becomes_an_explicit_empty_argument() {
+        let mut a = action("run {{flag}}", "", &[]);
+        substitute_inputs(&mut a, &values(&[("flag", "")]));
+        assert_eq!(a.cmd, "run ''");
+    }
+
+    #[test]
+    fn raw_modifier_splices_verbatim() {
+        let mut a = action("sh -c {{frag|raw}}", "", &[]);
+        substitute_inputs(&mut a, &values(&[("frag", "a | b")]));
+        assert_eq!(a.cmd, "sh -c a | b");
+    }
+
+    #[test]
+    fn cwd_and_env_substitute_without_quoting() {
+        let mut a = action("make", "packages/{{pkg}}", &[("TARGET", "{{pkg}} build")]);
+        substitute_inputs(&mut a, &values(&[("pkg", "web app")]));
+        assert_eq!(a.cwd, "packages/web app");
+        assert_eq!(a.env["TARGET"], "web app build");
+    }
 }

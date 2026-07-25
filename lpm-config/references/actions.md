@@ -130,6 +130,10 @@ Input fields support `label`, `type`, `required`, `placeholder`, `default`, `per
 
 Inputs are prompted in `position` order, then in key order. Set `position` when the prompt order should follow the command rather than the alphabet; leave it off when key order already reads correctly.
 
+`{{key}}` tokens substitute into `cmd`, `cwd`, `env` values, and the action's `prompt`. In `cmd` the answer is shell-quoted automatically when it contains spaces or shell metacharacters, so an answer is always one argument and never a second command; do not wrap tokens in your own quotes. Use `{{key|raw}}` to splice an answer into `cmd` verbatim when it is deliberately a command fragment. Substitution into `cwd`, `env`, and `prompt` is always verbatim — those are not shell text.
+
+`persist` is ignored for `password` inputs: secrets are never stored.
+
 ## Ports
 
 ```yaml

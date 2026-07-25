@@ -10,6 +10,8 @@ import {
   removeToken,
   renameToken,
   resolveCommand,
+  substituteCommand,
+  substituteText,
   syncInputsToCommand,
 } from "./actionInputs";
 import type { InputDraft } from "./actionInputs";
@@ -55,6 +57,64 @@ describe("syncInputsToCommand", () => {
   it("returns the same array when nothing moved, so state stays stable", () => {
     const inputs = [draft("env")];
     expect(syncInputsToCommand(inputs, "go {{env}}")).toBe(inputs);
+  });
+});
+
+describe("substituteCommand", () => {
+  it("substitutes safe values verbatim", () => {
+    expect(substituteCommand("./deploy.sh --env {{env}}", { env: "staging" })).toBe(
+      "./deploy.sh --env staging",
+    );
+  });
+
+  it("quotes a value with a space so it stays one argument", () => {
+    expect(substituteCommand("git tag {{tag}}", { tag: "v1 final" })).toBe(
+      "git tag 'v1 final'",
+    );
+  });
+
+  it("keeps shell metacharacters as data", () => {
+    expect(substituteCommand("echo {{msg}}", { msg: "hi; rm -rf /" })).toBe(
+      "echo 'hi; rm -rf /'",
+    );
+  });
+
+  it("escapes embedded quotes", () => {
+    expect(substituteCommand("echo {{msg}}", { msg: "it's" })).toBe(
+      "echo 'it'\\''s'",
+    );
+  });
+
+  it("turns an empty value into an explicit empty argument", () => {
+    expect(substituteCommand("run {{flag}}", { flag: "" })).toBe("run ''");
+  });
+
+  it("splices {{key|raw}} verbatim", () => {
+    expect(substituteCommand("sh -c {{frag|raw}}", { frag: "a | b" })).toBe(
+      "sh -c a | b",
+    );
+  });
+});
+
+describe("substituteText", () => {
+  it("substitutes verbatim with no quoting, both token forms", () => {
+    expect(
+      substituteText("review PR {{pr}} in {{dir|raw}}", {
+        pr: "#42 (urgent)",
+        dir: "a b",
+      }),
+    ).toBe("review PR #42 (urgent) in a b");
+  });
+});
+
+describe("raw-modifier tokens in the editor", () => {
+  it("commandTokens sees the key behind |raw", () => {
+    expect(commandTokens("run {{frag|raw}} {{env}}")).toEqual(["frag", "env"]);
+  });
+
+  it("rename and remove handle both forms", () => {
+    expect(renameToken("{{a|raw}} {{a}}", "a", "b")).toBe("{{b|raw}} {{b}}");
+    expect(removeToken("run {{a|raw}} --x {{a}}", "a")).toBe("run --x");
   });
 });
 

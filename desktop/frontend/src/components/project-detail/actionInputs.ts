@@ -32,8 +32,9 @@ export interface InputDraft {
 }
 
 // Matches the literal `{{key}}` the backend substitutes (config-side the
-// replace is exact, so no whitespace is tolerated inside the braces).
-const TOKEN = /\{\{([A-Za-z0-9_.-]+)\}\}/g;
+// replace is exact, so no whitespace is tolerated inside the braces). The
+// `|raw` modifier opts a token out of shell quoting at run time.
+const TOKEN = /\{\{([A-Za-z0-9_.-]+)(?:\|raw)?\}\}/g;
 
 const INPUT_TYPES = new Set<string>(["text", "radio", "password"]);
 
@@ -128,6 +129,8 @@ export function insertToken(
 
 export function removeToken(cmd: string, key: string): string {
   return cmd
+    .split(`{{${key}|raw}}`)
+    .join("")
     .split(`{{${key}}}`)
     .join("")
     .replace(/[^\S\n]{2,}/g, " ")
@@ -135,7 +138,49 @@ export function removeToken(cmd: string, key: string): string {
 }
 
 export function renameToken(cmd: string, from: string, to: string): string {
-  return cmd.split(`{{${from}}}`).join(`{{${to}}}`);
+  return cmd
+    .split(`{{${from}|raw}}`)
+    .join(`{{${to}|raw}}`)
+    .split(`{{${from}}}`)
+    .join(`{{${to}}}`);
+}
+
+// Mirrors shell_safe_value in actions.rs: values outside this set are
+// single-quoted before landing in a shell command.
+function shellSafeValue(v: string): boolean {
+  return /^[A-Za-z0-9_@%+=:,./-]+$/.test(v);
+}
+
+function shellEscapeValue(v: string): string {
+  return shellSafeValue(v) ? v : `'${v.replaceAll("'", "'\\''")}'`;
+}
+
+// Substitution for shell contexts (an action's cmd): values are quoted unless
+// plainly safe; `{{key|raw}}` splices verbatim. Matches substitute_inputs in
+// actions.rs so terminal/command actions behave like once/background ones.
+export function substituteCommand(
+  cmd: string,
+  values: Record<string, string>,
+): string {
+  return Object.entries(values).reduce(
+    (acc, [k, v]) =>
+      acc
+        .replaceAll(`{{${k}|raw}}`, v)
+        .replaceAll(`{{${k}}}`, shellEscapeValue(v)),
+    cmd,
+  );
+}
+
+// Substitution for non-shell text (prompt, cwd, env values): verbatim, both
+// token forms.
+export function substituteText(
+  text: string,
+  values: Record<string, string>,
+): string {
+  return Object.entries(values).reduce(
+    (acc, [k, v]) => acc.replaceAll(`{{${k}|raw}}`, v).replaceAll(`{{${k}}}`, v),
+    text,
+  );
 }
 
 // What the run dialog would submit for a question with nothing typed: its

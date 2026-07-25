@@ -1084,14 +1084,15 @@ struct Action: Identifiable {
 struct ActionInput: Identifiable {
     let key: String
     let label: String
-    let type: String   // "" (text) | "select"
+    let type: String   // "text" | "radio" | "password" (the Mac's input kinds)
     let required: Bool
     let placeholder: String
     let defaultValue: String
     let options: [ActionInputOption]
 
     var id: String { key }
-    var isSelect: Bool { type == "select" && !options.isEmpty }
+    var isSelect: Bool { (type == "radio" || type == "select") && !options.isEmpty }
+    var isSecret: Bool { type == "password" }
 
     init(_ o: [String: Any]) {
         key = o["key"] as? String ?? ""

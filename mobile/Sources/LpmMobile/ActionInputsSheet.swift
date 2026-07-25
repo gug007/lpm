@@ -29,6 +29,9 @@ struct ActionInputsSheet: View {
                                     Text(opt.label).tag(opt.value)
                                 }
                             }
+                        } else if input.isSecret {
+                            SecureField(input.placeholder.isEmpty ? input.label : input.placeholder,
+                                        text: binding(for: input))
                         } else {
                             TextField(input.placeholder.isEmpty ? input.label : input.placeholder,
                                       text: binding(for: input), axis: .vertical)

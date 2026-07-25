@@ -8,6 +8,10 @@ import {
 } from "../../bridge/commands";
 import type { TerminalViewHandle } from "../components/TerminalView";
 import type { ActionInfo } from "../types";
+import {
+  substituteCommand,
+  substituteText,
+} from "../components/project-detail/actionInputs";
 import { promptTextToSeed } from "../composerValue";
 import { useAppStore } from "../store/app";
 import {
@@ -87,11 +91,7 @@ export function useProjectActions({
   ): string | string[] | undefined => {
     if (opts.prompt !== undefined) return opts.prompt;
     if (!action.prompt?.trim()) return undefined;
-    const substituted = Object.entries(inputValues).reduce(
-      (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
-      action.prompt,
-    );
-    return promptTextToSeed(substituted);
+    return promptTextToSeed(substituteText(action.prompt, inputValues));
   };
 
   const executeAction = async (
@@ -119,13 +119,18 @@ export function useProjectActions({
           });
           return;
         }
-        const cmd = Object.entries(inputValues).reduce(
-          (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
-          action.cmd,
-        );
+        const cmd = substituteCommand(action.cmd, inputValues);
+        const env = action.env
+          ? Object.fromEntries(
+              Object.entries(action.env).map(([k, v]) => [
+                k,
+                substituteText(v, inputValues),
+              ]),
+            )
+          : undefined;
         await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, {
-          cwd: action.cwd,
-          env: action.env,
+          cwd: action.cwd && substituteText(action.cwd, inputValues),
+          env,
           actionName: action.name,
           reuse: action.reuse,
           emoji: action.emoji,
@@ -139,11 +144,9 @@ export function useProjectActions({
     }
     if (action.type === "command") {
       onSwitchToTerminal();
-      const cmd = Object.entries(inputValues).reduce(
-        (acc, [k, v]) => acc.replaceAll(`{{${k}}}`, v),
-        action.cmd,
+      terminalViewRef.current?.sendCommandToActive(
+        substituteCommand(action.cmd, inputValues),
       );
-      terminalViewRef.current?.sendCommandToActive(cmd);
       return;
     }
     if (action.type === "background") {
