@@ -185,6 +185,7 @@ macro_rules! all_command_handlers {
             read_config,
             read_file,
             read_global_config,
+            read_memory_sessions,
             read_pr_description_instructions,
             read_pr_title_instructions,
             read_project_instructions,
@@ -293,6 +294,7 @@ macro_rules! all_command_handlers {
             voice_to_text_toggle,
             write_file,
             write_file_if_unchanged,
+            write_memory_session,
             write_terminal
         ]
     };

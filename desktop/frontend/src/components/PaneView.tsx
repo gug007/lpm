@@ -6,6 +6,7 @@ import { BrowserPane } from "./BrowserPane";
 import { BrowserMirrorPlaceholder } from "./BrowserMirrorPlaceholder";
 import { IS_MIRROR_WINDOW } from "../mirror";
 import { DiffReviewPane } from "./review/DiffReviewPane";
+import { MemoryView } from "./MemoryView";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
@@ -22,7 +23,7 @@ import {
 } from "./terminal/icons";
 import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon } from "./icons";
+import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon, BrainIcon } from "./icons";
 import { Columns2 } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
@@ -80,6 +81,7 @@ function BrowserTabIcon({ id }: { id: string }) {
 function TabIcon({ tab }: { tab: TerminalInstance }) {
   if (tab.kind === "browser") return <BrowserTabIcon id={tab.id} />;
   if (tab.kind === "review") return <CodeIcon />;
+  if (tab.kind === "memory") return <BrainIcon />;
   if (tab.emoji)
     return (
       <span
@@ -555,6 +557,8 @@ function PaneViewImpl(props: PaneViewProps) {
                     active={visible && isActive}
                   />
                 </ErrorBoundary>
+              ) : t.kind === "memory" ? (
+                <MemoryView projectName={projectName} visible={visible && isActive} />
               ) : (
                 <InteractiveTab
                   terminalId={t.id}

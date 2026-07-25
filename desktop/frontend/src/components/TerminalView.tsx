@@ -11,7 +11,7 @@ const LOG_VIEWER = IS_MIRROR_WINDOW ? "mirror" : "main";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
-import { collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
+import { collectPanes, collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
 import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
@@ -72,6 +72,8 @@ export interface TerminalViewHandle {
   remoteRenameTerminal(id: string, label: string): void;
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
+  // Open (or focus) the session-memory tab, from the sidebar context menu.
+  openMemory(): void;
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, onResumeSession, ref }: TerminalViewProps) {
@@ -111,6 +113,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
+    addMemoryToPane,
     closeTerminal,
     closeOtherTerminals,
     focusTerminal,
@@ -355,6 +358,30 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [getPane, addReviewToPane, focusTerminal],
   );
 
+  const openMemoryInPane = useCallback(
+    (paneId: string) => {
+      const pane = getPane(paneId);
+      if (!pane) return;
+      const memoryIdx = pane.tabs.findIndex((t) => t.kind === "memory");
+      if (memoryIdx < 0) addMemoryToPane(paneId);
+      else focusTerminal(paneId, memoryIdx);
+    },
+    [getPane, addMemoryToPane, focusTerminal],
+  );
+
+  // Sidebar menu entry: focus the memory tab wherever it lives in the layout,
+  // or add one to the focused pane.
+  const openMemory = useCallback(() => {
+    for (const pane of tree ? collectPanes(tree) : []) {
+      const memoryIdx = pane.tabs.findIndex((t) => t.kind === "memory");
+      if (memoryIdx >= 0) {
+        focusTerminal(pane.id, memoryIdx);
+        return;
+      }
+    }
+    addMemoryToPane();
+  }, [tree, focusTerminal, addMemoryToPane]);
+
   const findInPane = useCallback(
     (paneId: string, query: string, direction: "next" | "prev"): boolean => {
       const handle = resolveActiveHandle(paneId);
@@ -488,6 +515,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "f", meta: true, whileTyping: false },
       { key: "i", meta: true },
       { key: "r", meta: true, shift: true },
+      { key: "m", meta: true, shift: true },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
@@ -501,6 +529,17 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           closeTerminal(pane.id, reviewIdx);
         } else {
           openReviewInPane(pane.id);
+        }
+        return;
+      }
+      if (matched.key === "m") {
+        const pane = getFocusedPane();
+        if (!pane) return;
+        const memoryIdx = pane.tabs.findIndex((t) => t.kind === "memory");
+        if (memoryIdx >= 0 && !pane.activeServiceName && pane.activeTabIdx === memoryIdx) {
+          closeTerminal(pane.id, memoryIdx);
+        } else {
+          openMemoryInPane(pane.id);
         }
         return;
       }
@@ -739,6 +778,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,
+      openMemory,
     }),
     [
       createTerminal,
@@ -751,6 +791,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,
+      openMemory,
     ],
   );
 

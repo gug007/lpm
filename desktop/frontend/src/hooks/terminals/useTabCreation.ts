@@ -20,6 +20,7 @@ import {
   makePaneLeaf,
   makeTerminal,
   makeBrowser,
+  makeMemory,
   makeReview,
   isTerminalTab,
   collectPanes,
@@ -318,6 +319,15 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
+  // Memory tabs have no PTY either — they render the session-memory page.
+  const addMemoryToPane = useCallback(
+    (paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return forward("addMemoryToPane", paneId);
+      addTerminal(makeMemory(nextId("memory")), paneId);
+    },
+    [addTerminal, forward],
+  );
+
   return {
     createTerminal,
     adoptTerminal,
@@ -328,5 +338,6 @@ export function useTabCreation({
     addTerminalToPane,
     addBrowserToPane,
     addReviewToPane,
+    addMemoryToPane,
   };
 }

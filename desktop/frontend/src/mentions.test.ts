@@ -70,6 +70,28 @@ describe("rankMentions", () => {
     expect(out[0].label).toBe("src/App.tsx");
   });
 
+  it("orders memory above changed files and projects", () => {
+    const changed: MentionItem = { kind: "changed", label: "src/App.tsx", insert: "src/App.tsx" };
+    const mem: MentionItem = {
+      kind: "memory",
+      label: "auth-refactor",
+      insert: "auth-refactor",
+      detail: "Auth refactor",
+    };
+    const out = rankMentions([...projects, mem, changed], "");
+    expect(out.map((m) => m.kind)).toEqual(["memory", "changed", "project", "duplicate"]);
+  });
+
+  it("matches a memory session by name", () => {
+    const mem: MentionItem = {
+      kind: "memory",
+      label: "auth-refactor",
+      insert: "/Users/me/lpm/.lpm/memory/auth-refactor.md",
+    };
+    const out = rankMentions([...projects, mem, ...files], "auth");
+    expect(out.map((m) => m.label)).toEqual(["auth-refactor"]);
+  });
+
   it("ranks a matching branch by name", () => {
     const branch: MentionItem = { kind: "branch", label: "feat/composer", insert: "feat/composer" };
     const out = rankMentions([...projects, branch, ...files], "feat");

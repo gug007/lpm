@@ -1234,9 +1234,10 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
         }
         // Numbered duplicate names get reused; purge per-name state so the
         // next project under this name doesn't inherit the removed one's
-        // notes, instructions, or terminal layout.
+        // notes, instructions, session memory, or terminal layout.
         app.state::<crate::notes_cmds::NotesState>().purge(name);
         let _ = config::remove_dir_all_retry(&crate::templates::project_instructions_dir(name));
+        crate::session_memory_files::purge_project(name);
         clean_terminals_entry(name);
     }
     std::fs::remove_file(config::project_path(name)).map_err(|e| e.to_string())?;

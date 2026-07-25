@@ -781,8 +781,9 @@ fn run_ai(
         if se.is_empty() {
             return Err(format!("{cli} failed"));
         }
-        let capped = &se[..se.len().min(1024)];
-        return Err(format!("{cli} failed:\n{capped}"));
+        // The cause comes last (codex front-loads its banner and prompt echo),
+        // so keep the tail.
+        return Err(format!("{cli} failed:\n{}", str_tail(se, 1024)));
     }
     if !is_claude {
         let _ = app.emit(event, "Done.");
@@ -890,6 +891,17 @@ fn truncate(s: &str, n: usize) -> String {
         end -= 1;
     }
     format!("{}…", &s[..end])
+}
+
+fn str_tail(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        return s;
+    }
+    let mut start = s.len() - max;
+    while !s.is_char_boundary(start) {
+        start += 1;
+    }
+    &s[start..]
 }
 
 fn truncate_diff(s: &str, max: usize) -> String {
@@ -1477,6 +1489,24 @@ mod cancel_tests {
         assert!(take_canceled("gen-2"));
         // A later run reusing the id must not inherit the cancel.
         assert!(!take_canceled("gen-2"));
+    }
+}
+
+#[cfg(test)]
+mod str_tail_tests {
+    use super::*;
+
+    #[test]
+    fn keeps_the_end_where_cli_errors_land() {
+        assert_eq!(str_tail("short", 1024), "short");
+        assert_eq!(str_tail("banner then ERROR: limit", 12), "ERROR: limit");
+    }
+
+    #[test]
+    fn splits_on_char_boundaries() {
+        // 'é' is 2 bytes; a cut at byte 1 from the end lands mid-char.
+        assert_eq!(str_tail("éé", 1), "");
+        assert_eq!(str_tail("éé", 3), "é");
     }
 }
 

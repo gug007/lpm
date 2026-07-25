@@ -43,6 +43,7 @@ pub fn uninstall_app(
     // removal proceeds regardless.
     let _ = crate::services::stop_all(app.clone(), state);
     let _ = crate::hooks::remove_agent_hooks_for_uninstall();
+    let _ = crate::session_memory::remove_for_uninstall();
     let _ = crate::skill_install::remove_agent_skills();
     let _ = crate::cli_install::remove_managed_symlink();
 

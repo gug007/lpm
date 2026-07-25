@@ -44,6 +44,8 @@ mod pty;
 mod remote;
 mod remotetls;
 mod services;
+mod session_memory;
+mod session_memory_files;
 mod skill_install;
 mod sockdeliver;
 mod socketsrv;
@@ -108,6 +110,7 @@ use projects_crud::*;
 use pty::*;
 use remote::*;
 use services::*;
+use session_memory_files::{read_memory_sessions, write_memory_session};
 use skill_install::*;
 use sound::*;
 use sshconfig::*;
@@ -245,6 +248,7 @@ pub fn run() {
                 cli_install::repair_symlink_quietly();
                 hooks::reapply_claude_limits_if_enabled();
                 hooks::refresh_active_claude_statusline_template();
+                session_memory::cleanup_at_startup();
             });
 
             // Check for updates on startup, then every 24h while the app runs

@@ -1,7 +1,9 @@
 // Model + matching for the composer's "@" autocomplete, which lets a prompt
 // reference a project, a project duplicate, a file/folder under the terminal's
-// working dir, a working-tree change, a branch, a running service's logs, or the
-// terminal's own output. Most kinds insert literal "@<insert>" text the AI agent
+// working dir, a working-tree change, a branch, a running service's logs, or
+// the terminal's own output. The "memory" kind rides the "@" pool in agent
+// terminals (picking one inserts the CLI's own lpm-memory invocation) and also
+// backs the "/lpm-memory <session-id>" argument completion. Most kinds insert literal "@<insert>" text the AI agent
 // resolves itself; "service-log" and "terminal-log" are the exceptions — lpm
 // captures the live output at pick time and injects it inline, since the agent
 // can't read lpm's in-memory tmux pane buffer or xterm's scrollback.
@@ -15,6 +17,9 @@ export type MentionKind =
   | "duplicate"
   | "changed"
   | "branch"
+  | "memory"
+  | "memory-group"
+  | "memory-save"
   | "service-log"
   | "terminal-log";
 
@@ -48,18 +53,22 @@ export const MENTION_TRIGGER = /(?:^|[\s￼])@([^\s@]*)$/;
 // Cap the rendered list; the menu is for picking, not browsing a whole tree.
 const LIMIT = 50;
 
-// Lower sorts first. A working-tree change is the most relevant thing to point an
-// agent at, then projects, then the terminal's own output, then a service's logs,
-// then branches, then plain files.
+// Lower sorts first. Memory leads — one compact group row whose whole point is
+// picking up prior work — then working-tree changes (the most relevant files to
+// point an agent at), then projects, then the terminal's own output, then a
+// service's logs, then branches, then plain files.
 const GROUP_ORDER: Record<MentionKind, number> = {
-  changed: 0,
-  project: 1,
-  duplicate: 1,
-  "terminal-log": 2,
-  "service-log": 3,
-  branch: 4,
-  dir: 5,
-  file: 5,
+  memory: 0,
+  "memory-group": 0,
+  "memory-save": 0,
+  changed: 1,
+  project: 2,
+  duplicate: 2,
+  "terminal-log": 3,
+  "service-log": 4,
+  branch: 5,
+  dir: 6,
+  file: 6,
 };
 
 // Rank one pre-ordered pool. Within a match tier a basename-prefix hit beats a

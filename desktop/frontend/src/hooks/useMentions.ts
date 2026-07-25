@@ -40,6 +40,10 @@ export function useMentions(
   terminals: { id: string; label: string }[],
   ownTerminalId: string,
   active: boolean,
+  // Caller-supplied extra items riding the ranked pool — the composer passes
+  // its memory sessions here (agent terminals only), so "@" offers them without
+  // this hook owning a second data source.
+  extraItems: MentionItem[] = [],
 ) {
   const projects = useAppStore((s) => s.projects);
   const project = useMemo(
@@ -216,8 +220,8 @@ export function useMentions(
   // keystroke. rankMentions orders by group, so a source's array position only
   // breaks intra-group ties — branches can ride at the tail of the full pool.
   const basePool = useMemo(
-    () => [...changed, ...projectItems, ...terminalItems, ...serviceItems, ...plainFiles],
-    [changed, projectItems, terminalItems, serviceItems, plainFiles],
+    () => [...changed, ...extraItems, ...projectItems, ...terminalItems, ...serviceItems, ...plainFiles],
+    [changed, extraItems, projectItems, terminalItems, serviceItems, plainFiles],
   );
   const fullPool = useMemo(() => [...basePool, ...branches], [basePool, branches]);
 

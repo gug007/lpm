@@ -217,6 +217,23 @@ export const STATUS_ERROR = "Error";
 
 export const GIT_CHANGED_EVENT = "git-changed";
 
+export const MEMORY_CHANGED_EVENT = "memory-changed";
+
+export interface MemorySession {
+  name: string;
+  title: string;
+  path: string;
+  updatedAt: number;
+  size: number;
+  content: string;
+}
+
+export interface MemoryState {
+  exists: boolean;
+  dir: string;
+  sessions: MemorySession[];
+}
+
 export type AICLI = "claude" | "codex" | "gemini" | "opencode";
 
 export function isAICLI(v: unknown): v is AICLI {

@@ -939,6 +939,25 @@ export function replaceMentionFragment(
   return replaceMentionFragmentWith(root, `@${value} `);
 }
 
+// Replace the bare `frag` (a command argument, no trigger char) preceding the
+// caret with "<value> ", leaving the caret after the trailing space. The caller
+// supplies the fragment it matched on the caret's line; an empty fragment just
+// inserts. Same Selection.modify + insertText mechanics as the "/" and "@"
+// variants, so WebKit-split text nodes and grapheme clusters are handled.
+export function replaceArgFragment(
+  root: HTMLElement,
+  frag: string,
+  value: string,
+): boolean {
+  const sel = window.getSelection();
+  if (!sel || !sel.isCollapsed) return false;
+  const fragLen = graphemeCount(frag);
+  for (let i = 0; i < fragLen; i++)
+    sel.modify("extend", "backward", "character");
+  document.execCommand("insertText", false, `${value} `);
+  return true;
+}
+
 // Replace the "@<frag>" preceding the caret with arbitrary `text` (no leading
 // "@"), used when a mention expands to injected content — e.g. a service's
 // captured logs — instead of a literal token the agent resolves. `text` may hold
@@ -961,9 +980,10 @@ export function replaceMentionFragmentWith(
   return true;
 }
 
-// A leading slash command on the first line: optional indent, "/name", then a
-// space or end — so a path like "/usr/bin" (slash inside) never matches.
-const COMMAND_TOKEN_RE = /^(\s*)(\/[a-z0-9:_-]+)(?=\s|$)/i;
+// A leading command on the first line: optional indent, "/name" (a CLI slash
+// command) or "$name" (Codex's skill-mention form), then a space or end — so a
+// path like "/usr/bin" (slash inside) never matches.
+const COMMAND_TOKEN_RE = /^(\s*)([/$][a-z0-9:_-]+)(?=\s|$)/i;
 
 function firstTextNode(root: HTMLElement): Text | null {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -1028,20 +1048,52 @@ function unwrapCmdSpans(root: HTMLElement): void {
   root.normalize();
 }
 
+// The lpm-memory invocation in either CLI's form ("/" Claude, "$" Codex)
+// followed by a session-id token — the id is wrapped as a pill when it names a
+// known session (see highlightCommand).
+const MEMORY_ARG_TOKEN_RE = /^\s*[/$]lpm-memory\s+([a-z0-9-]+)(?=\s|$)/i;
+
 // Color a recognized leading "/command" in the composer the way the CLIs do. The
 // command is wrapped in an inline span (serialized away by serializeEditor) only
-// when `isCommand` recognizes it, so partial/unknown tokens stay plain. Idempotent
-// and caret-preserving: when the wrap is already correct it does nothing, so steady
-// typing of arguments never restructures the DOM.
+// when `isCommand` recognizes it, so partial/unknown tokens stay plain. When the
+// command is "/lpm-memory" and its first argument names a session in
+// `memorySessionIds`, that token is additionally wrapped as a hoverable pill.
+// Both wraps share the data-cmd family, so every serialization and caret path
+// treats them as plain inline text. Idempotent and caret-preserving: when the
+// wraps are already correct it does nothing, so steady typing of arguments never
+// restructures the DOM.
 export function highlightCommand(
   root: HTMLElement,
   isCommand: (name: string) => boolean,
+  memorySessionIds?: ReadonlySet<string>,
 ): void {
-  const match = COMMAND_TOKEN_RE.exec(leadingPlainText(root));
-  const want = match !== null && isCommand(match[2].slice(1));
+  const leading = leadingPlainText(root);
+  const match = COMMAND_TOKEN_RE.exec(leading);
+  // "$" tokens are otherwise shell-looking text ($PATH, $HOME) — only the
+  // lpm-memory skill mention earns the highlight.
+  const want =
+    match !== null &&
+    (match[2][0] === "$"
+      ? match[2].slice(1).toLowerCase() === "lpm-memory"
+      : isCommand(match[2].slice(1)));
+  const argMatch = want ? MEMORY_ARG_TOKEN_RE.exec(leading) : null;
+  const pillId =
+    argMatch && memorySessionIds?.has(argMatch[1].toLowerCase()) ? argMatch[1] : null;
+
   const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
-  if (want && spans.length === 1 && spans[0].textContent === match![2]) return;
   if (!want && spans.length === 0) return;
+  const cmdOk =
+    want && spans.length > 0 && spans[0].textContent === match![2] && spans[0].dataset.memchip === undefined;
+  if (cmdOk && pillId === null && spans.length === 1) return;
+  if (
+    cmdOk &&
+    pillId !== null &&
+    spans.length === 2 &&
+    spans[1].dataset.memchip === pillId &&
+    spans[1].textContent === pillId
+  ) {
+    return;
+  }
 
   const offset = caretCharOffset(root);
   unwrapCmdSpans(root);
@@ -1060,6 +1112,24 @@ export function highlightCommand(
         range.surroundContents(span);
       } catch {
         // A boundary we can't cleanly wrap — leave the text plain.
+      }
+      const after = span.isConnected ? span.nextSibling : null;
+      if (pillId !== null && after?.nodeType === Node.TEXT_NODE) {
+        const am = /^(\s+)([a-z0-9-]+)/i.exec((after as Text).nodeValue ?? "");
+        if (am && am[2] === pillId) {
+          const pillRange = document.createRange();
+          pillRange.setStart(after, am[1].length);
+          pillRange.setEnd(after, am[1].length + am[2].length);
+          const pill = document.createElement("span");
+          pill.dataset.cmd = "";
+          pill.dataset.memchip = pillId;
+          pill.className = "composer-memchip";
+          try {
+            pillRange.surroundContents(pill);
+          } catch {
+            // A boundary we can't cleanly wrap — leave the text plain.
+          }
+        }
       }
     }
   }

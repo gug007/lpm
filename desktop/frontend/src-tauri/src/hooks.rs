@@ -528,17 +528,58 @@ fn install_codex_hooks_at(codex_dir: &Path) {
     }
 }
 
-/// Pure: config.toml content with the codex_hooks feature enabled, or None when
-/// it already is. Shared by the local and remote installs.
+/// Pure: config.toml content with the hooks feature enabled — migrating the
+/// deprecated codex_hooks flag lpm used to write — or None when already up to
+/// date. Shared by the local and remote installs.
 fn merge_codex_feature(content: &str) -> Option<String> {
-    if content.contains("codex_hooks") {
+    let key_line = |line: &str, key: &str| {
+        line.trim_start()
+            .strip_prefix(key)
+            .is_some_and(|rest| rest.trim_start().starts_with('='))
+    };
+    let mut in_features = false;
+    let mut has_hooks = false;
+    let mut has_deprecated = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_features = t == "[features]";
+        } else if in_features {
+            has_hooks |= key_line(line, "hooks");
+            has_deprecated |= key_line(line, "codex_hooks");
+        }
+    }
+    if has_hooks && !has_deprecated {
         return None;
     }
-    Some(if content.contains("[features]") {
-        content.replacen("[features]", "[features]\ncodex_hooks = true", 1)
-    } else {
-        format!("{content}\n[features]\ncodex_hooks = true\n")
-    })
+
+    let mut out = String::new();
+    let mut in_features = false;
+    let mut seen_features = false;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_features = t == "[features]";
+            out.push_str(line);
+            out.push('\n');
+            if in_features && !seen_features {
+                seen_features = true;
+                if !has_hooks {
+                    out.push_str("hooks = true\n");
+                }
+            }
+            continue;
+        }
+        if in_features && key_line(line, "codex_hooks") {
+            continue;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if !seen_features {
+        out.push_str("\n[features]\nhooks = true\n");
+    }
+    Some(out)
 }
 
 /// Pure: merge the lpm Codex hooks into hooks.json `data` (missing/invalid →
@@ -2259,6 +2300,33 @@ mod tests {
             "SessionStart missing set_resume hook: {start:?}"
         );
         assert!(has_marker(&v["hooks"]));
+    }
+
+    #[test]
+    fn codex_feature_enables_hooks() {
+        assert_eq!(
+            merge_codex_feature("").unwrap(),
+            "\n[features]\nhooks = true\n"
+        );
+        assert_eq!(
+            merge_codex_feature("model = \"o3\"\n[features]\nweb = true\n").unwrap(),
+            "model = \"o3\"\n[features]\nhooks = true\nweb = true\n"
+        );
+        assert!(merge_codex_feature("[features]\nhooks = true\n").is_none());
+        // A hooks key outside [features] (e.g. lpm's own [hooks.state]) doesn't count.
+        let other_section = merge_codex_feature("[hooks.state]\nhooks = true\n").unwrap();
+        assert!(other_section.contains("[features]\nhooks = true\n"));
+    }
+
+    #[test]
+    fn codex_feature_migrates_deprecated_flag() {
+        let migrated =
+            merge_codex_feature("[features]\ncodex_hooks = true\n\n[other]\nx = 1\n").unwrap();
+        assert_eq!(migrated, "[features]\nhooks = true\n\n[other]\nx = 1\n");
+        // Both present: only the deprecated flag is dropped.
+        let both = merge_codex_feature("[features]\nhooks = true\ncodex_hooks = true\n").unwrap();
+        assert_eq!(both, "[features]\nhooks = true\n");
+        assert!(merge_codex_feature(&both).is_none(), "migration settles");
     }
 
     #[test]

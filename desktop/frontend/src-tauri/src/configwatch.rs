@@ -8,6 +8,7 @@
 // harmless.
 use crate::syncsurface::{is_sync_global_dir, is_sync_global_file, sync_global_dirs};
 use crate::{config, peersync};
+use std::collections::BTreeSet;
 use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
@@ -16,7 +17,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 const SETTLE: Duration = Duration::from_millis(500);
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 enum Category {
     Projects,
     Templates,
@@ -28,6 +29,10 @@ enum Category {
     // every persist is a full overwrite from memory, so a stale layout would
     // otherwise clobber it right back.
     Sidebar,
+    // memory/<project>/*.md: session memory, written by agent CLIs in a terminal
+    // rather than by lpm, so the pane only learns about a save from here. Carries
+    // the project segment so the emit names which project changed.
+    Memory(String),
 }
 
 #[derive(Default)]
@@ -35,6 +40,7 @@ struct Dirty {
     projects: bool,
     templates: bool,
     sidebar: bool,
+    memory: BTreeSet<String>,
 }
 
 /// Map a filesystem event path to the config category it affects, or `None` when
@@ -56,6 +62,7 @@ fn classify(lpm: &Path, path: &Path) -> Option<Category> {
         [name] => is_sync_global_file(name).then_some(Category::Projects),
         ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
         ["templates", ..] => Some(Category::Templates),
+        ["memory", project, ..] => Some(Category::Memory((*project).to_string())),
         [dir, ..] if is_sync_global_dir(dir) => Some(Category::Projects),
         _ => None,
     }
@@ -78,7 +85,14 @@ fn portable_settings_digest(path: &Path) -> Option<String> {
 /// socketsrv::start — the app still runs, external edits just won't propagate.
 pub fn start(app: AppHandle) {
     let lpm = config::lpm_dir();
-    let mut dirs = vec![lpm.clone(), config::projects_dir(), config::templates_dir()];
+    // ~/.lpm/memory is created here rather than on first save: notify can only
+    // watch a path that exists, and it is our own directory.
+    let mut dirs = vec![
+        lpm.clone(),
+        config::projects_dir(),
+        config::templates_dir(),
+        lpm.join("memory"),
+    ];
     dirs.extend(sync_global_dirs().map(|d| lpm.join(d)));
     for dir in &dirs {
         if let Err(e) = std::fs::create_dir_all(dir) {
@@ -105,6 +119,7 @@ pub fn start(app: AppHandle) {
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
             let (mut projects, mut templates, mut sidebar) = (false, false, false);
+            let mut memory: Vec<String> = Vec::new();
             for p in &ev.paths {
                 match classify(&cb_root, p) {
                     Some(Category::Projects) => projects = true,
@@ -117,14 +132,16 @@ pub fn start(app: AppHandle) {
                         settings_cache = new;
                     }
                     Some(Category::Sidebar) => sidebar = true,
+                    Some(Category::Memory(project)) => memory.push(project),
                     None => {}
                 }
             }
-            if projects || templates || sidebar {
+            if projects || templates || sidebar || !memory.is_empty() {
                 let mut d = cb_dirty.lock().unwrap();
                 d.projects |= projects;
                 d.templates |= templates;
                 d.sidebar |= sidebar;
+                d.memory.extend(memory);
                 let _ = tx.try_send(());
             }
         }) {
@@ -140,6 +157,7 @@ pub fn start(app: AppHandle) {
         (root.clone(), RecursiveMode::NonRecursive),
         (root.join("projects"), RecursiveMode::NonRecursive),
         (root.join("templates"), RecursiveMode::Recursive),
+        (root.join("memory"), RecursiveMode::Recursive),
     ];
     watches.extend(sync_global_dirs().map(|d| (root.join(d), RecursiveMode::Recursive)));
     for (path, mode) in &watches {
@@ -177,6 +195,11 @@ pub fn start(app: AppHandle) {
             }
             if d.sidebar {
                 let _ = app.emit("sidebar-changed", ());
+            }
+            // One emit per project whose memory changed; the payload lets a pane
+            // ignore other projects' saves.
+            for project in d.memory {
+                let _ = app.emit("memory-changed", project);
             }
             // Same debounced classification that emits the events also nudges the
             // auto-sync engine: a local config edit reconciles every auto-enabled
@@ -271,6 +294,21 @@ mod tests {
             classify(&lpm(), &at("templates/nested/x.yml")),
             Some(Category::Templates)
         );
+    }
+
+    #[test]
+    fn memory_files_carry_their_project() {
+        assert_eq!(
+            classify(&lpm(), &at("memory/web/auth-refactor.md")),
+            Some(Category::Memory("web".into()))
+        );
+        // The project directory appearing at all is a change worth emitting.
+        assert_eq!(
+            classify(&lpm(), &at("memory/web")),
+            Some(Category::Memory("web".into()))
+        );
+        // The memory root itself is not attributable to any project.
+        assert_eq!(classify(&lpm(), &at("memory")), None);
     }
 
     #[test]
