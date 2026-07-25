@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Brain, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import { relativeTime } from "../relativeTime";
@@ -88,7 +88,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
               : "text-[var(--composer-fg-muted)] hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
           }`}
         >
-          <BrainIcon />
+          <BrainIcon size={15} />
         </button>
       </Tooltip>
 
@@ -142,11 +142,9 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
                             title={session.detail || session.label}
                             className="group flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
                           >
-                            <Brain
-                              size={14}
-                              strokeWidth={1.75}
-                              className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-cyan)]"
-                            />
+                            <span className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-cyan)]">
+                              <BrainIcon />
+                            </span>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-[12.5px] leading-[17px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
                                 {session.label}
