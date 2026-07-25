@@ -75,12 +75,12 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
 
   return (
     <div ref={triggerRef}>
-      <Tooltip content="Project memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip content="Memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
           type="button"
           onMouseDown={keepEditorFocus}
           onClick={toggle}
-          aria-label="Project memory"
+          aria-label="Memory"
           aria-expanded={open}
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
             open

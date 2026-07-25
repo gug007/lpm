@@ -2075,6 +2075,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               terminalLabel={targetLabel}
               onPick={loadFromHistory}
               onSend={sendFromHistory}
+              initialCollection={COLLECTION_DRAFTS}
+              icon={<SquarePenIcon />}
+              tooltip="Drafts"
+              ariaLabel="Drafts"
             />
             <TerminalHistoryButton
               terminalId={historyKey}
@@ -2082,10 +2086,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               terminalLabel={targetLabel}
               onPick={loadFromHistory}
               onSend={sendFromHistory}
-              initialCollection={COLLECTION_DRAFTS}
-              icon={<SquarePenIcon />}
-              tooltip="Drafts"
-              ariaLabel="Drafts"
             />
             {memoryAvailable && (
               <ComposerMemoryButton

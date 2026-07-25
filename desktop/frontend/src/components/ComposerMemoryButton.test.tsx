@@ -39,7 +39,7 @@ function click(el: Element) {
   });
 }
 
-const trigger = () => container.querySelector("button[aria-label='Project memory']")!;
+const trigger = () => container.querySelector("button[aria-label='Memory']")!;
 const rows = () =>
   Array.from(document.querySelectorAll("body button")).filter((b) => !container.contains(b));
 
