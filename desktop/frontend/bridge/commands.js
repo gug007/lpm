@@ -556,6 +556,9 @@ export function ReadFile(absPath) {
 export function ReadGlobalConfig() {
   return invoke("read_global_config");
 }
+export function ReadMemorySessions(project) {
+  return invoke("read_memory_sessions", { project });
+}
 export function ReadPRDescriptionInstructions() {
   return invoke("read_pr_description_instructions");
 }
@@ -759,6 +762,9 @@ export function WriteFile(absPath, content) {
 }
 export function WriteFileIfUnchanged(absPath, expectedContent, content) {
   return invoke("write_file_if_unchanged", { absPath, expectedContent, content });
+}
+export function WriteMemorySession(project, name, content, baseline) {
+  return invoke("write_memory_session", { project, name, content, baseline });
 }
 export function WriteTerminal(id, data) {
   return invoke("write_terminal", { id, data });

@@ -1,0 +1,49 @@
+---
+name: lpm-memory
+version: 1.2.1
+argument-hint: "[session-id]"
+description: "Shared project memory for AI coding agents: save or recall work-session logs in `~/.lpm/memory/<project>/<session>.md` so another agent CLI (Claude Code, Codex, Gemini) or a future session can continue the work by session name. Invoke with a session id (e.g. `/lpm-memory auth-refactor`) to continue that session. Use when the user asks to remember or save the session or progress, hand off work, record what was done, or recall/continue/resume/join a named work session. This is per-project memory shared between agent CLIs — distinct from any CLI's own built-in memory."
+---
+
+Project memory lives in `~/.lpm/memory/<project>/<session>.md`, shared by every agent CLI. `<project>` is the lpm project name — `$LPM_PROJECT_NAME` when set, else the working directory's folder name. `<session>` is a kebab-case slug for one workstream (e.g. `auth-refactor`); each file is both the current handoff state and the work history.
+
+Invocation:
+
+- `/lpm-memory <session-id>` — Recall that session and continue it. Unknown id: offer close matches, or create it.
+- No argument — Remember work already done in this conversation; at the very start of one, pick or create the session instead.
+- Either way, keep the memory current from then on without being asked: extend your timeline entry and refresh `## Current state` after each milestone and when the user wraps up.
+
+## Remember (save / hand off)
+
+1. Session slug: the user's name for it, else the one existing file that matches the work, else derive one and confirm it before writing.
+2. Create the folder if missing. Seed a new file with:
+
+   ```markdown
+   # <Work title>
+
+   ## Goal
+   <one or two lines>
+
+   ## Current state
+   <where things stand, next steps, blockers>
+
+   ## Timeline
+   ```
+
+3. Rewrite `## Current state` to match reality now.
+4. Append to `## Timeline` — append-only: never edit earlier entries, including other agents'; one entry per conversation, extended on later saves:
+
+   ```markdown
+   ### <YYYY-MM-DD HH:MM> — <agent>
+   - what was accomplished;
+   - key decisions and why
+   - unfinished work / next step
+   ```
+
+   `<agent>` = your CLI name (claude, codex, ...), local time. Keep it brief — a briefing, not a diary.
+
+## Recall (continue / join)
+
+1. List `~/.lpm/memory/<project>/*.md`; read the named session, or show the list (name, last modified, goal line) and ask which one.
+2. `## Current state` is the source of truth; the newest timeline entries carry the freshest detail.
+3. State the next step you inferred, confirm direction, then continue — and Remember at the next stopping point.

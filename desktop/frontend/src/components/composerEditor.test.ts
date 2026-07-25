@@ -12,6 +12,7 @@ import {
   caretCharOffset,
   caretOffsetInSerialized,
   graphemeCount,
+  highlightCommand,
   lineBeforeCaret,
   placeCaretAtSerializedOffset,
 } from "./composerEditor";
@@ -268,5 +269,77 @@ describe("graphemeCount", () => {
   it("counts a base + combining mark as one grapheme", () => {
     // "e" + U+0301 combining acute accent.
     expect(graphemeCount("é")).toBe(1);
+  });
+});
+
+describe("highlightCommand memory pill", () => {
+  const known = new Set(["session-memory"]);
+  const isCmd = (n: string) => n === "lpm-memory";
+
+  it("wraps the command and a known session id as a pill", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory session-memory more"));
+    highlightCommand(root, isCmd, known);
+    const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
+    expect(spans.length).toBe(2);
+    expect(spans[0].textContent).toBe("/lpm-memory");
+    expect(spans[1].dataset.memchip).toBe("session-memory");
+    expect(spans[1].textContent).toBe("session-memory");
+    expect(spans[1].className).toBe("composer-memchip");
+    expect(root.textContent).toBe("/lpm-memory session-memory more");
+  });
+
+  it("leaves an unknown id plain", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory nope"));
+    highlightCommand(root, isCmd, known);
+    expect(root.querySelectorAll("[data-cmd]").length).toBe(1);
+    expect(root.querySelector("[data-memchip]")).toBeNull();
+  });
+
+  it("is idempotent once the wraps are correct", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory session-memory "));
+    highlightCommand(root, isCmd, known);
+    const before = root.innerHTML;
+    highlightCommand(root, isCmd, known);
+    expect(root.innerHTML).toBe(before);
+  });
+
+  it("drops the pill when the id is edited away", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory session-memory"));
+    highlightCommand(root, isCmd, known);
+    const pill = root.querySelector<HTMLElement>("[data-memchip]");
+    expect(pill).not.toBeNull();
+    pill!.textContent = "session-memoryx";
+    highlightCommand(root, isCmd, known);
+    expect(root.querySelector("[data-memchip]")).toBeNull();
+    expect(root.textContent).toBe("/lpm-memory session-memoryx");
+  });
+
+  it("keeps the serialized text identical with and without the pill", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory session-memory add auth notes"));
+    const plain = root.textContent;
+    highlightCommand(root, isCmd, known);
+    expect(root.textContent).toBe(plain);
+  });
+
+  it("wraps Codex's $lpm-memory form without needing the slash-command list", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("$lpm-memory session-memory"));
+    highlightCommand(root, () => false, known);
+    const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
+    expect(spans.length).toBe(2);
+    expect(spans[0].textContent).toBe("$lpm-memory");
+    expect(spans[1].dataset.memchip).toBe("session-memory");
+  });
+
+  it("leaves other $ tokens plain", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("$PATH is set"));
+    highlightCommand(root, () => false, known);
+    expect(root.querySelectorAll("[data-cmd]").length).toBe(0);
   });
 });

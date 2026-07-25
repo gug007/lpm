@@ -553,6 +553,22 @@ body {
   }
 }
 
+/* The "/lpm-memory <session-id>" pill in the composer. A styled data-cmd span —
+   ordinary editable text underneath, so serialization and the caret treat it as
+   the plain session id; the brain glyph is a pseudo-element and never enters
+   the text. */
+.composer-memchip {
+  border-radius: 6px;
+  padding: 0 5px 1px;
+  background: color-mix(in srgb, var(--accent-purple) 16%, transparent);
+  color: var(--accent-purple);
+  white-space: nowrap;
+}
+.composer-memchip::before {
+  content: "🧠 ";
+  font-size: 0.85em;
+}
+
 /* Opacity-only: a context menu opens under the cursor, so any transform that
    shifts its rows would slide them under the pointer and fire spurious
    mouseenter — flickering a submenu open. A plain fade keeps it still. */

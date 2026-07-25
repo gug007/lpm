@@ -71,7 +71,7 @@ interface SidebarProps {
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   onSelect: (name: string) => void;
-  onOpenProjectView: (name: string, view: "config" | "notes" | "ai") => void;
+  onOpenProjectView: (name: string, view: "config" | "notes" | "ai" | "memory") => void;
   onToggle: (name: string) => void;
   onTerminals: () => void;
   onStats: () => void;
@@ -957,6 +957,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
             onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
             onOpenAI={() => onOpenProjectView(contextMenu.name, "ai")}
+            onOpenMemory={() => onOpenProjectView(contextMenu.name, "memory")}
             onBulkDuplicate={() => setBulkDuplicate({ name: contextMenu.name, mode: "copy" })}
             onWorktree={() => setBulkDuplicate({ name: contextMenu.name, mode: "worktree" })}
             onCopyPath={() => {

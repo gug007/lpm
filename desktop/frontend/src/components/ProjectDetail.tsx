@@ -277,8 +277,9 @@ export function ProjectDetail({
     clearPendingRemoteAction,
   ]);
 
-  // Sidebar context menu asked to open this project's config/notes/AI view. The
-  // store selected+mounted us; switch the local detail view once per nonce.
+  // Sidebar context menu asked to open this project's config/notes/AI/memory
+  // view. The store selected+mounted us; switch the local detail view once per
+  // nonce.
   const pendingDetailView = useAppStore((s) => s.pendingDetailView);
   const clearPendingDetailView = useAppStore((s) => s.clearPendingDetailView);
   const detailViewConsumed = useRef(0);
@@ -294,7 +295,8 @@ export function ProjectDetail({
     detailViewConsumed.current = pendingDetailView.nonce;
     const view = pendingDetailView.view;
     clearPendingDetailView();
-    switchDetailView(view);
+    if (view === "memory") terminalRef.current?.openMemory();
+    else switchDetailView(view);
   }, [pendingDetailView, selectedProject, project.name, switchDetailView, clearPendingDetailView]);
 
   // Mobile relay: close / rename / pin a terminal tab, addressed by id. Same

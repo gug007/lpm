@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ClipboardEvent,
@@ -48,6 +49,7 @@ import { SendSplitButton } from "./SendSplitButton";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { PlusIcon, SquarePenIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
+import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
@@ -75,6 +77,7 @@ import {
   presentImageTokens,
   removeChip,
   renderFileChip,
+  replaceArgFragment,
   replaceMentionFragment,
   replaceMentionFragmentWith,
   replaceSlashFragment,
@@ -98,7 +101,8 @@ import { detectAICLI, type SlashCommand } from "../slashCommands";
 import { MentionMenu } from "./MentionMenu";
 import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
-import { MENTION_TRIGGER, type MentionItem } from "../mentions";
+import { useMemorySessions } from "../hooks/useMemorySessions";
+import { MENTION_TRIGGER, rankMentions, type MentionItem } from "../mentions";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -169,6 +173,11 @@ const SLASH_TRIGGER = /^\s*\/([a-z0-9:_-]*)$/i;
 // or any typed argument ends this state and hides the hint.
 const HINT_TRIGGER = /^\s*\/([a-z0-9:_-]+) $/i;
 
+// "/lpm-memory " (Claude) or "$lpm-memory " (Codex skill mention) with a
+// partial session id at the caret — completes the invocation's argument from
+// the project's memory sessions.
+const MEMORY_ARG_TRIGGER = /^\s*[/$]lpm-memory\s+([a-z0-9-]*)$/i;
+
 // A short, single-line label for a prompt tab: its text with attachment tokens
 // dropped, collapsed whitespace. With no text, name the draft by its attachment —
 // a file's basename, or "Image" for an image (the token alone can't tell them
@@ -207,7 +216,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [blank, setBlank] = useState(true);
   const [disabled, setDisabled] = useState(true);
   const [dragOver, setDragOver] = useState(false);
-  const [preview, setPreview] = useState<{ path: string; rect: DOMRect } | null>(null);
+  const [preview, setPreview] = useState<
+    | { kind: "image"; path: string; rect: DOMRect }
+    | { kind: "memory"; id: string; rect: DOMRect }
+    | null
+  >(null);
   // Local path of the image shown full-window in the lightbox, or null when closed.
   const [lightboxPath, setLightboxPath] = useState<string | null>(null);
   // The composer action currently being applied (drives the busy UI), or null.
@@ -235,6 +248,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [mentionIndex, setMentionIndex] = useState(0);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionRect, setMentionRect] = useState<DOMRect | null>(null);
+  // What the open mention menu completes: an "@" reference, the session-id
+  // argument of "/lpm-memory", or a session drilled into from the "@" menu's
+  // Memory group row. Same menu, keyboard nav, and anchor in every mode.
+  const [mentionMode, setMentionMode] = useState<"at" | "cmdArg" | "memoryPick">("at");
   // Ghost argument-hint shown after a completed "/command "; positioned at the
   // caret (and sized to the caret's line height so it sits on the text baseline),
   // relative to the composer box.
@@ -252,7 +269,49 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // "@" mentions work in every terminal composer, not just agent terminals — the
   // referenced text is useful to any CLI. They load only while the composer is
   // focused, so a background tab still pays nothing for the tree walk / git call.
-  const { filter: filterMentions, refresh: refreshMentions } = useMentions(cwd, projectName, terminals, terminalId, focused);
+  const { items: memorySessions, byId: memorySessionById, enabled: memoryAvailable } = useMemorySessions(projectName, focused);
+  const memorySessionIds = useMemo(
+    () => new Set(memorySessions.map((s) => s.insert)),
+    [memorySessions],
+  );
+  // The memory submenu: a save-this-conversation action first (empty insert =
+  // the bare invocation, which the skill treats as "record work done so far"),
+  // then the sessions to continue. The cmdArg completion keeps using the plain
+  // session list — an argument slot has no use for the save action.
+  const memoryMenuItems = useMemo<MentionItem[]>(
+    () => [
+      {
+        kind: "memory-save",
+        label: "Remember this conversation",
+        insert: "",
+      },
+      ...memorySessions,
+    ],
+    [memorySessions],
+  );
+  // Memory rides the "@" pool as one drill-in group row for every local
+  // project's composer — NOT gated on CLI detection, since agents are often
+  // launched by typing `claude`/`codex` into a plain terminal, where startCmd
+  // reveals nothing. The insertion picks the form from what IS known: "/" for
+  // a detected Claude terminal, the "$" skill mention otherwise.
+  const memoryMentionItems = useMemo<MentionItem[]>(
+    () =>
+      memoryAvailable
+        ? [
+            {
+              kind: "memory-group",
+              label: "Memory",
+              insert: "memory",
+              detail:
+                memorySessions.length > 0
+                  ? `${memorySessions.length} session${memorySessions.length === 1 ? "" : "s"} ›`
+                  : "›",
+            },
+          ]
+        : [],
+    [memoryAvailable, memorySessions],
+  );
+  const { filter: filterMentions, refresh: refreshMentions } = useMentions(cwd, projectName, terminals, terminalId, focused, memoryMentionItems);
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);
@@ -1127,7 +1186,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (!editor) return;
     applyHistoryEntry(editor, { text: snap.text, images: snap.images });
     if (snap.caret !== null) placeCaretAtSerializedOffset(editor, snap.caret);
-    highlightCommand(editor, isSlashCommand);
+    highlightCommand(editor, isSlashCommand, memorySessionIds);
     setSlashOpen(false);
     setMentionOpen(false);
     setHint(null);
@@ -1268,16 +1327,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     const line = lineBeforeCaret(editor);
-    const match = line !== null ? MENTION_TRIGGER.exec(line) : null;
-    if (!match) {
+    const argMatch = line !== null ? MEMORY_ARG_TRIGGER.exec(line) : null;
+    const match = !argMatch && line !== null ? MENTION_TRIGGER.exec(line) : null;
+    if (!argMatch && !match) {
       setMentionOpen(false);
       return;
     }
-    const items = filterMentions(match[1]);
+    const items = argMatch
+      ? rankMentions(memorySessions, argMatch[1])
+      : filterMentions(match![1]);
     if (items.length === 0) {
       setMentionOpen(false);
       return;
     }
+    setMentionMode(argMatch ? "cmdArg" : "at");
     // Anchor to the caret, falling back to the editor box on a zero-size rect.
     let rect = editor.getBoundingClientRect();
     const sel = window.getSelection();
@@ -1329,9 +1392,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       histIdx.current = -1;
       normalizeComposer(editor);
       syncState();
-      highlightCommand(editor, isSlashCommand);
+      highlightCommand(editor, isSlashCommand, memorySessionIds);
       editor.focus();
       updateHint();
+      updateMentionMenu();
     }
   };
 
@@ -1341,8 +1405,48 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // and inject its output inline instead of a literal token.
   const insertMention = (item: MentionItem) => {
     const editor = editorRef.current;
+    if (!editor) {
+      setMentionOpen(false);
+      return;
+    }
+    // The Memory group row drills into the session list in place — the menu
+    // stays open and anchored; picking a session (or typing) leaves the mode.
+    if (item.kind === "memory-group") {
+      setMentionMode("memoryPick");
+      setMentionItems(memoryMenuItems);
+      setMentionIndex(0);
+      return;
+    }
     setMentionOpen(false);
-    if (!editor) return;
+    if (mentionMode === "cmdArg") {
+      const line = lineBeforeCaret(editor);
+      const m = line !== null ? MEMORY_ARG_TRIGGER.exec(line) : null;
+      if (m && replaceArgFragment(editor, m[1], item.insert)) {
+        afterMentionEdit(editor);
+        editor.focus();
+      }
+      return;
+    }
+    // A memory session picked via "@" becomes the terminal CLI's own invocation:
+    // "/lpm-memory <id>" runs the skill in Claude Code; every other agent gets
+    // the skill-mention form "$lpm-memory <id>" (Codex's syntax; inert but
+    // self-describing text elsewhere).
+    if (item.kind === "memory" || item.kind === "memory-save") {
+      const cmd = slashCli === "claude" ? "/lpm-memory" : "$lpm-memory";
+      const invocation = item.insert ? `${cmd} ${item.insert} ` : cmd;
+      if (replaceMentionFragmentWith(editor, invocation)) {
+        afterMentionEdit(editor);
+        highlightCommand(editor, isSlashCommand, memorySessionIds);
+        // The insertion's own input event has already re-opened the slash menu
+        // and hint on the bare command by the time we get here. The pick is
+        // already decided, so close them; the command parks in the editor for
+        // the user to review and send.
+        setSlashOpen(false);
+        setHint(null);
+        editor.focus();
+      }
+      return;
+    }
     if (item.kind === "service-log") {
       void insertServiceLog(editor, item);
       return;
@@ -1771,15 +1875,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const handleHover = (e: MouseEvent<HTMLDivElement>) => {
     // A held button means a drag/selection gesture, not a hover.
     if (e.buttons !== 0) return;
-    const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-img]");
+    const target = e.target as HTMLElement;
+    const chip =
+      target.closest<HTMLElement>("[data-img]") ??
+      target.closest<HTMLElement>("[data-memchip]");
     if (chip === hoverChip.current) return;
     hoverChip.current = chip;
     if (!chip) {
       setPreview(null);
       return;
     }
+    if (chip.dataset.memchip !== undefined) {
+      setPreview({ kind: "memory", id: chip.dataset.memchip, rect: chip.getBoundingClientRect() });
+      return;
+    }
     const path = imagePaths.current.get(Number(chip.dataset.img));
-    setPreview(path && isImagePath(path) ? { path, rect: chip.getBoundingClientRect() } : null);
+    setPreview(
+      path && isImagePath(path)
+        ? { kind: "image", path, rect: chip.getBoundingClientRect() }
+        : null,
+    );
   };
 
   // The placeholder is absolutely positioned over the editor's first line, so
@@ -1847,7 +1962,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             if (editor) normalizeComposer(editor);
             noteEditForUndo(e.nativeEvent as InputEvent);
             syncState();
-            if (editor) highlightCommand(editor, isSlashCommand);
+            if (editor) highlightCommand(editor, isSlashCommand, memorySessionIds);
             updateSlashMenu();
             updateMentionMenu();
             updateHint();
@@ -1942,7 +2057,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         </div>
       </div>
       </div>
-      {preview && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
+      {preview?.kind === "image" && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
+      {preview?.kind === "memory" && (
+        <MemoryPreviewPopover session={memorySessionById.get(preview.id)} anchor={preview.rect} />
+      )}
       {lightboxPath && (
         <ImageLightbox path={lightboxPath} onClose={() => setLightboxPath(null)} />
       )}
@@ -1962,6 +2080,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           anchorRect={mentionRect}
           onSelect={insertMention}
           onHoverIndex={setMentionIndex}
+          submenuFor={(item) => (item.kind === "memory-group" ? memoryMenuItems : null)}
+          footer={mentionMode === "cmdArg" ? "Leave blank to create a new memory" : undefined}
         />
       )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />

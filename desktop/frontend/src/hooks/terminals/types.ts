@@ -36,6 +36,7 @@ export interface UseTerminalsResult {
   addTerminalToPane: (paneId: string) => Promise<void>;
   addBrowserToPane: (paneId?: string) => void;
   addReviewToPane: (paneId?: string) => void;
+  addMemoryToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;

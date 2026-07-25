@@ -14,6 +14,8 @@ const LPM_CONFIG_VALIDATION: &str = include_str!("../../../../lpm-config/referen
 const LPM_CONFIG_OPENAI: &str = include_str!("../../../../lpm-config/agents/openai.yaml");
 const LPM_CLI_SKILL: &str = include_str!("../../../../lpm-cli/SKILL.md");
 const LPM_CLI_OPENAI: &str = include_str!("../../../../lpm-cli/agents/openai.yaml");
+const LPM_MEMORY_SKILL: &str = include_str!("../../../../lpm-memory/SKILL.md");
+const LPM_MEMORY_OPENAI: &str = include_str!("../../../../lpm-memory/agents/openai.yaml");
 const LPM_SHORTCUT_SKILL: &str = include_str!("../../../../lpm/SKILL.md");
 const LPM_SHORTCUT_OPENAI: &str = include_str!("../../../../lpm/agents/openai.yaml");
 
@@ -58,6 +60,14 @@ const SKILL_FILES: &[SkillFile] = &[
     SkillFile {
         rel_path: "lpm-cli/agents/openai.yaml",
         content: LPM_CLI_OPENAI,
+    },
+    SkillFile {
+        rel_path: "lpm-memory/SKILL.md",
+        content: LPM_MEMORY_SKILL,
+    },
+    SkillFile {
+        rel_path: "lpm-memory/agents/openai.yaml",
+        content: LPM_MEMORY_OPENAI,
     },
     SkillFile {
         rel_path: "lpm/SKILL.md",
@@ -142,7 +152,7 @@ fn install_at(dir: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-const SKILL_DIRS: &[&str] = &["lpm-config", "lpm-cli", "lpm"];
+const SKILL_DIRS: &[&str] = &["lpm-config", "lpm-cli", "lpm-memory", "lpm"];
 
 fn remove_at(dir: &std::path::Path) -> Result<(), String> {
     for sub in SKILL_DIRS {
@@ -273,6 +283,7 @@ mod tests {
     #[test]
     fn bundled_skill_has_a_parsable_version() {
         assert!(parse_skill_version(LPM_CLI_SKILL).is_some());
+        assert!(parse_skill_version(LPM_MEMORY_SKILL).is_some());
     }
 
     #[test]

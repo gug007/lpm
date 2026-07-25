@@ -239,10 +239,10 @@ interface AppState {
   // ProjectDetail's consumer effect (nonce lets an already-mounted detail re-fire).
   pendingDetailView: {
     projectName: string;
-    view: "config" | "notes" | "ai";
+    view: "config" | "notes" | "ai" | "memory";
     nonce: number;
   } | null;
-  openProjectDetailView: (projectName: string, view: "config" | "notes" | "ai") => void;
+  openProjectDetailView: (projectName: string, view: "config" | "notes" | "ai" | "memory") => void;
   clearPendingDetailView: () => void;
   // A terminal-tab op (close / rename / pin / reorder) relayed from the mobile
   // app. Addressed by terminal id, except reorder which carries the full new id

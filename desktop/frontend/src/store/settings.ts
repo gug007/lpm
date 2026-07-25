@@ -113,6 +113,7 @@ function normalize(s: main.Settings): Settings {
     sidebarWidth: s.sidebarWidth,
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,
+    claudeLimitsEnabled: s.claudeLimitsEnabled,
     aiCli: s.aiCli || undefined,
     aiModel: s.aiModel || undefined,
     aiEffort: s.aiEffort || undefined,
