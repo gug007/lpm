@@ -77,6 +77,7 @@ export interface Settings {
 const defaults: Settings = {
   theme: "dark",
   doubleClickToToggle: false,
+  soundNotifications: true,
   autoCloseComposerOnSend: true,
 };
 
@@ -98,7 +99,7 @@ function normalize(s: main.Settings): Settings {
         : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     defaultProjectDirectory: s.defaultProjectDirectory || undefined,
-    soundNotifications: s.soundNotifications,
+    soundNotifications: s.soundNotifications ?? defaults.soundNotifications,
     doneSound: s.doneSound || undefined,
     waitingSound: s.waitingSound || undefined,
     errorSound: s.errorSound || undefined,

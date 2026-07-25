@@ -1185,6 +1185,41 @@ mod tests {
     }
 
     #[test]
+    fn collect_global_dir_keys_memory_sessions_by_project() {
+        let lpm = tempfile::tempdir().unwrap();
+        let web = lpm.path().join("memory/web");
+        std::fs::create_dir_all(&web).unwrap();
+        std::fs::write(web.join("auth-refactor.md"), "# Auth\n").unwrap();
+        std::fs::create_dir_all(lpm.path().join("memory/api")).unwrap();
+        std::fs::write(lpm.path().join("memory/api/perf.md"), "# Perf\n").unwrap();
+
+        let mut out = BTreeMap::new();
+        collect_global_dir(lpm.path(), Path::new("memory"), &mut out);
+
+        let keys: Vec<&String> = out.keys().collect();
+        assert_eq!(keys, vec!["memory/api/perf.md", "memory/web/auth-refactor.md"]);
+        assert_eq!(out["memory/web/auth-refactor.md"].hash, sha256_hex(b"# Auth\n"));
+        // Every key the walk produces must survive the apply-side allowlist.
+        for k in out.keys() {
+            assert!(safe_global_rel(k).is_ok(), "{k} rejected on apply");
+        }
+    }
+
+    #[test]
+    fn memory_sessions_are_syncable_two_levels_deep() {
+        // Session memory lives one level deeper than the flat synced dirs.
+        assert!(safe_global_rel("memory/web/auth-refactor.md").is_ok());
+        assert!(safe_global_rel("memory/../../secret").is_err());
+        // The dir itself is not a unit, so it can never be written or tombstoned.
+        assert!(safe_global_rel("memory").is_err());
+        assert!(!is_deletable_global("memory"));
+        // A session file is deletable, so removing it on one Mac crosses to the
+        // other instead of being resurrected.
+        assert!(is_deletable_global("memory/web/auth-refactor.md"));
+        assert!(syncable_global("memory/web/auth-refactor.md"));
+    }
+
+    #[test]
     fn wire_roundtrip_text_and_binary() {
         let text = WireItem {
             kind: "global".into(),

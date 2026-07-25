@@ -19,7 +19,12 @@ const PREVIEW_CHARS = 1200;
 export function useMemorySessions(
   projectName: string,
   active: boolean,
-): { items: MentionItem[]; byId: Map<string, MemorySessionInfo>; enabled: boolean } {
+): {
+  items: MentionItem[];
+  byId: Map<string, MemorySessionInfo>;
+  enabled: boolean;
+  reload: () => void;
+} {
   const projects = useAppStore((s) => s.projects);
   const enabled = useMemo(() => {
     const p = projects.find((pr) => pr.name === projectName);
@@ -73,5 +78,5 @@ export function useMemorySessions(
     }
   }, [active, enabled, load]);
 
-  return { items, byId, enabled };
+  return { items, byId, enabled, reload: load };
 }

@@ -28,7 +28,7 @@ pub fn play_status_sound(value: &str) {
     if !settings
         .get("soundNotifications")
         .and_then(|v| v.as_bool())
-        .unwrap_or(false)
+        .unwrap_or(true)
     {
         return;
     }

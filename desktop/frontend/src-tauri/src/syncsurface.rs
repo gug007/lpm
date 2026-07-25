@@ -45,9 +45,15 @@ const GLOBAL_FILES: &[GlobalFile] = &[
     GlobalFile { name: "branch-name-instructions.txt", sync: true, export: true },
 ];
 
+// Synced dirs are walked recursively, so `memory/<project>/<session>.md` rides the
+// same whole-file path as the flat dirs. It stays out of the export archive: the
+// archive is a config handoff, while session memory is work-in-progress notes. The
+// pre-apply backup is unaffected — `transfer::snapshot_backup` copies all of ~/.lpm
+// rather than the export list, so a conflict loser is still recoverable.
 const GLOBAL_DIRS: &[GlobalDir] = &[
     GlobalDir { name: "generator-icons", sync: true, export: false },
     GlobalDir { name: "zdotdir", sync: true, export: true },
+    GlobalDir { name: "memory", sync: true, export: false },
 ];
 
 /// Machine-local settings.json keys: stripped on export, kept (never overwritten
@@ -189,12 +195,21 @@ mod tests {
     #[test]
     fn dir_sets_unchanged() {
         let sync: Vec<&str> = sync_global_dirs().collect();
-        assert_eq!(sync, vec!["generator-icons", "zdotdir"]);
+        assert_eq!(sync, vec!["generator-icons", "zdotdir", "memory"]);
         let export: Vec<&str> = export_global_dirs().collect();
         assert_eq!(export, vec!["zdotdir"]);
         assert!(is_sync_global_dir("generator-icons"));
         assert!(is_sync_global_dir("zdotdir"));
+        assert!(is_sync_global_dir("memory"));
         assert!(!is_sync_global_dir("notes"));
+    }
+
+    #[test]
+    fn memory_syncs_but_never_exports() {
+        assert!(sync_global_dirs().any(|d| d == "memory"));
+        assert!(!export_global_dirs().any(|d| d == "memory"));
+        // A dir is not a whole-file unit: only its members cross.
+        assert!(!is_sync_global_file("memory"));
     }
 
     #[test]

@@ -958,6 +958,23 @@ export function replaceArgFragment(
   return true;
 }
 
+// Whether the caret is a collapsed selection parked inside the editor — false
+// when the field was never focused, or a control elsewhere holds the selection.
+export function caretInside(root: HTMLElement): boolean {
+  const sel = window.getSelection();
+  return (
+    !!sel && sel.isCollapsed && sel.rangeCount > 0 && root.contains(sel.getRangeAt(0).startContainer)
+  );
+}
+
+// Insert `text` at the caret, used by footer controls that have no typed
+// fragment to replace. The caret moves to the field end first when it isn't
+// already parked in the editor, so the insert can't land in some other element.
+export function insertTextAtCaret(root: HTMLElement, text: string): boolean {
+  if (!caretInside(root)) placeCaretAtEnd(root);
+  return document.execCommand("insertText", false, text);
+}
+
 // Replace the "@<frag>" preceding the caret with arbitrary `text` (no leading
 // "@"), used when a mention expands to injected content — e.g. a service's
 // captured logs — instead of a literal token the agent resolves. `text` may hold

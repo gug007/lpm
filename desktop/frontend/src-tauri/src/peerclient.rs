@@ -1350,10 +1350,11 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                     json!({ "name": name, "payload": payload }),
                 );
                 // A forwarded config-change event is a remote sync trigger: the
-                // other Mac edited its projects/templates, so an auto-enabled peer
-                // reconciles shortly after. Lossy forwarding only ever delays this
-                // (the connect + anti-entropy triggers are the safety net).
-                if matches!(name, "projects-changed" | "templates-changed") {
+                // other Mac edited its projects/templates or wrote session memory,
+                // so an auto-enabled peer reconciles shortly after. Lossy forwarding
+                // only ever delays this (the connect + anti-entropy triggers are the
+                // safety net).
+                if matches!(name, "projects-changed" | "templates-changed" | "memory-changed") {
                     if let Some(engine) = autosync_engine(Some(app)) {
                         engine.notify_remote_change(slug);
                     }

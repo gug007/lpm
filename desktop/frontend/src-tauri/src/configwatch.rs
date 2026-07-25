@@ -85,14 +85,9 @@ fn portable_settings_digest(path: &Path) -> Option<String> {
 /// socketsrv::start — the app still runs, external edits just won't propagate.
 pub fn start(app: AppHandle) {
     let lpm = config::lpm_dir();
-    // ~/.lpm/memory is created here rather than on first save: notify can only
-    // watch a path that exists, and it is our own directory.
-    let mut dirs = vec![
-        lpm.clone(),
-        config::projects_dir(),
-        config::templates_dir(),
-        lpm.join("memory"),
-    ];
+    // The synced dirs (memory among them) are created here rather than on first
+    // write: notify can only watch a path that exists, and they are our own.
+    let mut dirs = vec![lpm.clone(), config::projects_dir(), config::templates_dir()];
     dirs.extend(sync_global_dirs().map(|d| lpm.join(d)));
     for dir in &dirs {
         if let Err(e) = std::fs::create_dir_all(dir) {
@@ -157,7 +152,6 @@ pub fn start(app: AppHandle) {
         (root.clone(), RecursiveMode::NonRecursive),
         (root.join("projects"), RecursiveMode::NonRecursive),
         (root.join("templates"), RecursiveMode::Recursive),
-        (root.join("memory"), RecursiveMode::Recursive),
     ];
     watches.extend(sync_global_dirs().map(|d| (root.join(d), RecursiveMode::Recursive)));
     for (path, mode) in &watches {
@@ -198,6 +192,7 @@ pub fn start(app: AppHandle) {
             }
             // One emit per project whose memory changed; the payload lets a pane
             // ignore other projects' saves.
+            let memory_changed = !d.memory.is_empty();
             for project in d.memory {
                 let _ = app.emit("memory-changed", project);
             }
@@ -205,7 +200,10 @@ pub fn start(app: AppHandle) {
             // auto-sync engine: a local config edit reconciles every auto-enabled
             // peer shortly after. A no-op until the engine is set up. Sidebar
             // changes don't participate — groups.json is off the sync surface.
-            if d.projects || d.templates {
+            // Memory does: its own category classifies before the synced-dir arm,
+            // so without this a session save would only sync when some unrelated
+            // config edit happened to trigger a run.
+            if d.projects || d.templates || memory_changed {
                 if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
                     engine.notify_local_change();
                 }

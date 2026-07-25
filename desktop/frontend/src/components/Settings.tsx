@@ -155,7 +155,7 @@ export function Settings({
   const theme = useSettingsStore((s) => s.theme);
   const dblClick = useSettingsStore((s) => s.doubleClickToToggle);
   const defaultProjectDirectory = useSettingsStore((s) => s.defaultProjectDirectory);
-  const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? false);
+  const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? true);
   const doneSound = useSettingsStore((s) => s.doneSound ?? "chime");
   const waitingSound = useSettingsStore((s) => s.waitingSound ?? "chime");
   const errorSound = useSettingsStore((s) => s.errorSound ?? "chime");

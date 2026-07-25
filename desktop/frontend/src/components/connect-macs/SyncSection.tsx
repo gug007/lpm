@@ -109,8 +109,10 @@ export function SyncSection({ peers }: { peers: PeerClient[] }) {
     const offs = [
       EventsOn("projects-changed", debounced),
       EventsOn("templates-changed", debounced),
+      EventsOn("memory-changed", debounced),
       subscribePeerGlobalEvent("projects-changed", debounced),
       subscribePeerGlobalEvent("templates-changed", debounced),
+      subscribePeerGlobalEvent("memory-changed", debounced),
     ];
     return () => offs.forEach((off) => off());
   }, [refreshAll]);

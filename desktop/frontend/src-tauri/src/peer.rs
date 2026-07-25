@@ -55,6 +55,7 @@ const FORWARDED_EVENTS: &[&str] = &[
     "action-done",
     "action-bg-output",
     "templates-changed",
+    "memory-changed",
     "clone-done",
     "duplicate-done",
 ];

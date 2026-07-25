@@ -35,6 +35,7 @@ import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerMicButton } from "./ComposerMicButton";
+import { ComposerMemoryButton } from "./ComposerMemoryButton";
 import {
   createInputTab,
   loadComposerDraft,
@@ -61,12 +62,14 @@ import { basename } from "../path";
 import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
   caretEdges,
+  caretInside,
   caretOffsetInSerialized,
   chipAfterCaret,
   chipBeforeCaret,
   createImageChip,
   highlightCommand,
   insertItemsAtCaret,
+  insertTextAtCaret,
   isEditorEmpty,
   isImagePath,
   lineBeforeCaret,
@@ -270,7 +273,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // "@" mentions work in every terminal composer, not just agent terminals — the
   // referenced text is useful to any CLI. They load only while the composer is
   // focused, so a background tab still pays nothing for the tree walk / git call.
-  const { items: memorySessions, byId: memorySessionById, enabled: memoryAvailable } = useMemorySessions(projectName, focused);
+  const {
+    items: memorySessions,
+    byId: memorySessionById,
+    enabled: memoryAvailable,
+    reload: reloadMemorySessions,
+  } = useMemorySessions(projectName, focused);
   const memorySessionIds = useMemo(
     () => new Set(memorySessions.map((s) => s.insert)),
     [memorySessions],
@@ -1434,23 +1442,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       return;
     }
-    // A memory session picked via "@" becomes the terminal CLI's own invocation:
-    // "/lpm-memory <id>" runs the skill in Claude Code; every other agent gets
-    // the skill-mention form "$lpm-memory <id>" (Codex's syntax; inert but
-    // self-describing text elsewhere).
     if (item.kind === "memory" || item.kind === "memory-save") {
-      const cmd = slashCli === "claude" ? "/lpm-memory" : "$lpm-memory";
-      const invocation = item.insert ? `${cmd} ${item.insert} ` : cmd;
-      if (replaceMentionFragmentWith(editor, invocation)) {
-        afterMentionEdit(editor);
-        highlightCommand(editor, isSlashCommand, memorySessionIds);
-        // The insertion's own input event has already re-opened the slash menu
-        // and hint on the bare command by the time we get here. The pick is
-        // already decided, so close them; the command parks in the editor for
-        // the user to review and send.
-        setSlashOpen(false);
-        setHint(null);
-        editor.focus();
+      if (replaceMentionFragmentWith(editor, memoryInvocation(item.insert))) {
+        afterMemoryInsert(editor);
       }
       return;
     }
@@ -1475,6 +1469,46 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     histIdx.current = -1;
     normalizeComposer(editor);
     syncState();
+  };
+
+  // A memory session becomes the terminal CLI's own invocation: "/lpm-memory
+  // <id>" runs the skill in Claude Code; every other agent gets the skill-mention
+  // form "$lpm-memory <id>" (Codex's syntax; inert but self-describing text
+  // elsewhere). The bare command — no session — means "remember this
+  // conversation", so it keeps no trailing argument space.
+  const memoryInvocation = (sessionId: string) => {
+    const cmd = slashCli === "claude" ? "/lpm-memory" : "$lpm-memory";
+    return sessionId ? `${cmd} ${sessionId} ` : cmd;
+  };
+
+  // Shared tail after a memory invocation lands in the field. The insertion's own
+  // input event has already re-opened the slash menu and hint on the bare command
+  // by the time we get here; the pick is already decided, so close them and park
+  // the command in the editor for the user to review and send.
+  const afterMemoryInsert = (editor: HTMLDivElement) => {
+    afterMentionEdit(editor);
+    highlightCommand(editor, isSlashCommand, memorySessionIds);
+    setSlashOpen(false);
+    setMentionOpen(false);
+    setHint(null);
+    editor.focus();
+  };
+
+  // Footer memory button: the same invocation as an "@" pick, dropped at the
+  // caret since no typed fragment precedes it. The caret is parked first (the
+  // button can be clicked before the field was ever focused) so the padding
+  // space — which keeps the command off the back of whatever word precedes it —
+  // is decided from where the text will actually land.
+  const insertMemorySession = (item: MentionItem) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.focus();
+    if (!caretInside(editor)) placeCaretAtEnd(editor);
+    const line = lineBeforeCaret(editor);
+    const pad = line && !/\s$/.test(line) ? " " : "";
+    if (insertTextAtCaret(editor, `${pad}${memoryInvocation(item.insert)}`)) {
+      afterMemoryInsert(editor);
+    }
   };
 
   // Capture the service's current pane output (an async tmux grab) and inject it.
@@ -2053,6 +2087,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               tooltip="Drafts"
               ariaLabel="Drafts"
             />
+            {memoryAvailable && (
+              <ComposerMemoryButton
+                sessions={memorySessions}
+                infoById={memorySessionById}
+                onOpen={reloadMemorySessions}
+                onPick={insertMemorySession}
+              />
+            )}
           </div>
           <SendSplitButton
             disabled={disabled}
