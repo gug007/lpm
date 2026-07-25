@@ -2081,7 +2081,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           onSelect={insertMention}
           onHoverIndex={setMentionIndex}
           submenuFor={(item) => (item.kind === "memory-group" ? memoryMenuItems : null)}
-          footer={mentionMode === "cmdArg" ? "Leave blank to create a new memory" : undefined}
+          footer={mentionMode === "cmdArg" ? "Type a new name or leave blank to create a new memory" : undefined}
         />
       )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />
