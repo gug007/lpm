@@ -30,7 +30,7 @@
 // sniffing the first byte; that branch can be dropped once the pinned app ships.
 // When enabled the server binds every interface (0.0.0.0) so a paired phone can
 // reach it over the LAN or tailnet.
-use crate::status::{StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
+use crate::status::{StatusEntry, StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use crate::{config, pty, services};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
@@ -4260,10 +4260,163 @@ fn clear_recipients(devices: &[Device]) -> Vec<PushDevice> {
         .collect()
 }
 
+/// How long a Codex Waiting alert is held back before sending, when Codex is
+/// configured to route approvals to an auto reviewer.
+const CODEX_WAITING_PUSH_GRACE: Duration = Duration::from_secs(30);
+
+/// Whether a status delta is a Codex approval request. Codex's status keys are
+/// `codex_<pane>`; Claude's are `claude_code_<session>`, so the prefix scopes
+/// this to Codex panes only.
+fn is_codex_waiting(key: &str, value: &str) -> bool {
+    value == STATUS_WAITING && key.starts_with("codex_")
+}
+
+/// Pure: whether `~/.codex/config.toml` content routes approvals to an auto
+/// reviewer rather than the user. Deliberately over-inclusive — the key is
+/// matched in any section, since the only cost of a false positive is push
+/// latency on an approval the user really does have to answer.
+fn approvals_auto_reviewed(content: &str) -> bool {
+    content.lines().any(|line| {
+        let line = line.trim_start();
+        if line.starts_with('#') {
+            return false;
+        }
+        line.strip_prefix("approvals_reviewer")
+            .and_then(|rest| rest.trim_start().strip_prefix('='))
+            .is_some_and(|value| {
+                value.contains("auto_review") || value.contains("guardian_subagent")
+            })
+    })
+}
+
+fn codex_auto_review_enabled() -> bool {
+    let path = dirs::home_dir()
+        .unwrap_or_default()
+        .join(".codex")
+        .join("config.toml");
+    std::fs::read_to_string(path)
+        .map(|c| approvals_auto_reviewed(&c))
+        .unwrap_or(false)
+}
+
+/// Whether a deferred alert is still worth sending: the pane must still be
+/// Waiting on the same entry. Timestamp equality matters — a Waiting → Running →
+/// Waiting round trip schedules its own timer, and the stale one must not fire.
+fn still_waiting(entries: &[StatusEntry], key: &str, ts: i64) -> bool {
+    entries
+        .iter()
+        .any(|e| e.key == key && e.value == STATUS_WAITING && e.timestamp == ts)
+}
+
+/// Seal and POST one alert per (device, wanted job). A 410 from the relay retires
+/// the device token, so the rest of that device's jobs are skipped.
+fn send_alert_pushes(
+    client: &reqwest::blocking::Client,
+    relay: &str,
+    hub: &RemoteHub,
+    server_id: &str,
+    project: &str,
+    recipients: &[PushDevice],
+    jobs: &[PushJob],
+) {
+    for dev in recipients {
+        for job in jobs.iter().filter(|j| dev.wants(&j.value)) {
+            let plaintext = alert_payload(server_id, project, job);
+            let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
+                continue;
+            };
+            let body = json!({
+                "token": dev.token,
+                "env": dev.env,
+                "blob": blob,
+                "collapseId": job.collapse_id,
+            })
+            .to_string();
+            if post_push(client, relay, hub, &dev.id, body) {
+                break;
+            }
+        }
+    }
+}
+
+/// Hold Codex Waiting alerts for `CODEX_WAITING_PUSH_GRACE`, then send only the
+/// ones the auto reviewer left unresolved. Recipients are recomputed at fire
+/// time, since a phone may have connected or registered during the window.
+fn spawn_deferred_codex_pushes(
+    hub: &RemoteHub,
+    app: &AppHandle,
+    project: &str,
+    jobs: Vec<PushJob>,
+) {
+    let hub = hub.clone();
+    let project = project.to_string();
+    let store: Arc<StatusStore> = app.state::<Arc<StatusStore>>().inner().clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(CODEX_WAITING_PUSH_GRACE);
+        if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed)
+        {
+            return;
+        }
+        let entries = store.list(&project);
+        let jobs: Vec<PushJob> = jobs
+            .into_iter()
+            .filter(|job| still_waiting(&entries, &job.key, job.ts))
+            .collect();
+        if jobs.is_empty() {
+            return;
+        }
+
+        let connected: HashSet<String> = hub
+            .inner
+            .clients
+            .lock()
+            .unwrap()
+            .values()
+            .map(|c| c.device_id.clone())
+            .collect();
+        let cfg = load_config();
+        let relay = cfg.effective_relay();
+        let server_id = cfg.flavor_server_id();
+        let recipients: Vec<PushDevice> = alert_recipients(&scoped_devices(&cfg), &connected)
+            .into_iter()
+            .filter(|device| device.wants(STATUS_WAITING))
+            .collect();
+        if recipients.is_empty() {
+            return;
+        }
+
+        let client = match reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("warning: push relay client init failed: {e}");
+                return;
+            }
+        };
+        send_alert_pushes(
+            &client,
+            &relay,
+            &hub,
+            &server_id,
+            &project,
+            &recipients,
+            &jobs,
+        );
+    });
+}
+
 /// On an agent status transition, push an APNs notification to every registered
 /// device that isn't currently holding a live socket (a live socket means the app
 /// is foregrounded and already got the `status-changed` frame). Never blocks the
 /// event listener: all the network work runs on a spawned thread.
+///
+/// Codex Waiting alerts are held for `CODEX_WAITING_PUSH_GRACE` when Codex routes
+/// approvals to an auto reviewer: its PermissionRequest hook fires at request
+/// time and the payload carries no routing field, so the only way to tell a real
+/// approval request from one the reviewer resolves seconds later is to wait and
+/// re-check the status.
 fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     // Only the instance actually running the remote server can tell which phones
     // hold a live socket; an unbound instance sees an empty client map and would
@@ -4310,6 +4463,21 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     if deltas.is_empty() && vanished_keys.is_empty() {
         return;
     }
+
+    // Read the Codex config at most once per event, and only when there's a
+    // Codex approval to hold back.
+    let (deferred_deltas, deltas): (Vec<_>, Vec<_>) = if deltas
+        .iter()
+        .any(|(key, value, _)| is_codex_waiting(key, value))
+        && codex_auto_review_enabled()
+    {
+        deltas
+            .into_iter()
+            .partition(|(key, value, _)| is_codex_waiting(key, value))
+    } else {
+        (Vec::new(), deltas)
+    };
+
     let want_alert = !deltas.is_empty();
     let want_clear = !vanished_keys.is_empty();
 
@@ -4349,14 +4517,15 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     } else {
         Vec::new()
     };
-    if recipients.is_empty() && clear_recipients.is_empty() {
+    if recipients.is_empty() && clear_recipients.is_empty() && deferred_deltas.is_empty() {
         return;
     }
 
     // Resolve terminal labels best-effort (empty when the pane id is unknown).
-    let jobs: Vec<PushJob> = if recipients.is_empty() {
-        Vec::new()
-    } else {
+    let build_jobs = |deltas: Vec<(String, String, i64)>| -> Vec<PushJob> {
+        if deltas.is_empty() {
+            return Vec::new();
+        }
         let labels = hub.inner.labels.lock().unwrap();
         deltas
             .into_iter()
@@ -4377,6 +4546,18 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
             })
             .collect()
     };
+    let jobs = if recipients.is_empty() {
+        Vec::new()
+    } else {
+        build_jobs(deltas)
+    };
+    let deferred_jobs = build_jobs(deferred_deltas);
+    if !deferred_jobs.is_empty() {
+        spawn_deferred_codex_pushes(hub, app, project, deferred_jobs);
+    }
+    if jobs.is_empty() && clear_recipients.is_empty() {
+        return;
+    }
 
     let (hub, project) = (hub.clone(), project.to_string());
     std::thread::spawn(move || {
@@ -4391,25 +4572,15 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
             }
         };
 
-        // Alert pushes, one per (device, wanted job).
-        for dev in &recipients {
-            for job in jobs.iter().filter(|j| dev.wants(&j.value)) {
-                let plaintext = alert_payload(&server_id, &project, job);
-                let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
-                    continue;
-                };
-                let body = json!({
-                    "token": dev.token,
-                    "env": dev.env,
-                    "blob": blob,
-                    "collapseId": job.collapse_id,
-                })
-                .to_string();
-                if post_push(&client, &relay, &hub, &dev.id, body) {
-                    break;
-                }
-            }
-        }
+        send_alert_pushes(
+            &client,
+            &relay,
+            &hub,
+            &server_id,
+            &project,
+            &recipients,
+            &jobs,
+        );
 
         // Withdrawal: one batched background push per registered device.
         if !clear_recipients.is_empty() {
@@ -5390,6 +5561,72 @@ mod tests {
         let (out, vanished) = dedup_status_pushes(&mut seen, "other", &[e("a", "Error", 6)]);
         assert_eq!(out, vec![e("a", "Error", 6)]);
         assert!(vanished.is_empty());
+    }
+
+    #[test]
+    fn auto_review_detected_from_codex_config() {
+        assert!(approvals_auto_reviewed("approvals_reviewer = \"auto_review\"\n"));
+        assert!(approvals_auto_reviewed(
+            "  approvals_reviewer=\"guardian_subagent\""
+        ));
+        assert!(approvals_auto_reviewed(
+            "model = \"gpt-5\"\n[profiles.work]\napprovals_reviewer   =   'auto_review'\n"
+        ));
+
+        assert!(!approvals_auto_reviewed(""));
+        assert!(!approvals_auto_reviewed("approvals_reviewer = \"user\"\n"));
+        assert!(!approvals_auto_reviewed(
+            "# approvals_reviewer = \"auto_review\"\n"
+        ));
+        assert!(!approvals_auto_reviewed("approvals_policy = \"auto_review\""));
+        assert!(
+            !approvals_auto_reviewed("approvals_reviewer_note = \"auto_review\""),
+            "key must be followed by ="
+        );
+    }
+
+    #[test]
+    fn only_codex_waiting_is_deferred() {
+        assert!(is_codex_waiting("codex_%3", STATUS_WAITING));
+        assert!(!is_codex_waiting("codex_%3", STATUS_DONE));
+        assert!(!is_codex_waiting("claude_code_abc123", STATUS_WAITING));
+        assert!(!is_codex_waiting("", STATUS_WAITING));
+    }
+
+    #[test]
+    fn deferred_job_fires_only_while_the_same_wait_stands() {
+        let entry = |key: &str, value: &str, ts: i64| StatusEntry {
+            key: key.into(),
+            value: value.into(),
+            timestamp: ts,
+            ..Default::default()
+        };
+
+        let waiting = [entry("codex_%3", STATUS_WAITING, 100)];
+        assert!(still_waiting(&waiting, "codex_%3", 100));
+
+        // The auto reviewer approved: same key, resolved value.
+        assert!(!still_waiting(
+            &[entry("codex_%3", "Running", 140)],
+            "codex_%3",
+            100
+        ));
+        assert!(!still_waiting(
+            &[entry("codex_%3", STATUS_DONE, 140)],
+            "codex_%3",
+            100
+        ));
+
+        // Waiting again on a newer request — that one scheduled its own timer.
+        assert!(!still_waiting(
+            &[entry("codex_%3", STATUS_WAITING, 140)],
+            "codex_%3",
+            100
+        ));
+
+        // The pane went away entirely.
+        assert!(!still_waiting(&[], "codex_%3", 100));
+        assert!(!still_waiting(&waiting, "codex_%9", 100));
     }
 
     #[test]
