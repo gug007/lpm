@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { PauseCircle, Play, RefreshCw } from "lucide-react";
+import { Play, RefreshCw } from "lucide-react";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
+import { SyncGlyph } from "./SyncGlyph";
 import { followPause, followResume, followStop, isFirstSync, type FollowState } from "../followApi";
 
 // Relative time only needs to be roughly right, and the row re-renders on every
@@ -25,19 +26,10 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
   // A fault clears itself on a retry the user should not have to wait out: resuming
   // resets the backoff, so offering it as "Retry" is the same door, better named.
   const stuck = !paused && Boolean(follow.lastError) && !follow.syncing;
-  const busy = follow.syncing || isFirstSync(follow);
 
   return (
     <div className="mt-1 flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3 py-1.5 text-[12px]">
-      <span
-        className={
-          paused
-            ? "shrink-0 text-[var(--accent-amber)]"
-            : `shrink-0 text-[var(--text-muted)] ${busy ? "animate-spin" : ""}`
-        }
-      >
-        {paused ? <PauseCircle size={13} /> : <RefreshCw size={13} />}
-      </span>
+      <SyncGlyph follow={follow} />
 
       <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">
         {paused ? (
