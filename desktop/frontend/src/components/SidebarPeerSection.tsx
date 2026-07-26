@@ -1,43 +1,30 @@
 import { useState } from "react";
-import { StatusDot } from "./StatusDot";
-import { ChevronRightIcon, MoreVerticalIcon, PlusIcon, XIcon } from "./icons";
+import { ChevronRightIcon, PlusIcon, XIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
+import { SidebarPeerRow } from "./SidebarPeerRow";
 import { SyncedChip } from "./SyncedChip";
+import type { MirrorRow } from "./peerSections";
 import type { FollowState } from "../followApi";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
 import { PeerRemove } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
-import {
-  type ProjectInfo,
-  STATUS_RUNNING,
-  STATUS_DONE,
-  STATUS_WAITING,
-  STATUS_ERROR,
-} from "../types";
+import type { ProjectInfo } from "../types";
 
-const ROW_BASE_CLASS =
-  "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
-
-function statusClass(project: ProjectInfo): string | null {
-  const entries = project.statusEntries ?? [];
-  const has = (v: string) => entries.some((e) => e.value === v);
-  if (has(STATUS_ERROR)) return "text-red-400";
-  if (has(STATUS_WAITING)) return "sidebar-waiting";
-  if (has(STATUS_RUNNING)) return "sidebar-shimmer";
-  if (has(STATUS_DONE)) return null;
-  return null;
-}
-
-// A connected peer's projects, rendered below the local projects as a flat,
-// non-reorderable section headed by the peer's name. The header collapses the
-// section and offers a hover-revealed disconnect. Selecting a row opens the
-// exact same ProjectDetail a local project uses.
+// A paired Mac's projects, rendered below the local projects as a flat,
+// non-reorderable section headed by the Mac's name. The header collapses the
+// section and offers a hover-revealed disconnect. Selecting a row opens the exact
+// same ProjectDetail a local project uses.
+//
+// A Mac that is away keeps its section only for the copies synced here, so those
+// stay runnable while it sleeps.
 export function SidebarPeerSection({
   slug,
   alias,
+  connected,
   projects,
   mirrors,
+  strays,
   follows,
   selected,
   contextTargetName,
@@ -46,10 +33,13 @@ export function SidebarPeerSection({
 }: {
   slug: string;
   alias: string;
+  connected: boolean;
   projects: ProjectInfo[];
   /// The local synced folder for each of this Mac's project folders, keyed by that
   /// folder's path over there.
   mirrors: Map<string, ProjectInfo>;
+  /// Copies with no row of this Mac's own to mark.
+  strays: MirrorRow[];
   follows: Map<string, FollowState>;
   selected: string | null;
   contextTargetName?: string | null;
@@ -76,6 +66,8 @@ export function SidebarPeerSection({
     setConfirmOpen(false);
   };
 
+  const rowCount = projects.length + strays.length;
+
   return (
     <div className="mt-3">
       <div className="group/peer relative">
@@ -89,25 +81,27 @@ export function SidebarPeerSection({
             <ChevronRightIcon />
           </span>
           <span className="truncate">{alias}</span>
-          <span className="shrink-0 opacity-70">— remote</span>
-          {collapsed && projects.length > 0 && (
+          <span className="shrink-0 opacity-70">{connected ? "— remote" : "— away"}</span>
+          {collapsed && rowCount > 0 && (
             <span className="ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)] transition-opacity group-hover/peer:opacity-0">
-              {projects.length}
+              {rowCount}
             </span>
           )}
         </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            addProjectForPeer(slug, alias);
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
-          title={`Add project on ${alias}`}
-          aria-label={`Add project on ${alias}`}
-        >
-          <PlusIcon />
-        </button>
+        {connected && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              addProjectForPeer(slug, alias);
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
+            title={`Add project on ${alias}`}
+            aria-label={`Add project on ${alias}`}
+          >
+            <PlusIcon />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -123,65 +117,49 @@ export function SidebarPeerSection({
       </div>
       {!collapsed &&
         projects.map((project) => {
-          const isSelected = selected === project.name;
-          const isContextTarget = contextTargetName === project.name;
-          const cls = statusClass(project);
-          const label = project.label || peerRawName(project.name);
           const mirror = mirrors.get(stripMarker(project.root));
           const mirrorFollow = mirror && follows.get(mirror.name);
           return (
-            <div key={project.name} className="group/row relative">
-              <button
-                onClick={() => onSelect(project.name)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  onContextMenu(project.name, e.clientX, e.clientY);
-                }}
-                className={`${ROW_BASE_CLASS} ${mirror ? "pr-24" : ""} ${
-                  isContextTarget
-                    ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
-                    : "group-hover/row:pr-9"
-                } ${
-                  isSelected
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                <StatusDot running={project.running} />
-                <span className="truncate" title={label}>
-                  {cls ? <span className={cls}>{label}</span> : label}
-                </span>
-              </button>
-              {mirror && mirrorFollow && (
-                <SyncedChip
-                  follow={mirrorFollow}
-                  macName={alias}
-                  selected={selected === mirror.name}
-                  onOpen={() => onSelect(mirror.name)}
-                />
-              )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
-                  if (isContextTarget) return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  onContextMenu(project.name, rect.left, rect.bottom + 4);
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-                  isContextTarget
-                    ? "opacity-100"
-                    : "pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100"
-                }`}
-                title="More options"
-                aria-label={`More options for ${label}`}
-              >
-                <MoreVerticalIcon />
-              </button>
-            </div>
+            <SidebarPeerRow
+              key={project.name}
+              project={project}
+              label={project.label || peerRawName(project.name)}
+              selected={selected === project.name}
+              isContextTarget={contextTargetName === project.name}
+              mark={
+                mirror && mirrorFollow ? (
+                  <SyncedChip
+                    follow={mirrorFollow}
+                    macName={alias}
+                    selected={selected === mirror.name}
+                    onOpen={() => onSelect(mirror.name)}
+                  />
+                ) : undefined
+              }
+              onSelect={() => onSelect(project.name)}
+              onContextMenu={(x, y) => onContextMenu(project.name, x, y)}
+            />
           );
         })}
+      {!collapsed &&
+        strays.map((stray) => (
+          <SidebarPeerRow
+            key={stray.project.name}
+            project={stray.project}
+            label={stray.label}
+            selected={selected === stray.project.name}
+            isContextTarget={contextTargetName === stray.project.name}
+            mark={
+              <SyncedChip
+                follow={stray.follow}
+                macName={alias}
+                selected={selected === stray.project.name}
+              />
+            }
+            onSelect={() => onSelect(stray.project.name)}
+            onContextMenu={(x, y) => onContextMenu(stray.project.name, x, y)}
+          />
+        ))}
 
       <ConfirmDialog
         open={confirmOpen}

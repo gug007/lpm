@@ -47,7 +47,7 @@ import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
-import { placeMirrors } from "./mirrorRows";
+import { buildPeerSections, followForRow } from "./peerSections";
 import { syncSupported } from "../syncApi";
 import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
@@ -63,7 +63,7 @@ import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
-import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
+import { isPeerName, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
@@ -190,67 +190,49 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const { state: peerState } = usePeerState();
   // Followed projects, keyed by the local project the other Mac's work lands in.
   const { follows } = useFollowState();
-  // Only the Macs that actually have a section to render into.
-  const sectionSlugs = useMemo(
-    () => new Set(peerState.peers.filter((p) => p.connected).map((p) => p.slug)),
-    [peerState.peers],
-  );
-  const mirrors = useMemo(
-    () => placeMirrors(projects, follows, sectionSlugs),
-    [projects, follows, sectionSlugs],
+  // Each Mac's section, and the synced copies those sections render instead of the
+  // local list.
+  const { sections: peerSections, hostedRemotely } = useMemo(
+    () => buildPeerSections(projects, follows, peerState.peers),
+    [projects, follows, peerState.peers],
   );
   const localProjects = useMemo(
-    () => projects.filter((p) => !isPeerName(p.name) && !mirrors.hostedRemotely.has(p.name)),
-    [projects, mirrors],
+    () => projects.filter((p) => !isPeerName(p.name) && !hostedRemotely.has(p.name)),
+    [projects, hostedRemotely],
   );
-  const peerSections = useMemo(() => {
-    const bySlug = new Map<string, ProjectInfo[]>();
-    for (const p of projects) {
-      const slug = peerSlugOf(p.name);
-      if (!slug) continue;
-      const arr = bySlug.get(slug);
-      if (arr) arr.push(p);
-      else bySlug.set(slug, [p]);
-    }
-    // A connected peer always gets a section, even with no projects yet, so its
-    // header (and the add-project button in it) is reachable on a fresh host.
-    return peerState.peers
-      .filter((peer) => peer.connected)
-      .map((peer) => ({
-        slug: peer.slug,
-        alias: peer.alias || peer.host,
-        projects: bySlug.get(peer.slug) ?? [],
-        mirrors: mirrors.bySlug.get(peer.slug) ?? new Map<string, ProjectInfo>(),
-      }));
-  }, [projects, peerState.peers, mirrors]);
 
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
 
-  // Only a peer's project row offers syncing, and only when its Mac can serve it.
-  const syncSource = useMemo(
-    () =>
-      contextMenu && syncSupported()
-        ? syncSourceFor(projects, peerState.peers, contextMenu.name)
-        : null,
-    [contextMenu, projects, peerState.peers],
+  // The follow the right-clicked row belongs to — the remote project's row and its
+  // local copy both resolve to it, since either one is a way to reach the same sync.
+  const rowFollow = useMemo(
+    () => (contextMenu ? followForRow(follows, projects, contextMenu.name) : undefined),
+    [contextMenu, follows, projects],
   );
 
-  // The follow the right-clicked row belongs to. A peer row and the local project
-  // it mirrors resolve to the same follow, since the follow is the local project's.
+  // Only a peer's project row offers syncing, and only when its Mac can serve it
+  // and does not already have a copy here.
+  const syncSource = useMemo(
+    () =>
+      contextMenu && syncSupported() && !rowFollow
+        ? syncSourceFor(projects, peerState.peers, contextMenu.name)
+        : null,
+    [contextMenu, projects, peerState.peers, rowFollow],
+  );
+
   const contextFollow = useMemo((): FollowingMenuState | undefined => {
-    const target = contextMenu ? stripMarker(contextMenu.name) : "";
-    const follow = target ? follows.get(target) : undefined;
-    if (!follow) return undefined;
+    if (!rowFollow) return undefined;
+    const target = rowFollow.project;
     const fail = (err: unknown) => toast.error(String(err));
     return {
-      macName: peerAlias(peerState.peers, follow.slug),
-      paused: Boolean(follow.paused),
+      macName: peerAlias(peerState.peers, rowFollow.slug),
+      paused: Boolean(rowFollow.paused),
       onResume: () => void followResume(target).catch(fail),
       onStop: () => void followStop(target).catch(fail),
     };
-  }, [contextMenu, follows, peerState.peers]);
+  }, [rowFollow, peerState.peers]);
 
   // Lookup across BOTH local and peer projects. projectByName (built later) holds
   // only local projects since it drives the reorderable tree; context-menu-driven
@@ -960,8 +942,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             key={section.slug}
             slug={section.slug}
             alias={section.alias}
+            connected={section.connected}
             projects={section.projects}
             mirrors={section.mirrors}
+            strays={section.strays}
             follows={follows}
             selected={selected}
             contextTargetName={contextMenu?.name ?? null}
