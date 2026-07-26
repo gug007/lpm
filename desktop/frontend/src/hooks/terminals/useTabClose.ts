@@ -118,7 +118,7 @@ export function useTabClose({
       entry.finalized = true;
       disposeTabs([entry.tab], true, true);
       disposeInteractivePaneSession(id);
-      forgetComposerDraft(id);
+      forgetComposerDraft(id, entry.tab.historyKey);
       toast.dismiss(entry.toastId);
     },
     [disposeTabs],

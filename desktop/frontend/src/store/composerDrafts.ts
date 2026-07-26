@@ -4,6 +4,12 @@
 // deliberately a plain module Map (not a reactive store): drafts change on every
 // keystroke and must not trigger React re-renders.
 
+import {
+  deletePersistedDraft,
+  loadPersistedDraft,
+  schedulePersistDraft,
+} from "./composerDraftPersist";
+
 // One recalled (already-sent) message: the tokenized text plus the token→path
 // map, so Arrow-Up recall rebuilds image chips exactly like the history popover.
 export interface ComposerHistoryEntry {
@@ -62,17 +68,25 @@ export function createInputTab(): ComposerInputTab {
 // composer is its only writer and the next load clones again — so typing, which
 // saves on every keystroke, never re-clones every tab's image map and the whole
 // history ring.
-export function loadComposerDraft(terminalId: string): ComposerDraft | undefined {
+//
+// `historyKey` opts the draft into the on-disk layer, which is what carries it
+// across an app restart (this Map only lives as long as the process). Callers
+// that are disposing a session rather than closing a tab omit it, so the typed
+// text is still there when the terminal comes back.
+export function loadComposerDraft(terminalId: string, historyKey?: string): ComposerDraft | undefined {
   const draft = drafts.get(terminalId);
-  return draft ? cloneDraft(draft) : undefined;
+  if (draft) return cloneDraft(draft);
+  return historyKey ? loadPersistedDraft(historyKey) : undefined;
 }
 
-export function saveComposerDraft(terminalId: string, draft: ComposerDraft): void {
+export function saveComposerDraft(terminalId: string, draft: ComposerDraft, historyKey?: string): void {
   drafts.set(terminalId, draft);
+  if (historyKey) schedulePersistDraft(historyKey, draft);
 }
 
-export function forgetComposerDraft(terminalId: string): void {
+export function forgetComposerDraft(terminalId: string, historyKey?: string): void {
   drafts.delete(terminalId);
+  if (historyKey) deletePersistedDraft(historyKey);
 }
 
 // A mounted composer registers here so an inbound remote draft (typed on the

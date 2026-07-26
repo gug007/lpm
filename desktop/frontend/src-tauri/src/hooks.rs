@@ -589,22 +589,25 @@ fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
     // Per-pane key, same reason as the Claude hooks.
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
-    let set_waiting = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
     let set_resume = capture_resume_cmd();
+    let pre_tool = codex_pre_tool_use_cmd();
+    let permission = codex_permission_request_cmd();
 
     // Each event maps to its ordered list of hook entries. SessionStart carries
     // two: the status ping plus the resume-capture hook that reports Codex's
     // real session id back to the socket (Codex has no --session-id-at-launch).
+    // PostToolUse flips Waiting back to Running once a tool (or an answered
+    // request_user_input) completes, so approval/question badges don't stay
+    // pinned for the rest of a long turn.
     let new_events: Vec<(&str, Vec<Value>)> = vec![
         (
             "SessionStart",
             vec![codex_entry(&set_running), codex_entry(&set_resume)],
         ),
         ("UserPromptSubmit", vec![codex_entry(&set_running)]),
-        ("PreToolUse", vec![codex_entry(&set_running)]),
-        // Abstains from the allow/deny decision (no stdout), so approvals still
-        // reach the user — it only flips the status badge to Waiting.
-        ("PermissionRequest", vec![codex_entry(&set_waiting)]),
+        ("PreToolUse", vec![codex_entry(&pre_tool)]),
+        ("PostToolUse", vec![codex_entry(&set_running)]),
+        ("PermissionRequest", vec![codex_entry(&permission)]),
         ("Stop", vec![codex_entry(&set_done)]),
     ];
 
@@ -693,6 +696,40 @@ fn capture_resume_cmd() -> String {
     let deliver = crate::sockdeliver::delivery_group();
     format!(
         "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// Codex PermissionRequest hook: flip the badge to Waiting only when the request
+/// will actually block on the user. With `approvals_reviewer = "auto_review"` and
+/// an on-request/granular approval policy, Codex routes every approval to the
+/// automatic reviewer, which approves or denies without ever prompting the user —
+/// a Waiting status (and the phone push behind it) would be a false alarm. The
+/// payload's `transcript_path` is the session rollout; its last `turn_context`
+/// line records the live policy + reviewer, so the gate reads per-session truth
+/// and runs on the host that owns the rollout (covering SSH projects). Any read
+/// failure leaves `auto` empty and falls back to sending Waiting. The
+/// `,"cwd"` anchor pins the real field: `tool_input` can embed arbitrary text.
+/// Abstains from the allow/deny decision (no stdout), so user-routed approvals
+/// still reach the user.
+fn codex_permission_request_cmd() -> String {
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{recover} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; [ -f \"$tp\" ] && auto=$(tail -c 1048576 \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1 | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// Codex PreToolUse hook: most tools mean the agent is working (Running), but
+/// `request_user_input` blocks the turn on the user's answer — the one prompt
+/// that still needs attention when the automatic reviewer handles approvals — so
+/// it flips the badge to Waiting instead. The `tool_name` extraction anchors on
+/// the preceding `permission_mode` field because `tool_input` carries arbitrary
+/// text (file contents, prompts) that could embed a bare `"tool_name"` key.
+fn codex_pre_tool_use_cmd() -> String {
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{recover} tn=$(sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2274,6 +2311,7 @@ mod tests {
             "SessionStart",
             "UserPromptSubmit",
             "PreToolUse",
+            "PostToolUse",
             "PermissionRequest",
             "Stop",
         ] {
@@ -2300,6 +2338,202 @@ mod tests {
             "SessionStart missing set_resume hook: {start:?}"
         );
         assert!(has_marker(&v["hooks"]));
+    }
+
+    #[test]
+    fn codex_permission_request_gates_on_auto_review() {
+        let cmd = codex_permission_request_cmd();
+        assert!(cmd.contains("transcript_path"), "must read the rollout path");
+        assert!(
+            cmd.contains("\"type\":\"turn_context\""),
+            "must locate the last turn_context line"
+        );
+        assert!(
+            cmd.contains("\"approvals_reviewer\":\"auto_review\"")
+                && cmd.contains("\"approval_policy\":(\"on-request\"|\\{\"granular\")"),
+            "must match the guardian-routing predicate: {cmd}"
+        );
+        assert!(
+            cmd.contains("[ -z \"$auto\" ] &&"),
+            "delivery must be gated on the auto-review check: {cmd}"
+        );
+    }
+
+    #[test]
+    fn codex_pre_tool_use_flags_request_user_input() {
+        let cmd = codex_pre_tool_use_cmd();
+        assert!(
+            cmd.contains("[ \"$tn\" = \"request_user_input\" ]"),
+            "must branch on the tool name: {cmd}"
+        );
+        assert!(
+            cmd.contains("Waiting --icon=bell") && cmd.contains("Running --icon=sparkle"),
+            "must carry both status branches: {cmd}"
+        );
+        assert!(
+            cmd.contains("\"permission_mode\""),
+            "tool_name extraction must anchor on permission_mode: {cmd}"
+        );
+    }
+
+    #[test]
+    fn codex_post_tool_use_resumes_running() {
+        let dir = codex_dir_with(None);
+        install_codex_hooks_at(&dir.path().join(".codex"));
+        let v = codex_hooks(dir.path());
+        let cmd = v["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            cmd.contains("codex_$LPM_PANE_ID Running"),
+            "PostToolUse must set Running: {cmd}"
+        );
+    }
+
+    /// Runs a generated hook command under `sh` with `payload` on stdin and a
+    /// live unix socket at $LPM_SOCKET_PATH, returning the message the hook
+    /// delivered (None when the hook suppressed delivery). Exercises the real
+    /// sed/tail/grep gating and the nc delivery path end to end.
+    fn run_codex_hook(cmd: &str, payload: &str) -> Option<String> {
+        use std::io::{Read, Write};
+        let td = tempfile::tempdir().unwrap();
+        let sock = td.path().join("s.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+        listener.set_nonblocking(true).unwrap();
+
+        let mut child = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .env("LPM_SOCKET_PATH", &sock)
+            .env("LPM_PROJECT_NAME", "proj")
+            .env("LPM_PANE_ID", "pane-1")
+            .env_remove("TMUX")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(payload.as_bytes())
+            .unwrap();
+        child.wait().unwrap();
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1500);
+        while std::time::Instant::now() < deadline {
+            if let Ok((mut conn, _)) = listener.accept() {
+                let mut msg = String::new();
+                conn.set_nonblocking(false).unwrap();
+                conn.read_to_string(&mut msg).unwrap();
+                return Some(msg);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        None
+    }
+
+    fn permission_payload(transcript: &str) -> String {
+        format!(
+            r#"{{"session_id":"s1","turn_id":"t1","transcript_path":"{transcript}","cwd":"/tmp/p","hook_event_name":"PermissionRequest","model":"gpt-5","permission_mode":"default","tool_name":"shell","tool_input":{{"command":["git","push"]}}}}"#
+        )
+    }
+
+    fn rollout_with(dir: &Path, last_turn_context: &str) -> String {
+        let path = dir.join("rollout.jsonl");
+        let stale = r#"{"timestamp":"T","type":"turn_context","payload":{"turn_id":"t0","approval_policy":"untrusted","approvals_reviewer":"auto_review"}}"#;
+        let noise = r#"{"timestamp":"T","type":"reasoning","payload":{"text":"thinking"}}"#;
+        std::fs::write(&path, format!("{stale}\n{last_turn_context}\n{noise}\n")).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn codex_permission_hook_suppresses_guardian_routed_requests() {
+        let cmd = codex_permission_request_cmd();
+        let td = tempfile::tempdir().unwrap();
+
+        let auto = rollout_with(
+            td.path(),
+            r#"{"timestamp":"T","type":"turn_context","payload":{"turn_id":"t1","approval_policy":"on-request","approvals_reviewer":"auto_review"}}"#,
+        );
+        assert_eq!(
+            run_codex_hook(&cmd, &permission_payload(&auto)),
+            None,
+            "on-request + auto_review routes to the guardian: no Waiting"
+        );
+
+        let granular = rollout_with(
+            td.path(),
+            r#"{"timestamp":"T","type":"turn_context","payload":{"turn_id":"t1","approval_policy":{"granular":{"sandbox_approval":true}},"approvals_reviewer":"auto_review"}}"#,
+        );
+        assert_eq!(
+            run_codex_hook(&cmd, &permission_payload(&granular)),
+            None,
+            "granular + auto_review routes to the guardian: no Waiting"
+        );
+    }
+
+    #[test]
+    fn codex_permission_hook_sends_waiting_for_user_routed_requests() {
+        let cmd = codex_permission_request_cmd();
+        let td = tempfile::tempdir().unwrap();
+
+        let untrusted = rollout_with(
+            td.path(),
+            r#"{"timestamp":"T","type":"turn_context","payload":{"turn_id":"t1","approval_policy":"untrusted","approvals_reviewer":"auto_review"}}"#,
+        );
+        let msg = run_codex_hook(&cmd, &permission_payload(&untrusted)).unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Waiting"),
+            "untrusted policy prompts the user: {msg}"
+        );
+
+        let user_reviewer = rollout_with(
+            td.path(),
+            r#"{"timestamp":"T","type":"turn_context","payload":{"turn_id":"t1","approval_policy":"on-request","approvals_reviewer":"user"}}"#,
+        );
+        let msg = run_codex_hook(&cmd, &permission_payload(&user_reviewer)).unwrap();
+        assert!(msg.contains("codex_pane-1 Waiting"), "user reviewer: {msg}");
+
+        let missing = td.path().join("gone.jsonl").to_string_lossy().into_owned();
+        let msg = run_codex_hook(&cmd, &permission_payload(&missing)).unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Waiting"),
+            "unreadable rollout falls back to Waiting: {msg}"
+        );
+    }
+
+    #[test]
+    fn codex_pre_tool_hook_maps_tool_name_to_status() {
+        let cmd = codex_pre_tool_use_cmd();
+        let base = r#"{"session_id":"s1","turn_id":"t1","transcript_path":"/tmp/r.jsonl","cwd":"/tmp/p","hook_event_name":"PreToolUse","model":"gpt-5","permission_mode":"default","tool_name":"TOOL","tool_input":INPUT,"tool_use_id":"u1"}"#;
+
+        let ask = base
+            .replace("TOOL", "request_user_input")
+            .replace("INPUT", r#"{"questions":[]}"#);
+        let msg = run_codex_hook(&cmd, &ask).unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Waiting"),
+            "request_user_input blocks on the user: {msg}"
+        );
+
+        let shell = base
+            .replace("TOOL", "shell")
+            .replace("INPUT", r#"{"command":["ls"]}"#);
+        let msg = run_codex_hook(&cmd, &shell).unwrap();
+        assert!(msg.contains("codex_pane-1 Running"), "shell runs: {msg}");
+
+        // A tool whose own arguments carry a raw `tool_name` key must not fool
+        // the extraction into reading the nested value.
+        let decoy = base
+            .replace("TOOL", "shell")
+            .replace("INPUT", r#"{"tool_name":"request_user_input"}"#);
+        let msg = run_codex_hook(&cmd, &decoy).unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Running"),
+            "nested tool_name decoy must not flip the status: {msg}"
+        );
     }
 
     #[test]

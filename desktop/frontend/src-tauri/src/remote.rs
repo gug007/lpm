@@ -4261,7 +4261,10 @@ fn clear_recipients(devices: &[Device]) -> Vec<PushDevice> {
 }
 
 /// How long a Codex Waiting alert is held back before sending, when Codex is
-/// configured to route approvals to an auto reviewer.
+/// configured to route approvals to an auto reviewer. Second line of defense:
+/// the PermissionRequest hook itself now skips Waiting for guardian-routed
+/// requests (see hooks.rs), but sessions started under older hooks still send
+/// them unconditionally.
 const CODEX_WAITING_PUSH_GRACE: Duration = Duration::from_secs(30);
 
 /// Whether a status delta is a Codex approval request. Codex's status keys are

@@ -455,7 +455,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   useLayoutEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    const draft = loadComposerDraft(terminalId);
+    const draft = loadComposerDraft(terminalId, historyKey);
     if (draft && draft.tabs.length > 0) {
       tabs.current = draft.tabs;
       history.current = draft.history.slice();
@@ -549,17 +549,21 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       active.histIdx = histIdx.current;
       active.stash = histStash.current;
     }
-    saveComposerDraft(terminalId, {
-      tabs: tabs.current,
-      activeTabId: activeId.current,
-      history: history.current,
-    });
+    saveComposerDraft(
+      terminalId,
+      {
+        tabs: tabs.current,
+        activeTabId: activeId.current,
+        history: history.current,
+      },
+      historyKey,
+    );
     // Mirror the active tab's text to a paired phone (debounced; suppressed when it
     // matches a draft we just applied from the phone, to avoid a feedback loop).
     pushRemoteDraft(value);
     refreshTabView();
     hydrateChips();
-  }, [terminalId, refreshTabView, hydrateChips, pushRemoteDraft]);
+  }, [terminalId, historyKey, refreshTabView, hydrateChips, pushRemoteDraft]);
 
   // Apply an inbound remote draft (typed on the phone) to the live editor. Dropped
   // when the user is actively typing here (focused and edited within 1.5s) so the
