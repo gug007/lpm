@@ -548,6 +548,21 @@ impl RemoteHub {
         (text, r.total())
     }
 
+    /// Append a chunk of a terminal's output, returning the stream offset it ends
+    /// at. The oldest bytes fall off once the ring is full; `base` tracks them so
+    /// offsets stay absolute for the terminal's whole life.
+    fn ring_push(&self, id: &str, text: &str) -> u64 {
+        let mut rings = self.inner.rings.lock().unwrap();
+        let ring = rings.entry(id.to_string()).or_default();
+        ring.buf.extend(text.as_bytes());
+        let over = ring.buf.len().saturating_sub(RING_CAP);
+        if over > 0 {
+            ring.buf.drain(..over);
+            ring.base += over as u64;
+        }
+        ring.total()
+    }
+
     /// The output a client missed since stream offset `from`, with the offset it
     /// ends at — what lets a phone that was away pick its screen back up instead
     /// of rebuilding it from a replay. `None` when `from` has already scrolled out
@@ -595,17 +610,7 @@ pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
     if !hub.inner.enabled.load(Ordering::Relaxed) {
         return;
     }
-    let off = {
-        let mut rings = hub.inner.rings.lock().unwrap();
-        let ring = rings.entry(id.to_string()).or_default();
-        ring.buf.extend(text.as_bytes());
-        let over = ring.buf.len().saturating_sub(RING_CAP);
-        if over > 0 {
-            ring.buf.drain(..over);
-            ring.base += over as u64;
-        }
-        ring.total()
-    };
+    let off = hub.ring_push(id, text);
     // `off` positions the chunk in the terminal's byte stream: a phone uses it to
     // drop what a seed already covered and to notice a gap (this queue drops on
     // overflow) so it can ask for the missing slice.
@@ -5252,6 +5257,58 @@ mod tests {
         );
         hub.clear_pair_request(&id);
         assert!(hub.inner.pending_pair.lock().unwrap().is_none());
+    }
+
+    // A phone that was away (locked, reconnecting) must get back exactly the bytes
+    // it missed: replaying the screen instead leaves a running full-screen program
+    // drawing its next incremental update onto cells that don't match.
+    #[test]
+    fn resume_hands_back_only_the_missed_slice() {
+        let hub = RemoteHub::default();
+        assert_eq!(hub.ring_push("t1", "hello "), 6);
+        let away_at = hub.ring_push("t1", "world");
+        hub.ring_push("t1", " again");
+
+        let (missed, off) = hub.ring_since("t1", away_at).expect("offset still held");
+        assert_eq!(missed, " again");
+        assert_eq!(off, 17);
+        // Caught up: nothing to apply, and the screen is left alone.
+        assert_eq!(hub.ring_since("t1", off), Some((String::new(), 17)));
+    }
+
+    #[test]
+    fn resume_falls_back_to_a_replay_when_the_offset_is_unusable() {
+        let hub = RemoteHub::default();
+        let big = "x".repeat(RING_CAP);
+        hub.ring_push("t1", "scrolled away");
+        hub.ring_push("t1", &big);
+
+        // Older than the ring still holds — only a full replay can resync.
+        assert!(hub.ring_since("t1", 0).is_none());
+        // Ahead of the stream (a terminal that restarted under the same id).
+        assert!(hub.ring_since("t1", 1_000_000).is_none());
+        // Unknown terminal: nothing to resume from.
+        assert!(hub.ring_since("nope", 0).is_none());
+    }
+
+    #[test]
+    fn seed_replays_the_recent_tail_from_a_clean_row() {
+        let hub = RemoteHub::default();
+        hub.ring_push("t1", "line one\nline two\n");
+        assert_eq!(
+            hub.ring_seed("t1"),
+            ("line one\nline two\n".to_string(), 18),
+            "a short stream seeds whole — nothing was cut mid-line"
+        );
+
+        // Past the seed cap the replay is trimmed to the tail, dropping the
+        // partial first line so it starts on a row boundary.
+        let filler = "y".repeat(SEED_CAP);
+        hub.ring_push("t1", &filler);
+        hub.ring_push("t1", "\ntail");
+        let (data, off) = hub.ring_seed("t1");
+        assert_eq!(data, "tail");
+        assert_eq!(off, 18 + SEED_CAP as u64 + 5);
     }
 
     #[test]
