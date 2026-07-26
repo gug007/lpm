@@ -96,24 +96,31 @@ fn adopt_dir(from: &Path, to: &Path, tag: &str) {
         .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("md") && p.is_file())
         .collect();
     sessions.sort();
+    if !sessions.is_empty() && std::fs::create_dir_all(to).is_err() {
+        return;
+    }
     for src in sessions {
         adopt_file(&src, to, tag);
     }
     let _ = std::fs::remove_dir(from);
 }
 
+/// Both folders are siblings under ~/.lpm/memory, so a plain rename always
+/// applies; a failed one leaves the session in place rather than losing it.
 fn adopt_file(src: &Path, to: &Path, tag: &str) {
     let Some(name) = src.file_name().and_then(|n| n.to_str()) else {
         return;
     };
     let dest = to.join(name);
     if !dest.exists() {
-        move_file(src, &dest);
+        let _ = std::fs::rename(src, &dest);
         return;
     }
-    if std::fs::read(src).ok() == std::fs::read(&dest).ok() {
-        let _ = std::fs::remove_file(src);
-        return;
+    if let (Ok(ours), Ok(theirs)) = (std::fs::read(src), std::fs::read(&dest)) {
+        if ours == theirs {
+            let _ = std::fs::remove_file(src);
+            return;
+        }
     }
     let Some(stem) = src.file_stem().and_then(|s| s.to_str()) else {
         return;
@@ -123,24 +130,7 @@ fn adopt_file(src: &Path, to: &Path, tag: &str) {
     };
     let alt = to.join(alt);
     if !alt.exists() {
-        move_file(src, &alt);
-    }
-}
-
-/// Rename when both folders sit on the same volume (they always do — one
-/// ~/.lpm), copy-then-delete otherwise so a cross-device move still lands.
-fn move_file(src: &Path, dest: &Path) {
-    let Some(parent) = dest.parent() else {
-        return;
-    };
-    if std::fs::create_dir_all(parent).is_err() {
-        return;
-    }
-    if std::fs::rename(src, dest).is_ok() {
-        return;
-    }
-    if std::fs::copy(src, dest).is_ok() {
-        let _ = std::fs::remove_file(src);
+        let _ = std::fs::rename(src, &alt);
     }
 }
 

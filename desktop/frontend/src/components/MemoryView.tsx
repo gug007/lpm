@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   DeleteMemorySession,
@@ -74,6 +74,15 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
     }
   }, [projectName]);
 
+  // Whoever owns the folder the backend answered with: the project itself, or
+  // the original this project is a copy of. Saves are announced under the
+  // owner's name, so the watcher needs no knowledge of copies.
+  const owner = dir.split("/").pop() ?? "";
+  const shared = owner !== "" && owner !== projectName;
+  const ownerLabel = useAppStore((s) =>
+    shared ? s.projects.find((p) => p.name === owner)?.label?.trim() || owner : "",
+  );
+
   useEffect(() => {
     if (visible) void refresh();
   }, [visible, refresh]);
@@ -81,26 +90,18 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
   useEffect(() => {
     if (!visible) return;
     const off = EventsOn(MEMORY_CHANGED_EVENT, (changed: string) => {
-      if (changed === projectName) void refresh();
+      if (changed === projectName || changed === owner) void refresh();
     });
     return () => {
       if (typeof off === "function") off();
     };
-  }, [visible, projectName, refresh]);
+  }, [visible, projectName, owner, refresh]);
 
   useEffect(() => {
     if (!target) return;
     setEditing(false);
     setView({ kind: "detail", name: target.name });
   }, [target]);
-
-  // Whoever owns the folder the backend answered with: the project itself, or
-  // the original this project is a copy of.
-  const owner = useMemo(() => dir.split("/").filter(Boolean).pop() ?? "", [dir]);
-  const shared = owner !== "" && owner !== projectName;
-  const ownerLabel = useAppStore((s) =>
-    shared ? s.projects.find((p) => p.name === owner)?.label?.trim() || owner : "",
-  );
 
   const detail =
     view.kind === "detail" ? sessions.find((s) => s.name === view.name) : undefined;
