@@ -60,6 +60,9 @@ import {
   type ServiceInfo,
 } from "../types";
 import { projectStartProfile } from "../projectStartProfile";
+import { SyncedBar } from "./SyncedBar";
+import { useFollowState } from "../hooks/useFollowState";
+import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
@@ -88,6 +91,11 @@ export function ProjectDetail({
   onRefresh,
 }: ProjectDetailProps) {
   const [loading, setLoading] = useState(false);
+  // Set only when this project is a folder synced from another Mac; drives the
+  // status row above the terminal.
+  const { follows } = useFollowState();
+  const { state: peerState } = usePeerState();
+  const follow = follows.get(project.name);
   const [showCreateAction, setShowCreateAction] = useState(false);
   const [editingAction, setEditingAction] = useState<ActionInfo | null>(null);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -662,6 +670,10 @@ export function ProjectDetail({
           actions={headerActionsNode}
           controls={controlsNode}
         />
+
+        {follow && (
+          <SyncedBar follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
+        )}
 
         <TerminalPane
           active={detailView === "terminal"}

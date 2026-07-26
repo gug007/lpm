@@ -705,7 +705,7 @@ export default function ConfigPage() {
                     It stays open, you type in it, and it remembers where you
                     left off until you close it.
                     <br />
-                    <br />
+                    <br />{" "}
                     A terminal is just an{" "}
                     <strong className="font-medium text-gray-700 dark:text-gray-200">
                       action with <code className="font-mono">type: terminal</code>

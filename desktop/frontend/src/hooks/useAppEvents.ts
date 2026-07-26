@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { EventsOn } from "../../bridge/runtime";
 import { DrainPendingJobTasks, RemoteTakeRunActions } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { followResume } from "../followApi";
 import { applyRemoteDraft } from "../store/composerDrafts";
 import type { SpawnTask } from "../types";
 
@@ -38,9 +39,33 @@ export function useAmbientAppEvents(): void {
       },
     );
 
+    // A followed project stopped syncing because there is work in it that the
+    // other Mac did not put there. Nothing was overwritten, so this is an offer,
+    // not a warning to dismiss: discard those edits and carry on, or leave it
+    // paused and deal with them.
+    const cancelFollowPaused = EventsOn(
+      "follow-paused",
+      (payload: { project: string; reason: string }) => {
+        if (!payload?.project) return;
+        toast.error(`Sync paused — ${payload.project}`, {
+          description: payload.reason,
+          duration: 15000,
+          action: {
+            label: "Discard mine & resume",
+            onClick: () => {
+              void followResume(payload.project, true).catch((err) =>
+                toast.error(`Couldn't resume: ${String(err)}`),
+              );
+            },
+          },
+        });
+      },
+    );
+
     return () => {
       if (typeof cancelSyncError === "function") cancelSyncError();
       if (typeof cancelJobStatus === "function") cancelJobStatus();
+      if (typeof cancelFollowPaused === "function") cancelFollowPaused();
     };
   }, []);
 }

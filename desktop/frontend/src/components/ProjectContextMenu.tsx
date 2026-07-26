@@ -9,6 +9,15 @@ import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 import type { ProjectGroup } from "../types";
 
+// The follow controls a project only has while it is following a Mac: leave it,
+// or pick the sync back up after it paused on the user's own work.
+export interface FollowingMenuState {
+  macName: string;
+  paused: boolean;
+  onResume: () => void;
+  onStop: () => void;
+}
+
 interface ProjectContextMenuProps {
   x: number;
   y: number;
@@ -39,8 +48,10 @@ interface ProjectContextMenuProps {
   onOpenMemory: () => void;
   onBulkDuplicate: () => void;
   onWorktree: () => void;
-  // Omitted when no connected Mac has this project's work to hand over.
-  onBringChanges?: () => void;
+  // Omitted unless this is a project on a paired Mac that can be synced here.
+  onSyncHere?: () => void;
+  // Set only while this project is following a Mac.
+  following?: FollowingMenuState;
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
@@ -80,7 +91,8 @@ export function ProjectContextMenu({
   onOpenMemory,
   onBulkDuplicate,
   onWorktree,
-  onBringChanges,
+  onSyncHere,
+  following,
   onCopyPath,
   onDetach,
   onAttach,
@@ -150,12 +162,28 @@ export function ProjectContextMenu({
         onClick={close(onWorktree)}
         disabled={duplicateDisabled}
       />
-      {onBringChanges && (
+      {onSyncHere && (
         <ContextMenuItem
-          label="Bring Changes…"
+          label="Sync to This Mac…"
           icon={<DownloadIcon />}
-          onClick={close(onBringChanges)}
+          onClick={close(onSyncHere)}
         />
+      )}
+      {following && (
+        <>
+          {following.paused && (
+            <ContextMenuItem
+              label="Resume Syncing"
+              icon={<DownloadIcon />}
+              onClick={close(following.onResume)}
+            />
+          )}
+          <ContextMenuItem
+            label={`Stop Following ${following.macName}`}
+            icon={<DetachIcon />}
+            onClick={close(following.onStop)}
+          />
+        </>
       )}
       {!remote && (
         <OpenInBrowserSubmenu

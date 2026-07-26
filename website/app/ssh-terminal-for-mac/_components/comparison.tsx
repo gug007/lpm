@@ -80,15 +80,21 @@ const CAPABILITIES: Capability[] = [
 
 function Indicator({ on }: { on: boolean }) {
   return on ? (
-    <Check
-      aria-label="Yes"
-      className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
-    />
+    <>
+      <Check
+        aria-hidden="true"
+        className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
+      />
+      <span className="sr-only">Yes</span>
+    </>
   ) : (
-    <Minus
-      aria-label="Not built in"
-      className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
-    />
+    <>
+      <Minus
+        aria-hidden="true"
+        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+      />
+      <span className="sr-only">Not built in</span>
+    </>
   );
 }
 

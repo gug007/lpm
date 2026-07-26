@@ -725,7 +725,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
                         "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2,
-                            crate::gitbringhost::GIT_BRING_FEATURE] })
+                            crate::gitbringhost::GIT_BRING_FEATURE,
+                            crate::gitbringhost::GIT_FOLLOW_FEATURE] })
                     .to_string(),
                 ));
                 Some(id.to_string())
@@ -1026,7 +1027,7 @@ fn handle_msg(
         // Bring changes — the asking Mac pulls this Mac's working state as one
         // packfile. Same shape as config sync: dedicated frames, gated on the
         // gitBring feature so an older host simply ignores them.
-        "gitBringPrepare" | "gitBringChunk" | "gitBringDone" => {
+        "gitBringPrepare" | "gitBringState" | "gitBringChunk" | "gitBringDone" => {
             crate::gitbringhost::handle_bring(out, t, &v)
         }
         _ => {}

@@ -1,8 +1,8 @@
 // The transfer itself: ask the other Mac to pack its working state, stream the
-// pack in, install it, and check it out wherever the user chose. Runs on its own
-// thread — every step reports through `bring-changes-progress`, and the outcome
-// lands in one `bring-changes-done`.
-use crate::gitbring::{check_cancelled, landing_name, local_root, Done, Progress, Request};
+// pack in, install it, and check it out into the local folder. Runs on its
+// caller's thread and reports every step through `sync-progress`; the caller owns
+// the outcome.
+use crate::gitbring::{check_cancelled, local_root, Done, Progress, Request};
 use crate::gitbringapply as ga;
 use crate::peerclient::PeerClientHub;
 use base64::engine::general_purpose::STANDARD as B64;
@@ -17,9 +17,9 @@ const PREPARE_TIMEOUT: Duration = Duration::from_secs(180); // packing a large r
 const CHUNK_TIMEOUT: Duration = Duration::from_secs(60);
 const DONE_TIMEOUT: Duration = Duration::from_secs(15);
 
-fn progress(app: &AppHandle, id: &str, phase: &str, received: u64, total: u64) {
+pub(crate) fn progress(app: &AppHandle, id: &str, phase: &str, received: u64, total: u64) {
     let _ = app.emit(
-        "bring-changes-progress",
+        "sync-progress",
         Progress {
             id,
             phase,
@@ -99,15 +99,20 @@ fn receive_and_land(
     ga::update_bring_ref(project_root, &req.source_slug, &target_sha)?;
 
     check_cancelled(id)?;
-    let (project, root) = land(app, req, id, project_root)?;
+    let (project, root) = land(req)?;
     progress(app, id, "applying", 0, 0);
-    ga::apply_state(&root, &branch, &target_sha, &head, snapshot.is_some())?;
+    let landing = ga::Landing::new(&root, &branch, &target_sha, &head, snapshot.is_some());
+    ga::apply_state(&match &req.follow {
+        Some(follow) => landing.replacing(follow.previous_head.as_deref()),
+        None => landing,
+    })?;
     let _ = app.emit("projects-changed", ());
     Ok(Done {
         id: id.to_string(),
         ok: true,
         project: Some(project),
         branch: Some(branch),
+        head: Some(head),
         changed: Some(changed),
         ..Default::default()
     })
@@ -168,38 +173,38 @@ fn download(
     Ok(path)
 }
 
-/// Resolve where the changes land, creating the copy first when the user asked
-/// for a new one. A new copy is cloned after the objects are indexed into the
-/// project, so its `.git` arrives already holding them and costs no extra bytes.
-/// A standalone copy has its own object store and has to pull the ref across; a
-/// worktree copy already shares one.
-fn land(
-    app: &AppHandle,
-    req: &Request,
-    id: &str,
-    project_root: &str,
-) -> Result<(String, String), String> {
-    if let Some(name) = landing_name(&req.mode, &req.project, req.target.as_deref())? {
-        let root = local_root(&name)?;
-        // Re-checked here and not only when the run started: packing and streaming
-        // can take minutes, and landing on top of work the user began meanwhile
-        // would fold it into the brought state.
-        if ga::is_dirty(&root) {
-            return Err(format!(
-                "{name} has uncommitted changes now — commit or discard them, then bring the changes again"
-            ));
+/// The folder that receives the state, once it has been established that writing
+/// there destroys nothing.
+fn land(req: &Request) -> Result<(String, String), String> {
+    let name = req.project.clone();
+    let root = local_root(&name)?;
+    ensure_writable(&root, req, &name)?;
+    Ok((name, root))
+}
+
+/// Whether this run may write into the folder. Checked here rather than only when
+/// the run started: packing and streaming can take minutes, and landing on top of
+/// work begun meanwhile would fold it into the synced state.
+///
+/// A sync run is allowed to replace one thing — the state its own previous run
+/// landed — which holds precisely while the folder's working state is still the
+/// one anchored at the sync ref.
+fn ensure_writable(root: &str, req: &Request, name: &str) -> Result<(), String> {
+    let Some(follow) = &req.follow else {
+        if ga::is_dirty(root) {
+            return Err(format!("{name} has uncommitted changes"));
         }
-        if root != project_root && !crate::config::peek_worktree(&name) {
-            ga::fetch_bring_ref(&root, project_root, &req.source_slug)?;
-        }
-        return Ok((name, root));
+        return Ok(());
+    };
+    // The user answered a pause with "discard mine", which is the one case where
+    // overwriting their edits is what they asked for.
+    if follow.discard_local
+        || crate::gitworkstate::holds_only_state(root, &ga::bring_ref(&req.source_slug))
+    {
+        return Ok(());
     }
-    progress(app, id, "duplicating", 0, 0);
-    let plan = crate::projects_crud::prepare_duplicate(&req.project)?;
-    crate::projects_crud::run_duplicate(app, &plan, req.label.as_deref(), true, false, false)?;
-    Ok((
-        plan.new_name.clone(),
-        plan.new_root.to_string_lossy().to_string(),
+    Err(format!(
+        "{name} has changes that didn't come from the other Mac — they were left untouched"
     ))
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
+import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
 import { WhenToPick } from "@/components/vs/when-to-pick";
@@ -19,9 +20,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
-  title: { absolute: "Overmind Alternative for Mac — Procfile Manager Without tmux" },
+  title: { absolute: "Overmind CLI Alternative for Mac — No tmux | lpm" },
   description:
-    "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
+    "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
   keywords: [
     "overmind alternative",
     "overmind vs lpm",
@@ -32,18 +33,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "Overmind Alternative for Mac — Procfile Manager Without tmux",
+    title: "Overmind CLI Alternative for Mac — No tmux | lpm",
     description:
-      "Overmind-grade per-process control — no tmux to install or learn. A native macOS desktop app with per-service panes, single-service restarts, and multi-project switching.",
+      "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Overmind Alternative for Mac — Procfile Manager Without tmux",
+    title: "Overmind CLI Alternative for Mac — No tmux | lpm",
     description:
-      "Overmind-grade per-process control — no tmux to install or learn. Per-service panes, single-service restarts, multi-project switching — in a native macOS app.",
+      "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
   },
 };
 
@@ -103,6 +104,26 @@ const MATRIX_ROWS: MatrixRow[] = [
     lpm: true,
     competitor: false,
   },
+  {
+    label: "Uses an existing Procfile without conversion",
+    lpm: false,
+    competitor: true,
+  },
+  {
+    label: "Runs on Linux, BSD, and macOS",
+    lpm: false,
+    competitor: true,
+  },
+  {
+    label: "Scales multiple instances of a process",
+    lpm: false,
+    competitor: true,
+  },
+  {
+    label: "Automatic PORT allocation",
+    lpm: false,
+    competitor: true,
+  },
 ];
 
 const FAQS: FaqItem[] = [
@@ -151,9 +172,9 @@ const FAQS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "Overmind Alternative for Mac — Procfile Manager Without tmux",
+    title: "Overmind CLI Alternative for Mac — No tmux | lpm",
     description:
-      "Overmind-grade per-process control — no tmux to install or learn. lpm gives Rails devs live panes, single-service restarts, and multi-project switching in a native macOS app.",
+      "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
     path: PATH,
   }),
   breadcrumbJsonLd([
@@ -173,14 +194,24 @@ export default function OvermindVsPage() {
       <ComparisonHero
         eyebrow="lpm vs Overmind"
         title="An Overmind alternative for Mac — Procfile control without tmux."
-        description="Overmind is a great Procfile runner that asks you to know tmux. lpm gives you the same single-service attach, restart, and signal behavior — plus a native macOS app, multi-project switching, and project configs generated straight from your repo."
+        description="Overmind is a capable Procfile manager built around tmux. lpm trades its cross-platform CLI, scaling, and automatic PORT assignment for a native Mac workspace with per-service panes, multi-project switching, and AI-agent workflows."
       />
 
       <DemoSection />
 
+      <ComparisonBasis
+        reviewed="July 26, 2026"
+        sources={[
+          {
+            href: "https://github.com/DarthSim/overmind#readme",
+            label: "Overmind's official README",
+          },
+        ]}
+      />
+
       <FeatureMatrix
         title="Where the two tools differ"
-        description="Overmind exposes tmux windows and asks you to drive them. lpm gives you the same per-process control in a desktop app and multi-project sidebar — nothing to install, configure, or attach to."
+        description="Overmind brings Procfile control, scaling, and automatic ports to a cross-platform CLI built on tmux. lpm trades those CLI features for a Mac desktop workspace and multi-project sidebar."
         competitorName="Overmind"
         rows={MATRIX_ROWS}
       />
@@ -200,13 +231,13 @@ export default function OvermindVsPage() {
         }}
         competitor={{
           name: "Overmind",
-          headline: "You live in tmux, stay on the CLI, and want a tiny single binary.",
+          headline: "You live in tmux, stay on the CLI, and want native Procfile features.",
           points: [
             "You already have tmux muscle memory and prefer keyboard-driven window management.",
             "You develop over SSH on a remote box and need the tmux server to survive terminal reconnects.",
-            "You want a single static Go binary with no GUI dependencies and nothing else running in the background.",
+            "You want to use an existing Procfile directly, with automatic port allocation and process scaling.",
             "Your workflow is one project at a time and you're happy driving everything from the shell.",
-            "You're already using Tmuxinator or a custom tmux setup and Overmind slots in cleanly.",
+            "Your team develops across Linux, BSD, and macOS rather than only on Macs.",
           ],
         }}
       />

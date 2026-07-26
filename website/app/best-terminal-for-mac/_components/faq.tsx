@@ -11,10 +11,9 @@ type QA = {
 
 const FAQS: QA[] = [
   {
-    question:
-      "Is lpm the best terminal for Mac on Apple Silicon (M1, M2, M3, M4)?",
+    question: "Does lpm run natively on Apple silicon Macs?",
     answer:
-      "Yes. lpm ships native builds for both Apple Silicon (M1–M4) and Intel Macs — no Rosetta, no Electron. There is no Chromium tax — it behaves like a first-class Mac app and respects your battery.",
+      "Yes. lpm provides separate native downloads for Apple silicon and Intel Macs, so the Apple silicon build does not require Rosetta. The app uses the macOS system webview rather than bundling Electron or Chromium.",
   },
   {
     question: "Is lpm a free terminal for Mac?",

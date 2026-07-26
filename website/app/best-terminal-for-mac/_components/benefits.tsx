@@ -7,11 +7,11 @@ type Outcome = {
 
 const OUTCOMES: Outcome[] = [
   {
-    title: "Your MacBook stays cool and quiet",
-    body: "No Electron runtime means no hot laps. Your M-series chip runs your services, not a Chromium shell. Battery life you used to lose to Hyper comes back.",
+    title: "Your app ships without a bundled browser runtime",
+    body: "lpm uses the webview already provided by macOS instead of packaging Electron and a separate Chromium runtime. Your terminals, services, and project controls still live in one desktop app.",
   },
   {
-    title: "Your stack boots in one click, not ten cd's",
+    title: "Your stack boots in one click, not ten terminal commands",
     body: "Open a project in the sidebar and hit Start. API, worker, database, frontend — all live, all visible, all in one native window.",
   },
   {

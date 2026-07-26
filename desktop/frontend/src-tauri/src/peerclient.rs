@@ -32,6 +32,10 @@ const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // host snapshots ~/.lpm first
 const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
 const GIT_BRING_UNSUPPORTED: &str = "the other Mac needs to update lpm to send its changes";
+/// A reachability failure rather than a refusal — a follower retries these with
+/// backoff instead of pausing.
+pub(crate) const PEER_NOT_CONNECTED: &str = "peer not connected";
+pub(crate) const PEER_REQUEST_TIMED_OUT: &str = "peer request timed out";
 const PING_INTERVAL: Duration = Duration::from_secs(20);
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
@@ -58,6 +62,7 @@ struct PeerConn {
     supports_sync: AtomicBool,  // host advertised the configSync feature in `ready`
     supports_sync2: AtomicBool, // host also advertised configSync2 (revision-aware)
     supports_git_bring: AtomicBool, // host can hand over its working state as a packfile
+    supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
     generation: AtomicU64,      // bump to retire the current connection thread
 }
 
@@ -74,6 +79,7 @@ impl PeerConn {
             supports_sync: AtomicBool::new(false),
             supports_sync2: AtomicBool::new(false),
             supports_git_bring: AtomicBool::new(false),
+            supports_git_follow: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -83,7 +89,7 @@ impl PeerConn {
             Some(tx) => tx
                 .try_send(frame)
                 .map_err(|_| "peer send queue full".to_string()),
-            None => Err("peer not connected".to_string()),
+            None => Err(PEER_NOT_CONNECTED.to_string()),
         }
     }
 
@@ -165,6 +171,9 @@ impl PeerClientHub {
                 let supports_git_bring = conn
                     .map(|c| c.supports_git_bring.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_git_follow = conn
+                    .map(|c| c.supports_git_follow.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
@@ -178,6 +187,7 @@ impl PeerClientHub {
                     "supportsSync": supports_sync,
                     "supportsSync2": supports_sync2,
                     "supportsGitBring": supports_git_bring,
+                    "supportsGitFollow": supports_git_follow,
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
                     "pinned": p.tls_fp.is_some(),
@@ -451,7 +461,7 @@ impl PeerClientHub {
             .cloned()
             .ok_or_else(|| "unknown peer".to_string())?;
         if !conn.connected.load(Ordering::Relaxed) {
-            return Err("peer not connected".to_string());
+            return Err(PEER_NOT_CONNECTED.to_string());
         }
         let req = self.inner.next_req.fetch_add(1, Ordering::SeqCst) + 1;
         let pending = Arc::new(Pending {
@@ -480,11 +490,25 @@ impl PeerClientHub {
         let result = guard.take();
         drop(guard);
         conn.pending.lock().unwrap().remove(&req);
-        result.unwrap_or_else(|| Err("peer request timed out".to_string()))
+        result.unwrap_or_else(|| Err(PEER_REQUEST_TIMED_OUT.to_string()))
     }
 
     /// Guard: the peer must be connected and its host must speak "bring changes".
     pub(crate) fn require_git_bring(&self, slug: &str) -> Result<(), String> {
+        self.require_feature(slug, |c| c.supports_git_bring.load(Ordering::Relaxed))
+    }
+
+    /// Guard: the peer must also answer the working-state fingerprint a followed
+    /// project polls for.
+    pub(crate) fn require_git_follow(&self, slug: &str) -> Result<(), String> {
+        self.require_feature(slug, |c| c.supports_git_follow.load(Ordering::Relaxed))
+    }
+
+    fn require_feature(
+        &self,
+        slug: &str,
+        has: impl Fn(&PeerConn) -> bool,
+    ) -> Result<(), String> {
         let conn = self
             .inner
             .conns
@@ -494,9 +518,9 @@ impl PeerClientHub {
             .cloned()
             .ok_or_else(|| "unknown peer".to_string())?;
         if !conn.connected.load(Ordering::Relaxed) {
-            return Err("peer not connected".to_string());
+            return Err(PEER_NOT_CONNECTED.to_string());
         }
-        if !conn.supports_git_bring.load(Ordering::Relaxed) {
+        if !has(&conn) {
             return Err(GIT_BRING_UNSUPPORTED.to_string());
         }
         Ok(())
@@ -538,7 +562,7 @@ impl PeerClientHub {
             .cloned()
             .ok_or_else(|| "unknown peer".to_string())?;
         if !conn.connected.load(Ordering::Relaxed) {
-            return Err("peer not connected".to_string());
+            return Err(PEER_NOT_CONNECTED.to_string());
         }
         if !conn.supports_sync.load(Ordering::Relaxed) {
             return Err(SYNC_UNSUPPORTED.to_string());
@@ -1271,6 +1295,10 @@ fn connect_session(
         has_feature(crate::gitbringhost::GIT_BRING_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_git_follow.store(
+        has_feature(crate::gitbringhost::GIT_FOLLOW_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -1291,6 +1319,15 @@ fn connect_session(
     // resets). Gating still applies — a non-configSync2 or unpinned peer is skipped.
     if let Some(engine) = autosync_engine(app.as_ref()) {
         engine.notify_connected(&conn.slug);
+    }
+    // Same for followed projects: the Mac is reachable again, so drop any backoff
+    // that built up while it was not and check it now. Called outside the conns
+    // lock — the follow scheduler reads connection state, so the two must not nest.
+    if let Some(engine) = app
+        .as_ref()
+        .and_then(|a| a.try_state::<crate::gitfollow::Engine>())
+    {
+        engine.nudge();
     }
     let mut last_ping = Instant::now();
     'main: loop {

@@ -648,11 +648,18 @@ fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
 /// `m` so the portable nc/python3/perl fallback chain can regenerate it. The gate
 /// also requires a known project and pane so a recovered-socket-only case never
 /// sends `set_status ''`.
+///
+/// These hooks ignore the JSON payload, but must still drain it: the agent writes
+/// it to the hook's stdin, and a payload larger than the pipe buffer (a tool
+/// result, say) leaves the agent blocked on a write that fails the moment the
+/// hook exits — Codex surfaces that as `failed to write hook stdin: Broken pipe`
+/// in the session UI. The `[ -t 0 ]` guard keeps an interactively-run hook from
+/// hanging on a terminal stdin.
 fn send_cmd(cmd: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "[ -t 0 ] || cat >/dev/null 2>&1; {recover} m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -711,11 +718,17 @@ fn capture_resume_cmd() -> String {
 /// `,"cwd"` anchor pins the real field: `tool_input` can embed arbitrary text.
 /// Abstains from the allow/deny decision (no stdout), so user-routed approvals
 /// still reach the user.
+///
+/// The rollout is searched in widening tail windows rather than a fixed one: a
+/// turn that dumps large tool output pushes its `turn_context` arbitrarily far
+/// from the write head (multi-MB gaps are routine, 17MB observed), and a window
+/// that misses it fails open into exactly the false Waiting this gate exists to
+/// prevent. The common case still stops at the first (cheap) window.
 fn codex_permission_request_cmd() -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; [ -f \"$tp\" ] && auto=$(tail -c 1048576 \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1 | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; if [ -f \"$tp\" ]; then tc=\"\"; for n in 1048576 16777216 0; do if [ \"$n\" = 0 ]; then tc=$(grep -a '\"type\":\"turn_context\"' \"$tp\" 2>/dev/null | tail -n 1); else tc=$(tail -c \"$n\" \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1); fi; [ -n \"$tc\" ] && break; done; auto=$(printf '%s\\n' \"$tc\" | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); fi; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2502,6 +2515,62 @@ mod tests {
             msg.contains("codex_pane-1 Waiting"),
             "unreadable rollout falls back to Waiting: {msg}"
         );
+    }
+
+    /// A turn that dumps large tool output pushes `turn_context` far behind the
+    /// write head; the gate must still find it instead of failing open. Observed
+    /// in a live session: the approval request landed 2.3MB past its own
+    /// `turn_context`, and the badge (plus its chime) fired for a request the
+    /// auto reviewer approved on its own.
+    #[test]
+    fn codex_permission_hook_finds_turn_context_behind_bulky_output() {
+        let td = tempfile::tempdir().unwrap();
+        let path = td.path().join("bulky.jsonl");
+        let tc = r#"{"timestamp":"T","type":"turn_context","payload":{"turn_id":"t1","approval_policy":"on-request","approvals_reviewer":"auto_review"}}"#;
+        let bulk = format!(
+            r#"{{"timestamp":"T","type":"event_msg","payload":{{"text":"{}"}}}}"#,
+            "o".repeat(2 * 1024 * 1024)
+        );
+        std::fs::write(&path, format!("{tc}\n{bulk}\n")).unwrap();
+
+        let transcript = path.to_string_lossy().into_owned();
+        assert_eq!(
+            run_codex_hook(&codex_permission_request_cmd(), &permission_payload(&transcript)),
+            None,
+            "turn_context beyond the first tail window still suppresses Waiting"
+        );
+    }
+
+    /// Every hook must consume the payload the agent writes to its stdin. A hook
+    /// that exits without reading breaks the agent's write once the payload
+    /// outgrows the pipe buffer (Codex prints `failed to write hook stdin`).
+    #[test]
+    fn codex_hooks_drain_oversized_payloads() {
+        use std::io::Write;
+        let payload = format!(
+            r#"{{"session_id":"s1","transcript_path":"/tmp/r.jsonl","cwd":"/tmp/p","permission_mode":"default","tool_name":"shell","tool_output":"{}"}}"#,
+            "o".repeat(1024 * 1024)
+        );
+        let cmds = [
+            send_cmd("set_status 'p' k Running"),
+            codex_pre_tool_use_cmd(),
+            codex_permission_request_cmd(),
+        ];
+        for cmd in cmds {
+            let mut child = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&cmd)
+                .env_remove("TMUX")
+                .env_remove("LPM_SOCKET_PATH")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .unwrap();
+            let wrote = child.stdin.take().unwrap().write_all(payload.as_bytes());
+            child.wait().unwrap();
+            assert!(wrote.is_ok(), "hook closed stdin early: {wrote:?}\n{cmd}");
+        }
     }
 
     #[test]

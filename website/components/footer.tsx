@@ -33,7 +33,10 @@ const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
 export function Footer() {
   return (
     <footer className="py-10 border-t border-gray-100 dark:border-gray-800/60 text-center">
-      <div className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-4">
+      <div
+        data-nosnippet
+        className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-4"
+      >
         <p className="text-xs text-gray-300 dark:text-gray-600 tracking-wide">
           Built for developers
         </p>

@@ -209,7 +209,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
             Built into LPM Desktop · macOS
           </p>
           <h1 className="bg-gradient-to-br from-gray-950 via-gray-800 to-gray-500 bg-clip-text text-4xl font-extrabold leading-[1.04] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-500 sm:text-6xl lg:text-7xl">
-            Customize your AI statuslines.
+            Customize your AI statuslines.{" "}
             <span className="block">Without editing config files.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-lg">

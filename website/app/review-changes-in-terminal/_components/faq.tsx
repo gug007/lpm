@@ -29,9 +29,9 @@ const FAQS: QA[] = [
       "No. The review shows your working-tree changes — modified, newly added, and deleted files — so you can read the full diff before you decide what to stage or commit. It's the last gate before code leaves your machine, not something that only works after the fact.",
   },
   {
-    question: "Is the diff viewer a real native app or a web view?",
+    question: "Is the diff viewer part of the Mac app or a browser page?",
     answer:
-      "lpm is a native macOS desktop app built for Apple Silicon — no Electron and no bundled browser. The diff renders natively, scrolls smoothly on large files, and responds to keyboard navigation instantly, in the same window as your real terminal panes running your actual shell and dev servers.",
+      "The diff viewer is built into lpm's macOS desktop app alongside your terminal panes. lpm uses the macOS system webview for its interface instead of bundling Electron or Chromium, so the review stays in the same app window rather than opening a separate browser page.",
   },
 ];
 

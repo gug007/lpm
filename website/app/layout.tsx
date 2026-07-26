@@ -20,12 +20,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default:
-      "lpm — Project & Terminal Switcher for Claude Code & Codex",
+    default: "lpm — Local Dev Process Manager for Mac",
     template: "%s — lpm",
   },
   description:
-    "Native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch local dev projects — Rails, Next.js, Go, and more.",
+    "Free, open-source macOS app to start, stop, duplicate, and switch local dev projects. Run every service and AI coding agent without port conflicts.",
   keywords: [
     "dev tools",
     "macOS app",
@@ -35,18 +34,18 @@ export const metadata: Metadata = {
     "project switcher",
   ],
   openGraph: {
-    title: "lpm — Project & Terminal Switcher for Claude Code & Codex",
+    title: "lpm — Local Dev Process Manager for Mac",
     description:
-      "A native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch between local dev projects with a single click.",
+      "Free, open-source macOS app to start, stop, duplicate, and switch local dev projects. Run every service and AI coding agent without port conflicts.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Project & Terminal Switcher for Claude Code & Codex",
+    title: "lpm — Local Dev Process Manager for Mac",
     description:
-      "A native macOS app with a built-in terminal for Claude Code and Codex. Start, stop, duplicate, and switch between local dev projects with a single click.",
+      "Free, open-source macOS app to start, stop, duplicate, and switch local dev projects. Run every service and AI coding agent without port conflicts.",
   },
 };
 
@@ -68,7 +67,7 @@ const structuredData = {
       "@id": `${SITE_URL}/#app`,
       name: "lpm",
       description:
-        "A native macOS desktop app to manage local dev projects. Start, stop, duplicate, and switch with a single click.",
+        "A free, open-source local dev process manager for Mac. Start, stop, duplicate, and switch projects, services, and AI coding agents without port conflicts.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS",
       url: SITE_URL,

@@ -155,7 +155,7 @@ export default function ComparisonsHubPage() {
         title={
           <>
             Try lpm on your next project.
-            <br className="hidden sm:block" />
+            <br className="hidden sm:block" />{" "}
             Keep the tool you love for the rest.
           </>
         }

@@ -70,7 +70,9 @@ export function Downloads({ children }: { children?: ReactNode }) {
               key={href}
               href={href}
               data-platform={platform}
-              onClick={() => trackDownload({ source: "downloads", platform })}
+              onClick={() =>
+                trackDownload({ source: "downloads", platform, href })
+              }
               className="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
             >
               <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">

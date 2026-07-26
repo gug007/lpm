@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
+import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import {
   BEST_TERMINAL_MAC_PATH,
   GIT_TERMINAL_MAC_PATH,
@@ -70,6 +71,19 @@ export default function BestTerminalForMacPage() {
       />
       <Hero />
       <DemoSection />
+      <ComparisonBasis
+        reviewed="July 26, 2026"
+        sources={[
+          {
+            href: "https://iterm2.com/features.html",
+            label: "iTerm2's official feature list",
+          },
+          {
+            href: "https://github.com/warpdotdev/warp/discussions/9240",
+            label: "Warp's open-source announcement",
+          },
+        ]}
+      />
       <WhyMac />
       <Features />
       <Benefits />

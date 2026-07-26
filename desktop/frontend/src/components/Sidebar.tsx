@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   DndContext,
   DragOverlay,
@@ -41,12 +42,15 @@ import { GroupContextMenu } from "./GroupContextMenu";
 import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
-import { ProjectContextMenu } from "./ProjectContextMenu";
+import { ProjectContextMenu, type FollowingMenuState } from "./ProjectContextMenu";
 import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
-import { BringChangesDialog } from "./BringChangesDialog";
-import { bringChangesEntry } from "./bringChangesSources";
-import { bringChangesSupported } from "../bringChangesApi";
+import { SyncSetupModal } from "./SyncSetupModal";
+import { syncSourceFor } from "./syncSource";
+import { syncSupported } from "../syncApi";
+import { FollowIndicator } from "./FollowIndicator";
+import { useFollowState } from "../hooks/useFollowState";
+import { followResume, followStop } from "../followApi";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
@@ -59,7 +63,7 @@ import { SpinnerIcon } from "./project-detail/icons";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
 import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
-import { usePeerState } from "../peer/usePeerState";
+import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
@@ -161,9 +165,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // seeded with a project to drop into the new folder.
   const [createFolder, setCreateFolder] = useState<{ initialMembers?: string[] } | null>(null);
   const [bulkDuplicate, setBulkDuplicate] = useState<{ name: string; mode: DuplicateMode } | null>(null);
-  // The local project a "Bring Changes…" dialog targets, plus the Mac it was
-  // opened from (the peer row's own Mac, or the first one offering the project).
-  const [bringChanges, setBringChanges] = useState<{ name: string; slug: string } | null>(null);
+  // The remote project being set up as a local synced folder.
+  const [syncing, setSyncing] = useState<{
+    remoteName: string;
+    sourceRoot: string;
+    slug: string;
+  } | null>(null);
   const [gitModal, setGitModal] = useState<GitModalTarget | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
@@ -180,6 +187,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Remote (peer) projects render in their own sections below the local ones;
   // they never take part in folders, drag-reorder, or select-mode.
   const { state: peerState } = usePeerState();
+  // Followed projects, keyed by the local project the other Mac's work lands in.
+  const { follows } = useFollowState();
   const localProjects = useMemo(() => projects.filter((p) => !isPeerName(p.name)), [projects]);
   const peerSections = useMemo(() => {
     const bySlug = new Map<string, ProjectInfo[]>();
@@ -205,15 +214,31 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
 
-  // Right-clicking either the local project or its row under a peer resolves to
-  // the same local target; only the preselected source Mac differs.
-  const bringEntry = useMemo(
+  // Only a peer's project row offers syncing, and only when its Mac can serve it.
+  const syncSource = useMemo(
     () =>
-      contextMenu && bringChangesSupported()
-        ? bringChangesEntry(projects, peerState.peers, contextMenu.name)
+      contextMenu && syncSupported()
+        ? syncSourceFor(projects, peerState.peers, contextMenu.name)
         : null,
     [contextMenu, projects, peerState.peers],
   );
+
+  // The follow the right-clicked row belongs to. A peer row and the local project
+  // it mirrors resolve to the same follow, since the follow is the local project's.
+  const contextFollow = useMemo((): FollowingMenuState | undefined => {
+    const target = contextMenu ? stripMarker(contextMenu.name) : "";
+    const follow = target ? follows.get(target) : undefined;
+    if (!follow) return undefined;
+    const fail = (err: unknown) => toast.error(String(err));
+    return {
+      macName: peerAlias(peerState.peers, follow.slug),
+      paused: Boolean(follow.paused),
+      // Resuming from the menu keeps the user's edits: discarding them is only
+      // ever the explicit choice offered on the pause notice itself.
+      onResume: () => void followResume(target, false).catch(fail),
+      onStop: () => void followStop(target).catch(fail),
+    };
+  }, [contextMenu, follows, peerState.peers]);
 
   // Lookup across BOTH local and peer projects. projectByName (built later) holds
   // only local projects since it drives the reorderable tree; context-menu-driven
@@ -593,6 +618,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const name = <ProjectNameDisplay project={project} parent={parent} />;
     const showCheck = status.isDone && !status.isWaiting && !status.isError;
     const isChecked = selectedForDelete.has(project.name);
+    const follow = follows.get(project.name);
 
     const buttonClass = selectMode
       ? `${ROW_BASE_CLASS} ${
@@ -662,6 +688,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             >
               <DetachIcon />
             </span>
+          )}
+          {follow && (
+            <FollowIndicator
+              follow={follow}
+              macName={peerAlias(peerState.peers, follow.slug)}
+            />
           )}
           {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
           {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
@@ -976,15 +1008,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onOpenMemory={() => onOpenProjectView(contextMenu.name, "memory")}
             onBulkDuplicate={() => setBulkDuplicate({ name: contextMenu.name, mode: "copy" })}
             onWorktree={() => setBulkDuplicate({ name: contextMenu.name, mode: "worktree" })}
-            onBringChanges={
-              bringEntry
-                ? () =>
-                    setBringChanges({
-                      name: bringEntry.project.name,
-                      slug: bringEntry.initialSlug,
-                    })
-                : undefined
-            }
+            onSyncHere={syncSource ? () => setSyncing(syncSource) : undefined}
+            following={contextFollow}
             onCopyPath={() => {
               // Copy the host-native path; the /@peer-… marker is a routing key,
               // meaningless outside lpm (a no-op strip for local projects).
@@ -1147,11 +1172,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           setBulkDuplicate(null);
         }}
       />
-      {bringChanges && (
-        <BringChangesDialog
-          projectName={bringChanges.name}
-          initialSourceSlug={bringChanges.slug}
-          onClose={() => setBringChanges(null)}
+      {syncing && (
+        <SyncSetupModal
+          remoteName={syncing.remoteName}
+          sourceRoot={syncing.sourceRoot}
+          slug={syncing.slug}
+          macName={peerAlias(peerState.peers, syncing.slug)}
+          onClose={() => setSyncing(null)}
         />
       )}
       <ProjectRenameModal

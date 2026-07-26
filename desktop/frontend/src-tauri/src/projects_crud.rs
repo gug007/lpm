@@ -62,6 +62,29 @@ pub fn create_project(app: AppHandle, name: String, root: String) -> Result<(), 
     Ok(())
 }
 
+/// Register a folder synced from another Mac. No placeholder service: whatever it
+/// should run belongs to the project on the Mac it came from, and inventing a
+/// `dev` stub here would only look like configuration the user wrote.
+pub(crate) fn register_synced_project(name: &str, root: &str) -> Result<(), String> {
+    config::validate_name(name)?;
+    if config::project_exists(name) {
+        return Err(format!("project {name:?} already exists"));
+    }
+    write_project_yaml(name, |m| {
+        yset(m, "name", name);
+        yset(m, "root", config::collapse_home(root).as_str());
+    })
+}
+
+/// Drop a synced project's config again after a failed setup.
+pub(crate) fn forget_project_config(name: &str) -> Result<(), String> {
+    match std::fs::remove_file(config::project_path(name)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[tauri::command(async)]
 pub fn create_ssh_project(app: AppHandle, name: String, ssh: SshConfig) -> Result<(), String> {
     config::validate_name(&name)?;

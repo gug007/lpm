@@ -141,7 +141,9 @@ export function DemoSection() {
           }
           className="mb-10"
         />
-        <DemoStage />
+        <div data-nosnippet>
+          <DemoStage />
+        </div>
       </div>
     </section>
   );

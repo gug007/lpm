@@ -19,12 +19,12 @@ type Feature = {
 const FEATURES: Feature[] = [
   {
     icon: Cpu,
-    title: "Apple Silicon native",
+    title: "Native Apple silicon and Intel builds",
     body: (
       <>
-        Ships native builds for both Apple Silicon (M1–M4) and Intel Macs. No
-        Rosetta, no Electron, no Chromium tax — just a fast macOS app that
-        respects your battery and your fan curve.
+        Ships separate native builds for Apple silicon and Intel Macs. No
+        Rosetta on Apple silicon, no Electron, and no bundled Chromium runtime
+        — the app uses the webview already provided by macOS.
       </>
     ),
   },
@@ -93,7 +93,7 @@ export default function Features() {
         <SectionHeader
           eyebrow="Inside the app"
           title="A Mac-native terminal workspace, not another tab strip"
-          description="Six reasons developers pick lpm as the best terminal for Mac in 2026."
+          description="Six reasons developers choose lpm as a terminal workspace for Mac."
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {FEATURES.map(({ icon, title, body }) => (

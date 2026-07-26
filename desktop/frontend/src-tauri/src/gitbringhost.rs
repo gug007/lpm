@@ -1,7 +1,7 @@
-// Host half of "Bring changes": the Mac that holds the work answers three peer
-// verbs — snapshot + pack, chunk read, release. Nothing is written to the repo;
-// the working tree is captured as a throwaway commit built in a temp index, so
-// the user's own index and HEAD are untouched.
+// Host half of "Bring changes": the Mac that holds the work answers four peer
+// verbs — snapshot + pack, working-state fingerprint, chunk read, release. Nothing
+// is written to the repo; the working tree is captured as a throwaway commit built
+// over a temp index, so the user's own index and HEAD are untouched.
 //
 // Frames are plain JSON text (the peer channel carries no binary), so pack bytes
 // travel base64'd in 1 MiB chunks. Every verb runs on its own thread and replies
@@ -20,6 +20,10 @@ use std::sync::mpsc::SyncSender;
 use std::sync::{Mutex, OnceLock};
 
 pub const GIT_BRING_FEATURE: &str = "gitBring";
+/// This Mac can also answer the cheap working-state fingerprint a following Mac
+/// polls for. Separate from `gitBring` so a build that only speaks the one-shot
+/// transfer is never sent a verb it would leave unanswered.
+pub const GIT_FOLLOW_FEATURE: &str = "gitFollow";
 
 const CHUNK_BYTES: u64 = 1024 * 1024;
 const MAX_PACK_BYTES: u64 = 1024 * 1024 * 1024;
@@ -54,6 +58,7 @@ pub fn handle_bring(out: &SyncSender<String>, t: &str, v: &Value) {
     std::thread::spawn(move || {
         let res = match verb.as_str() {
             "gitBringPrepare" => prepare(&v),
+            "gitBringState" => state(&v),
             "gitBringChunk" => chunk(&v),
             "gitBringDone" => done(&v),
             _ => Err(format!("unknown bring request: {verb}")),
@@ -88,8 +93,9 @@ fn str_arg(v: &Value, key: &str) -> String {
         .to_string()
 }
 
-fn prepare(v: &Value) -> Result<Value, String> {
-    reap_expired();
+/// The folder every verb starts from: a real Git repository this Mac manages as
+/// a project. Anything else is refused before a single object is read.
+fn checked_root(v: &Value) -> Result<String, String> {
     let cwd = str_arg(v, "cwd");
     if cwd.is_empty() || !Path::new(&cwd).is_dir() {
         return Err("the project folder is missing on the other Mac".into());
@@ -100,11 +106,35 @@ fn prepare(v: &Value) -> Result<Value, String> {
     if git(&cwd, &["rev-parse", "--is-inside-work-tree"]).is_err() {
         return Err("that project is not a Git repository on the other Mac".into());
     }
-    let head = git(&cwd, &["rev-parse", "HEAD"])
-        .map_err(|_| "that project has no commits yet on the other Mac".to_string())?;
-    let branch = git(&cwd, &["symbolic-ref", "--quiet", "--short", "HEAD"])
+    Ok(cwd)
+}
+
+fn head_of(cwd: &str) -> Result<String, String> {
+    crate::gitworkstate::head_sha(cwd)
+        .map_err(|_| "that project has no commits yet on the other Mac".to_string())
+}
+
+fn branch_of(cwd: &str) -> Option<String> {
+    git(cwd, &["symbolic-ref", "--quiet", "--short", "HEAD"])
         .ok()
-        .filter(|b| !b.is_empty());
+        .filter(|b| !b.is_empty())
+}
+
+/// What this project's working state is right now, with no pack written and no
+/// commit created. A following Mac polls this and only asks for a transfer when
+/// the answer changed, so it has to stay cheap: one throwaway index build.
+fn state(v: &Value) -> Result<Value, String> {
+    let cwd = checked_root(v)?;
+    let head = head_of(&cwd)?;
+    let tree = crate::gitworkstate::working_state_tree(&cwd, &head)?;
+    Ok(json!({ "head": head, "tree": tree, "branch": branch_of(&cwd) }))
+}
+
+fn prepare(v: &Value) -> Result<Value, String> {
+    reap_expired();
+    let cwd = checked_root(v)?;
+    let head = head_of(&cwd)?;
+    let branch = branch_of(&cwd);
 
     let snapshot = snapshot(&cwd, &head)?;
     let target = snapshot.sha.clone().unwrap_or_else(|| head.clone());
@@ -133,6 +163,7 @@ fn prepare(v: &Value) -> Result<Value, String> {
         "head": head,
         "branch": branch,
         "snapshot": snapshot.sha,
+        "tree": snapshot.tree,
         "bytes": bytes,
         "chunk": CHUNK_BYTES,
         "changed": snapshot.changed,
@@ -195,6 +226,9 @@ fn reap_expired() {
 
 struct Snapshot {
     sha: Option<String>,
+    /// The working state's tree id — the fingerprint a follower compares against,
+    /// reported whether or not a snapshot commit was needed.
+    tree: String,
     changed: u64,
 }
 
@@ -206,42 +240,31 @@ fn temp_path(prefix: &str) -> PathBuf {
     std::env::temp_dir().join(format!("{prefix}-{}", uuid::Uuid::new_v4()))
 }
 
-/// Capture the working tree (tracked edits, deletions and untracked-unignored
-/// files) as a commit on top of HEAD, built in a throwaway index so the user's
-/// own staging area is never touched. Ignored files stay out — they are
-/// machine-specific. Returns no sha when the tree already matches HEAD.
+/// Capture the working tree as a commit on top of HEAD. The tree itself comes
+/// from the shared working-state definition, so what travels is exactly what a
+/// follower fingerprints; `commit-tree` reads no index, so nothing here touches
+/// the user's staging area. Returns no sha when the tree already matches HEAD.
 fn snapshot(cwd: &str, head: &str) -> Result<Snapshot, String> {
-    let index = temp_path("lpm-bring-index");
-    let index_arg = index.to_string_lossy().to_string();
-    let envs = [("GIT_INDEX_FILE", index_arg.as_str())];
-    let built = build_snapshot(cwd, head, &envs);
-    let _ = std::fs::remove_file(&index);
-    built
-}
-
-fn build_snapshot(cwd: &str, head: &str, envs: &[(&str, &str)]) -> Result<Snapshot, String> {
-    git_out_env(cwd, &["read-tree", head], envs)?;
-    git_out_env(cwd, &["add", "-A", "--"], envs)?;
-    let tree = git_out_env(cwd, &["write-tree"], envs)?;
-    let head_tree = git(cwd, &["rev-parse", &format!("{head}^{{tree}}")])?;
+    let tree = crate::gitworkstate::working_state_tree(cwd, head)?;
+    let head_tree = crate::gitworkstate::tree_of(cwd, head)?;
     if tree == head_tree {
         return Ok(Snapshot {
             sha: None,
+            tree,
             changed: 0,
         });
     }
     let changed = git(cwd, &["diff-tree", "-r", "--name-only", &head_tree, &tree])
         .map(|o| o.lines().filter(|l| !l.trim().is_empty()).count() as u64)
         .unwrap_or(0);
-    let mut identity = SNAPSHOT_IDENTITY.to_vec();
-    identity.extend_from_slice(envs);
     let sha = git_out_env(
         cwd,
         &["commit-tree", &tree, "-p", head, "-m", SNAPSHOT_MESSAGE],
-        &identity,
+        &SNAPSHOT_IDENTITY,
     )?;
     Ok(Snapshot {
         sha: Some(sha),
+        tree,
         changed,
     })
 }
@@ -498,7 +521,9 @@ mod tests {
 
         let pack_path = pack(&sender, &target, &haves).unwrap();
         crate::gitbringapply::index_pack(&receiver, &pack_path).unwrap();
-        crate::gitbringapply::apply_state(&receiver, "lpm/main", &target, &head, true).unwrap();
+        crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
+            &receiver, "lpm/main", &target, &head, true,
+        )).unwrap();
         let _ = std::fs::remove_file(&pack_path);
 
         let at = |p: &str| receiver_dir.path().join("work").join(p);
@@ -553,7 +578,9 @@ mod tests {
     fn a_second_bring_refuses_to_move_a_branch_carrying_local_commits() {
         let (d, cwd) = repo();
         let head = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
-        crate::gitbringapply::apply_state(&cwd, "lpm/main", &head, &head, false).unwrap();
+        crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
+            &cwd, "lpm/main", &head, &head, false,
+        )).unwrap();
 
         std::fs::write(d.path().join("mine.txt"), "my work\n").unwrap();
         git(&cwd, &["add", "-A"]).unwrap();
@@ -566,7 +593,9 @@ mod tests {
         let mine = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
 
         let err =
-            crate::gitbringapply::apply_state(&cwd, "lpm/main", &head, &head, false).unwrap_err();
+            crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
+            &cwd, "lpm/main", &head, &head, false,
+        )).unwrap_err();
         assert!(err.contains("commits of its own"), "{err}");
         assert_eq!(git(&cwd, &["rev-parse", "lpm/main"]).unwrap(), mine);
     }
@@ -600,7 +629,9 @@ mod tests {
         std::fs::write(d.path().join("app.env"), "MY REAL SECRETS\n").unwrap();
 
         let err =
-            crate::gitbringapply::apply_state(&cwd, "lpm/x", &target, &target, false).unwrap_err();
+            crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
+            &cwd, "lpm/x", &target, &target, false,
+        )).unwrap_err();
         assert!(err.contains("app.env"), "{err}");
         assert_eq!(
             std::fs::read_to_string(d.path().join("app.env")).unwrap(),

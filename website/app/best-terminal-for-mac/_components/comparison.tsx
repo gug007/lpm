@@ -36,20 +36,20 @@ const CAPABILITIES: Capability[] = [
     warp: false,
   },
   {
-    label: "Start your full dev stack in one command",
+    label: "Built-in project-aware full-stack start",
     lpm: true,
     iterm2: false,
     terminal: false,
-    tmux: true,
+    tmux: false,
     hyper: false,
     warp: false,
   },
   {
-    label: "Live output per service in one window",
+    label: "Built-in service definitions with live output",
     lpm: true,
     iterm2: false,
     terminal: false,
-    tmux: true,
+    tmux: false,
     hyper: false,
     warp: false,
   },
@@ -87,21 +87,27 @@ const CAPABILITIES: Capability[] = [
     terminal: true,
     tmux: true,
     hyper: true,
-    warp: false,
+    warp: true,
   },
 ];
 
 function Indicator({ on }: { on: boolean }) {
   return on ? (
-    <Check
-      aria-label="Yes"
-      className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
-    />
+    <>
+      <Check
+        aria-hidden="true"
+        className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
+      />
+      <span className="sr-only">Yes</span>
+    </>
   ) : (
-    <X
-      aria-label="No"
-      className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
-    />
+    <>
+      <X
+        aria-hidden="true"
+        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+      />
+      <span className="sr-only">No</span>
+    </>
   );
 }
 
@@ -112,7 +118,7 @@ export default function Comparison() {
         <SectionHeader
           eyebrow="How it compares"
           title="lpm vs iTerm2, Terminal.app, tmux, Hyper, and Warp"
-          description="A quick matrix for Mac developers picking between the usual suspects."
+          description="iTerm2, tmux, Warp, and the others can arrange panes and run scripts. These rows focus on built-in project and service awareness."
         />
 
         <div className="hidden sm:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">

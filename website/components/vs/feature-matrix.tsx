@@ -21,10 +21,13 @@ type Props = {
 function Cell({ value }: { value: MatrixCell }) {
   if (value === "partial") {
     return (
-      <Minus
-        aria-label="Partial"
-        className="mx-auto w-4 h-4 text-gray-400 dark:text-gray-500"
-      />
+      <>
+        <Minus
+          aria-hidden="true"
+          className="mx-auto w-4 h-4 text-gray-400 dark:text-gray-500"
+        />
+        <span className="sr-only">Partial</span>
+      </>
     );
   }
   if (typeof value === "string") {
@@ -35,15 +38,21 @@ function Cell({ value }: { value: MatrixCell }) {
     );
   }
   return value ? (
-    <Check
-      aria-label="Yes"
-      className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
-    />
+    <>
+      <Check
+        aria-hidden="true"
+        className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
+      />
+      <span className="sr-only">Yes</span>
+    </>
   ) : (
-    <X
-      aria-label="No"
-      className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
-    />
+    <>
+      <X
+        aria-hidden="true"
+        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+      />
+      <span className="sr-only">No</span>
+    </>
   );
 }
 

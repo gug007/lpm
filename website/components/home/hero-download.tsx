@@ -27,7 +27,7 @@ export function HeroDownload() {
 
   const handleClick = () => {
     if (!platform) return;
-    trackDownload({ source: "hero", platform });
+    trackDownload({ source: "hero", platform, href });
   };
 
   return (

@@ -10,7 +10,7 @@ export default function Cta() {
       <div className="max-w-3xl mx-auto px-6">
         <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Put your terminals in your pocket.
-          <br className="hidden sm:block" />
+          <br className="hidden sm:block" />{" "}
           Prompt your agents, review the diff, and ship it from anywhere.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">

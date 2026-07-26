@@ -42,6 +42,8 @@ export interface PeerClient {
   supportsSync2?: boolean;
   // The peer's build can hand its working state over ("Bring changes").
   supportsGitBring?: boolean;
+  // ...and answer the cheap fingerprint a followed project polls for.
+  supportsGitFollow?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;
@@ -73,6 +75,12 @@ export const DEFAULT_PEER_STATE: PeerStateShape = {
   },
   peers: [],
 };
+
+/// The display name a peer is known by, for copy that names the other Mac.
+export function peerAlias(peers: PeerClient[], slug: string): string {
+  const peer = peers.find((p) => p.slug === slug);
+  return peer?.alias || peer?.host || "another Mac";
+}
 
 // Live peer configuration + connection status for both roles. Refreshes on
 // `peer-state-changed`, emitted whenever a connection or the config changes.

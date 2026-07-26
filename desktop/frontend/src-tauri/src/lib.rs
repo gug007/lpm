@@ -24,6 +24,11 @@ mod gitbring;
 mod gitbringapply;
 mod gitbringhost;
 mod gitbringrun;
+mod gitfollow;
+mod gitfollowrun;
+mod gitfollowstore;
+mod gitsync;
+mod gitworkstate;
 mod hooks;
 mod jobs;
 mod log_streaming;
@@ -93,7 +98,8 @@ use files::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 use git::*;
-use gitbring::{bring_changes_cancel, bring_changes_start, bring_changes_targets};
+use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
+use gitsync::{sync_project_cancel, sync_project_start};
 use hooks::*;
 use jobs::*;
 use log_streaming::*;
@@ -237,9 +243,14 @@ pub fn run() {
             // Per-peer auto-sync engine: drives the same sync path unattended when
             // a peer has auto-sync on. Managed so the config watcher and the peer
             // client can nudge it; runs on its own scheduler + anti-entropy threads.
-            let autosync = autosync::Engine::new(std::sync::Arc::new(peer_client_hub));
+            let autosync = autosync::Engine::new(std::sync::Arc::new(peer_client_hub.clone()));
             autosync.start();
             app.manage(autosync);
+            // Followed projects: polls each one's Mac for a cheap working-state
+            // fingerprint and lands a transfer only when it changed.
+            let follow = gitfollow::Engine::new(handle.clone(), peer_client_hub);
+            follow.start();
+            app.manage(follow);
 
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
@@ -289,6 +300,7 @@ pub fn run() {
                 sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
                 remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
                 app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
+                app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler
                 peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
                 peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
                 let _ = std::fs::remove_file(config::socket_path());

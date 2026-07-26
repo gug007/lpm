@@ -53,8 +53,8 @@ const FEATURES: Feature[] = [
   },
   {
     icon: Terminal,
-    title: "Native, keyboard-driven, zero Electron",
-    body: "It's a real macOS app on Apple Silicon, not a web view. Navigate files with the arrow keys, scroll long diffs smoothly, and keep your hands where they already are — on the keyboard.",
+    title: "Mac desktop app, keyboard-driven, zero Electron",
+    body: "lpm ships as a macOS desktop app with native Apple silicon and Intel builds. Its interface uses the system webview instead of bundling Electron or Chromium, and you can navigate changed files from the keyboard.",
   },
 ];
 

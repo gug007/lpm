@@ -1,5 +1,6 @@
-// Local-side git plumbing for "Bring changes": what this Mac already has, how a
-// received pack is installed, and how the remote's state is checked out.
+// Local-side git plumbing for syncing a folder from another Mac: what this Mac
+// already has, how a received pack is installed, and how the remote's state is
+// checked out.
 //
 // Everything here is a small pure function or a single git call, so the pieces
 // the transfer orchestration depends on are testable without two Macs.
@@ -53,14 +54,6 @@ pub(crate) fn has_object(root: &str, sha: &str) -> bool {
     git_out(root, &["cat-file", "-e", &format!("{sha}^{{commit}}")]).is_ok()
 }
 
-/// `rev-parse --is-inside-work-tree` prints `false` and still exits 0 inside a
-/// bare repo or a `.git` directory, so the answer has to be read, not just the
-/// exit code.
-pub(crate) fn is_repo(root: &str) -> bool {
-    Path::new(root).is_dir()
-        && git_out(root, &["rev-parse", "--is-inside-work-tree"]).as_deref() == Ok("true")
-}
-
 /// Unknown counts as dirty. This is the one guard between the user's uncommitted
 /// work and a checkout, so a git that failed to answer must never read as clean.
 pub(crate) fn is_dirty(root: &str) -> bool {
@@ -96,66 +89,144 @@ pub(crate) fn bring_ref(slug: &str) -> String {
     format!("refs/lpm/from-{slug}")
 }
 
-/// Anchor the received objects behind a ref so `gc` cannot prune them before the
-/// user lands them somewhere.
+/// Anchor the received objects behind a ref so `gc` cannot prune them, and so the
+/// next sync can prove what it is allowed to replace.
 pub(crate) fn update_bring_ref(root: &str, slug: &str, sha: &str) -> Result<(), String> {
     git_out(root, &["update-ref", &bring_ref(slug), sha]).map(|_| ())
-}
-
-/// A standalone duplicate has its own object store, so the anchor ref (and the
-/// objects behind it) have to be copied across from the source repo. The local
-/// path transport makes this near-instant and costs no network bytes.
-pub(crate) fn fetch_bring_ref(root: &str, source_root: &str, slug: &str) -> Result<(), String> {
-    let r = bring_ref(slug);
-    git_out(
-        root,
-        &["fetch", "--no-tags", source_root, &format!("+{r}:{r}")],
-    )
-    .map(|_| ())
-    .map_err(|e| format!("could not copy the changes into the copy: {e}"))
 }
 
 /// Land the remote's state: the branch points at what the remote had committed,
 /// and its uncommitted work sits in the working tree unstaged — an exact mirror,
 /// with the user's previous branch one `git switch` away.
-pub(crate) fn apply_state(
-    root: &str,
-    branch: &str,
-    target: &str,
-    head: &str,
-    has_snapshot: bool,
-) -> Result<(), String> {
-    if branch_would_lose_commits(root, branch, target) {
+pub(crate) fn apply_state(l: &Landing) -> Result<(), String> {
+    if branch_would_lose_commits(l) {
         return Err(format!(
-            "{branch} already has commits of its own here — rename or delete it first, or bring the changes into a new copy"
+            "{} already has commits of its own here — move or delete that branch, then resume syncing",
+            l.branch
         ));
     }
-    let clobbered = ignored_collisions(root, target);
+    // Checked even when replacing: git protects an untracked file from a checkout
+    // but not an ignored one, and `--force` protects neither.
+    let clobbered = ignored_collisions(l.root, l.target);
     if !clobbered.is_empty() {
         return Err(format!(
             "these ignored files would be overwritten: {} — move them aside first",
             preview(&clobbered)
         ));
     }
-    git_out(root, &["checkout", "-B", branch, target])
-        .map_err(|e| format!("could not create {branch}: {e}"))?;
-    if has_snapshot {
-        git_out(root, &["reset", "--mixed", head])
+    checkout(l)?;
+    if l.has_snapshot {
+        git_out(l.root, &["reset", "--mixed", l.head])
             .map_err(|e| format!("could not restore the uncommitted changes: {e}"))?;
     }
     Ok(())
 }
 
-/// `checkout -B` re-points a branch unconditionally. If a previous bring landed
+/// One checkout of another Mac's state into a local folder.
+pub(crate) struct Landing<'a> {
+    pub(crate) root: &'a str,
+    pub(crate) branch: &'a str,
+    /// What the working tree becomes: the snapshot commit, or the remote's HEAD
+    /// when it had nothing uncommitted.
+    pub(crate) target: &'a str,
+    /// Where the branch ends up — the remote's own HEAD.
+    pub(crate) head: &'a str,
+    pub(crate) has_snapshot: bool,
+    /// Set only by a follow run, and only once its caller has proved that
+    /// everything in the folder is what a previous run of that same follow left
+    /// there. It licenses overwriting that state — never the user's.
+    pub(crate) replaces: Option<Replaced<'a>>,
+}
+
+/// Licence to overwrite the previous run's state, carrying the remote HEAD that
+/// run landed so this one can tell its own leftovers from work the user has done
+/// since. The head is absent on the first run, which lands into a folder nothing
+/// has synced into yet.
+pub(crate) struct Replaced<'a> {
+    pub(crate) head: Option<&'a str>,
+}
+
+impl<'a> Landing<'a> {
+    pub(crate) fn new(
+        root: &'a str,
+        branch: &'a str,
+        target: &'a str,
+        head: &'a str,
+        has_snapshot: bool,
+    ) -> Self {
+        Landing {
+            root,
+            branch,
+            target,
+            head,
+            has_snapshot,
+            replaces: None,
+        }
+    }
+
+    /// Licence this checkout to overwrite the state a previous run of the same
+    /// follow landed, given that run's remote HEAD. Callers must have proved the
+    /// folder still holds only that state.
+    pub(crate) fn replacing(mut self, previous_head: Option<&'a str>) -> Self {
+        self.replaces = Some(Replaced {
+            head: previous_head,
+        });
+        self
+    }
+}
+
+/// A sync run arrives with its own previous state still spread across the working
+/// tree, which a plain checkout would refuse to discard. So it forces past that
+/// and then drops the files that state added which the new one does not have. `clean` stays off ignored files, so
+/// build output and local env files are never touched; the untracked files it
+/// does remove are only those leftovers, since everything the new state carries
+/// is tracked at that point.
+fn checkout(l: &Landing) -> Result<(), String> {
+    let replacing = l.replaces.is_some();
+    let mut args = vec!["checkout"];
+    if replacing {
+        args.push("--force");
+    }
+    args.extend(["-B", l.branch, l.target]);
+    git_out(l.root, &args).map_err(|e| format!("could not create {}: {e}", l.branch))?;
+    if replacing {
+        git_out(l.root, &["clean", "-fd"])
+            .map_err(|e| format!("could not clear the previous changes: {e}"))?;
+    }
+    Ok(())
+}
+
+/// `checkout -B` re-points a branch unconditionally. If a previous sync landed
 /// here and the user then committed on that branch, moving it would leave their
 /// commits reachable only from the reflog — so refuse instead. Work the incoming
-/// changes already contain is not a loss, hence the ancestor test.
-fn branch_would_lose_commits(root: &str, branch: &str, target: &str) -> bool {
-    let git_ref = format!("refs/heads/{branch}");
-    if git_out(root, &["rev-parse", "--verify", "--quiet", &git_ref]).is_err() {
+/// changes already contain is not a loss, hence the ancestor test; neither is a
+/// tip this sync's own last run put there, which is what lets an amend or a
+/// rebase on the other Mac keep flowing.
+fn branch_would_lose_commits(l: &Landing) -> bool {
+    let git_ref = format!("refs/heads/{}", l.branch);
+    if git_out(l.root, &["rev-parse", "--verify", "--quiet", &git_ref]).is_err() {
         return false;
     }
-    git_out(root, &["merge-base", "--is-ancestor", branch, target]).is_err()
+    if let Some(previous) = l.replaces.as_ref().and_then(|r| r.head) {
+        if same_commit(l.root, l.branch, previous) {
+            return false;
+        }
+    }
+    git_out(l.root, &["merge-base", "--is-ancestor", l.branch, l.target]).is_err()
+}
+
+fn same_commit(root: &str, a: &str, b: &str) -> bool {
+    match (commit_id(root, a), commit_id(root, b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    }
+}
+
+fn commit_id(root: &str, rev: &str) -> Result<String, String> {
+    git_out(
+        root,
+        &["rev-parse", "--verify", "--quiet", &format!("{rev}^{{commit}}")],
+    )
 }
 
 /// git refuses to clobber an untracked file, but silently replaces one that is

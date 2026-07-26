@@ -874,12 +874,21 @@ export function PeerTermAttach(prefixedId) {
 export function PeerTermDetach(prefixedId) {
   return invoke("peer_term_detach", { id: prefixedId });
 }
-export function BringChangesTargets(project) {
-  return invoke("bring_changes_targets", { project });
+export function SyncProjectStart(slug, sourceRoot, remoteName) {
+  return invoke("sync_project_start", { slug, sourceRoot, remoteName });
 }
-export function BringChangesStart(sourceSlug, sourceRoot, project, mode, target, label) {
-  return invoke("bring_changes_start", { sourceSlug, sourceRoot, project, mode, target, label });
+export function SyncProjectCancel(id) {
+  return invoke("sync_project_cancel", { id });
 }
-export function BringChangesCancel(id) {
-  return invoke("bring_changes_cancel", { id });
+export function FollowList() {
+  return invoke("follow_list");
+}
+export function FollowStop(project) {
+  return invoke("follow_stop", { project });
+}
+export function FollowPause(project) {
+  return invoke("follow_pause", { project });
+}
+export function FollowResume(project, discardLocal) {
+  return invoke("follow_resume", { project, discardLocal });
 }
