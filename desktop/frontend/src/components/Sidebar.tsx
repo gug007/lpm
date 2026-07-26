@@ -47,6 +47,7 @@ import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
+import { placeMirrors } from "./mirrorRows";
 import { syncSupported } from "../syncApi";
 import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
@@ -189,7 +190,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const { state: peerState } = usePeerState();
   // Followed projects, keyed by the local project the other Mac's work lands in.
   const { follows } = useFollowState();
-  const localProjects = useMemo(() => projects.filter((p) => !isPeerName(p.name)), [projects]);
+  // Only the Macs that actually have a section to render into.
+  const sectionSlugs = useMemo(
+    () => new Set(peerState.peers.filter((p) => p.connected).map((p) => p.slug)),
+    [peerState.peers],
+  );
+  const mirrors = useMemo(
+    () => placeMirrors(projects, follows, sectionSlugs),
+    [projects, follows, sectionSlugs],
+  );
+  const localProjects = useMemo(
+    () => projects.filter((p) => !isPeerName(p.name) && !mirrors.hostedRemotely.has(p.name)),
+    [projects, mirrors],
+  );
   const peerSections = useMemo(() => {
     const bySlug = new Map<string, ProjectInfo[]>();
     for (const p of projects) {
@@ -207,8 +220,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         slug: peer.slug,
         alias: peer.alias || peer.host,
         projects: bySlug.get(peer.slug) ?? [],
+        mirrors: mirrors.bySlug.get(peer.slug) ?? new Map<string, ProjectInfo>(),
       }));
-  }, [projects, peerState.peers]);
+  }, [projects, peerState.peers, mirrors]);
 
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
@@ -233,9 +247,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     return {
       macName: peerAlias(peerState.peers, follow.slug),
       paused: Boolean(follow.paused),
-      // Resuming from the menu keeps the user's edits: discarding them is only
-      // ever the explicit choice offered on the pause notice itself.
-      onResume: () => void followResume(target, false).catch(fail),
+      onResume: () => void followResume(target).catch(fail),
       onStop: () => void followStop(target).catch(fail),
     };
   }, [contextMenu, follows, peerState.peers]);
@@ -949,6 +961,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             slug={section.slug}
             alias={section.alias}
             projects={section.projects}
+            mirrors={section.mirrors}
+            follows={follows}
             selected={selected}
             contextTargetName={contextMenu?.name ?? null}
             onSelect={onSelect}

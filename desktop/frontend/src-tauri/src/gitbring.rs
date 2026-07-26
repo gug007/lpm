@@ -42,6 +42,10 @@ pub(crate) struct Done {
     pub(crate) head: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) changed: Option<u64>,
+    /// Set when local contents had to be moved aside to land this state: the ref
+    /// they were committed to, so they can still be recovered.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) replaced: Option<String>,
     /// A local project of the same name that a first sync took its dependencies
     /// and configuration from, and how many things it cloned across.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,9 +66,6 @@ pub(crate) struct Request {
 pub(crate) struct Follow {
     /// The remote HEAD the previous run landed, absent on the first.
     pub(crate) previous_head: Option<String>,
-    /// The user answered a pause with "discard mine": this run may overwrite their
-    /// edits in the folder. Only ever set from that explicit choice.
-    pub(crate) discard_local: bool,
 }
 
 fn cancelled() -> &'static Mutex<HashSet<String>> {

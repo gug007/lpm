@@ -6,10 +6,11 @@
 // cheap working-state fingerprint and only pays for a transfer when that answer
 // changed. `gitfollowrun` does the asking and the landing.
 //
-// Two rules shape everything here. A follow never writes over work of the user's
-// own — it pauses and says so instead. And a Mac that is unreachable is not a
-// failure: it is simply not eligible this cycle, so no backoff builds up while a
-// laptop is closed.
+// Two rules shape everything here. A synced folder is a mirror of the other Mac —
+// the work happens over there, this copy exists to be built and tested — so the
+// incoming state always wins, and whatever it replaces is committed to a recovery
+// ref rather than lost. And a Mac that is unreachable is not a failure: it is
+// simply not eligible this cycle, so no backoff builds up while a laptop is closed.
 use crate::gitfollowrun::Outcome;
 use crate::gitfollowstore::{self as store, Follow};
 use crate::peerclient::PeerClientHub;
@@ -39,7 +40,7 @@ const BACKOFF: [Duration; 3] = [
 /// directly when that changes, so this is only a backstop.
 const IDLE: Duration = Duration::from_secs(60);
 /// Reason recorded when the user pauses syncing themselves, as opposed to the
-/// engine stopping because their work is in the way.
+/// engine stopping on something it cannot resolve alone.
 const PAUSED_BY_USER: &str = "paused by you";
 
 #[derive(Default)]
@@ -47,10 +48,6 @@ struct Runtime {
     next_at: Option<Instant>,
     errors: u32,
     running: bool,
-    /// Set by an explicit "discard mine and resume": licenses the next run to
-    /// overwrite local edits. Deliberately not persisted — if the app restarts
-    /// first, the follow pauses again rather than quietly destroying work.
-    discard_once: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -61,7 +58,6 @@ pub struct FollowView {
     source_root: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     paused: Option<String>,
-    paused_by_user: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -332,25 +328,14 @@ impl Engine {
     }
 
     fn land(&self, follow: &Follow) -> Outcome {
-        let discard = self.take_discard(&follow.project);
         crate::gitfollowrun::land(
             &self.core.app,
             &self.core.hub,
             follow,
-            discard,
             // The row is already marked running, so this is what puts the syncing
             // state on screen for a transfer long enough to notice.
             &|| self.emit_state(),
         )
-    }
-
-    fn take_discard(&self, project: &str) -> bool {
-        let mut inner = self.core.inner.lock().unwrap();
-        inner
-            .runtimes
-            .get_mut(project)
-            .map(|rt| std::mem::take(&mut rt.discard_once))
-            .unwrap_or(false)
     }
 
     fn finish(&self, project: &str, outcome: &Outcome, cadence: Duration) {
@@ -395,7 +380,6 @@ impl Engine {
                 slug: f.slug,
                 source_root: f.source_root,
                 paused: f.paused,
-                paused_by_user: f.paused_by_user,
                 last_error: f.last_error,
                 last_branch: f.last_branch,
                 last_synced_at: f.last_synced_at,
@@ -431,7 +415,7 @@ pub fn follow_list(app: AppHandle) -> Vec<FollowView> {
 #[tauri::command(async)]
 pub fn follow_pause(app: AppHandle, project: String) -> Result<(), String> {
     let project = crate::gitbring::unmark(project.trim()).to_string();
-    store::update(&project, |f| f.pause(PAUSED_BY_USER.to_string(), true))?;
+    store::update(&project, |f| f.pause(PAUSED_BY_USER.to_string()))?;
     engine(&app).emit_state();
     Ok(())
 }
@@ -445,17 +429,15 @@ pub fn follow_stop(app: AppHandle, project: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Clear a pause. `discard_local` licenses the next run to overwrite the edits
-/// that caused it — the explicit answer to the "your work is in the way" notice.
+/// Pick syncing back up after a pause.
 #[tauri::command(async)]
-pub fn follow_resume(app: AppHandle, project: String, discard_local: bool) -> Result<(), String> {
+pub fn follow_resume(app: AppHandle, project: String) -> Result<(), String> {
     let project = crate::gitbring::unmark(project.trim()).to_string();
     store::update(&project, |f| f.clear_pause())?;
     let e = engine(&app);
     {
         let mut inner = e.core.inner.lock().unwrap();
         let rt = inner.runtimes.entry(project).or_default();
-        rt.discard_once = discard_local;
         rt.errors = 0;
         rt.next_at = None;
         inner.woken = true;

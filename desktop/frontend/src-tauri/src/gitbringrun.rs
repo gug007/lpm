@@ -99,7 +99,7 @@ fn receive_and_land(
     ga::update_bring_ref(project_root, &req.source_slug, &target_sha)?;
 
     check_cancelled(id)?;
-    let (project, root) = land(req)?;
+    let (project, root, replaced) = land(req)?;
     progress(app, id, "applying", 0, 0);
     let landing = ga::Landing::new(&root, &branch, &target_sha, &head, snapshot.is_some());
     ga::apply_state(&match &req.follow {
@@ -114,6 +114,7 @@ fn receive_and_land(
         branch: Some(branch),
         head: Some(head),
         changed: Some(changed),
+        replaced,
         ..Default::default()
     })
 }
@@ -173,43 +174,37 @@ fn download(
     Ok(path)
 }
 
-/// The folder that receives the state, once it has been established that writing
-/// there destroys nothing.
-fn land(req: &Request) -> Result<(String, String), String> {
+/// The folder that receives the state, and the recovery ref if anything already
+/// there had to be set aside to make room.
+fn land(req: &Request) -> Result<(String, String, Option<String>), String> {
     let name = req.project.clone();
     let root = local_root(&name)?;
-    ensure_writable(&root, req, &name)?;
-    Ok((name, root))
+    let replaced = clear_the_way(&root, req, &name)?;
+    Ok((name, root, replaced))
 }
 
-/// Whether this run may write into the folder. Checked here rather than only when
-/// the run started: packing and streaming can take minutes, and landing on top of
-/// work begun meanwhile would fold it into the synced state.
+/// Make room for the incoming state. Done here rather than only when the run
+/// started: packing and streaming can take minutes, and what is in the folder can
+/// change in between.
 ///
-/// A sync run is allowed to replace one thing — the state its own previous run
-/// landed — which holds precisely while the folder's working state is still the
-/// one anchored at the sync ref.
-fn ensure_writable(root: &str, req: &Request, name: &str) -> Result<(), String> {
-    let Some(follow) = &req.follow else {
+/// A synced folder is a mirror — the work happens on the other Mac, and this copy
+/// exists to be built and tested. So anything here that is not what the last run
+/// landed is a local side effect (a test rewriting a committed snapshot, an
+/// accidental edit) and the incoming state wins. It is never simply destroyed: it
+/// is committed to a recovery ref first, which is what the returned name is.
+fn clear_the_way(root: &str, req: &Request, name: &str) -> Result<Option<String>, String> {
+    if req.follow.is_none() {
         if ga::is_dirty(root) {
             return Err(format!("{name} has uncommitted changes"));
         }
-        return Ok(());
-    };
+        return Ok(None);
+    }
     if crate::gitworkstate::holds_only_state(root, &ga::bring_ref(&req.source_slug)) {
-        return Ok(());
+        return Ok(None);
     }
-    // The user answered a pause with "discard mine", which is the one case where
-    // overwriting their edits is what they asked for. Keep a commit of it anyway:
-    // asking for work to go away is not the same as wanting it unrecoverable.
-    if follow.discard_local {
-        crate::gitworkstate::preserve_state(root, &req.source_slug)
-            .map_err(|e| format!("could not save {name}'s current changes first: {e}"))?;
-        return Ok(());
-    }
-    Err(format!(
-        "{name} has changes that didn't come from the other Mac — they were left untouched"
-    ))
+    let anchor = crate::gitworkstate::preserve_state(root, &req.source_slug)
+        .map_err(|e| format!("could not set {name}'s current contents aside first: {e}"))?;
+    Ok(Some(anchor))
 }
 
 fn string_of(v: &Value, key: &str) -> String {

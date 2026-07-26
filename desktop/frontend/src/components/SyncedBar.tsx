@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PauseCircle, Play, RefreshCw } from "lucide-react";
-import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { followPause, followResume, followStop, type FollowState } from "../followApi";
 
 // Relative time only needs to be roughly right, and the row re-renders on every
@@ -13,18 +12,14 @@ interface SyncedBarProps {
   macName: string;
 }
 
-// One quiet row above a synced project: where it comes from, how current it is,
-// and the only two controls it needs. Deliberately not a card — it sits under the
-// header without competing with the terminal for attention.
+// One quiet row above a synced project, saying what this folder is: a mirror of
+// another Mac, kept current, for running and testing here. Deliberately not a card
+// — it sits under the header without competing with the terminal for attention.
 export function SyncedBar({ follow, macName }: SyncedBarProps) {
-  const [confirmDiscard, setConfirmDiscard] = useState(false);
   useTick(TICK_MS);
 
   const fail = (err: unknown) => toast.error(String(err));
   const paused = Boolean(follow.paused);
-  // Paused by the user is resumable as-is; paused because their work is in the
-  // way needs them to say what happens to that work.
-  const blocked = paused && !follow.pausedByUser;
 
   return (
     <div className="mt-1 flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3 py-1.5 text-[12px]">
@@ -47,7 +42,7 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
           </>
         ) : (
           <>
-            Synced from <span className="text-[var(--text-primary)]">{macName}</span>
+            Mirror of <span className="text-[var(--text-primary)]">{macName}</span>
             {follow.lastBranch && (
               <>
                 <Dot />
@@ -60,38 +55,14 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
         )}
       </span>
 
-      {blocked && (
-        <BarButton onClick={() => setConfirmDiscard(true)}>Discard mine</BarButton>
-      )}
       {paused ? (
-        <BarButton icon={<Play size={11} />} onClick={() => void followResume(follow.project, false).catch(fail)}>
+        <BarButton icon={<Play size={11} />} onClick={() => void followResume(follow.project).catch(fail)}>
           Resume
         </BarButton>
       ) : (
         <BarButton onClick={() => void followPause(follow.project).catch(fail)}>Pause</BarButton>
       )}
       <BarButton onClick={() => void followStop(follow.project).catch(fail)}>Stop</BarButton>
-
-      <ConfirmDialog
-        open={confirmDiscard}
-        title="Discard your changes here?"
-        body={
-          <>
-            The edits in this folder that didn't come from {macName} will be replaced by
-            its version. They're committed to{" "}
-            <code className="font-mono text-[var(--text-primary)]">refs/lpm/discarded/…</code>{" "}
-            first, so you can still get them back with{" "}
-            <code className="font-mono text-[var(--text-primary)]">git restore</code>.
-          </>
-        }
-        confirmLabel="Discard and resume"
-        variant="destructive"
-        onCancel={() => setConfirmDiscard(false)}
-        onConfirm={() => {
-          setConfirmDiscard(false);
-          void followResume(follow.project, true).catch(fail);
-        }}
-      />
     </div>
   );
 }

@@ -11,7 +11,7 @@ use crate::peerclient::{PeerClientHub, PEER_NOT_CONNECTED, PEER_REQUEST_TIMED_OU
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::Duration;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 const STATE_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -22,8 +22,8 @@ pub(crate) enum Outcome {
     /// Reachability, not refusal — worth retrying on a backoff. The reason is kept
     /// on the record so a follow that has gone quiet can say why.
     Retry,
-    /// Needs the user: their own work is in the way, or the landing refused for a
-    /// reason another attempt would hit identically.
+    /// Needs the user: the landing refused for a reason another attempt would hit
+    /// identically — a branch carrying their commits, an ignored file in the way.
     Paused(String),
 }
 
@@ -34,7 +34,6 @@ pub(crate) fn land(
     app: &AppHandle,
     hub: &PeerClientHub,
     follow: &Follow,
-    discard_local: bool,
     on_transfer: &dyn Fn(),
 ) -> Outcome {
     // Serialised against a first-time setup of the same project: two checkouts in
@@ -43,7 +42,7 @@ pub(crate) fn land(
         return Outcome::Retry;
     };
     on_transfer();
-    match transfer(app, hub, follow, discard_local) {
+    match transfer(app, hub, follow) {
         Ok(()) => Outcome::Synced,
         Err(e) => classify(follow, e),
     }
@@ -159,12 +158,7 @@ fn parse_states(reply: &Value) -> Result<RemoteStates, String> {
     Ok(out)
 }
 
-fn transfer(
-    app: &AppHandle,
-    hub: &PeerClientHub,
-    follow: &Follow,
-    discard_local: bool,
-) -> Result<(), String> {
+fn transfer(app: &AppHandle, hub: &PeerClientHub, follow: &Follow) -> Result<(), String> {
     let root = crate::gitbring::local_root(&follow.project)?;
     let req = Request {
         source_slug: follow.slug.clone(),
@@ -172,12 +166,19 @@ fn transfer(
         project: follow.project.clone(),
         follow: Some(FollowContext {
             previous_head: follow.last_head.clone(),
-            discard_local,
         }),
     };
     let id = uuid::Uuid::new_v4().to_string();
     let done = crate::gitbringrun::run(app, hub, &req, &id, &root)?;
     record_landed(follow, &root, &done);
+    // A mirror's local contents are replaced without asking, so the one thing the
+    // user must not have to discover for themselves is where they went.
+    if let Some(anchor) = &done.replaced {
+        let _ = app.emit(
+            "follow-replaced",
+            json!({ "project": follow.project, "ref": anchor }),
+        );
+    }
     Ok(())
 }
 
@@ -211,16 +212,16 @@ pub(crate) fn classify(follow: &Follow, error: String) -> Outcome {
     }
     let recorded = error.clone();
     let _ = store::update(&follow.project, |f| {
-        f.pause(recorded, false);
+        f.pause(recorded);
         f.last_error = None;
     });
     Outcome::Paused(error)
 }
 
 /// Reachability and one-shot transport faults come back on the next cycle. A
-/// refusal from the landing — the user's own work, a branch carrying their
-/// commits, an ignored file in the way — will refuse identically until they act,
-/// so it pauses instead of retrying every few seconds.
+/// refusal from the landing — a branch carrying the user's commits, an ignored file
+/// in the way — will refuse identically until they act, so it pauses instead of
+/// retrying every few seconds.
 fn is_transient(error: &str) -> bool {
     const RETRYABLE: [&str; 4] = [
         "that transfer expired",
@@ -350,10 +351,10 @@ mod tests {
         assert!(holds_only_state(&receiver, ANCHOR));
     }
 
-    /// The whole point of the guard: work the user did in the followed folder is
-    /// theirs, and a run must be able to tell.
+    /// A mirror replaces whatever is in it, but only after setting aside anything
+    /// it did not put there — so it has to be able to tell the difference.
     #[test]
-    fn a_users_own_edit_in_the_followed_folder_is_not_ours_to_replace() {
+    fn a_local_change_is_recognised_as_not_ours_before_it_is_replaced() {
         let (sender_dir, sender) = sender_repo();
         let receiver_dir = tempfile::tempdir().unwrap();
         let receiver = receiver_dir.path().join("work").to_string_lossy().to_string();
@@ -373,7 +374,7 @@ mod tests {
         std::fs::write(receiver_dir.path().join("work/mine.txt"), "my work\n").unwrap();
         assert!(
             !holds_only_state(&receiver, ANCHOR),
-            "one untracked file of the user's stops the next run"
+            "one untracked file of the user's is enough to require a backup first"
         );
     }
 
@@ -496,9 +497,6 @@ mod tests {
         assert!(is_transient("that transfer expired — start it again"));
         assert!(is_transient("damaged transfer: bad base64"));
 
-        assert!(!is_transient(
-            "web has changes that didn't come from the other Mac — they were left untouched"
-        ));
         assert!(!is_transient(
             "lpm/main already has commits of its own here — rename or delete it first"
         ));

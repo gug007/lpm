@@ -4,10 +4,10 @@
 // follow is a statement about *this* Mac pulling from another, so syncing it to
 // the other Mac would tell it to follow itself.
 //
-// The record is what makes the next run safe. `last_head` is the branch tip the
-// previous run left, and `last_tree` its working state, so the engine can both
-// spot that nothing changed on the other Mac and prove that nothing in the local
-// folder is the user's before it writes.
+// The record is what makes the next run correct. `last_head` is the branch tip the
+// previous run left, and `last_tree` its working state, so the engine can both spot
+// that nothing changed on the other Mac and tell whether anything in the local
+// folder needs setting aside before it writes.
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -20,15 +20,11 @@ pub struct Follow {
     pub slug: String,
     /// The project's folder on the other Mac, host-native.
     pub source_root: String,
-    /// Why syncing stopped, when it has. Set means paused: the user's own work is
-    /// in the way, or a run failed for a reason retrying will not fix.
+    /// Why syncing stopped, when it has. Set means paused: either the user asked
+    /// for it, or a run refused for a reason retrying will not fix. Shown as
+    /// written, so the text is what says which.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub paused: Option<String>,
-    /// Whether that pause was the user's own choice. A pause they asked for
-    /// resumes as-is; one the engine set because their work is in the way needs
-    /// them to say what happens to that work first.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub paused_by_user: bool,
     /// The last fault that is expected to clear on its own — an unreachable Mac,
     /// an expired pack. Retried on a backoff, and shown so a follow that has gone
     /// quiet can say why.
@@ -54,7 +50,6 @@ impl Follow {
             slug,
             source_root,
             paused: None,
-            paused_by_user: false,
             last_error: None,
             last_head: None,
             last_tree: None,
@@ -68,20 +63,15 @@ impl Follow {
         self.paused.is_some()
     }
 
-    /// Record a stop that needs the user before syncing can go on.
-    pub fn pause(&mut self, reason: String, by_user: bool) {
+    /// Record a stop that needs the user before syncing can go on. The reason is
+    /// shown as written, so it says whether they asked for it.
+    pub fn pause(&mut self, reason: String) {
         self.paused = Some(reason);
-        self.paused_by_user = by_user;
     }
 
     pub fn clear_pause(&mut self) {
         self.paused = None;
-        self.paused_by_user = false;
     }
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -177,18 +167,13 @@ mod tests {
         f.files = 3;
         let json = serde_json::to_string(&f).unwrap();
         assert_eq!(serde_json::from_str::<Follow>(&json).unwrap(), f);
-        // An unpaused follow writes neither pause key at all.
+        // An unpaused follow writes no pause key at all.
         assert!(!json.contains("paused"), "{json}");
 
-        f.pause("your edits are in the way".into(), false);
+        f.pause("paused by you".into());
         let paused = serde_json::to_string(&f).unwrap();
         assert_eq!(serde_json::from_str::<Follow>(&paused).unwrap(), f);
-        assert!(paused.contains("your edits are in the way"));
-        // Still omitted while false, so only a pause the user asked for records it.
-        assert!(!paused.contains("pausedByUser"), "{paused}");
-
-        f.pause("paused by you".into(), true);
-        assert!(serde_json::to_string(&f).unwrap().contains("\"pausedByUser\":true"));
+        assert!(paused.contains("paused by you"));
     }
 
     #[test]

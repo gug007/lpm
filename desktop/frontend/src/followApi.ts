@@ -6,10 +6,8 @@ export interface FollowState {
   project: string;
   slug: string;
   sourceRoot: string;
+  // Reads as written, including whether the user asked for the pause themselves.
   paused?: string;
-  // A pause the user asked for resumes as-is; one the engine set because their
-  // work is in the way needs them to say what happens to that work.
-  pausedByUser?: boolean;
   lastError?: string;
   lastBranch?: string;
   lastSyncedAt: number;
@@ -22,6 +20,13 @@ export interface FollowPaused {
   reason: string;
 }
 
+// A sync replaced local contents. Not a question — a mirror always takes the other
+// Mac's version — but the user has to be told where what was there went.
+export interface FollowReplaced {
+  project: string;
+  ref: string;
+}
+
 // Same presence check as the one-shot transfer: an app shell built before these
 // commands existed still loads this UI, and gets a hidden control rather than a
 // crash.
@@ -29,7 +34,7 @@ const bridge = commands as unknown as Partial<{
   FollowList(): Promise<FollowState[]>;
   FollowStop(project: string): Promise<void>;
   FollowPause(project: string): Promise<void>;
-  FollowResume(project: string, discardLocal: boolean): Promise<void>;
+  FollowResume(project: string): Promise<void>;
 }>;
 
 const UNSUPPORTED = "Following a Mac isn't available in this version of lpm";
@@ -53,10 +58,7 @@ export async function followStop(project: string): Promise<void> {
   await bridge.FollowStop(project);
 }
 
-export async function followResume(
-  project: string,
-  discardLocal: boolean,
-): Promise<void> {
+export async function followResume(project: string): Promise<void> {
   if (!bridge.FollowResume) throw new Error(UNSUPPORTED);
-  await bridge.FollowResume(project, discardLocal);
+  await bridge.FollowResume(project);
 }

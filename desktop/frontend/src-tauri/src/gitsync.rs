@@ -117,10 +117,7 @@ fn set_up(app: &AppHandle, hub: &PeerClientHub, plan: &SetUp) -> Result<Done, St
         source_slug: plan.slug.to_string(),
         source_root: plan.source_root.to_string(),
         project: project.to_string(),
-        follow: Some(Follow {
-            previous_head: None,
-            discard_local: false,
-        }),
+        follow: Some(Follow { previous_head: None }),
     };
     let root_str = root.to_string_lossy().to_string();
     let mut done = crate::gitbringrun::run(app, hub, &req, id, &root_str)?;

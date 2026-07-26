@@ -889,6 +889,6 @@ export function FollowStop(project) {
 export function FollowPause(project) {
   return invoke("follow_pause", { project });
 }
-export function FollowResume(project, discardLocal) {
-  return invoke("follow_resume", { project, discardLocal });
+export function FollowResume(project) {
+  return invoke("follow_resume", { project });
 }

@@ -2,7 +2,9 @@ import { useState } from "react";
 import { StatusDot } from "./StatusDot";
 import { ChevronRightIcon, MoreVerticalIcon, PlusIcon, XIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { peerRawName, peerSlugOf } from "../peer/markers";
+import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
+import { SyncedChip } from "./SyncedChip";
+import type { FollowState } from "../followApi";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
 import { PeerRemove } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
@@ -35,6 +37,8 @@ export function SidebarPeerSection({
   slug,
   alias,
   projects,
+  mirrors,
+  follows,
   selected,
   contextTargetName,
   onSelect,
@@ -43,6 +47,10 @@ export function SidebarPeerSection({
   slug: string;
   alias: string;
   projects: ProjectInfo[];
+  /// The local synced folder for each of this Mac's project folders, keyed by that
+  /// folder's path over there.
+  mirrors: Map<string, ProjectInfo>;
+  follows: Map<string, FollowState>;
   selected: string | null;
   contextTargetName?: string | null;
   onSelect: (name: string) => void;
@@ -119,6 +127,8 @@ export function SidebarPeerSection({
           const isContextTarget = contextTargetName === project.name;
           const cls = statusClass(project);
           const label = project.label || peerRawName(project.name);
+          const mirror = mirrors.get(stripMarker(project.root));
+          const mirrorFollow = mirror && follows.get(mirror.name);
           return (
             <div key={project.name} className="group/row relative">
               <button
@@ -127,7 +137,7 @@ export function SidebarPeerSection({
                   e.preventDefault();
                   onContextMenu(project.name, e.clientX, e.clientY);
                 }}
-                className={`${ROW_BASE_CLASS} ${
+                className={`${ROW_BASE_CLASS} ${mirror ? "pr-24" : ""} ${
                   isContextTarget
                     ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
                     : "group-hover/row:pr-9"
@@ -142,6 +152,14 @@ export function SidebarPeerSection({
                   {cls ? <span className={cls}>{label}</span> : label}
                 </span>
               </button>
+              {mirror && mirrorFollow && (
+                <SyncedChip
+                  follow={mirrorFollow}
+                  macName={alias}
+                  selected={selected === mirror.name}
+                  onOpen={() => onSelect(mirror.name)}
+                />
+              )}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
