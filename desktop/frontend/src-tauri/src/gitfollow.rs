@@ -354,29 +354,35 @@ impl Engine {
 
     fn finish(&self, project: &str, outcome: &Outcome, cadence: Duration) {
         let now = Instant::now();
-        let mut inner = self.core.inner.lock().unwrap();
-        let Some(rt) = inner.runtimes.get_mut(project) else {
-            return;
-        };
-        rt.running = false;
-        match outcome {
-            Outcome::Unchanged | Outcome::Synced => {
-                rt.errors = 0;
-                rt.next_at = Some(now + cadence);
+        {
+            let mut inner = self.core.inner.lock().unwrap();
+            if let Some(rt) = inner.runtimes.get_mut(project) {
+                rt.running = false;
+                match outcome {
+                    Outcome::Unchanged | Outcome::Synced => {
+                        rt.errors = 0;
+                        rt.next_at = Some(now + cadence);
+                    }
+                    Outcome::Retry => {
+                        rt.errors = rt.errors.saturating_add(1);
+                        rt.next_at = Some(now + backoff(rt.errors));
+                    }
+                    // A pause is recorded on the follow itself and nothing runs again
+                    // until the user resumes, so there is no next instant to set.
+                    Outcome::Paused(_) => {
+                        rt.errors = 0;
+                        rt.next_at = None;
+                    }
+                }
             }
-            Outcome::Retry => {
-                rt.errors = rt.errors.saturating_add(1);
-                rt.next_at = Some(now + backoff(rt.errors));
-            }
-            // A pause is recorded on the follow itself and nothing runs again until
-            // the user resumes, so there is no next instant to set.
-            Outcome::Paused(_) => {
-                rt.errors = 0;
-                rt.next_at = None;
-            }
+            inner.woken = true;
+            self.core.cv.notify_all();
         }
-        inner.woken = true;
-        self.core.cv.notify_all();
+        // A run has to announce that it ended, not only that it started. Nothing else
+        // emits afterwards, so the spinner a beginning transfer turned on would stay
+        // on for good, and an error a quiet cycle just cleared would stay on screen.
+        // Outside the lock: `views` takes it again.
+        self.emit_state();
     }
 
     fn views(&self) -> Vec<FollowView> {

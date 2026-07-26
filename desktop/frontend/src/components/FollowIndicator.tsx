@@ -1,10 +1,15 @@
-import { PauseCircle, RefreshCw } from "lucide-react";
+import { Tooltip } from "./ui/Tooltip";
 import { isFirstSync, type FollowState } from "../followApi";
 
-// The mark a project's sidebar row carries once a copy of it is synced to this Mac.
-// Deliberately just the icon: the row's name is what the eye is looking for, and a
-// worded badge takes enough width to truncate it. The tooltip carries the detail,
-// and amber is kept for the states that want the user — stopped, or stuck retrying.
+const TOOLTIP_DELAY_MS = 350;
+
+// The mark a project's sidebar row carries once a copy of it is synced to this Mac:
+// a thin ring, sized to the row's text and quiet enough to ignore.
+//
+// Just the shape, no word — the row's name is what the eye is looking for, and a
+// worded badge takes enough width to truncate it. The ring gains a moving arc while
+// a sync runs, and turns amber only for the states that want the user; what it means
+// is in the tooltip.
 export function FollowIndicator({
   follow,
   macName,
@@ -16,46 +21,97 @@ export function FollowIndicator({
   /// row, where the mark is only a label.
   onOpen?: () => void;
 }) {
-  const stuck = Boolean(follow.paused) || Boolean(follow.lastError);
-  const tone = stuck ? "text-[var(--accent-amber)]" : "text-[var(--text-muted)]";
+  const paused = Boolean(follow.paused);
+  const stuck = paused || Boolean(follow.lastError);
   const busy = follow.syncing || isFirstSync(follow);
-  const icon = follow.paused ? (
-    <PauseCircle size={12} />
-  ) : (
-    <span className={`block ${busy ? "animate-spin" : ""}`}>
-      <RefreshCw size={12} />
-    </span>
+  const state = describe(follow, macName);
+  const icon = (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 12 12"
+      aria-hidden="true"
+      className={`block ${stuck ? "text-[var(--accent-amber)]" : "text-[var(--text-muted)]"} ${
+        busy ? "animate-spin" : ""
+      }`}
+    >
+      <circle
+        cx="6"
+        cy="6"
+        r="4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        opacity={busy || stuck ? 0.4 : 0.3}
+      />
+      {paused ? (
+        <circle cx="6" cy="6" r="1.5" fill="currentColor" />
+      ) : (
+        (busy || stuck) && (
+          <path
+            d="M6 1.5A4.5 4.5 0 0 1 10.5 6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeLinecap="round"
+          />
+        )
+      )}
+    </svg>
   );
 
-  if (!onOpen) {
-    return (
-      <span className={`shrink-0 ${tone}`} title={followTitle(follow, macName)}>
-        {icon}
-      </span>
-    );
-  }
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onOpen();
-      }}
-      onPointerDown={(e) => e.stopPropagation()}
-      title={`${followTitle(follow, macName)} — click to open the copy on this Mac`}
-      className={`shrink-0 rounded ${tone} transition-colors hover:text-[var(--text-primary)]`}
+    <Tooltip
+      content={
+        <span className="flex flex-col gap-0.5">
+          <span>{state.headline}</span>
+          <span className="text-[11px] text-[var(--text-muted)]">
+            {onOpen ? `${state.detail} · click to open the copy here` : state.detail}
+          </span>
+        </span>
+      }
+      side="top"
+      align="end"
+      wide
+      delay={TOOLTIP_DELAY_MS}
     >
-      {icon}
-    </button>
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={`${state.headline}. Open the copy on this Mac`}
+          className="flex shrink-0 items-center rounded opacity-90 transition-opacity hover:opacity-100"
+        >
+          {icon}
+        </button>
+      ) : (
+        <span className="flex shrink-0 items-center">{icon}</span>
+      )}
+    </Tooltip>
   );
 }
 
-function followTitle(follow: FollowState, macName: string): string {
-  if (follow.paused) return `Sync paused — ${follow.paused}`;
-  if (isFirstSync(follow)) return `First sync from ${macName} is still running`;
-  if (follow.syncing) return `Syncing from ${macName} now`;
-  if (follow.lastError) return `Sync is retrying — ${follow.lastError}`;
-  return `Synced from ${macName} — last change ${sinceLabel(follow.lastSyncedAt)}`;
+function describe(follow: FollowState, macName: string): { headline: string; detail: string } {
+  if (follow.paused) {
+    return { headline: "Sync paused", detail: follow.paused };
+  }
+  if (isFirstSync(follow)) {
+    return { headline: "First sync running", detail: `carrying the whole project from ${macName}` };
+  }
+  if (follow.syncing) {
+    return { headline: "Syncing now", detail: `from ${macName}` };
+  }
+  if (follow.lastError) {
+    return { headline: "Sync is retrying", detail: follow.lastError };
+  }
+  return {
+    headline: `Mirror of ${macName}`,
+    detail: `last change ${sinceLabel(follow.lastSyncedAt)}`,
+  };
 }
 
 function sinceLabel(at: number): string {
