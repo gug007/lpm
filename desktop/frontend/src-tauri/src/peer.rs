@@ -649,7 +649,11 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
                         let txt = txt.to_string();
-                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id, &out).is_err() {
+                        if handle_msg(
+                            &mut ws, &txt, &hub, &app, &subs, &device_id, &out, conn_id,
+                        )
+                        .is_err()
+                        {
                             break;
                         }
                     }
@@ -664,6 +668,7 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
     }
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
+    crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
     // Release any terminal control this peer held so ownership transfers back to a
     // host window (or another presenter) instead of stranding on a gone client.
     let owner = peer_owner(&hub, &device_id);
@@ -726,7 +731,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                     json!({ "t": "ready", "hostName": machine_name(),
                         "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2,
                             crate::gitbringhost::GIT_BRING_FEATURE,
-                            crate::gitbringhost::GIT_FOLLOW_FEATURE] })
+                            crate::gitbringhost::GIT_FOLLOW_FEATURE,
+                            crate::gitwatchhost::GIT_WATCH_FEATURE] })
                     .to_string(),
                 ));
                 Some(id.to_string())
@@ -967,6 +973,7 @@ fn send(ws: &mut ConnWs, val: Value) -> Result<(), ()> {
     ws.send(Message::text(val.to_string())).map_err(|_| ())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn handle_msg(
     ws: &mut ConnWs,
     txt: &str,
@@ -975,6 +982,8 @@ fn handle_msg(
     subs: &Arc<Mutex<HashSet<String>>>,
     device_id: &str,
     out: &SyncSender<String>,
+    // Identifies this connection's folder watches, which live and die with it.
+    conn_id: u64,
 ) -> Result<(), ()> {
     let v: Value = match serde_json::from_str(txt) {
         Ok(v) => v,
@@ -1027,8 +1036,22 @@ fn handle_msg(
         // Bring changes — the asking Mac pulls this Mac's working state as one
         // packfile. Same shape as config sync: dedicated frames, gated on the
         // gitBring feature so an older host simply ignores them.
-        "gitBringPrepare" | "gitBringState" | "gitBringChunk" | "gitBringDone" => {
-            crate::gitbringhost::handle_bring(out, t, &v)
+        "gitBringPrepare" | "gitBringState" | "gitBringStates" | "gitBringChunk"
+        | "gitBringDone" => crate::gitbringhost::handle_bring(out, t, &v),
+        // Not a request/reply: the follower states which folders it follows, and
+        // this Mac pushes their changes until it says otherwise or goes away.
+        "gitFollowWatch" => {
+            let cwds = v
+                .get("cwds")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default();
+            crate::gitwatchhost::set_watched(conn_id, out, cwds);
         }
         _ => {}
     }

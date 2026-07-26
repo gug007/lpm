@@ -63,6 +63,7 @@ struct PeerConn {
     supports_sync2: AtomicBool, // host also advertised configSync2 (revision-aware)
     supports_git_bring: AtomicBool, // host can hand over its working state as a packfile
     supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
+    supports_git_watch: AtomicBool,  // ...and push changes instead of waiting to be asked
     generation: AtomicU64,      // bump to retire the current connection thread
 }
 
@@ -80,6 +81,7 @@ impl PeerConn {
             supports_sync2: AtomicBool::new(false),
             supports_git_bring: AtomicBool::new(false),
             supports_git_follow: AtomicBool::new(false),
+            supports_git_watch: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -502,6 +504,34 @@ impl PeerClientHub {
     /// project polls for.
     pub(crate) fn require_git_follow(&self, slug: &str) -> Result<(), String> {
         self.require_feature(slug, |c| c.supports_git_follow.load(Ordering::Relaxed))
+    }
+
+    /// Whether this peer will tell us when a followed folder changes, which is what
+    /// lets the poll drop to a heartbeat. Not a guard: a peer that cannot is polled
+    /// at the old cadence rather than refused.
+    pub(crate) fn can_push_changes(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| {
+                c.connected.load(Ordering::Relaxed) && c.supports_git_watch.load(Ordering::Relaxed)
+            })
+    }
+
+    /// Send one frame with no reply expected. Used to register which folders a
+    /// peer should watch for us.
+    pub(crate) fn notify_peer(&self, slug: &str, frame: Value) -> Result<(), String> {
+        let conn = self
+            .inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .cloned()
+            .ok_or_else(|| "unknown peer".to_string())?;
+        conn.send(frame.to_string())
     }
 
     fn require_feature(
@@ -1299,6 +1329,10 @@ fn connect_session(
         has_feature(crate::gitbringhost::GIT_FOLLOW_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_git_watch.store(
+        has_feature(crate::gitwatchhost::GIT_WATCH_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -1391,6 +1425,15 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
     let slug = &conn.slug;
     match v.get("t").and_then(Value::as_str).unwrap_or_default() {
         "pong" => {}
+        // The host says a followed folder moved. It is only a wake-up: the
+        // scheduler still asks what the state is before acting on it.
+        "gitFollowChanged" => {
+            if let (Some(app), Some(cwd)) = (app, v.get("cwd").and_then(Value::as_str)) {
+                if let Some(engine) = app.try_state::<crate::gitfollow::Engine>() {
+                    engine.note_remote_change(slug, cwd);
+                }
+            }
+        }
         "result" => {
             let Some(req) = v.get("reqId").and_then(Value::as_u64) else {
                 return;

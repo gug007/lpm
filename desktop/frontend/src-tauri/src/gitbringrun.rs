@@ -196,11 +196,15 @@ fn ensure_writable(root: &str, req: &Request, name: &str) -> Result<(), String> 
         }
         return Ok(());
     };
+    if crate::gitworkstate::holds_only_state(root, &ga::bring_ref(&req.source_slug)) {
+        return Ok(());
+    }
     // The user answered a pause with "discard mine", which is the one case where
-    // overwriting their edits is what they asked for.
-    if follow.discard_local
-        || crate::gitworkstate::holds_only_state(root, &ga::bring_ref(&req.source_slug))
-    {
+    // overwriting their edits is what they asked for. Keep a commit of it anyway:
+    // asking for work to go away is not the same as wanting it unrecoverable.
+    if follow.discard_local {
+        crate::gitworkstate::preserve_state(root, &req.source_slug)
+            .map_err(|e| format!("could not save {name}'s current changes first: {e}"))?;
         return Ok(());
     }
     Err(format!(

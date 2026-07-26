@@ -8,6 +8,7 @@
 // through the connection's out-queue — a blocking handler would stall that
 // connection's reads.
 use crate::git::{git_command, git_out_env};
+use crate::gitworkstate::LPM_IDENTITY as SNAPSHOT_IDENTITY;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -30,15 +31,9 @@ const MAX_PACK_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_HAVES: usize = 512;
 const PACK_TTL_MS: i64 = 10 * 60 * 1000;
 const SNAPSHOT_MESSAGE: &str = "lpm: working state";
-
-/// A machine identity for the snapshot commit: the repo may have no configured
-/// user, and the commit is a transport artifact that never carries authorship.
-const SNAPSHOT_IDENTITY: [(&str, &str); 4] = [
-    ("GIT_AUTHOR_NAME", "lpm"),
-    ("GIT_AUTHOR_EMAIL", "lpm@localhost"),
-    ("GIT_COMMITTER_NAME", "lpm"),
-    ("GIT_COMMITTER_EMAIL", "lpm@localhost"),
-];
+/// A follower asks about all of one Mac's folders in one frame; the bound is a
+/// sanity limit on a frame from the network, not a product limit.
+const MAX_STATE_BATCH: usize = 64;
 
 struct PendingPack {
     path: PathBuf,
@@ -59,6 +54,7 @@ pub fn handle_bring(out: &SyncSender<String>, t: &str, v: &Value) {
         let res = match verb.as_str() {
             "gitBringPrepare" => prepare(&v),
             "gitBringState" => state(&v),
+            "gitBringStates" => states(&v),
             "gitBringChunk" => chunk(&v),
             "gitBringDone" => done(&v),
             _ => Err(format!("unknown bring request: {verb}")),
@@ -128,6 +124,37 @@ fn state(v: &Value) -> Result<Value, String> {
     let head = head_of(&cwd)?;
     let tree = crate::gitworkstate::working_state_tree(&cwd, &head)?;
     Ok(json!({ "head": head, "tree": tree, "branch": branch_of(&cwd) }))
+}
+
+/// The same answer for several folders at once. A Mac with a handful of followed
+/// folders costs one frame per sweep instead of one each, and their index builds
+/// happen back to back on this thread rather than racing.
+fn states(v: &Value) -> Result<Value, String> {
+    let cwds: Vec<String> = v
+        .get("cwds")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .take(MAX_STATE_BATCH)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    if cwds.is_empty() {
+        return Err("no folders were asked about".into());
+    }
+    // One folder failing (removed, no commits yet) must not lose the answers for
+    // the rest, so each result is reported against its own folder.
+    let mut states = serde_json::Map::new();
+    let mut errors = serde_json::Map::new();
+    for cwd in cwds {
+        match state(&json!({ "cwd": cwd })) {
+            Ok(value) => states.insert(cwd, value),
+            Err(e) => errors.insert(cwd, Value::String(e)),
+        };
+    }
+    Ok(json!({ "states": states, "errors": errors }))
 }
 
 fn prepare(v: &Value) -> Result<Value, String> {

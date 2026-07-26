@@ -10,8 +10,48 @@
 use crate::git::{git_out, git_out_env};
 use std::path::PathBuf;
 
+/// A machine identity for the commits this module writes: the repo may have no
+/// configured user, and these commits are transport or recovery artifacts that
+/// never carry authorship.
+pub(crate) const LPM_IDENTITY: [(&str, &str); 4] = [
+    ("GIT_AUTHOR_NAME", "lpm"),
+    ("GIT_AUTHOR_EMAIL", "lpm@localhost"),
+    ("GIT_COMMITTER_NAME", "lpm"),
+    ("GIT_COMMITTER_EMAIL", "lpm@localhost"),
+];
+
 pub(crate) fn head_sha(root: &str) -> Result<String, String> {
     git_out(root, &["rev-parse", "HEAD"])
+}
+
+/// Where a discarded working state is kept. One per source Mac, replaced each
+/// time: "the last thing you discarded here" is a contract that can be explained
+/// in a sentence, which an accumulating list of timestamps cannot.
+pub(crate) fn discarded_ref(slug: &str) -> String {
+    format!("refs/lpm/discarded/{slug}")
+}
+
+/// Commit the working state as it stands and anchor it, so overwriting it is
+/// recoverable. Called only on the path where the user chose to discard their own
+/// edits — the one place syncing writes over work it did not put there.
+pub(crate) fn preserve_state(root: &str, slug: &str) -> Result<String, String> {
+    let head = head_sha(root)?;
+    let tree = working_state_tree(root, &head)?;
+    let commit = git_out_env(
+        root,
+        &[
+            "commit-tree",
+            &tree,
+            "-p",
+            &head,
+            "-m",
+            "lpm: discarded local changes",
+        ],
+        &LPM_IDENTITY,
+    )?;
+    let anchor = discarded_ref(slug);
+    git_out(root, &["update-ref", &anchor, &commit])?;
+    Ok(anchor)
 }
 
 pub(crate) fn tree_of(root: &str, rev: &str) -> Result<String, String> {
@@ -138,6 +178,44 @@ mod tests {
 
         std::fs::write(d.path().join("notes.md"), "mine\n").unwrap();
         assert!(!holds_only_state(&cwd, "refs/lpm/from-test"));
+    }
+
+    /// "Discard mine" is the one path that writes over the user's own work, so what
+    /// it discards has to be recoverable afterwards.
+    #[test]
+    fn discarded_work_is_recoverable_from_its_ref() {
+        let (d, cwd) = repo();
+        std::fs::write(d.path().join("a.txt"), "my edit\n").unwrap();
+        std::fs::write(d.path().join("mine.txt"), "my new file\n").unwrap();
+
+        let anchor = preserve_state(&cwd, "a0af5f07").unwrap();
+        assert_eq!(anchor, "refs/lpm/discarded/a0af5f07");
+
+        // What a sync then does to the folder: replace it wholesale.
+        std::fs::write(d.path().join("a.txt"), "theirs\n").unwrap();
+        std::fs::remove_file(d.path().join("mine.txt")).unwrap();
+
+        let listed = git_out(&cwd, &["ls-tree", "-r", "--name-only", &anchor]).unwrap();
+        assert!(listed.contains("mine.txt"));
+        git_out(&cwd, &["restore", "--source", &anchor, "--", "."]).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("a.txt")).unwrap(),
+            "my edit\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("mine.txt")).unwrap(),
+            "my new file\n"
+        );
+    }
+
+    #[test]
+    fn preserving_a_clean_folder_records_exactly_what_is_there() {
+        let (_d, cwd) = repo();
+        let anchor = preserve_state(&cwd, "a0af5f07").unwrap();
+        assert_eq!(
+            tree_of(&cwd, &anchor).unwrap(),
+            tree_of(&cwd, "HEAD").unwrap()
+        );
     }
 
     #[test]

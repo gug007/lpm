@@ -9,6 +9,7 @@ use crate::gitbring::{Follow as FollowContext, Request};
 use crate::gitfollowstore::{self as store, Follow};
 use crate::peerclient::{PeerClientHub, PEER_NOT_CONNECTED, PEER_REQUEST_TIMED_OUT};
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::time::Duration;
 use tauri::AppHandle;
 
@@ -26,23 +27,16 @@ pub(crate) enum Outcome {
     Paused(String),
 }
 
-/// Run one cycle. `on_transfer` fires once it is clear that bytes will actually
-/// move, which is the only point worth telling the UI about — most cycles find
-/// nothing to do and must stay invisible.
-pub(crate) fn sync(
+/// Land one follow whose Mac holds something different. `on_transfer` fires once
+/// it is clear bytes will actually move, which is the only point worth telling the
+/// UI about.
+pub(crate) fn land(
     app: &AppHandle,
     hub: &PeerClientHub,
     follow: &Follow,
     discard_local: bool,
     on_transfer: &dyn Fn(),
 ) -> Outcome {
-    let remote = match fingerprint(hub, follow) {
-        Ok(state) => state,
-        Err(e) => return classify(follow, e),
-    };
-    if remote.matches(follow) {
-        return Outcome::Unchanged;
-    }
     // Serialised against a first-time setup of the same project: two checkouts in
     // one folder would interleave into a state neither asked for.
     let Some(_lock) = crate::gitbring::lock_landing(&follow.project) else {
@@ -55,7 +49,7 @@ pub(crate) fn sync(
     }
 }
 
-struct RemoteState {
+pub(crate) struct RemoteState {
     head: String,
     tree: String,
 }
@@ -63,24 +57,106 @@ struct RemoteState {
 impl RemoteState {
     /// Both ids have to match: a commit on the other Mac moves the head, editing a
     /// file moves only the tree, and amending moves both.
-    fn matches(&self, follow: &Follow) -> bool {
+    pub(crate) fn matches(&self, follow: &Follow) -> bool {
         follow.last_head.as_deref() == Some(self.head.as_str())
             && follow.last_tree.as_deref() == Some(self.tree.as_str())
     }
+
+    fn read(v: &Value) -> Option<Self> {
+        let (head, tree) = (string_of(v, "head"), string_of(v, "tree"));
+        if head.is_empty() || tree.is_empty() {
+            return None;
+        }
+        Some(RemoteState { head, tree })
+    }
 }
 
-fn fingerprint(hub: &PeerClientHub, follow: &Follow) -> Result<RemoteState, String> {
-    let reply = hub.bring_request(
-        &follow.slug,
-        STATE_TIMEOUT,
-        json!({ "t": "gitBringState", "cwd": follow.source_root }),
-    )?;
-    let head = string_of(&reply, "head");
-    let tree = string_of(&reply, "tree");
-    if head.is_empty() || tree.is_empty() {
-        return Err("the other Mac did not report what it holds".into());
+/// What one Mac holds for each folder asked about, and why any of them could not
+/// be answered. One folder failing says nothing about the others, so they are kept
+/// apart all the way back.
+pub(crate) struct RemoteStates {
+    pub(crate) states: HashMap<String, RemoteState>,
+    pub(crate) errors: HashMap<String, String>,
+}
+
+impl RemoteStates {
+    fn empty() -> Self {
+        RemoteStates {
+            states: HashMap::new(),
+            errors: HashMap::new(),
+        }
     }
-    Ok(RemoteState { head, tree })
+
+    /// Record one folder's answer, or the absence of a usable one.
+    fn add(&mut self, cwd: &str, state: Option<RemoteState>) {
+        match state {
+            Some(state) => {
+                self.states.insert(cwd.to_string(), state);
+            }
+            None => {
+                self.errors.insert(cwd.to_string(), NO_ANSWER.to_string());
+            }
+        }
+    }
+}
+
+const NO_ANSWER: &str = "the other Mac did not report what it holds";
+
+/// Ask one Mac about every folder followed from it. A build that speaks the batch
+/// verb answers all of them in one frame; an older one is asked folder by folder.
+pub(crate) fn remote_states(
+    hub: &PeerClientHub,
+    slug: &str,
+    cwds: &[String],
+    batched: bool,
+) -> Result<RemoteStates, String> {
+    if batched {
+        return batch_states(hub, slug, cwds);
+    }
+    let mut out = RemoteStates::empty();
+    for cwd in cwds {
+        let reply = hub.bring_request(
+            slug,
+            STATE_TIMEOUT,
+            json!({ "t": "gitBringState", "cwd": cwd }),
+        )?;
+        out.add(cwd, RemoteState::read(&reply));
+    }
+    Ok(out)
+}
+
+fn batch_states(
+    hub: &PeerClientHub,
+    slug: &str,
+    cwds: &[String],
+) -> Result<RemoteStates, String> {
+    let reply = hub.bring_request(
+        slug,
+        STATE_TIMEOUT,
+        json!({ "t": "gitBringStates", "cwds": cwds }),
+    )?;
+    parse_states(&reply)
+}
+
+fn parse_states(reply: &Value) -> Result<RemoteStates, String> {
+    let mut out = RemoteStates::empty();
+    if let Some(map) = reply.get("states").and_then(Value::as_object) {
+        for (cwd, value) in map {
+            out.add(cwd, RemoteState::read(value));
+        }
+    }
+    if let Some(map) = reply.get("errors").and_then(Value::as_object) {
+        for (cwd, value) in map {
+            let reason = value.as_str().unwrap_or(NO_ANSWER).to_string();
+            out.errors.insert(cwd.clone(), reason);
+        }
+    }
+    // A reply that mentioned none of the folders is a broken answer, not a set of
+    // silent per-folder failures.
+    if out.states.is_empty() && out.errors.is_empty() {
+        return Err(NO_ANSWER.to_string());
+    }
+    Ok(out)
 }
 
 fn transfer(
@@ -127,7 +203,7 @@ fn record_landed(follow: &Follow, root: &str, done: &crate::gitbring::Done) {
     });
 }
 
-fn classify(follow: &Follow, error: String) -> Outcome {
+pub(crate) fn classify(follow: &Follow, error: String) -> Outcome {
     if is_transient(&error) {
         let recorded = error.clone();
         let _ = store::update(&follow.project, |f| f.last_error = Some(recorded));
@@ -360,6 +436,38 @@ mod tests {
             head: head.into(),
             tree: tree.into(),
         }
+    }
+
+    #[test]
+    fn a_batch_reply_keeps_each_folders_answer_apart() {
+        let reply = json!({
+            "states": {
+                "/Users/dev/app": { "head": "h1", "tree": "t1" },
+                "/Users/dev/web": { "head": "h2", "tree": "t2" },
+            },
+            "errors": { "/Users/dev/gone": "the project folder is missing on the other Mac" },
+        });
+        let parsed = parse_states(&reply).unwrap();
+        assert!(parsed.states["/Users/dev/app"].matches(&follow_at("h1", "t1")));
+        assert!(parsed.states["/Users/dev/web"].matches(&follow_at("h2", "t2")));
+        assert!(parsed.errors["/Users/dev/gone"].contains("missing"));
+        assert_eq!(parsed.states.len(), 2);
+    }
+
+    /// A folder whose answer is unusable must land in the errors, not silently look
+    /// like a folder that was never asked about.
+    #[test]
+    fn a_half_answer_counts_as_that_folders_error() {
+        let reply = json!({ "states": { "/Users/dev/app": { "head": "h1" } } });
+        let parsed = parse_states(&reply).unwrap();
+        assert!(parsed.states.is_empty());
+        assert_eq!(parsed.errors["/Users/dev/app"], NO_ANSWER);
+    }
+
+    #[test]
+    fn a_reply_about_nothing_at_all_fails_the_whole_exchange() {
+        assert!(parse_states(&json!({})).is_err());
+        assert!(parse_states(&json!({ "states": {}, "errors": {} })).is_err());
     }
 
     #[test]

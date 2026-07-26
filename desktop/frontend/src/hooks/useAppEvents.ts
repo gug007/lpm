@@ -48,7 +48,7 @@ export function useAmbientAppEvents(): void {
       (payload: { project: string; reason: string }) => {
         if (!payload?.project) return;
         toast.error(`Sync paused — ${payload.project}`, {
-          description: payload.reason,
+          description: `${payload.reason}. Discarding keeps a recoverable copy.`,
           duration: 15000,
           action: {
             label: "Discard mine & resume",

@@ -14,19 +14,20 @@ use crate::gitfollowrun::Outcome;
 use crate::gitfollowstore::{self as store, Follow};
 use crate::peerclient::PeerClientHub;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
-/// How often a followed project asks the other Mac what it holds.
-///
-/// The answer has to be measured the same way on both Macs to be comparable, which
-/// means a real index build over there — around 0.15s of CPU for a thousand-file
-/// repo, scaling with the file count. Ten seconds keeps that in the noise while
-/// still landing another Mac's work about as fast as it can be noticed. Only
-/// followed projects poll, and only while their Mac is connected.
+/// How often to ask a Mac that cannot tell us itself. The answer has to be
+/// measured the same way on both Macs to be comparable, which means a real index
+/// build over there — around 0.15s of CPU for a thousand-file repo, scaling with
+/// the file count. Only followed projects poll, and only while connected.
 const POLL: Duration = Duration::from_secs(10);
+/// How often to ask a Mac that pushes its changes. It has already told us about
+/// anything that moved, so this only has to catch what a file watcher can miss —
+/// and asking it a minute apart costs a sixth of what polling did.
+const HEARTBEAT: Duration = Duration::from_secs(60);
 /// After a run fails for a reason retrying might fix, back off through these
 /// before returning to the normal cadence.
 const BACKOFF: [Duration; 3] = [
@@ -70,8 +71,20 @@ pub struct FollowView {
     syncing: bool,
 }
 
+/// One Mac's due follows for this cycle.
+struct SourceBatch {
+    slug: String,
+    /// That Mac pushes changes, so this cycle is a heartbeat and its folders can be
+    /// asked about in one frame.
+    pushes: bool,
+    follows: Vec<Follow>,
+}
+
 struct Inner {
     runtimes: HashMap<String, Runtime>,
+    /// The folder set we believe each Mac is watching for us, so it is only told
+    /// when that changes.
+    watched: HashMap<String, HashSet<String>>,
     woken: bool,
     shutdown: bool,
 }
@@ -98,6 +111,7 @@ impl Engine {
                 hub,
                 inner: Mutex::new(Inner {
                     runtimes: HashMap::new(),
+                    watched: HashMap::new(),
                     woken: false,
                     shutdown: false,
                 }),
@@ -127,42 +141,74 @@ impl Engine {
             rt.next_at = None;
             rt.errors = 0;
         }
+        // A reconnected Mac remembers nothing about what we follow, so whatever we
+        // believed it was watching is void.
+        inner.watched.clear();
+        inner.woken = true;
+        self.core.cv.notify_all();
+    }
+
+    /// A Mac says one of its folders moved. Only a wake-up: the cycle it triggers
+    /// still asks what the state is before acting on it.
+    pub fn note_remote_change(&self, slug: &str, cwd: &str) {
+        let projects: Vec<String> = store::load()
+            .into_iter()
+            .filter(|f| f.slug == slug && f.source_root == cwd)
+            .map(|f| f.project)
+            .collect();
+        if projects.is_empty() {
+            return;
+        }
+        let mut inner = self.core.inner.lock().unwrap();
+        for project in projects {
+            let rt = inner.runtimes.entry(project).or_default();
+            rt.next_at = None;
+            rt.errors = 0;
+        }
         inner.woken = true;
         self.core.cv.notify_all();
     }
 
     fn run(&self) {
         loop {
-            let (due, any) = self.claim_due();
-            for follow in due {
+            let (batches, any) = self.claim_due();
+            for batch in batches {
                 let engine = self.clone();
-                std::thread::spawn(move || engine.sync(follow));
+                std::thread::spawn(move || engine.sync_source(batch));
             }
             let inner = self.core.inner.lock().unwrap();
             if inner.shutdown {
                 return;
             }
             if !inner.woken {
+                // Wake often enough to serve the shortest cadence any Mac needs;
+                // each follow's own next instant decides whether it actually runs.
                 let wait = if any { POLL } else { IDLE };
                 let _ = self.core.cv.wait_timeout(inner, wait).unwrap();
             }
         }
     }
 
-    /// The follows to check this cycle — marked running before the lock is
-    /// released, so a slow transfer is never started twice — and whether anything
-    /// is being followed at all.
+    /// The work for this cycle, grouped by the Mac it comes from — one batch per
+    /// Mac, so its folders are asked about in one frame and land one at a time
+    /// rather than making it pack several at once. Members are marked running
+    /// before the lock is released, so a slow transfer is never started twice.
     ///
     /// Eligibility is resolved before the engine lock is taken: it reads peer
     /// connection state, and the peer client nudges this engine, so the two locks
     /// must never nest.
-    fn claim_due(&self) -> (Vec<Follow>, bool) {
+    fn claim_due(&self) -> (Vec<SourceBatch>, bool) {
         let live = store::prune_missing(&crate::config::project_names());
         let ready: Vec<Follow> = live
             .iter()
             .filter(|f| !f.is_paused() && self.core.hub.require_git_follow(&f.slug).is_ok())
             .cloned()
             .collect();
+        let pushes: HashMap<String, bool> = ready
+            .iter()
+            .map(|f| (f.slug.clone(), self.core.hub.can_push_changes(&f.slug)))
+            .collect();
+        self.register_watches(&ready, &pushes);
 
         let now = Instant::now();
         let mut inner = self.core.inner.lock().unwrap();
@@ -173,44 +219,129 @@ impl Engine {
         inner
             .runtimes
             .retain(|project, _| live.iter().any(|f| &f.project == project));
-        let due = ready
-            .into_iter()
-            .filter(|follow| {
-                let rt = inner.runtimes.entry(follow.project.clone()).or_default();
-                let go = !rt.running && is_due(rt.next_at, now);
-                if go {
-                    rt.running = true;
-                }
-                go
-            })
-            .collect();
-        (due, !live.is_empty())
+
+        let mut batches: Vec<SourceBatch> = Vec::new();
+        for follow in ready {
+            let rt = inner.runtimes.entry(follow.project.clone()).or_default();
+            if rt.running || !is_due(rt.next_at, now) {
+                continue;
+            }
+            rt.running = true;
+            let pushed = pushes.get(&follow.slug).copied().unwrap_or(false);
+            match batches.iter_mut().find(|b| b.slug == follow.slug) {
+                Some(batch) => batch.follows.push(follow),
+                None => batches.push(SourceBatch {
+                    slug: follow.slug.clone(),
+                    pushes: pushed,
+                    follows: vec![follow],
+                }),
+            }
+        }
+        (batches, !live.is_empty())
     }
 
-    fn sync(&self, follow: Follow) {
+    /// Tell each Mac which of its folders we follow, so it can push their changes
+    /// instead of being asked. Only sent when the set actually changed — a
+    /// reconnect clears what we believe it knows, so it is told again.
+    fn register_watches(&self, ready: &[Follow], pushes: &HashMap<String, bool>) {
+        let mut wanted: HashMap<String, HashSet<String>> = HashMap::new();
+        for follow in ready {
+            if pushes.get(&follow.slug).copied().unwrap_or(false) {
+                wanted
+                    .entry(follow.slug.clone())
+                    .or_default()
+                    .insert(follow.source_root.clone());
+            }
+        }
+        let stale: Vec<(String, HashSet<String>)> = {
+            let mut inner = self.core.inner.lock().unwrap();
+            // A Mac we no longer follow anything on is told so, once.
+            for slug in inner.watched.keys().cloned().collect::<Vec<_>>() {
+                wanted.entry(slug).or_default();
+            }
+            let changed: Vec<(String, HashSet<String>)> = wanted
+                .into_iter()
+                .filter(|(slug, cwds)| inner.watched.get(slug) != Some(cwds))
+                .collect();
+            for (slug, cwds) in &changed {
+                if cwds.is_empty() {
+                    inner.watched.remove(slug);
+                } else {
+                    inner.watched.insert(slug.clone(), cwds.clone());
+                }
+            }
+            changed
+        };
+        for (slug, cwds) in stale {
+            let list: Vec<&String> = cwds.iter().collect();
+            let sent = self
+                .core
+                .hub
+                .notify_peer(&slug, serde_json::json!({ "t": "gitFollowWatch", "cwds": list }));
+            // Unsent means the connection went away; forget it so the next cycle
+            // registers again rather than assuming that Mac is watching.
+            if sent.is_err() {
+                self.core.inner.lock().unwrap().watched.remove(&slug);
+            }
+        }
+    }
+
+    /// One Mac's turn: ask what it holds for every folder we follow from it, then
+    /// land the ones that moved, one after another.
+    fn sync_source(&self, batch: SourceBatch) {
+        let cadence = if batch.pushes { HEARTBEAT } else { POLL };
+        let cwds: Vec<String> = batch
+            .follows
+            .iter()
+            .map(|f| f.source_root.clone())
+            .collect();
+        let answers =
+            crate::gitfollowrun::remote_states(&self.core.hub, &batch.slug, &cwds, batch.pushes);
+        let mut changed_anything = false;
+        for follow in &batch.follows {
+            let outcome = match &answers {
+                // The whole exchange failed, so every folder in it is unresolved.
+                Err(e) => crate::gitfollowrun::classify(follow, e.clone()),
+                Ok(answers) => match answers.states.get(&follow.source_root) {
+                    Some(state) if state.matches(follow) => Outcome::Unchanged,
+                    Some(_) => self.land(follow),
+                    None => crate::gitfollowrun::classify(
+                        follow,
+                        answers
+                            .errors
+                            .get(&follow.source_root)
+                            .cloned()
+                            .unwrap_or_else(|| "that folder was not answered for".into()),
+                    ),
+                },
+            };
+            if let Outcome::Paused(reason) = &outcome {
+                let _ = self.core.app.emit(
+                    "follow-paused",
+                    serde_json::json!({ "project": follow.project, "reason": reason }),
+                );
+            }
+            changed_anything |= !matches!(outcome, Outcome::Unchanged);
+            self.finish(&follow.project, &outcome, cadence);
+        }
+        // A cycle that found nothing to do changed nothing worth re-rendering for,
+        // and with a heartbeat there is one of those for every quiet minute.
+        if changed_anything {
+            self.emit_state();
+        }
+    }
+
+    fn land(&self, follow: &Follow) -> Outcome {
         let discard = self.take_discard(&follow.project);
-        let outcome = crate::gitfollowrun::sync(
+        crate::gitfollowrun::land(
             &self.core.app,
             &self.core.hub,
-            &follow,
+            follow,
             discard,
             // The row is already marked running, so this is what puts the syncing
             // state on screen for a transfer long enough to notice.
             &|| self.emit_state(),
-        );
-        if let Outcome::Paused(reason) = &outcome {
-            let _ = self.core.app.emit(
-                "follow-paused",
-                serde_json::json!({ "project": follow.project, "reason": reason }),
-            );
-        }
-        let quiet = matches!(outcome, Outcome::Unchanged);
-        self.finish(&follow.project, &outcome);
-        // A cycle that found nothing to do changed nothing worth re-rendering for,
-        // and there is one of those every few seconds per followed project.
-        if !quiet {
-            self.emit_state();
-        }
+        )
     }
 
     fn take_discard(&self, project: &str) -> bool {
@@ -222,7 +353,7 @@ impl Engine {
             .unwrap_or(false)
     }
 
-    fn finish(&self, project: &str, outcome: &Outcome) {
+    fn finish(&self, project: &str, outcome: &Outcome, cadence: Duration) {
         let now = Instant::now();
         let mut inner = self.core.inner.lock().unwrap();
         let Some(rt) = inner.runtimes.get_mut(project) else {
@@ -232,7 +363,7 @@ impl Engine {
         match outcome {
             Outcome::Unchanged | Outcome::Synced => {
                 rt.errors = 0;
-                rt.next_at = Some(now + POLL);
+                rt.next_at = Some(now + cadence);
             }
             Outcome::Retry => {
                 rt.errors = rt.errors.saturating_add(1);

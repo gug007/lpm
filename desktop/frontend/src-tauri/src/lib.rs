@@ -28,6 +28,7 @@ mod gitfollow;
 mod gitfollowrun;
 mod gitfollowstore;
 mod gitsync;
+mod gitwatchhost;
 mod gitworkstate;
 mod hooks;
 mod jobs;

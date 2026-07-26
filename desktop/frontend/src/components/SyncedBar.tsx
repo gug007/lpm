@@ -78,7 +78,10 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
         body={
           <>
             The edits in this folder that didn't come from {macName} will be replaced by
-            its version. This cannot be undone.
+            its version. They're committed to{" "}
+            <code className="font-mono text-[var(--text-primary)]">refs/lpm/discarded/…</code>{" "}
+            first, so you can still get them back with{" "}
+            <code className="font-mono text-[var(--text-primary)]">git restore</code>.
           </>
         }
         confirmLabel="Discard and resume"
