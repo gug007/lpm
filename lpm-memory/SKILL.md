@@ -1,11 +1,17 @@
 ---
 name: lpm-memory
-version: 1.5.0
+version: 1.6.0
 argument-hint: "[session-id]"
 description: "Shared project memory for AI coding agents: save or recall work-session logs in `~/.lpm/memory/<project>/<session>.md` so another agent CLI (Claude Code, Codex, Gemini) or a future session can continue the work by session name. Invoke with a session id (e.g. `/lpm-memory auth-refactor`) to continue that session. Use when the user asks to remember or save the session or progress, hand off work, record what was done, or recall/continue/resume/join a named work session. This is per-project memory shared between agent CLIs — distinct from any CLI's own built-in memory."
 ---
 
-Project memory lives in `~/.lpm/memory/<project>/<session>.md`, shared by every agent CLI. `<project>` is the lpm project name — `$LPM_PROJECT_NAME` when set, else the working directory's folder name. `<session>` is a kebab-case slug for one workstream (e.g. `auth-refactor`); each file is both the current handoff state and the work history.
+Project memory lives in one folder per project, shared by every agent CLI. Resolve that folder in this order:
+
+1. `$LPM_MEMORY_DIR`, which lpm sets for every terminal it opens — always use it when set.
+2. `~/.lpm/memory/<project>` where `<project>` comes from `lpm project --json`: its `parentName`, or its `name` when `parentName` is empty.
+3. Without the `lpm` CLI, `~/.lpm/memory/<project>` where `<project>` is `$LPM_PROJECT_NAME`, else the main checkout's folder name (`basename "$(dirname "$(cd "$(git rev-parse --git-common-dir)" && pwd)")"`, so a Git worktree resolves to the repository it belongs to), else the working directory's folder name.
+
+A duplicate of a project shares the original's memory — same codebase, and the copy is disposable — so never derive a folder of its own from a copy's name or path. `<session>` is a kebab-case slug for one workstream (e.g. `auth-refactor`); each file is both the current handoff state and the work history.
 
 Invocation:
 
@@ -49,6 +55,6 @@ Invocation:
 
 ## Recall (continue / join)
 
-1. List `~/.lpm/memory/<project>/*.md`; read the named session, or show the list (name, last modified, goal line) and ask which one.
+1. List the project memory folder's `*.md`; read the named session, or show the list (name, last modified, goal line) and ask which one.
 2. `## Current state` is the source of truth; the newest timeline entries carry the freshest detail. Read those first — reach for older entries and the archive digest only when the work needs that history.
 3. State the next step you inferred, confirm direction, then continue — and Remember at the next stopping point.

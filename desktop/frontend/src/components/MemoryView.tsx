@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   DeleteMemorySession,
@@ -7,6 +7,7 @@ import {
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
 import { MEMORY_CHANGED_EVENT, type MemorySession } from "../types";
+import { useAppStore } from "../store/app";
 import { useNow } from "../hooks/useNow";
 import { useContentZoom } from "../hooks/useContentZoom";
 import { MemorySessionList } from "./MemorySessionList";
@@ -45,9 +46,11 @@ const SKELETON = (title: string) =>
 // The session-memory tab (`kind: "memory"`, like the review tab): browses and
 // edits the project's shared agent session memory in ~/.lpm/memory/<project>/.
 // Agents write the same files, so saves are compare-and-swap and the list
-// follows the memory watcher.
+// follows the memory watcher. A duplicate shows its original's memory — the
+// backend decides that, so the folder it answers with names the owner.
 export function MemoryView({ projectName, visible, focused, target }: MemoryViewProps) {
   const [sessions, setSessions] = useState<MemorySession[]>([]);
+  const [dir, setDir] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState<View>({ kind: "list" });
   const [editing, setEditing] = useState(false);
@@ -63,6 +66,7 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
     try {
       const state = await ReadMemorySessions(projectName);
       setSessions(state.sessions);
+      setDir(state.dir);
     } catch {
       setSessions([]);
     } finally {
@@ -89,6 +93,14 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
     setEditing(false);
     setView({ kind: "detail", name: target.name });
   }, [target]);
+
+  // Whoever owns the folder the backend answered with: the project itself, or
+  // the original this project is a copy of.
+  const owner = useMemo(() => dir.split("/").filter(Boolean).pop() ?? "", [dir]);
+  const shared = owner !== "" && owner !== projectName;
+  const ownerLabel = useAppStore((s) =>
+    shared ? s.projects.find((p) => p.name === owner)?.label?.trim() || owner : "",
+  );
 
   const detail =
     view.kind === "detail" ? sessions.find((s) => s.name === view.name) : undefined;
@@ -178,6 +190,14 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
         </span>
         {view.kind === "list" && sessions.length > 0 && (
           <span className="text-xs text-[var(--text-muted)]">{sessions.length}</span>
+        )}
+        {shared && view.kind === "list" && (
+          <span
+            title={`Copies share the memory of ${ownerLabel}, so work carries over both ways`}
+            className="rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[11px] text-[var(--text-muted)]"
+          >
+            {ownerLabel}
+          </span>
         )}
         {detail && (
           <>
@@ -346,7 +366,7 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
             </form>
             {slugify(newTitle) && (
               <div className="mt-2 font-mono text-[11px] text-[var(--text-muted)]">
-                ~/.lpm/memory/{projectName}/{slugify(newTitle)}.md
+                ~/.lpm/memory/{owner || projectName}/{slugify(newTitle)}.md
               </div>
             )}
           </div>

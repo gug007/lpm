@@ -336,6 +336,13 @@ fn start_internal(
         builder.env("LPM_SOCKET_PATH", config::socket_path());
         builder.env("LPM_PROJECT_NAME", project_name);
         builder.env("LPM_PANE_ID", &id);
+        // Where the lpm-memory skill saves and recalls work sessions. Resolved
+        // here because a duplicate shares its original's folder, which the agent
+        // can't derive from the project name or the cwd. Not set for remote
+        // terminals: the path is Mac-local and session memory is too.
+        if let Ok(dir) = crate::session_memory_scope::memory_dir(project_name) {
+            builder.env("LPM_MEMORY_DIR", dir);
+        }
         // Pinned Claude account; an explicit CLAUDE_CONFIG_DIR in the action's
         // env map wins because extra_env is applied after. Scrub drops the var
         // inherited from lpm's own env so an explicit default login can't run

@@ -1,0 +1,67 @@
+name: Warm build cache
+
+# release.yml only runs on tags, and GitHub scopes caches by ref: a cache saved
+# by v0.5.3 is invisible to v0.5.4, so every release compiled ~400 crates cold.
+# Caches saved here land on the default branch, which tag runs *can* restore
+# from — the release then only rebuilds the app crate itself.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/frontend/src-tauri/Cargo.toml"
+      - "desktop/frontend/src-tauri/Cargo.lock"
+      - "cli/Cargo.lock"
+      - "desktop/frontend/package-lock.json"
+      - ".github/workflows/cache-warm.yml"
+  # A cache goes away after 7 days without a read; releases usually keep it warm,
+  # this is the backstop for quiet weeks.
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: cache-warm
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # shared-key must match release.yml's — rust-cache folds the job id into a
+      # plain `key`, so `build` and `warm` would never share an entry.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          shared-key: release-${{ matrix.target }}
+
+      - name: Install dependencies
+        working-directory: desktop/frontend
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # --no-bundle stops after the cargo build: no signing, notarization or DMG.
+      # LPM_CLI_TARGET pins the sidecar triple the Tauri build script validates.
+      # `-- --timings` mirrors release.yml so the cargo arg passthrough is
+      # exercised here, on main, rather than first breaking on a tag.
+      - name: Build dependencies
+        working-directory: desktop/frontend
+        env:
+          LPM_CLI_TARGET: ${{ matrix.target }}
+        run: npx tauri build --target ${{ matrix.target }} --no-bundle -- --timings

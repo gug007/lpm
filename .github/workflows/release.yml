@@ -41,10 +41,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # Restores the dependency build warmed by cache-warm.yml on main. GitHub
+      # scopes caches by ref, so a cache saved here (on refs/tags/v*) is
+      # unreadable from the next tag — hence save-if: false, and shared-key
+      # rather than key: (a plain key folds in the job id, which wouldn't match
+      # the warm job's).
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/frontend/src-tauri
-          key: ${{ matrix.target }}
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          shared-key: release-${{ matrix.target }}
+          save-if: false
 
       - name: Import signing certificate
         env:
@@ -95,7 +103,18 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
         run: |
-          npx tauri build --target ${{ matrix.target }} --config "{\"version\":\"$VERSION\"}"
+          npx tauri build --target ${{ matrix.target }} --config "{\"version\":\"$VERSION\"}" -- --timings
+
+      # Per-crate build timings for the run above — open the HTML to see which
+      # crates dominate and whether the warm cache actually hit.
+      - name: Upload build timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-timings-${{ matrix.arch }}
+          path: desktop/frontend/src-tauri/target/**/cargo-timings/*.html
+          if-no-files-found: warn
+          retention-days: 7
 
       # Tauri notarizes + staples the .app but leaves the DMG itself
       # un-notarized, which can trip Gatekeeper on a manual browser download.

@@ -7,8 +7,11 @@
 // through the lpm-memory skill while the pane is open, so a save is
 // compare-and-swap against the text the UI loaded — an agent's newer entry is
 // never silently clobbered.
+//
+// Which project's folder that is comes from session_memory_scope: a duplicate
+// shares its original's.
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 const MAX_DOC_BYTES: u64 = 1024 * 1024;
@@ -29,8 +32,8 @@ pub struct MemorySession {
     pub content: String,
 }
 
-/// `dir` is the project's memory directory (`~/.lpm/memory/<project>`), filled
-/// in even when `exists` is false.
+/// `dir` is the memory directory the project shares (`~/.lpm/memory/<project>`,
+/// the original's for a duplicate), filled in even when `exists` is false.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MemoryState {
@@ -50,27 +53,12 @@ fn ensure_local_project(project: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Defense in depth: project names come from the config directory, but the name
-/// becomes a path segment here, so anything that could climb out of
-/// ~/.lpm/memory is refused rather than trusted.
-fn is_valid_project(project: &str) -> bool {
-    !project.is_empty()
-        && !project.starts_with('.')
-        && !project.contains('/')
-        && !project.contains('\\')
-}
-
-fn project_memory_dir(project: &str) -> Result<PathBuf, String> {
-    if !is_valid_project(project) {
-        return Err(format!("invalid project name {project:?}"));
-    }
-    Ok(crate::config::lpm_dir().join("memory").join(project))
-}
-
 #[tauri::command(async)]
 pub fn read_memory_sessions(project: String) -> Result<MemoryState, String> {
     ensure_local_project(&project)?;
-    Ok(read_sessions_at(&project_memory_dir(&project)?))
+    Ok(read_sessions_at(&crate::session_memory_scope::memory_dir(
+        &project,
+    )?))
 }
 
 fn read_sessions_at(dir: &Path) -> MemoryState {
@@ -163,7 +151,7 @@ pub fn write_memory_session(
 ) -> Result<(), String> {
     ensure_local_project(&project)?;
     write_session_at(
-        &project_memory_dir(&project)?,
+        &crate::session_memory_scope::memory_dir(&project)?,
         &name,
         &content,
         baseline.as_deref(),
@@ -210,7 +198,7 @@ fn write_session_at(
 #[tauri::command(async)]
 pub fn delete_memory_session(project: String, name: String) -> Result<(), String> {
     ensure_local_project(&project)?;
-    delete_session_at(&project_memory_dir(&project)?, &name)
+    delete_session_at(&crate::session_memory_scope::memory_dir(&project)?, &name)
 }
 
 fn delete_session_at(dir: &Path, name: &str) -> Result<(), String> {
@@ -225,13 +213,15 @@ fn delete_session_at(dir: &Path, name: &str) -> Result<(), String> {
     }
 }
 
-/// Drop a removed project's memory. Numbered duplicate names get reused, so the
-/// next project under a reused name must not inherit the old one's sessions —
-/// the same reason notes and the instructions dir are purged there. Routed
-/// through `project_memory_dir` so the name guard stands between a config value
-/// and a recursive delete; an unusable name removes nothing.
+/// Drop a removed project's own memory folder. Numbered duplicate names get
+/// reused, so the next project under a reused name must not inherit the old
+/// one's sessions — the same reason notes and the instructions dir are purged
+/// there. Deliberately `own_memory_dir`, not the shared one: this runs for
+/// duplicates, whose sessions belong to an original that is staying. Routed
+/// through it so the name guard stands between a config value and a recursive
+/// delete; an unusable name removes nothing.
 pub fn purge_project(project: &str) {
-    let Ok(dir) = project_memory_dir(project) else {
+    let Ok(dir) = crate::session_memory_scope::own_memory_dir(project) else {
         return;
     };
     let _ = crate::config::remove_dir_all_retry(&dir);
@@ -343,21 +333,6 @@ mod tests {
         for good in ["a", "9", "auth-refactor", "fix-2-freeze", &"a".repeat(MAX_NAME_LEN)] {
             assert!(is_valid_name(good), "{good:?} should be accepted");
         }
-    }
-
-    /// The project name is now a path segment under ~/.lpm/memory, so it gets
-    /// the same distrust the session slug does.
-    #[test]
-    fn rejects_project_names_that_could_escape_the_memory_dir() {
-        for bad in ["", "..", ".", "../../etc", "a/b", "a\\b", ".hidden"] {
-            assert!(!is_valid_project(bad), "{bad:?} should be rejected");
-            assert!(project_memory_dir(bad).is_err(), "{bad:?} should not resolve");
-        }
-        for good in ["web", "web-2", "My Project", "a.b"] {
-            assert!(is_valid_project(good), "{good:?} should be accepted");
-        }
-        let dir = project_memory_dir("web").unwrap();
-        assert!(dir.ends_with("memory/web"));
     }
 
     #[test]

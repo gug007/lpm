@@ -191,9 +191,14 @@ pub fn start(app: AppHandle) {
                 let _ = app.emit("sidebar-changed", ());
             }
             // One emit per project whose memory changed; the payload lets a pane
-            // ignore other projects' saves.
+            // ignore other projects' saves. A duplicate's pane is keyed on its own
+            // name but reads its original's folder, so the original's saves are
+            // announced under the copies' names too.
             let memory_changed = !d.memory.is_empty();
             for project in d.memory {
+                for dup in crate::config::duplicates_of(&project).unwrap_or_default() {
+                    let _ = app.emit("memory-changed", dup);
+                }
                 let _ = app.emit("memory-changed", project);
             }
             // Same debounced classification that emits the events also nudges the

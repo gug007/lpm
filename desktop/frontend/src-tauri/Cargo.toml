@@ -6,9 +6,12 @@ edition = "2021"
 rust-version = "1.85"
 
 # Tauri 2 convention: a lib crate (the app logic) plus a thin main.rs binary.
+# rlib only: main.rs is the sole consumer. Tauri's template also emits staticlib
+# (iOS) and cdylib (Android), and cargo builds every declared crate-type — three
+# full codegen + LTO passes over this crate on a desktop-only build.
 [lib]
 name = "lpm_desktop_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -56,6 +56,7 @@ mod remotetls;
 mod services;
 mod session_memory;
 mod session_memory_files;
+mod session_memory_scope;
 mod skill_install;
 mod sockdeliver;
 mod socketsrv;
@@ -266,6 +267,7 @@ pub fn run() {
                 hooks::reapply_claude_limits_if_enabled();
                 hooks::refresh_active_claude_statusline_template();
                 session_memory::cleanup_at_startup();
+                session_memory_scope::adopt_duplicate_memory_at_startup();
             });
 
             // Check for updates on startup, then every 24h while the app runs
