@@ -2420,6 +2420,7 @@ mod tests {
             .env("LPM_SOCKET_PATH", &sock)
             .env("LPM_PROJECT_NAME", "proj")
             .env("LPM_PANE_ID", "pane-1")
+            .env("HOME", td.path())
             .env_remove("TMUX")
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null())
@@ -2557,11 +2558,20 @@ mod tests {
             codex_permission_request_cmd(),
         ];
         for cmd in cmds {
+            // Isolate the child from the developer's own lpm terminal: with no
+            // LPM_SOCKET_PATH the hook globs $HOME/.lpm/lpm.sock — the LIVE app's
+            // socket — and would deliver under the inherited LPM_PROJECT_NAME /
+            // LPM_PANE_ID, pinning a real Waiting badge (chime, phone push) on
+            // whichever tab ran the suite.
+            let home = tempfile::tempdir().unwrap();
             let mut child = std::process::Command::new("sh")
                 .arg("-c")
                 .arg(&cmd)
                 .env_remove("TMUX")
                 .env_remove("LPM_SOCKET_PATH")
+                .env_remove("LPM_PROJECT_NAME")
+                .env_remove("LPM_PANE_ID")
+                .env("HOME", home.path())
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
