@@ -48,7 +48,7 @@ function summarize(
   follow: FollowState,
   macName: string,
 ): { headline: string; body: string; meta: string } {
-  const following = `A copy of ${macName}'s project lives on this Mac, and it keeps following along as files change over there.`;
+  const following = `The project itself lives on ${macName}. This copy follows along as files change over there.`;
 
   if (follow.paused) {
     return {
