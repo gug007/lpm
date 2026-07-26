@@ -3,7 +3,7 @@ import { ChevronRightIcon, PlusIcon, XIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { SidebarPeerRow } from "./SidebarPeerRow";
-import { SyncedChip } from "./SyncedChip";
+import { FollowIndicator } from "./FollowIndicator";
 import type { MirrorRow } from "./peerSections";
 import type { FollowState } from "../followApi";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
@@ -128,10 +128,9 @@ export function SidebarPeerSection({
               isContextTarget={contextTargetName === project.name}
               mark={
                 mirror && mirrorFollow ? (
-                  <SyncedChip
+                  <FollowIndicator
                     follow={mirrorFollow}
                     macName={alias}
-                    selected={selected === mirror.name}
                     onOpen={() => onSelect(mirror.name)}
                   />
                 ) : undefined
@@ -149,13 +148,7 @@ export function SidebarPeerSection({
             label={stray.label}
             selected={selected === stray.project.name}
             isContextTarget={contextTargetName === stray.project.name}
-            mark={
-              <SyncedChip
-                follow={stray.follow}
-                macName={alias}
-                selected={selected === stray.project.name}
-              />
-            }
+            mark={<FollowIndicator follow={stray.follow} macName={alias} />}
             onSelect={() => onSelect(stray.project.name)}
             onContextMenu={(x, y) => onContextMenu(stray.project.name, x, y)}
           />

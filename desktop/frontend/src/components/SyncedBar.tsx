@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PauseCircle, Play, RefreshCw } from "lucide-react";
+import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
 import { followPause, followResume, followStop, type FollowState } from "../followApi";
 
 // Relative time only needs to be roughly right, and the row re-renders on every
@@ -17,9 +18,13 @@ interface SyncedBarProps {
 // — it sits under the header without competing with the terminal for attention.
 export function SyncedBar({ follow, macName }: SyncedBarProps) {
   useTick(TICK_MS);
+  const [removing, setRemoving] = useState(false);
 
   const fail = (err: unknown) => toast.error(String(err));
   const paused = Boolean(follow.paused);
+  // A fault clears itself on a retry the user should not have to wait out: resuming
+  // resets the backoff, so offering it as "Retry" is the same door, better named.
+  const stuck = !paused && Boolean(follow.lastError) && !follow.syncing;
 
   return (
     <div className="mt-1 flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3 py-1.5 text-[12px]">
@@ -55,6 +60,14 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
         )}
       </span>
 
+      {stuck && (
+        <BarButton
+          icon={<RefreshCw size={11} />}
+          onClick={() => void followResume(follow.project).catch(fail)}
+        >
+          Retry now
+        </BarButton>
+      )}
       {paused ? (
         <BarButton icon={<Play size={11} />} onClick={() => void followResume(follow.project).catch(fail)}>
           Resume
@@ -62,7 +75,15 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
       ) : (
         <BarButton onClick={() => void followPause(follow.project).catch(fail)}>Pause</BarButton>
       )}
-      <BarButton onClick={() => void followStop(follow.project).catch(fail)}>Stop</BarButton>
+      <BarButton onClick={() => void followStop(follow.project).catch(fail)}>Stop syncing</BarButton>
+      <BarButton onClick={() => setRemoving(true)}>Remove copy</BarButton>
+
+      <RemoveSyncedCopyDialog
+        open={removing}
+        project={follow.project}
+        macName={macName}
+        onClose={() => setRemoving(false)}
+      />
     </div>
   );
 }

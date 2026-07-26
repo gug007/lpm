@@ -195,11 +195,22 @@ impl Engine {
     /// must never nest.
     fn claim_due(&self) -> (Vec<SourceBatch>, bool) {
         let live = store::prune_missing(&crate::config::project_names());
-        let ready: Vec<Follow> = live
-            .iter()
-            .filter(|f| !f.is_paused() && self.core.hub.require_git_follow(&f.slug).is_ok())
-            .cloned()
-            .collect();
+        let mut ready: Vec<Follow> = Vec::new();
+        let mut noted = false;
+        for follow in live.iter().filter(|f| !f.is_paused()) {
+            match self.core.hub.require_git_follow(&follow.slug) {
+                Ok(()) => ready.push(follow.clone()),
+                Err(reason) => {
+                    if let Some(note) = pending_note(follow, &availability_note(&reason)) {
+                        let _ = store::update(&follow.project, |f| f.last_error = Some(note));
+                        noted = true;
+                    }
+                }
+            }
+        }
+        if noted {
+            self.emit_state();
+        }
         let pushes: HashMap<String, bool> = ready
             .iter()
             .map(|f| (f.slug.clone(), self.core.hub.can_push_changes(&f.slug)))
@@ -299,7 +310,10 @@ impl Engine {
                 // The whole exchange failed, so every folder in it is unresolved.
                 Err(e) => crate::gitfollowrun::classify(follow, e.clone()),
                 Ok(answers) => match answers.states.get(&follow.source_root) {
-                    Some(state) if state.matches(follow) => Outcome::Unchanged,
+                    Some(state) if state.matches(follow) => {
+                        crate::gitfollowrun::note_settled(follow);
+                        Outcome::Unchanged
+                    }
                     Some(_) => self.land(follow),
                     None => crate::gitfollowrun::classify(
                         follow,
@@ -397,6 +411,26 @@ fn is_due(next_at: Option<Instant>, now: Instant) -> bool {
     next_at.map(|t| now >= t).unwrap_or(true)
 }
 
+/// What to record on a follow that cannot run, if anything. Nothing when the record
+/// already says it: this is decided on every poll, so rewriting the same sentence
+/// would churn the file for the length of an outage.
+fn pending_note(follow: &Follow, reason: &str) -> Option<String> {
+    if follow.last_error.as_deref() == Some(reason) {
+        return None;
+    }
+    Some(reason.to_string())
+}
+
+/// The peer guard's wording as a synced project's status line should read it. A
+/// follow that cannot run has to say so itself — left silent, the last unrelated
+/// fault stays on screen and reads as the reason.
+fn availability_note(reason: &str) -> String {
+    if reason == crate::peerclient::PEER_NOT_CONNECTED {
+        return "that Mac is not connected".to_string();
+    }
+    reason.to_string()
+}
+
 fn backoff(errors: u32) -> Duration {
     let step = (errors.max(1) as usize - 1).min(BACKOFF.len() - 1);
     BACKOFF[step]
@@ -450,6 +484,49 @@ pub fn follow_resume(app: AppHandle, project: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn follow_with_error(error: Option<&str>) -> Follow {
+        let mut f = Follow::new(
+            "web-sync".into(),
+            "a0af5f07".into(),
+            "/Users/dev/web".into(),
+        );
+        f.last_error = error.map(str::to_string);
+        f
+    }
+
+    /// A follow whose Mac cannot serve it has to say so, or the last unrelated
+    /// fault stays on screen and reads as the reason nothing is happening.
+    #[test]
+    fn a_mac_that_cannot_serve_is_recorded_on_the_follow() {
+        assert_eq!(
+            pending_note(&follow_with_error(None), "that Mac is not connected"),
+            Some("that Mac is not connected".to_string())
+        );
+        assert_eq!(
+            pending_note(&follow_with_error(Some("peer request timed out")), "that Mac is not connected"),
+            Some("that Mac is not connected".to_string()),
+            "a stale fault is replaced by the reason it is not running now"
+        );
+    }
+
+    /// Eligibility is decided on every poll, so re-recording the same sentence
+    /// would rewrite the file for the whole length of an outage.
+    #[test]
+    fn a_reason_already_recorded_is_not_written_again() {
+        let reason = "that Mac is not connected";
+        assert_eq!(pending_note(&follow_with_error(Some(reason)), reason), None);
+    }
+
+    #[test]
+    fn the_guards_wording_is_said_the_way_a_status_line_reads() {
+        assert_eq!(
+            availability_note(crate::peerclient::PEER_NOT_CONNECTED),
+            "that Mac is not connected"
+        );
+        let needs_update = "the other Mac needs to update lpm to send its changes";
+        assert_eq!(availability_note(needs_update), needs_update);
+    }
 
     #[test]
     fn a_follow_with_no_scheduled_time_runs_immediately() {

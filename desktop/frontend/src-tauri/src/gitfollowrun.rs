@@ -204,6 +204,16 @@ fn record_landed(follow: &Follow, root: &str, done: &crate::gitbring::Done) {
     });
 }
 
+/// A cycle that found nothing to do also means whatever last went wrong is over.
+/// Without this a one-off fault stays on the project until a real change lands,
+/// which on a quiet day is hours of reading a problem that has already passed.
+pub(crate) fn note_settled(follow: &Follow) {
+    if follow.last_error.is_none() {
+        return;
+    }
+    let _ = store::update(&follow.project, |f| f.last_error = None);
+}
+
 pub(crate) fn classify(follow: &Follow, error: String) -> Outcome {
     if is_transient(&error) {
         let recorded = error.clone();

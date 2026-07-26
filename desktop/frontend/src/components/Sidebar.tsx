@@ -48,10 +48,11 @@ import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateD
 import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
 import { buildPeerSections, followForRow } from "./peerSections";
+import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
 import { syncSupported } from "../syncApi";
 import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
-import { followResume, followStop } from "../followApi";
+import { followPause, followResume, followStop } from "../followApi";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
@@ -178,6 +179,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Anchor row for shift-click range selection; range spans anchor → clicked.
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null);
   const [confirmBatch, setConfirmBatch] = useState(false);
+  const [removingCopy, setRemovingCopy] = useState<{ project: string; macName: string } | null>(
+    null,
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const { width, handleResizeStart } = useSidebarResize();
 
@@ -225,14 +229,18 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const contextFollow = useMemo((): FollowingMenuState | undefined => {
     if (!rowFollow) return undefined;
     const target = rowFollow.project;
+    const onCopysOwnRow = contextMenu?.name === target;
     const fail = (err: unknown) => toast.error(String(err));
     return {
       macName: peerAlias(peerState.peers, rowFollow.slug),
       paused: Boolean(rowFollow.paused),
+      onOpenCopy: onCopysOwnRow ? undefined : () => onSelect(target),
+      onPause: () => void followPause(target).catch(fail),
       onResume: () => void followResume(target).catch(fail),
       onStop: () => void followStop(target).catch(fail),
+      onRemoveCopy: () => setRemovingCopy({ project: target, macName: peerAlias(peerState.peers, rowFollow.slug) }),
     };
-  }, [rowFollow, peerState.peers]);
+  }, [rowFollow, contextMenu, peerState.peers, onSelect]);
 
   // Lookup across BOTH local and peer projects. projectByName (built later) holds
   // only local projects since it drives the reorderable tree; context-menu-driven
@@ -1091,6 +1099,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           if (confirmTrash) onRemoveProjectFromDisk(confirmTrash);
           setConfirmTrash(null);
         }}
+      />
+      <RemoveSyncedCopyDialog
+        open={removingCopy !== null}
+        project={removingCopy?.project ?? ""}
+        macName={removingCopy?.macName ?? ""}
+        onClose={() => setRemovingCopy(null)}
       />
       <ConfirmDialog
         open={deletingGroup !== undefined}

@@ -9,13 +9,17 @@ import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 import type { ProjectGroup } from "../types";
 
-// The follow controls a project only has while it is following a Mac: leave it,
-// or pick the sync back up after it paused on the user's own work.
+// The sync controls a row only has while a copy of it is synced here. The remote
+// project's row and the copy's own row both get them, since either is a way to
+// reach the same sync; `onOpenCopy` is set only on the row that is not the copy.
 export interface FollowingMenuState {
   macName: string;
   paused: boolean;
+  onOpenCopy?: () => void;
+  onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  onRemoveCopy: () => void;
 }
 
 interface ProjectContextMenuProps {
@@ -171,17 +175,36 @@ export function ProjectContextMenu({
       )}
       {following && (
         <>
-          {following.paused && (
+          {following.onOpenCopy && (
+            <ContextMenuItem
+              label="Open Copy on This Mac"
+              icon={<HardDriveIcon />}
+              onClick={close(following.onOpenCopy)}
+            />
+          )}
+          {following.paused ? (
             <ContextMenuItem
               label="Resume Syncing"
               icon={<DownloadIcon />}
               onClick={close(following.onResume)}
             />
+          ) : (
+            <ContextMenuItem
+              label="Pause Syncing"
+              icon={<DetachIcon />}
+              onClick={close(following.onPause)}
+            />
           )}
           <ContextMenuItem
-            label={`Stop Following ${following.macName}`}
+            label="Stop Syncing"
             icon={<DetachIcon />}
             onClick={close(following.onStop)}
+          />
+          <ContextMenuItem
+            label="Remove Synced Copy…"
+            icon={<TrashIcon />}
+            destructive
+            onClick={close(following.onRemoveCopy)}
           />
         </>
       )}

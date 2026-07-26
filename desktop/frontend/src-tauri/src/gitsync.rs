@@ -162,37 +162,66 @@ fn seed_from_twin(twin: &str, root: &Path) -> u64 {
     seeded
 }
 
-/// The twin's top-level entries worth cloning: ignored by git (so the transfer
-/// cannot have brought them), not a build cache, and not already here.
+/// Everything git ignores in the twin, at any depth, with wholly-ignored folders
+/// collapsed to one entry. Depth is the point: a workspace repo keeps the packages
+/// that make it runnable in `apps/*/node_modules`, so seeding only the top level
+/// leaves every `next`, `vite` and `tsc` missing and `dev` failing on the copy.
 fn seedable(twin_root: &Path, dest: &Path) -> Vec<String> {
-    let ignored = |name: &str| {
-        crate::git::git_out(&twin_root.to_string_lossy(), &["check-ignore", "-q", name]).is_ok()
-    };
-    entries_to_seed(twin_root, dest, ignored)
+    let listing = crate::git::git_out(
+        &twin_root.to_string_lossy(),
+        &[
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "-z",
+        ],
+    )
+    .unwrap_or_default();
+    entries_to_seed(&listing, dest)
 }
 
-fn entries_to_seed(
-    twin_root: &Path,
-    dest: &Path,
-    is_ignored: impl Fn(&str) -> bool,
-) -> Vec<String> {
-    let Ok(listing) = std::fs::read_dir(twin_root) else {
-        return Vec::new();
-    };
+fn entries_to_seed(listing: &str, dest: &Path) -> Vec<String> {
     let mut names: Vec<String> = listing
-        .flatten()
-        .filter_map(|entry| entry.file_name().to_str().map(str::to_string))
-        .filter(|name| name != ".git" && !is_build_cache(name))
-        .filter(|name| !dest.join(name).exists())
-        .filter(|name| is_ignored(name))
+        .split('\0')
+        .map(|entry| entry.trim_end_matches('/'))
+        .filter(|entry| !entry.is_empty() && !is_build_cache(entry))
+        .filter(|entry| !dest.join(entry).exists() && parent_is_there(dest, entry))
+        .map(str::to_string)
         .collect();
-    // Read order is arbitrary; a stable order keeps the count and any log sane.
+    // git's order is its own; sorting also puts any parent ahead of what it holds,
+    // which is what lets the pass below drop the redundant descendants.
     names.sort();
-    names
+    names.dedup();
+    let mut kept: Vec<String> = Vec::with_capacity(names.len());
+    for name in names {
+        let inside_kept = kept
+            .last()
+            .is_some_and(|parent| name.starts_with(&format!("{parent}/")));
+        if !inside_kept {
+            kept.push(name);
+        }
+    }
+    kept
 }
 
-fn is_build_cache(name: &str) -> bool {
-    crate::config::DUPLICATE_SKIP_DIRS.contains(&name)
+/// A build cache anywhere in the path, matching what duplicating a project skips.
+/// `.git` too — the transfer owns the copy's history, and the twin's would bury it —
+/// and Finder's leavings, which would otherwise be most of what gets counted.
+fn is_build_cache(path: &str) -> bool {
+    path.split('/').any(|part| {
+        part == ".git" || part == ".DS_Store" || crate::config::DUPLICATE_SKIP_DIRS.contains(&part)
+    })
+}
+
+/// The copy's shape is the other Mac's. A folder it does not have is not one to
+/// create here just to hold the twin's ignored files.
+fn parent_is_there(dest: &Path, entry: &str) -> bool {
+    match Path::new(entry).parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => dest.join(parent).is_dir(),
+        _ => true,
+    }
 }
 
 /// Record the follow so the scheduler takes over, with what just landed as its
@@ -388,38 +417,78 @@ mod tests {
         assert!(holds_only_state(&dest, ANCHOR));
     }
 
-    /// The twin exists to supply exactly what git cannot: ignored files. Tracked
-    /// files came over in the transfer, build caches are not worth cloning, and
-    /// anything already in the new folder must never be overwritten.
-    #[test]
-    fn only_the_twins_ignored_non_cache_entries_are_worth_cloning() {
-        let twin = tempfile::tempdir().unwrap();
-        let dest = tempfile::tempdir().unwrap();
-        for name in ["node_modules", "target", "src", ".git"] {
-            std::fs::create_dir(twin.path().join(name)).unwrap();
-        }
-        for name in [".env", "README.md"] {
-            std::fs::write(twin.path().join(name), "x").unwrap();
-        }
-        // The transfer already put these here.
-        std::fs::create_dir(dest.path().join("src")).unwrap();
-        std::fs::write(dest.path().join("README.md"), "x").unwrap();
+    /// `git ls-files --others --ignored --directory -z` writes NUL-separated paths
+    /// and marks folders with a trailing slash.
+    fn listing(entries: &[&str]) -> String {
+        entries.join("\0")
+    }
 
-        let ignored = |name: &str| matches!(name, "node_modules" | "target" | ".env");
+    /// The twin exists to supply exactly what git cannot: ignored files. Build
+    /// caches are not worth cloning, and anything already in the new folder must
+    /// never be overwritten.
+    #[test]
+    fn the_twins_ignored_non_cache_entries_are_worth_cloning() {
+        let dest = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dest.path().join("node_modules")).unwrap();
+        let entries = listing(&["node_modules/", ".env", "target/", "dist/", ".next/"]);
         assert_eq!(
-            entries_to_seed(twin.path(), dest.path(), ignored),
-            vec![".env".to_string(), "node_modules".to_string()],
-            "target is a build cache and src/README are tracked, not ignored"
+            entries_to_seed(&entries, dest.path()),
+            vec![".env".to_string()],
+            "node_modules is already there and the rest are build caches"
+        );
+    }
+
+    /// The regression that made a mirror of a workspace repo unrunnable: seeding
+    /// only the top level left every package's own dependencies — and so every
+    /// executable its scripts call — behind.
+    #[test]
+    fn a_workspace_packages_own_dependencies_are_seeded_too() {
+        let dest = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dest.path().join("apps/web")).unwrap();
+        std::fs::create_dir_all(dest.path().join("apps/api")).unwrap();
+        let entries = listing(&[
+            "node_modules/",
+            "apps/web/node_modules/",
+            "apps/web/.next/",
+            "apps/web/.env.local",
+            "apps/api/node_modules/",
+        ]);
+        assert_eq!(
+            entries_to_seed(&entries, dest.path()),
+            vec![
+                "apps/api/node_modules".to_string(),
+                "apps/web/.env.local".to_string(),
+                "apps/web/node_modules".to_string(),
+                "node_modules".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_folder_the_other_mac_does_not_have_is_not_created_to_hold_ignored_files() {
+        let dest = tempfile::tempdir().unwrap();
+        let entries = listing(&["apps/web/node_modules/", "vendor/cache.db"]);
+        assert!(entries_to_seed(&entries, dest.path()).is_empty());
+    }
+
+    /// A collapsed folder carries what is under it, so cloning both would copy the
+    /// same bytes twice — and the second clone would land inside the first.
+    #[test]
+    fn nothing_under_a_folder_being_cloned_is_cloned_again() {
+        let dest = tempfile::tempdir().unwrap();
+        let entries = listing(&["node_modules/", "node_modules/.bin/", "node_modules_2/"]);
+        assert_eq!(
+            entries_to_seed(&entries, dest.path()),
+            vec!["node_modules".to_string(), "node_modules_2".to_string()],
+            "a shared name prefix is not containment"
         );
     }
 
     #[test]
     fn an_entry_already_in_the_new_folder_is_never_cloned_over() {
-        let twin = tempfile::tempdir().unwrap();
         let dest = tempfile::tempdir().unwrap();
-        std::fs::create_dir(twin.path().join("node_modules")).unwrap();
         std::fs::create_dir(dest.path().join("node_modules")).unwrap();
-        assert!(entries_to_seed(twin.path(), dest.path(), |_| true).is_empty());
+        assert!(entries_to_seed(&listing(&["node_modules/"]), dest.path()).is_empty());
     }
 
     #[test]

@@ -51,10 +51,12 @@ export function SidebarPeerRow({
           e.preventDefault();
           onContextMenu(e.clientX, e.clientY);
         }}
-        className={`${ROW_BASE_CLASS} ${mark ? "pr-24" : ""} ${
+        className={`${ROW_BASE_CLASS} ${mark ? "pr-7" : ""} ${
           isContextTarget
             ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
-            : "group-hover/row:pr-9"
+            : mark
+              ? "group-hover/row:pr-14"
+              : "group-hover/row:pr-9"
         } ${
           selected
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
@@ -66,7 +68,17 @@ export function SidebarPeerRow({
           {cls ? <span className={cls}>{label}</span> : label}
         </span>
       </button>
-      {mark}
+      {/* Sits at the row's edge and steps aside for the ⋮ on hover, so the name
+          keeps its width instead of paying for the mark all the time. */}
+      {mark && (
+        <span
+          className={`absolute top-1/2 flex -translate-y-1/2 items-center transition-[right] ${
+            isContextTarget ? "right-9" : "right-3 group-hover/row:right-9"
+          }`}
+        >
+          {mark}
+        </span>
+      )}
       <button
         onClick={(e) => {
           e.stopPropagation();
