@@ -42,6 +42,12 @@ pub(crate) struct Done {
     pub(crate) head: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) changed: Option<u64>,
+    /// A local project of the same name that a first sync took its dependencies
+    /// and configuration from, and how many things it cloned across.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) twin: Option<String>,
+    #[serde(default)]
+    pub(crate) seeded: u64,
 }
 
 pub(crate) struct Request {

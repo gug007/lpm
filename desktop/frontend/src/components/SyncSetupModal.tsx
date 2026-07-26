@@ -21,6 +21,7 @@ const PHASE_LABEL: Record<SyncPhase, string> = {
   transferring: "Copying the project over",
   indexing: "Reading it in",
   applying: "Putting the files in place",
+  seeding: "Bringing dependencies across",
 };
 
 interface SyncSetupModalProps {
@@ -53,6 +54,7 @@ export function SyncSetupModal({
         `Syncing ${done.project ?? remoteName} from ${macName}${
           done.branch ? ` on ${done.branch}` : ""
         }`,
+        { description: seedDescription(done) },
       );
       onClose();
       return;
@@ -184,4 +186,18 @@ export function SyncSetupModal({
       </div>
     </Modal>
   );
+}
+
+// Dependencies and configuration never travel over git, so a first sync takes them
+// from a local project of the same name when there is one. Always said out loud:
+// files appearing from another folder should never be a silent surprise.
+function seedDescription(done: SyncDone): string | undefined {
+  if (!done.twin) {
+    return "Ignored files like node_modules didn't travel — install them before running it.";
+  }
+  const count = done.seeded ?? 0;
+  const what = count === 1 ? "1 ignored item" : `${count} ignored items`;
+  return count > 0
+    ? `Took ${what} and its configuration from ${done.twin}.`
+    : `Configuration comes from ${done.twin}.`;
 }

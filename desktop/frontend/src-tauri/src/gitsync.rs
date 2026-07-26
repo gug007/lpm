@@ -17,6 +17,8 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// Tried in order when this Mac has no projects to take a hint from.
 const FALLBACK_PARENTS: [&str; 2] = ["Projects", "Developer"];
+/// What marks a folder as one that mirrors another Mac rather than one you edit.
+const SYNC_SUFFIX: &str = "sync";
 
 /// Begin syncing a paired Mac's project here. Everything cheap enough to fail
 /// fast is checked before returning, so the UI gets a real error rather than an
@@ -51,7 +53,15 @@ pub fn sync_project_start(
     let id = uuid::Uuid::new_v4().to_string();
     let (thread_app, thread_id) = (app.clone(), id.clone());
     std::thread::spawn(move || {
-        let outcome = set_up(&thread_app, &hub, &slug, &source_root, &project, &root, &thread_id);
+        let plan = SetUp {
+            slug: &slug,
+            source_root: &source_root,
+            remote_name: &remote_name,
+            project: &project,
+            root: &root,
+            id: &thread_id,
+        };
+        let outcome = set_up(&thread_app, &hub, &plan);
         gitbring::forget_cancel(&thread_id);
         let done = match outcome {
             Ok(done) => done,
@@ -78,26 +88,34 @@ pub fn sync_project_cancel(id: String) -> Result<(), String> {
     Ok(())
 }
 
-fn set_up(
-    app: &AppHandle,
-    hub: &PeerClientHub,
-    slug: &str,
-    source_root: &str,
-    project: &str,
-    root: &Path,
-    id: &str,
-) -> Result<Done, String> {
+struct SetUp<'a> {
+    slug: &'a str,
+    source_root: &'a str,
+    /// The project's name on the other Mac, which names the local twin to look for.
+    remote_name: &'a str,
+    project: &'a str,
+    root: &'a Path,
+    id: &'a str,
+}
+
+fn set_up(app: &AppHandle, hub: &PeerClientHub, plan: &SetUp) -> Result<Done, String> {
+    let (project, root, id) = (plan.project, plan.root, plan.id);
     progress(app, id, "creating", 0, 0);
     create_repo(root)?;
-    crate::projects_crud::register_synced_project(project, &root.to_string_lossy())?;
+    let twin = local_twin(plan.remote_name);
+    crate::projects_crud::register_synced_project(
+        project,
+        &root.to_string_lossy(),
+        twin.as_deref(),
+    )?;
     // Claimed for the same reason every other transfer claims it, and before the
     // follow record exists so the scheduler cannot race this first run.
     let _lock = gitbring::lock_landing(project)
         .ok_or_else(|| format!("{project} is already receiving changes"))?;
 
     let req = Request {
-        source_slug: slug.to_string(),
-        source_root: source_root.to_string(),
+        source_slug: plan.slug.to_string(),
+        source_root: plan.source_root.to_string(),
         project: project.to_string(),
         follow: Some(Follow {
             previous_head: None,
@@ -105,9 +123,79 @@ fn set_up(
         }),
     };
     let root_str = root.to_string_lossy().to_string();
-    let done = crate::gitbringrun::run(app, hub, &req, id, &root_str)?;
-    start_following(project, slug, source_root, &root_str, &done)?;
+    let mut done = crate::gitbringrun::run(app, hub, &req, id, &root_str)?;
+    if let Some(twin) = &twin {
+        progress(app, id, "seeding", 0, 0);
+        done.seeded = seed_from_twin(twin, root);
+        done.twin = Some(twin.clone());
+    }
+    start_following(project, plan.slug, plan.source_root, &root_str, &done)?;
     Ok(done)
+}
+
+/// A local project of the same name: the folder this one is a copy of, holding the
+/// dependencies git never carries and the configuration that says how to run them.
+///
+/// This can only ever be the user's own project, never another mirror: mirrors are
+/// named `<name>-sync`, which no remote project's name matches.
+fn local_twin(remote_name: &str) -> Option<String> {
+    let (root, is_remote) = crate::config::project_root(remote_name).ok()?;
+    if is_remote || !Path::new(&root).is_dir() {
+        return None;
+    }
+    Some(remote_name.to_string())
+}
+
+/// Clone the twin's ignored files into the new folder — node_modules, virtualenvs,
+/// local env files: the things a git transfer can never bring and without which the
+/// folder cannot be run. Build caches are left behind, matching what duplicating a
+/// project does. Best effort throughout: a folder that ends up needing `install` is
+/// still a working mirror, so nothing here fails the sync.
+fn seed_from_twin(twin: &str, root: &Path) -> u64 {
+    let Ok((twin_root, false)) = crate::config::project_root(twin) else {
+        return 0;
+    };
+    let twin_root = Path::new(&twin_root);
+    let mut seeded = 0;
+    for name in seedable(twin_root, root) {
+        if crate::projects_crud::clone_entry(&twin_root.join(&name), &root.join(&name)).is_ok() {
+            seeded += 1;
+        }
+    }
+    seeded
+}
+
+/// The twin's top-level entries worth cloning: ignored by git (so the transfer
+/// cannot have brought them), not a build cache, and not already here.
+fn seedable(twin_root: &Path, dest: &Path) -> Vec<String> {
+    let ignored = |name: &str| {
+        crate::git::git_out(&twin_root.to_string_lossy(), &["check-ignore", "-q", name]).is_ok()
+    };
+    entries_to_seed(twin_root, dest, ignored)
+}
+
+fn entries_to_seed(
+    twin_root: &Path,
+    dest: &Path,
+    is_ignored: impl Fn(&str) -> bool,
+) -> Vec<String> {
+    let Ok(listing) = std::fs::read_dir(twin_root) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = listing
+        .flatten()
+        .filter_map(|entry| entry.file_name().to_str().map(str::to_string))
+        .filter(|name| name != ".git" && !is_build_cache(name))
+        .filter(|name| !dest.join(name).exists())
+        .filter(|name| is_ignored(name))
+        .collect();
+    // Read order is arbitrary; a stable order keeps the count and any log sane.
+    names.sort();
+    names
+}
+
+fn is_build_cache(name: &str) -> bool {
+    crate::config::DUPLICATE_SKIP_DIRS.contains(&name)
 }
 
 /// Record the follow so the scheduler takes over, with what just landed as its
@@ -206,21 +294,29 @@ fn fallback_parent(home: &Path) -> PathBuf {
         .unwrap_or_else(|| home.join(FALLBACK_PARENTS[0]))
 }
 
-/// `name`, then `name-2`, `name-3`… until one is free as both a project name and
-/// a folder. Suffixed rather than randomised: this folder is one the user will
-/// look for by name.
+/// `name-sync`, then `name-sync-2`, `name-sync-3`… until one is free as both a
+/// project name and a folder.
+///
+/// Always suffixed, even when the plain name is free. Three reasons: a mirror must
+/// not take the name the real project would want if it is cloned here later; the
+/// suffix is what tells you, in a sidebar row or a terminal prompt, that this is
+/// not the folder you edit; and it keeps a mirror from ever being mistaken for its
+/// own twin, which is how a second sync of the same project would otherwise end up
+/// parented to the first mirror instead of the real project.
+///
+/// Named rather than randomised (as duplicates are): this is a folder you will go
+/// looking for by name.
 fn free_name(base: &str, parent: &Path, taken: impl Fn(&str) -> bool) -> Result<String, String> {
-    for suffix in 1..100 {
-        let candidate = if suffix == 1 {
-            base.to_string()
-        } else {
-            format!("{base}-{suffix}")
+    for attempt in 1..100 {
+        let candidate = match attempt {
+            1 => format!("{base}-{SYNC_SUFFIX}"),
+            n => format!("{base}-{SYNC_SUFFIX}-{n}"),
         };
         if !taken(&candidate) && !parent.join(&candidate).exists() {
             return Ok(candidate);
         }
     }
-    Err(format!("too many folders here are already called {base}"))
+    Err(format!("too many folders here are already synced from {base}"))
 }
 
 #[cfg(test)]
@@ -295,6 +391,40 @@ mod tests {
         assert!(holds_only_state(&dest, ANCHOR));
     }
 
+    /// The twin exists to supply exactly what git cannot: ignored files. Tracked
+    /// files came over in the transfer, build caches are not worth cloning, and
+    /// anything already in the new folder must never be overwritten.
+    #[test]
+    fn only_the_twins_ignored_non_cache_entries_are_worth_cloning() {
+        let twin = tempfile::tempdir().unwrap();
+        let dest = tempfile::tempdir().unwrap();
+        for name in ["node_modules", "target", "src", ".git"] {
+            std::fs::create_dir(twin.path().join(name)).unwrap();
+        }
+        for name in [".env", "README.md"] {
+            std::fs::write(twin.path().join(name), "x").unwrap();
+        }
+        // The transfer already put these here.
+        std::fs::create_dir(dest.path().join("src")).unwrap();
+        std::fs::write(dest.path().join("README.md"), "x").unwrap();
+
+        let ignored = |name: &str| matches!(name, "node_modules" | "target" | ".env");
+        assert_eq!(
+            entries_to_seed(twin.path(), dest.path(), ignored),
+            vec![".env".to_string(), "node_modules".to_string()],
+            "target is a build cache and src/README are tracked, not ignored"
+        );
+    }
+
+    #[test]
+    fn an_entry_already_in_the_new_folder_is_never_cloned_over() {
+        let twin = tempfile::tempdir().unwrap();
+        let dest = tempfile::tempdir().unwrap();
+        std::fs::create_dir(twin.path().join("node_modules")).unwrap();
+        std::fs::create_dir(dest.path().join("node_modules")).unwrap();
+        assert!(entries_to_seed(twin.path(), dest.path(), |_| true).is_empty());
+    }
+
     #[test]
     fn creating_a_repo_refuses_a_folder_that_already_exists() {
         let dir = tempfile::tempdir().unwrap();
@@ -338,17 +468,29 @@ mod tests {
     }
 
     #[test]
-    fn a_free_name_is_the_plain_one_and_then_numbered() {
+    fn a_synced_folder_is_named_for_what_it_is_then_numbered() {
         let dir = tempfile::tempdir().unwrap();
         let parent = dir.path();
         let untaken = |_: &str| false;
-        assert_eq!(free_name("lpm", parent, untaken).unwrap(), "lpm");
+        assert_eq!(free_name("lpm", parent, untaken).unwrap(), "lpm-sync");
 
-        std::fs::create_dir(parent.join("lpm")).unwrap();
-        assert_eq!(free_name("lpm", parent, untaken).unwrap(), "lpm-2");
+        std::fs::create_dir(parent.join("lpm-sync")).unwrap();
+        assert_eq!(free_name("lpm", parent, untaken).unwrap(), "lpm-sync-2");
 
-        std::fs::create_dir(parent.join("lpm-2")).unwrap();
-        assert_eq!(free_name("lpm", parent, untaken).unwrap(), "lpm-3");
+        std::fs::create_dir(parent.join("lpm-sync-2")).unwrap();
+        assert_eq!(free_name("lpm", parent, untaken).unwrap(), "lpm-sync-3");
+    }
+
+    /// The name the real project would want stays free even when nothing holds it
+    /// yet — a mirror taking it would block cloning the actual repo here later.
+    #[test]
+    fn the_plain_project_name_is_never_taken_by_a_mirror() {
+        let dir = tempfile::tempdir().unwrap();
+        for _ in 0..3 {
+            let name = free_name("lpm", dir.path(), |_| false).unwrap();
+            assert_ne!(name, "lpm");
+            std::fs::create_dir(dir.path().join(&name)).unwrap();
+        }
     }
 
     /// A folder can be free while lpm already knows a project by that name, and
@@ -357,8 +499,8 @@ mod tests {
     fn a_name_lpm_already_uses_is_skipped_even_with_no_folder() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(
-            free_name("lpm", dir.path(), |name| name == "lpm").unwrap(),
-            "lpm-2"
+            free_name("lpm", dir.path(), |name| name == "lpm-sync").unwrap(),
+            "lpm-sync-2"
         );
     }
 }

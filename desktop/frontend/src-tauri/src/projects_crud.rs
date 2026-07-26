@@ -65,7 +65,15 @@ pub fn create_project(app: AppHandle, name: String, root: String) -> Result<(), 
 /// Register a folder synced from another Mac. No placeholder service: whatever it
 /// should run belongs to the project on the Mac it came from, and inventing a
 /// `dev` stub here would only look like configuration the user wrote.
-pub(crate) fn register_synced_project(name: &str, root: &str) -> Result<(), String> {
+///
+/// A `twin` is a local project of the same name. Naming it as the parent is how
+/// lpm already expresses "a copy of that project", so the synced folder inherits
+/// its services, profiles and actions instead of arriving unrunnable.
+pub(crate) fn register_synced_project(
+    name: &str,
+    root: &str,
+    twin: Option<&str>,
+) -> Result<(), String> {
     config::validate_name(name)?;
     if config::project_exists(name) {
         return Err(format!("project {name:?} already exists"));
@@ -73,7 +81,15 @@ pub(crate) fn register_synced_project(name: &str, root: &str) -> Result<(), Stri
     write_project_yaml(name, |m| {
         yset(m, "name", name);
         yset(m, "root", config::collapse_home(root).as_str());
+        if let Some(parent) = twin {
+            yset(m, "parent_name", parent);
+        }
     })
+}
+
+/// APFS copy-on-write clone of one file or directory (a full copy off APFS).
+pub(crate) fn clone_entry(from: &Path, to: &Path) -> Result<(), String> {
+    cp_c_r(from, to)
 }
 
 /// Drop a synced project's config again after a failed setup.

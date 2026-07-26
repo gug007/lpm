@@ -1,8 +1,14 @@
 import * as commands from "../bridge/commands";
 
-// Setting a folder up runs through these phases; every one but "creating" is the
-// transfer itself, which is also what later syncs do.
-export type SyncPhase = "creating" | "preparing" | "transferring" | "indexing" | "applying";
+// Setting a folder up runs through these phases. The middle four are the transfer,
+// which is also what later syncs do; "creating" and "seeding" only ever happen once.
+export type SyncPhase =
+  | "creating"
+  | "preparing"
+  | "transferring"
+  | "indexing"
+  | "applying"
+  | "seeding";
 
 export interface SyncProgress {
   id: string;
@@ -20,6 +26,10 @@ export interface SyncDone {
   project?: string;
   branch?: string;
   changed?: number;
+  // A local project of the same name that supplied the dependencies and config
+  // git can't carry, and how many things were cloned from it.
+  twin?: string;
+  seeded?: number;
 }
 
 // Presence check so an app shell built before these commands existed still loads
