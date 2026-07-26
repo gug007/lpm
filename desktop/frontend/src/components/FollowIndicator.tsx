@@ -1,5 +1,5 @@
 import { PauseCircle, RefreshCw } from "lucide-react";
-import type { FollowState } from "../followApi";
+import { isFirstSync, type FollowState } from "../followApi";
 
 // The mark a project's sidebar row carries once a copy of it is synced to this Mac.
 // Deliberately just the icon: the row's name is what the eye is looking for, and a
@@ -18,10 +18,11 @@ export function FollowIndicator({
 }) {
   const stuck = Boolean(follow.paused) || Boolean(follow.lastError);
   const tone = stuck ? "text-[var(--accent-amber)]" : "text-[var(--text-muted)]";
+  const busy = follow.syncing || isFirstSync(follow);
   const icon = follow.paused ? (
     <PauseCircle size={12} />
   ) : (
-    <span className={`block ${follow.syncing ? "animate-spin" : ""}`}>
+    <span className={`block ${busy ? "animate-spin" : ""}`}>
       <RefreshCw size={12} />
     </span>
   );
@@ -51,11 +52,10 @@ export function FollowIndicator({
 
 function followTitle(follow: FollowState, macName: string): string {
   if (follow.paused) return `Sync paused — ${follow.paused}`;
+  if (isFirstSync(follow)) return `First sync from ${macName} is still running`;
   if (follow.syncing) return `Syncing from ${macName} now`;
   if (follow.lastError) return `Sync is retrying — ${follow.lastError}`;
-  const base = `Synced from ${macName}`;
-  if (!follow.lastSyncedAt) return base;
-  return `${base} — last change ${sinceLabel(follow.lastSyncedAt)}`;
+  return `Synced from ${macName} — last change ${sinceLabel(follow.lastSyncedAt)}`;
 }
 
 function sinceLabel(at: number): string {

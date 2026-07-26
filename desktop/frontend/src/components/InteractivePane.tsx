@@ -61,6 +61,7 @@ import {
   isOwnedByDetachedWindow,
   type ControlOwner,
 } from "../store/terminalControl";
+import { useControlRevealResync } from "../hooks/terminals/useControlRevealResync";
 import {
   TerminalPresentControl,
   TerminalUnpresentControl,
@@ -1477,6 +1478,14 @@ export function InteractivePane({
       if (session) resync(session, terminalId);
     });
   }, [terminalId]);
+
+  // The listener above can't fix the geometry of a terminal handed BACK to this
+  // window — it fires before the commit that reveals the pane, so there's nothing
+  // to measure yet. This runs after the reveal instead.
+  useControlRevealResync(terminalId, visible, () => {
+    const session = sessionRef.current;
+    if (session) resync(session, terminalId);
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

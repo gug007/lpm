@@ -112,6 +112,17 @@ fn set_up(app: &AppHandle, hub: &PeerClientHub, plan: &SetUp) -> Result<Done, St
     // follow record exists so the scheduler cannot race this first run.
     let _lock = gitbring::lock_landing(project)
         .ok_or_else(|| format!("{project} is already receiving changes"))?;
+    // Recorded before a single byte moves. The record is what says this folder
+    // belongs to the other Mac, so writing it only on success leaves the copy
+    // looking like a project of its own for the whole of a first sync — which for a
+    // large repo is the several minutes the user is actually watching. It carries no
+    // baseline yet, so a sync interrupted here is finished by the scheduler rather
+    // than stranded.
+    store::put(FollowRecord::new(
+        project.to_string(),
+        plan.slug.to_string(),
+        plan.source_root.to_string(),
+    ))?;
 
     let req = Request {
         source_slug: plan.slug.to_string(),
@@ -126,7 +137,7 @@ fn set_up(app: &AppHandle, hub: &PeerClientHub, plan: &SetUp) -> Result<Done, St
         done.seeded = seed_from_twin(twin, root);
         done.twin = Some(twin.clone());
     }
-    start_following(project, plan.slug, plan.source_root, &root_str, &done)?;
+    start_following(project, &root_str, &done)?;
     Ok(done)
 }
 
@@ -224,29 +235,24 @@ fn parent_is_there(dest: &Path, entry: &str) -> bool {
     }
 }
 
-/// Record the follow so the scheduler takes over, with what just landed as its
-/// baseline: the next cycle then has nothing to do until the other Mac moves on.
-fn start_following(
-    project: &str,
-    slug: &str,
-    source_root: &str,
-    root: &str,
-    done: &Done,
-) -> Result<(), String> {
-    let mut record = FollowRecord::new(
-        project.to_string(),
-        slug.to_string(),
-        source_root.to_string(),
-    );
-    record.last_head = done.head.clone();
-    record.last_tree = done
-        .head
+/// Give the follow recorded at the start its baseline, now that there is one: the
+/// next cycle then has nothing to do until the other Mac moves on.
+fn start_following(project: &str, root: &str, done: &Done) -> Result<(), String> {
+    let head = done.head.clone();
+    let tree = head
         .as_deref()
-        .and_then(|head| crate::gitworkstate::working_state_tree(root, head).ok());
-    record.last_branch = done.branch.clone();
-    record.files = done.changed.unwrap_or(0);
-    record.last_synced_at = crate::status::now_millis();
-    store::put(record)
+        .and_then(|h| crate::gitworkstate::working_state_tree(root, h).ok());
+    let branch = done.branch.clone();
+    let files = done.changed.unwrap_or(0);
+    // An update rather than a write: the user can stop syncing while the first one
+    // is still running, and finishing it must not bring the record back.
+    store::update(project, |f| {
+        f.last_head = head;
+        f.last_tree = tree;
+        f.last_branch = branch;
+        f.files = files;
+        f.last_synced_at = crate::status::now_millis();
+    })
 }
 
 fn create_repo(root: &Path) -> Result<(), String> {
@@ -259,9 +265,10 @@ fn create_repo(root: &Path) -> Result<(), String> {
         .map_err(|e| format!("could not create the folder's repository: {e}"))
 }
 
-/// Undo a failed setup. Only ever called for a folder this run created, and only
-/// before it is being followed, so there is nothing of the user's to lose.
+/// Undo a failed setup. Only ever called for a folder this run created and never
+/// once it has synced, so there is nothing of the user's to lose.
 fn discard_partial(project: &str, root: &Path) {
+    let _ = store::remove(project);
     let _ = crate::projects_crud::forget_project_config(project);
     let _ = std::fs::remove_dir_all(root);
 }

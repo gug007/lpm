@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PauseCircle, Play, RefreshCw } from "lucide-react";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
-import { followPause, followResume, followStop, type FollowState } from "../followApi";
+import { followPause, followResume, followStop, isFirstSync, type FollowState } from "../followApi";
 
 // Relative time only needs to be roughly right, and the row re-renders on every
 // real sync anyway; this keeps it honest in between.
@@ -25,6 +25,7 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
   // A fault clears itself on a retry the user should not have to wait out: resuming
   // resets the backoff, so offering it as "Retry" is the same door, better named.
   const stuck = !paused && Boolean(follow.lastError) && !follow.syncing;
+  const busy = follow.syncing || isFirstSync(follow);
 
   return (
     <div className="mt-1 flex items-center gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3 py-1.5 text-[12px]">
@@ -32,7 +33,7 @@ export function SyncedBar({ follow, macName }: SyncedBarProps) {
         className={
           paused
             ? "shrink-0 text-[var(--accent-amber)]"
-            : `shrink-0 text-[var(--text-muted)] ${follow.syncing ? "animate-spin" : ""}`
+            : `shrink-0 text-[var(--text-muted)] ${busy ? "animate-spin" : ""}`
         }
       >
         {paused ? <PauseCircle size={13} /> : <RefreshCw size={13} />}
@@ -114,9 +115,9 @@ function Dot() {
 }
 
 function statusLabel(follow: FollowState): string {
+  if (isFirstSync(follow)) return "first sync running";
   if (follow.syncing) return "syncing now";
   if (follow.lastError) return follow.lastError;
-  if (!follow.lastSyncedAt) return "waiting for the first change";
   return `${sinceLabel(follow.lastSyncedAt)}${follow.files ? ` · ${follow.files} files` : ""}`;
 }
 

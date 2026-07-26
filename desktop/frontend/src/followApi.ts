@@ -15,6 +15,12 @@ export interface FollowState {
   syncing: boolean;
 }
 
+// The first sync is the one that carries the whole project, and it is recorded as
+// a follow before it starts — so a copy with no last sync yet is one still arriving.
+export function isFirstSync(follow: FollowState): boolean {
+  return !follow.lastSyncedAt && !follow.paused && !follow.lastError;
+}
+
 export interface FollowPaused {
   project: string;
   reason: string;
