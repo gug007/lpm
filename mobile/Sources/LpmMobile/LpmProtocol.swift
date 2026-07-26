@@ -78,7 +78,14 @@ enum Wire {
         json(["t": "deleteJob", "id": id, "source": source, "project": project,
               "deleteCopies": deleteCopies])
     }
-    static func sub(id: String) -> String { json(["t": "sub", "id": id]) }
+    /// Subscribe to a terminal's output. `from` is the byte-stream offset this
+    /// phone already applied: the Mac then replies with just the slice missed
+    /// since (keeping the screen as-is) instead of a full screen replay.
+    static func sub(id: String, from: Int? = nil) -> String {
+        var body: [String: Any] = ["t": "sub", "id": id]
+        if let from { body["from"] = from }
+        return json(body)
+    }
     static func unsub(id: String) -> String { json(["t": "unsub", "id": id]) }
     /// Take control of a terminal shown live elsewhere (the "Take control" button).
     static func claim(id: String) -> String { json(["t": "claim", "id": id]) }
@@ -407,10 +414,16 @@ enum Wire {
         case jobSaved(id: String, error: String?)
         case jobDeleted(id: String, error: String?)
         case jobsChanged
+        // `reset` false means `data` is the slice this phone missed while it was
+        // away — append it and keep the screen. `off` is the terminal's byte-stream
+        // position after `data` (nil from a Mac too old to send one, which turns
+        // stream tracking off). See `output`.
         case seed(id: String, cols: Int, rows: Int, data: String, owner: ControlOwner?,
-                  draftText: String?, draftRev: Int)
+                  draftText: String?, draftRev: Int, off: Int?, reset: Bool)
         case control(id: String, owner: ControlOwner?)
-        case output(id: String, data: String)
+        // `off` is the byte-stream position after this chunk, so the phone can tell
+        // a chunk a seed already covered from one that follows a dropped frame.
+        case output(id: String, data: String, off: Int?)
         case exit(id: String, code: Int)
         // A duplicate/remove reply. `error` is nil on success; `name` is the new
         // duplicate's name (duplicate only). The projects list refreshes off the
@@ -610,12 +623,16 @@ enum Wire {
                              data: obj["data"] as? String ?? "",
                              owner: ControlOwner(obj["owner"]),
                              draftText: draft?["text"] as? String,
-                             draftRev: draft?["rev"] as? Int ?? 0)
+                             draftRev: draft?["rev"] as? Int ?? 0,
+                             off: obj["off"] as? Int,
+                             reset: obj["reset"] as? Bool ?? true)
             case "control":
                 return .control(id: obj["id"] as? String ?? "",
                                 owner: ControlOwner(obj["owner"]))
             case "o":
-                return .output(id: obj["id"] as? String ?? "", data: obj["d"] as? String ?? "")
+                return .output(id: obj["id"] as? String ?? "",
+                               data: obj["d"] as? String ?? "",
+                               off: obj["off"] as? Int)
             case "exit":
                 return .exit(id: obj["id"] as? String ?? "", code: obj["code"] as? Int ?? 0)
             case "duplicateProgress":

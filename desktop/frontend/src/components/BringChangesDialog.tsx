@@ -207,6 +207,7 @@ export function BringChangesDialog({
         return;
       }
       runIdRef.current = id;
+      if (cancelledRef.current) void bringChangesCancel(id);
       setRun({ id, phase: "preparing", received: 0, total: 0 });
     } catch (err) {
       setError(String(err));
@@ -218,12 +219,15 @@ export function BringChangesDialog({
   // While a transfer is live, closing means cancelling it: the dialog stays up
   // until the backend confirms it stopped.
   const requestClose = () => {
-    if (!run) {
+    // `starting` covers the window before the transfer id comes back — the
+    // longest phase on a big repo. Closing then would leave the run going with
+    // nothing listening, so mark it and let `start` cancel once it has an id.
+    if (!run && !starting) {
       onClose();
       return;
     }
     cancelledRef.current = true;
-    void bringChangesCancel(run.id);
+    if (run) void bringChangesCancel(run.id);
   };
 
   const chosenCopy = copies.find((c) => c.name === copyName);
@@ -344,6 +348,13 @@ export function BringChangesDialog({
               lands on a new branch. Nothing is pushed, and the branch you're on
               now stays where it is.
             </p>
+
+            {self?.submodules && (
+              <p className="text-[12px] leading-snug text-[var(--accent-amber)]">
+                This project uses submodules. Their contents aren't part of the
+                transfer, so you may need to update them by hand afterwards.
+              </p>
+            )}
 
             {sources.length === 0 && (
               <p className="text-[12px] leading-snug text-[var(--accent-amber)]">

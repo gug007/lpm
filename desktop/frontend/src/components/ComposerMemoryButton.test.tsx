@@ -27,6 +27,7 @@ function render(props: Partial<Parameters<typeof ComposerMemoryButton>[0]> = {})
         infoById={INFO}
         onOpen={props.onOpen ?? vi.fn()}
         onPick={props.onPick ?? vi.fn()}
+        onView={props.onView ?? vi.fn()}
         onDelete={props.onDelete ?? vi.fn()}
         {...props}
       />,
@@ -77,6 +78,18 @@ describe("ComposerMemoryButton", () => {
     click(rows().find((b) => b.textContent?.includes("auth-refactor"))!);
 
     expect(onPick).toHaveBeenCalledWith(SESSIONS[0]);
+    expect(rows()).toHaveLength(0);
+  });
+
+  it("opens a session in the Memory tab without inserting it", () => {
+    const onView = vi.fn();
+    const onPick = vi.fn();
+    render({ onView, onPick });
+    click(trigger());
+    click(document.querySelector("button[aria-label='Open auth-refactor in Memory']")!);
+
+    expect(onView).toHaveBeenCalledWith(SESSIONS[0]);
+    expect(onPick).not.toHaveBeenCalled();
     expect(rows()).toHaveLength(0);
   });
 

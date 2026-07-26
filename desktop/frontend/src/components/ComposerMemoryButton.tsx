@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Plus } from "lucide-react";
+import { Eye, Plus } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import { relativeTime } from "../relativeTime";
@@ -25,6 +25,8 @@ interface ComposerMemoryButtonProps {
   // Writes the chosen invocation into the composer; an empty `insert` means
   // "remember this conversation" (the bare command, no session argument).
   onPick: (item: MentionItem) => void;
+  // Opens the session in the Memory tab, to read or edit it there.
+  onView: (item: MentionItem) => void;
   // Removes the session file, after the user confirms here.
   onDelete: (item: MentionItem) => void;
 }
@@ -32,7 +34,7 @@ interface ComposerMemoryButtonProps {
 // Footer control beside Drafts: the same memory pool the "@" menu drills into,
 // reachable without typing. Picking a row drops the skill invocation into the
 // composer for the user to review and send.
-export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onDelete }: ComposerMemoryButtonProps) {
+export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onView, onDelete }: ComposerMemoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<MentionItem | null>(null);
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
@@ -80,6 +82,11 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onDel
   const pick = (item: MentionItem) => {
     setOpen(false);
     onPick(item);
+  };
+
+  const view = (item: MentionItem) => {
+    setOpen(false);
+    onView(item);
   };
 
   // The panel stays open afterwards: deleting is a tidy-up pass, usually more
@@ -156,7 +163,6 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onDel
                             type="button"
                             onMouseDown={keepEditorFocus}
                             onClick={() => pick(session)}
-                            title={session.detail || session.label}
                             className="group flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
                           >
                             <span className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-cyan)]">
@@ -178,16 +184,26 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onDel
                               </span>
                             )}
                           </button>
-                          <button
-                            type="button"
-                            onMouseDown={keepEditorFocus}
-                            onClick={() => setPendingDelete(session)}
-                            title="Delete session"
-                            aria-label={`Delete ${session.label}`}
-                            className="absolute right-2 top-1/2 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors group-hover/row:flex hover:bg-[var(--bg-primary)] hover:text-[var(--accent-red)]"
-                          >
-                            <TrashIcon size={12} />
-                          </button>
+                          <span className="absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover/row:flex">
+                            <button
+                              type="button"
+                              onMouseDown={keepEditorFocus}
+                              onClick={() => view(session)}
+                              aria-label={`Open ${session.label} in Memory`}
+                              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--accent-purple)]"
+                            >
+                              <Eye size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onMouseDown={keepEditorFocus}
+                              onClick={() => setPendingDelete(session)}
+                              aria-label={`Delete ${session.label}`}
+                              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--accent-red)]"
+                            >
+                              <TrashIcon size={12} />
+                            </button>
+                          </span>
                         </li>
                       );
                     })}

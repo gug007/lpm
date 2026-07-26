@@ -10,8 +10,9 @@
 // one blocking WebSocket per connection. It is intentionally self-contained on
 // the Rust side and never touches the frontend event bus for the core flow:
 //   - terminal output is teed at pty::flush() into a bounded per-terminal ring
-//     (so a joining phone is seeded with recent scrollback, no owner-window
-//     round-trip and no dependency on the main window being open),
+//     (so a joining phone is seeded with recent scrollback and a phone that was
+//     away resumes from where it left off, no owner-window round-trip and no
+//     dependency on the main window being open),
 //   - input/resize call the pty::remote_* accessors,
 //   - project control calls the existing services commands,
 //   - status/projects changes are forwarded from the Rust event bus (app.listen
@@ -95,10 +96,16 @@ impl Write for RemoteStream {
 type ClientWs = WebSocket<RemoteStream>;
 
 const DEFAULT_PORT: u16 = 8765;
-const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining phone
+// Output history kept per terminal. A phone that was away (locked, backgrounded,
+// briefly offline) resumes from its own byte offset, so the ring is sized for how
+// much output a chatty agent produces while the screen is off — well beyond what
+// a fresh screen is seeded with, since replaying the whole thing into a newly
+// opened terminal would be needless work.
+const RING_CAP: usize = 512 * 1024; // output kept for resuming an away phone
+const SEED_CAP: usize = 96 * 1024; // recent scrollback replayed onto a fresh screen
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
-const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (phone re-seeds)
+const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (phone resyncs)
 const DEFAULT_PUSH_RELAY: &str = "https://lpm.cx/api/push"; // APNs relay (holds the signing key)
 const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(30); // approve-on-Mac decision deadline
 const PAIR_MIN_GAP_MS: i64 = 5000; // min spacing between approve-on-Mac dialogs (anti-nag)
@@ -349,6 +356,23 @@ struct Client {
     device_id: String,
 }
 
+/// Recent output for one terminal, positioned in that terminal's byte stream.
+/// `base` is the stream offset of the first byte still held, so a phone that
+/// reports how far it got can be handed exactly the slice it missed.
+#[derive(Default)]
+struct Ring {
+    buf: VecDeque<u8>,
+    base: u64,
+}
+
+impl Ring {
+    /// Total bytes this terminal has ever emitted — the offset a client is at
+    /// once it has applied everything in the ring.
+    fn total(&self) -> u64 {
+        self.base + self.buf.len() as u64
+    }
+}
+
 // The plain text of a terminal composer's active input, mirrored between the
 // desktop and paired phones. `rev` is the globally monotonic revision the entry
 // was last written at (see `draft_rev`), so a stale frame is dropped and a
@@ -361,7 +385,7 @@ struct DraftEntry {
 #[derive(Default)]
 struct HubInner {
     clients: Mutex<HashMap<u64, Client>>,
-    rings: Mutex<HashMap<String, VecDeque<u8>>>,
+    rings: Mutex<HashMap<String, Ring>>,
     // Live terminal id -> display label, pushed from the frontend (which owns the
     // tab tree). terminals.json persists labels but strips the ephemeral pty id,
     // so the frontend is the only source of the id->label mapping. Upsert-only:
@@ -505,20 +529,38 @@ impl RemoteHub {
             .any(|d| d.id == id)
     }
 
-    /// Recent scrollback for a terminal, dropping a partial leading line when the
-    /// ring is full so the seed starts on a clean row.
-    fn ring_text(&self, id: &str) -> String {
+    /// Recent scrollback to replay onto a fresh screen, with the stream offset it
+    /// ends at. A partial leading line is dropped when the text starts mid-stream,
+    /// so the replay begins on a clean row.
+    fn ring_seed(&self, id: &str) -> (String, u64) {
         let rings = self.inner.rings.lock().unwrap();
         let Some(r) = rings.get(id) else {
-            return String::new();
+            return (String::new(), 0);
         };
-        let full = r.len() >= RING_CAP;
-        let bytes: Vec<u8> = r.iter().copied().collect();
+        let skip = r.buf.len().saturating_sub(SEED_CAP);
+        let bytes: Vec<u8> = r.buf.iter().skip(skip).copied().collect();
         let s = String::from_utf8_lossy(&bytes).into_owned();
-        match (full, s.find('\n')) {
+        let partial = skip > 0 || r.base > 0;
+        let text = match (partial, s.find('\n')) {
             (true, Some(i)) => s[i + 1..].to_string(),
             _ => s,
+        };
+        (text, r.total())
+    }
+
+    /// The output a client missed since stream offset `from`, with the offset it
+    /// ends at — what lets a phone that was away pick its screen back up instead
+    /// of rebuilding it from a replay. `None` when `from` has already scrolled out
+    /// of the ring, or lies ahead of it (a terminal that restarted), so only a
+    /// full replay can resync.
+    fn ring_since(&self, id: &str, from: u64) -> Option<(String, u64)> {
+        let rings = self.inner.rings.lock().unwrap();
+        let r = rings.get(id)?;
+        if from < r.base || from > r.total() {
+            return None;
         }
+        let bytes: Vec<u8> = r.buf.iter().skip((from - r.base) as usize).copied().collect();
+        Some((String::from_utf8_lossy(&bytes).into_owned(), r.total()))
     }
 
     fn drop_ring(&self, id: &str) {
@@ -553,16 +595,21 @@ pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
     if !hub.inner.enabled.load(Ordering::Relaxed) {
         return;
     }
-    {
+    let off = {
         let mut rings = hub.inner.rings.lock().unwrap();
         let ring = rings.entry(id.to_string()).or_default();
-        ring.extend(text.as_bytes());
-        let over = ring.len().saturating_sub(RING_CAP);
+        ring.buf.extend(text.as_bytes());
+        let over = ring.buf.len().saturating_sub(RING_CAP);
         if over > 0 {
-            ring.drain(..over);
+            ring.buf.drain(..over);
+            ring.base += over as u64;
         }
-    }
-    let payload = json!({ "t": "o", "id": id, "d": text }).to_string();
+        ring.total()
+    };
+    // `off` positions the chunk in the terminal's byte stream: a phone uses it to
+    // drop what a seed already covered and to notice a gap (this queue drops on
+    // overflow) so it can ask for the missing slice.
+    let payload = json!({ "t": "o", "id": id, "d": text, "off": off }).to_string();
     let clients = hub.inner.clients.lock().unwrap();
     for c in clients.values() {
         if c.subs.lock().unwrap().contains(id) {
@@ -2015,7 +2062,21 @@ fn handle_msg(
                 }
                 let (cols, rows) =
                     pty::remote_dims(&app.state::<pty::PtyState>(), &id).unwrap_or((80, 24));
-                let mut seed = json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": hub.ring_text(&id), "owner": crate::control::owner_json(&Some(owner)) });
+                // A phone that already has this terminal on screen (it locked, went
+                // offline, or missed frames) sends the offset it got to. Handing it
+                // just that slice keeps its screen — and its scrollback — intact;
+                // a replay onto a reset emulator can only approximate the screen a
+                // running full-screen program believes it is drawing on, and the
+                // program's next incremental update then lands on stale cells.
+                let from = v.get("from").and_then(Value::as_u64);
+                let (data, off, reset) = match from.and_then(|f| hub.ring_since(&id, f)) {
+                    Some((data, off)) => (data, off, false),
+                    None => {
+                        let (data, off) = hub.ring_seed(&id);
+                        (data, off, true)
+                    }
+                };
+                let mut seed = json!({ "t": "seed", "id": id, "cols": cols, "rows": rows, "data": data, "off": off, "reset": reset, "owner": crate::control::owner_json(&Some(owner)) });
                 if let Some(d) = hub.inner.drafts.lock().unwrap().get(&id) {
                     seed["draft"] = json!({ "text": d.text, "rev": d.rev });
                 }

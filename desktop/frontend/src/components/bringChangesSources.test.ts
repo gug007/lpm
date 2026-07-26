@@ -115,7 +115,14 @@ describe("bringChangesEntry", () => {
 });
 
 describe("bringTargetBlockedReason", () => {
-  const target = { name: "app", root: "/Users/me/app", worktree: false, isRepo: true, dirty: false };
+  const target = {
+    name: "app",
+    root: "/Users/me/app",
+    worktree: false,
+    isRepo: true,
+    dirty: false,
+    submodules: false,
+  };
 
   it("clears a clean repository", () => {
     expect(bringTargetBlockedReason(target)).toBeUndefined();

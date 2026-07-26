@@ -82,6 +82,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
   const [filterMode, setFilterMode] = useState(false);
   const [matchCount, setMatchCount] = useState(0);
+  // Session the Memory tab should show, bumped per request so the same session
+  // can be re-opened after the tab was navigated back to its list.
+  const [memoryTarget, setMemoryTarget] = useState<{ name: string; seq: number } | null>(null);
 
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
@@ -381,6 +384,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     }
     addMemoryToPane();
   }, [tree, focusTerminal, addMemoryToPane]);
+
+  // Composer memory list: land on the session itself, not the tab's list.
+  const openMemorySession = useCallback(
+    (sessionId: string) => {
+      setMemoryTarget((prev) => ({ name: sessionId, seq: (prev?.seq ?? 0) + 1 }));
+      openMemory();
+    },
+    [openMemory],
+  );
 
   const findInPane = useCallback(
     (paneId: string, query: string, direction: "next" | "prev"): boolean => {
@@ -848,6 +860,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onSubmitInput={submitInputToTerminal}
             onFocusTerminalInput={focusTerminalInput}
             onRunInDuplicates={runInDuplicates}
+            onOpenMemorySession={openMemorySession}
+            memoryTarget={memoryTarget}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
             onFilterInPane={filterInPane}

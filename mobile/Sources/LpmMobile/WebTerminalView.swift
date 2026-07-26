@@ -89,7 +89,7 @@ struct WebTerminalView: UIViewRepresentable {
         let coordinator = context.coordinator
         model.subscribe(
             term.id,
-            onSeed: { [coordinator] _, _, data in coordinator.seed(data) },
+            onSeed: { [coordinator] _, _, data, reset in coordinator.seed(data, reset: reset) },
             onOutput: { [coordinator] data in coordinator.feed(data) }
         )
         // The composer submits through here so the page can apply bracketed-paste.
@@ -185,13 +185,13 @@ struct WebTerminalView: UIViewRepresentable {
         /// view's GPU resources — including xterm's WebGL glyph atlas — and the
         /// renderer keeps drawing from that dead atlas afterwards: cell backgrounds
         /// still paint but the glyphs come out blank, so the screen reads as empty
-        /// rows with grey blocks. And the screen itself is only replayed when the
-        /// link actually dropped and reconnected, so output that arrived while the
-        /// phone was away is simply missing when it didn't. Rebuild the renderer
-        /// and ask the Mac for a fresh snapshot, so what's on screen is what the
-        /// terminal looks like right now.
+        /// rows with grey blocks. And the output that arrived while the phone was
+        /// away is missing — iOS suspends the app seconds into the background, so
+        /// the socket dies and whatever the terminal printed meanwhile never lands.
+        /// Rebuild the renderer and ask the Mac for the missed slice, which the
+        /// emulator applies exactly as if it had never been away.
         private func revive() {
-            model?.reseed(termId)
+            model?.resync(termId)
             guard ready else { return }
             web?.evaluateJavaScript("window.lpmRevive()")
         }
@@ -220,9 +220,12 @@ struct WebTerminalView: UIViewRepresentable {
             }
         }
 
-        func seed(_ data: String) {
-            // A seed resets the emulator and replays the whole screen, so any output
-            // buffered before it is stale — drop it.
+        /// Apply a seed. A resetting seed replays the whole screen, so any output
+        /// buffered before it is stale — drop it. A non-resetting one is the slice
+        /// this phone missed while it was away: it belongs after whatever is
+        /// already buffered, so it goes through the normal feed path.
+        func seed(_ data: String, reset: Bool) {
+            guard reset else { feed(data); return }
             feedBuffer.removeAll(keepingCapacity: true)
             guard ready else { pendingSeed = data; return }
             evalSeed(data)

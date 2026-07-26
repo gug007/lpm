@@ -70,14 +70,17 @@ fn receive_and_land(
     project_root: &str,
     prepared: &Value,
 ) -> Result<Done, String> {
+    // These reach git as revision arguments, so they are validated as object ids
+    // before use: a reply of "--force" would otherwise be a flag, not a commit.
     let head = string_of(prepared, "head");
-    if head.is_empty() {
+    if !ga::is_object_id(&head) {
         return Err("the other Mac did not report a commit to bring".into());
     }
-    let snapshot = prepared
-        .get("snapshot")
-        .and_then(Value::as_str)
-        .map(str::to_string);
+    let snapshot = match prepared.get("snapshot").and_then(Value::as_str) {
+        Some(s) if ga::is_object_id(s) => Some(s.to_string()),
+        Some(_) => return Err("the other Mac sent an unusable change id".into()),
+        None => None,
+    };
     let branch = ga::bring_branch(
         prepared.get("branch").and_then(Value::as_str),
         &hub.peer_alias(&req.source_slug),

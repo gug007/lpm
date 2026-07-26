@@ -264,7 +264,7 @@ final class AppModel {
     // emulator (SwiftTerm) holds the buffer, not this model. Seed and live output
     // are kept separate so the view can reset the emulator before replaying the
     // seed (raw scrollback) — otherwise a TUI's cursor-positioned redraws overlap.
-    @ObservationIgnored var onTerminalSeed: [String: (_ cols: Int, _ rows: Int, _ data: String) -> Void] = [:]
+    @ObservationIgnored var onTerminalSeed: [String: (_ cols: Int, _ rows: Int, _ data: String, _ reset: Bool) -> Void] = [:]
     @ObservationIgnored var onTerminalOutput: [String: (String) -> Void] = [:]
     // Composer "send": routed into the terminal's web view so it can apply the
     // same bracketed-paste wrapping the desktop does (which needs xterm's live
@@ -1008,7 +1008,7 @@ final class AppModel {
     // Terminal wiring used by TerminalScreen.
     func subscribe(
         _ id: String,
-        onSeed: @escaping (_ cols: Int, _ rows: Int, _ data: String) -> Void,
+        onSeed: @escaping (_ cols: Int, _ rows: Int, _ data: String, _ reset: Bool) -> Void,
         onOutput: @escaping (String) -> Void
     ) {
         onTerminalSeed[id] = onSeed
@@ -1024,6 +1024,9 @@ final class AppModel {
     /// when the terminal web view reloads (WebContent process death) and its
     /// emulator restarts empty. Re-sending `sub` replays the current screen.
     func reseed(_ id: String) { client?.subscribe(id) }
+    /// Catch a terminal that's still on screen up on the output it missed while
+    /// the app was away, keeping what it already shows.
+    func resync(_ id: String) { client?.resync(id) }
     func input(_ id: String, _ data: String) { client?.sendInput(id, data) }
     func resize(_ id: String, cols: Int, rows: Int) {
         // Only the owner drives the single shared PTY size; a non-owning phone
@@ -2136,7 +2139,9 @@ final class AppModel {
     }
 
     private func wireTerminalStreams(_ c: LpmClient) {
-        c.onSeed = { [weak self] id, cols, rows, data in self?.onTerminalSeed[id]?(cols, rows, data) }
+        c.onSeed = { [weak self] id, cols, rows, data, reset in
+            self?.onTerminalSeed[id]?(cols, rows, data, reset)
+        }
         c.onOutput = { [weak self] id, data in self?.onTerminalOutput[id]?(data) }
         c.onControl = { [weak self] id, owner in self?.setControlOwner(id, owner) }
     }

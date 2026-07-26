@@ -17,6 +17,9 @@ export interface BringTarget {
   worktree: boolean;
   isRepo: boolean;
   dirty: boolean;
+  // Submodule contents aren't part of the transfer, so the result is only the
+  // superproject — worth warning about rather than silently half-applying.
+  submodules: boolean;
 }
 
 export interface BringChangesRequest {

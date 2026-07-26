@@ -20,7 +20,7 @@ final class LpmClient: NSObject {
     // Callbacks are delivered on the main queue.
     var onState: ((State) -> Void)?
     var onOutput: ((_ id: String, _ data: String) -> Void)?
-    var onSeed: ((_ id: String, _ cols: Int, _ rows: Int, _ data: String) -> Void)?
+    var onSeed: ((_ id: String, _ cols: Int, _ rows: Int, _ data: String, _ reset: Bool) -> Void)?
     var onControl: ((_ id: String, _ owner: ControlOwner?) -> Void)?
     var onExit: ((_ id: String, _ code: Int) -> Void)?
     var onProjects: (([Project]) -> Void)?
@@ -146,6 +146,16 @@ final class LpmClient: NSObject {
     private var task: URLSessionWebSocketTask?
     private var subscribed = Set<String>() // termIds we auto-re-sub on reconnect
     private var watchedProjects = Set<String>() // projects we auto-re-watch on reconnect
+    // How far into each terminal's output stream this phone has applied, so a
+    // re-subscribe (reconnect, unlock, dropped frames) asks for the missed slice
+    // rather than a full screen replay — which resets the emulator and can only
+    // approximate what a running full-screen program thinks it drew. Absent for a
+    // terminal whose Mac doesn't stamp offsets (older desktop, demo mode), which
+    // turns the tracking off for that terminal.
+    private var streamOffset: [String: Int] = [:]
+    // Terminals we've asked to resync after spotting a gap, so one dropped frame
+    // triggers one request instead of one per chunk that follows it.
+    private var resyncing = Set<String>()
     private(set) var state: State = .idle
 
     // Requests made while the link is down or half-dead, delivered on the next
@@ -769,13 +779,49 @@ final class LpmClient: NSObject {
     func historyCreateFolder(name: String) { send(Wire.historyCreateFolder(name: name)) }
     func historyDeleteFolder(id: String?, name: String?) { send(Wire.historyDeleteFolder(id: id, name: name)) }
 
+    /// Subscribe with an empty emulator: the Mac replays the current screen.
     func subscribe(_ id: String) {
         subscribed.insert(id)
+        streamOffset[id] = nil
+        resyncing.remove(id)
         sendLive(Wire.sub(id: id))
     }
+
+    /// Catch a terminal already on screen back up (the app was backgrounded, or
+    /// output went missing) without disturbing what it shows. Falls back to a
+    /// replay when the Mac no longer holds the missed slice; a dropped send is
+    /// covered by the re-subscribe on the next `ready`.
+    func resync(_ id: String) {
+        guard subscribed.contains(id) else { return }
+        sendLive(Wire.sub(id: id, from: streamOffset[id]))
+    }
+
     func unsubscribe(_ id: String) {
         subscribed.remove(id)
+        streamOffset[id] = nil
+        resyncing.remove(id)
         sendLive(Wire.unsub(id: id))
+    }
+
+    /// Hand one output chunk to the terminal, using its stream position to keep
+    /// the emulator consistent. A chunk a seed already covered is dropped — the
+    /// desktop answers `sub` on the same socket it queues output on, so the two
+    /// overlap — and a chunk starting past where we are means output went missing
+    /// (that queue drops when a phone falls behind), so ask for the gap rather
+    /// than apply an update the screen isn't ready for.
+    private func deliverOutput(_ id: String, _ data: String, _ off: Int?) {
+        if let off, let known = streamOffset[id] {
+            if off <= known { return }
+            guard off - data.utf8.count == known else { requestResync(id); return }
+        }
+        if let off { streamOffset[id] = off }
+        onOutput?(id, data)
+    }
+
+    private func requestResync(_ id: String) {
+        guard !resyncing.contains(id) else { return }
+        resyncing.insert(id)
+        resync(id)
     }
     func claim(_ id: String) { send(Wire.claim(id: id)) }
     func sendInput(_ id: String, _ data: String) { sendLive(Wire.input(id: id, data: data)) }
@@ -884,8 +930,13 @@ final class LpmClient: NSObject {
             case .ready(let serverId, let serverName):
                 self.set(.ready)
                 self.onConnected()
-                // Re-subscribe to any terminals we were watching before a drop.
-                for id in self.subscribed { self.sendLive(Wire.sub(id: id)) }
+                // Re-subscribe to any terminals we were watching before a drop,
+                // each from where its screen got to, so a reconnect resumes the
+                // stream instead of rebuilding the screen from a replay.
+                self.resyncing.removeAll()
+                for id in self.subscribed {
+                    self.sendLive(Wire.sub(id: id, from: self.streamOffset[id]))
+                }
                 // Re-watch git for any review screen that was open before a drop.
                 for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p)) }
                 self.flushPending()
@@ -915,15 +966,20 @@ final class LpmClient: NSObject {
             case .jobSaved(let id, let error): self.onJobSaved?(id, error)
             case .jobDeleted(let id, let error): self.onJobDeleted?(id, error)
             case .jobsChanged: self.onJobsChanged?()
-            case .seed(let id, let c, let r, let d, let owner, let draftText, let draftRev):
+            case .seed(let id, let c, let r, let d, let owner, let draftText, let draftRev, let off, let reset):
+                self.streamOffset[id] = off
+                self.resyncing.remove(id)
                 self.onControl?(id, owner)
-                self.onSeed?(id, c, r, d)
+                self.onSeed?(id, c, r, d, reset)
                 if let draftText {
                     self.onComposerDraft?(id, draftText, draftRev, "mac", true)
                 }
             case .control(let id, let owner): self.onControl?(id, owner)
-            case .output(let id, let d): self.onOutput?(id, d)
-            case .exit(let id, let code): self.onExit?(id, code)
+            case .output(let id, let d, let off): self.deliverOutput(id, d, off)
+            case .exit(let id, let code):
+                self.streamOffset[id] = nil
+                self.resyncing.remove(id)
+                self.onExit?(id, code)
             // A duplicate/remove reply lands only after the desktop finished the
             // folder clone/delete and rewrote its config, so a re-request is
             // guaranteed to reflect it — don't rely on the projects-changed push

@@ -153,6 +153,8 @@ interface TerminalComposerProps {
   // `runHere` to run the same prompt in this terminal as copy #1 — so the
   // current project and every copy run it in parallel.
   onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
+  // Show a saved session in the Memory tab instead of inserting its invocation.
+  onOpenMemorySession: (sessionId: string) => void;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -209,7 +211,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another Mac. Images are still supported:
   // they're uploaded to the host (which returns a host-valid path) at attach time
   // via UploadClipboardImageForTerminal; other file types stay unsupported.
@@ -2107,6 +2109,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 infoById={memorySessionById}
                 onOpen={reloadMemorySessions}
                 onPick={insertMemorySession}
+                onView={(item) => onOpenMemorySession(item.insert)}
                 onDelete={(item) => void deleteMemorySession(item)}
               />
             )}

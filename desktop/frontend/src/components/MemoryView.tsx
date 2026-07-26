@@ -22,6 +22,9 @@ interface MemoryViewProps {
   // The pane owns the zoom shortcuts only while it has focus, so ⌘+/⌘− still
   // resize the terminal font from anywhere else.
   focused: boolean;
+  // Session another surface (the composer's memory list) asked to show. `seq`
+  // rises on every request so picking the same session twice jumps again.
+  target?: { name: string; seq: number } | null;
 }
 
 const ZOOM_KEY = "lpm.memory-zoom";
@@ -43,8 +46,9 @@ const SKELETON = (title: string) =>
 // edits the project's shared agent session memory in ~/.lpm/memory/<project>/.
 // Agents write the same files, so saves are compare-and-swap and the list
 // follows the memory watcher.
-export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
+export function MemoryView({ projectName, visible, focused, target }: MemoryViewProps) {
   const [sessions, setSessions] = useState<MemorySession[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState<View>({ kind: "list" });
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -61,6 +65,8 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
       setSessions(state.sessions);
     } catch {
       setSessions([]);
+    } finally {
+      setLoaded(true);
     }
   }, [projectName]);
 
@@ -77,6 +83,12 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
       if (typeof off === "function") off();
     };
   }, [visible, projectName, refresh]);
+
+  useEffect(() => {
+    if (!target) return;
+    setEditing(false);
+    setView({ kind: "detail", name: target.name });
+  }, [target]);
 
   const detail =
     view.kind === "detail" ? sessions.find((s) => s.name === view.name) : undefined;
@@ -248,7 +260,7 @@ export function MemoryView({ projectName, visible, focused }: MemoryViewProps) {
         />
       )}
 
-      {view.kind === "detail" && !detail && (
+      {view.kind === "detail" && !detail && loaded && (
         <div className="flex min-h-0 flex-1 items-center justify-center px-6 pb-16 text-sm text-[var(--text-muted)]">
           This session was removed.
         </div>

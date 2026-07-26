@@ -53,19 +53,26 @@ pub(crate) fn has_object(root: &str, sha: &str) -> bool {
     git_out(root, &["cat-file", "-e", &format!("{sha}^{{commit}}")]).is_ok()
 }
 
+/// `rev-parse --is-inside-work-tree` prints `false` and still exits 0 inside a
+/// bare repo or a `.git` directory, so the answer has to be read, not just the
+/// exit code.
 pub(crate) fn is_repo(root: &str) -> bool {
-    Path::new(root).is_dir() && git_out(root, &["rev-parse", "--is-inside-work-tree"]).is_ok()
+    Path::new(root).is_dir()
+        && git_out(root, &["rev-parse", "--is-inside-work-tree"]).as_deref() == Ok("true")
 }
 
+/// Unknown counts as dirty. This is the one guard between the user's uncommitted
+/// work and a checkout, so a git that failed to answer must never read as clean.
 pub(crate) fn is_dirty(root: &str) -> bool {
-    !git_out(root, &["status", "--porcelain", "--untracked-files=all"])
-        .unwrap_or_default()
-        .trim()
-        .is_empty()
+    match git_out(root, &["status", "--porcelain", "--untracked-files=all"]) {
+        Ok(out) => !out.trim().is_empty(),
+        Err(_) => true,
+    }
 }
 
-/// Install a received pack into `root`'s object store. `--fix-thin` completes the
-/// deltas whose bases the sender left out because we said we already had them.
+/// Install a received pack into `root`'s object store. `--fix-thin` is harmless
+/// on the complete packs the sender produces today and keeps this working if it
+/// ever starts sending thin ones.
 pub(crate) fn index_pack(root: &str, pack: &Path) -> Result<(), String> {
     let input = std::fs::File::open(pack).map_err(|e| e.to_string())?;
     let out = crate::git::git_command(root, &["index-pack", "--stdin", "--fix-thin"], &[])
@@ -118,6 +125,18 @@ pub(crate) fn apply_state(
     head: &str,
     has_snapshot: bool,
 ) -> Result<(), String> {
+    if branch_would_lose_commits(root, branch, target) {
+        return Err(format!(
+            "{branch} already has commits of its own here — rename or delete it first, or bring the changes into a new copy"
+        ));
+    }
+    let clobbered = ignored_collisions(root, target);
+    if !clobbered.is_empty() {
+        return Err(format!(
+            "these ignored files would be overwritten: {} — move them aside first",
+            preview(&clobbered)
+        ));
+    }
     git_out(root, &["checkout", "-B", branch, target])
         .map_err(|e| format!("could not create {branch}: {e}"))?;
     if has_snapshot {
@@ -125,6 +144,46 @@ pub(crate) fn apply_state(
             .map_err(|e| format!("could not restore the uncommitted changes: {e}"))?;
     }
     Ok(())
+}
+
+/// `checkout -B` re-points a branch unconditionally. If a previous bring landed
+/// here and the user then committed on that branch, moving it would leave their
+/// commits reachable only from the reflog — so refuse instead. Work the incoming
+/// changes already contain is not a loss, hence the ancestor test.
+fn branch_would_lose_commits(root: &str, branch: &str, target: &str) -> bool {
+    let git_ref = format!("refs/heads/{branch}");
+    if git_out(root, &["rev-parse", "--verify", "--quiet", &git_ref]).is_err() {
+        return false;
+    }
+    git_out(root, &["merge-base", "--is-ancestor", branch, target]).is_err()
+}
+
+/// git refuses to clobber an untracked file, but silently replaces one that is
+/// ignored here and tracked there — the only category it will not protect, and
+/// the one the user cannot get back. Narrowed to incoming paths that are present
+/// and untracked locally before asking git about each, so the ignore check runs
+/// over a handful of files rather than the whole tree.
+fn ignored_collisions(root: &str, target: &str) -> Vec<String> {
+    let Ok(incoming) = git_out(root, &["ls-tree", "-r", "-z", "--name-only", target]) else {
+        return Vec::new();
+    };
+    let listed = git_out(root, &["ls-files", "-z"]).unwrap_or_default();
+    let tracked: std::collections::HashSet<&str> = listed.split('\0').collect();
+    incoming
+        .split('\0')
+        .filter(|p| !p.is_empty() && !tracked.contains(*p))
+        .filter(|p| Path::new(root).join(p).exists())
+        .filter(|p| git_out(root, &["check-ignore", "-q", p]).is_ok())
+        .map(str::to_string)
+        .collect()
+}
+
+fn preview(paths: &[String]) -> String {
+    let shown = paths.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
+    if paths.len() > 5 {
+        return format!("{shown} and {} more", paths.len() - 5);
+    }
+    shown
 }
 
 /// The branch the brought changes land on. A detached remote HEAD has no name to

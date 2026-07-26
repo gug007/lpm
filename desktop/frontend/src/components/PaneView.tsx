@@ -169,6 +169,10 @@ export interface PaneViewProps {
   // the current prompt. On confirm the current project runs it as copy #1
   // (`runHere`) alongside the seed's fresh copies, all in parallel.
   onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
+  // Composer memory list → Memory tab: open the tab (or focus the existing one)
+  // on the session the user asked to read.
+  onOpenMemorySession: (sessionId: string) => void;
+  memoryTarget: { name: string; seq: number } | null;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
   matchCount: number;
@@ -221,6 +225,8 @@ function PaneViewImpl(props: PaneViewProps) {
     onSubmitInput,
     onFocusTerminalInput,
     onRunInDuplicates,
+    onOpenMemorySession,
+    memoryTarget,
     onFindInPane,
     filterMode,
     matchCount,
@@ -562,6 +568,7 @@ function PaneViewImpl(props: PaneViewProps) {
                   projectName={projectName}
                   visible={visible && isActive}
                   focused={focused}
+                  target={memoryTarget}
                 />
               ) : (
                 <InteractiveTab
@@ -597,6 +604,7 @@ function PaneViewImpl(props: PaneViewProps) {
             onSubmit={(input) => onSubmitInput(composerTab.id, input)}
             onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
             onRunInDuplicates={onRunInDuplicates}
+            onOpenMemorySession={onOpenMemorySession}
           />
         ) : (
           // Input closed: leave a slim stand-in that reopens it (same as ⌘I).

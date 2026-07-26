@@ -66,6 +66,21 @@ pub fn handle_bring(out: &SyncSender<String>, t: &str, v: &Value) {
     });
 }
 
+/// The asking Mac chooses this path, so it is matched against the projects this
+/// Mac actually manages. Without it a paired Mac could pack the history and
+/// uncommitted work of any repository on disk, including ones lpm never knew of.
+fn is_known_project_root(cwd: &str) -> bool {
+    let Ok(want) = std::fs::canonicalize(cwd) else {
+        return false;
+    };
+    crate::config::project_names().into_iter().any(|name| {
+        match crate::config::project_root(&name) {
+            Ok((root, false)) => std::fs::canonicalize(root).is_ok_and(|r| r == want),
+            _ => false,
+        }
+    })
+}
+
 fn str_arg(v: &Value, key: &str) -> String {
     v.get(key)
         .and_then(Value::as_str)
@@ -78,6 +93,9 @@ fn prepare(v: &Value) -> Result<Value, String> {
     let cwd = str_arg(v, "cwd");
     if cwd.is_empty() || !Path::new(&cwd).is_dir() {
         return Err("the project folder is missing on the other Mac".into());
+    }
+    if !is_known_project_root(&cwd) {
+        return Err("that folder is not a project on the other Mac".into());
     }
     if git(&cwd, &["rev-parse", "--is-inside-work-tree"]).is_err() {
         return Err("that project is not a Git repository on the other Mac".into());
@@ -515,10 +533,84 @@ mod tests {
         );
     }
 
+    /// A folder this Mac does not manage is refused before git is ever run on
+    /// it, so a paired Mac cannot use the path it chooses to read out an
+    /// arbitrary repository.
     #[test]
-    fn prepare_rejects_a_path_that_is_not_a_repo() {
+    fn prepare_refuses_a_folder_that_is_not_a_project_here() {
         let dir = tempfile::tempdir().unwrap();
-        let err = prepare(&json!({ "cwd": dir.path().to_string_lossy() })).unwrap_err();
-        assert!(err.contains("not a Git repository"), "{err}");
+        let cwd = dir.path().to_string_lossy().to_string();
+        git(&cwd, &["init", "-q", "-b", "main"]).unwrap();
+        let err = prepare(&json!({ "cwd": cwd })).unwrap_err();
+        assert!(err.contains("not a project"), "{err}");
+        assert!(!is_known_project_root(&cwd));
+    }
+
+    /// Landing twice is the normal pattern, and the user is likely to have
+    /// committed on the branch in between. `checkout -B` would re-point it and
+    /// leave those commits reachable only from the reflog.
+    #[test]
+    fn a_second_bring_refuses_to_move_a_branch_carrying_local_commits() {
+        let (d, cwd) = repo();
+        let head = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
+        crate::gitbringapply::apply_state(&cwd, "lpm/main", &head, &head, false).unwrap();
+
+        std::fs::write(d.path().join("mine.txt"), "my work\n").unwrap();
+        git(&cwd, &["add", "-A"]).unwrap();
+        git_out_env(
+            &cwd,
+            &["commit", "-q", "-m", "my own work"],
+            &SNAPSHOT_IDENTITY.to_vec(),
+        )
+        .unwrap();
+        let mine = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
+
+        let err =
+            crate::gitbringapply::apply_state(&cwd, "lpm/main", &head, &head, false).unwrap_err();
+        assert!(err.contains("commits of its own"), "{err}");
+        assert_eq!(git(&cwd, &["rev-parse", "lpm/main"]).unwrap(), mine);
+    }
+
+    /// git protects an untracked file from checkout but not an ignored one, and
+    /// ignored files are exactly the ones with no copy anywhere else.
+    #[test]
+    fn an_ignored_file_the_sender_tracks_is_refused_not_clobbered() {
+        let (d, cwd) = repo();
+        git(&cwd, &["checkout", "-q", "-b", "incoming"]).unwrap();
+        std::fs::write(d.path().join("app.env"), "FROM SENDER\n").unwrap();
+        git(&cwd, &["add", "-f", "app.env"]).unwrap();
+        git_out_env(
+            &cwd,
+            &["commit", "-q", "-m", "tracked there"],
+            &SNAPSHOT_IDENTITY.to_vec(),
+        )
+        .unwrap();
+        let target = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
+
+        // Here the same path is ignored and holds something irreplaceable.
+        git(&cwd, &["checkout", "-q", "main"]).unwrap();
+        std::fs::write(d.path().join(".gitignore"), "app.env\n").unwrap();
+        git(&cwd, &["add", "-A"]).unwrap();
+        git_out_env(
+            &cwd,
+            &["commit", "-q", "-m", "ignore it here"],
+            &SNAPSHOT_IDENTITY.to_vec(),
+        )
+        .unwrap();
+        std::fs::write(d.path().join("app.env"), "MY REAL SECRETS\n").unwrap();
+
+        let err =
+            crate::gitbringapply::apply_state(&cwd, "lpm/x", &target, &target, false).unwrap_err();
+        assert!(err.contains("app.env"), "{err}");
+        assert_eq!(
+            std::fs::read_to_string(d.path().join("app.env")).unwrap(),
+            "MY REAL SECRETS\n"
+        );
+    }
+
+    #[test]
+    fn prepare_refuses_a_missing_folder() {
+        let err = prepare(&json!({ "cwd": "/nope/does/not/exist" })).unwrap_err();
+        assert!(err.contains("missing"), "{err}");
     }
 }

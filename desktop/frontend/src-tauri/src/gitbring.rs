@@ -25,6 +25,9 @@ pub struct BringTarget {
     worktree: bool,
     is_repo: bool,
     dirty: bool,
+    // `pack-objects` never traverses gitlinks, so a submodule whose commit moved
+    // on the other Mac lands here as a pointer to an object that was not sent.
+    submodules: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -118,6 +121,7 @@ pub fn bring_changes_targets(project: String) -> Result<Vec<BringTarget>, String
             Some(BringTarget {
                 worktree: crate::config::peek_worktree(&name),
                 dirty: is_repo && ga::is_dirty(&root),
+                submodules: std::path::Path::new(&root).join(".gitmodules").is_file(),
                 is_repo,
                 name,
                 root,
