@@ -78,6 +78,8 @@ pub fn sync_project_start(
         };
         let _ = thread_app.emit("sync-done", done);
         let _ = thread_app.emit("projects-changed", ());
+        // Whether it landed or was undone, what this Mac follows just changed.
+        crate::gitfollow::follows_changed(&thread_app);
     });
     Ok(id)
 }
@@ -123,6 +125,7 @@ fn set_up(app: &AppHandle, hub: &PeerClientHub, plan: &SetUp) -> Result<Done, St
         plan.slug.to_string(),
         plan.source_root.to_string(),
     ))?;
+    crate::gitfollow::follows_changed(app);
 
     let req = Request {
         source_slug: plan.slug.to_string(),

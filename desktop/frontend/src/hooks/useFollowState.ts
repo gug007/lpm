@@ -35,5 +35,11 @@ export function useFollowState(): {
     [apply],
   );
 
+  // A copy that is not known to be a copy renders as a project of its own, so this
+  // does not rely on every writer remembering to announce itself. Both events fire
+  // when a synced folder appears or goes away, and re-reading the list is cheap.
+  useEffect(() => EventsOn("sync-done", () => void refresh()), [refresh]);
+  useEffect(() => EventsOn("projects-changed", () => void refresh()), [refresh]);
+
   return { follows, refresh };
 }

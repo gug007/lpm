@@ -440,6 +440,16 @@ fn engine(app: &AppHandle) -> Engine {
     app.state::<Engine>().inner().clone()
 }
 
+/// Announce follows written by anything other than the scheduler — a new copy being
+/// set up, or one whose setup was abandoned. The sidebar and a project's status line
+/// are driven by this event alone, so a record nobody announces stays invisible
+/// until the app is next started.
+pub fn follows_changed(app: &AppHandle) {
+    let e = engine(app);
+    e.nudge();
+    e.emit_state();
+}
+
 /// Every follow on this Mac, for the sidebar and the dialog.
 #[tauri::command(async)]
 pub fn follow_list(app: AppHandle) -> Vec<FollowView> {
