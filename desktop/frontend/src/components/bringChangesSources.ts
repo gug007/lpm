@@ -1,3 +1,4 @@
+import type { BringTarget } from "../bringChangesApi";
 import { isPeerName, parsePeerMarker, stripMarker } from "../peer/markers";
 import type { PeerClient } from "../peer/usePeerState";
 import type { ProjectInfo } from "../types";
@@ -66,6 +67,17 @@ export function bringChangesEntry(
   return { project, sources, initialSlug };
 }
 
+// Why a place the work could land can't take it. Landing checks out a branch,
+// so anything already carrying uncommitted work is off limits until it's clean.
+export function bringTargetBlockedReason(
+  target: BringTarget | undefined,
+): string | undefined {
+  if (!target) return undefined;
+  if (!target.isRepo) return "Not a Git repository";
+  if (target.dirty) return "Uncommitted changes — commit or discard first";
+  return undefined;
+}
+
 const UNITS = ["B", "KB", "MB", "GB"];
 
 export function formatBytes(bytes: number): string {
@@ -76,6 +88,9 @@ export function formatBytes(bytes: number): string {
     value /= 1024;
     unit += 1;
   }
-  const rounded = unit === 0 || value >= 10 ? Math.round(value) : value.toFixed(1);
+  const rounded =
+    unit === 0 || value >= 10
+      ? String(Math.round(value))
+      : value.toFixed(1).replace(/\.0$/, "");
   return `${rounded} ${UNITS[unit]}`;
 }

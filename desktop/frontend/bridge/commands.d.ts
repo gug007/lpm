@@ -285,3 +285,6 @@ export function PeerSyncStatus(...args: any[]): Promise<any>;
 export function PeerSyncRun(...args: any[]): Promise<any>;
 export function PeerTermAttach(...args: any[]): Promise<any>;
 export function PeerTermDetach(...args: any[]): Promise<any>;
+export function BringChangesTargets(...args: any[]): Promise<any>;
+export function BringChangesStart(...args: any[]): Promise<any>;
+export function BringChangesCancel(...args: any[]): Promise<any>;

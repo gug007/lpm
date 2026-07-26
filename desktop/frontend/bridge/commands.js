@@ -874,3 +874,12 @@ export function PeerTermAttach(prefixedId) {
 export function PeerTermDetach(prefixedId) {
   return invoke("peer_term_detach", { id: prefixedId });
 }
+export function BringChangesTargets(project) {
+  return invoke("bring_changes_targets", { project });
+}
+export function BringChangesStart(sourceSlug, sourceRoot, project, mode, target, label) {
+  return invoke("bring_changes_start", { sourceSlug, sourceRoot, project, mode, target, label });
+}
+export function BringChangesCancel(id) {
+  return invoke("bring_changes_cancel", { id });
+}

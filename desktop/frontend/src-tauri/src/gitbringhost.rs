@@ -438,6 +438,83 @@ mod tests {
         assert!(done(&json!({ "transferId": "nope" })).is_ok());
     }
 
+    /// The whole pipeline across two real repos standing in for the two Macs:
+    /// snapshot and pack on one, index and check out on the other. The peer
+    /// socket only moves the bytes, so this covers everything that decides what
+    /// the receiving Mac ends up with.
+    #[test]
+    fn a_transfer_mirrors_the_other_macs_working_state() {
+        let (sender_dir, sender) = repo();
+        let commit = |cwd: &str, msg: &str| {
+            git(cwd, &["add", "-A"]).unwrap();
+            git_out_env(cwd, &["commit", "-q", "-m", msg], &SNAPSHOT_IDENTITY.to_vec()).unwrap();
+        };
+        std::fs::write(sender_dir.path().join(".gitignore"), "secret.env\n").unwrap();
+        std::fs::write(sender_dir.path().join("b.txt"), "bee\n").unwrap();
+        commit(&sender, "shared");
+
+        let receiver_dir = tempfile::tempdir().unwrap();
+        let receiver = receiver_dir
+            .path()
+            .join("work")
+            .to_string_lossy()
+            .to_string();
+        git(&sender, &["clone", "--no-hardlinks", "-q", &sender, &receiver]).unwrap();
+
+        // Work done on the sender after the receiver last saw it: one commit it
+        // is missing, plus every shape of uncommitted change.
+        std::fs::write(sender_dir.path().join("c.txt"), "sea\n").unwrap();
+        commit(&sender, "only on the sender");
+        std::fs::write(sender_dir.path().join("a.txt"), "two\n").unwrap();
+        std::fs::remove_file(sender_dir.path().join("b.txt")).unwrap();
+        std::fs::write(sender_dir.path().join("new.txt"), "fresh\n").unwrap();
+        std::fs::write(sender_dir.path().join("secret.env"), "TOKEN=1\n").unwrap();
+
+        let head = git(&sender, &["rev-parse", "HEAD"]).unwrap();
+        let target = snapshot(&sender, &head).unwrap().sha.expect("dirty tree");
+        let haves = filter_haves(
+            &sender,
+            Some(&json!(crate::gitbringapply::have_list(&receiver))),
+        );
+        assert!(!haves.is_empty(), "the clone shares a base with the sender");
+
+        let pack_path = pack(&sender, &target, &haves).unwrap();
+        crate::gitbringapply::index_pack(&receiver, &pack_path).unwrap();
+        crate::gitbringapply::apply_state(&receiver, "lpm/main", &target, &head, true).unwrap();
+        let _ = std::fs::remove_file(&pack_path);
+
+        let at = |p: &str| receiver_dir.path().join("work").join(p);
+        assert_eq!(git(&receiver, &["rev-parse", "HEAD"]).unwrap(), head);
+        assert_eq!(
+            git(&receiver, &["rev-parse", "--abbrev-ref", "HEAD"]).unwrap(),
+            "lpm/main"
+        );
+        // The commit the receiver was missing arrived with the pack.
+        assert_eq!(std::fs::read_to_string(at("c.txt")).unwrap(), "sea\n");
+        assert_eq!(std::fs::read_to_string(at("a.txt")).unwrap(), "two\n");
+        assert_eq!(std::fs::read_to_string(at("new.txt")).unwrap(), "fresh\n");
+        assert!(!at("b.txt").exists(), "the sender's deletion carried over");
+        assert!(!at("secret.env").exists(), "ignored files never travel");
+
+        // The point of the whole design: the sender's uncommitted work is present
+        // but still uncommitted, so the receiver sees exactly what the sender saw.
+        assert!(
+            git(&receiver, &["diff", "--cached", "--name-only"])
+                .unwrap()
+                .is_empty(),
+            "nothing may be left staged"
+        );
+        // Asserted through plumbing rather than `status --porcelain`, whose
+        // leading status column would be lost to the trimming in `git_out`.
+        let unstaged = git(&receiver, &["diff", "--name-status"]).unwrap();
+        assert!(unstaged.contains("M\ta.txt"), "{unstaged}");
+        assert!(unstaged.contains("D\tb.txt"), "{unstaged}");
+        assert_eq!(
+            git(&receiver, &["ls-files", "--others", "--exclude-standard"]).unwrap(),
+            "new.txt"
+        );
+    }
+
     #[test]
     fn prepare_rejects_a_path_that_is_not_a_repo() {
         let dir = tempfile::tempdir().unwrap();

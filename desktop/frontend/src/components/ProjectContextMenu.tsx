@@ -1,4 +1,4 @@
-import { BrainIcon, BranchIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, HardDriveIcon, MessageIcon, PencilIcon, SparkleIcon, TrashIcon } from "./icons";
+import { BrainIcon, BranchIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, HardDriveIcon, MessageIcon, PencilIcon, SparkleIcon, TrashIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -39,6 +39,8 @@ interface ProjectContextMenuProps {
   onOpenMemory: () => void;
   onBulkDuplicate: () => void;
   onWorktree: () => void;
+  // Omitted when no connected Mac has this project's work to hand over.
+  onBringChanges?: () => void;
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
@@ -78,6 +80,7 @@ export function ProjectContextMenu({
   onOpenMemory,
   onBulkDuplicate,
   onWorktree,
+  onBringChanges,
   onCopyPath,
   onDetach,
   onAttach,
@@ -147,6 +150,13 @@ export function ProjectContextMenu({
         onClick={close(onWorktree)}
         disabled={duplicateDisabled}
       />
+      {onBringChanges && (
+        <ContextMenuItem
+          label="Bring Changes…"
+          icon={<DownloadIcon />}
+          onClick={close(onBringChanges)}
+        />
+      )}
       {!remote && (
         <OpenInBrowserSubmenu
           projectName={projectName}

@@ -54,7 +54,14 @@ export interface BringDone {
 // message instead of a crash.
 const bridge = commands as unknown as Partial<{
   BringChangesTargets(project: string): Promise<BringTarget[]>;
-  BringChangesStart(opts: BringChangesRequest): Promise<string>;
+  BringChangesStart(
+    sourceSlug: string,
+    sourceRoot: string,
+    project: string,
+    mode: BringMode,
+    target: string | undefined,
+    label: string | undefined,
+  ): Promise<string>;
   BringChangesCancel(id: string): Promise<void>;
 }>;
 
@@ -75,7 +82,14 @@ export async function bringChangesStart(
   opts: BringChangesRequest,
 ): Promise<string> {
   if (!bridge.BringChangesStart) throw new Error(UNSUPPORTED);
-  return bridge.BringChangesStart(opts);
+  return bridge.BringChangesStart(
+    opts.sourceSlug,
+    opts.sourceRoot,
+    opts.project,
+    opts.mode,
+    opts.target,
+    opts.label,
+  );
 }
 
 export async function bringChangesCancel(id: string): Promise<void> {

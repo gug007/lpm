@@ -148,8 +148,53 @@ struct WebTerminalView: UIViewRepresentable {
         // common updateUIView case) skip a redundant cross-process evaluateJavaScript.
         private var lastAppliedFontSize = Int.min
         private var lastAppliedThemeKey: String?
+        // App-lifecycle observers, and whether the app has actually been
+        // backgrounded since the last revive (so brief interruptions that never
+        // cost the web view its GPU resources don't trigger one).
+        private var lifecycleObservers: [NSObjectProtocol] = []
+        private var backgrounded = false
 
-        init(model: AppModel, termId: String) { self.model = model; self.termId = termId }
+        init(model: AppModel, termId: String) {
+            self.model = model
+            self.termId = termId
+            super.init()
+            observeLifecycle()
+        }
+
+        deinit { lifecycleObservers.forEach(NotificationCenter.default.removeObserver) }
+
+        private func observeLifecycle() {
+            let center = NotificationCenter.default
+            lifecycleObservers = [
+                center.addObserver(forName: UIApplication.didEnterBackgroundNotification,
+                                   object: nil, queue: .main) { [weak self] _ in
+                    self?.backgrounded = true
+                },
+                center.addObserver(forName: UIApplication.didBecomeActiveNotification,
+                                   object: nil, queue: .main) { [weak self] _ in
+                    guard let self, self.backgrounded else { return }
+                    self.backgrounded = false
+                    self.revive()
+                },
+            ]
+        }
+
+        /// Bring the screen back after the app returns from the background.
+        ///
+        /// Two things go stale while the phone is locked. WebKit reclaims the web
+        /// view's GPU resources — including xterm's WebGL glyph atlas — and the
+        /// renderer keeps drawing from that dead atlas afterwards: cell backgrounds
+        /// still paint but the glyphs come out blank, so the screen reads as empty
+        /// rows with grey blocks. And the screen itself is only replayed when the
+        /// link actually dropped and reconnected, so output that arrived while the
+        /// phone was away is simply missing when it didn't. Rebuild the renderer
+        /// and ask the Mac for a fresh snapshot, so what's on screen is what the
+        /// terminal looks like right now.
+        private func revive() {
+            model?.reseed(termId)
+            guard ready else { return }
+            web?.evaluateJavaScript("window.lpmRevive()")
+        }
 
         /// On gaining ownership, resend the last fitted size so the PTY resizes to
         /// this phone (model.resize drops sizes while not the owner, and a claim

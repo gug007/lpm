@@ -31,17 +31,17 @@ fn tool_command(cwd: &str, program: &str, args: &[&str], envs: &[(&str, &str)]) 
     }
 }
 
-fn git_command(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Command {
+pub(crate) fn git_command(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Command {
     tool_command(cwd, "git", args, envs)
 }
 
 /// Run git in `cwd`, trimmed stdout on success; trimmed stderr (or status) on error.
-fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
+pub(crate) fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
     git_out_env(cwd, args, &[])
 }
 
 /// Like `git_out`, with extra environment variables set on the git process.
-fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
+pub(crate) fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
     let out = git_command(cwd, args, envs)
         .output()
         .map_err(|e| e.to_string())?;

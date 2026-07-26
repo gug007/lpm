@@ -40,6 +40,8 @@ export interface PeerClient {
   connected: boolean;
   supportsSync?: boolean;
   supportsSync2?: boolean;
+  // The peer's build can hand its working state over ("Bring changes").
+  supportsGitBring?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

@@ -31,6 +31,7 @@ const INVOKE_TIMEOUT: Duration = Duration::from_secs(35);
 const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-trip
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // host snapshots ~/.lpm first
 const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
+const GIT_BRING_UNSUPPORTED: &str = "the other Mac needs to update lpm to send its changes";
 const PING_INTERVAL: Duration = Duration::from_secs(20);
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
@@ -56,6 +57,7 @@ struct PeerConn {
     enabled: AtomicBool,
     supports_sync: AtomicBool,  // host advertised the configSync feature in `ready`
     supports_sync2: AtomicBool, // host also advertised configSync2 (revision-aware)
+    supports_git_bring: AtomicBool, // host can hand over its working state as a packfile
     generation: AtomicU64,      // bump to retire the current connection thread
 }
 
@@ -71,6 +73,7 @@ impl PeerConn {
             enabled: AtomicBool::new(true),
             supports_sync: AtomicBool::new(false),
             supports_sync2: AtomicBool::new(false),
+            supports_git_bring: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -159,6 +162,9 @@ impl PeerClientHub {
                 let supports_sync2 = conn
                     .map(|c| c.supports_sync2.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_git_bring = conn
+                    .map(|c| c.supports_git_bring.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
@@ -171,6 +177,7 @@ impl PeerClientHub {
                     "connected": connected,
                     "supportsSync": supports_sync,
                     "supportsSync2": supports_sync2,
+                    "supportsGitBring": supports_git_bring,
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
                     "pinned": p.tls_fp.is_some(),
@@ -474,6 +481,50 @@ impl PeerClientHub {
         drop(guard);
         conn.pending.lock().unwrap().remove(&req);
         result.unwrap_or_else(|| Err("peer request timed out".to_string()))
+    }
+
+    /// Guard: the peer must be connected and its host must speak "bring changes".
+    pub(crate) fn require_git_bring(&self, slug: &str) -> Result<(), String> {
+        let conn = self
+            .inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .cloned()
+            .ok_or_else(|| "unknown peer".to_string())?;
+        if !conn.connected.load(Ordering::Relaxed) {
+            return Err("peer not connected".to_string());
+        }
+        if !conn.supports_git_bring.load(Ordering::Relaxed) {
+            return Err(GIT_BRING_UNSUPPORTED.to_string());
+        }
+        Ok(())
+    }
+
+    /// Send one bring-changes frame and block on its reply. The caller supplies
+    /// the whole frame (verb + args); the reqId is filled in here so it shares the
+    /// same correlation machinery as invoke and config sync.
+    pub(crate) fn bring_request(
+        &self,
+        slug: &str,
+        timeout: Duration,
+        frame: Value,
+    ) -> Result<Value, String> {
+        self.request_blocking(slug, timeout, |req| {
+            let mut f = frame;
+            f["reqId"] = json!(req);
+            f
+        })
+    }
+
+    /// The display name this Mac knows the peer by — used to name a branch when
+    /// the remote HEAD is detached. Read from config, never from the frontend.
+    pub(crate) fn peer_alias(&self, slug: &str) -> String {
+        self.peer_entry(slug)
+            .map(|p| p.alias)
+            .filter(|a| !a.trim().is_empty())
+            .unwrap_or_else(|| slug.to_string())
     }
 
     /// Guard: the peer must be connected and its host must speak config sync.
@@ -1216,6 +1267,10 @@ fn connect_session(
         .store(has_feature(crate::peersync::SYNC_FEATURE), Ordering::Relaxed);
     conn.supports_sync2
         .store(has_feature(crate::peersync::SYNC_FEATURE2), Ordering::Relaxed);
+    conn.supports_git_bring.store(
+        has_feature(crate::gitbringhost::GIT_BRING_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);

@@ -44,6 +44,9 @@ import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { ProjectContextMenu } from "./ProjectContextMenu";
 import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
+import { BringChangesDialog } from "./BringChangesDialog";
+import { bringChangesEntry } from "./bringChangesSources";
+import { bringChangesSupported } from "../bringChangesApi";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
@@ -158,6 +161,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // seeded with a project to drop into the new folder.
   const [createFolder, setCreateFolder] = useState<{ initialMembers?: string[] } | null>(null);
   const [bulkDuplicate, setBulkDuplicate] = useState<{ name: string; mode: DuplicateMode } | null>(null);
+  // The local project a "Bring Changes…" dialog targets, plus the Mac it was
+  // opened from (the peer row's own Mac, or the first one offering the project).
+  const [bringChanges, setBringChanges] = useState<{ name: string; slug: string } | null>(null);
   const [gitModal, setGitModal] = useState<GitModalTarget | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
@@ -198,6 +204,16 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
+
+  // Right-clicking either the local project or its row under a peer resolves to
+  // the same local target; only the preselected source Mac differs.
+  const bringEntry = useMemo(
+    () =>
+      contextMenu && bringChangesSupported()
+        ? bringChangesEntry(projects, peerState.peers, contextMenu.name)
+        : null,
+    [contextMenu, projects, peerState.peers],
+  );
 
   // Lookup across BOTH local and peer projects. projectByName (built later) holds
   // only local projects since it drives the reorderable tree; context-menu-driven
@@ -960,6 +976,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onOpenMemory={() => onOpenProjectView(contextMenu.name, "memory")}
             onBulkDuplicate={() => setBulkDuplicate({ name: contextMenu.name, mode: "copy" })}
             onWorktree={() => setBulkDuplicate({ name: contextMenu.name, mode: "worktree" })}
+            onBringChanges={
+              bringEntry
+                ? () =>
+                    setBringChanges({
+                      name: bringEntry.project.name,
+                      slug: bringEntry.initialSlug,
+                    })
+                : undefined
+            }
             onCopyPath={() => {
               // Copy the host-native path; the /@peer-… marker is a routing key,
               // meaningless outside lpm (a no-op strip for local projects).
@@ -1122,6 +1147,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           setBulkDuplicate(null);
         }}
       />
+      {bringChanges && (
+        <BringChangesDialog
+          projectName={bringChanges.name}
+          initialSourceSlug={bringChanges.slug}
+          onClose={() => setBringChanges(null)}
+        />
+      )}
       <ProjectRenameModal
         open={renamingName !== null}
         displayName={

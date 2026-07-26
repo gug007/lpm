@@ -27,6 +27,7 @@ function render(props: Partial<Parameters<typeof ComposerMemoryButton>[0]> = {})
         infoById={INFO}
         onOpen={props.onOpen ?? vi.fn()}
         onPick={props.onPick ?? vi.fn()}
+        onDelete={props.onDelete ?? vi.fn()}
         {...props}
       />,
     );
@@ -77,6 +78,38 @@ describe("ComposerMemoryButton", () => {
 
     expect(onPick).toHaveBeenCalledWith(SESSIONS[0]);
     expect(rows()).toHaveLength(0);
+  });
+
+  it("deletes only after the confirmation is accepted", () => {
+    const onDelete = vi.fn();
+    render({ onDelete });
+    click(trigger());
+    click(document.querySelector("button[aria-label='Delete auth-refactor']")!);
+
+    expect(document.body.textContent).toContain("Delete session?");
+    expect(onDelete).not.toHaveBeenCalled();
+
+    click(rows().find((b) => b.textContent === "Delete")!);
+
+    expect(onDelete).toHaveBeenCalledWith(SESSIONS[0]);
+    expect(document.body.textContent).not.toContain("Delete session?");
+    // The panel outlives the delete, so more rows can be cleared in one pass.
+    expect(document.body.textContent).toContain("Continue a session");
+  });
+
+  it("keeps the session on cancel, and Escape closes the dialog before the panel", () => {
+    const onDelete = vi.fn();
+    render({ onDelete });
+    click(trigger());
+    click(document.querySelector("button[aria-label='Delete billing']")!);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain("Delete session?");
+    expect(document.body.textContent).toContain("Continue a session");
   });
 
   it("offers the bare invocation with no sessions saved", () => {

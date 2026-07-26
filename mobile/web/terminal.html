@@ -63,11 +63,51 @@
   // win over xterm's default DOM renderer (far less layout/paint on each write).
   // If the WebGL context is lost or unavailable, dispose and fall back silently
   // to the DOM renderer so the terminal keeps working.
-  try {
-    const webgl = new WebglAddon.WebglAddon();
-    webgl.onContextLoss(() => webgl.dispose());
-    term.loadAddon(webgl);
-  } catch (e) {}
+  let webgl = null, webglAvailable = true;
+  function repaint() {
+    try { term.refresh(0, term.rows - 1); } catch (e) {}
+  }
+  function loadWebgl() {
+    if (!webglAvailable) return;
+    try {
+      const addon = new WebglAddon.WebglAddon();
+      addon.onContextLoss(() => {
+        addon.dispose();
+        if (webgl === addon) webgl = null;
+        repaint();
+      });
+      term.loadAddon(addon);
+      webgl = addon;
+    } catch (e) {
+      webgl = null;
+      webglAvailable = false;
+    }
+  }
+  loadWebgl();
+
+  // Backgrounding the app (locking the phone) lets WebKit reclaim the web view's
+  // GPU resources, including the WebGL glyph atlas texture — without the context
+  // itself being reported lost. The renderer then keeps drawing from a dead
+  // atlas: cell backgrounds still paint but every cached glyph comes out blank,
+  // so the screen reads as empty rows with grey blocks. Rebuild the atlas (or the
+  // whole renderer, if the context did go away) and repaint every row. Swift
+  // calls this when the app is back on screen; visibilitychange covers the
+  // transitions WebKit reports to the page itself.
+  window.lpmRevive = () => {
+    if (webgl) {
+      try {
+        webgl.clearTextureAtlas();
+      } catch (e) {
+        try { webgl.dispose(); } catch (e2) {}
+        webgl = null;
+      }
+    }
+    if (!webgl) loadWebgl();
+    repaint();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') window.lpmRevive();
+  });
 
   // Keystrokes → Swift → server. xterm hands us a UTF-8 string already.
   //

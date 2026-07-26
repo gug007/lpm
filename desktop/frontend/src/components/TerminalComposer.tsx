@@ -12,6 +12,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import {
+  DeleteMemorySession,
   GetServiceLogs,
   NotesReadFileAsInput,
   ReadClipboardFiles,
@@ -1515,6 +1516,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
   };
 
+  const deleteMemorySession = async (item: MentionItem) => {
+    try {
+      await DeleteMemorySession(projectName, item.insert);
+      reloadMemorySessions();
+    } catch (err) {
+      toast.error(`Delete memory: ${String(err)}`);
+    }
+  };
+
   // Capture the service's current pane output (an async tmux grab) and inject it.
   const insertServiceLog = async (editor: HTMLDivElement, item: MentionItem) => {
     let body = "";
@@ -2097,6 +2107,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 infoById={memorySessionById}
                 onOpen={reloadMemorySessions}
                 onPick={insertMemorySession}
+                onDelete={(item) => void deleteMemorySession(item)}
               />
             )}
           </div>

@@ -12,11 +12,17 @@ interface CopyMacSelectProps {
   options: CopyTargetOption[];
   value: string;
   onChange: (name: string) => void;
+  title?: string;
 }
 
 const PANEL_WIDTH = 240;
 
-export function CopyMacSelect({ options, value, onChange }: CopyMacSelectProps) {
+export function CopyMacSelect({
+  options,
+  value,
+  onChange,
+  title = "Which Mac this copy is created on",
+}: CopyMacSelectProps) {
   const [open, setOpen] = useState(false);
   const { triggerRef, panelRef, style } = useAnchoredPanel<
     HTMLButtonElement,
@@ -70,7 +76,7 @@ export function CopyMacSelect({ options, value, onChange }: CopyMacSelectProps) 
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title="Which Mac this copy is created on"
+        title={title}
         className={`flex h-9 w-[7.5rem] shrink-0 items-center gap-1.5 rounded-lg border bg-[var(--bg-secondary)] pl-2.5 pr-2 text-[12px] font-medium transition-colors ${
           open
             ? "border-[var(--accent-cyan)]/50 text-[var(--text-primary)]"

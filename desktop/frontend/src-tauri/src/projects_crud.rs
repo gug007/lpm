@@ -629,17 +629,17 @@ fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
 /// The reserved name and resolved paths for one duplicate, produced by the fast
 /// synchronous phase so a caller learns the copy's name before the slow clone
 /// runs.
-struct DuplicatePlan {
+pub(crate) struct DuplicatePlan {
     src_root: String,
     original: String,
-    new_name: String,
-    new_root: PathBuf,
+    pub(crate) new_name: String,
+    pub(crate) new_root: PathBuf,
 }
 
 /// Cheap, filesystem-light validation shared by the local and remote duplicate
 /// flows: resolve the source root and reserve a unique copy name. Never runs the
 /// clone, so it's safe inline before handing the slow work to a background thread.
-fn prepare_duplicate(name: &str) -> Result<DuplicatePlan, String> {
+pub(crate) fn prepare_duplicate(name: &str) -> Result<DuplicatePlan, String> {
     let src = load_root_and_parent(name)?;
     if src.root.trim().is_empty() {
         return Err("cannot duplicate an SSH project (no local root)".into());
@@ -665,7 +665,7 @@ fn prepare_duplicate(name: &str) -> Result<DuplicatePlan, String> {
 /// the copy's config. On any failure before the config is written the partial
 /// folder is removed; a failed reinstall leaves the (already written) copy in
 /// place, matching the previous synchronous behavior.
-fn run_duplicate(
+pub(crate) fn run_duplicate(
     app: &AppHandle,
     plan: &DuplicatePlan,
     label: Option<&str>,

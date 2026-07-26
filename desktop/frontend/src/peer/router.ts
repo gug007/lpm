@@ -36,6 +36,12 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "terminal_present_control",
   "terminal_unpresent_control",
   "terminal_control_owner",
+  // "Bring changes" always runs on the Mac that RECEIVES the work, and names the
+  // source Mac in its arguments. Forwarding it would make the sender bring its
+  // own changes to itself; the Rust side accepts marked or bare identifiers.
+  "bring_changes_targets",
+  "bring_changes_start",
+  "bring_changes_cancel",
 ]);
 
 export function isLocalOnlyCommand(cmd: string): boolean {

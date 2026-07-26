@@ -20,6 +20,10 @@ mod files;
 mod fsatomic;
 mod generated_commands;
 mod git;
+mod gitbring;
+mod gitbringapply;
+mod gitbringhost;
+mod gitbringrun;
 mod hooks;
 mod jobs;
 mod log_streaming;
@@ -89,6 +93,7 @@ use files::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 use git::*;
+use gitbring::{bring_changes_cancel, bring_changes_start, bring_changes_targets};
 use hooks::*;
 use jobs::*;
 use log_streaming::*;

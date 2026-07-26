@@ -724,7 +724,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
-                        "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2] })
+                        "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2,
+                            crate::gitbringhost::GIT_BRING_FEATURE] })
                     .to_string(),
                 ));
                 Some(id.to_string())
@@ -1022,6 +1023,12 @@ fn handle_msg(
         // proxy (nor its denylist). The client only sends these after seeing the
         // configSync feature in `ready`, so an older host simply ignores them.
         "syncDigest" | "syncFetch" | "syncApply" => handle_sync(app, out, t, &v),
+        // Bring changes — the asking Mac pulls this Mac's working state as one
+        // packfile. Same shape as config sync: dedicated frames, gated on the
+        // gitBring feature so an older host simply ignores them.
+        "gitBringPrepare" | "gitBringChunk" | "gitBringDone" => {
+            crate::gitbringhost::handle_bring(out, t, &v)
+        }
         _ => {}
     }
     Ok(())
@@ -1130,7 +1137,7 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     }
 }
 
-fn result_frame(req_id: &Value, ok: bool, value: Value) -> String {
+pub(crate) fn result_frame(req_id: &Value, ok: bool, value: Value) -> String {
     json!({ "t": "result", "reqId": req_id, "ok": ok, "value": value }).to_string()
 }
 

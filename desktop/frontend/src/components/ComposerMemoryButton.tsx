@@ -6,7 +6,8 @@ import { useOverlay } from "../store/overlay";
 import { relativeTime } from "../relativeTime";
 import type { MemorySessionInfo } from "../hooks/useMemorySessions";
 import type { MentionItem } from "../mentions";
-import { BrainIcon } from "./icons";
+import { BrainIcon, TrashIcon } from "./icons";
+import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
@@ -24,13 +25,16 @@ interface ComposerMemoryButtonProps {
   // Writes the chosen invocation into the composer; an empty `insert` means
   // "remember this conversation" (the bare command, no session argument).
   onPick: (item: MentionItem) => void;
+  // Removes the session file, after the user confirms here.
+  onDelete: (item: MentionItem) => void;
 }
 
 // Footer control beside Drafts: the same memory pool the "@" menu drills into,
 // reachable without typing. Picking a row drops the skill invocation into the
 // composer for the user to review and send.
-export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: ComposerMemoryButtonProps) {
+export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onDelete }: ComposerMemoryButtonProps) {
   const [open, setOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<MentionItem | null>(null);
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
     open,
     onClose: () => setOpen(false),
@@ -42,18 +46,22 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
 
   useOverlay(open);
 
-  // Escape closes the panel first; captured so it doesn't also reach the
-  // composer's own handler, which would refocus the terminal underneath.
+  // Escape dismisses the confirmation first, then the panel; captured so it
+  // doesn't also reach the composer's own handler, which would refocus the
+  // terminal underneath. The editor keeps focus throughout, so its handler —
+  // which stops propagation — would otherwise swallow Escape before the dialog
+  // ever saw it.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
-      setOpen(false);
+      if (pendingDelete) setPendingDelete(null);
+      else setOpen(false);
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open]);
+  }, [open, pendingDelete]);
 
   // Keep clicks from pulling focus off the composer editor; the caret stays put
   // so the invocation lands where the user was typing.
@@ -62,6 +70,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
   const toggle = () => {
     if (open) {
       setOpen(false);
+      setPendingDelete(null);
       return;
     }
     onOpen();
@@ -71,6 +80,14 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
   const pick = (item: MentionItem) => {
     setOpen(false);
     onPick(item);
+  };
+
+  // The panel stays open afterwards: deleting is a tidy-up pass, usually more
+  // than one row at a time, and the list reloads underneath.
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    onDelete(pendingDelete);
+    setPendingDelete(null);
   };
 
   return (
@@ -134,7 +151,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
                     {sessions.map((session) => {
                       const updatedAt = infoById.get(session.insert)?.updatedAt;
                       return (
-                        <li key={session.insert}>
+                        <li key={session.insert} className="group/row relative">
                           <button
                             type="button"
                             onMouseDown={keepEditorFocus}
@@ -156,10 +173,20 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
                               )}
                             </span>
                             {updatedAt !== undefined && (
-                              <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
+                              <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)] group-hover/row:invisible">
                                 {relativeTime(updatedAt)}
                               </span>
                             )}
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={keepEditorFocus}
+                            onClick={() => setPendingDelete(session)}
+                            title="Delete session"
+                            aria-label={`Delete ${session.label}`}
+                            className="absolute right-2 top-1/2 hidden h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors group-hover/row:flex hover:bg-[var(--bg-primary)] hover:text-[var(--accent-red)]"
+                          >
+                            <TrashIcon size={12} />
                           </button>
                         </li>
                       );
@@ -171,6 +198,25 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick }: Com
           </div>,
           document.body,
         )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete session?"
+        body={
+          <>
+            <span className="font-medium text-[var(--text-primary)]">
+              {(pendingDelete && infoById.get(pendingDelete.insert)?.title) ||
+                pendingDelete?.label}
+            </span>{" "}
+            will be gone for good — agents won't be able to pick this work up again.
+          </>
+        }
+        confirmLabel="Delete"
+        variant="destructive"
+        zIndexClassName="z-[90]"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
