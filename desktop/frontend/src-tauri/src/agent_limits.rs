@@ -49,6 +49,59 @@ pub struct ProviderLimits {
     pub updated_at: i64,
 }
 
+/// Pick between the stored and incoming reading of one window. Every concurrent
+/// session reports its own last-seen snapshot, so an idle session can push a
+/// reading minutes older than what we already have; taking it verbatim makes the
+/// meter oscillate. Usage only grows inside a window, so the newer reading is the
+/// one with the later `resets_at`, or the higher percent within the same window.
+/// The bool is true only when `next` strictly won.
+fn pick_window(
+    prev: Option<&LimitWindow>,
+    next: Option<LimitWindow>,
+    now: i64,
+) -> (Option<LimitWindow>, bool) {
+    match (prev, next) {
+        (_, None) => (
+            // A snapshot that omits a window says nothing about it; keep what we
+            // know until that window's reset makes it meaningless.
+            prev.filter(|p| p.resets_at == 0 || p.resets_at > now).cloned(),
+            false,
+        ),
+        (None, Some(n)) => (Some(n), true),
+        (Some(p), Some(n)) => {
+            let newer = n.resets_at > p.resets_at
+                || (n.resets_at == p.resets_at && n.used_percent > p.used_percent);
+            if newer {
+                (Some(n), true)
+            } else {
+                (Some(p.clone()), false)
+            }
+        }
+    }
+}
+
+/// Fold an incoming reading into the stored one, keeping the freshest value per
+/// window. `updated_at` always takes the incoming value — it tracks when we last
+/// heard from the provider, not which reading won.
+fn merge_limits(prev: &ProviderLimits, next: ProviderLimits, now: i64) -> ProviderLimits {
+    let (five_hour, five_fresh) = pick_window(prev.five_hour.as_ref(), next.five_hour, now);
+    let (weekly, weekly_fresh) = pick_window(prev.weekly.as_ref(), next.weekly, now);
+    let stale_report = !five_fresh && !weekly_fresh;
+    let label = if stale_report {
+        prev.label.clone().or(next.label)
+    } else {
+        next.label.or_else(|| prev.label.clone())
+    };
+    ProviderLimits {
+        provider: next.provider,
+        account_id: next.account_id,
+        label,
+        five_hour,
+        weekly,
+        updated_at: next.updated_at,
+    }
+}
+
 /// Everything except `updated_at` — the fields whose change warrants an emit.
 fn meaningful_eq(a: &ProviderLimits, b: &ProviderLimits) -> bool {
     a.provider == b.provider
@@ -70,13 +123,18 @@ impl AgentLimitsStore {
         Self::default()
     }
 
-    /// Insert/replace `limits` under `key`; returns whether meaningful fields
-    /// changed (the caller emits only then). The stored `updated_at` always
-    /// advances so a later fetch reports fresh data even on a no-op re-report.
-    pub fn set(&self, key: &str, limits: ProviderLimits) -> bool {
+    /// Fold `limits` into whatever is stored under `key`; returns whether
+    /// meaningful fields changed (the caller emits only then). The stored
+    /// `updated_at` always advances so a later fetch reports fresh data even on a
+    /// no-op re-report. `now` is unix seconds, injected for testability.
+    pub fn set(&self, key: &str, limits: ProviderLimits, now: i64) -> bool {
         let mut m = self.entries.write().unwrap();
-        let changed = m.get(key).map(|e| !meaningful_eq(e, &limits)).unwrap_or(true);
-        m.insert(key.to_string(), limits);
+        let merged = match m.get(key) {
+            Some(prev) => merge_limits(prev, limits, now),
+            None => limits,
+        };
+        let changed = m.get(key).map(|e| !meaningful_eq(e, &merged)).unwrap_or(true);
+        m.insert(key.to_string(), merged);
         changed
     }
 
@@ -247,10 +305,11 @@ fn refresh_codex(app: &AppHandle, store: &AgentLimitsStore) {
     let Some(path) = newest_rollout(&codex_sessions_dir()) else {
         return;
     };
-    let Some(limits) = parse_codex_file(&path, now_secs(), now_millis()) else {
+    let now = now_secs();
+    let Some(limits) = parse_codex_file(&path, now, now_millis()) else {
         return;
     };
-    if store.set("codex", limits) {
+    if store.set("codex", limits, now) {
         emit_snapshot(app, store);
     }
 }
@@ -373,7 +432,7 @@ pub fn ingest_from_socket(
         return "ERROR: invalid JSON payload".into();
     };
     if let Some(limits) = parse_claude_payload(account_id, &payload, now_millis()) {
-        if store.set(&claude_store_key(account_id), limits) {
+        if store.set(&claude_store_key(account_id), limits, now_secs()) {
             emit_snapshot(app, store);
         }
     }
@@ -513,25 +572,116 @@ mod tests {
         assert!(l.label.is_none());
     }
 
-    #[test]
-    fn store_set_reports_meaningful_change_only() {
-        let s = AgentLimitsStore::new();
-        let mk = |pct: f64, updated: i64| ProviderLimits {
+    fn codex_limits(pct: f64, resets_at: i64, updated: i64) -> ProviderLimits {
+        ProviderLimits {
             provider: "codex".into(),
             five_hour: Some(LimitWindow {
                 used_percent: pct,
-                resets_at: 1,
+                resets_at,
             }),
             updated_at: updated,
             ..Default::default()
-        };
-        assert!(s.set("codex", mk(10.0, 1)), "first insert changes");
+        }
+    }
+
+    #[test]
+    fn store_set_reports_meaningful_change_only() {
+        let s = AgentLimitsStore::new();
+        assert!(s.set("codex", codex_limits(10.0, 1, 1), 0), "first insert changes");
         assert!(
-            !s.set("codex", mk(10.0, 999)),
+            !s.set("codex", codex_limits(10.0, 1, 999), 0),
             "same values, newer timestamp -> no emit"
         );
-        assert!(s.set("codex", mk(20.0, 1000)), "percent change -> emit");
+        assert!(s.set("codex", codex_limits(20.0, 1, 1000), 0), "percent change -> emit");
         // updated_at still advanced in the store.
         assert_eq!(s.snapshot().get("codex").unwrap().updated_at, 1000);
+    }
+
+    fn claude_limits(five: Option<f64>, weekly: Option<f64>, resets_at: i64) -> ProviderLimits {
+        ProviderLimits {
+            provider: "claude".into(),
+            account_id: Some("default".into()),
+            five_hour: five.map(|used_percent| LimitWindow {
+                used_percent,
+                resets_at,
+            }),
+            weekly: weekly.map(|used_percent| LimitWindow {
+                used_percent,
+                resets_at: resets_at + 100,
+            }),
+            updated_at: 0,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn idle_session_snapshot_never_walks_a_meter_backwards() {
+        // Every concurrent Claude session forwards its own last-seen snapshot
+        // under the same account key; the idle one is behind and must not win.
+        let s = AgentLimitsStore::new();
+        s.set("claude:default", claude_limits(Some(36.0), Some(51.0), 9_000), 0);
+        assert!(
+            !s.set("claude:default", claude_limits(Some(25.0), Some(48.0), 9_000), 0),
+            "stale reading changes nothing -> no emit"
+        );
+        let stored = s.snapshot();
+        let stored = stored.get("claude:default").unwrap();
+        assert_eq!(stored.five_hour.as_ref().unwrap().used_percent, 36.0);
+        assert_eq!(stored.weekly.as_ref().unwrap().used_percent, 51.0);
+    }
+
+    #[test]
+    fn window_reset_is_adopted_even_though_percent_drops() {
+        let s = AgentLimitsStore::new();
+        s.set("claude:default", claude_limits(Some(96.0), None, 9_000), 0);
+        assert!(s.set("claude:default", claude_limits(Some(2.0), None, 27_000), 0));
+        let stored = s.snapshot();
+        let five = stored.get("claude:default").unwrap().five_hour.clone().unwrap();
+        assert_eq!(five.used_percent, 2.0);
+        assert_eq!(five.resets_at, 27_000);
+    }
+
+    #[test]
+    fn omitted_window_is_kept_until_it_resets() {
+        // Codex rollout lines often carry only one of the two windows.
+        let s = AgentLimitsStore::new();
+        s.set("codex", codex_limits(40.0, 9_000, 0), 0);
+        let weekly_only = || ProviderLimits {
+            provider: "codex".into(),
+            weekly: Some(LimitWindow {
+                used_percent: 32.0,
+                resets_at: 500_000,
+            }),
+            ..Default::default()
+        };
+        s.set("codex", weekly_only(), 8_000);
+        assert_eq!(
+            s.snapshot().get("codex").unwrap().five_hour.as_ref().unwrap().used_percent,
+            40.0,
+            "5-hour survives a weekly-only report"
+        );
+        // Past its reset the retained window is meaningless, so it drops out.
+        s.set("codex", weekly_only(), 9_001);
+        let stored = s.snapshot();
+        let stored = stored.get("codex").unwrap();
+        assert!(stored.five_hour.is_none(), "expired window is not kept");
+        assert_eq!(stored.weekly.as_ref().unwrap().used_percent, 32.0);
+    }
+
+    #[test]
+    fn stale_report_does_not_steal_the_model_badge() {
+        // Sessions run different models; the badge follows whichever session's
+        // reading we are actually showing.
+        let s = AgentLimitsStore::new();
+        let mut fresh = claude_limits(Some(36.0), None, 9_000);
+        fresh.label = Some("Opus 5".into());
+        s.set("claude:default", fresh, 0);
+        let mut stale = claude_limits(Some(25.0), None, 9_000);
+        stale.label = Some("Fable 5".into());
+        assert!(!s.set("claude:default", stale, 0), "no emit for a stale report");
+        assert_eq!(
+            s.snapshot().get("claude:default").unwrap().label.as_deref(),
+            Some("Opus 5")
+        );
     }
 }
