@@ -9,10 +9,33 @@ permissions:
   contents: write
 
 jobs:
+  # scripts/release.sh --local builds and notarizes on a Mac, then publishes a
+  # draft release with both DMGs already attached — publishing creates the tag,
+  # which lands here. Nothing left to do in that case, so skip the rebuild.
+  guard:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          assets=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '[.assets[].name] | join(" ")' 2>/dev/null || true)
+          if [[ "$assets" == *macos-arm64.dmg* && "$assets" == *macos-amd64.dmg* ]]; then
+            echo "$GITHUB_REF_NAME already has both DMGs — skipping the build"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # Each architecture builds on its own runner so the two Rust release
   # compilations (the bulk of the wall-clock) run in parallel instead of
   # back-to-back on a single machine.
   build:
+    needs: guard
+    if: needs.guard.outputs.build == 'true'
     runs-on: macos-14
     strategy:
       fail-fast: false

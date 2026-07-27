@@ -6,6 +6,8 @@ docs/superpowers/
 
 # Desktop app
 desktop/frontend/dist/
+# DMGs staged by scripts/release-local.sh
+/dist/
 desktop/frontend/node_modules/
 desktop/frontend/src-tauri/target/
 

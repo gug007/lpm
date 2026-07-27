@@ -1,15 +1,31 @@
 #!/bin/sh
+# Bump to the next version tag and release it.
+#
+#   scripts/release.sh [patch|minor|major]            tag + push; GitHub Actions builds
+#   scripts/release.sh [patch|minor|major] --local    build, notarize and publish from this Mac
+#
+# --local forwards --arch, --allow-dirty and --no-publish to release-local.sh.
 set -e
 
-BUMP="${1:-patch}"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
-case "$BUMP" in
-  patch|minor|major) ;;
-  *)
-    echo "error: bump must be one of: patch, minor, major (got '$BUMP')" >&2
-    exit 1
-    ;;
-esac
+BUMP=patch
+LOCAL=0
+LOCAL_ARGS=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    patch|minor|major) BUMP="$1" ;;
+    --local) LOCAL=1 ;;
+    --allow-dirty|--no-publish) LOCAL_ARGS="$LOCAL_ARGS $1" ;;
+    --arch) LOCAL_ARGS="$LOCAL_ARGS $1 $2"; shift ;;
+    *)
+      echo "error: unknown argument '$1' (expected patch, minor, major, or a --flag)" >&2
+      exit 1
+      ;;
+  esac
+  shift
+done
 
 LATEST=$(git tag -l 'v*' --sort=-v:refname | head -1)
 
@@ -32,6 +48,13 @@ case "$BUMP" in
 esac
 
 echo "$LATEST -> $NEXT ($BUMP)"
+
+if [ "$LOCAL" -eq 1 ]; then
+  # release-local.sh creates the tag itself: it publishes a draft release with
+  # the DMGs attached first, so the tag only appears once the assets are there.
+  exec "$SCRIPT_DIR/release-local.sh" "$NEXT" $LOCAL_ARGS
+fi
+
 git tag "$NEXT"
 git push origin "$NEXT"
 echo "Released $NEXT"
