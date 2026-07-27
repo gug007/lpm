@@ -452,8 +452,10 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     theme: getTerminalTheme(),
     allowProposedApi: true,
     vtExtensions: { kittyKeyboard: true },
-    // Mouse-owning apps suppress local selection; ⌥ drag opts back into it.
-    macOptionClickForcesSelection: true,
+    // Plain drag always makes a local selection, even when the running app
+    // owns the mouse (Claude Code); ⌥ hands the mouse to the app instead.
+    // Wheel is exempt, so app-side scrolling keeps working.
+    mouseEventsRequireAlt: true,
     // On mac xterm word-selects under a right-click by default. That phantom
     // selection would shadow the running app's own selection in the context
     // menu, making Copy grab the word under the cursor instead of asking the
@@ -484,9 +486,9 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     term.unicode.activeVersion = "11";
   } catch {}
 
-  // When an app owns the mouse it also owns the selection: Claude Code
-  // highlights dragged text itself and lifts it to the clipboard on Ctrl+C
-  // while that selection is active (with copyOnSelect it copies at mouseup
+  // With mouseEventsRequireAlt only ⌥ drags reach a mouse-owning app, and the
+  // app then owns that selection: Claude Code highlights dragged text itself
+  // and lifts it to the clipboard on Ctrl+C while that selection is active (with copyOnSelect it copies at mouseup
   // instead and the Ctrl+C just clears the highlight — still consumed, never
   // an interrupt). Its kitty cmd+c binding is NOT active at the REPL (probed
   // 2.1.208), so translating ⌘C into Ctrl+C stays the only copy trigger lpm
