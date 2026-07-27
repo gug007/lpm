@@ -14,7 +14,7 @@ import {
   PullBranch,
   RenameBranch,
 } from "../../bridge/commands";
-import { getSettings, useSettingsStore } from "../store/settings";
+import { getSettings } from "../store/settings";
 import { aiEffectiveFast } from "../types";
 import { runAutoCommit } from "../autoCommit";
 import { useAIPicker } from "../hooks/useAIPicker";
@@ -91,8 +91,6 @@ export function BranchSwitcher({
   const pruningRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const ai = useAIPicker(commitMenuOpen);
-  const autoGenerate =
-    useSettingsStore((s) => s.autoGenerateCommitMessage) ?? false;
 
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
     () => setCommitMenuOpen(false),
@@ -689,7 +687,7 @@ export function BranchSwitcher({
                       <MergeMenuIcon />
                       Merge
                     </button>
-                    {autoGenerate && ai.anyAvailable && (
+                    {ai.anyAvailable && (
                       <>
                         <div className="my-1.5 border-t border-[var(--border)]" />
                         <button
