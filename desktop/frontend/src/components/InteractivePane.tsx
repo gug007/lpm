@@ -452,9 +452,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     theme: getTerminalTheme(),
     allowProposedApi: true,
     vtExtensions: { kittyKeyboard: true },
-    // Plain drag always makes a local selection, even when the running app
-    // owns the mouse (Claude Code); ⌥ hands the mouse to the app instead.
-    // Wheel is exempt, so app-side scrolling keeps working.
+    // Re-synced per buffer below; true covers the normal buffer it starts on.
     mouseEventsRequireAlt: true,
     // On mac xterm word-selects under a right-click by default. That phantom
     // selection would shadow the running app's own selection in the context
@@ -486,9 +484,23 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     term.unicode.activeVersion = "11";
   } catch {}
 
-  // With mouseEventsRequireAlt only ⌥ drags reach a mouse-owning app, and the
-  // app then owns that selection: Claude Code highlights dragged text itself
-  // and lifts it to the clipboard on Ctrl+C while that selection is active (with copyOnSelect it copies at mouseup
+  // Local plain-drag selection only pays off where scrollback exists: on the
+  // normal buffer a drag past the top edge scrolls through history, so plain
+  // drags select locally and ⌥ hands the mouse to the app. The alternate
+  // screen has no scrollback — only the app can scroll — so there plain drags
+  // go to the app, whose own selection follows its scrolling past the fold
+  // (Claude Code's fullscreen renderer autoscrolls a drag pinned at the top
+  // row). Wheel is exempt from the gate either way.
+  const syncMouseAltGate = () => {
+    term.options.mouseEventsRequireAlt = term.buffer.active.type === "normal";
+  };
+  syncMouseAltGate();
+  term.buffer.onBufferChange(syncMouseAltGate);
+
+  // When drags reach a mouse-owning app (⌥ drag on the normal buffer, any
+  // drag on the alternate screen), the app owns that selection: Claude Code
+  // highlights dragged text itself and lifts it to the clipboard on Ctrl+C
+  // while that selection is active (with copyOnSelect it copies at mouseup
   // instead and the Ctrl+C just clears the highlight — still consumed, never
   // an interrupt). Its kitty cmd+c binding is NOT active at the REPL (probed
   // 2.1.208), so translating ⌘C into Ctrl+C stays the only copy trigger lpm

@@ -16,6 +16,12 @@ const INFO = new Map<string, MemorySessionInfo>([
   ["billing", { title: "Stripe migration", updatedAt: Date.now(), preview: "" }],
 ]);
 
+const MANY: MentionItem[] = [
+  ...SESSIONS,
+  { kind: "memory", label: "search-ui", insert: "search-ui", detail: "Composer memory picker" },
+  { kind: "memory", label: "ports", insert: "ports", detail: "Service port detection" },
+];
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -44,6 +50,24 @@ function click(el: Element) {
 const trigger = () => container.querySelector("button[aria-label='Memory']")!;
 const rows = () =>
   Array.from(document.querySelectorAll("body button")).filter((b) => !container.contains(b));
+const search = () => document.querySelector<HTMLInputElement>("input[aria-label='Search sessions']");
+
+// React tracks the input's value on the node, so setting it through the native
+// setter is what makes onChange see the new text.
+function type(text: string) {
+  const input = search()!;
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+  act(() => {
+    setValue.call(input, text);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function key(name: string) {
+  act(() => {
+    search()!.dispatchEvent(new KeyboardEvent("keydown", { key: name, bubbles: true }));
+  });
+}
 
 beforeEach(() => {
   container = document.createElement("div");
@@ -123,6 +147,61 @@ describe("ComposerMemoryButton", () => {
     expect(onDelete).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toContain("Delete session?");
     expect(document.body.textContent).toContain("Continue a session");
+  });
+
+  it("keeps the plain list at three sessions and searches from four", () => {
+    render({ sessions: MANY.slice(0, 3), infoById: new Map() });
+    click(trigger());
+    expect(search()).toBeNull();
+    expect(document.body.textContent).toContain("Continue a session");
+
+    click(trigger());
+    render({ sessions: MANY, infoById: new Map() });
+    click(trigger());
+    expect(search()).not.toBeNull();
+  });
+
+  it("filters on id and title, and Enter picks the highlighted match", () => {
+    const onPick = vi.fn();
+    render({ sessions: MANY, infoById: new Map(), onPick });
+    click(trigger());
+
+    type("stripe");
+    const labels = rows().map((b) => b.textContent ?? "");
+    expect(labels.join(" ")).toContain("billing");
+    expect(labels.join(" ")).not.toContain("auth-refactor");
+
+    key("Enter");
+    expect(onPick).toHaveBeenCalledWith(MANY[1]);
+  });
+
+  it("walks matches with the arrow keys", () => {
+    const onPick = vi.fn();
+    render({ sessions: MANY, infoById: new Map(), onPick });
+    click(trigger());
+
+    key("ArrowDown");
+    key("Enter");
+    expect(onPick).toHaveBeenCalledWith(MANY[1]);
+  });
+
+  it("reports an empty search, and Escape clears it before closing", () => {
+    render({ sessions: MANY, infoById: new Map() });
+    click(trigger());
+    type("nothing-here");
+
+    expect(document.body.textContent).toContain("No session matches");
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(search()!.value).toBe("");
+    expect(document.body.textContent).toContain("auth-refactor");
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(rows()).toHaveLength(0);
   });
 
   it("offers the bare invocation with no sessions saved", () => {

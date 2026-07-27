@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { Eye, Plus } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
@@ -6,12 +6,15 @@ import { useOverlay } from "../store/overlay";
 import { relativeTime } from "../relativeTime";
 import type { MemorySessionInfo } from "../hooks/useMemorySessions";
 import type { MentionItem } from "../mentions";
-import { BrainIcon, TrashIcon } from "./icons";
+import { BrainIcon, SearchIcon, TrashIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
 const PANEL_WIDTH = 320;
+// Below this the whole list is on screen at once, so a search field would cost
+// a row and save nothing.
+const SEARCH_FROM = 4;
 
 interface ComposerMemoryButtonProps {
   // Saved sessions, newest first, as the mention pool carries them: `insert` is
@@ -36,6 +39,8 @@ interface ComposerMemoryButtonProps {
 // composer for the user to review and send.
 export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onView, onDelete }: ComposerMemoryButtonProps) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<MentionItem | null>(null);
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
     open,
@@ -48,22 +53,35 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
 
   useOverlay(open);
 
-  // Escape dismisses the confirmation first, then the panel; captured so it
-  // doesn't also reach the composer's own handler, which would refocus the
-  // terminal underneath. The editor keeps focus throughout, so its handler —
-  // which stops propagation — would otherwise swallow Escape before the dialog
-  // ever saw it.
+  const searchable = sessions.length >= SEARCH_FROM;
+  const needle = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      needle
+        ? sessions.filter((s) => `${s.label} ${s.detail ?? ""}`.toLowerCase().includes(needle))
+        : sessions,
+    [sessions, needle],
+  );
+
+  useEffect(() => setActive(0), [needle]);
+
+  // Escape dismisses the confirmation first, then a live search, then the panel;
+  // captured so it doesn't also reach the composer's own handler, which would
+  // refocus the terminal underneath. The editor keeps focus throughout, so its
+  // handler — which stops propagation — would otherwise swallow Escape before
+  // the dialog ever saw it.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
       if (pendingDelete) setPendingDelete(null);
+      else if (needle) setQuery("");
       else setOpen(false);
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, pendingDelete]);
+  }, [open, pendingDelete, needle]);
 
   // Keep clicks from pulling focus off the composer editor; the caret stays put
   // so the invocation lands where the user was typing.
@@ -76,6 +94,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
       return;
     }
     onOpen();
+    setQuery("");
     setOpen(true);
   };
 
@@ -87,6 +106,22 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
   const view = (item: MentionItem) => {
     setOpen(false);
     onView(item);
+  };
+
+  // The search field owns the keyboard while it's focused: arrows walk the
+  // filtered rows and Enter takes the highlighted one, so a session can be
+  // reached without going back to the mouse.
+  const onSearchKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!visible.length) return;
+      const step = e.key === "ArrowDown" ? 1 : visible.length - 1;
+      setActive((i) => (i + step) % visible.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const item = visible[active];
+      if (item) pick(item);
+    }
   };
 
   // The panel stays open afterwards: deleting is a tidy-up pass, usually more
@@ -151,19 +186,44 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
                 </p>
               ) : (
                 <>
-                  <p className="px-3 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-                    Continue a session
-                  </p>
+                  {searchable ? (
+                    <div className="flex items-center gap-2 px-3 py-2 text-[var(--text-muted)] [&>svg]:h-3.5 [&>svg]:w-3.5">
+                      <SearchIcon />
+                      <input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={onSearchKey}
+                        placeholder="Search sessions"
+                        spellCheck={false}
+                        autoFocus
+                        data-text-scope=""
+                        aria-label="Search sessions"
+                        className="w-full bg-transparent text-[12.5px] leading-[17px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                      />
+                    </div>
+                  ) : (
+                    <p className="px-3 pb-1 pt-2.5 text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
+                      Continue a session
+                    </p>
+                  )}
+                  {visible.length === 0 && (
+                    <p className="px-3 pb-3 pt-1 text-center text-[11px] leading-[15px] text-[var(--text-muted)]">
+                      No session matches “{query.trim()}”.
+                    </p>
+                  )}
                   <ul className="max-h-60 min-h-0 overflow-y-auto pb-1.5">
-                    {sessions.map((session) => {
+                    {visible.map((session, i) => {
                       const updatedAt = infoById.get(session.insert)?.updatedAt;
                       return (
                         <li key={session.insert} className="group/row relative">
                           <button
                             type="button"
                             onMouseDown={keepEditorFocus}
+                            onMouseEnter={() => setActive(i)}
                             onClick={() => pick(session)}
-                            className="group flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                            className={`group flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)] ${
+                              searchable && i === active ? "bg-[var(--bg-hover)]" : ""
+                            }`}
                           >
                             <span className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-cyan)]">
                               <BrainIcon />
