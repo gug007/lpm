@@ -154,11 +154,18 @@ export interface UsageBreakdown {
   tokens: TokenUsage;
 }
 
+export interface DailyModelUsage {
+  provider: string;
+  model: string;
+  tokens: TokenUsage;
+}
+
 export interface DailyUsage {
   date: string;
   claudeTokens: number;
   codexTokens: number;
   totalTokens: number;
+  models: DailyModelUsage[];
 }
 
 export interface AgentSessionUsage {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DailyUsage } from "../../types";
 import { formatPercent, formatTokenCount, shortUsageDate } from "../../agentUsageFormat";
 import { providerMeta } from "./statsDerive";
+import { estimateDailyCost, formatUsd } from "./statsCost";
 import {
   type ChartMode,
   type ProviderFilter,
@@ -74,6 +75,7 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
   };
 
   const activeDay = cursor !== null ? days[cursor] : null;
+  const activeCost = activeDay ? estimateDailyCost(activeDay.models) : 0;
   const centerFraction = cursor !== null ? (cursor + 0.5) / count : 0;
   const flipTooltip = centerFraction > 0.62;
 
@@ -267,6 +269,11 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
                       <span className="ml-auto tabular-nums text-[var(--text-primary)]">
                         {formatTokenCount(tokens)}
                       </span>
+                      {activeCost > 0 && (
+                        <span className="w-16 text-right tabular-nums text-[var(--text-secondary)]">
+                          {formatUsd(estimateDailyCost(activeDay.models, key))}
+                        </span>
+                      )}
                       <span className="w-9 text-right tabular-nums text-[var(--text-muted)]">
                         {formatPercent(share)}
                       </span>
@@ -279,6 +286,14 @@ export function TokenActivityChart({ daily }: TokenActivityChartProps) {
                 <span className="ml-auto tabular-nums text-[var(--text-primary)]">
                   {formatTokenCount(activeDay.totalTokens)}
                 </span>
+                {activeCost > 0 && (
+                  <>
+                    <span className="w-16 text-right tabular-nums text-[var(--text-primary)]">
+                      <span className="text-[var(--text-muted)]">≈</span> {formatUsd(activeCost)}
+                    </span>
+                    <span className="w-9" />
+                  </>
+                )}
                 </div>
               </div>
             </div>

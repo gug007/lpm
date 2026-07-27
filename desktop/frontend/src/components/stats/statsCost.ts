@@ -1,4 +1,4 @@
-import type { TokenUsage, UsageBreakdown } from "../../types";
+import type { DailyModelUsage, TokenUsage, UsageBreakdown } from "../../types";
 
 export interface Rate {
   input: number;
@@ -47,6 +47,16 @@ export function estimateModelCost(tokens: TokenUsage, modelId: string): number {
 export function estimateTotalCost(models: UsageBreakdown[]): number {
   return (models ?? []).reduce(
     (sum, model) => sum + estimateModelCost(model.tokens, model.key),
+    0,
+  );
+}
+
+export function estimateDailyCost(models: DailyModelUsage[], provider?: string): number {
+  return (models ?? []).reduce(
+    (sum, entry) =>
+      provider && entry.provider !== provider
+        ? sum
+        : sum + estimateModelCost(entry.tokens, entry.model),
     0,
   );
 }

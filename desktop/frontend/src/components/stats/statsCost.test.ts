@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { TokenUsage, UsageBreakdown } from "../../types";
-import { estimateModelCost, estimateTotalCost, formatUsd } from "./statsCost";
+import type { DailyModelUsage, TokenUsage, UsageBreakdown } from "../../types";
+import { estimateDailyCost, estimateModelCost, estimateTotalCost, formatUsd } from "./statsCost";
 
 function tokens(partial: Partial<TokenUsage>): TokenUsage {
   return {
@@ -80,6 +80,25 @@ describe("estimateTotalCost", () => {
       breakdown("gpt-5-codex", { outputTokens: 1_000_000 }),
     ];
     expect(estimateTotalCost(models)).toBeCloseTo(25 + 10, 6);
+  });
+});
+
+describe("estimateDailyCost", () => {
+  const models: DailyModelUsage[] = [
+    { provider: "claude", model: "claude-opus-4-8", tokens: tokens({ outputTokens: 1_000_000 }) },
+    { provider: "codex", model: "gpt-5-codex", tokens: tokens({ outputTokens: 1_000_000 }) },
+  ];
+
+  it("sums every provider by default", () => {
+    expect(estimateDailyCost(models)).toBeCloseTo(25 + 10, 6);
+  });
+
+  it("restricts the sum to one provider", () => {
+    expect(estimateDailyCost(models, "codex")).toBeCloseTo(10, 6);
+  });
+
+  it("treats a missing breakdown as free", () => {
+    expect(estimateDailyCost([])).toBe(0);
   });
 });
 

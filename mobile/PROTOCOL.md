@@ -530,13 +530,14 @@ totals: TokenUsage          // grand totals
 providers: [UsageBreakdown] // key = "claude" | "codex"
 projects:  [UsageBreakdown] // key/label = project name
 models:    [UsageBreakdown] // key = model id (drives the cost estimate)
-daily:     [ { date: "YYYY-MM-DD", claudeTokens: N, codexTokens: N, totalTokens: N } ]
+daily:     [ { date: "YYYY-MM-DD", claudeTokens: N, codexTokens: N, totalTokens: N,
+               models: [ { provider, model, tokens: TokenUsage } ] } ]   // per-day cost estimate
 recentSessions: [ { provider, project, model, startedAt: unix millis, lastAt: unix millis, tokens: TokenUsage } ]
 sources:   [ { provider, files: N } ]   // history files scanned per provider
 ```
 **TokenUsage**: `{ inputTokens, cachedInputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens, reasoningTokens, totalTokens }`. Invariants: `inputTokens` **already includes** the cached input (`cacheCreation + cacheRead`); `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. So cache share = `cachedInputTokens / max(1, inputTokens)`.
 **UsageBreakdown**: `{ key, label, sessions, tokens: TokenUsage }`.
-Cost is **estimated on the phone** from `models` (per-model list prices; cache reads/writes priced separately), matching the desktop — no cost field is sent.
+Cost is **estimated on the phone** from `models` — and per day from `daily[].models` — using per-model list prices with cache reads/writes priced separately, matching the desktop. No cost field is sent.
 
 **Terminal**:
 ```

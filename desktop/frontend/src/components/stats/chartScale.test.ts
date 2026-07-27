@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { DailyUsage } from "../../types";
+import type { DailyUsage, TokenUsage } from "../../types";
 import { nearestIndex, niceMax, stackSegments, visibleDaily } from "./chartScale";
+
+const emptyTokens: TokenUsage = {
+  inputTokens: 0,
+  cachedInputTokens: 0,
+  cacheCreationInputTokens: 0,
+  cacheReadInputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  totalTokens: 0,
+};
 
 describe("niceMax", () => {
   it("rounds up to the nearest 1/2/5 x 10^n stop", () => {
@@ -38,7 +48,13 @@ describe("nearestIndex", () => {
 });
 
 describe("stackSegments", () => {
-  const day: DailyUsage = { date: "2026-07-15", claudeTokens: 90, codexTokens: 60, totalTokens: 150 };
+  const day: DailyUsage = {
+    date: "2026-07-15",
+    claudeTokens: 90,
+    codexTokens: 60,
+    totalTokens: 150,
+    models: [],
+  };
 
   it("scales against niceMax in volume mode", () => {
     const seg = stackSegments(day, "volume", 200);
@@ -52,15 +68,29 @@ describe("stackSegments", () => {
   });
 
   it("guards a zero-total day in share mode", () => {
-    const seg = stackSegments({ date: "x", claudeTokens: 0, codexTokens: 0, totalTokens: 0 }, "share", 200);
+    const seg = stackSegments(
+      { date: "x", claudeTokens: 0, codexTokens: 0, totalTokens: 0, models: [] },
+      "share",
+      200,
+    );
     expect(seg).toEqual({ claude: 0, codex: 0 });
   });
 });
 
 describe("visibleDaily", () => {
+  const tokens = { ...emptyTokens, totalTokens: 1 };
   const daily: DailyUsage[] = [
-    { date: "a", claudeTokens: 100, codexTokens: 40, totalTokens: 140 },
-    { date: "b", claudeTokens: 200, codexTokens: 10, totalTokens: 210 },
+    {
+      date: "a",
+      claudeTokens: 100,
+      codexTokens: 40,
+      totalTokens: 140,
+      models: [
+        { provider: "claude", model: "claude-opus-4", tokens },
+        { provider: "codex", model: "gpt-5", tokens },
+      ],
+    },
+    { date: "b", claudeTokens: 200, codexTokens: 10, totalTokens: 210, models: [] },
   ];
 
   it("zeroes a hidden provider and recomputes max/total from what remains", () => {
@@ -68,5 +98,10 @@ describe("visibleDaily", () => {
     expect(result.days.map((d) => d.totalTokens)).toEqual([100, 200]);
     expect(result.max).toBe(200);
     expect(result.total).toBe(300);
+  });
+
+  it("drops a hidden provider's models so its cost is excluded too", () => {
+    const result = visibleDaily(daily, { claude: true, codex: false });
+    expect(result.days[0].models.map((entry) => entry.provider)).toEqual(["claude"]);
   });
 });

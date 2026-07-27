@@ -52,11 +52,20 @@ pub struct UsageBreakdown {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DailyModelUsage {
+    provider: String,
+    model: String,
+    tokens: TokenUsage,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DailyUsage {
     date: String,
     claude_tokens: u64,
     codex_tokens: u64,
     total_tokens: u64,
+    models: Vec<DailyModelUsage>,
 }
 
 #[derive(Serialize)]
@@ -519,6 +528,7 @@ struct SessionAggregate {
 struct DailyAggregate {
     claude_tokens: u64,
     codex_tokens: u64,
+    models: BTreeMap<(String, String), TokenUsage>,
 }
 
 fn period_cutoff(days: i64) -> Result<Option<i64>, String> {
@@ -591,7 +601,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
                 last_at: event.timestamp,
                 ..Default::default()
             });
-        session.models.insert(event.model);
+        session.models.insert(event.model.clone());
         session.started_at = session.started_at.min(event.timestamp);
         session.last_at = session.last_at.max(event.timestamp);
         session.tokens.add(event.tokens);
@@ -604,6 +614,10 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         } else {
             day.codex_tokens = day.codex_tokens.saturating_add(event.tokens.total_tokens);
         }
+        day.models
+            .entry((event.provider.to_string(), event.model))
+            .or_default()
+            .add(event.tokens);
     }
     let session_count = sessions.len();
     let mut recent_sessions: Vec<AgentSessionUsage> = sessions
@@ -642,6 +656,15 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
                 claude_tokens: totals.claude_tokens,
                 codex_tokens: totals.codex_tokens,
                 total_tokens: totals.claude_tokens.saturating_add(totals.codex_tokens),
+                models: totals
+                    .models
+                    .into_iter()
+                    .map(|((provider, model), tokens)| DailyModelUsage {
+                        provider,
+                        model,
+                        tokens,
+                    })
+                    .collect(),
             })
             .collect(),
         recent_sessions,
