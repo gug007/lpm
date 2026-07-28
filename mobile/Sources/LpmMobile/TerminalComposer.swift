@@ -40,6 +40,7 @@ struct TerminalComposer: View {
     @State private var showCamera = false
     @State private var showFiles = false
     @State private var showHistory = false
+    @State private var showMemory = false
     @State private var showActions = false
     @State private var showRewriteHint = false
     @State private var dupSeed: DupSeed?
@@ -61,6 +62,21 @@ struct TerminalComposer: View {
 
     private var termId: String { store.termId }
     private var project: String { store.project }
+    /// The AI CLI this terminal runs, as the Mac detected it — it decides whether a
+    /// memory invocation is a slash command or a skill mention.
+    private var terminalCli: String {
+        model.terminals[project]?.first { $0.id == termId }?.cli ?? ""
+    }
+    private var memoryAvailable: Bool {
+        terminalTools && !(model.projects.first { $0.name == project }?.isRemote ?? false)
+    }
+
+    /// Park the invocation at the end of whatever is already typed rather than
+    /// replacing it, keeping exactly one space between the two.
+    private func joined(_ existing: String, _ invocation: String) -> String {
+        let head = existing.trimmingCharacters(in: .whitespacesAndNewlines)
+        return head.isEmpty ? invocation : head + " " + invocation
+    }
     private var label: String { store.label }
 
     private var ground: SwiftUI.Color {
@@ -202,6 +218,13 @@ struct TerminalComposer: View {
                               onLoad: { text in store.text = text; focused = true },
                               onSendNow: { text in sendRaw(text) })
                     .environment(model)
+            }
+            .sheet(isPresented: $showMemory) {
+                ComposerMemorySheet(project: project, cli: terminalCli) { invocation in
+                    store.text = joined(store.text, invocation)
+                    focused = true
+                }
+                .environment(model)
             }
             .sheet(isPresented: $showActions) {
                 ComposerActionsSheet(store: store).environment(model)
@@ -413,6 +436,11 @@ struct TerminalComposer: View {
                 }
             }
             Divider()
+            // Session memory is written on the Mac that runs the agent, so an SSH
+            // project's terminals have nothing here to reach.
+            if memoryAvailable {
+                Button { showMemory = true } label: { Label("Memory", systemImage: "brain") }
+            }
             Button { store.newTab() } label: { Label("New prompt", systemImage: "plus.bubble") }
             Button { showHistory = true } label: { Label("History", systemImage: "clock.arrow.circlepath") }
         } label: {
