@@ -614,7 +614,7 @@ text: string
 editedAt: unix millis?     // absent when never edited
 attachments: [NoteAttachment]?   // absent when none
 ```
-**NoteAttachment**: `{ hash, name, size, mimeType }` — `hash` is the sha256 of the plaintext (also the dedup key) and is what `notesAttachment` takes. `size` is the real byte length, so the phone can refuse a fetch above the 25MB link cap without asking.
+**NoteAttachment**: `{ hash, name, size, mimeType }` — `hash` is the sha256 of the plaintext (also the dedup key) and is what `notesAttachment` takes. `size` is the real byte length, so the phone can refuse a fetch above the 8MiB link cap without asking.
 
 **NoteAttachmentInput** (phone → Mac, inside `notesAddMessage`): `{ name, mimeType, data }` where `data` is standard padded base64 of the raw bytes.
 
