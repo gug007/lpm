@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import { WORKTREE_AGENTS_PATH } from "@/lib/links";
 
 export default function QuickAnswer() {
   return (
@@ -34,6 +36,17 @@ export default function QuickAnswer() {
               prepare its dependencies, local files, services, and agent
               session separately. Worktrees are excellent at that job; lpm
               solves a larger one.
+            </p>
+            <p>
+              If you are choosing between them for a specific run, compare all
+              five isolation models — raw Git, the worktree flags built into{" "}
+              <Link
+                href={WORKTREE_AGENTS_PATH}
+                className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+              >
+                Claude Code and Codex
+              </Link>
+              , and both lpm primitives.
             </p>
           </div>
         </div>

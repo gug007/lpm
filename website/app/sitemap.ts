@@ -18,6 +18,7 @@ import {
   TOKEN_USAGE_PATH,
   VS_BASE_PATH,
   VS_SLUGS,
+  WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
@@ -34,6 +35,7 @@ const LAST_MODIFIED: Record<string, string> = {
   [REVIEW_CHANGES_PATH]: "2026-07-26",
   [CONNECT_AGENTS_PATH]: "2026-07-23",
   [WORKTREE_ALTERNATIVE_PATH]: "2026-07-23",
+  [WORKTREE_AGENTS_PATH]: "2026-07-28",
   [TOKEN_USAGE_PATH]: "2026-07-23",
   [STATUSLINE_PATH]: "2026-07-23",
   [MOBILE_PATH]: "2026-07-19",
@@ -128,6 +130,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE_URL}${WORKTREE_ALTERNATIVE_PATH}`,
       lastModified: lastModified(WORKTREE_ALTERNATIVE_PATH),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${WORKTREE_AGENTS_PATH}`,
+      lastModified: lastModified(WORKTREE_AGENTS_PATH),
       changeFrequency: "monthly",
       priority: 0.8,
     },

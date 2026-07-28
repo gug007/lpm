@@ -33,7 +33,7 @@ export default function AgentWorkflow() {
         <CodeBlock filename="Fan out one task">
           lpm duplicate myapp -n 3 --run claude \
           {"\n"}  --prompt &quot;Find and fix the checkout race condition&quot;
-          {"\n\n"}lpm wait --agent -p COPY_NAME
+          {"\n\n"}lpm wait COPY_NAME --agent
           {"\n"}lpm remove COPY_NAME
         </CodeBlock>
 

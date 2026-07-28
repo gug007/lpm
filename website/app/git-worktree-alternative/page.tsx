@@ -3,8 +3,8 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   CONNECT_AGENTS_PATH,
-  GIT_TERMINAL_MAC_PATH,
   REVIEW_CHANGES_PATH,
+  WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 import {
@@ -112,10 +112,10 @@ export default function GitWorktreeAlternativePage() {
               "Give agents a CLI to run services, read logs, wait for readiness, and fan out into project copies.",
           },
           {
-            href: GIT_TERMINAL_MAC_PATH,
-            title: "Git terminal for Mac",
+            href: WORKTREE_AGENTS_PATH,
+            title: "Git worktrees for Claude Code & Codex",
             description:
-              "A native project workspace with Git actions, live service output, and built-in terminal sessions.",
+              "What a worktree does not carry, what the agents create natively, and all five isolation models compared.",
           },
           {
             href: REVIEW_CHANGES_PATH,
