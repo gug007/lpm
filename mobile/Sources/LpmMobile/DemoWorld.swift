@@ -241,6 +241,53 @@ struct DemoWorld {
 
     var historyFolders: [HistoryFolder] = []
 
+    // MARK: Session memory
+
+    struct MemoryDoc {
+        var name: String
+        var title: String
+        var content: String
+        var updatedAt: Int   // unix SECONDS — every Notes timestamp below is millis
+    }
+
+    // Session logs keyed by the folder that owns them, which for a duplicate is
+    // its original's. A missing key is the empty state (`exists: false`); an empty
+    // array is a folder whose logs were all deleted.
+    var memoryDocs: [String: [MemoryDoc]] = [:]
+
+    // MARK: Notes
+
+    struct NoteAttachmentRec {
+        var hash: String
+        var name: String
+        var size: Int
+        var mimeType: String
+    }
+
+    struct NoteRec {
+        var id: String
+        var chatId: String
+        // Paging order: `beforeId` resolves to a seq and older notes are the ones
+        // below it. Ids stay opaque on the wire.
+        var seq: Int
+        var ts: Int          // unix millis
+        var text: String
+        var editedAt: Int? = nil
+        var attachments: [NoteAttachmentRec] = []
+    }
+
+    struct NoteChatRec {
+        var id: String
+        var title: String
+        var createdAt: Int   // unix millis
+        var updatedAt: Int   // unix millis
+    }
+
+    var noteChats: [String: [NoteChatRec]] = [:]   // project -> chats
+    var noteMessages: [String: [NoteRec]] = [:]    // project -> notes across its chats
+    var noteBlobs: [String: String] = [:]          // attachment hash -> base64 bytes
+    var noteSeq = 0
+
     // MARK: seed
 
     init() {

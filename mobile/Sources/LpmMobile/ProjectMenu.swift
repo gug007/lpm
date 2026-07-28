@@ -14,6 +14,8 @@ struct ProjectRunControl: View {
     let onStop: () -> Void
     let onRunAction: (_ action: Action) -> Void
     let onReviewChanges: () -> Void
+    let onMemory: () -> Void
+    let onNotes: () -> Void
     let onSwitchBranch: () -> Void
     let onCreatePr: () -> Void
     let onDiscard: () -> Void
@@ -47,6 +49,18 @@ struct ProjectRunControl: View {
             }
 
             gitMenu
+
+            // Memory is Mac-local: an SSH project's agents run on the other host,
+            // where this Mac's session files mean nothing. Notes are stored per
+            // project on the Mac either way, so they stay available.
+            if !project.isRemote {
+                Button(action: onMemory) {
+                    Label("Memory", systemImage: "brain")
+                }
+            }
+            Button(action: onNotes) {
+                Label("Notes", systemImage: "note.text")
+            }
 
             if !actions.isEmpty {
                 Menu {
@@ -157,6 +171,8 @@ struct ProjectMenuHost: ViewModifier {
     let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
     @State private var showChanges = false
+    @State private var showMemory = false
+    @State private var showNotes = false
     @State private var showBranchSheet = false
     @State private var showPrSheet = false
     @State private var confirmingDiscard = false
@@ -184,6 +200,8 @@ struct ProjectMenuHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .navigationDestination(isPresented: $showChanges) { GitReviewView(project: project) }
+            .navigationDestination(isPresented: $showMemory) { MemoryScreen(project: project) }
+            .navigationDestination(isPresented: $showNotes) { NotesScreen(project: project.name) }
             .sheet(isPresented: $showBranchSheet) {
                 GitBranchSheet(project: project).environment(model)
             }
@@ -253,6 +271,8 @@ struct ProjectMenuHost: ViewModifier {
                                       onStop: { model.stopProject(project) },
                                       onRunAction: { beginRun($0) },
                                       onReviewChanges: { showChanges = true },
+                                      onMemory: { showMemory = true },
+                                      onNotes: { showNotes = true },
                                       onSwitchBranch: { showBranchSheet = true },
                                       onCreatePr: { showPrSheet = true },
                                       onDiscard: { confirmingDiscard = true },

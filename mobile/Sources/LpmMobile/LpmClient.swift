@@ -130,6 +130,25 @@ final class LpmClient: NSObject {
     var onDeleteProfile: ((_ project: String, _ name: String, _ error: String?) -> Void)?
     var onSaveAction: ((_ project: String, _ key: String, _ error: String?) -> Void)?
     var onDeleteAction: ((_ project: String, _ key: String, _ error: String?) -> Void)?
+    // Session memory replies. `list`/`session` are nil on failure; `memoryChanged`
+    // is the push carrying the OWNER folder name (a duplicate's original).
+    var onMemory: ((_ project: String, _ list: MemoryList?, _ error: String?) -> Void)?
+    var onMemorySession: ((_ project: String, _ name: String, _ session: MemorySession?, _ error: String?) -> Void)?
+    var onMemorySave: ((_ project: String, _ name: String, _ error: String?) -> Void)?
+    var onMemoryDelete: ((_ project: String, _ name: String, _ error: String?) -> Void)?
+    var onMemoryChanged: ((_ project: String) -> Void)?
+    // Notes replies, one per request kind. Each carries the keys its request was
+    // addressed by, since the Mac answers these off worker threads (out of order).
+    var onNotesChats: ((_ project: String, _ chats: [NoteChat], _ error: String?) -> Void)?
+    var onNotesCreateChat: ((_ project: String, _ chat: NoteChat?, _ error: String?) -> Void)?
+    var onNotesRenameChat: ((_ project: String, _ chatId: String, _ error: String?) -> Void)?
+    var onNotesDeleteChat: ((_ project: String, _ chatId: String, _ error: String?) -> Void)?
+    var onNotesMessages: ((_ project: String, _ chatId: String, _ beforeId: String, _ messages: [NoteMessage], _ error: String?) -> Void)?
+    var onNotesAddMessage: ((_ project: String, _ chatId: String, _ message: NoteMessage?, _ error: String?) -> Void)?
+    var onNotesEditMessage: ((_ project: String, _ id: String, _ error: String?) -> Void)?
+    var onNotesDeleteMessage: ((_ project: String, _ id: String, _ error: String?) -> Void)?
+    var onNotesSearch: ((_ project: String, _ query: String, _ hits: [NoteSearchHit], _ error: String?) -> Void)?
+    var onNotesAttachment: ((_ project: String, _ hash: String, _ data: String?, _ error: String?) -> Void)?
 
     private var endpoint: Endpoint
     private var credential: Credential?
@@ -409,6 +428,11 @@ final class LpmClient: NSObject {
         teardownTask()
         set(.connecting)
         let task = session.webSocketTask(with: url)
+        // URLSession defaults this to 1MiB and fails the receive — killing the
+        // connection — for anything larger. A batched gitDiffs reply or a notes
+        // attachment clears that easily. 16MiB matches the largest frame the Mac
+        // will write, so the ceiling is the desktop's cap rather than this one.
+        task.maximumMessageSize = 16 * 1024 * 1024
         self.task = task
         // Handshake: pair-request (approve-on-Mac), pair (one-time code), else auth.
         // Held until the socket reports open (`noteOpened`) rather than sent right
@@ -716,6 +740,51 @@ final class LpmClient: NSObject {
         send(Wire.saveAction(project: project, key: key, payload: payload, previousKey: previousKey, section: section))
     }
     func deleteAction(project: String, key: String) { send(Wire.deleteAction(project: project, key: key)) }
+
+    // Session memory + notes requests. All of them run on a worker thread on the
+    // Mac, so their replies arrive out of order — match each one on the keys it
+    // echoes back (project + name, chatId, message id, hash, query, beforeId).
+    func requestMemory(project: String) { send(Wire.memory(project: project)) }
+    func requestMemorySession(project: String, name: String) {
+        send(Wire.memorySession(project: project, name: name))
+    }
+    /// Pass `baseline` to write only if the file still reads exactly like that;
+    /// pass nil to overwrite unconditionally (an empty baseline means "must not
+    /// exist yet", which is a different thing).
+    func saveMemorySession(project: String, name: String, content: String, baseline: String?) {
+        send(Wire.memorySave(project: project, name: name, content: content, baseline: baseline))
+    }
+    func deleteMemorySession(project: String, name: String) {
+        send(Wire.memoryDelete(project: project, name: name))
+    }
+    func requestNotesChats(project: String) { send(Wire.notesChats(project: project)) }
+    func notesCreateChat(project: String, title: String) {
+        send(Wire.notesCreateChat(project: project, title: title))
+    }
+    func notesRenameChat(project: String, chatId: String, title: String) {
+        send(Wire.notesRenameChat(project: project, chatId: chatId, title: title))
+    }
+    func notesDeleteChat(project: String, chatId: String) {
+        send(Wire.notesDeleteChat(project: project, chatId: chatId))
+    }
+    func requestNotesMessages(project: String, chatId: String, limit: Int, beforeId: String) {
+        send(Wire.notesMessages(project: project, chatId: chatId, limit: limit, beforeId: beforeId))
+    }
+    func notesAddMessage(project: String, chatId: String, text: String, attachments: [[String: Any]]) {
+        send(Wire.notesAddMessage(project: project, chatId: chatId, text: text, attachments: attachments))
+    }
+    func notesEditMessage(project: String, id: String, text: String) {
+        send(Wire.notesEditMessage(project: project, id: id, text: text))
+    }
+    func notesDeleteMessage(project: String, id: String) {
+        send(Wire.notesDeleteMessage(project: project, id: id))
+    }
+    func notesSearch(project: String, query: String, limit: Int) {
+        send(Wire.notesSearch(project: project, query: query, limit: limit))
+    }
+    func requestNotesAttachment(project: String, hash: String) {
+        send(Wire.notesAttachment(project: project, hash: hash))
+    }
 
     // Git review requests. The fast ones (git/gitDiff/gitCommit) reply quickly;
     // push/generate/create-PR do real work on the Mac and can take a long while,
@@ -1060,6 +1129,31 @@ final class LpmClient: NSObject {
             case .deleteProfile(let project, let name, let error): self.onDeleteProfile?(project, name, error)
             case .saveAction(let project, let key, let error): self.onSaveAction?(project, key, error)
             case .deleteAction(let project, let key, let error): self.onDeleteAction?(project, key, error)
+            case .memory(let project, let list, let error): self.onMemory?(project, list, error)
+            case .memorySession(let project, let name, let session, let error):
+                self.onMemorySession?(project, name, session, error)
+            case .memorySave(let project, let name, let error): self.onMemorySave?(project, name, error)
+            case .memoryDelete(let project, let name, let error): self.onMemoryDelete?(project, name, error)
+            case .memoryChanged(let project): self.onMemoryChanged?(project)
+            case .notesChats(let project, let chats, let error): self.onNotesChats?(project, chats, error)
+            case .notesCreateChat(let project, let chat, let error):
+                self.onNotesCreateChat?(project, chat, error)
+            case .notesRenameChat(let project, let chatId, let error):
+                self.onNotesRenameChat?(project, chatId, error)
+            case .notesDeleteChat(let project, let chatId, let error):
+                self.onNotesDeleteChat?(project, chatId, error)
+            case .notesMessages(let project, let chatId, let beforeId, let messages, let error):
+                self.onNotesMessages?(project, chatId, beforeId, messages, error)
+            case .notesAddMessage(let project, let chatId, let message, let error):
+                self.onNotesAddMessage?(project, chatId, message, error)
+            case .notesEditMessage(let project, let id, let error):
+                self.onNotesEditMessage?(project, id, error)
+            case .notesDeleteMessage(let project, let id, let error):
+                self.onNotesDeleteMessage?(project, id, error)
+            case .notesSearch(let project, let query, let hits, let error):
+                self.onNotesSearch?(project, query, hits, error)
+            case .notesAttachment(let project, let hash, let data, let error):
+                self.onNotesAttachment?(project, hash, data, error)
             case .pong, .unknown: break
         }
     }

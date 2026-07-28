@@ -343,6 +343,58 @@ and work with the Mac's main window closed. Folders are matched by **name** (exa
 then case-insensitive), consistent across create/rename/delete/move; moving a
 project to a folder name that doesn't exist creates it.
 
+### Session memory
+
+Per-project work-session logs (`~/.lpm/memory/<owner>/<session>.md`), co-written
+by the desktop Memory tab and by agent CLIs through the lpm-memory skill. A
+duplicate reads and writes its **original's** folder, so `dir` is echoed on the
+list reply and the phone derives the owner from its last path segment — never
+assume the folder is named after the project. Unavailable for SSH projects
+(`"Session memory isn't available for SSH projects."`); fine for peer projects,
+which are evaluated on the Mac that owns them. All four run on a worker.
+
+Unlike the desktop pane, which inlines every session's full text in one call, the
+list carries a **truncated preview** (first 1200 characters) and `memorySession`
+fetches one document in full — a phone on cellular should not pull every log to
+render a list.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "memory", "project": "<name>" }` | `{ "t": "memory", "project": "<name>", "ok": true, "exists": bool, "dir": "<abs owner dir>", "sessions": [MemorySession…] }` / `{ "ok": false, "error": "…" }` — lists the owner folder, newest first (`updatedAt` DESC, then `name` ASC). `exists:false` with a filled `dir` means the folder simply isn't there yet, which is the empty state, **not** an error. Each session's `content` is the preview, not the document. Async (worker) |
+| `{ "t": "memorySession", "project": "<name>", "name": "<slug>" }` | `{ "t": "memorySession", "project": "<name>", "name": "<slug>", "ok": true, "title": "…", "path": "<abs>", "updatedAt": N, "size": N, "content": "<full markdown>" }` / `{ "ok": false, "error": "This session was removed." }` — one document in full, fields flattened onto the reply. A doc over 1 MiB comes back with `content` replaced by a placeholder sentence while `size` still reports the true byte count. Async (worker) |
+| `{ "t": "memorySave", "project": "<name>", "name": "<slug>", "content": "…", "baseline": "…"?, "reqId": <any>? }` | `{ "t": "memorySave", "project": "<name>", "name": "<slug>", "ok": true }` / `{ "ok": false, "error": "…" }` — compare-and-swap: with `baseline` the write lands only if the file still reads exactly like that, otherwise it fails with the bare literal `"modified"` (**not** a sentence — the phone shows its own copy and reloads). Omit `baseline` to overwrite unconditionally, which is what the create path does. A missing file matches only an **empty** baseline. Slugs must match `^[a-z0-9][a-z0-9-]{0,63}$` — the slug becomes a filename. Async (worker) |
+| `{ "t": "memoryDelete", "project": "<name>", "name": "<slug>" }` | `{ "t": "memoryDelete", "project": "<name>", "name": "<slug>", "ok": true }` / `{ "ok": false, "error": "…" }` — takes no baseline (the user is discarding the whole session) and an already-missing file is success. Async (worker) |
+
+### Notes
+
+Per-project encrypted notebook — a SQLCipher database plus an AES-GCM blob store
+under `~/.lpm/notes/<project>/`, both keyed by the Mac's Keychain vault key. The
+Mac decrypts and serves plaintext over this (pinned, per-device-token) link; the
+bytes never leave it in the clear. Notes deliberately do **not** sync between
+paired Macs — a copied `notes.db` would be undecryptable on the other Mac.
+
+The first call for a project opens the database (a Keychain round-trip, plus
+migrations on a legacy file), so every verb runs on a worker. There is **no**
+change event for notes: unlike memory, nothing pushes, and a phone refetches.
+
+Message ordering is seq-based and newest-first; page by passing the oldest id you
+hold as `beforeId` (`""` for the first page). Chat and message timestamps are unix
+**milliseconds** — note this differs from session memory's `updatedAt`, which is
+**seconds**.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "notesChats", "project": "<name>" }` | `{ "t": "notesChats", "project": "<name>", "ok": true, "chats": [NoteChat…] }` / `{ "ok": false, "error": "…" }` — every chat, most recently updated first. A project with no notebook yet is created on first open and back-fills a "General" chat. Async (worker) |
+| `{ "t": "notesCreateChat", "project": "<name>", "title": "…" }` | `{ "t": "notesCreateChat", "project": "<name>", "ok": true, "chat": NoteChat }` / `{ "ok": false, "error": "…" }` — Async (worker) |
+| `{ "t": "notesRenameChat", "project": "<name>", "chatId": "<id>", "title": "…" }` | `{ "t": "notesRenameChat", "project": "<name>", "chatId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — Async (worker) |
+| `{ "t": "notesDeleteChat", "project": "<name>", "chatId": "<id>" }` | `{ "t": "notesDeleteChat", "project": "<name>", "chatId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — deletes the chat, its messages, and any blobs they alone referenced, then sweeps pre-existing orphans. Async (worker) |
+| `{ "t": "notesMessages", "project": "<name>", "chatId": "<id>", "limit": N, "beforeId": "<id>"\|"" }` | `{ "t": "notesMessages", "project": "<name>", "chatId": "<id>", "beforeId": "…", "ok": true, "messages": [NoteMessage…] }` / `{ "ok": false, "error": "…" }` — one page, newest first; `limit` defaults to 50. A short page means the history is exhausted. `beforeId` is echoed so a page landing out of order can be dropped. Async (worker) |
+| `{ "t": "notesAddMessage", "project": "<name>", "chatId": "<id>", "text": "…", "attachments": [NoteAttachmentInput…], "reqId": <any>? }` | `{ "t": "notesAddMessage", "project": "<name>", "chatId": "<id>", "ok": true, "message": NoteMessage }` / `{ "ok": false, "error": "…" }` — attachment bytes ride inline as base64 and are capped at **8MiB each** on this link (the desktop's own drop limit is 100MB); over that the reply is `"That file is too large to send from your phone. Add it from your Mac instead."` and nothing is written. The cap is set by the frame, not the disk — base64 inflates by 4/3 and the desktop refuses to read a WebSocket frame over 16MiB. Sending to a deleted chat is rejected before any blob is stored. Async (worker) |
+| `{ "t": "notesEditMessage", "project": "<name>", "id": "<messageId>", "text": "…" }` | `{ "t": "notesEditMessage", "project": "<name>", "id": "<messageId>", "ok": true }` / `{ "ok": false, "error": "…" }` — stamps `editedAt`. Async (worker) |
+| `{ "t": "notesDeleteMessage", "project": "<name>", "id": "<messageId>" }` | `{ "t": "notesDeleteMessage", "project": "<name>", "id": "<messageId>", "ok": true }` / `{ "ok": false, "error": "…" }` — Async (worker) |
+| `{ "t": "notesSearch", "project": "<name>", "query": "…", "limit": N }` | `{ "t": "notesSearch", "project": "<name>", "query": "…", "ok": true, "hits": [NoteSearchHit…] }` / `{ "ok": false, "error": "…" }` — substring match across the project's messages, newest first, `limit` default 50. `query` is echoed so a stale reply from a superseded keystroke can be dropped. Async (worker) |
+| `{ "t": "notesAttachment", "project": "<name>", "hash": "<sha256 hex>", "reqId": <any>? }` | `{ "t": "notesAttachment", "project": "<name>", "hash": "<sha256 hex>", "ok": true, "data": "<base64>" }` / `{ "ok": false, "error": "…" }` — one attachment's bytes. Over 8MiB the reply is `"This attachment is too large to open on your phone. Open it on your Mac instead."`; the phone knows each attachment's `size` from its message, so it should not ask in the first place. Async (worker) |
+
 ### Push notifications (APNs)
 
 While the app is backgrounded its socket dies, so agent status changes reach the
@@ -436,6 +488,7 @@ installs stop generating traffic.
 | `{ "t": "jobs-changed" }` | An automation started, stopped, or completed. Re-request `jobs` and any open history/live output. |
 | `{ "t": "git-changed", "project": "<name>" }` | The watched project's working tree changed (sent only to a connection that issued `gitWatch` for it, debounced ~400ms after the last change). Carries no payload — re-request `git` and any open `gitDiff`s to refresh the review screen. |
 | `{ "t": "control", "id": "<termId>", "owner": ControlOwner\|null }` | The terminal's control owner changed. If `owner` is not this phone, show the "take control" placeholder and stop driving size; if it is (or `null`), render live. |
+| `{ "t": "memory-changed", "project": "<owner name>" }` | A session-memory file changed on disk — usually an agent CLI writing through the lpm-memory skill while the Memory screen is open (FSEvents, ~500ms settle). `project` is the **owner** folder name, which for a duplicate is its original: refresh when it matches either the project you are showing or the owner you learned from that project's `dir`. Notes have no equivalent push. |
 | `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
 
 ## Data shapes
@@ -538,6 +591,41 @@ sources:   [ { provider, files: N } ]   // history files scanned per provider
 **TokenUsage**: `{ inputTokens, cachedInputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens, reasoningTokens, totalTokens }`. Invariants: `inputTokens` **already includes** the cached input (`cacheCreation + cacheRead`); `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. So cache share = `cachedInputTokens / max(1, inputTokens)`.
 **UsageBreakdown**: `{ key, label, sessions, tokens: TokenUsage }`.
 Cost is **estimated on the phone** from `models` — and per day from `daily[].models` — using per-model list prices with cache reads/writes priced separately, matching the desktop. No cost field is sent.
+
+**MemorySession** — one work-session log:
+```
+name: string          // slug, no ".md"; ^[a-z0-9][a-z0-9-]{0,63}$
+title: string         // first markdown heading, else the slug
+path: string          // absolute path on the Mac that owns it
+updatedAt: unix SECONDS   // note: notes timestamps below are MILLIS
+size: N               // true byte length, even when content is a placeholder
+content: string       // preview (first 1200 chars) on `memory`; full text on `memorySession`
+```
+**Invariant:** `dir` on the `memory` reply is the folder the project *resolves to*, which for a duplicate is its original's. The owner is `dir`'s last path segment; a duplicate showing shared memory is `owner != project`.
+
+**NoteChat**: `{ id, title, createdAt: unix millis, updatedAt: unix millis }`.
+
+**NoteMessage** — note the short keys:
+```
+id: string
+chatId: string
+ts: unix millis            // NOT "timestamp"
+text: string
+editedAt: unix millis?     // absent when never edited
+attachments: [NoteAttachment]?   // absent when none
+```
+**NoteAttachment**: `{ hash, name, size, mimeType }` — `hash` is the sha256 of the plaintext (also the dedup key) and is what `notesAttachment` takes. `size` is the real byte length, so the phone can refuse a fetch above the 25MB link cap without asking.
+
+**NoteAttachmentInput** (phone → Mac, inside `notesAddMessage`): `{ name, mimeType, data }` where `data` is standard padded base64 of the raw bytes.
+
+**NoteSearchHit** — note `id` is the *message* id:
+```
+id: string          // message id
+chatId: string
+chatTitle: string
+ts: unix millis
+snippet: string     // byte-window around the match
+```
 
 **Terminal**:
 ```

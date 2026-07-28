@@ -30,6 +30,8 @@ final class DemoServer {
         registerStatsHandlers()
         registerJobsHandlers()
         registerConfigHandlers()
+        registerMemoryHandlers()
+        registerNotesHandlers()
     }
 
     /// Register a handler for an outbound verb (`t`). Called by each domain's

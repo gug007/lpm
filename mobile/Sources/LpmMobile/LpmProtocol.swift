@@ -520,6 +520,30 @@ enum Wire {
         case deleteProfile(project: String, name: String, error: String?)
         case saveAction(project: String, key: String, error: String?)
         case deleteAction(project: String, key: String, error: String?)
+        // Session memory replies. `list` is nil only on a hard failure — an empty
+        // folder is a successful list with `exists` false. `memorySession` carries
+        // the full document, the list only a preview.
+        case memory(project: String, list: MemoryList?, error: String?)
+        case memorySession(project: String, name: String, session: MemorySession?, error: String?)
+        case memorySave(project: String, name: String, error: String?)
+        case memoryDelete(project: String, name: String, error: String?)
+        // Server push: a session-memory file changed on disk. `project` is the
+        // OWNER folder name, which for a duplicate is its original's.
+        case memoryChanged(project: String)
+        // Notes replies. Each echoes the keys it was addressed by (chatId, message
+        // id, hash, query, beforeId) so an out-of-order reply is matchable.
+        case notesChats(project: String, chats: [NoteChat], error: String?)
+        case notesCreateChat(project: String, chat: NoteChat?, error: String?)
+        case notesRenameChat(project: String, chatId: String, error: String?)
+        case notesDeleteChat(project: String, chatId: String, error: String?)
+        case notesMessages(project: String, chatId: String, beforeId: String,
+                           messages: [NoteMessage], error: String?)
+        case notesAddMessage(project: String, chatId: String, message: NoteMessage?, error: String?)
+        case notesEditMessage(project: String, id: String, error: String?)
+        case notesDeleteMessage(project: String, id: String, error: String?)
+        case notesSearch(project: String, query: String, hits: [NoteSearchHit], error: String?)
+        // `data` is the attachment's bytes as base64 (nil on failure).
+        case notesAttachment(project: String, hash: String, data: String?, error: String?)
         case pong
         case unknown
 
@@ -883,6 +907,85 @@ enum Wire {
                 return .deleteAction(project: obj["project"] as? String ?? "",
                                      key: obj["key"] as? String ?? "",
                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the action."))
+            case "memory":
+                let ok = obj["ok"] as? Bool ?? false
+                return .memory(project: obj["project"] as? String ?? "",
+                               list: ok ? MemoryList(obj) : nil,
+                               error: ok ? nil : (obj["error"] as? String ?? "Couldn't load session memory."))
+            case "memorySession":
+                let ok = obj["ok"] as? Bool ?? false
+                return .memorySession(project: obj["project"] as? String ?? "",
+                                      name: obj["name"] as? String ?? "",
+                                      session: ok ? MemorySession(obj) : nil,
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the session."))
+            case "memorySave":
+                // A lost compare-and-swap comes back as the bare literal
+                // "modified"; the screen turns that into its own copy.
+                let ok = obj["ok"] as? Bool ?? false
+                return .memorySave(project: obj["project"] as? String ?? "",
+                                   name: obj["name"] as? String ?? "",
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't save the session."))
+            case "memoryDelete":
+                let ok = obj["ok"] as? Bool ?? false
+                return .memoryDelete(project: obj["project"] as? String ?? "",
+                                     name: obj["name"] as? String ?? "",
+                                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the session."))
+            case "memory-changed": return .memoryChanged(project: obj["project"] as? String ?? "")
+            case "notesChats":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesChats(project: obj["project"] as? String ?? "",
+                                   chats: ok ? (obj["chats"] as? [[String: Any]] ?? []).map(NoteChat.init) : [],
+                                   error: ok ? nil : (obj["error"] as? String ?? "Couldn't load notes."))
+            case "notesCreateChat":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesCreateChat(project: obj["project"] as? String ?? "",
+                                        chat: ok ? NoteChat(obj["chat"] as? [String: Any] ?? [:]) : nil,
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't create the chat."))
+            case "notesRenameChat":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesRenameChat(project: obj["project"] as? String ?? "",
+                                        chatId: obj["chatId"] as? String ?? "",
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't rename the chat."))
+            case "notesDeleteChat":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesDeleteChat(project: obj["project"] as? String ?? "",
+                                        chatId: obj["chatId"] as? String ?? "",
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the chat."))
+            case "notesMessages":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesMessages(project: obj["project"] as? String ?? "",
+                                      chatId: obj["chatId"] as? String ?? "",
+                                      beforeId: obj["beforeId"] as? String ?? "",
+                                      messages: ok ? (obj["messages"] as? [[String: Any]] ?? []).map(NoteMessage.init) : [],
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't load notes."))
+            case "notesAddMessage":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesAddMessage(project: obj["project"] as? String ?? "",
+                                        chatId: obj["chatId"] as? String ?? "",
+                                        message: ok ? NoteMessage(obj["message"] as? [String: Any] ?? [:]) : nil,
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't add the note."))
+            case "notesEditMessage":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesEditMessage(project: obj["project"] as? String ?? "",
+                                         id: obj["id"] as? String ?? "",
+                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't edit the note."))
+            case "notesDeleteMessage":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesDeleteMessage(project: obj["project"] as? String ?? "",
+                                           id: obj["id"] as? String ?? "",
+                                           error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the note."))
+            case "notesSearch":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesSearch(project: obj["project"] as? String ?? "",
+                                    query: obj["query"] as? String ?? "",
+                                    hits: ok ? (obj["hits"] as? [[String: Any]] ?? []).map(NoteSearchHit.init) : [],
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't search notes."))
+            case "notesAttachment":
+                let ok = obj["ok"] as? Bool ?? false
+                return .notesAttachment(project: obj["project"] as? String ?? "",
+                                        hash: obj["hash"] as? String ?? "",
+                                        data: ok ? (obj["data"] as? String ?? "") : nil,
+                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't open the attachment."))
             case "pong": return .pong
             default: return .unknown
             }

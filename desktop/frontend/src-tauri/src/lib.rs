@@ -52,6 +52,8 @@ mod proctree;
 mod projects_crud;
 mod pty;
 mod remote;
+mod remote_memory;
+mod remote_notes;
 mod remotetls;
 mod services;
 mod session_memory;

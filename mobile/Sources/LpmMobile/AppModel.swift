@@ -282,6 +282,13 @@ final class AppModel {
     // rest of the app.
     var git = GitReviewStore()
 
+    // MARK: session memory + notes
+
+    // Per-project work-session logs (`model.memory`) and the encrypted notebook
+    // (`model.notes`), each split into its own store for the same reason as `git`.
+    var memory = MemoryStore()
+    var notes = NotesStore()
+
     // Loaded file-viewer contents, keyed by "<project>\n<path>", so the FileViewer
     // sheet can render loading / content / error for the file it opened.
     var loadedFiles: [String: FileLoad] = [:]
@@ -326,6 +333,8 @@ final class AppModel {
 
     init() {
         git.model = self
+        memory.model = self
+        notes.model = self
     }
 
     func bootstrap() {
@@ -932,6 +941,12 @@ final class AppModel {
         // through their weak references.
         git = GitReviewStore()
         git.model = self
+        // Same for session memory and notes — a fresh store, re-pointed at this
+        // model (a store left without a model can never reach the client again).
+        memory = MemoryStore()
+        memory.model = self
+        notes = NotesStore()
+        notes.model = self
         loadedFiles = [:]
         pendingAgentPrompt = [:]
     }
@@ -1653,6 +1668,10 @@ final class AppModel {
         // screen is still open, otherwise just drop the spinner.
         if statsActive { loadStats(days: statsDays) }
         else { statsLoading = false }
+        // Session memory and notes replay whatever screen is open (or just drop
+        // their spinners); their requests queue on the client until it reconnects.
+        memory.handleConnectionReset()
+        notes.handleConnectionReset()
         historyPending = []
         historyLoadingMore = false
         if historyActive {
@@ -1862,6 +1881,8 @@ final class AppModel {
         wireProjectEvents(c)
         wireTerminalStreams(c)
         wireGit(c)
+        wireMemory(c)
+        wireNotes(c)
         wireComposer(c)
         wireBackground(c)
         wireHistory(c)
@@ -2181,6 +2202,57 @@ final class AppModel {
         }
         c.onGitCheckout = { [weak self] project, error in self?.git.finishCheckout(project, error: error) }
         c.onGitCreateBranch = { [weak self] project, error in self?.git.finishCreateBranch(project, error: error) }
+    }
+
+    private func wireMemory(_ c: LpmClient) {
+        c.onMemory = { [weak self] project, list, error in
+            self?.memory.applyList(project, list, error: error)
+        }
+        c.onMemorySession = { [weak self] project, name, session, error in
+            self?.memory.applySession(project, name: name, session: session, error: error)
+        }
+        c.onMemorySave = { [weak self] project, name, error in
+            self?.memory.finishSave(project, name: name, error: error)
+        }
+        c.onMemoryDelete = { [weak self] project, name, error in
+            self?.memory.finishDelete(project, name: name, error: error)
+        }
+        // The push names the owner folder, which for a duplicate is its original.
+        c.onMemoryChanged = { [weak self] owner in self?.memory.changed(owner) }
+    }
+
+    private func wireNotes(_ c: LpmClient) {
+        c.onNotesChats = { [weak self] project, chats, error in
+            self?.notes.applyChats(project, chats, error: error)
+        }
+        c.onNotesCreateChat = { [weak self] project, chat, error in
+            self?.notes.finishCreateChat(project, chat: chat, error: error)
+        }
+        c.onNotesRenameChat = { [weak self] project, chatId, error in
+            self?.notes.finishRenameChat(project, chatId: chatId, error: error)
+        }
+        c.onNotesDeleteChat = { [weak self] project, chatId, error in
+            self?.notes.finishDeleteChat(project, chatId: chatId, error: error)
+        }
+        c.onNotesMessages = { [weak self] project, chatId, beforeId, messages, error in
+            self?.notes.applyMessages(project, chatId: chatId, beforeId: beforeId,
+                                      messages: messages, error: error)
+        }
+        c.onNotesAddMessage = { [weak self] project, chatId, message, error in
+            self?.notes.finishAddNote(project, chatId: chatId, message: message, error: error)
+        }
+        c.onNotesEditMessage = { [weak self] project, id, error in
+            self?.notes.finishEditNote(project, id: id, error: error)
+        }
+        c.onNotesDeleteMessage = { [weak self] project, id, error in
+            self?.notes.finishDeleteNote(project, id: id, error: error)
+        }
+        c.onNotesSearch = { [weak self] project, query, hits, error in
+            self?.notes.search.apply(project, query: query, hits: hits, error: error)
+        }
+        c.onNotesAttachment = { [weak self] _, hash, data, error in
+            self?.notes.attachments.apply(hash: hash, data: data, error: error)
+        }
     }
 
     private func wireComposer(_ c: LpmClient) {

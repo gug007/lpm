@@ -3569,6 +3569,14 @@ fn handle_msg(
                 let _ = out.try_send(reply.to_string());
             });
         }
+        // Grouped rather than spelled out here: both families are worker-backed
+        // shims over the desktop's own stores, and this match is long enough.
+        "memory" | "memorySession" | "memorySave" | "memoryDelete" => {
+            crate::remote_memory::handle(out, t, &v)
+        }
+        "notesChats" | "notesCreateChat" | "notesRenameChat" | "notesDeleteChat"
+        | "notesMessages" | "notesAddMessage" | "notesEditMessage" | "notesDeleteMessage"
+        | "notesSearch" | "notesAttachment" => crate::remote_notes::handle(app, out, t, &v),
         _ => {}
     }
     Ok(())
@@ -4787,6 +4795,15 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
         let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
         broadcast(&h, json!({ "t": "status-changed", "project": project }));
         push_notifications(&h, &a, &project);
+    });
+    // Agent CLIs write session files through the lpm-memory skill while a phone
+    // has the Memory screen open, so the FSEvents watcher's settle-debounced
+    // event is forwarded too. The payload is the OWNER folder name, which for a
+    // duplicate is its original — the phone matches on either.
+    let h = hub.clone();
+    app.listen("memory-changed", move |e| {
+        let project = serde_json::from_str::<String>(e.payload()).unwrap_or_default();
+        broadcast(&h, json!({ "t": "memory-changed", "project": project }));
     });
     let h = hub.clone();
     app.listen("job-status", move |event| {
