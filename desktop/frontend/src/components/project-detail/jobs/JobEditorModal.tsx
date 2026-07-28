@@ -455,7 +455,7 @@ export function JobEditorModal({
                           const [agent, model] = v.split("|");
                           setTouched(true);
                           setDraft((prev) => {
-                            const efforts = effortsFor(agent);
+                            const efforts = effortsFor(agent, model);
                             const effort = efforts.some((e) => e.value === prev.effort)
                               ? prev.effort
                               : "";
@@ -466,12 +466,12 @@ export function JobEditorModal({
                       />
                     </Row>
                   )}
-                  {draft.runMode === "prompt" && effortsFor(draft.agent).length > 0 && (
+                  {draft.runMode === "prompt" && effortsFor(draft.agent, draft.model).length > 0 && (
                     <Row label="Effort">
                       <RowSelect
                         value={draft.effort}
                         onChange={(v) => set("effort", v)}
-                        options={effortsFor(draft.agent)}
+                        options={effortsFor(draft.agent, draft.model)}
                       />
                     </Row>
                   )}

@@ -276,10 +276,11 @@ const CLAUDE_EFFORTS: AIEffortOption[] = [
   { value: "max", label: "Max" },
 ];
 
-// Codex's `-c model_reasoning_effort=...` config accepts
-// low/medium/high/xhigh. `minimal` exists in the codex CLI source but
-// is rejected by current GPT-5.x models — kept out to avoid surfacing
-// an option that errors at run time. "max" is Claude-only.
+// Codex's `-c model_reasoning_effort=...` config accepts low/medium/high/xhigh
+// on every model; `max` and `ultra` ride on top for the models that list them
+// (see CODEX_TOP_EFFORTS). `minimal` exists in the codex CLI source but is
+// rejected by current GPT-5.x models — kept out to avoid surfacing an option
+// that errors at run time.
 const CODEX_EFFORTS: AIEffortOption[] = [
   { value: "", label: "Default" },
   { value: "low", label: "Low" },
@@ -330,6 +331,39 @@ export function aiPickLabel(cli: AICLI, model: string): string {
 
 export function aiDefaultModel(cli: AICLI): string {
   return AI_CLI_OPTIONS.find((o) => o.value === cli)?.models?.[0]?.value ?? "";
+}
+
+// The two Codex effort levels above xhigh, each with the models that take it.
+// Sending one to a model without it is a hard 400 from the API mid-run, so an
+// unpinned model ("Default", i.e. whatever the codex CLI is configured with)
+// stays on the levels every model shares.
+const CODEX_TOP_EFFORTS: { option: AIEffortOption; models: ReadonlySet<string> }[] = [
+  {
+    option: { value: "max", label: "Max" },
+    models: new Set(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]),
+  },
+  {
+    option: { value: "ultra", label: "Ultra" },
+    models: new Set(["gpt-5.6-sol", "gpt-5.6-terra"]),
+  },
+];
+
+// Effort options for a CLI/model pair. Only Codex varies by model — Claude
+// takes every level on every model.
+export function aiEfforts(cli: AICLI, model: string): AIEffortOption[] {
+  const base = AI_CLI_OPTIONS.find((o) => o.value === cli)?.efforts ?? [];
+  if (cli !== "codex") return base;
+  return [
+    ...base,
+    ...CODEX_TOP_EFFORTS.filter((t) => t.models.has(model)).map((t) => t.option),
+  ];
+}
+
+// effectiveEffort drops an effort the current CLI/model wouldn't accept back to
+// the model's default, so call sites can pass a saved pick straight into the
+// backend binding instead of failing the run on a stale level.
+export function aiEffectiveEffort(cli: AICLI, model: string, effort: string): string {
+  return aiEfforts(cli, model).some((e) => e.value === effort) ? effort : "";
 }
 
 // Codex Fast Mode (`service_tier=fast`) is currently honored only by the

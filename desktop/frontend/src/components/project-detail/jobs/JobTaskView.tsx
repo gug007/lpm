@@ -157,7 +157,7 @@ export function JobTaskView({
   };
 
   const [agent, model] = pick.split("|");
-  const efforts = effortsFor(agent);
+  const efforts = effortsFor(agent, model);
   const locked = job.running === true;
   // Every conversation of an AI prompt job stays continuable: a Claude session
   // resumes, anything else continues from the condensed transcript.
@@ -372,7 +372,8 @@ export function JobTaskView({
                   value={pick}
                   onChange={(v) => {
                     setPick(v);
-                    const nextEfforts = effortsFor(v.split("|")[0]);
+                    const [nextAgent, nextModel] = v.split("|");
+                    const nextEfforts = effortsFor(nextAgent, nextModel);
                     if (!nextEfforts.some((e) => e.value === effort)) setEffort("");
                   }}
                   options={MODEL_OPTIONS}

@@ -3,6 +3,8 @@ import { CheckAICLIs } from "../../bridge/commands";
 import {
   AI_CLI_OPTIONS,
   aiDefaultModel,
+  aiEffectiveEffort,
+  aiEfforts,
   aiPickLabel,
   resolveAIPick,
   type AICLI,
@@ -10,6 +12,14 @@ import {
 import { getSettings, saveSettings } from "../store/settings";
 
 const DEFAULT_CLI: AICLI = "claude";
+
+// Switching model drops an effort the new one can't take — Codex's top levels
+// are model-bound. CLIs with no effort control at all keep it parked so hopping
+// through one doesn't lose the setting.
+function clampEffort(cli: AICLI, model: string, effort: string): string {
+  if (aiEfforts(cli, model).length === 0) return effort;
+  return aiEffectiveEffort(cli, model, effort);
+}
 
 export interface AIPicker {
   aiCLIs: Record<string, boolean>;
@@ -59,6 +69,7 @@ export function useAIPicker(active: boolean): AIPicker {
         if (pick) {
           setSelectedCLI(pick.cli);
           setSelectedModel(pick.model);
+          setSelectedEffort((prev) => clampEffort(pick.cli, pick.model, prev));
         }
       })
       .catch(() => {});
@@ -67,11 +78,16 @@ export function useAIPicker(active: boolean): AIPicker {
     };
   }, [active]);
 
-  const selectAI = useCallback((cli: AICLI, model: string) => {
-    setSelectedCLI(cli);
-    setSelectedModel(model);
-    saveSettings({ aiCli: cli, aiModel: model });
-  }, []);
+  const selectAI = useCallback(
+    (cli: AICLI, model: string) => {
+      setSelectedCLI(cli);
+      setSelectedModel(model);
+      const effort = clampEffort(cli, model, selectedEffort);
+      setSelectedEffort(effort);
+      saveSettings({ aiCli: cli, aiModel: model, aiEffort: effort });
+    },
+    [selectedEffort],
+  );
 
   const selectEffort = useCallback((cli: AICLI, effort: string) => {
     setSelectedCLI(cli);

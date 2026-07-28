@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   AI_CLI_OPTIONS,
   aiDefaultModel,
+  aiEfforts,
   aiSupportsFast,
   type AICLI,
   type AIEffortOption,
@@ -37,7 +38,9 @@ export function AICLIMenu({
   const { ref, maxHeight } = useMenuMaxHeight<HTMLDivElement>(placement);
   const availableCLIs = AI_CLI_OPTIONS.filter((o) => aiCLIs[o.value]);
   const activeOption = availableCLIs.find((o) => o.value === selectedCLI);
-  const efforts = (onSelectEffort && activeOption?.efforts) || [];
+  const modelEfforts = activeOption ? aiEfforts(selectedCLI, selectedModel) : [];
+  const activeEffortLabel = modelEfforts.find((e) => e.value === selectedEffort)?.label;
+  const efforts = onSelectEffort ? modelEfforts : [];
   const effortAvailable = Boolean(onSelectEffort && efforts.length > 0);
   const fastAvailable = Boolean(onSelectFast) && aiSupportsFast(selectedCLI, selectedModel);
   const showEffortPanel = (effortAvailable || fastAvailable) && editingActive;
@@ -86,7 +89,6 @@ export function AICLIMenu({
               />
             );
           }
-          const activeEffortLabel = o.efforts?.find((e) => e.value === selectedEffort)?.label;
           return (
             <div key={o.value} className="pb-1 last:pb-0">
               <SectionHeader label={o.label} />
@@ -95,7 +97,7 @@ export function AICLIMenu({
                 const modelFastAvailable = Boolean(onSelectFast) && aiSupportsFast(o.value, m.value);
                 const modelEditable = effortAvailable || modelFastAvailable;
                 const badge = isActive
-                  ? rowBadge(o.efforts, activeEffortLabel, modelFastAvailable, selectedFast)
+                  ? rowBadge(modelEfforts, activeEffortLabel, modelFastAvailable, selectedFast)
                   : undefined;
                 return (
                   <MenuRow

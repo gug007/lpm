@@ -17,6 +17,9 @@ enum AutomationEditorContext: Identifiable {
     var isEditing: Bool { if case .edit = self { return true } else { return false } }
 }
 
+private let CODEX_MAX_MODELS: Set<String> = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+private let CODEX_ULTRA_MODELS: Set<String> = ["gpt-5.6-sol", "gpt-5.6-terra"]
+
 private let WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 private let DAY_LETTER = ["mon": "M", "tue": "T", "wed": "W", "thu": "T",
                           "fri": "F", "sat": "S", "sun": "S"]
@@ -276,10 +279,9 @@ struct AutomationEditorSheet: View {
                     .textInputAutocapitalization(.never)
                 if effortAvailable {
                     Picker("Effort", selection: $draft.effort) {
-                        Text("Default").tag("")
-                        Text("Low").tag("low")
-                        Text("Medium").tag("medium")
-                        Text("High").tag("high")
+                        ForEach(effortOptions) { o in
+                            Text(o.label).tag(o.value)
+                        }
                     }
                 }
                 Picker("Access", selection: $draft.access) {
@@ -299,14 +301,44 @@ struct AutomationEditorSheet: View {
                 draft.action = availableActions.first?.name ?? ""
             }
         }
-        .onChange(of: draft.agent) { _, _ in
-            if !effortAvailable { draft.effort = "" }
-        }
+        .onChange(of: draft.agent) { _, _ in clampEffort() }
+        .onChange(of: draft.model) { _, _ in clampEffort() }
     }
 
     // Only Claude and Codex expose reasoning effort (default agent is Claude).
     private var effortAvailable: Bool {
         draft.agent.isEmpty || draft.agent == "claude" || draft.agent == "codex"
+    }
+
+    private struct EffortOption: Identifiable {
+        let value: String
+        let label: String
+        var id: String { value }
+    }
+
+    /// The levels the picked agent and model actually accept — an unsupported
+    /// one fails the run rather than falling back. Every Claude model goes to
+    /// Max; Codex needs a pinned GPT-5.6 model for its top two. An unpinned
+    /// agent gets only the levels both CLIs share.
+    private var effortOptions: [EffortOption] {
+        var opts = [EffortOption(value: "", label: "Default"),
+                    EffortOption(value: "low", label: "Low"),
+                    EffortOption(value: "medium", label: "Medium"),
+                    EffortOption(value: "high", label: "High"),
+                    EffortOption(value: "xhigh", label: "Extra High")]
+        let model = draft.model.trimmed.lowercased()
+        if draft.agent == "claude" || (draft.agent == "codex" && CODEX_MAX_MODELS.contains(model)) {
+            opts.append(EffortOption(value: "max", label: "Max"))
+        }
+        if draft.agent == "codex" && CODEX_ULTRA_MODELS.contains(model) {
+            opts.append(EffortOption(value: "ultra", label: "Ultra"))
+        }
+        return opts
+    }
+
+    private func clampEffort() {
+        guard effortAvailable else { draft.effort = ""; return }
+        if !effortOptions.contains(where: { $0.value == draft.effort }) { draft.effort = "" }
     }
 
     @ViewBuilder private var frequencySection: some View {

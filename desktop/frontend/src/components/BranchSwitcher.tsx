@@ -15,7 +15,7 @@ import {
   RenameBranch,
 } from "../../bridge/commands";
 import { getSettings } from "../store/settings";
-import { aiEffectiveFast } from "../types";
+import { aiEffectiveEffort, aiEffectiveFast } from "../types";
 import { runAutoCommit } from "../autoCommit";
 import { useAIPicker } from "../hooks/useAIPicker";
 import {
@@ -240,7 +240,11 @@ export function BranchSwitcher({
     setCommitMenuOpen(false);
     const cli = ai.selectedCLI;
     const model = ai.selectedModel;
-    const effort = ai.selectedEffort;
+    const effort = aiEffectiveEffort(
+      ai.selectedCLI,
+      ai.selectedModel,
+      ai.selectedEffort,
+    );
     const fast = aiEffectiveFast(
       ai.selectedCLI,
       ai.selectedModel,

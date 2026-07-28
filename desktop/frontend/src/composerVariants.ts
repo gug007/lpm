@@ -1,6 +1,6 @@
 import { TransformText } from "../bridge/commands";
 import { getSettings } from "./store/settings";
-import { aiEffectiveFast, type AICLI } from "./types";
+import { aiEffectiveEffort, aiEffectiveFast, type AICLI } from "./types";
 import type { AIPicker } from "./hooks/useAIPicker";
 
 // Upper bound on how many rewrites a single action can request at once. Small so
@@ -23,7 +23,12 @@ export function resolveTransformParams(ai: AIPicker): TransformParams {
   const model = s.aiModel ?? ai.selectedModel;
   const effort = s.aiEffort ?? ai.selectedEffort;
   const fast = s.aiFast ?? ai.selectedFast;
-  return { cli, model, effort, fast: aiEffectiveFast(cli, model, fast) };
+  return {
+    cli,
+    model,
+    effort: aiEffectiveEffort(cli, model, effort),
+    fast: aiEffectiveFast(cli, model, fast),
+  };
 }
 
 export function clampVariantCount(count: number): number {

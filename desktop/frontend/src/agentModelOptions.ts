@@ -1,12 +1,12 @@
-import { AI_CLI_OPTIONS } from "./types";
+import { AI_CLI_OPTIONS, aiEfforts, type AICLI, type AIEffortOption } from "./types";
 import { getSettings } from "./store/settings";
 
 // Reasoning-effort options for the agent a prompt will actually run with: an
 // explicit pick, or the app's default agent when the model is "Default".
 // Gemini and OpenCode have no effort control, which hides the Effort picker.
-export function effortsFor(agent: string): { value: string; label: string }[] {
-  const effective = agent || (getSettings().aiCli as string) || "claude";
-  return AI_CLI_OPTIONS.find((o) => o.value === effective)?.efforts ?? [];
+export function effortsFor(agent: string, model = ""): AIEffortOption[] {
+  const effective = (agent || (getSettings().aiCli as string) || "claude") as AICLI;
+  return aiEfforts(effective, model);
 }
 
 // One flat list for a Model picker: the app default, then each agent with its

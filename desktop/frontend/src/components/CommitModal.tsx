@@ -23,7 +23,7 @@ import { main } from "../../bridge/models";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
-import { aiEffectiveFast } from "../types";
+import { aiEffectiveEffort, aiEffectiveFast } from "../types";
 import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "../gitOptions";
@@ -315,7 +315,11 @@ export function CommitModal({
     const pending = genPromise.current;
     const cli = ai.selectedCLI;
     const model = ai.selectedModel;
-    const effort = ai.selectedEffort;
+    const effort = aiEffectiveEffort(
+      ai.selectedCLI,
+      ai.selectedModel,
+      ai.selectedEffort,
+    );
     const fast = aiEffectiveFast(
       ai.selectedCLI,
       ai.selectedModel,
