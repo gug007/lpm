@@ -51,9 +51,9 @@ export default function QuickAnswer() {
             </p>
             <p>
               That gap is why a second primitive exists. lpm creates worktrees
-              too, and it can instead duplicate the project exactly as it sits
-              on your disk into a standalone copy with its own Git repository —
-              then start the agent in each one.
+              too, and lpm Duplicate can instead copy the project exactly as it
+              sits on your disk into a standalone project with its own Git
+              repository — then start the agent in each one.
             </p>
           </div>
         </div>

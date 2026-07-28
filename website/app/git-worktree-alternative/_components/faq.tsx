@@ -30,7 +30,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Can lpm run Claude Code or Codex in every copy automatically?",
     answer:
-      "Yes. The Duplicate dialog and lpm CLI can create up to 50 copies and queue a configured action or any command with a prompt on each one. The same workflow works with Claude Code, Codex, Gemini CLI, OpenCode, and other terminal-based agents.",
+      "Yes. The Duplicate dialog can create up to 50 copies and queue a configured action or any command with a prompt on each one. The same workflow works with Claude Code, Codex, Gemini CLI, OpenCode, and other terminal-based agents.",
   },
   {
     question: "When is Git worktree still the better choice?",

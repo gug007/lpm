@@ -40,17 +40,17 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is there a Git worktree MCP server or agent skill?",
     answer:
-      "lpm installs skills for Claude Code and Codex that teach the agent its own CLI, including lpm worktree and lpm duplicate. An agent can then create its own isolated copies, queue work in them, wait for the others to settle, and remove them — without you translating each step into shell commands.",
+      "lpm installs skills for Claude Code and Codex that teach the agent how to drive lpm directly. An agent can then create its own isolated worktrees or copies, run work in them, wait for the others to settle, and remove them — without you translating each step yourself.",
   },
   {
-    question: "What is the difference between lpm worktree and lpm duplicate?",
+    question: "What is the difference between lpm Worktree and lpm Duplicate?",
     answer:
-      "lpm worktree creates real linked Git worktrees on an lpm/<name> branch, sharing your repository. lpm duplicate creates a standalone folder with its own .git directory, starting from the project exactly as it is on disk. Both create up to 50 at a time, inherit the project's services and actions, and can queue an agent command with a prompt on each one.",
+      "lpm Worktree creates real linked Git worktrees on their own branch, sharing your repository. lpm Duplicate creates a standalone folder with its own Git repository, starting from the project exactly as it is on disk. Both create up to 50 at a time, inherit the project's services and actions, and can queue an agent action with a prompt on each one.",
   },
   {
-    question: "Does lpm worktree copy my .env file and dependencies?",
+    question: "Does lpm Worktree copy my .env file and dependencies?",
     answer:
-      "No. lpm worktree runs a real git worktree add, so it has the same blind spot as raw Git: ignored files are not carried over. You can pass --reinstall-deps to install dependencies in each worktree. If the copy needs your local files and current state, use lpm duplicate instead.",
+      "No. lpm Worktree creates a real Git worktree, so it has the same blind spot as raw Git: ignored files are not carried over. There is an option to reinstall dependencies in each worktree. If the copy needs your local files and current state, use lpm Duplicate instead.",
   },
   {
     question: "How much disk does each copy use?",

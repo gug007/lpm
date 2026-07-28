@@ -61,7 +61,7 @@ const ROWS: ComparisonRow[] = [
     worktree:
       "Create and prepare each worktree directly or automate it with another tool.",
     duplicate:
-      "Create up to 50 labeled copies from one dialog or one lpm duplicate command.",
+      "Create up to 50 labeled copies from a single dialog.",
   },
   {
     topic: "Disk model",

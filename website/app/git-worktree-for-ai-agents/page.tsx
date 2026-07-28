@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Git worktree vs lpm worktree vs lpm duplicate — five ways to isolate a parallel coding agent, compared.",
+      "Git worktree vs lpm Worktree vs lpm Duplicate — five ways to isolate a parallel coding agent, compared.",
   },
 };
 

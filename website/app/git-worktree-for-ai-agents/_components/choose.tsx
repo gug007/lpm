@@ -16,18 +16,18 @@ const BRANCHES: Branch[] = [
   },
   {
     question: "Several agents, and your repository needs no local setup",
-    answer: "git worktree, or lpm worktree for the batch",
-    why: "The checkout is all the agent needs, so the lightest primitive wins. Use lpm worktree when you want several at once with a prompt queued on each.",
+    answer: "Git worktree, or lpm Worktree for the batch",
+    why: "The checkout is all the agent needs, so the lightest primitive wins. Use lpm Worktree when you want several at once with a prompt queued on each.",
   },
   {
     question: "The agent needs your .env, your dependencies, or your uncommitted work",
-    answer: "lpm duplicate",
+    answer: "lpm Duplicate",
     why: "A checkout cannot reproduce state that was never committed. A copy of the working project can.",
     highlight: true,
   },
   {
     question: "Several agents should attempt the same branch and you keep the best",
-    answer: "lpm duplicate",
+    answer: "lpm Duplicate",
     why: "Linked worktrees refuse a branch that is already checked out. Independent repositories have no such restriction.",
     highlight: true,
   },

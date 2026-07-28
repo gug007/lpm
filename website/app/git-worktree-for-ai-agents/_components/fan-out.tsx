@@ -1,41 +1,30 @@
-import type { ReactNode } from "react";
-import { CodeBlock, Comment } from "@/components/config/code-block";
 import { SectionHeader } from "@/components/section-header";
 
-const Flag = ({ children }: { children: ReactNode }) => (
-  <code className="whitespace-nowrap font-mono text-[0.9em]">{children}</code>
-);
-
-const MODES: {
-  command: string;
-  title: string;
-  body: ReactNode;
-  code: string;
-}[] = [
+const MODES = [
   {
-    command: "lpm worktree",
+    name: "lpm Worktree",
     title: "Linked worktrees, created in a batch",
-    body: (
-      <>
-        Each one is a real Git worktree on its own <Flag>lpm/&lt;name&gt;</Flag>{" "}
-        branch, sharing the repository. Dependencies are not carried over — add{" "}
-        <Flag>--reinstall-deps</Flag> when the copy needs them.
-      </>
-    ),
-    code: 'lpm worktree myapp -n 3 --reinstall-deps \\\n  --run claude \\\n  --prompt "Fix the checkout race condition"',
+    body: "Each one is a real Git worktree on its own branch, sharing the repository. Ignored files are not carried over, the same as raw Git — tick the reinstall option when the copy needs its dependencies.",
+    points: [
+      "Real linked worktrees, removed with their branch when you delete them",
+      "Lightest option when the checkout is all the agent needs",
+    ],
   },
   {
-    command: "lpm duplicate",
+    name: "lpm Duplicate",
     title: "Standalone copies of the project you have now",
-    body: (
-      <>
-        An APFS copy-on-write clone with its own <Flag>.git</Flag> directory,
-        carrying uncommitted work, ignored files, and installed dependencies.
-        Regenerable build caches are skipped.
-      </>
-    ),
-    code: 'lpm duplicate myapp -n 3 \\\n  --run claude \\\n  --prompt "Fix the checkout race condition"',
+    body: "An APFS copy-on-write clone with its own Git repository, carrying uncommitted work, ignored files, and installed dependencies. Regenerable build caches are left behind.",
+    points: [
+      "Optionally strip uncommitted changes, pull the latest commit, or reinstall dependencies",
+      "Each copy is independent, so several can sit on the same branch",
+    ],
   },
+];
+
+const STEPS = [
+  "Open Duplicate, choose worktrees or standalone copies, and set how many — up to 50.",
+  "Label them, group them in the sidebar, and pick the action or command each one should run, with the prompt to send.",
+  "Watch every copy's agent status from the sidebar, review the diffs, and remove the copies you do not keep.",
 ];
 
 export default function FanOut() {
@@ -43,20 +32,20 @@ export default function FanOut() {
     <section id="fan-out" className="scroll-mt-20 py-20 sm:py-24">
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
-          eyebrow="One command, three agents"
+          eyebrow="One prompt, three agents"
           title="Both primitives, the same fan-out"
-          description="lpm does not ask you to give up worktrees. It gives the same batch creation, queued prompt, and cleanup to either isolation model."
+          description="lpm does not ask you to give up worktrees. The same dialog creates either kind, queues the work, and cleans up after it."
           className="mb-12"
         />
 
         <div className="grid gap-6 md:grid-cols-2">
           {MODES.map((mode) => (
             <article
-              key={mode.command}
+              key={mode.name}
               className="rounded-2xl border border-gray-200 p-6 dark:border-gray-800"
             >
-              <p className="font-mono text-[13px] font-semibold text-gray-500 dark:text-gray-400">
-                {mode.command}
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                {mode.name}
               </p>
               <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">
                 {mode.title}
@@ -64,28 +53,46 @@ export default function FanOut() {
               <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
                 {mode.body}
               </p>
-              <div className="mt-5">
-                <CodeBlock>{mode.code}</CodeBlock>
-              </div>
+              <ul className="mt-4 space-y-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+                {mode.points.map((point) => (
+                  <li
+                    key={point}
+                    className="flex gap-2.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400"
+                  >
+                    <span
+                      aria-hidden
+                      className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-gray-600"
+                    />
+                    {point}
+                  </li>
+                ))}
+              </ul>
             </article>
           ))}
         </div>
 
-        <div className="mt-10">
-          <CodeBlock filename="Then wait, review, and clean up">
-            <Comment>
-              # each copy prints its name as it is created, e.g. myapp-a1b2c3
-            </Comment>
-            {"\n"}lpm wait myapp-a1b2c3 --agent --timeout 900
-            {"\n"}lpm remove myapp-a1b2c3
-          </CodeBlock>
-          <p className="mt-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-            The same commands are available to the agents themselves. lpm
-            installs skills for Claude Code and Codex, so an agent can create
-            its own copies, wait for the others to settle, and remove them when
-            the work is merged.
-          </p>
-        </div>
+        <ol className="mt-10 grid gap-4 md:grid-cols-3">
+          {STEPS.map((step, index) => (
+            <li
+              key={step}
+              className="rounded-2xl border border-gray-200 p-5 dark:border-gray-800"
+            >
+              <span className="text-xs font-semibold tabular-nums text-gray-300 dark:text-gray-700">
+                0{index + 1}
+              </span>
+              <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                {step}
+              </p>
+            </li>
+          ))}
+        </ol>
+
+        <p className="mt-8 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+          The agents can drive this themselves. lpm installs skills for Claude
+          Code and Codex, so an agent asked to try three approaches can create
+          its own copies, run the work in them, wait for the others to settle,
+          and clean them up when you have merged the one you want.
+        </p>
 
         <div className="mt-10 overflow-hidden rounded-xl border border-gray-200 bg-gray-950 shadow-2xl shadow-gray-200/60 dark:border-gray-800 dark:shadow-black/40">
           <video

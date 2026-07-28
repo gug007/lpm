@@ -1,5 +1,4 @@
 import { Bot, Command, FolderGit2 } from "lucide-react";
-import { CodeBlock } from "@/components/config/code-block";
 import { SectionHeader } from "@/components/section-header";
 
 const OUTCOMES = [
@@ -26,16 +25,9 @@ export default function AgentWorkflow() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="Parallel Claude Code and Codex"
-          title="One command instead of a worktree setup script"
-          description="The desktop flow is visual. The same Duplicate primitive is available to you and your coding agents through the lpm CLI."
+          title="One dialog instead of a worktree setup script"
+          description="Pick how many copies you want, label them, and choose the command and prompt each one starts with. Your coding agents can drive the same flow through the lpm skills they install."
         />
-
-        <CodeBlock filename="Fan out one task">
-          lpm duplicate myapp -n 3 --run claude \
-          {"\n"}  --prompt &quot;Find and fix the checkout race condition&quot;
-          {"\n\n"}lpm wait COPY_NAME --agent
-          {"\n"}lpm remove COPY_NAME
-        </CodeBlock>
 
         <div className="mt-10 space-y-5">
           {OUTCOMES.map(({ icon: Icon, title, body }) => (

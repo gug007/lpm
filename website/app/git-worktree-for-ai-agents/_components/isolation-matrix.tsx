@@ -9,11 +9,11 @@ type Row = {
 };
 
 const COLUMNS = [
-  { name: "git worktree", sub: "raw Git" },
-  { name: "claude --worktree", sub: "Claude Code" },
-  { name: "Codex worktrees", sub: "Codex app" },
-  { name: "lpm worktree", sub: "lpm" },
-  { name: "lpm duplicate", sub: "lpm" },
+  { name: "git worktree", sub: "raw Git", mono: true },
+  { name: "claude --worktree", sub: "Claude Code", mono: true },
+  { name: "Codex worktrees", sub: "Codex app", mono: false },
+  { name: "lpm Worktree", sub: "lpm", mono: false },
+  { name: "lpm Duplicate", sub: "lpm", mono: false },
 ];
 
 const ROWS: Row[] = [
@@ -143,7 +143,7 @@ export default function IsolationMatrix() {
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="Five ways to isolate an agent"
-          title="Git worktree vs lpm worktree vs lpm duplicate"
+          title="Git worktree vs lpm Worktree vs lpm Duplicate"
           description="The same table with the two built-in agent flags alongside them, so you can see exactly where each boundary is drawn."
           className="mb-12"
         />
@@ -169,7 +169,9 @@ export default function IsolationMatrix() {
                     }`}
                   >
                     <span
-                      className={`block font-mono text-[13px] font-semibold ${
+                      className={`block text-[13px] font-semibold ${
+                        column.mono ? "font-mono" : ""
+                      } ${
                         index === COLUMNS.length - 1
                           ? "text-emerald-800 dark:text-emerald-300"
                           : "text-gray-700 dark:text-gray-300"
@@ -250,7 +252,9 @@ export default function IsolationMatrix() {
                         }`}
                       >
                         <dt
-                          className={`font-mono text-[12px] ${
+                          className={`text-[12px] ${
+                            COLUMNS[index].mono ? "font-mono" : ""
+                          } ${
                             isLpmDuplicate
                               ? "font-semibold text-emerald-800 dark:text-emerald-300"
                               : "text-gray-500 dark:text-gray-400"
