@@ -152,6 +152,7 @@ export interface UsageBreakdown {
   label: string;
   sessions: number;
   tokens: TokenUsage;
+  provider?: string;
 }
 
 export interface DailyModelUsage {

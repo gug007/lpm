@@ -15,8 +15,12 @@ function tokens(partial: Partial<TokenUsage>): TokenUsage {
   };
 }
 
-function breakdown(key: string, tokenPart: Partial<TokenUsage>): UsageBreakdown {
-  return { key, label: key, sessions: 1, tokens: tokens(tokenPart) };
+function breakdown(
+  key: string,
+  tokenPart: Partial<TokenUsage>,
+  provider?: string,
+): UsageBreakdown {
+  return { key, label: key, sessions: 1, tokens: tokens(tokenPart), provider };
 }
 
 describe("estimateModelCost", () => {
@@ -51,12 +55,40 @@ describe("estimateModelCost", () => {
     expect(cost).toBeCloseTo(5, 6);
   });
 
-  it("uses OpenAI-family pricing for gpt/codex models", () => {
+  it("uses legacy OpenAI pricing for the gpt-5 generation", () => {
     const cost = estimateModelCost(
       tokens({ inputTokens: 1_000_000, outputTokens: 1_000_000 }),
       "gpt-5-codex",
     );
     expect(cost).toBeCloseTo(1.25 + 10, 6);
+  });
+
+  it("prices gpt-5.6 variants at their own tiers", () => {
+    const usage = tokens({
+      inputTokens: 2_000_000,
+      cacheReadInputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    expect(estimateModelCost(usage, "gpt-5.6-sol")).toBeCloseTo(5 + 0.5 + 30, 6);
+    expect(estimateModelCost(usage, "gpt-5.6-terra")).toBeCloseTo(2.5 + 0.25 + 15, 6);
+    expect(estimateModelCost(usage, "gpt-5.6-luna")).toBeCloseTo(1 + 0.1 + 6, 6);
+  });
+
+  it("prices a mini variant below its family", () => {
+    const usage = tokens({ inputTokens: 1_000_000, outputTokens: 1_000_000 });
+    expect(estimateModelCost(usage, "gpt-5.4-mini")).toBeCloseTo(0.75 + 4.5, 6);
+    expect(estimateModelCost(usage, "gpt-5.4")).toBeCloseTo(2.5 + 15, 6);
+  });
+
+  it("keeps an effort-suffixed variant on its family rate", () => {
+    const cost = estimateModelCost(tokens({ outputTokens: 1_000_000 }), "gpt-5.6-sol-ultra");
+    expect(cost).toBeCloseTo(30, 6);
+  });
+
+  it("falls back to the flagship gpt rate for unrecognized codex models", () => {
+    const usage = tokens({ inputTokens: 1_000_000, outputTokens: 1_000_000 });
+    expect(estimateModelCost(usage, "codex-auto-review", "codex")).toBeCloseTo(5 + 30, 6);
+    expect(estimateModelCost(usage, "Unknown model", "codex")).toBeCloseTo(5 + 30, 6);
   });
 
   it("never goes negative when cache exceeds input", () => {
@@ -80,6 +112,13 @@ describe("estimateTotalCost", () => {
       breakdown("gpt-5-codex", { outputTokens: 1_000_000 }),
     ];
     expect(estimateTotalCost(models)).toBeCloseTo(25 + 10, 6);
+  });
+
+  it("prices an unrecognized model by its provider, not the opus default", () => {
+    const models: UsageBreakdown[] = [
+      breakdown("codex-auto-review", { outputTokens: 1_000_000 }, "codex"),
+    ];
+    expect(estimateTotalCost(models)).toBeCloseTo(30, 6);
   });
 });
 

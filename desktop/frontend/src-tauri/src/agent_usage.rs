@@ -48,6 +48,8 @@ pub struct UsageBreakdown {
     label: String,
     sessions: usize,
     tokens: TokenUsage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -192,6 +194,45 @@ fn usage_delta(current: TokenUsage, previous: TokenUsage) -> TokenUsage {
         output_tokens: delta(current.output_tokens, previous.output_tokens),
         reasoning_tokens: delta(current.reasoning_tokens, previous.reasoning_tokens),
         total_tokens: delta(current.total_tokens, previous.total_tokens),
+    }
+}
+
+fn codex_tokens(usage: &Value) -> TokenUsage {
+    let input = value_u64(usage, "input_tokens");
+    let output = value_u64(usage, "output_tokens");
+    let cache_read = value_u64(usage, "cached_input_tokens");
+    let reported = value_u64(usage, "total_tokens");
+    TokenUsage {
+        input_tokens: input,
+        cached_input_tokens: cache_read,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: cache_read,
+        output_tokens: output,
+        reasoning_tokens: value_u64(usage, "reasoning_output_tokens"),
+        total_tokens: if reported == 0 {
+            input.saturating_add(output)
+        } else {
+            reported
+        },
+    }
+}
+
+/// A forked or subagent rollout opens with a verbatim copy of the parent thread's
+/// transcript, dumped in one sub-second burst and re-stamped with the spawn instant.
+/// Counting it would bill the parent's whole history again for every spawn. Real turns
+/// are seconds apart, so the end of that burst is the boundary.
+const REPLAY_BURST_GAP_MS: i64 = 1_000;
+
+fn trim_replayed_history(events: &mut Vec<UsageEvent>, forked: bool) {
+    if !forked {
+        return;
+    }
+    let replayed = events
+        .windows(2)
+        .take_while(|pair| pair[1].timestamp - pair[0].timestamp < REPLAY_BURST_GAP_MS)
+        .count();
+    if replayed > 0 {
+        events.drain(..=replayed);
     }
 }
 
@@ -417,6 +458,8 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
         .unwrap_or("unknown")
         .to_string();
     let mut previous = TokenUsage::default();
+    let mut meta_seen = false;
+    let mut forked = false;
     let mut events = Vec::new();
     for line in BufReader::new(file).lines().map_while(Result::ok) {
         if !line.contains("token_count")
@@ -441,6 +484,13 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
                 if let Some(value) = payload.get("cwd").and_then(Value::as_str) {
                     cwd = value.to_string();
                 }
+                if !meta_seen {
+                    // The replayed transcript carries the parent's own session_meta, so
+                    // only the rollout's first one describes this thread.
+                    meta_seen = true;
+                    forked = payload.get("forked_from_id").is_some()
+                        || payload.get("thread_source").and_then(Value::as_str) == Some("subagent");
+                }
                 continue;
             }
             Some("turn_context") => {
@@ -457,33 +507,20 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
         if payload.get("type").and_then(Value::as_str) != Some("token_count") {
             continue;
         }
-        let Some(total) = payload
-            .get("info")
-            .and_then(|info| info.get("total_token_usage"))
-        else {
-            continue;
+        let info = payload.get("info").unwrap_or(&Value::Null);
+        let cumulative = info.get("total_token_usage").map(codex_tokens);
+        let tokens = match info.get("last_token_usage").map(codex_tokens) {
+            Some(turn) => turn,
+            None => {
+                let Some(current) = cumulative else {
+                    continue;
+                };
+                usage_delta(current, previous)
+            }
         };
-        let input = value_u64(total, "input_tokens");
-        let output = value_u64(total, "output_tokens");
-        let cache_read = value_u64(total, "cached_input_tokens");
-        let current = TokenUsage {
-            input_tokens: input,
-            cached_input_tokens: cache_read,
-            cache_creation_input_tokens: 0,
-            cache_read_input_tokens: cache_read,
-            output_tokens: output,
-            reasoning_tokens: value_u64(total, "reasoning_output_tokens"),
-            total_tokens: {
-                let reported = value_u64(total, "total_tokens");
-                if reported == 0 {
-                    input.saturating_add(output)
-                } else {
-                    reported
-                }
-            },
-        };
-        let tokens = usage_delta(current, previous);
-        previous = current;
+        if let Some(current) = cumulative {
+            previous = current;
+        }
         if tokens.is_empty() {
             continue;
         }
@@ -505,6 +542,7 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
             tokens,
         });
     }
+    trim_replayed_history(&mut events, forked);
     events
 }
 
@@ -512,6 +550,7 @@ fn parse_codex_file(path: &Path, matcher: &ProjectMatcher, cutoff: Option<i64>) 
 struct GroupAggregate {
     tokens: TokenUsage,
     sessions: HashSet<String>,
+    provider: Option<&'static str>,
 }
 
 #[derive(Default)]
@@ -557,6 +596,7 @@ fn breakdowns(
             key,
             sessions: aggregate.sessions.len(),
             tokens: aggregate.tokens,
+            provider: aggregate.provider.map(str::to_string),
         })
         .collect();
     rows.sort_by(|a, b| {
@@ -592,6 +632,7 @@ fn aggregate(events: Vec<UsageEvent>, days: i64, sources: Vec<UsageSource>) -> A
         let model = model_groups.entry(event.model.clone()).or_default();
         model.tokens.add(event.tokens);
         model.sessions.insert(session_key.clone());
+        model.provider.get_or_insert(event.provider);
         let session = sessions
             .entry(session_key)
             .or_insert_with(|| SessionAggregate {
@@ -772,6 +813,8 @@ mod tests {
         assert_eq!(stats.models.len(), 1);
         assert_eq!(stats.models[0].label, "claude-opus");
         assert_eq!(stats.models[0].tokens.total_tokens, 150);
+        assert_eq!(stats.models[0].provider.as_deref(), Some("claude"));
+        assert_eq!(stats.projects[0].provider, None);
     }
 
     #[test]
@@ -832,6 +875,112 @@ mod tests {
         assert_eq!(total.input_tokens, 160);
         assert_eq!(total.output_tokens, 35);
         assert_eq!(total.total_tokens, 195);
+    }
+
+    fn session_meta(dir: &Path, subagent: bool) -> Value {
+        let mut payload = serde_json::json!({ "id": "session", "cwd": dir });
+        if subagent {
+            payload["thread_source"] = "subagent".into();
+            payload["forked_from_id"] = "parent".into();
+        }
+        serde_json::json!({
+            "timestamp": "2026-07-15T10:00:00Z",
+            "type": "session_meta",
+            "payload": payload
+        })
+    }
+
+    fn token_count(timestamp: &str, cumulative: u64, turn: u64) -> Value {
+        serde_json::json!({
+            "timestamp": timestamp,
+            "type": "event_msg",
+            "payload": {
+                "type": "token_count",
+                "info": {
+                    "total_token_usage": {
+                        "input_tokens": cumulative,
+                        "cached_input_tokens": 0,
+                        "output_tokens": 0,
+                        "total_tokens": cumulative
+                    },
+                    "last_token_usage": {
+                        "input_tokens": turn,
+                        "cached_input_tokens": 0,
+                        "output_tokens": 0,
+                        "total_tokens": turn
+                    }
+                }
+            }
+        })
+    }
+
+    fn write_rollout(dir: &Path, records: &[Value]) -> PathBuf {
+        let path = dir.join("session.jsonl");
+        let mut file = File::create(&path).unwrap();
+        for record in records {
+            writeln!(file, "{record}").unwrap();
+        }
+        path
+    }
+
+    fn total_tokens(events: &[UsageEvent]) -> u64 {
+        events
+            .iter()
+            .map(|event| event.tokens.total_tokens)
+            .sum::<u64>()
+    }
+
+    #[test]
+    fn codex_prefers_per_turn_usage_over_cumulative_dips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_rollout(
+            dir.path(),
+            &[
+                session_meta(dir.path(), false),
+                token_count("2026-07-15T10:00:01Z", 5_000_000, 5_000_000),
+                token_count("2026-07-15T10:00:02Z", 6_000_000, 1_000_000),
+                token_count("2026-07-15T10:00:03Z", 4_500_000, 700_000),
+                token_count("2026-07-15T10:00:04Z", 6_400_000, 400_000),
+            ],
+        );
+        let events = parse_codex_file(&path, &matcher(dir.path()), None);
+        assert_eq!(events.len(), 4);
+        assert_eq!(total_tokens(&events), 7_100_000);
+    }
+
+    #[test]
+    fn codex_skips_replayed_history_in_forked_rollouts() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_rollout(
+            dir.path(),
+            &[
+                session_meta(dir.path(), true),
+                session_meta(dir.path(), false),
+                token_count("2026-07-15T11:59:59.996Z", 1_000_000, 1_000_000),
+                token_count("2026-07-15T11:59:59.999Z", 3_000_000, 2_000_000),
+                token_count("2026-07-15T12:00:00.004Z", 6_000_000, 3_000_000),
+                token_count("2026-07-15T12:00:13.000Z", 6_050_000, 50_000),
+            ],
+        );
+        let events = parse_codex_file(&path, &matcher(dir.path()), None);
+        assert_eq!(events.len(), 1);
+        assert_eq!(total_tokens(&events), 50_000);
+    }
+
+    #[test]
+    fn codex_keeps_first_turn_of_a_fork_without_replay() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_rollout(
+            dir.path(),
+            &[
+                session_meta(dir.path(), true),
+                token_count("2026-07-15T12:00:00Z", 40_000, 40_000),
+                token_count("2026-07-15T12:01:00Z", 90_000, 50_000),
+            ],
+        );
+        let events = parse_codex_file(&path, &matcher(dir.path()), None);
+        assert_eq!(events.len(), 2);
+        assert_eq!(total_tokens(&events), 90_000);
     }
 
     #[test]
