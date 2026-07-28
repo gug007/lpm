@@ -17,9 +17,9 @@ import {
   placeCaretAtSerializedOffset,
 } from "./composerEditor";
 import { MENTION_TRIGGER } from "../mentions";
+import { HINT_TRIGGER, SLASH_TRIGGER } from "../slashCommands";
 
 const ZWSP = "​";
-const SLASH_TRIGGER = /^\s*\/([a-z0-9:_-]*)$/i;
 
 function editor(): HTMLElement {
   const root = document.createElement("div");
@@ -112,7 +112,7 @@ describe("lineBeforeCaret", () => {
     expect(SLASH_TRIGGER.exec(line!)?.[1]).toBe("sta");
   });
 
-  it("suppresses the slash menu when a chip precedes '/sta' on the same line", () => {
+  it("opens the slash menu when a chip precedes '/sta' on the same line", () => {
     const root = editor();
     const line2 = document.createTextNode("/sta");
     root.append(document.createTextNode("hello"), br(), chip(1), line2);
@@ -120,7 +120,28 @@ describe("lineBeforeCaret", () => {
 
     const line = lineBeforeCaret(root);
     expect(line).toBe("￼/sta");
-    expect(SLASH_TRIGGER.exec(line!)).toBeNull();
+    expect(SLASH_TRIGGER.exec(line!)?.[1]).toBe("sta");
+  });
+
+  it("opens the slash menu for a command typed at the end of a prompt", () => {
+    const root = editor();
+    const text = document.createTextNode("the screen is too wide /systematic-deb");
+    root.append(text);
+    caretAt(text, text.nodeValue!.length);
+
+    const line = lineBeforeCaret(root);
+    expect(SLASH_TRIGGER.exec(line!)?.[1]).toBe("systematic-deb");
+  });
+
+  it("opens the slash menu for a command typed in the middle of a prompt", () => {
+    const root = editor();
+    const text = document.createTextNode("fix /rev then ship it");
+    root.append(text);
+    caretAt(text, "fix /rev".length);
+
+    const line = lineBeforeCaret(root);
+    expect(line).toBe("fix /rev");
+    expect(SLASH_TRIGGER.exec(line!)?.[1]).toBe("rev");
   });
 
   it("returns only the prefix before a mid-text caret", () => {
@@ -168,6 +189,49 @@ describe("lineBeforeCaret", () => {
     root.append(document.createTextNode("hi"));
     window.getSelection()!.removeAllRanges();
     expect(lineBeforeCaret(root)).toBeNull();
+  });
+});
+
+describe("SLASH_TRIGGER", () => {
+  const frag = (line: string) => SLASH_TRIGGER.exec(line)?.[1] ?? null;
+
+  it("fires at the prompt start, after indentation, and after a chip", () => {
+    expect(frag("/rev")).toBe("rev");
+    expect(frag("  /rev")).toBe("rev");
+    expect(frag("￼/rev")).toBe("rev");
+  });
+
+  it("fires mid-prompt after a space, including on a bare '/'", () => {
+    expect(frag("check this /rev")).toBe("rev");
+    expect(frag("check this /")).toBe("");
+    expect(frag("first line /prompts:draftpr")).toBe("prompts:draftpr");
+  });
+
+  it("ignores a '/' inside a word, a path, or a URL", () => {
+    expect(frag("src/components")).toBeNull();
+    expect(frag("and/or")).toBeNull();
+    expect(frag("https://example.com/x")).toBeNull();
+    expect(frag("read src/app/page.tsx")).toBeNull();
+  });
+
+  it("closes once an argument is typed after the command", () => {
+    expect(frag("/rev now")).toBeNull();
+    expect(frag("fix it /rev now")).toBeNull();
+  });
+});
+
+describe("HINT_TRIGGER", () => {
+  const name = (line: string) => HINT_TRIGGER.exec(line)?.[1] ?? null;
+
+  it("matches a completed command plus one space, anywhere in the prompt", () => {
+    expect(name("/rev ")).toBe("rev");
+    expect(name("fix the build /rev ")).toBe("rev");
+  });
+
+  it("does not match a second space, an argument, or a bare '/'", () => {
+    expect(name("/rev  ")).toBeNull();
+    expect(name("/rev arg")).toBeNull();
+    expect(name("fix / ")).toBeNull();
   });
 });
 

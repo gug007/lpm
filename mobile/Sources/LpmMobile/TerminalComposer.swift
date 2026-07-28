@@ -93,13 +93,18 @@ struct TerminalComposer: View {
 
     // MARK: slash autocomplete
 
-    // A "/" at the very start, with no space typed yet, is a slash-command being
-    // composed; the token after "/" filters the menu.
+    // The "/fragment" being typed at the end of the field — anywhere in the prompt,
+    // not just at its start. The "/" must follow whitespace or the start (so a path
+    // like "src/app" never triggers) and the fragment holds no whitespace. Mirrors
+    // the desktop SLASH_TRIGGER, anchored to the caret == end.
     private var slashQuery: String? {
         guard terminalTools else { return nil }
         let text = store.text
-        guard text.hasPrefix("/"), !text.contains(" "), !text.contains("\n") else { return nil }
-        return String(text.dropFirst())
+        guard let slash = text.lastIndex(of: "/") else { return nil }
+        if slash > text.startIndex, !text[text.index(before: slash)].isWhitespace { return nil }
+        let frag = text[text.index(after: slash)...]
+        if frag.contains(where: { $0.isWhitespace }) { return nil }
+        return String(frag)
     }
     private var slashMatches: [SlashCommand] {
         guard let q = slashQuery else { return [] }
@@ -112,9 +117,12 @@ struct TerminalComposer: View {
     private var slashArgumentHint: String? {
         guard terminalTools else { return nil }
         let text = store.text
-        guard text.hasPrefix("/"), text.hasSuffix(" "), !text.contains("\n") else { return nil }
-        let name = String(text.dropFirst().dropLast())
-        guard !name.isEmpty, !name.contains(" "), text == "/\(name) " else { return nil }
+        guard text.hasSuffix(" ") else { return nil }
+        let head = String(text.dropLast())
+        guard let slash = head.lastIndex(of: "/") else { return nil }
+        if slash > head.startIndex, !head[head.index(before: slash)].isWhitespace { return nil }
+        let name = String(head[head.index(after: slash)...])
+        guard !name.isEmpty, !name.contains(where: { $0.isWhitespace }) else { return nil }
         guard let cmd = (model.slashCommands[termId] ?? []).first(where: { $0.name == name }),
               !cmd.argumentHint.isEmpty else { return nil }
         return cmd.argumentHint
@@ -586,7 +594,9 @@ struct TerminalComposer: View {
     }
 
     private func pick(_ cmd: SlashCommand) {
-        store.text = "/\(cmd.name) "
+        let text = store.text
+        let head = text.lastIndex(of: "/").map { String(text[..<$0]) } ?? ""
+        store.text = head + "/\(cmd.name) "
         focused = true
     }
     private func pickPath(_ path: String) {

@@ -102,7 +102,7 @@ import {
 } from "./composerClipboard";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
-import { detectAICLI, type SlashCommand } from "../slashCommands";
+import { detectAICLI, HINT_TRIGGER, SLASH_TRIGGER, type SlashCommand } from "../slashCommands";
 import { MentionMenu } from "./MentionMenu";
 import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
@@ -171,19 +171,11 @@ interface UndoSnapshot {
   caret: number | null;
 }
 
-// The caret's line must be only "/<frag>" (after optional indentation) to open
-// the slash menu; ":" is allowed for namespaced names like "prompts:draftpr".
-const SLASH_TRIGGER = /^\s*\/([a-z0-9:_-]*)$/i;
-
-// A completed command followed by exactly one space (and nothing after) — shows
-// the command's argument-hint as ghost text, the way the CLIs do. A second space
-// or any typed argument ends this state and hides the hint.
-const HINT_TRIGGER = /^\s*\/([a-z0-9:_-]+) $/i;
-
 // "/lpm-memory " (Claude) or "$lpm-memory " (Codex skill mention) with a
 // partial session id at the caret — completes the invocation's argument from
-// the project's memory sessions.
-const MEMORY_ARG_TRIGGER = /^\s*[/$]lpm-memory\s+([a-z0-9-]*)$/i;
+// the project's memory sessions. The invocation can sit anywhere in the prompt
+// (see SLASH_TRIGGER), so the same boundary rule applies here.
+const MEMORY_ARG_TRIGGER = /(?:^|[\s￼])[/$]lpm-memory[ \t]+([a-z0-9-]*)$/i;
 
 // A short, single-line label for a prompt tab: its text with attachment tokens
 // dropped, collapsed whitespace. With no text, name the draft by its attachment —
@@ -1305,9 +1297,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
-  // Re-evaluate the slash menu after every edit. It opens only when the target
-  // terminal runs a known CLI and the caret's line is exactly "/<frag>" (no
-  // spaces yet), so typing args or any other text closes it.
+  // Re-evaluate the slash menu after every edit. It opens whenever the target
+  // terminal runs a known CLI and the caret sits in a "/<frag>" run — at the
+  // start of the prompt or anywhere later in it — and closes the moment that run
+  // ends (an argument, a space) or matches no command.
   const updateSlashMenu = () => {
     const editor = editorRef.current;
     if (!editor || transforming.current || !slashCli) {
@@ -1349,6 +1342,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     const line = lineBeforeCaret(editor);
+    // A "/" run at the caret belongs to the slash menu. The two triggers only
+    // overlap when a chip sits between an unfinished "@" run and the "/" (both
+    // accept a chip as a boundary); yielding here keeps at most one menu open.
+    if (line !== null && slashCli && SLASH_TRIGGER.test(line)) {
+      setMentionOpen(false);
+      return;
+    }
     const argMatch = line !== null ? MEMORY_ARG_TRIGGER.exec(line) : null;
     const match = !argMatch && line !== null ? MENTION_TRIGGER.exec(line) : null;
     if (!argMatch && !match) {

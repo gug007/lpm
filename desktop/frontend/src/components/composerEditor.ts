@@ -742,11 +742,11 @@ function caretPrefixText(root: HTMLElement): string | null {
 }
 
 // A chip's stand-in on a computed line: one object-replacement char — a non-space
-// boundary that lets an "@" typed right after a chip trigger the mention menu (see
-// MENTION_TRIGGER) yet still suppress the start-anchored slash menu, without
-// dragging in the chip's "Image N" label. It's in STRAY_CHARS_RE, so real typed
-// text can never contain one, and lineBeforeCaret adds it directly (not via a text
-// node), so the strip that clears residue leaves it intact.
+// boundary that lets an "@" or "/" typed right after a chip trigger its menu (see
+// MENTION_TRIGGER and SLASH_TRIGGER), without dragging in the chip's "Image N"
+// label. It's in STRAY_CHARS_RE, so real typed text can never contain one, and
+// lineBeforeCaret adds it directly (not via a text node), so the strip that clears
+// residue leaves it intact.
 const LINE_CHIP_PLACEHOLDER = "￼";
 
 // Walk the DOM in document order with serializeEditor's rules but stop at a
@@ -908,7 +908,9 @@ export function graphemeCount(s: string): number {
 }
 
 // Replace the "/<frag>" preceding the caret on the current line with "/<name> ",
-// leaving the caret after the trailing space ready for arguments. Uses
+// leaving the caret after the trailing space ready for arguments. The fragment
+// may sit mid-line: SLASH_TRIGGER admits no "/" inside it, so the last "/" on the
+// line before the caret is always the one that opened the menu. Uses
 // Selection.modify to extend the selection backward character-by-character — so
 // it works even when WebKit has split the typed fragment across text nodes — then
 // execCommand("insertText") so the result flows through the same normalize path
