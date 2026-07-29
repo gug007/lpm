@@ -806,6 +806,25 @@ describe("services", () => {
     ]);
   });
 
+  it("falls back to service state when the active profile no longer exists", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          running: true,
+          services: [service("web")],
+          allServices: [service("web")],
+          profiles: [{ name: "current", services: ["web"] }],
+          activeProfile: "removed",
+        }),
+      ],
+    });
+    expect(fleet.services[0].chips).toEqual([
+      { kind: "service", name: "web", running: true },
+    ]);
+  });
+
   it("carries the port each service declares", () => {
     const fleet = build({
       now: T0,

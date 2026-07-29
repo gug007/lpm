@@ -100,18 +100,23 @@ function ChipButton({ chip, projectLabel, onClick }: ChipButtonProps) {
       onClick={onClick}
       aria-label={`${verb} ${chip.name} ${noun} in ${projectLabel}`}
       title={`${verb} the ${chip.name} ${noun}`}
-      className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+      className={`group/chip flex shrink-0 items-center gap-1.5 rounded-full px-2 py-[3px] text-[11px] leading-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
         chip.running
-          ? "bg-[color-mix(in_srgb,var(--accent-green)_16%,transparent)] text-[var(--accent-green-text)] hover:bg-[color-mix(in_srgb,var(--accent-green)_26%,transparent)]"
-          : "bg-[var(--bg-active)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+          ? "text-[var(--accent-green-text)] hover:bg-[color-mix(in_srgb,var(--accent-green)_14%,transparent)]"
+          : "text-[var(--text-muted)] hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)]"
       }`}
     >
-      <span className="grid h-3 w-3 shrink-0 place-items-center opacity-70 [&>svg]:h-2.5 [&>svg]:w-2.5">
-        {chip.running ? <StopIcon /> : <PlayIcon />}
+      <span className="relative grid h-2 w-2 shrink-0 place-items-center">
+        <span
+          className={`h-[5px] w-[5px] rounded-full transition-opacity group-hover/chip:opacity-0 ${
+            chip.running ? "bg-[var(--accent-green)]" : "bg-current opacity-45"
+          }`}
+        />
+        <span className="absolute inset-0 grid place-items-center opacity-0 transition-opacity group-hover/chip:opacity-100 [&>svg]:h-2 [&>svg]:w-2">
+          {chip.running ? <StopIcon /> : <PlayIcon />}
+        </span>
       </span>
-      <span className={chip.kind === "service" ? "font-mono" : undefined}>
-        {chip.name}
-      </span>
+      <span>{chip.name}</span>
     </button>
   );
 }

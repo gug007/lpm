@@ -434,21 +434,34 @@ describe("FleetView project service rows", () => {
   });
 
   it("shows actual service states for a mixed set outside any profile", async () => {
+    const dev = {
+      name: "dev",
+      cmd: "npm run tauri dev",
+      cwd: "/tmp",
+      port: 0,
+    };
+    const website = {
+      name: "website",
+      cmd: "npm run dev",
+      cwd: "/tmp",
+      port: 3000,
+    };
     mocks.projects = [
       withServices({
-        services: [
-          { name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 },
-          { name: "worker", cmd: "npm run worker", cwd: "/tmp", port: 0 },
-        ],
-        profiles: [{ name: "dev", services: ["web"] }],
+        services: [dev, website],
+        allServices: [dev, website],
+        profiles: [{ name: "dev", services: ["dev"] }],
         activeProfile: "",
       }),
     ];
     await render();
     expect(chipLabels()).toEqual([
-      "Stop web service in api",
-      "Stop worker service in api",
+      "Stop dev service in api",
+      "Stop website service in api",
     ]);
+    act(() => labelled("Stop dev service in api")?.click());
+    expect(mocks.toggleService).toHaveBeenCalledWith("api", "dev");
+    expect(mocks.stopProject).not.toHaveBeenCalled();
   });
 
   it("starts a stopped service from its chip", async () => {
@@ -458,16 +471,19 @@ describe("FleetView project service rows", () => {
     expect(mocks.toggleService).toHaveBeenCalledWith("api", "worker");
   });
 
-  it("starts the project on the profile the chip names", async () => {
+  it("switches the project to the profile the chip names", async () => {
     mocks.projects = [
       withServices({
-        services: [],
-        profiles: [{ name: "dev", services: ["web"] }],
+        profiles: [
+          { name: "dev", services: ["web"] },
+          { name: "workers", services: ["worker"] },
+        ],
+        activeProfile: "dev",
       }),
     ];
     await render();
-    act(() => labelled("Start dev profile in api")?.click());
-    expect(mocks.startProject).toHaveBeenCalledWith("api", "dev");
+    act(() => labelled("Start workers profile in api")?.click());
+    expect(mocks.startProject).toHaveBeenCalledWith("api", "workers");
   });
 
   it("stops the project from the profile it is running", async () => {
