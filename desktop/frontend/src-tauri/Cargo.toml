@@ -91,6 +91,15 @@ time = "0.3"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString"] }
 
+# Every rebuild orphans its object files (content-hashed names) and cargo never
+# reclaims them. Coarser codegen units cut that leak from ~261 files per edit to
+# ~69, and line tables give us backtraces at ~25% less disk — both measured to
+# leave incremental rebuilds at ~2s. Growth is only slowed, not stopped;
+# scripts/check-build-cache.sh is what actually bounds it.
+[profile.dev]
+codegen-units = 64
+debug = "line-tables-only"
+
 # thin LTO + parallel codegen roughly halves CI link time; the runtime
 # difference is imperceptible for a GUI app. opt-level = "s" keeps DMG size down.
 [profile.release]

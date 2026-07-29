@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "identifier": "cx.lpm.desktop",
   "build": {
-    "beforeDevCommand": "npm run build:cli && npm run dev",
+    "beforeDevCommand": "npm run check:cache && npm run build:cli && npm run dev",
     "beforeBuildCommand": "npm run build:cli && npm run build",
     "devUrl": "http://127.0.0.1:9245",
     "frontendDist": "../dist"

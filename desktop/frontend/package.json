@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:cli": "bash ../../scripts/build-cli.sh",
+    "check:cache": "bash ../../scripts/check-build-cache.sh",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
