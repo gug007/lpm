@@ -156,7 +156,11 @@ mod tests {
     use super::*;
 
     fn follow(project: &str) -> Follow {
-        Follow::new(project.into(), "a0af5f07".into(), format!("/Users/dev/{project}"))
+        Follow::new(
+            project.into(),
+            "a0af5f07".into(),
+            format!("/Users/dev/{project}"),
+        )
     }
 
     #[test]

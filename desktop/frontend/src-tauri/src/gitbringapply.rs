@@ -225,7 +225,12 @@ fn same_commit(root: &str, a: &str, b: &str) -> bool {
 fn commit_id(root: &str, rev: &str) -> Result<String, String> {
     git_out(
         root,
-        &["rev-parse", "--verify", "--quiet", &format!("{rev}^{{commit}}")],
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{rev}^{{commit}}"),
+        ],
     )
 }
 
@@ -260,10 +265,7 @@ fn preview(paths: &[String]) -> String {
 /// The branch the brought changes land on. A detached remote HEAD has no name to
 /// mirror, so the Mac it came from names the branch instead.
 pub(crate) fn bring_branch(remote_branch: Option<&str>, alias: &str) -> String {
-    match remote_branch
-        .map(sanitize_ref)
-        .filter(|b| !b.is_empty())
-    {
+    match remote_branch.map(sanitize_ref).filter(|b| !b.is_empty()) {
         Some(b) => format!("lpm/{b}"),
         None => {
             let from = sanitize_ref(alias);
@@ -297,7 +299,9 @@ fn sanitize_ref(raw: &str) -> String {
     while s.contains("//") {
         s = s.replace("//", "/");
     }
-    let mut s = s.trim_matches(|c| c == '/' || c == '.' || c == '-').to_string();
+    let mut s = s
+        .trim_matches(|c| c == '/' || c == '.' || c == '-')
+        .to_string();
     while let Some(base) = s.strip_suffix(".lock") {
         s = base.trim_end_matches('.').to_string();
     }
@@ -395,7 +399,10 @@ mod tests {
         // An empty pack has nothing to fetch.
         assert_eq!(next_chunk(0, 0, 100), None);
         // A sender that advertised no chunk size gets the default.
-        assert_eq!(next_chunk(0, 10 * DEFAULT_CHUNK, 0), Some((0, DEFAULT_CHUNK)));
+        assert_eq!(
+            next_chunk(0, 10 * DEFAULT_CHUNK, 0),
+            Some((0, DEFAULT_CHUNK))
+        );
     }
 
     #[test]

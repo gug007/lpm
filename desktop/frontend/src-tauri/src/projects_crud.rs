@@ -424,9 +424,7 @@ fn ensure_worktree_source(root: &Path) -> Result<(), String> {
         .args(["rev-parse", "--is-inside-work-tree"])
         .output()
         .map_err(|e| format!("could not run git: {e}"))?;
-    if !inside.status.success()
-        || String::from_utf8_lossy(&inside.stdout).trim() != "true"
-    {
+    if !inside.status.success() || String::from_utf8_lossy(&inside.stdout).trim() != "true" {
         return Err("Git worktrees require a local Git repository.".into());
     }
     let top_level = Command::new("git")
@@ -798,9 +796,7 @@ fn run_worktree_duplicate(
         }
     });
     if let Err(error) = write {
-        if let Err(cleanup_error) =
-            remove_linked_worktree(source_root, &plan.new_root, &branch)
-        {
+        if let Err(cleanup_error) = remove_linked_worktree(source_root, &plan.new_root, &branch) {
             return Err(format!("{error}; cleanup failed: {cleanup_error}"));
         }
         return Err(error);

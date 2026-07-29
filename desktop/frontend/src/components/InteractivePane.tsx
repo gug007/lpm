@@ -36,6 +36,7 @@ import {
 } from "./terminal/submitGate";
 import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
+import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { registerFileDropHandler } from "../fileDrop";
 import { logDiagnostic } from "../diagnostics";
 import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
@@ -660,6 +661,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       getCwd: () => session.cwd,
     });
   } catch {}
+
+  installLinkHoverRefresh(term, host);
 
   // OSC 52: programs that own their selection (Claude Code under mouse
   // reporting) copy by emitting the selected text; land it in the system

@@ -1,3 +1,5 @@
+import type { AgentSessionRef } from "./agentSession";
+
 export type SplitDirection = "row" | "col";
 
 // Sentinel stored in `PaneLeaf.activeServiceName` when the primary pane is
@@ -5,9 +7,19 @@ export type SplitDirection = "row" | "col";
 // literal name collides.
 export const ALL_SERVICES = "__lpm_all__";
 
+export type SessionTitleSource = "vendor" | "manual";
+
 export interface TerminalInstance {
   id: string;
   label: string;
+  // Conversation title resolved from a Claude/Codex session id. The action or
+  // user-defined label stays intact as a fallback while metadata is pending.
+  sessionTitle?: string;
+  sessionTitleId?: string;
+  sessionTitleSource?: SessionTitleSource;
+  // Live agent identity reported by the agent's SessionStart hook. Restored
+  // tabs can fall back to parsing resumeCmd until their next live event.
+  agentSession?: AgentSessionRef;
   // Stable per-terminal identity for message-history scoping. Unlike `id` (a
   // live PTY id regenerated on every restart), this is persisted, so a terminal
   // keeps its own "This terminal" history across restarts without bleeding into
@@ -65,6 +77,10 @@ export function makeTerminal(
   id: string,
   label: string,
   opts?: {
+    sessionTitle?: string;
+    sessionTitleId?: string;
+    sessionTitleSource?: SessionTitleSource;
+    agentSession?: AgentSessionRef;
     startCmd?: string;
     resumeCmd?: string;
     actionName?: string;
@@ -77,6 +93,10 @@ export function makeTerminal(
   return {
     id,
     label,
+    ...(opts?.sessionTitle ? { sessionTitle: opts.sessionTitle } : {}),
+    ...(opts?.sessionTitleId ? { sessionTitleId: opts.sessionTitleId } : {}),
+    ...(opts?.sessionTitleSource ? { sessionTitleSource: opts.sessionTitleSource } : {}),
+    ...(opts?.agentSession ? { agentSession: opts.agentSession } : {}),
     historyKey: opts?.historyKey ?? crypto.randomUUID(),
     ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
     ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
@@ -85,6 +105,50 @@ export function makeTerminal(
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
     ...(opts?.color ? { color: opts.color } : {}),
   };
+}
+
+export function terminalDisplayLabel(t: TerminalInstance): string {
+  if (!followsAgentTitle(t)) return t.label;
+  return t.sessionTitle || t.label;
+}
+
+// False once the user names a tab themselves — their label outranks whatever
+// the agent calls the conversation, and stays put.
+export function followsAgentTitle(t: TerminalInstance): boolean {
+  return t.sessionTitleSource !== "manual";
+}
+
+export function applyManualTerminalRename(
+  terminal: TerminalInstance,
+  label: string,
+  emoji?: string,
+): TerminalInstance {
+  // The rename dialog opens prefilled with the displayed session title, so
+  // submitting it unchanged is not a rename — freezing the tab to "manual"
+  // there would silently opt it out of every later title with no way back.
+  // undefined emoji => caller isn't editing it; "" clears it.
+  const emojiPatch = emoji !== undefined ? { emoji: emoji || undefined } : {};
+  if (label === terminalDisplayLabel(terminal)) {
+    return { ...terminal, ...emojiPatch };
+  }
+  return {
+    ...terminal,
+    label,
+    sessionTitle: undefined,
+    sessionTitleId: undefined,
+    sessionTitleSource: "manual",
+    ...emojiPatch,
+  };
+}
+
+// Drops a manual name so the tab follows its agent conversation again. The
+// label stays as the fallback shown until the next title resolves.
+export function clearManualTerminalTitle(
+  terminal: TerminalInstance,
+): TerminalInstance {
+  if (terminal.sessionTitleSource !== "manual") return terminal;
+  const { sessionTitleSource: _source, ...rest } = terminal;
+  return rest;
 }
 
 export function makeBrowser(id: string, label = "Browser"): TerminalInstance {

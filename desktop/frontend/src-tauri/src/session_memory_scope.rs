@@ -168,11 +168,7 @@ mod tests {
             .iter()
             .map(|(c, p)| (c.to_string(), p.to_string()))
             .collect();
-        move |name: &str| {
-            map.iter()
-                .find(|(c, _)| c == name)
-                .map(|(_, p)| p.clone())
-        }
+        move |name: &str| map.iter().find(|(c, _)| c == name).map(|(_, p)| p.clone())
     }
 
     #[test]
@@ -200,9 +196,18 @@ mod tests {
     fn a_hand_written_cycle_terminates() {
         assert_eq!(resolve_owner("a", &parents(&[("a", "b"), ("b", "a")])), "b");
         assert_eq!(resolve_owner("a", &parents(&[("a", "a")])), "a");
-        let long: Vec<(&str, &str)> =
-            vec![("a", "b"), ("b", "c"), ("c", "d"), ("d", "e"), ("e", "f"), ("f", "g"),
-                 ("g", "h"), ("h", "i"), ("i", "j"), ("j", "k")];
+        let long: Vec<(&str, &str)> = vec![
+            ("a", "b"),
+            ("b", "c"),
+            ("c", "d"),
+            ("d", "e"),
+            ("e", "f"),
+            ("f", "g"),
+            ("g", "h"),
+            ("h", "i"),
+            ("i", "j"),
+            ("j", "k"),
+        ];
         // Bounded rather than unbounded: the hop cap decides, not the data.
         assert_eq!(resolve_owner("a", &parents(&long)), "i");
     }
@@ -286,7 +291,11 @@ mod tests {
         write(&to, "auth.md", "# Auth\n");
 
         adopt_dir(&from, &to, "web-2");
-        assert_eq!(read(&to, "auth.md"), "# Auth\n", "the original is never overwritten");
+        assert_eq!(
+            read(&to, "auth.md"),
+            "# Auth\n",
+            "the original is never overwritten"
+        );
         assert_eq!(read(&to, "auth-web-2.md"), "# Auth in the copy\n");
         assert!(!from.exists());
     }
@@ -301,7 +310,11 @@ mod tests {
         write(&to, "auth-web-2.md", "# An earlier adoption\n");
 
         adopt_dir(&from, &to, "web-2");
-        assert_eq!(read(&from, "auth.md"), "# Copy\n", "nothing is lost silently");
+        assert_eq!(
+            read(&from, "auth.md"),
+            "# Copy\n",
+            "nothing is lost silently"
+        );
         assert_eq!(read(&to, "auth-web-2.md"), "# An earlier adoption\n");
     }
 
@@ -325,15 +338,24 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let to = tmp.path().join("web");
         adopt_dir(&tmp.path().join("web-2"), &to, "web-2");
-        assert!(!to.exists(), "the owner's folder is not created for nothing");
+        assert!(
+            !to.exists(),
+            "the owner's folder is not created for nothing"
+        );
     }
 
     /// lpm's copy names carry random case (`lpm-kSENIj`); the UI can only save a
     /// session whose file name is a plain slug, so the suffix is slugged.
     #[test]
     fn the_fallback_name_stays_a_plain_slug() {
-        assert_eq!(suffixed_name("auth", "lpm-kSENIj").unwrap(), "auth-lpm-ksenij.md");
-        assert_eq!(suffixed_name("auth", "My Project").unwrap(), "auth-my-project.md");
+        assert_eq!(
+            suffixed_name("auth", "lpm-kSENIj").unwrap(),
+            "auth-lpm-ksenij.md"
+        );
+        assert_eq!(
+            suffixed_name("auth", "My Project").unwrap(),
+            "auth-my-project.md"
+        );
         assert_eq!(suffixed_name("auth", "a.b").unwrap(), "auth-a-b.md");
         // Trailing separators would leave `auth-x-.md`.
         assert_eq!(suffixed_name("auth", "x_").unwrap(), "auth-x.md");

@@ -22,6 +22,9 @@ export function AgentUsageStats(days) {
 export function AgentLimits() {
   return invoke("agent_limits");
 }
+export function AgentSessionTitle(projectName, provider, sessionId) {
+  return invoke("agent_session_title", { projectName, provider, sessionId });
+}
 export function ApplyClaudeLimits(enabled) {
   return invoke("apply_claude_limits", { enabled });
 }

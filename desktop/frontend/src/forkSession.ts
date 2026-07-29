@@ -4,7 +4,7 @@
 // we pre-mint via `--session-id`, so the forked tab gets a working resumeCmd
 // immediately. Codex: `codex fork <id>` copies the rollout into a new session
 // (`codex resume` would double-write the live rollout); the fork's real id
-// arrives later through the SessionStart hook -> `codex-session` event, the
+// arrives later through the SessionStart hook -> `agent-session` event, the
 // same after-the-fact upgrade a normal Codex launch uses.
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 

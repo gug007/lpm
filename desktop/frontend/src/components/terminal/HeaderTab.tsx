@@ -92,7 +92,7 @@ export function HeaderTab({
       }}
       data-active-tab={active || undefined}
       style={accentStyle}
-      className={`group flex h-6 max-w-[200px] select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
+      className={`group flex h-6 max-w-[150px] select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
         active
           ? "bg-[var(--tab-accent-bg,var(--terminal-tab-active-bg))] text-[var(--terminal-tab-active)] shadow-[var(--tab-accent-ring,var(--terminal-tab-shadow))]"
           : "text-[var(--terminal-header-text)] hover:bg-[var(--tab-accent-hover,var(--terminal-header-hover))] hover:text-[var(--terminal-tab-active)]"

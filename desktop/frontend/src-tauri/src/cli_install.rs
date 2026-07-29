@@ -184,7 +184,11 @@ fn symlink_escalated(expected: &Path, link: &Path) -> Result<(), String> {
         shell_quote(&expected.to_string_lossy()),
         shell_quote(&link.to_string_lossy()),
     );
-    escalated_shell(&inner, "Installation cancelled.", "failed to create symlink")
+    escalated_shell(
+        &inner,
+        "Installation cancelled.",
+        "failed to create symlink",
+    )
 }
 
 fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String> {

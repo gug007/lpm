@@ -59,12 +59,12 @@ struct PeerConn {
     attached: Mutex<HashSet<String>>, // raw host terminal ids the frontend has open
     pending: Mutex<HashMap<u64, Arc<Pending>>>,
     enabled: AtomicBool,
-    supports_sync: AtomicBool,  // host advertised the configSync feature in `ready`
+    supports_sync: AtomicBool, // host advertised the configSync feature in `ready`
     supports_sync2: AtomicBool, // host also advertised configSync2 (revision-aware)
     supports_git_bring: AtomicBool, // host can hand over its working state as a packfile
     supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
-    supports_git_watch: AtomicBool,  // ...and push changes instead of waiting to be asked
-    generation: AtomicU64,      // bump to retire the current connection thread
+    supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
+    generation: AtomicU64,     // bump to retire the current connection thread
 }
 
 impl PeerConn {
@@ -510,14 +510,9 @@ impl PeerClientHub {
     /// lets the poll drop to a heartbeat. Not a guard: a peer that cannot is polled
     /// at the old cadence rather than refused.
     pub(crate) fn can_push_changes(&self, slug: &str) -> bool {
-        self.inner
-            .conns
-            .lock()
-            .unwrap()
-            .get(slug)
-            .is_some_and(|c| {
-                c.connected.load(Ordering::Relaxed) && c.supports_git_watch.load(Ordering::Relaxed)
-            })
+        self.inner.conns.lock().unwrap().get(slug).is_some_and(|c| {
+            c.connected.load(Ordering::Relaxed) && c.supports_git_watch.load(Ordering::Relaxed)
+        })
     }
 
     /// Send one frame with no reply expected. Used to register which folders a
@@ -534,11 +529,7 @@ impl PeerClientHub {
         conn.send(frame.to_string())
     }
 
-    fn require_feature(
-        &self,
-        slug: &str,
-        has: impl Fn(&PeerConn) -> bool,
-    ) -> Result<(), String> {
+    fn require_feature(&self, slug: &str, has: impl Fn(&PeerConn) -> bool) -> Result<(), String> {
         let conn = self
             .inner
             .conns
@@ -614,7 +605,11 @@ impl PeerClientHub {
     /// Ask the host for its digest map. A configSync2 exchange carries this Mac's
     /// sidecar id and asks for revisions + tombstones; a legacy exchange asks for
     /// the pre-Phase-2 map.
-    fn fetch_remote_map(&self, slug: &str, sync2: bool) -> Result<crate::peersync::DigestMap, String> {
+    fn fetch_remote_map(
+        &self,
+        slug: &str,
+        sync2: bool,
+    ) -> Result<crate::peersync::DigestMap, String> {
         let frame = if sync2 {
             json!({ "t": "syncDigest", "v": 2, "device": crate::syncstate::device_id() })
         } else {
@@ -726,11 +721,13 @@ impl PeerClientHub {
                                 applied += 1;
                                 if v2 {
                                     if let Some(rd) = remote.get(&it.kind, &it.name) {
-                                        let local_rev =
-                                            local.get(&it.kind, &it.name).map(|d| d.rev).unwrap_or(0);
+                                        let local_rev = local
+                                            .get(&it.kind, &it.name)
+                                            .map(|d| d.rev)
+                                            .unwrap_or(0);
                                         let (istate, base) = crate::syncstate::received_state(
-                                            &rd.hash, rd.rev, &rd.device, false, &ap.stored, local_rev,
-                                            &self_id,
+                                            &rd.hash, rd.rev, &rd.device, false, &ap.stored,
+                                            local_rev, &self_id,
                                         );
                                         item_updates.push((key.clone(), istate));
                                         base_updates.push((key, base));
@@ -917,7 +914,9 @@ impl crate::autosync::AutoSyncHost for PeerClientHub {
         crate::autosync::Gates {
             auto_sync,
             enabled,
-            connected: conn.map(|c| c.connected.load(Ordering::Relaxed)).unwrap_or(false),
+            connected: conn
+                .map(|c| c.connected.load(Ordering::Relaxed))
+                .unwrap_or(false),
             supports_sync2: conn
                 .map(|c| c.supports_sync2.load(Ordering::Relaxed))
                 .unwrap_or(false),
@@ -926,7 +925,8 @@ impl crate::autosync::AutoSyncHost for PeerClientHub {
     }
 
     fn run_sync(&self, slug: &str) -> Result<crate::autosync::RunReport, String> {
-        self.sync_run(slug, Vec::new()).map(|v| parse_run_report(&v))
+        self.sync_run(slug, Vec::new())
+            .map(|v| parse_run_report(&v))
     }
 
     fn emit_result(&self, slug: &str, report: &crate::autosync::RunReport) {
@@ -951,7 +951,11 @@ fn parse_run_report(v: &Value) -> crate::autosync::RunReport {
     let strings = |k: &str| {
         v.get(k)
             .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default()
     };
     crate::autosync::RunReport {
@@ -1078,7 +1082,8 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
 /// Stable, user-facing markers for a failed pin. Shown verbatim in the peer row's
 /// status; deliberately in product terms (no transport jargon).
 const IDENTITY_CHANGED: &str = "the other Mac's identity changed — remove it and pair again";
-const IDENTITY_UNVERIFIED: &str = "couldn't verify the other Mac's identity — get a fresh invite and try again";
+const IDENTITY_UNVERIFIED: &str =
+    "couldn't verify the other Mac's identity — get a fresh invite and try again";
 
 /// One client connection's transport: a raw socket (legacy plaintext host) or a
 /// pinned/captured TLS session. One concrete type keeps the session loop monomorphic.
@@ -1168,10 +1173,13 @@ fn dial_pinned(
     mismatch_err: &'static str,
 ) -> Result<ClientWs, String> {
     let mut tcp = tcp_connect(host, port, timeout)?;
-    let mut conn =
-        rustls::ClientConnection::new(crate::peertls::pinned_client_config(fp), crate::peertls::server_name())
-            .map_err(|e| e.to_string())?;
-    conn.complete_io(&mut tcp).map_err(|_| mismatch_err.to_string())?;
+    let mut conn = rustls::ClientConnection::new(
+        crate::peertls::pinned_client_config(fp),
+        crate::peertls::server_name(),
+    )
+    .map_err(|e| e.to_string())?;
+    conn.complete_io(&mut tcp)
+        .map_err(|_| mismatch_err.to_string())?;
     finish_tls_ws(conn, tcp, host, port)
 }
 
@@ -1205,8 +1213,7 @@ fn dial_capture(
 fn dial_plain(host: &str, port: u16, timeout: Option<Duration>) -> Result<ClientWs, String> {
     let tcp = tcp_connect(host, port, timeout)?;
     let url = format!("ws://{host}:{port}/");
-    let (ws, _) =
-        tungstenite::client(url, ClientStream::Plain(tcp)).map_err(|e| e.to_string())?;
+    let (ws, _) = tungstenite::client(url, ClientStream::Plain(tcp)).map_err(|e| e.to_string())?;
     Ok(ws)
 }
 
@@ -1317,10 +1324,14 @@ fn connect_session(
             .map(|a| a.iter().any(|f| f.as_str() == Some(name)))
             .unwrap_or(false)
     };
-    conn.supports_sync
-        .store(has_feature(crate::peersync::SYNC_FEATURE), Ordering::Relaxed);
-    conn.supports_sync2
-        .store(has_feature(crate::peersync::SYNC_FEATURE2), Ordering::Relaxed);
+    conn.supports_sync.store(
+        has_feature(crate::peersync::SYNC_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_sync2.store(
+        has_feature(crate::peersync::SYNC_FEATURE2),
+        Ordering::Relaxed,
+    );
     conn.supports_git_bring.store(
         has_feature(crate::gitbringhost::GIT_BRING_FEATURE),
         Ordering::Relaxed,
@@ -1489,7 +1500,10 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 // so an auto-enabled peer reconciles shortly after. Lossy forwarding
                 // only ever delays this (the connect + anti-entropy triggers are the
                 // safety net).
-                if matches!(name, "projects-changed" | "templates-changed" | "memory-changed") {
+                if matches!(
+                    name,
+                    "projects-changed" | "templates-changed" | "memory-changed"
+                ) {
                     if let Some(engine) = autosync_engine(Some(app)) {
                         engine.notify_remote_change(slug);
                     }
@@ -1536,9 +1550,11 @@ pub async fn peer_add(
     fp: Option<String>,
 ) -> Result<Value, String> {
     let hub = hub.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || add_peer_blocking(&hub, hosts, port, code, alias, fp))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        add_peer_blocking(&hub, hosts, port, code, alias, fp)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Ask a discovered Mac to pair via tap-to-approve (no invite). Emits
@@ -1932,7 +1948,10 @@ mod tests {
         assert_eq!(r.applied, 2);
         assert_eq!(r.pushed, 1);
         assert_eq!(r.errors, vec!["web: boom".to_string()]);
-        assert_eq!(r.conflicts, vec!["api".to_string(), "global.yml".to_string()]);
+        assert_eq!(
+            r.conflicts,
+            vec!["api".to_string(), "global.yml".to_string()]
+        );
         // A clean run: counts zero, no errors, empty conflicts.
         let clean = json!({ "applied": 0, "pushed": 0, "errors": [], "conflicts": [] });
         let r2 = parse_run_report(&clean);
@@ -1950,7 +1969,10 @@ mod tests {
         assert_eq!(pin_after_auth(Some("aa"), true, Some("bb")), None);
         assert_eq!(pin_after_auth(Some("aa"), false, None), None);
         // Unpinned over TLS: pin the captured leaf (the host proved the token first).
-        assert_eq!(pin_after_auth(None, true, Some("cc")), Some("cc".to_string()));
+        assert_eq!(
+            pin_after_auth(None, true, Some("cc")),
+            Some("cc".to_string())
+        );
         // Unpinned over TLS but nothing captured (defensive): nothing to pin.
         assert_eq!(pin_after_auth(None, true, None), None);
         // Unpinned over plaintext fallback: never pin, even if a leaf leaked through.

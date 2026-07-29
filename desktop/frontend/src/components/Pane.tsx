@@ -9,6 +9,7 @@ import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
+import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { ChevronRightIcon } from "./icons";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import "@xterm/xterm/css/xterm.css";
@@ -80,6 +81,8 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
       getCwd: () => session.cwd,
     });
   } catch {}
+
+  installLinkHoverRefresh(term, host);
 
   term.onScroll(() => {
     const buf = term.buffer.active;

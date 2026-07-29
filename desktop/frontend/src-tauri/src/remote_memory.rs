@@ -35,7 +35,10 @@ pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
     // an agent that appended while the phone had the session open is never
     // silently clobbered. An empty string is a real baseline (new file), which
     // is why this is Option and not the `field` helper's "".
-    let baseline = v.get("baseline").and_then(Value::as_str).map(str::to_string);
+    let baseline = v
+        .get("baseline")
+        .and_then(Value::as_str)
+        .map(str::to_string);
     let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
     let out = out.clone();
     std::thread::spawn(move || {
@@ -52,13 +55,7 @@ pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
     });
 }
 
-fn run(
-    verb: &str,
-    project: &str,
-    name: &str,
-    content: String,
-    baseline: Option<String>,
-) -> Value {
+fn run(verb: &str, project: &str, name: &str, content: String, baseline: Option<String>) -> Value {
     match verb {
         // Flattened onto the reply rather than nested so `dir` rides along: a
         // duplicate reads its original's folder, and the phone derives the owner

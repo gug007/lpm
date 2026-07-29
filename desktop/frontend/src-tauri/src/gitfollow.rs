@@ -281,10 +281,10 @@ impl Engine {
         };
         for (slug, cwds) in stale {
             let list: Vec<&String> = cwds.iter().collect();
-            let sent = self
-                .core
-                .hub
-                .notify_peer(&slug, serde_json::json!({ "t": "gitFollowWatch", "cwds": list }));
+            let sent = self.core.hub.notify_peer(
+                &slug,
+                serde_json::json!({ "t": "gitFollowWatch", "cwds": list }),
+            );
             // Unsent means the connection went away; forget it so the next cycle
             // registers again rather than assuming that Mac is watching.
             if sent.is_err() {
@@ -520,7 +520,10 @@ mod tests {
             Some("that Mac is not connected".to_string())
         );
         assert_eq!(
-            pending_note(&follow_with_error(Some("peer request timed out")), "that Mac is not connected"),
+            pending_note(
+                &follow_with_error(Some("peer request timed out")),
+                "that Mac is not connected"
+            ),
             Some("that Mac is not connected".to_string()),
             "a stale fault is replaced by the reason it is not running now"
         );

@@ -314,8 +314,12 @@ fn filter_haves(cwd: &str, raw: Option<&Value>) -> Vec<String> {
     if wanted.is_empty() {
         return wanted;
     }
-    let listing = git_with_stdin(cwd, &["cat-file", "--batch-check"], wanted.join("\n").as_bytes())
-        .unwrap_or_default();
+    let listing = git_with_stdin(
+        cwd,
+        &["cat-file", "--batch-check"],
+        wanted.join("\n").as_bytes(),
+    )
+    .unwrap_or_default();
     listing
         .lines()
         .filter_map(|l| {
@@ -515,7 +519,12 @@ mod tests {
         let (sender_dir, sender) = repo();
         let commit = |cwd: &str, msg: &str| {
             git(cwd, &["add", "-A"]).unwrap();
-            git_out_env(cwd, &["commit", "-q", "-m", msg], &SNAPSHOT_IDENTITY.to_vec()).unwrap();
+            git_out_env(
+                cwd,
+                &["commit", "-q", "-m", msg],
+                &SNAPSHOT_IDENTITY.to_vec(),
+            )
+            .unwrap();
         };
         std::fs::write(sender_dir.path().join(".gitignore"), "secret.env\n").unwrap();
         std::fs::write(sender_dir.path().join("b.txt"), "bee\n").unwrap();
@@ -527,7 +536,11 @@ mod tests {
             .join("work")
             .to_string_lossy()
             .to_string();
-        git(&sender, &["clone", "--no-hardlinks", "-q", &sender, &receiver]).unwrap();
+        git(
+            &sender,
+            &["clone", "--no-hardlinks", "-q", &sender, &receiver],
+        )
+        .unwrap();
 
         // Work done on the sender after the receiver last saw it: one commit it
         // is missing, plus every shape of uncommitted change.
@@ -550,7 +563,8 @@ mod tests {
         crate::gitbringapply::index_pack(&receiver, &pack_path).unwrap();
         crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
             &receiver, "lpm/main", &target, &head, true,
-        )).unwrap();
+        ))
+        .unwrap();
         let _ = std::fs::remove_file(&pack_path);
 
         let at = |p: &str| receiver_dir.path().join("work").join(p);
@@ -607,7 +621,8 @@ mod tests {
         let head = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
         crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
             &cwd, "lpm/main", &head, &head, false,
-        )).unwrap();
+        ))
+        .unwrap();
 
         std::fs::write(d.path().join("mine.txt"), "my work\n").unwrap();
         git(&cwd, &["add", "-A"]).unwrap();
@@ -619,10 +634,10 @@ mod tests {
         .unwrap();
         let mine = git(&cwd, &["rev-parse", "HEAD"]).unwrap();
 
-        let err =
-            crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
+        let err = crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
             &cwd, "lpm/main", &head, &head, false,
-        )).unwrap_err();
+        ))
+        .unwrap_err();
         assert!(err.contains("commits of its own"), "{err}");
         assert_eq!(git(&cwd, &["rev-parse", "lpm/main"]).unwrap(), mine);
     }
@@ -655,10 +670,10 @@ mod tests {
         .unwrap();
         std::fs::write(d.path().join("app.env"), "MY REAL SECRETS\n").unwrap();
 
-        let err =
-            crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
+        let err = crate::gitbringapply::apply_state(&crate::gitbringapply::Landing::new(
             &cwd, "lpm/x", &target, &target, false,
-        )).unwrap_err();
+        ))
+        .unwrap_err();
         assert!(err.contains("app.env"), "{err}");
         assert_eq!(
             std::fs::read_to_string(d.path().join("app.env")).unwrap(),

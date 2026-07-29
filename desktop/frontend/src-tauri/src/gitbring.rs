@@ -117,7 +117,9 @@ impl Drop for LandingLock {
 }
 
 fn is_slug(s: &str) -> bool {
-    s.len() == 8 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    s.len() == 8
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 /// The frontend identifies a peer's project as `peer-<slug>-<name>` and its root
@@ -190,7 +192,10 @@ mod tests {
     fn a_landing_lock_is_exclusive_and_released_on_drop() {
         let held = lock_landing("web").expect("free");
         assert!(lock_landing("web").is_none(), "a second claim is refused");
-        assert!(lock_landing("other").is_some(), "other projects are unaffected");
+        assert!(
+            lock_landing("other").is_some(),
+            "other projects are unaffected"
+        );
         drop(held);
         assert!(lock_landing("web").is_some(), "the claim is released");
     }

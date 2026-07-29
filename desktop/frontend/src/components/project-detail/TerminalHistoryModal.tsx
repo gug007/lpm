@@ -84,7 +84,7 @@ function HistoryRow({ entry, onResume, onForget }: HistoryRowProps) {
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-[13px] font-medium text-[var(--text-primary)]">
-            {entry.label}
+            {entry.sessionTitle || entry.label}
           </span>
           <span className="truncate font-mono text-[11px] text-[var(--text-muted)]">
             {subtitle}

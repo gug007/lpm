@@ -1,20 +1,15 @@
 import { useEffect, type Dispatch, type SetStateAction, type RefObject } from "react";
 import { StopTerminal } from "../../../bridge/commands";
-import { EventsOn } from "../../../bridge/runtime";
 import {
   collectPersistedTabs,
   getProjectTerminals,
   rememberLostSessions,
   type PersistedTab,
 } from "../../terminals";
-import { buildCodexResumeCmd } from "../../codexResume";
 import {
   type PaneNode,
-  isTerminalTab,
-  collectPanes,
   collectTerminals,
   firstPaneId,
-  mapPane,
   paneAtPath,
 } from "../../paneTree";
 import {
@@ -147,37 +142,4 @@ export function useSessionRestore({
     };
   }, [projectName, scheduleCmdInject]);
 
-  // Codex has no launch-time session id, so its SessionStart hook reports the
-  // real id back through the socket -> `codex-session` event. Upgrade the tab's
-  // resumeCmd after the fact: a non-empty resumeCmd flows through persistence,
-  // restore injection, and history exactly like the Claude case. Owner windows
-  // only — the mirror never owns the persisted tree.
-  useEffect(() => {
-    if (IS_MIRROR_WINDOW) return;
-    const cancel = EventsOn(
-      "codex-session",
-      (payload: { project: string; paneId: string; sessionId: string }) => {
-        if (!payload?.project || !payload?.paneId || !payload?.sessionId) return;
-        if (payload.project !== projectName) return;
-        const current = treeRef.current;
-        if (!current) return;
-        const host = collectPanes(current).find((p) =>
-          p.tabs.some((t) => t.id === payload.paneId && isTerminalTab(t)),
-        );
-        if (!host) return;
-        const next = mapPane(current, host.id, (p) => ({
-          ...p,
-          tabs: p.tabs.map((t) =>
-            t.id === payload.paneId
-              ? { ...t, resumeCmd: buildCodexResumeCmd(t.startCmd, payload.sessionId) }
-              : t,
-          ),
-        }));
-        applyTree(next);
-      },
-    );
-    return () => {
-      if (typeof cancel === "function") cancel();
-    };
-  }, [projectName, applyTree]);
 }

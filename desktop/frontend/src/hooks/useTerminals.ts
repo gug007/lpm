@@ -12,6 +12,8 @@ import { usePaneOps } from "./terminals/usePaneOps";
 import { useTabClose } from "./terminals/useTabClose";
 import { useRemoteTabControls } from "./terminals/useRemoteTabControls";
 import { useMirrorOwner } from "./terminals/useMirrorOwner";
+import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
+import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
 
 export { type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
 
@@ -19,6 +21,7 @@ export function useTerminals(
   projectName: string,
   onTerminalCountChange?: (count: number) => void,
   submitPrompt?: (id: string, payload: string | string[]) => boolean,
+  agentSessionTitlesEnabled = true,
 ): UseTerminalsResult {
   const onCountRef = useRef(onTerminalCountChange);
   onCountRef.current = onTerminalCountChange;
@@ -69,6 +72,20 @@ export function useTerminals(
     scheduleCmdInject,
   });
 
+  useAgentSessionEvents({
+    projectName,
+    treeRef,
+    applyTree,
+  });
+
+  useAgentSessionTitles({
+    projectName,
+    tree,
+    treeRef,
+    applyTree,
+    enabled: agentSessionTitlesEnabled,
+  });
+
   // Mirror -> owner action forwarding: the mirror can't spawn/stop PTYs or
   // restructure the tree (its tree is overwritten by every owner broadcast), so
   // it sends the action by name and the owner executes it; the result comes
@@ -110,6 +127,7 @@ export function useTerminals(
     focusAdjacentPaneItem,
     ensureRootPane,
     renameTerminal,
+    restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
     moveTerminal,
@@ -181,6 +199,7 @@ export function useTerminals(
     focusTerminal,
     focusService,
     renameTerminal,
+    restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
     moveTerminal,
@@ -248,6 +267,7 @@ export function useTerminals(
     focusAdjacentPaneItem,
     focusService,
     renameTerminal,
+    restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,

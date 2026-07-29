@@ -145,8 +145,8 @@ pub enum Decision {
 struct SlugState {
     pending: bool,
     running: bool,
-    quiet_until: Option<Instant>,   // debounce target (now + quiet_period)
-    rate_until: Option<Instant>,    // last run start + rate_floor
+    quiet_until: Option<Instant>, // debounce target (now + quiet_period)
+    rate_until: Option<Instant>,  // last run start + rate_floor
     backoff_until: Option<Instant>, // set while backing off after a failure
     consecutive_errors: u32,
 }
@@ -392,7 +392,10 @@ impl Engine {
                     }
                 }
                 let wait = next_wake
-                    .map(|t| t.saturating_duration_since(now).min(self.core.timings.max_idle))
+                    .map(|t| {
+                        t.saturating_duration_since(now)
+                            .min(self.core.timings.max_idle)
+                    })
                     .unwrap_or(self.core.timings.max_idle);
                 (to_run, wait)
             };
@@ -470,7 +473,10 @@ mod tests {
     #[test]
     fn should_run_all_gates_open_and_pending_runs() {
         let now = Instant::now();
-        assert_eq!(should_run(&pending(), &all_gates_open(), now), Decision::Run);
+        assert_eq!(
+            should_run(&pending(), &all_gates_open(), now),
+            Decision::Run
+        );
     }
 
     #[test]

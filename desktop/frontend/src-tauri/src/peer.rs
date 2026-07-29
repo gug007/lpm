@@ -80,10 +80,10 @@ pub(crate) struct PeerDevice {
 #[serde(default, rename_all = "camelCase")]
 pub(crate) struct HostConfig {
     pub enabled: bool,
-    pub lan: bool,            // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1; no UI — the app always sets true, loopback-only is a manual-config escape hatch
-    pub port: u16,            // 0 => DEFAULT_PORT
+    pub lan: bool, // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1; no UI — the app always sets true, loopback-only is a manual-config escape hatch
+    pub port: u16, // 0 => DEFAULT_PORT
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
-    pub host_id: String,      // this Mac's stable peer identity, advertised over mDNS; minted on first load
+    pub host_id: String, // this Mac's stable peer identity, advertised over mDNS; minted on first load
     pub devices: Vec<PeerDevice>,
 }
 
@@ -290,7 +290,11 @@ impl PeerHub {
     /// Drop a pending request (idempotent teardown for the timeout / requester-
     /// disconnect endings).
     fn remove_pair_request(&self, id: &str) {
-        self.inner.pair_requests.lock().unwrap().retain(|p| p.id != id);
+        self.inner
+            .pair_requests
+            .lock()
+            .unwrap()
+            .retain(|p| p.id != id);
     }
 
     fn device_exists(&self, id: &str) -> bool {
@@ -649,10 +653,8 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
                 if msg.is_text() {
                     if let Ok(txt) = msg.to_text() {
                         let txt = txt.to_string();
-                        if handle_msg(
-                            &mut ws, &txt, &hub, &app, &subs, &device_id, &out, conn_id,
-                        )
-                        .is_err()
+                        if handle_msg(&mut ws, &txt, &hub, &app, &subs, &device_id, &out, conn_id)
+                            .is_err()
                         {
                             break;
                         }
@@ -669,8 +671,8 @@ fn handle_conn(stream: TcpStream, hub: PeerHub, app: AppHandle, generation: u64)
 
     hub.inner.clients.lock().unwrap().remove(&conn_id);
     crate::gitwatchhost::drop_conn(conn_id); // stop watching folders for a gone follower
-    // Release any terminal control this peer held so ownership transfers back to a
-    // host window (or another presenter) instead of stranding on a gone client.
+                                             // Release any terminal control this peer held so ownership transfers back to a
+                                             // host window (or another presenter) instead of stranding on a gone client.
     let owner = peer_owner(&hub, &device_id);
     for (id, new_owner) in app
         .state::<crate::control::ControlState>()
@@ -1069,7 +1071,11 @@ fn handle_sync(app: &AppHandle, out: &SyncSender<String>, t: &str, v: &Value) {
     match t {
         "syncDigest" => {
             let dm = crate::peersync::local_digest_map();
-            let dm = if v2 { dm } else { crate::peersync::legacy_view(dm) };
+            let dm = if v2 {
+                dm
+            } else {
+                crate::peersync::legacy_view(dm)
+            };
             let value = serde_json::to_value(dm).unwrap_or(Value::Null);
             let _ = out.try_send(result_frame(&req_id, true, value));
         }
@@ -1922,7 +1928,10 @@ mod tests {
         for _ in 0..64 {
             let s = gen_sas();
             assert_eq!(s.len(), 6, "sas must be 6 chars: {s}");
-            assert!(s.chars().all(|c| c.is_ascii_digit()), "sas must be digits: {s}");
+            assert!(
+                s.chars().all(|c| c.is_ascii_digit()),
+                "sas must be digits: {s}"
+            );
         }
     }
 
@@ -1981,10 +1990,8 @@ mod tests {
     // approve vs deny branch.
     fn run_pair_request_socket(accept: bool) -> Value {
         let _guard = TEST_CFG_GUARD.lock().unwrap();
-        let tmp = std::env::temp_dir().join(format!(
-            "lpm-peer-req-{}-{accept}.json",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("lpm-peer-req-{}-{accept}.json", std::process::id()));
         *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
 
         let hub = PeerHub::default();
@@ -2042,8 +2049,14 @@ mod tests {
         ))
         .unwrap();
         let pending: Value = serde_json::from_str(c.read().unwrap().to_text().unwrap()).unwrap();
-        assert_eq!(pending.get("t").and_then(Value::as_str), Some("pairPending"));
-        assert_eq!(pending.get("sas").and_then(Value::as_str).map(str::len), Some(6));
+        assert_eq!(
+            pending.get("t").and_then(Value::as_str),
+            Some("pairPending")
+        );
+        assert_eq!(
+            pending.get("sas").and_then(Value::as_str).map(str::len),
+            Some(6)
+        );
         let reply: Value = serde_json::from_str(c.read().unwrap().to_text().unwrap()).unwrap();
         server.join().unwrap();
 
@@ -2056,10 +2069,22 @@ mod tests {
     fn pair_request_approve_replies_paired_with_host_id() {
         let reply = run_pair_request_socket(true);
         assert_eq!(reply.get("t").and_then(Value::as_str), Some("paired"));
-        assert!(reply.get("deviceId").and_then(Value::as_str).is_some_and(|s| !s.is_empty()));
-        assert!(reply.get("token").and_then(Value::as_str).is_some_and(|s| !s.is_empty()));
-        assert_eq!(reply.get("slug").and_then(Value::as_str).map(str::len), Some(8));
-        assert_eq!(reply.get("hostId").and_then(Value::as_str), Some("host-xyz"));
+        assert!(reply
+            .get("deviceId")
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty()));
+        assert!(reply
+            .get("token")
+            .and_then(Value::as_str)
+            .is_some_and(|s| !s.is_empty()));
+        assert_eq!(
+            reply.get("slug").and_then(Value::as_str).map(str::len),
+            Some(8)
+        );
+        assert_eq!(
+            reply.get("hostId").and_then(Value::as_str),
+            Some("host-xyz")
+        );
     }
 
     #[test]

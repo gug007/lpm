@@ -124,11 +124,7 @@ pub(crate) fn remote_states(
     Ok(out)
 }
 
-fn batch_states(
-    hub: &PeerClientHub,
-    slug: &str,
-    cwds: &[String],
-) -> Result<RemoteStates, String> {
+fn batch_states(hub: &PeerClientHub, slug: &str, cwds: &[String]) -> Result<RemoteStates, String> {
     let reply = hub.bring_request(
         slug,
         STATE_TIMEOUT,
@@ -283,7 +279,14 @@ mod tests {
         let tree = working_state_tree(cwd, &head).unwrap();
         git_out_env(
             cwd,
-            &["commit-tree", &tree, "-p", &head, "-m", "lpm: working state"],
+            &[
+                "commit-tree",
+                &tree,
+                "-p",
+                &head,
+                "-m",
+                "lpm: working state",
+            ],
             &IDENTITY,
         )
         .unwrap()
@@ -306,7 +309,11 @@ mod tests {
     fn a_second_run_replaces_the_first_runs_state_and_keeps_ignored_files() {
         let (sender_dir, sender) = sender_repo();
         let receiver_dir = tempfile::tempdir().unwrap();
-        let receiver = receiver_dir.path().join("work").to_string_lossy().to_string();
+        let receiver = receiver_dir
+            .path()
+            .join("work")
+            .to_string_lossy()
+            .to_string();
         git_out(
             &receiver_dir.path().to_string_lossy(),
             &["clone", "-q", &sender, &receiver],
@@ -367,7 +374,11 @@ mod tests {
     fn a_local_change_is_recognised_as_not_ours_before_it_is_replaced() {
         let (sender_dir, sender) = sender_repo();
         let receiver_dir = tempfile::tempdir().unwrap();
-        let receiver = receiver_dir.path().join("work").to_string_lossy().to_string();
+        let receiver = receiver_dir
+            .path()
+            .join("work")
+            .to_string_lossy()
+            .to_string();
         git_out(
             &receiver_dir.path().to_string_lossy(),
             &["clone", "-q", &sender, &receiver],
@@ -394,7 +405,11 @@ mod tests {
     fn a_rewritten_remote_branch_still_lands_when_the_tip_is_ours() {
         let (sender_dir, sender) = sender_repo();
         let receiver_dir = tempfile::tempdir().unwrap();
-        let receiver = receiver_dir.path().join("work").to_string_lossy().to_string();
+        let receiver = receiver_dir
+            .path()
+            .join("work")
+            .to_string_lossy()
+            .to_string();
         git_out(
             &receiver_dir.path().to_string_lossy(),
             &["clone", "-q", &sender, &receiver],
@@ -410,8 +425,12 @@ mod tests {
 
         std::fs::write(sender_dir.path().join("b.txt"), "reworked\n").unwrap();
         git_out(&sender, &["add", "-A"]).unwrap();
-        git_out_env(&sender, &["commit", "-q", "--amend", "-m", "second, again"], &IDENTITY)
-            .unwrap();
+        git_out_env(
+            &sender,
+            &["commit", "-q", "--amend", "-m", "second, again"],
+            &IDENTITY,
+        )
+        .unwrap();
         let head2 = head_sha(&sender).unwrap();
         deliver(&receiver, &sender, &head2);
 
@@ -513,6 +532,8 @@ mod tests {
         assert!(!is_transient(
             "these ignored files would be overwritten: app.env — move them aside first"
         ));
-        assert!(!is_transient("that folder is not a project on the other Mac"));
+        assert!(!is_transient(
+            "that folder is not a project on the other Mac"
+        ));
     }
 }

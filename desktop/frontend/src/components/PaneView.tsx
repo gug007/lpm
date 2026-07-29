@@ -36,11 +36,14 @@ import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
 import {
   ALL_SERVICES,
+  followsAgentTitle,
   isTerminalTab,
+  terminalDisplayLabel,
   type PaneLeaf,
   type SplitDirection,
   type TerminalInstance,
 } from "../paneTree";
+import { agentSessionOf } from "../agentSession";
 import { useBrowserUrls } from "../store/browserUrls";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
@@ -149,6 +152,7 @@ export interface PaneViewProps {
     label: string,
     emoji?: string,
   ) => void;
+  onRestoreSessionTitle: (paneId: string, tabIdx: number) => void;
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
@@ -214,6 +218,7 @@ function PaneViewImpl(props: PaneViewProps) {
     canForkIntoCopy,
     onForkTerminalIntoCopy,
     onRenameTerminal,
+    onRestoreSessionTitle,
     onTogglePinTab,
     onSplit,
     onClosePane,
@@ -397,7 +402,7 @@ function PaneViewImpl(props: PaneViewProps) {
               return (
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
-                    label={t.label}
+                    label={terminalDisplayLabel(t)}
                     icon={<TabIcon tab={t} />}
                     active={isActive}
                     pinned={t.pinned}
@@ -595,7 +600,7 @@ function PaneViewImpl(props: PaneViewProps) {
             projectName={projectName}
             shown={visible}
             focused={focused}
-            targetLabel={composerTab.label}
+            targetLabel={terminalDisplayLabel(composerTab)}
             terminals={allTerminals}
             cwd={interactiveCwd}
             launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
@@ -608,7 +613,10 @@ function PaneViewImpl(props: PaneViewProps) {
           />
         ) : (
           // Input closed: leave a slim stand-in that reopens it (same as ⌘I).
-          <ComposerReopenBar targetLabel={composerTab.label} fontSize={fontSize} />
+          <ComposerReopenBar
+            targetLabel={terminalDisplayLabel(composerTab)}
+            fontSize={fontSize}
+          />
         ))}
       {tabMenu && (() => {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
@@ -627,9 +635,23 @@ function PaneViewImpl(props: PaneViewProps) {
             canForkCopy={forkable && canForkIntoCopy}
             canCloseOthers={canCloseOthers}
             onRename={() => setRenamingTabIdx(tabMenu.tabIdx)}
+            canRestoreSessionTitle={
+              isTerminalTab(tab) &&
+              !followsAgentTitle(tab) &&
+              !!agentSessionOf(tab)
+            }
+            onRestoreSessionTitle={() =>
+              onRestoreSessionTitle(tabMenu.paneId, tabMenu.tabIdx)
+            }
             onTogglePin={() => onTogglePinTab(tabMenu.paneId, tabMenu.tabIdx)}
             onFork={() => onForkTerminal(tabMenu.paneId, tab.id)}
-            onForkCopy={() => onForkTerminalIntoCopy(tabMenu.paneId, tab.id, tab.label)}
+            onForkCopy={() =>
+              onForkTerminalIntoCopy(
+                tabMenu.paneId,
+                tab.id,
+                terminalDisplayLabel(tab),
+              )
+            }
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}
@@ -658,8 +680,8 @@ function PaneViewImpl(props: PaneViewProps) {
           isTerminalTab(pane.tabs[renamingTabIdx])
         }
         initialValue={
-          renamingTabIdx !== null
-            ? pane.tabs[renamingTabIdx]?.label ?? ""
+          renamingTabIdx !== null && pane.tabs[renamingTabIdx]
+            ? terminalDisplayLabel(pane.tabs[renamingTabIdx])
             : ""
         }
         initialEmoji={

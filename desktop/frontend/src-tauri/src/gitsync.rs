@@ -131,7 +131,9 @@ fn set_up(app: &AppHandle, hub: &PeerClientHub, plan: &SetUp) -> Result<Done, St
         source_slug: plan.slug.to_string(),
         source_root: plan.source_root.to_string(),
         project: project.to_string(),
-        follow: Some(Follow { previous_head: None }),
+        follow: Some(Follow {
+            previous_head: None,
+        }),
     };
     let root_str = root.to_string_lossy().to_string();
     let mut done = crate::gitbringrun::run(app, hub, &req, id, &root_str)?;
@@ -352,7 +354,9 @@ fn free_name(base: &str, parent: &Path, taken: impl Fn(&str) -> bool) -> Result<
             return Ok(candidate);
         }
     }
-    Err(format!("too many folders here are already synced from {base}"))
+    Err(format!(
+        "too many folders here are already synced from {base}"
+    ))
 }
 
 #[cfg(test)]
@@ -391,7 +395,14 @@ mod tests {
         let tree = working_state_tree(&sender, &head).unwrap();
         let target = git_out_env(
             &sender,
-            &["commit-tree", &tree, "-p", &head, "-m", "lpm: working state"],
+            &[
+                "commit-tree",
+                &tree,
+                "-p",
+                &head,
+                "-m",
+                "lpm: working state",
+            ],
             &IDENTITY,
         )
         .unwrap();
@@ -403,11 +414,17 @@ mod tests {
         let dest = dest_path.to_string_lossy().to_string();
         git_out(
             &dest,
-            &["fetch", "--no-tags", &sender, &format!("+{target}:{ANCHOR}")],
+            &[
+                "fetch",
+                "--no-tags",
+                &sender,
+                &format!("+{target}:{ANCHOR}"),
+            ],
         )
         .unwrap();
 
-        apply_state(&Landing::new(&dest, "lpm/main", &target, &head, true).replacing(None)).unwrap();
+        apply_state(&Landing::new(&dest, "lpm/main", &target, &head, true).replacing(None))
+            .unwrap();
 
         let at = |p: &str| dest_path.join(p);
         assert_eq!(
@@ -514,7 +531,10 @@ mod tests {
             "/Users/dev/Projects/two".to_string(),
             "/Users/dev/Sites/three".to_string(),
         ];
-        assert_eq!(preferred_parent(&roots), PathBuf::from("/Users/dev/Projects"));
+        assert_eq!(
+            preferred_parent(&roots),
+            PathBuf::from("/Users/dev/Projects")
+        );
     }
 
     #[test]

@@ -11,7 +11,13 @@ const LOG_VIEWER = IS_MIRROR_WINDOW ? "mirror" : "main";
 import type { ITheme } from "@xterm/xterm";
 import { disposePaneSession, type PaneHandle } from "./Pane";
 import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type InteractivePaneHandle } from "./InteractivePane";
-import { collectPanes, collectTerminals, isTabPinned, isTerminalTab } from "../paneTree";
+import {
+  collectPanes,
+  collectTerminals,
+  isTabPinned,
+  isTerminalTab,
+  terminalDisplayLabel,
+} from "../paneTree";
 import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
@@ -77,6 +83,13 @@ export interface TerminalViewHandle {
 }
 
 export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, onResumeSession, ref }: TerminalViewProps) {
+  const duplicateProject = useAppStore(
+    (s) => s.projects.find((p) => p.name === projectName) ?? null,
+  );
+  // Sessions on this Mac only — a peer-hosted or SSH-remote project's
+  // transcripts and duplicates live on the other machine.
+  const localSessions =
+    !isPeerName(projectName) && !(duplicateProject?.isRemote ?? false);
   const [outputs, setOutputs] = useState<string[]>([]);
   const [fullscreenPaneId, setFullscreenPaneId] = useState<string | null>(null);
   const [searchPaneId, setSearchPaneId] = useState<string | null>(null);
@@ -123,6 +136,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusAdjacentPaneItem,
     focusService,
     renameTerminal,
+    restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
     remoteCloseTerminal,
@@ -138,7 +152,12 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     ensureRootPane,
     getFocusedPane,
     getPane,
-  } = useTerminals(projectName, onTerminalCountChange, submitPrompt);
+  } = useTerminals(
+    projectName,
+    onTerminalCountChange,
+    submitPrompt,
+    visible && localSessions,
+  );
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
@@ -269,7 +288,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           .filter(isTerminalTab)
           .map((t) => ({
             id: t.id,
-            label: t.label,
+            label: terminalDisplayLabel(t),
             cli: detectAICLI(t.startCmd) ?? "",
             pinned: t.pinned === true,
             emoji: t.emoji ?? "",
@@ -690,9 +709,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // how many copies to spin up. On confirm the current project runs the prompt
   // as copy #1 (`runHere`) alongside those copies, all in parallel.
   const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
-  const duplicateProject = useAppStore(
-    (s) => s.projects.find((p) => p.name === projectName) ?? null,
-  );
   const groups = useAppStore((s) => s.groups);
   const folderNames = useMemo(() => groups.map((g) => g.name), [groups]);
   const [duplicateSeed, setDuplicateSeed] = useState<DuplicatePromptSeed | null>(null);
@@ -709,10 +725,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     setDuplicateNonce((n) => n + 1);
   }, []);
 
-  // "Fork into copy" from a tab's context menu: sessions on this Mac only —
-  // a peer-hosted or SSH-remote project's transcripts live on the other machine.
-  const canForkIntoCopy =
-    !isPeerName(projectName) && !(duplicateProject?.isRemote ?? false);
+  const canForkIntoCopy = localSessions;
   const [forkCopyRequest, setForkCopyRequest] = useState<{
     paneId: string;
     termId: string;
@@ -849,6 +862,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             canForkIntoCopy={canForkIntoCopy}
             onForkTerminalIntoCopy={requestForkIntoCopy}
             onRenameTerminal={renameTerminal}
+            onRestoreSessionTitle={restoreSessionTitle}
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
             onClosePane={closePane}

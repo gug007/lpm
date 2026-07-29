@@ -4,6 +4,7 @@
 export function AckTerminalData(...args: any[]): Promise<any>;
 export function AgentUsageStats(...args: any[]): Promise<any>;
 export function AgentLimits(...args: any[]): Promise<any>;
+export function AgentSessionTitle(projectName: string, provider: "claude" | "codex", sessionId: string): Promise<string | null>;
 export function ApplyClaudeLimits(...args: any[]): Promise<any>;
 export function GetClaudeStatuslineState(...args: any[]): Promise<any>;
 export function ApplyClaudeStatusline(...args: any[]): Promise<any>;

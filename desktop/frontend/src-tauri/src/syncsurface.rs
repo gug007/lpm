@@ -33,16 +33,56 @@ struct GlobalDir {
 // (each with branch-name-instructions.txt appended), keeping the export archive's
 // file order byte-identical for pre-existing files.
 const GLOBAL_FILES: &[GlobalFile] = &[
-    GlobalFile { name: "global.yml", sync: true, export: true },
-    GlobalFile { name: "settings.json", sync: true, export: false },
-    GlobalFile { name: "groups.json", sync: false, export: false },
-    GlobalFile { name: "composer-actions.json", sync: true, export: false },
-    GlobalFile { name: "generators.json", sync: true, export: false },
-    GlobalFile { name: "terminals.json", sync: false, export: true },
-    GlobalFile { name: "commit-instructions.txt", sync: true, export: true },
-    GlobalFile { name: "pr-title-instructions.txt", sync: true, export: true },
-    GlobalFile { name: "pr-description-instructions.txt", sync: true, export: true },
-    GlobalFile { name: "branch-name-instructions.txt", sync: true, export: true },
+    GlobalFile {
+        name: "global.yml",
+        sync: true,
+        export: true,
+    },
+    GlobalFile {
+        name: "settings.json",
+        sync: true,
+        export: false,
+    },
+    GlobalFile {
+        name: "groups.json",
+        sync: false,
+        export: false,
+    },
+    GlobalFile {
+        name: "composer-actions.json",
+        sync: true,
+        export: false,
+    },
+    GlobalFile {
+        name: "generators.json",
+        sync: true,
+        export: false,
+    },
+    GlobalFile {
+        name: "terminals.json",
+        sync: false,
+        export: true,
+    },
+    GlobalFile {
+        name: "commit-instructions.txt",
+        sync: true,
+        export: true,
+    },
+    GlobalFile {
+        name: "pr-title-instructions.txt",
+        sync: true,
+        export: true,
+    },
+    GlobalFile {
+        name: "pr-description-instructions.txt",
+        sync: true,
+        export: true,
+    },
+    GlobalFile {
+        name: "branch-name-instructions.txt",
+        sync: true,
+        export: true,
+    },
 ];
 
 // Synced dirs are walked recursively, so `memory/<project>/<session>.md` rides the
@@ -51,9 +91,21 @@ const GLOBAL_FILES: &[GlobalFile] = &[
 // pre-apply backup is unaffected — `transfer::snapshot_backup` copies all of ~/.lpm
 // rather than the export list, so a conflict loser is still recoverable.
 const GLOBAL_DIRS: &[GlobalDir] = &[
-    GlobalDir { name: "generator-icons", sync: true, export: false },
-    GlobalDir { name: "zdotdir", sync: true, export: true },
-    GlobalDir { name: "memory", sync: true, export: false },
+    GlobalDir {
+        name: "generator-icons",
+        sync: true,
+        export: false,
+    },
+    GlobalDir {
+        name: "zdotdir",
+        sync: true,
+        export: true,
+    },
+    GlobalDir {
+        name: "memory",
+        sync: true,
+        export: false,
+    },
 ];
 
 /// Machine-local settings.json keys: stripped on export, kept (never overwritten

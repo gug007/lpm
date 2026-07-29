@@ -71,7 +71,11 @@ fn read_sessions_at(dir: &Path) -> MemoryState {
         };
     };
     let mut sessions: Vec<MemorySession> = entries.flatten().filter_map(read_session).collect();
-    sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| a.name.cmp(&b.name)));
+    sessions.sort_by(|a, b| {
+        b.updated_at
+            .cmp(&a.updated_at)
+            .then_with(|| a.name.cmp(&b.name))
+    });
     MemoryState {
         exists: true,
         dir: dir_str,
@@ -275,7 +279,10 @@ mod tests {
         std::fs::create_dir(dir.join("sub.md")).unwrap();
 
         let now = std::time::SystemTime::now();
-        set_mtime(&dir.join("old.md"), now - std::time::Duration::from_secs(3600));
+        set_mtime(
+            &dir.join("old.md"),
+            now - std::time::Duration::from_secs(3600),
+        );
         set_mtime(&dir.join("new.md"), now);
 
         let state = read_sessions_at(dir);
@@ -300,7 +307,10 @@ mod tests {
 
     #[test]
     fn title_falls_back_to_the_slug() {
-        assert_eq!(title_of("# Auth refactor\n\n## Goal", "auth"), "Auth refactor");
+        assert_eq!(
+            title_of("# Auth refactor\n\n## Goal", "auth"),
+            "Auth refactor"
+        );
         assert_eq!(title_of("   ###  Deep  \n", "auth"), "Deep");
         assert_eq!(title_of("no heading at all\n", "auth"), "auth");
         assert_eq!(title_of("", "auth"), "auth");
@@ -325,12 +335,28 @@ mod tests {
     #[test]
     fn rejects_names_that_are_not_plain_slugs() {
         for bad in [
-            "", "../x", "a/b", ".hidden", "X", "Auth", "café", "a_b", "a b", "-lead", "a.md",
+            "",
+            "../x",
+            "a/b",
+            ".hidden",
+            "X",
+            "Auth",
+            "café",
+            "a_b",
+            "a b",
+            "-lead",
+            "a.md",
             &"a".repeat(MAX_NAME_LEN + 1),
         ] {
             assert!(!is_valid_name(bad), "{bad:?} should be rejected");
         }
-        for good in ["a", "9", "auth-refactor", "fix-2-freeze", &"a".repeat(MAX_NAME_LEN)] {
+        for good in [
+            "a",
+            "9",
+            "auth-refactor",
+            "fix-2-freeze",
+            &"a".repeat(MAX_NAME_LEN),
+        ] {
             assert!(is_valid_name(good), "{good:?} should be accepted");
         }
     }

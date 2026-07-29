@@ -530,7 +530,13 @@ fn resolve_pair(
 
 /// Both Macs have the unit and they differ. With a base, decide fast-forward vs
 /// conflict; without one, fall back to mtime (never a conflict).
-fn decide_both(kind: &str, name: &str, l: &SideInfo, r: &SideInfo, base: Option<&BaseState>) -> SyncItem {
+fn decide_both(
+    kind: &str,
+    name: &str,
+    l: &SideInfo,
+    r: &SideInfo,
+    base: Option<&BaseState>,
+) -> SyncItem {
     let lc = l.ck.as_deref().unwrap_or("");
     let rc = r.ck.as_deref().unwrap_or("");
     match base {
@@ -567,7 +573,11 @@ fn resolve_no_base(kind: &str, name: &str, l: &SideInfo, r: &SideInfo) -> SyncIt
         (false, true) => item(kind, name, "toRemote", l.mtime, r.mtime, false, false),
         (true, false) => item(kind, name, "toLocal", l.mtime, r.mtime, false, false),
         _ => {
-            let dir = if r.mtime > l.mtime { "toLocal" } else { "toRemote" };
+            let dir = if r.mtime > l.mtime {
+                "toLocal"
+            } else {
+                "toRemote"
+            };
             item(kind, name, dir, l.mtime, r.mtime, false, false)
         }
     }
@@ -630,15 +640,33 @@ pub fn converged_bases(local: &DigestMap, remote: &DigestMap) -> Vec<(String, Ba
     out
 }
 
-fn push_if_equal(kind: &str, name: &str, l: &ItemDigest, r: &ItemDigest, out: &mut Vec<(String, BaseState)>) {
-    let lck = if l.deleted { TOMBSTONE } else { l.hash.as_str() };
-    let rck = if r.deleted { TOMBSTONE } else { r.hash.as_str() };
+fn push_if_equal(
+    kind: &str,
+    name: &str,
+    l: &ItemDigest,
+    r: &ItemDigest,
+    out: &mut Vec<(String, BaseState)>,
+) {
+    let lck = if l.deleted {
+        TOMBSTONE
+    } else {
+        l.hash.as_str()
+    };
+    let rck = if r.deleted {
+        TOMBSTONE
+    } else {
+        r.hash.as_str()
+    };
     if lck == rck {
         out.push((
             item_key(kind, name),
             BaseState {
                 rev: l.rev,
-                digest: if l.deleted { String::new() } else { l.hash.clone() },
+                digest: if l.deleted {
+                    String::new()
+                } else {
+                    l.hash.clone()
+                },
                 deleted: l.deleted,
             },
         ));
@@ -1129,7 +1157,9 @@ mod tests {
         let mut remote = DigestMap::default();
         local.globals.insert("global.yml".into(), id("x", 5));
         // Only remote has composer-actions.json -> created locally.
-        remote.globals.insert("composer-actions.json".into(), id("y", 9));
+        remote
+            .globals
+            .insert("composer-actions.json".into(), id("y", 9));
         // An older peer still advertising groups.json is ignored, not pulled.
         remote.globals.insert("groups.json".into(), id("z", 9));
         let plan = compute_plan(&local, &remote);
@@ -1197,8 +1227,14 @@ mod tests {
         collect_global_dir(lpm.path(), Path::new("memory"), &mut out);
 
         let keys: Vec<&String> = out.keys().collect();
-        assert_eq!(keys, vec!["memory/api/perf.md", "memory/web/auth-refactor.md"]);
-        assert_eq!(out["memory/web/auth-refactor.md"].hash, sha256_hex(b"# Auth\n"));
+        assert_eq!(
+            keys,
+            vec!["memory/api/perf.md", "memory/web/auth-refactor.md"]
+        );
+        assert_eq!(
+            out["memory/web/auth-refactor.md"].hash,
+            sha256_hex(b"# Auth\n")
+        );
         // Every key the walk produces must survive the apply-side allowlist.
         for k in out.keys() {
             assert!(safe_global_rel(k).is_ok(), "{k} rejected on apply");
@@ -1263,7 +1299,10 @@ mod tests {
     }
 
     fn bases(pairs: &[(&str, BaseState)]) -> BTreeMap<String, BaseState> {
-        pairs.iter().map(|(k, b)| (k.to_string(), b.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, b)| (k.to_string(), b.clone()))
+            .collect()
     }
 
     fn live_base(rev: u64, digest: &str) -> BaseState {
@@ -1430,14 +1469,20 @@ mod tests {
         // B's merge keeps "tm" (stored != incoming) -> a self-authored bump, but the
         // base with A is A's pushed state so it pushes back exactly once.
         let (b_item, b_base) = received_state("t", 2, "A", false, "tm", 3, "B");
-        assert_eq!((b_item.digest.as_str(), b_item.device.as_str(), b_item.rev), ("tm", "B", 4));
+        assert_eq!(
+            (b_item.digest.as_str(), b_item.device.as_str(), b_item.rev),
+            ("tm", "B", 4)
+        );
         assert_eq!(b_base, live_base(2, "t"));
 
         // Round 2: B (rev 4, "tm") pushes to A, which holds the subset "t". A's merge
         // yields "tm" == incoming, so it applies straight (no further bump) and both
         // Macs now agree on "tm" with a matching base -> round 3 is empty.
         let (a_item, a_base) = received_state("tm", 4, "B", false, "tm", 2, "A");
-        assert_eq!((a_item.digest.as_str(), a_item.device.as_str(), a_item.rev), ("tm", "B", 4));
+        assert_eq!(
+            (a_item.digest.as_str(), a_item.device.as_str(), a_item.rev),
+            ("tm", "B", 4)
+        );
         assert_eq!(a_base, live_base(4, "tm"));
         // The pushing side (B) records the symmetric base on apply -> both "tm"/rev 4.
         assert_eq!(b_item.digest, a_item.digest);
@@ -1549,9 +1594,15 @@ mod tests {
                     let (istate, b) = received_state("", c.rev, &c.device, true, "", 0, &hdev);
                     host.state.set_item(&key, istate);
                     host.state.set_base(&cdev, &key, b);
-                    client
-                        .state
-                        .set_base(&hdev, &key, BaseState { rev: c.rev, digest: String::new(), deleted: true });
+                    client.state.set_base(
+                        &hdev,
+                        &key,
+                        BaseState {
+                            rev: c.rev,
+                            digest: String::new(),
+                            deleted: true,
+                        },
+                    );
                 } else {
                     let content = client.files[&key].clone();
                     host.write(&key, &content);
@@ -1559,7 +1610,9 @@ mod tests {
                         received_state(&c.hash, c.rev, &c.device, false, &content, 0, &hdev);
                     host.state.set_item(&key, istate);
                     host.state.set_base(&cdev, &key, b);
-                    client.state.set_base(&hdev, &key, live_base(c.rev, &content));
+                    client
+                        .state
+                        .set_base(&hdev, &key, live_base(c.rev, &content));
                 }
             }
         }
@@ -1617,6 +1670,9 @@ mod tests {
             &a.map(),
             &b.state.peers.get("mac-a").cloned().unwrap_or_default(),
         );
-        assert!(b_plan.is_empty(), "already converged after the conflict resolved");
+        assert!(
+            b_plan.is_empty(),
+            "already converged after the conflict resolved"
+        );
     }
 }

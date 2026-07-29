@@ -64,7 +64,8 @@ fn pick_window(
         (_, None) => (
             // A snapshot that omits a window says nothing about it; keep what we
             // know until that window's reset makes it meaningless.
-            prev.filter(|p| p.resets_at == 0 || p.resets_at > now).cloned(),
+            prev.filter(|p| p.resets_at == 0 || p.resets_at > now)
+                .cloned(),
             false,
         ),
         (None, Some(n)) => (Some(n), true),
@@ -133,7 +134,10 @@ impl AgentLimitsStore {
             Some(prev) => merge_limits(prev, limits, now),
             None => limits,
         };
-        let changed = m.get(key).map(|e| !meaningful_eq(e, &merged)).unwrap_or(true);
+        let changed = m
+            .get(key)
+            .map(|e| !meaningful_eq(e, &merged))
+            .unwrap_or(true);
         m.insert(key.to_string(), merged);
         changed
     }
@@ -329,17 +333,18 @@ pub fn start(app: AppHandle) {
         return;
     }
     let (tx, rx) = sync_channel::<()>(1);
-    let mut watcher = match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if res.is_ok() {
-            let _ = tx.try_send(());
-        }
-    }) {
-        Ok(w) => w,
-        Err(e) => {
-            eprintln!("warning: failed to start codex limits watcher: {e}");
-            return;
-        }
-    };
+    let mut watcher =
+        match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+            if res.is_ok() {
+                let _ = tx.try_send(());
+            }
+        }) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("warning: failed to start codex limits watcher: {e}");
+                return;
+            }
+        };
     use notify::{RecursiveMode, Watcher};
     if let Err(e) = watcher.watch(&dir, RecursiveMode::Recursive) {
         eprintln!("warning: codex limits watcher could not watch sessions: {e}");
@@ -391,7 +396,11 @@ fn parse_claude_rate_limits(payload: &Value) -> Option<(Option<LimitWindow>, Opt
 
 /// Build Claude limits from a full statusline payload, or None when no usable
 /// rate_limits are present. `updated_at` injected for testability.
-fn parse_claude_payload(account_id: &str, payload: &Value, updated_at: i64) -> Option<ProviderLimits> {
+fn parse_claude_payload(
+    account_id: &str,
+    payload: &Value,
+    updated_at: i64,
+) -> Option<ProviderLimits> {
     let (five_hour, weekly) = parse_claude_rate_limits(payload)?;
     Some(ProviderLimits {
         provider: "claude".into(),
@@ -587,12 +596,18 @@ mod tests {
     #[test]
     fn store_set_reports_meaningful_change_only() {
         let s = AgentLimitsStore::new();
-        assert!(s.set("codex", codex_limits(10.0, 1, 1), 0), "first insert changes");
+        assert!(
+            s.set("codex", codex_limits(10.0, 1, 1), 0),
+            "first insert changes"
+        );
         assert!(
             !s.set("codex", codex_limits(10.0, 1, 999), 0),
             "same values, newer timestamp -> no emit"
         );
-        assert!(s.set("codex", codex_limits(20.0, 1, 1000), 0), "percent change -> emit");
+        assert!(
+            s.set("codex", codex_limits(20.0, 1, 1000), 0),
+            "percent change -> emit"
+        );
         // updated_at still advanced in the store.
         assert_eq!(s.snapshot().get("codex").unwrap().updated_at, 1000);
     }
@@ -619,9 +634,17 @@ mod tests {
         // Every concurrent Claude session forwards its own last-seen snapshot
         // under the same account key; the idle one is behind and must not win.
         let s = AgentLimitsStore::new();
-        s.set("claude:default", claude_limits(Some(36.0), Some(51.0), 9_000), 0);
+        s.set(
+            "claude:default",
+            claude_limits(Some(36.0), Some(51.0), 9_000),
+            0,
+        );
         assert!(
-            !s.set("claude:default", claude_limits(Some(25.0), Some(48.0), 9_000), 0),
+            !s.set(
+                "claude:default",
+                claude_limits(Some(25.0), Some(48.0), 9_000),
+                0
+            ),
             "stale reading changes nothing -> no emit"
         );
         let stored = s.snapshot();
@@ -636,7 +659,12 @@ mod tests {
         s.set("claude:default", claude_limits(Some(96.0), None, 9_000), 0);
         assert!(s.set("claude:default", claude_limits(Some(2.0), None, 27_000), 0));
         let stored = s.snapshot();
-        let five = stored.get("claude:default").unwrap().five_hour.clone().unwrap();
+        let five = stored
+            .get("claude:default")
+            .unwrap()
+            .five_hour
+            .clone()
+            .unwrap();
         assert_eq!(five.used_percent, 2.0);
         assert_eq!(five.resets_at, 27_000);
     }
@@ -656,7 +684,13 @@ mod tests {
         };
         s.set("codex", weekly_only(), 8_000);
         assert_eq!(
-            s.snapshot().get("codex").unwrap().five_hour.as_ref().unwrap().used_percent,
+            s.snapshot()
+                .get("codex")
+                .unwrap()
+                .five_hour
+                .as_ref()
+                .unwrap()
+                .used_percent,
             40.0,
             "5-hour survives a weekly-only report"
         );
@@ -678,7 +712,10 @@ mod tests {
         s.set("claude:default", fresh, 0);
         let mut stale = claude_limits(Some(25.0), None, 9_000);
         stale.label = Some("Fable 5".into());
-        assert!(!s.set("claude:default", stale, 0), "no emit for a stale report");
+        assert!(
+            !s.set("claude:default", stale, 0),
+            "no emit for a stale report"
+        );
         assert_eq!(
             s.snapshot().get("claude:default").unwrap().label.as_deref(),
             Some("Opus 5")

@@ -237,7 +237,10 @@ mod tests {
         // groups.json (sidebar folders) is per-machine and off the sync surface;
         // it classifies as Sidebar so another local instance's write re-hydrates
         // this instance's layout instead of being clobbered by it.
-        assert_eq!(classify(&lpm(), &at("groups.json")), Some(Category::Sidebar));
+        assert_eq!(
+            classify(&lpm(), &at("groups.json")),
+            Some(Category::Sidebar)
+        );
         assert_eq!(
             classify(&lpm(), &at("commit-instructions.txt")),
             Some(Category::Projects)

@@ -93,7 +93,10 @@ fn start(out: SyncSender<String>, wanted: &HashSet<String>) -> Option<ConnWatch>
     .ok()?;
     let mut watched = HashSet::new();
     for cwd in wanted {
-        if watcher.watch(Path::new(cwd), RecursiveMode::Recursive).is_ok() {
+        if watcher
+            .watch(Path::new(cwd), RecursiveMode::Recursive)
+            .is_ok()
+        {
             watched.insert(cwd.clone());
         }
     }

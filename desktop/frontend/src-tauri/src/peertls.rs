@@ -105,7 +105,9 @@ impl ServerCertVerifier for PinnedVerifier {
         if got == self.want_fp {
             Ok(ServerCertVerified::assertion())
         } else {
-            Err(TlsError::General("peer certificate fingerprint mismatch".into()))
+            Err(TlsError::General(
+                "peer certificate fingerprint mismatch".into(),
+            ))
         }
     }
 
@@ -138,7 +140,9 @@ impl ServerCertVerifier for PinnedVerifier {
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.provider.signature_verification_algorithms.supported_schemes()
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
@@ -190,7 +194,9 @@ impl ServerCertVerifier for CapturingVerifier {
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.provider.signature_verification_algorithms.supported_schemes()
+        self.provider
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
@@ -240,7 +246,9 @@ mod tests {
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
         assert_eq!(fp.len(), 64);
-        assert!(fp.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        assert!(fp
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
     }
 
     #[test]
@@ -263,7 +271,9 @@ mod tests {
             provider: crypto_provider(),
             want_fp: fp2,
         };
-        assert!(bad.verify_server_cert(&cert1, &[], &name, &[], now).is_err());
+        assert!(bad
+            .verify_server_cert(&cert1, &[], &name, &[], now)
+            .is_err());
     }
 
     #[test]
@@ -320,11 +330,14 @@ mod tests {
         {
             let mut tcp = TcpStream::connect(addr).unwrap();
             tcp.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-            let mut conn = rustls::ClientConnection::new(pinned_client_config(&fp), server_name()).unwrap();
-            conn.complete_io(&mut tcp).expect("pinned handshake completes");
+            let mut conn =
+                rustls::ClientConnection::new(pinned_client_config(&fp), server_name()).unwrap();
+            conn.complete_io(&mut tcp)
+                .expect("pinned handshake completes");
             let tls = rustls::StreamOwned::new(conn, tcp);
             let (mut ws, _) = tungstenite::client("ws://127.0.0.1/", tls).expect("ws handshake");
-            ws.send(Message::text(r#"{"t":"auth"}"#.to_string())).unwrap();
+            ws.send(Message::text(r#"{"t":"auth"}"#.to_string()))
+                .unwrap();
             let reply = ws.read().unwrap();
             assert!(reply.to_text().unwrap().contains("ready"));
             let _ = ws.close(None);
@@ -336,7 +349,8 @@ mod tests {
             let mut tcp = TcpStream::connect(addr).unwrap();
             tcp.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
             let mut conn =
-                rustls::ClientConnection::new(pinned_client_config(&other_fp), server_name()).unwrap();
+                rustls::ClientConnection::new(pinned_client_config(&other_fp), server_name())
+                    .unwrap();
             assert!(
                 conn.complete_io(&mut tcp).is_err(),
                 "a client pinned to the wrong leaf must fail the handshake"

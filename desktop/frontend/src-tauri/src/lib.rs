@@ -1,5 +1,6 @@
 mod actions;
 mod agent_limits;
+mod agent_session_titles;
 mod agent_usage;
 mod aigen;
 mod autosync;
@@ -88,6 +89,7 @@ mod voicetotext;
 // commands and the generated stubs.
 use actions::*;
 use agent_limits::*;
+use agent_session_titles::*;
 use agent_usage::*;
 use aigen::*;
 use browser::*;

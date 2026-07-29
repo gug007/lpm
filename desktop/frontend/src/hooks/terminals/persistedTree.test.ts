@@ -22,9 +22,14 @@ vi.mock(
     ),
 );
 
-import { reifyTreeWithFreshPtys } from "./persistedTree";
+import { reifyTreeWithFreshPtys, treeToPersisted } from "./persistedTree";
 import { type PersistedPaneNode, type PersistedTab } from "../../terminals";
-import { type PaneLeaf, type PaneNode } from "../../paneTree";
+import {
+  collectTerminals,
+  terminalDisplayLabel,
+  type PaneLeaf,
+  type PaneNode,
+} from "../../paneTree";
 
 const leaf = (tabs: PersistedTab[], activeTabIdx = 0): PersistedPaneNode => ({
   kind: "leaf",
@@ -45,15 +50,28 @@ describe("reifyTreeWithFreshPtys", () => {
 
   it("keeps the tabs that started when one fails, and reports the loss", async () => {
     h.startForRestore.mockImplementation((_project: string, action: string) =>
-      action === "gone" ? Promise.reject(new Error("no such action")) : Promise.resolve(`pty-${action}`),
+      action === "gone"
+        ? Promise.reject(new Error("no such action"))
+        : Promise.resolve(`pty-${action}`),
     );
     const started: string[] = [];
     const dropped: PersistedTab[] = [];
 
     const tree = await reifyTreeWithFreshPtys(
       leaf([
-        { label: "Claude", actionName: "claude", resumeCmd: "claude --resume abc" },
-        { label: "Stale", actionName: "gone", resumeCmd: "claude --resume def" },
+        {
+          label: "Claude",
+          sessionTitle: "Fix terminal links",
+          sessionTitleId: "abc",
+          sessionTitleSource: "vendor",
+          actionName: "claude",
+          resumeCmd: "claude --resume abc",
+        },
+        {
+          label: "Stale",
+          actionName: "gone",
+          resumeCmd: "claude --resume def",
+        },
         { label: "Server", actionName: "server" },
       ]),
       "proj",
@@ -62,13 +80,20 @@ describe("reifyTreeWithFreshPtys", () => {
     );
 
     expect(asLeaf(tree).tabs.map((t) => t.label)).toEqual(["Claude", "Server"]);
+    expect(asLeaf(tree).tabs[0]).toMatchObject({
+      sessionTitle: "Fix terminal links",
+      sessionTitleId: "abc",
+      sessionTitleSource: "vendor",
+    });
     expect(started).toEqual(["pty-claude", "pty-server"]);
     expect(dropped.map((t) => t.resumeCmd)).toEqual(["claude --resume def"]);
   });
 
   it("keeps the active tab selected when an earlier tab drops out", async () => {
     h.startForRestore.mockImplementation((_project: string, action: string) =>
-      action === "gone" ? Promise.reject(new Error("boom")) : Promise.resolve(`pty-${action}`),
+      action === "gone"
+        ? Promise.reject(new Error("boom"))
+        : Promise.resolve(`pty-${action}`),
     );
 
     const tree = await reifyTreeWithFreshPtys(
@@ -90,7 +115,9 @@ describe("reifyTreeWithFreshPtys", () => {
 
   it("collapses a split to the side that survived", async () => {
     h.startForRestore.mockImplementation((_project: string, action: string) =>
-      action === "gone" ? Promise.reject(new Error("boom")) : Promise.resolve(`pty-${action}`),
+      action === "gone"
+        ? Promise.reject(new Error("boom"))
+        : Promise.resolve(`pty-${action}`),
     );
 
     const tree = await reifyTreeWithFreshPtys(
@@ -115,8 +142,16 @@ describe("reifyTreeWithFreshPtys", () => {
 
     const tree = await reifyTreeWithFreshPtys(
       leaf([
-        { label: "Claude", actionName: "gone", resumeCmd: "claude --resume abc" },
-        { label: "Other", actionName: "gone-too", resumeCmd: "claude --resume def" },
+        {
+          label: "Claude",
+          actionName: "gone",
+          resumeCmd: "claude --resume abc",
+        },
+        {
+          label: "Other",
+          actionName: "gone-too",
+          resumeCmd: "claude --resume def",
+        },
       ]),
       "proj",
       [],
@@ -131,7 +166,12 @@ describe("reifyTreeWithFreshPtys", () => {
     h.startForRestore.mockRejectedValue(new Error("boom"));
 
     const tree = await reifyTreeWithFreshPtys(
-      { kind: "leaf", tabs: [{ label: "Claude", actionName: "gone" }], activeTabIdx: 0, activeServiceName: "web" },
+      {
+        kind: "leaf",
+        tabs: [{ label: "Claude", actionName: "gone" }],
+        activeTabIdx: 0,
+        activeServiceName: "web",
+      },
       "proj",
       [],
       [],
@@ -154,5 +194,69 @@ describe("reifyTreeWithFreshPtys", () => {
 
     expect(h.startTerminal).toHaveBeenCalledWith("proj");
     expect(asLeaf(tree).tabs[0].startCmd).toBe("npm run dev");
+  });
+
+  it("seeds manual labels before disambiguating earlier vendor titles", async () => {
+    h.startForRestore.mockImplementation(
+      (_project: string, action: string) =>
+        new Promise((resolve) =>
+          setTimeout(
+            () => resolve(`pty-${action}`),
+            action === "vendor" ? 10 : 0,
+          ),
+        ),
+    );
+
+    const tree = await reifyTreeWithFreshPtys(
+      {
+        kind: "split",
+        direction: "row",
+        ratio: 0.5,
+        a: leaf([
+          {
+            label: "Claude",
+            sessionTitle: "Shared title",
+            sessionTitleSource: "vendor",
+            actionName: "vendor",
+          },
+        ]),
+        b: leaf([
+          {
+            label: "Shared title",
+            sessionTitle: "Stale vendor title",
+            sessionTitleSource: "manual",
+            actionName: "manual",
+          },
+        ]),
+      },
+      "proj",
+      [],
+      [],
+    );
+
+    expect(collectTerminals(tree!).map(terminalDisplayLabel)).toEqual([
+      "Shared title 2",
+      "Shared title",
+    ]);
+  });
+
+  it("persists explicit session-title provenance", () => {
+    const persisted = treeToPersisted({
+      kind: "leaf",
+      id: "pane",
+      activeTabIdx: 0,
+      tabs: [
+        {
+          id: "t1",
+          label: "My tab",
+          sessionTitleSource: "manual",
+          resumeCmd: "claude --resume abc",
+        },
+      ],
+    });
+    expect(persisted.tabs?.[0]).toMatchObject({
+      label: "My tab",
+      sessionTitleSource: "manual",
+    });
   });
 });

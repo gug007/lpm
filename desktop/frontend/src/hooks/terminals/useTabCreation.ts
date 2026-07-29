@@ -28,10 +28,15 @@ import {
   findPane,
   firstPaneId,
   mapPane,
+  terminalDisplayLabel,
 } from "../../paneTree";
 import { useTabScroll } from "../../store/tabScroll";
 import { useAppStore } from "../../store/app";
-import { disambiguateLabel, pickTerminalLabel } from "../../terminalLabels";
+import {
+  disambiguateLabel,
+  disambiguateLabelAgainst,
+  pickTerminalLabel,
+} from "../../terminalLabels";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { nextId, appendTerminal, foldAgentPrompt } from "./util";
 import { type TerminalStartOpts } from "./types";
@@ -43,7 +48,11 @@ interface UseTabCreationProps {
   restoreSettled: RefObject<Promise<void>>;
   applyTree: (next: PaneNode | null, focus?: string | null) => void;
   forward: (kind: string, ...args: unknown[]) => void;
-  scheduleCmdInject: (id: string, cmd: string, prompt?: string | string[]) => void;
+  scheduleCmdInject: (
+    id: string,
+    cmd: string,
+    prompt?: string | string[],
+  ) => void;
   scheduleSeedInject: (id: string, prompt?: string | string[]) => void;
 }
 
@@ -75,7 +84,10 @@ export function useTabCreation({
         return;
       }
       const paneId = targetPaneId ?? focusedRef.current ?? firstPaneId(current);
-      applyTree(mapPane(current, paneId, (p) => appendTerminal(p, labeled)), paneId);
+      applyTree(
+        mapPane(current, paneId, (p) => appendTerminal(p, labeled)),
+        paneId,
+      );
     },
     [applyTree],
   );
@@ -112,7 +124,8 @@ export function useTabCreation({
 
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
-      if (IS_MIRROR_WINDOW) return forward("createTerminalWithCmd", label, cmd, opts);
+      if (IS_MIRROR_WINDOW)
+        return forward("createTerminalWithCmd", label, cmd, opts);
       await restoreSettled.current;
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
@@ -125,12 +138,18 @@ export function useTabCreation({
               !isInteractivePaneSessionDead(t.id),
           );
           if (idx !== -1) {
-            if (pane.activeTabIdx !== idx || pane.activeServiceName !== undefined) {
-              applyTree(mapPane(treeRef.current, pane.id, (p) => ({
-                ...p,
-                activeTabIdx: idx,
-                activeServiceName: undefined,
-              })), pane.id);
+            if (
+              pane.activeTabIdx !== idx ||
+              pane.activeServiceName !== undefined
+            ) {
+              applyTree(
+                mapPane(treeRef.current, pane.id, (p) => ({
+                  ...p,
+                  activeTabIdx: idx,
+                  activeServiceName: undefined,
+                })),
+                pane.id,
+              );
             }
             // Always bring the reused tab into view: when it's already active no
             // pane state changes, so PaneView's activation effect wouldn't fire.
@@ -148,9 +167,15 @@ export function useTabCreation({
       // non-empty resumeCmd is the signal that this terminal opted into
       // restore and both cmds should be persisted.
       if (opts?.configName) {
-        const launch = await StartTerminalForConfig(projectName, opts.configName);
+        const launch = await StartTerminalForConfig(
+          projectName,
+          opts.configName,
+        );
         const term = makeTerminal(launch.id, label, {
-          ...(launch.resumeCmd && { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd }),
+          ...(launch.resumeCmd && {
+            startCmd: launch.startCmd,
+            resumeCmd: launch.resumeCmd,
+          }),
           actionName: opts.actionName,
           emoji: opts.emoji,
           color: opts.color,
@@ -169,9 +194,14 @@ export function useTabCreation({
 
       // Ad-hoc command terminals (e.g. action-as-terminal invocations) are
       // ephemeral — the command is typed once but not persisted.
-      const id = (opts?.cwd || opts?.env)
-        ? await StartTerminalWithCwdEnv(projectName, opts.cwd ?? "", opts.env ?? {})
-        : await StartTerminal(projectName);
+      const id =
+        opts?.cwd || opts?.env
+          ? await StartTerminalWithCwdEnv(
+              projectName,
+              opts.cwd ?? "",
+              opts.env ?? {},
+            )
+          : await StartTerminal(projectName);
       addTerminal(
         makeTerminal(id, label, {
           actionName: opts?.actionName,
@@ -184,7 +214,14 @@ export function useTabCreation({
       const folded = foldAgentPrompt(cmd, opts?.prompt);
       scheduleCmdInject(id, folded.cmd, folded.prompt);
     },
-    [projectName, addTerminal, applyTree, scheduleCmdInject, scheduleSeedInject, forward],
+    [
+      projectName,
+      addTerminal,
+      applyTree,
+      scheduleCmdInject,
+      scheduleSeedInject,
+      forward,
+    ],
   );
 
   const resumeFromHistory = useCallback(
@@ -203,7 +240,14 @@ export function useTabCreation({
         entry.resumeCmd,
       );
       updateProjectTerminalsCache(projectName, stateAfterRemove);
+      const sessionTitle =
+        entry.sessionTitle && entry.sessionTitleSource !== "manual"
+          ? disambiguateLabel(treeRef.current, entry.sessionTitle)
+          : entry.sessionTitle;
       const term = makeTerminal(id, entry.label, {
+        sessionTitle,
+        sessionTitleId: entry.sessionTitleId,
+        sessionTitleSource: entry.sessionTitleSource,
         startCmd: entry.startCmd,
         resumeCmd: entry.resumeCmd,
         actionName: entry.actionName,
@@ -255,7 +299,8 @@ export function useTabCreation({
   // "fork" spawn task that continues the conversation in the copy's terminal.
   const forkTerminalIntoCopy = useCallback(
     async (paneId: string, termId: string) => {
-      if (IS_MIRROR_WINDOW) return forward("forkTerminalIntoCopy", paneId, termId);
+      if (IS_MIRROR_WINDOW)
+        return forward("forkTerminalIntoCopy", paneId, termId);
       const current = treeRef.current;
       if (!current) return;
       const tab = findPane(current, paneId)?.tabs.find((t) => t.id === termId);
@@ -294,7 +339,10 @@ export function useTabCreation({
       if (IS_MIRROR_WINDOW) return forward("addTerminalToPane", paneId);
       try {
         const id = await StartTerminal(projectName);
-        addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), paneId);
+        addTerminal(
+          makeTerminal(id, pickTerminalLabel(treeRef.current)),
+          paneId,
+        );
       } catch {}
     },
     [projectName, addTerminal, forward],

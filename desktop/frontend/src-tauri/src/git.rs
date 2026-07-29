@@ -41,7 +41,11 @@ pub(crate) fn git_out(cwd: &str, args: &[&str]) -> Result<String, String> {
 }
 
 /// Like `git_out`, with extra environment variables set on the git process.
-pub(crate) fn git_out_env(cwd: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
+pub(crate) fn git_out_env(
+    cwd: &str,
+    args: &[&str],
+    envs: &[(&str, &str)],
+) -> Result<String, String> {
     let out = git_command(cwd, args, envs)
         .output()
         .map_err(|e| e.to_string())?;
@@ -1740,5 +1744,4 @@ mod tests {
         assert!(!cat_file_spec_ok("HEAD:weird\nname.txt"));
         assert!(!cat_file_spec_ok("HEAD:weird\rname.txt"));
     }
-
 }

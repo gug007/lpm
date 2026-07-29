@@ -90,11 +90,8 @@ struct Generated {
 }
 
 fn generate() -> Result<Generated, String> {
-    use rcgen::{
-        CertificateParams, DistinguishedName, DnType, KeyPair, PKCS_ECDSA_P256_SHA256,
-    };
-    let mut params =
-        CertificateParams::new(vec!["lpm".to_string()]).map_err(|e| e.to_string())?;
+    use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair, PKCS_ECDSA_P256_SHA256};
+    let mut params = CertificateParams::new(vec!["lpm".to_string()]).map_err(|e| e.to_string())?;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CommonName, "lpm");
     params.distinguished_name = dn;
@@ -251,8 +248,6 @@ impl rustls::client::danger::ServerCertVerifier for NoVerify {
     }
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
-        self.0
-            .signature_verification_algorithms
-            .supported_schemes()
+        self.0.signature_verification_algorithms.supported_schemes()
     }
 }

@@ -7,11 +7,15 @@ import {
 import {
   type PaneNode,
   type TerminalInstance,
+  collectTerminals,
+  followsAgentTitle,
   makePaneLeaf,
   makeTerminal,
   clampIdx,
+  terminalDisplayLabel,
   isTerminalTab,
 } from "../../paneTree";
+import { disambiguateLabelAgainst } from "../../terminalLabels";
 import { nextId } from "./util";
 
 /**
@@ -31,6 +35,16 @@ export async function reifyTreeWithFreshPtys(
   projectName: string,
   startedIds: string[],
   dropped: PersistedTab[] = [],
+): Promise<PaneNode | null> {
+  const restored = await reifyTree(node, projectName, startedIds, dropped);
+  return restored ? disambiguateRestoredSessionTitles(restored) : null;
+}
+
+async function reifyTree(
+  node: PersistedPaneNode,
+  projectName: string,
+  startedIds: string[],
+  dropped: PersistedTab[],
 ): Promise<PaneNode | null> {
   if (node.kind === "leaf") {
     const persistedTabs = node.tabs ?? [];
@@ -59,6 +73,9 @@ export async function reifyTreeWithFreshPtys(
       newIdx.push(tabs.length);
       tabs.push(
         makeTerminal(result.value, t.label ?? "Terminal", {
+          sessionTitle: t.sessionTitle,
+          sessionTitleId: t.sessionTitleId,
+          sessionTitleSource: t.sessionTitleSource,
           historyKey: t.historyKey,
           startCmd: t.startCmd,
           resumeCmd: t.resumeCmd,
@@ -79,8 +96,8 @@ export async function reifyTreeWithFreshPtys(
   }
   if (!node.a || !node.b) return null;
   const [a, b] = await Promise.all([
-    reifyTreeWithFreshPtys(node.a, projectName, startedIds, dropped),
-    reifyTreeWithFreshPtys(node.b, projectName, startedIds, dropped),
+    reifyTree(node.a, projectName, startedIds, dropped),
+    reifyTree(node.b, projectName, startedIds, dropped),
   ]);
   if (!a || !b) return a ?? b;
   return {
@@ -90,6 +107,33 @@ export async function reifyTreeWithFreshPtys(
     a,
     b,
   };
+}
+
+// Restored titles are made unique against the labels that can't move — tabs
+// with no title of their own, and manually named ones.
+function disambiguateRestoredSessionTitles(node: PaneNode): PaneNode {
+  const movableTitle = (tab: TerminalInstance): tab is TerminalInstance &
+    { sessionTitle: string } => !!tab.sessionTitle && followsAgentTitle(tab);
+  const usedLabels = collectTerminals(node)
+    .filter((tab) => !movableTitle(tab))
+    .map(terminalDisplayLabel);
+  const visit = (current: PaneNode): PaneNode => {
+    if (current.kind === "split") {
+      return { ...current, a: visit(current.a), b: visit(current.b) };
+    }
+    return {
+      ...current,
+      tabs: current.tabs.map((tab) => {
+        if (!movableTitle(tab)) return tab;
+        const title = disambiguateLabelAgainst(tab.sessionTitle, usedLabels);
+        usedLabels.push(title);
+        return title === tab.sessionTitle
+          ? tab
+          : { ...tab, sessionTitle: title };
+      }),
+    };
+  };
+  return visit(node);
 }
 
 /**
@@ -109,6 +153,9 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
         .filter(isTerminalTab)
         .map((t) => ({
           label: t.label,
+          ...(t.sessionTitle ? { sessionTitle: t.sessionTitle } : {}),
+          ...(t.sessionTitleId ? { sessionTitleId: t.sessionTitleId } : {}),
+          ...(t.sessionTitleSource ? { sessionTitleSource: t.sessionTitleSource } : {}),
           ...(t.historyKey ? { historyKey: t.historyKey } : {}),
           ...(t.startCmd ? { startCmd: t.startCmd } : {}),
           ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),

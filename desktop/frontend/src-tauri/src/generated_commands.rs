@@ -14,6 +14,7 @@ macro_rules! all_command_handlers {
         tauri::generate_handler![
             ack_terminal_data,
             agent_limits,
+            agent_session_title,
             agent_usage_stats,
             apply_claude_limits,
             get_claude_statusline_state,

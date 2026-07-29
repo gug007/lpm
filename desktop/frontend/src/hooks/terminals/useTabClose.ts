@@ -27,6 +27,7 @@ import {
   mapPane,
   removePane,
   isTabPinned,
+  terminalDisplayLabel,
 } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { nextId, appendTerminal, resolveActiveAfterClose } from "./util";
@@ -68,8 +69,9 @@ export function useTabClose({
   // entry only survives in memory until some unrelated tree change.
   const recordClosingTabs = useCallback(
     (tabs: TerminalInstance[], flush = false) => {
-      const eligible = tabs.filter((t): t is TerminalInstance & { resumeCmd: string } =>
-        Boolean(t.resumeCmd),
+      const eligible = tabs.filter(
+        (t): t is TerminalInstance & { resumeCmd: string } =>
+          Boolean(t.resumeCmd),
       );
       if (eligible.length === 0) return;
       let state = getProjectTerminals(projectName);
@@ -77,6 +79,9 @@ export function useTabClose({
       for (const t of eligible) {
         state = appendHistoryEntry(state, {
           label: t.label,
+          sessionTitle: t.sessionTitle,
+          sessionTitleId: t.sessionTitleId,
+          sessionTitleSource: t.sessionTitleSource,
           startCmd: t.startCmd,
           resumeCmd: t.resumeCmd,
           actionName: t.actionName,
@@ -141,7 +146,11 @@ export function useTabClose({
         const insertAt = Math.min(entry.tabIdx, pane.tabs.length);
         const next = mapPane(current, entry.paneId, (p) => ({
           ...p,
-          tabs: [...p.tabs.slice(0, insertAt), entry.tab, ...p.tabs.slice(insertAt)],
+          tabs: [
+            ...p.tabs.slice(0, insertAt),
+            entry.tab,
+            ...p.tabs.slice(insertAt),
+          ],
           activeTabIdx: insertAt,
           activeServiceName: undefined,
         }));
@@ -151,8 +160,13 @@ export function useTabClose({
       if (current) {
         const focused = focusedRef.current;
         const target =
-          focused && findPane(current, focused) ? focused : firstPaneId(current);
-        applyTree(mapPane(current, target, (p) => appendTerminal(p, entry.tab)), target);
+          focused && findPane(current, focused)
+            ? focused
+            : firstPaneId(current);
+        applyTree(
+          mapPane(current, target, (p) => appendTerminal(p, entry.tab)),
+          target,
+        );
         return;
       }
       const paneId = nextId("pane");
@@ -177,7 +191,7 @@ export function useTabClose({
       });
       showUndoCloseToast({
         toastId,
-        label: tab.label,
+        label: terminalDisplayLabel(tab),
         durationMs: UNDO_CLOSE_DURATION_MS,
         onUndo: () => undoPendingClose(tab.id),
         onFinalize: () => finalizePendingClose(tab.id),
@@ -190,7 +204,11 @@ export function useTabClose({
   finalizePendingCloseRef.current = finalizePendingClose;
 
   const closeTerminal = useCallback(
-    (paneId: string, tabIdx: number, opts?: { stop?: boolean; force?: boolean }) => {
+    (
+      paneId: string,
+      tabIdx: number,
+      opts?: { stop?: boolean; force?: boolean },
+    ) => {
       // Forward by tab id, not index: the mirror's local tree lags the owner's
       // echoed broadcast, so a second close click within that window would carry
       // a stale index and the owner would close whatever tab now sits there —
@@ -226,8 +244,16 @@ export function useTabClose({
       }
 
       const newTabs = pane.tabs.filter((_, i) => i !== tabIdx);
-      const newActive = resolveActiveAfterClose(pane.activeTabIdx, tabIdx, newTabs.length);
-      const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
+      const newActive = resolveActiveAfterClose(
+        pane.activeTabIdx,
+        tabIdx,
+        newTabs.length,
+      );
+      const next = mapPane(current, paneId, (p) => ({
+        ...p,
+        tabs: newTabs,
+        activeTabIdx: newActive,
+      }));
       applyTree(next);
     },
     [applyTree, collapsePane, disposeTabs, beginPendingClose, forward],
@@ -250,13 +276,21 @@ export function useTabClose({
       const pane = findPane(current, paneId);
       const keptTab = pane?.tabs[tabIdx];
       if (!pane || !keptTab) return;
-      const closing = pane.tabs.filter((t, i) => i !== tabIdx && t.pinned !== true);
+      const closing = pane.tabs.filter(
+        (t, i) => i !== tabIdx && t.pinned !== true,
+      );
       if (closing.length === 0) return;
       disposeTabs(closing);
 
-      const newTabs = pane.tabs.filter((t, i) => i === tabIdx || t.pinned === true);
+      const newTabs = pane.tabs.filter(
+        (t, i) => i === tabIdx || t.pinned === true,
+      );
       const newActive = newTabs.findIndex((t) => t.id === keptTab.id);
-      const next = mapPane(current, paneId, (p) => ({ ...p, tabs: newTabs, activeTabIdx: newActive }));
+      const next = mapPane(current, paneId, (p) => ({
+        ...p,
+        tabs: newTabs,
+        activeTabIdx: newActive,
+      }));
       applyTree(next);
     },
     [applyTree, disposeTabs, forward],

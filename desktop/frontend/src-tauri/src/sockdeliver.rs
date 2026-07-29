@@ -106,7 +106,9 @@ pub fn env_recover_group() -> String {
         s.push_str(&format!("{var}=; "));
     }
     // Priority 1 — the attached client's process env.
-    s.push_str("cp=$(tmux list-clients -t \"$TMUX_PANE\" -F \"#{client_pid}\" 2>/dev/null | head -n1); ");
+    s.push_str(
+        "cp=$(tmux list-clients -t \"$TMUX_PANE\" -F \"#{client_pid}\" 2>/dev/null | head -n1); ",
+    );
     s.push_str("if [ -n \"$cp\" ] && [ -r \"/proc/$cp/environ\" ]; then ");
     s.push_str("ce=$(tr \"\\000\" \"\\n\" < \"/proc/$cp/environ\" 2>/dev/null); ");
     for var in RECOVER_VARS {
@@ -155,8 +157,14 @@ mod tests {
         // inlined copy of the payload.
         assert!(DELIVER_PY.contains("os.environ[\"LPM_MSG\"]"));
         assert!(DELIVER_PL.contains("$ENV{LPM_MSG}"));
-        assert!(!DELIVER_PY.contains("$m"), "payload not interpolated into python");
-        assert!(!DELIVER_PL.contains("$m"), "payload not interpolated into perl");
+        assert!(
+            !DELIVER_PY.contains("$m"),
+            "payload not interpolated into python"
+        );
+        assert!(
+            !DELIVER_PL.contains("$m"),
+            "payload not interpolated into perl"
+        );
     }
 
     #[test]
@@ -199,11 +207,20 @@ mod tests {
     fn env_recover_reads_attached_client_process_env() {
         let r = env_recover_group();
         // The tmux client's pid, then its NUL-separated environ (Linux /proc).
-        assert!(r.contains("tmux list-clients -t \"$TMUX_PANE\" -F \"#{client_pid}\""), "{r}");
+        assert!(
+            r.contains("tmux list-clients -t \"$TMUX_PANE\" -F \"#{client_pid}\""),
+            "{r}"
+        );
         assert!(r.contains("[ -r \"/proc/$cp/environ\" ]"), "{r}");
-        assert!(r.contains("tr \"\\000\" \"\\n\" < \"/proc/$cp/environ\""), "{r}");
+        assert!(
+            r.contains("tr \"\\000\" \"\\n\" < \"/proc/$cp/environ\""),
+            "{r}"
+        );
         for v in RECOVER_VARS {
-            assert!(r.contains(&format!("grep -e \"^{v}=\"")), "{v} client grep: {r}");
+            assert!(
+                r.contains(&format!("grep -e \"^{v}=\"")),
+                "{v} client grep: {r}"
+            );
         }
     }
 
@@ -213,7 +230,9 @@ mod tests {
         // For LPM_PANE_ID: client env (/proc grep) < session (`showenv -t`) <
         // inherited restore (`LPM_PANE_ID=$ipane`) < global (`showenv -g`).
         let client = r.find("grep -e \"^LPM_PANE_ID=\"").expect("client extract");
-        let session = r.find("tmux showenv -t \"$TMUX_PANE\" LPM_PANE_ID").expect("session env");
+        let session = r
+            .find("tmux showenv -t \"$TMUX_PANE\" LPM_PANE_ID")
+            .expect("session env");
         let inherited = r.find("LPM_PANE_ID=$ipane").expect("inherited restore");
         let global = r.find("tmux showenv -g LPM_PANE_ID").expect("global env");
         assert!(client < session, "client before session: {r}");
@@ -242,24 +261,34 @@ mod tests {
         // The whole tmux resolution is inside `if [ -n "$TMUX" ]; ... fi;`, so when
         // not in tmux only the socket glob runs — exactly as before.
         let tmux_open = r.find("if [ -n \"$TMUX\" ]; then").expect("tmux block");
-        let glob = r.find("if [ ! -S \"$LPM_SOCKET_PATH\" ]; then for s in").expect("socket glob");
+        let glob = r
+            .find("if [ ! -S \"$LPM_SOCKET_PATH\" ]; then for s in")
+            .expect("socket glob");
         assert!(tmux_open < glob, "socket glob follows the tmux block: {r}");
     }
 
     #[test]
     fn env_recover_globs_fwd_socket_before_local_socket() {
         let r = env_recover_group();
-        let fwd = r.find("\"$HOME\"/.lpm/fwd/status-*.sock").expect("fwd glob");
+        let fwd = r
+            .find("\"$HOME\"/.lpm/fwd/status-*.sock")
+            .expect("fwd glob");
         let local = r.find("\"$HOME\"/.lpm/lpm.sock").expect("local socket");
         assert!(fwd < local, "forwarded socket tried before lpm.sock: {r}");
         // The remote-relay socket is never a delivery target from a hook.
-        assert!(!r.contains("lpm-remote.sock"), "must not target the relay socket");
+        assert!(
+            !r.contains("lpm-remote.sock"),
+            "must not target the relay socket"
+        );
     }
 
     #[test]
     fn env_recover_has_no_single_quotes() {
         // The preamble is embedded in JSON and later inside sh single quotes on
         // install, so it must contain no single quote of its own.
-        assert!(!env_recover_group().contains('\''), "no single quotes allowed");
+        assert!(
+            !env_recover_group().contains('\''),
+            "no single quotes allowed"
+        );
     }
 }

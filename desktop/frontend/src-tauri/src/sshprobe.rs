@@ -97,7 +97,10 @@ mod tests {
         assert_eq!(tees, 2, "need two -t before destination: {argv:?}");
         assert!(dest < argv.len() - 1, "destination must precede the script");
         let script = argv.last().unwrap();
-        assert!(script.starts_with("bash -lc "), "script should be last: {script}");
+        assert!(
+            script.starts_with("bash -lc "),
+            "script should be last: {script}"
+        );
     }
 
     #[test]
@@ -119,7 +122,11 @@ mod tests {
 
     #[test]
     fn parse_strips_cr_and_ignores_surrounding_noise() {
-        let out = format!("motd\r\nnoise{}/root{}tail\r\n", joined_marker(), MARKER_TAIL);
+        let out = format!(
+            "motd\r\nnoise{}/root{}tail\r\n",
+            joined_marker(),
+            MARKER_TAIL
+        );
         assert_eq!(parse_pty_home(out.as_bytes()).as_deref(), Some("/root"));
     }
 

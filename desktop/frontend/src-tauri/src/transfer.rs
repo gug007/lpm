@@ -505,7 +505,8 @@ fn copy_file(src: &Path, dst: &Path, mode: u32) -> Result<(), String> {
 /// Atomic write preserving an existing file's mode, else creating at `mode` — the
 /// same semantics the old `OpenOptions::mode()` had (mode applies on create only).
 fn write_mode(dst: &Path, data: &[u8], mode: u32) -> Result<(), String> {
-    crate::fsatomic::write(dst, data, crate::fsatomic::Mode::Preserve(mode)).map_err(|e| e.to_string())
+    crate::fsatomic::write(dst, data, crate::fsatomic::Mode::Preserve(mode))
+        .map_err(|e| e.to_string())
 }
 
 fn copy_tree(src: &Path, dst: &Path, mode: u32) -> Result<(), String> {

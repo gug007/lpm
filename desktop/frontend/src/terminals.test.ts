@@ -50,7 +50,15 @@ describe("rememberLostSessions", () => {
     await seed({ detailView: "terminal" });
 
     await rememberLostSessions("proj", [
-      { label: "Claude", actionName: "claude", startCmd: "claude", resumeCmd: "claude --resume abc" },
+      {
+        label: "Claude",
+        sessionTitle: "Fix terminal links",
+        sessionTitleId: "abc",
+        sessionTitleSource: "vendor",
+        actionName: "claude",
+        startCmd: "claude",
+        resumeCmd: "claude --resume abc",
+      },
       { label: "Server", actionName: "server" },
     ]);
 
@@ -58,6 +66,9 @@ describe("rememberLostSessions", () => {
     expect(history).toHaveLength(1);
     expect(history[0]).toMatchObject({
       label: "Claude",
+      sessionTitle: "Fix terminal links",
+      sessionTitleId: "abc",
+      sessionTitleSource: "vendor",
       actionName: "claude",
       startCmd: "claude",
       resumeCmd: "claude --resume abc",

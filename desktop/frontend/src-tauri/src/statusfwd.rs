@@ -332,12 +332,19 @@ mod tests {
     fn remote_inner_cmd_seeds_tmux_then_execs_unconditionally() {
         let s = remote_inner_cmd();
         assert!(
-            s.contains(&format!("export LPM_SOCKET_PATH={}", remote_socket_env_expr())),
+            s.contains(&format!(
+                "export LPM_SOCKET_PATH={}",
+                remote_socket_env_expr()
+            )),
             "{s}"
         );
         // One guarded seed sets all three vars via `\;` separators.
         assert!(s.contains("command -v tmux >/dev/null 2>&1 && tmux setenv -g"));
-        assert_eq!(s.matches("tmux setenv -g").count(), 1, "single seed call: {s}");
+        assert_eq!(
+            s.matches("tmux setenv -g").count(),
+            1,
+            "single seed call: {s}"
+        );
         for v in ["LPM_SOCKET_PATH", "LPM_PROJECT_NAME", "LPM_PANE_ID"] {
             assert!(s.contains(&format!("setenv -g {v} \"${v}\"")), "{s}");
         }
@@ -346,7 +353,10 @@ mod tests {
         // Exec is unconditional: `;` before it, never gated on either tmux step.
         assert!(s.ends_with("exec \"$SHELL\" -l"));
         assert!(s.contains(">/dev/null 2>&1; exec \"$SHELL\" -l"), "{s}");
-        assert!(!s.contains("2>&1 && exec"), "tmux steps must not gate exec: {s}");
+        assert!(
+            !s.contains("2>&1 && exec"),
+            "tmux steps must not gate exec: {s}"
+        );
         // The whole inner command is single-quote-free (re-wrapped on install).
         assert!(!s.contains('\''), "no single quotes allowed: {s}");
     }
@@ -361,7 +371,9 @@ mod tests {
         );
         // Duplicate guard: append only when our vars are not already listed.
         assert!(
-            s.contains("tmux show-option -gv update-environment 2>/dev/null | grep -q LPM_PANE_ID ||"),
+            s.contains(
+                "tmux show-option -gv update-environment 2>/dev/null | grep -q LPM_PANE_ID ||"
+            ),
             "duplicate guard missing: {s}"
         );
         // Each var appended as its OWN array entry via `set-option -ga`.
@@ -372,7 +384,10 @@ mod tests {
             );
         }
         // The update-environment step is its own silenced statement, before exec.
-        assert!(s.contains("; }; } >/dev/null 2>&1; exec \"$SHELL\" -l"), "{s}");
+        assert!(
+            s.contains("; }; } >/dev/null 2>&1; exec \"$SHELL\" -l"),
+            "{s}"
+        );
     }
 
     #[test]

@@ -72,7 +72,9 @@ fn reap_stale_runs(runs: &mut HashMap<String, BackgroundRun>) {
 /// boundary once it exceeds the cap.
 fn append_run_output(run_id: &str, line: &str) {
     let mut runs = background_runs().lock().unwrap();
-    let Some(r) = runs.get_mut(run_id) else { return };
+    let Some(r) = runs.get_mut(run_id) else {
+        return;
+    };
     r.output.push_str(line);
     r.output.push('\n');
     if r.output.len() > BG_OUTPUT_CAP {
@@ -172,8 +174,13 @@ struct ActionPlan {
 /// argument and a `;` stays data. Matches shellSafeValue in actionInputs.ts.
 fn shell_safe_value(v: &str) -> bool {
     !v.is_empty()
-        && v.bytes()
-            .all(|b| b.is_ascii_alphanumeric() | matches!(b, b'_' | b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'-'))
+        && v.bytes().all(|b| {
+            b.is_ascii_alphanumeric()
+                | matches!(
+                    b,
+                    b'_' | b'@' | b'%' | b'+' | b'=' | b':' | b',' | b'.' | b'/' | b'-'
+                )
+        })
 }
 
 /// Substitute {{key}} inputs into the resolved action. `cmd` is a shell
@@ -387,7 +394,8 @@ pub fn run_action_background(
         );
     }
 
-    let result = run_action_background_inner(&app, &project_name, &action_name, &input_values, &run_id);
+    let result =
+        run_action_background_inner(&app, &project_name, &action_name, &input_values, &run_id);
 
     let mut runs = background_runs().lock().unwrap();
     if let Some(r) = runs.get_mut(&run_id) {

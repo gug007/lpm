@@ -1,4 +1,4 @@
-import { Copy, GitFork, Pin, PinOff } from "lucide-react";
+import { Copy, GitFork, Pin, PinOff, Sparkles } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
@@ -10,7 +10,9 @@ interface TabContextMenuProps {
   canFork: boolean;
   canForkCopy: boolean;
   canCloseOthers: boolean;
+  canRestoreSessionTitle: boolean;
   onRename: () => void;
+  onRestoreSessionTitle: () => void;
   onTogglePin: () => void;
   onFork: () => void;
   onForkCopy: () => void;
@@ -26,7 +28,9 @@ export function TabContextMenu({
   canFork,
   canForkCopy,
   canCloseOthers,
+  canRestoreSessionTitle,
   onRename,
+  onRestoreSessionTitle,
   onTogglePin,
   onFork,
   onForkCopy,
@@ -45,6 +49,13 @@ export function TabContextMenu({
         icon={<PencilIcon />}
         onClick={close(onRename)}
       />
+      {canRestoreSessionTitle && (
+        <ContextMenuItem
+          label="Use conversation title"
+          icon={<Sparkles size={12} />}
+          onClick={close(onRestoreSessionTitle)}
+        />
+      )}
       <ContextMenuItem
         label={pinned ? "Unpin" : "Pin"}
         icon={pinned ? <PinOff size={12} /> : <Pin size={12} />}

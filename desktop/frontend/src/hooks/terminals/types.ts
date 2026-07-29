@@ -48,6 +48,7 @@ export interface UseTerminalsResult {
     label: string,
     emoji?: string,
   ) => void;
+  restoreSessionTitle: (paneId: string, tabIdx: number) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
   reorderTerminals: (paneId: string, order: string[]) => void;
   remoteCloseTerminal: (termId: string) => void;

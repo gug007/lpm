@@ -185,10 +185,10 @@ struct PushPreferences {
 #[serde(default)]
 struct RemoteConfig {
     enabled: bool,
-    port: u16, // 0 => DEFAULT_PORT
+    port: u16,            // 0 => DEFAULT_PORT
     pairing_code: String, // non-empty while an unused pairing code is outstanding
-    tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
-    push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
+    tailscale: bool,      // advertise this Mac's Tailscale address in the pairing QR
+    push_relay: String,   // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
     // Stable identity of this Mac, minted on first run and persisted. Sent to the
     // phone so it can distinguish and label multiple paired Macs, and mixed into
     // the push collapse id so same-named projects on different Macs don't collide.
@@ -574,7 +574,12 @@ impl RemoteHub {
         if from < r.base || from > r.total() {
             return None;
         }
-        let bytes: Vec<u8> = r.buf.iter().skip((from - r.base) as usize).copied().collect();
+        let bytes: Vec<u8> = r
+            .buf
+            .iter()
+            .skip((from - r.base) as usize)
+            .copied()
+            .collect();
         Some((String::from_utf8_lossy(&bytes).into_owned(), r.total()))
     }
 
@@ -848,7 +853,11 @@ fn log_handshake_failure(peer: &str, reason: &str) {
     );
     eprint!("remote: {line}");
     let path = crate::config::lpm_dir().join("remote-handshake.log");
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
         use std::io::Write;
         let _ = f.write_all(line.as_bytes());
     }
@@ -1501,9 +1510,7 @@ fn read_config_reply(project: &str, layer: &str) -> Value {
         json!({ "t": "readConfig", "ok": true, "project": project, "layer": layer,
         "content": content, "available": available })
     };
-    let err = |e: String| {
-        json!({ "t": "readConfig", "ok": false, "project": project, "layer": layer, "error": e })
-    };
+    let err = |e: String| json!({ "t": "readConfig", "ok": false, "project": project, "layer": layer, "error": e });
     let read = |path: std::path::PathBuf| match std::fs::read_to_string(&path) {
         Ok(s) => ok(s, true),
         Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => ok(String::new(), true),
@@ -1578,10 +1585,14 @@ fn handle_msg(
         // (same as the duplicate flow's group write), and replies the fresh sidebar
         // so the requesting phone re-renders. Local config ops — no main window
         // needed. `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`.
-        "sidebarCreateFolder" | "sidebarRenameFolder" | "sidebarDeleteFolder"
+        "sidebarCreateFolder"
+        | "sidebarRenameFolder"
+        | "sidebarDeleteFolder"
         | "sidebarMoveProject" => {
             let r = match t {
-                "sidebarCreateFolder" => sidebar_create_folder(&str_field("name").unwrap_or_default()),
+                "sidebarCreateFolder" => {
+                    sidebar_create_folder(&str_field("name").unwrap_or_default())
+                }
                 "sidebarRenameFolder" => sidebar_rename_folder(
                     &str_field("name").unwrap_or_default(),
                     &str_field("newName").unwrap_or_default(),
@@ -2194,10 +2205,7 @@ fn handle_msg(
                 .get("pullLatest")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
-            let worktree = v
-                .get("worktree")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
+            let worktree = v.get("worktree").and_then(Value::as_bool).unwrap_or(false);
             let group_name = str_field("groupName").unwrap_or_default();
             let run_mode = str_field("runMode").unwrap_or_default();
 
@@ -2408,7 +2416,10 @@ fn handle_msg(
         "cancelActionBackground" => {
             let run_id = str_field("runId").unwrap_or_default();
             let _ = crate::actions::cancel_action_background(run_id.clone());
-            send(ws, json!({ "t": "cancelActionBackground", "ok": true, "runId": run_id }))?;
+            send(
+                ws,
+                json!({ "t": "cancelActionBackground", "ok": true, "runId": run_id }),
+            )?;
         }
         // List a project's background runs (running + recently finished) so a
         // reconnecting phone can re-attach to a run it started before relaunch.
@@ -3348,7 +3359,8 @@ fn handle_msg(
                 v.get("ssh").cloned().unwrap_or_else(|| json!({})),
             ) {
                 Ok(ssh) => {
-                    let r = crate::projects_crud::create_ssh_project(app.clone(), name.clone(), ssh);
+                    let r =
+                        crate::projects_crud::create_ssh_project(app.clone(), name.clone(), ssh);
                     let mut reply = result_reply("createSshProject", r);
                     reply["name"] = json!(name);
                     send(ws, reply)?;
@@ -3906,7 +3918,10 @@ fn sidebar_delete_folder(name: &str) -> Result<(), String> {
         .unwrap_or_default();
     groups.remove(idx);
     let token = format!("group:{}", id);
-    match order.iter().position(|t| t.as_str() == Some(token.as_str())) {
+    match order
+        .iter()
+        .position(|t| t.as_str() == Some(token.as_str()))
+    {
         Some(pos) => {
             order.splice(pos..=pos, members);
         }
@@ -3962,9 +3977,7 @@ fn sidebar_move_project(project: &str, folder: Option<&str>) -> Result<(), Strin
 /// ~1MB; a longer file is truncated with `truncated: true`.
 fn read_project_file(cwd: &str, project: &str, path: &str) -> Value {
     const CAP: usize = 1024 * 1024;
-    let err = |msg: &str| {
-        json!({ "t": "file", "project": project, "path": path, "ok": false, "error": msg })
-    };
+    let err = |msg: &str| json!({ "t": "file", "project": project, "path": path, "ok": false, "error": msg });
 
     let root = match std::fs::canonicalize(cwd) {
         Ok(p) => p,
@@ -3995,7 +4008,11 @@ fn read_project_file(cwd: &str, project: &str, path: &str) -> Value {
         Err(e) => return err(&e.to_string()),
     }
     let truncated = size > CAP as u64 || bytes.len() > CAP;
-    let slice = if bytes.len() > CAP { &bytes[..CAP] } else { &bytes[..] };
+    let slice = if bytes.len() > CAP {
+        &bytes[..CAP]
+    } else {
+        &bytes[..]
+    };
     let content = match std::str::from_utf8(slice) {
         Ok(s) => s.to_string(),
         // A truncation can split a multibyte char at the cap; keep the valid prefix
@@ -5150,11 +5167,11 @@ mod tests {
 
         let tcp = TcpStream::connect(addr).expect("tcp connect");
         let server_name = rustls::pki_types::ServerName::try_from("lpm").unwrap();
-        let conn = rustls::ClientConnection::new(crate::remotetls::test_client_config(), server_name)
-            .expect("client tls session");
+        let conn =
+            rustls::ClientConnection::new(crate::remotetls::test_client_config(), server_name)
+                .expect("client tls session");
         let tls = rustls::StreamOwned::new(conn, tcp);
-        let (mut c, _) =
-            tungstenite::client(format!("ws://{addr}/"), tls).expect("client connect");
+        let (mut c, _) = tungstenite::client(format!("ws://{addr}/"), tls).expect("client connect");
         c.send(Message::text(
             json!({ "t": "pair", "code": "AAAA-BBBB", "name": "t" }).to_string(),
         ))
@@ -5181,8 +5198,8 @@ mod tests {
     // the plaintext branch in accept_ws is removed.
     #[test]
     fn legacy_plaintext_client_still_pairs() {
-        let tmp = std::env::temp_dir()
-            .join(format!("lpm-remote-plain-test-{}.json", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("lpm-remote-plain-test-{}.json", std::process::id()));
         *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
 
         let hub = RemoteHub::default();
@@ -5207,8 +5224,7 @@ mod tests {
         });
 
         let tcp = TcpStream::connect(addr).expect("tcp connect");
-        let (mut c, _) =
-            tungstenite::client(format!("ws://{addr}/"), tcp).expect("client connect");
+        let (mut c, _) = tungstenite::client(format!("ws://{addr}/"), tcp).expect("client connect");
         c.send(Message::text(
             json!({ "t": "pair", "code": "AAAA-BBBB", "name": "t" }).to_string(),
         ))
@@ -5703,7 +5719,9 @@ mod tests {
 
     #[test]
     fn auto_review_detected_from_codex_config() {
-        assert!(approvals_auto_reviewed("approvals_reviewer = \"auto_review\"\n"));
+        assert!(approvals_auto_reviewed(
+            "approvals_reviewer = \"auto_review\"\n"
+        ));
         assert!(approvals_auto_reviewed(
             "  approvals_reviewer=\"guardian_subagent\""
         ));
@@ -5716,7 +5734,9 @@ mod tests {
         assert!(!approvals_auto_reviewed(
             "# approvals_reviewer = \"auto_review\"\n"
         ));
-        assert!(!approvals_auto_reviewed("approvals_policy = \"auto_review\""));
+        assert!(!approvals_auto_reviewed(
+            "approvals_policy = \"auto_review\""
+        ));
         assert!(
             !approvals_auto_reviewed("approvals_reviewer_note = \"auto_review\""),
             "key must be followed by ="

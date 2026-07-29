@@ -154,8 +154,12 @@ pub fn load_groups() -> Value {
 pub fn save_groups(groups: Value) -> Result<(), String> {
     config::ensure_dirs()?;
     let data = serde_json::to_vec_pretty(&groups).map_err(|e| e.to_string())?;
-    crate::fsatomic::write(&config::groups_path(), &data, crate::fsatomic::Mode::Preserve(0o644))
-        .map_err(|e| e.to_string())
+    crate::fsatomic::write(
+        &config::groups_path(),
+        &data,
+        crate::fsatomic::Mode::Preserve(0o644),
+    )
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

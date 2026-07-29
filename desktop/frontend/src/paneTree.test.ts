@@ -2,7 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   ALL_SERVICES,
   adjacentPaneHeaderItem,
+  applyManualTerminalRename,
+  clearManualTerminalTitle,
   paneHeaderItems,
+  terminalDisplayLabel,
   type PaneLeaf,
   type PaneHeaderItem,
 } from "./paneTree";
@@ -78,5 +81,53 @@ describe("adjacentPaneHeaderItem", () => {
     const pane = leaf(2, { activeServiceName: "gone", activeTabIdx: 1 });
     expect(next(pane, ["web"], 1)).toEqual({ kind: "service", name: "web" });
     expect(next(pane, ["web"], -1)).toEqual({ kind: "tab", idx: 0 });
+  });
+});
+
+describe("applyManualTerminalRename", () => {
+  const titled = {
+    id: "t0",
+    label: "Codex",
+    sessionTitle: "Fix terminal links",
+    sessionTitleId: "session-1",
+    sessionTitleSource: "vendor" as const,
+  };
+
+  it("keeps following the conversation when the prefilled title is resubmitted", () => {
+    const same = applyManualTerminalRename(titled, "Fix terminal links");
+    expect(same.sessionTitleSource).toBe("vendor");
+    expect(same.sessionTitle).toBe("Fix terminal links");
+    expect(same.label).toBe("Codex");
+  });
+
+  it("still applies an emoji-only edit without freezing the title", () => {
+    const emojied = applyManualTerminalRename(titled, "Fix terminal links", "🚀");
+    expect(emojied.emoji).toBe("🚀");
+    expect(emojied.sessionTitleSource).toBe("vendor");
+  });
+
+  it("takes over the label for a real rename", () => {
+    const renamed = applyManualTerminalRename(titled, "Mine");
+    expect(renamed.label).toBe("Mine");
+    expect(renamed.sessionTitle).toBeUndefined();
+    expect(renamed.sessionTitleId).toBeUndefined();
+    expect(renamed.sessionTitleSource).toBe("manual");
+  });
+});
+
+describe("clearManualTerminalTitle", () => {
+  it("re-enables conversation titles and keeps the label as the fallback", () => {
+    const manual = clearManualTerminalTitle({
+      id: "t0",
+      label: "Mine",
+      sessionTitleSource: "manual",
+    });
+    expect(manual.sessionTitleSource).toBeUndefined();
+    expect(terminalDisplayLabel(manual)).toBe("Mine");
+  });
+
+  it("leaves a tab that never was renamed untouched", () => {
+    const tab = { id: "t0", label: "Codex", sessionTitle: "Ship it" };
+    expect(clearManualTerminalTitle(tab)).toBe(tab);
   });
 });

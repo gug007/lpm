@@ -20,7 +20,12 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { collectPanes, type PaneLeaf, type PaneNode } from "../paneTree";
+import {
+  collectPanes,
+  terminalDisplayLabel,
+  type PaneLeaf,
+  type PaneNode,
+} from "../paneTree";
 import { HeaderTab } from "./terminal/HeaderTab";
 
 // Tab strip drop targets use the pane id with this suffix so the drag
@@ -149,7 +154,13 @@ export function TerminalTabDnd({ tree, onReorder, onMove, children }: TerminalTa
     const { byTermId } = indexTree(tree);
     const pane = byTermId.get(id);
     const tab = pane?.tabs.find((t) => t.id === id);
-    if (tab && pane) setActive({ termId: id, label: tab.label, fromPaneId: pane.id });
+    if (tab && pane) {
+      setActive({
+        termId: id,
+        label: terminalDisplayLabel(tab),
+        fromPaneId: pane.id,
+      });
+    }
   };
 
   const handleDragOver = (e: DragOverEvent) => {

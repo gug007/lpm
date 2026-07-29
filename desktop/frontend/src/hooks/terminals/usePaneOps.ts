@@ -5,6 +5,8 @@ import {
   type PaneLeaf,
   type SplitDirection,
   type TerminalInstance,
+  applyManualTerminalRename,
+  clearManualTerminalTitle,
   makePaneLeaf,
   makeTerminal,
   adjacentPaneHeaderItem,
@@ -118,15 +120,25 @@ export function usePaneOps({
       if (IS_MIRROR_WINDOW) forward("renameTerminal", paneId, tabIdx, label, emoji);
       const next = mapPane(current, paneId, (p) => ({
         ...p,
+        tabs: p.tabs.map((t, i) => {
+          if (i !== tabIdx) return t;
+          return applyManualTerminalRename(t, label, emoji);
+        }),
+      }));
+      applyTree(next);
+    },
+    [applyTree, forward],
+  );
+
+  const restoreSessionTitle = useCallback(
+    (paneId: string, tabIdx: number) => {
+      const current = treeRef.current;
+      if (!current) return;
+      if (IS_MIRROR_WINDOW) forward("restoreSessionTitle", paneId, tabIdx);
+      const next = mapPane(current, paneId, (p) => ({
+        ...p,
         tabs: p.tabs.map((t, i) =>
-          i === tabIdx
-            ? {
-                ...t,
-                label,
-                // undefined emoji => caller isn't editing it; "" clears it.
-                ...(emoji !== undefined ? { emoji: emoji || undefined } : {}),
-              }
-            : t,
+          i === tabIdx ? clearManualTerminalTitle(t) : t,
         ),
       }));
       applyTree(next);
@@ -208,21 +220,40 @@ export function usePaneOps({
         return {
           ...p,
           tabs,
-          activeTabIdx: resolveActiveAfterClose(p.activeTabIdx, fromIdx, tabs.length),
+          activeTabIdx: resolveActiveAfterClose(
+            p.activeTabIdx,
+            fromIdx,
+            tabs.length,
+          ),
         };
       });
 
       const updatedFrom = findPane(next, fromPaneId);
-      if (updatedFrom && updatedFrom.tabs.length === 0 && !updatedFrom.activeServiceName) {
+      if (
+        updatedFrom &&
+        updatedFrom.tabs.length === 0 &&
+        !updatedFrom.activeServiceName
+      ) {
         next = removePane(next, fromPaneId);
       }
       if (!next) return;
 
       next = mapPane(next, toPaneId, (p) => {
         const insertAt =
-          toIdx === undefined ? p.tabs.length : Math.max(0, Math.min(toIdx, p.tabs.length));
-        const tabs = [...p.tabs.slice(0, insertAt), term, ...p.tabs.slice(insertAt)];
-        return { ...p, tabs, activeTabIdx: insertAt, activeServiceName: undefined };
+          toIdx === undefined
+            ? p.tabs.length
+            : Math.max(0, Math.min(toIdx, p.tabs.length));
+        const tabs = [
+          ...p.tabs.slice(0, insertAt),
+          term,
+          ...p.tabs.slice(insertAt),
+        ];
+        return {
+          ...p,
+          tabs,
+          activeTabIdx: insertAt,
+          activeServiceName: undefined,
+        };
       });
 
       applyTree(next, toPaneId);
@@ -248,7 +279,11 @@ export function usePaneOps({
         return;
       }
       const newPaneId = nextId("pane");
-      const newPane = makePaneLeaf(newPaneId, [makeTerminal(newId, pickTerminalLabel(current))], 0);
+      const newPane = makePaneLeaf(
+        newPaneId,
+        [makeTerminal(newId, pickTerminalLabel(current))],
+        0,
+      );
       applyTree(splitAtPane(current, paneId, direction, newPane), newPaneId);
     },
     [projectName, applyTree, forward],
@@ -319,6 +354,7 @@ export function usePaneOps({
     focusAdjacentPaneItem,
     ensureRootPane,
     renameTerminal,
+    restoreSessionTitle,
     toggleTabPinned,
     reorderTerminals,
     moveTerminal,

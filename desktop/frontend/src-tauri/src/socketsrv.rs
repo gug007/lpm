@@ -17,7 +17,7 @@
 //                     [--prompt=TEXT]
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
-//   set_resume <project> <pane_id> <session_id>
+//   set_resume <project> <pane_id> <session_id> [--provider=codex|claude]
 //   list_jobs <project>
 //   run_job <project> <job_id>
 // Each line gets a single-line reply, EXCEPT the duplicate verbs, which stream
@@ -343,11 +343,7 @@ fn cmd_duplicate_project(
             "duplicate_project"
         };
         let error = format!("usage: {command} <project> [--count=N] ...");
-        return writeln!(
-            w,
-            "{}",
-            serde_json::json!({ "ok": false, "error": error })
-        );
+        return writeln!(w, "{}", serde_json::json!({ "ok": false, "error": error }));
     };
     let count = options
         .get("count")
@@ -516,17 +512,18 @@ fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
     "OK".into()
 }
 
-/// Codex's SessionStart hook reports the real session id here (Codex has no
-/// launch-time session id). Validated separately from the emit so the parsing
-/// path is testable without an AppHandle.
+/// Agent SessionStart hooks report the real session id here. Validated
+/// separately from the emit so the parsing path is testable without an
+/// AppHandle.
 struct ResumeArgs {
     project: String,
     pane_id: String,
     session_id: String,
+    provider: String,
 }
 
 fn parse_resume_args(args: &[String]) -> Result<ResumeArgs, String> {
-    let (positional, _) = parse_options(args);
+    let (positional, options) = parse_options(args);
     if positional.len() < 3 {
         return Err("usage: set_resume <project> <pane> <session-id>".into());
     }
@@ -536,14 +533,22 @@ fn parse_resume_args(args: &[String]) -> Result<ResumeArgs, String> {
     if !valid_session_id(&positional[2]) {
         return Err("session id must be alphanumeric/-/_ (max 128 chars)".into());
     }
+    let provider = options
+        .get("provider")
+        .map(String::as_str)
+        .unwrap_or("codex");
+    if !matches!(provider, "claude" | "codex") {
+        return Err("provider must be claude or codex".into());
+    }
     Ok(ResumeArgs {
         project: positional[0].clone(),
         pane_id: positional[1].clone(),
         session_id: positional[2].clone(),
+        provider: provider.to_string(),
     })
 }
 
-fn valid_session_id(s: &str) -> bool {
+pub(crate) fn valid_session_id(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
         && s.chars()
@@ -568,11 +573,12 @@ fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
     match parse_resume_args(args) {
         Ok(a) => {
             let _ = app.emit(
-                "codex-session",
+                "agent-session",
                 serde_json::json!({
                     "project": a.project,
                     "paneId": a.pane_id,
                     "sessionId": a.session_id,
+                    "provider": a.provider,
                 }),
             );
             "OK".into()
@@ -959,6 +965,12 @@ mod tests {
         assert_eq!(ok.project, "proj");
         assert_eq!(ok.pane_id, "pane-1");
         assert_eq!(ok.session_id, "sess-abc");
+        assert_eq!(ok.provider, "codex");
+        let claude =
+            parse_resume_args(&mk(&["proj", "pane-1", "sess-claude", "--provider=claude"]))
+                .unwrap();
+        assert_eq!(claude.provider, "claude");
+        assert!(parse_resume_args(&mk(&["proj", "pane-1", "sess", "--provider=gemini",])).is_err());
     }
 
     #[test]

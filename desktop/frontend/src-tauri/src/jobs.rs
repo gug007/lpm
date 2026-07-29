@@ -2807,8 +2807,8 @@ fn read_yaml_doc_strict(path: &Path) -> Result<serde_yaml::Value, String> {
         }
         Err(e) => Err(e.to_string()),
         Ok(b) => {
-            let doc: serde_yaml::Value =
-                serde_yaml::from_slice(&b).map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
+            let doc: serde_yaml::Value = serde_yaml::from_slice(&b)
+                .map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
             if doc.is_null() {
                 Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
             } else if doc.is_mapping() {
@@ -2863,7 +2863,11 @@ pub fn save_job_body(
     let map = doc
         .as_mapping_mut()
         .ok_or_else(|| "The config file isn't valid.".to_string())?;
-    if !map.get("jobs").map(serde_yaml::Value::is_mapping).unwrap_or(false) {
+    if !map
+        .get("jobs")
+        .map(serde_yaml::Value::is_mapping)
+        .unwrap_or(false)
+    {
         map.insert(
             "jobs".into(),
             serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
@@ -2888,7 +2892,10 @@ pub fn delete_job_body(
 ) -> Result<(), String> {
     let path = job_config_path(&source, &project)?;
     let mut doc = read_yaml_doc_strict(&path)?;
-    if let Some(jobs) = doc.get_mut("jobs").and_then(serde_yaml::Value::as_mapping_mut) {
+    if let Some(jobs) = doc
+        .get_mut("jobs")
+        .and_then(serde_yaml::Value::as_mapping_mut)
+    {
         jobs.remove(id.as_str());
         if jobs.is_empty() {
             if let Some(map) = doc.as_mapping_mut() {

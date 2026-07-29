@@ -203,8 +203,12 @@ fn save_project_instructions_file(project: &str, key: &str, content: &str) -> Re
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    crate::fsatomic::write(&path, content.as_bytes(), crate::fsatomic::Mode::Preserve(0o644))
-        .map_err(|e| e.to_string())
+    crate::fsatomic::write(
+        &path,
+        content.as_bytes(),
+        crate::fsatomic::Mode::Preserve(0o644),
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// A project's own instructions when set (non-blank), otherwise the global ones.

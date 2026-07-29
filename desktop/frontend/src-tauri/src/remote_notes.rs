@@ -103,7 +103,12 @@ fn run(app: &AppHandle, verb: &str, v: &Value) -> Value {
         "notesDeleteMessage" => plain(notes_delete_message(state, project, id())),
         "notesSearch" => wrap(
             "hits",
-            notes_search(state, project, string_at(v, "query"), int_at(v, "limit", 50)),
+            notes_search(
+                state,
+                project,
+                string_at(v, "query"),
+                int_at(v, "limit", 50),
+            ),
         ),
         "notesAttachment" => attachment(state, project, string_at(v, "hash")),
         _ => err("unknown notes request".into()),
@@ -192,7 +197,9 @@ mod tests {
     #[test]
     fn the_cap_holds_at_its_own_boundary() {
         assert!(!encoded_over_cap(encoded_len_of(MAX_WS_ATTACHMENT_BYTES)));
-        assert!(encoded_over_cap(encoded_len_of(MAX_WS_ATTACHMENT_BYTES + 1024)));
+        assert!(encoded_over_cap(encoded_len_of(
+            MAX_WS_ATTACHMENT_BYTES + 1024
+        )));
     }
 
     /// The whole point of the cap: the encoded payload has to fit a frame the

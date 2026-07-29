@@ -47,7 +47,10 @@ function probeTerminalAlive(id: string): Promise<boolean> {
     offExit = EventsOn(`pty-exit-${id}`, () => done(false));
     offOutput = EventsOn(`pty-output-${id}`, () => {
       if (graceTimer) return;
-      graceTimer = setTimeout(() => done(true), RECONNECT_PROBE_OUTPUT_GRACE_MS);
+      graceTimer = setTimeout(
+        () => done(true),
+        RECONNECT_PROBE_OUTPUT_GRACE_MS,
+      );
     });
   });
 }
@@ -57,7 +60,11 @@ interface UseSshReconnectProps {
   tree: PaneNode | null;
   treeRef: RefObject<PaneNode | null>;
   applyTree: (next: PaneNode | null, focus?: string | null) => void;
-  scheduleCmdInject: (id: string, cmd: string, prompt?: string | string[]) => void;
+  scheduleCmdInject: (
+    id: string,
+    cmd: string,
+    prompt?: string | string[],
+  ) => void;
 }
 
 export function useSshReconnect({
@@ -73,7 +80,14 @@ export function useSshReconnect({
   // can be cancelled on close/unmount.
   const remoteCacheRef = useRef<Map<string, boolean>>(new Map());
   const reconnectStateRef = useRef<
-    Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null; cancelled: boolean }>
+    Map<
+      string,
+      {
+        attempt: number;
+        timer: ReturnType<typeof setTimeout> | null;
+        cancelled: boolean;
+      }
+    >
   >(new Map());
 
   // Cancel any in-flight reconnect for a terminal (tab closed, or it succeeded).
@@ -154,6 +168,9 @@ export function useSshReconnect({
         tabs: p.tabs.map((t) =>
           t.id === oldId
             ? makeTerminal(newId, t.label, {
+                sessionTitle: t.sessionTitle,
+                sessionTitleId: t.sessionTitleId,
+                sessionTitleSource: t.sessionTitleSource,
                 historyKey: t.historyKey,
                 startCmd: t.startCmd,
                 resumeCmd: t.resumeCmd,
@@ -197,7 +214,11 @@ export function useSshReconnect({
       };
       if (!shouldReconnect(decision)) return;
       if (reconnectStateRef.current.has(id)) return;
-      reconnectStateRef.current.set(id, { attempt: 0, timer: null, cancelled: false });
+      reconnectStateRef.current.set(id, {
+        attempt: 0,
+        timer: null,
+        cancelled: false,
+      });
       const delay = reconnectDelayMs(1);
       const state = reconnectStateRef.current.get(id)!;
       state.timer = setTimeout(() => void attemptReconnect(id), delay);

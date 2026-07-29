@@ -1,8 +1,12 @@
 import { LoadTerminals, SaveTerminals } from "../bridge/commands";
 import { main } from "../bridge/models";
+import type { SessionTitleSource } from "./paneTree";
 
 export interface PersistedTab {
   label: string;
+  sessionTitle?: string;
+  sessionTitleId?: string;
+  sessionTitleSource?: SessionTitleSource;
   // Stable per-terminal id for message-history scoping; survives restart.
   historyKey?: string;
   startCmd?: string;
@@ -42,6 +46,9 @@ export interface PersistedTerminalEntry {
 
 export interface PersistedHistoryEntry {
   label: string;
+  sessionTitle?: string;
+  sessionTitleId?: string;
+  sessionTitleSource?: SessionTitleSource;
   startCmd?: string;
   resumeCmd: string;
   actionName?: string;
@@ -230,6 +237,9 @@ export function rememberLostSessions(
   for (const t of resumable) {
     state = appendHistoryEntry(state, {
       label: t.label,
+      sessionTitle: t.sessionTitle,
+      sessionTitleId: t.sessionTitleId,
+      sessionTitleSource: t.sessionTitleSource,
       startCmd: t.startCmd,
       resumeCmd: t.resumeCmd!,
       actionName: t.actionName,

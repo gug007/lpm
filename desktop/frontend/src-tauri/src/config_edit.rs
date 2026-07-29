@@ -42,7 +42,14 @@ const ACTION_SECTIONS: [&str; 2] = ["actions", "terminals"];
 // Fields the desktop ServiceForm manages (ServiceForm.buildPatch): any that the
 // phone's payload omits is removed so a cleared value doesn't linger, while
 // user-authored fields outside this set survive.
-const SERVICE_REMOVE_KEYS: &[&str] = &["cwd", "port", "portConflict", "env", "dependsOn", "depends_on"];
+const SERVICE_REMOVE_KEYS: &[&str] = &[
+    "cwd",
+    "port",
+    "portConflict",
+    "env",
+    "dependsOn",
+    "depends_on",
+];
 
 // Fields the desktop action wizard manages (MANAGED_ACTION_KEYS in
 // actionYaml.ts). Everything else (env, hand-authored keys) is unmanaged and
@@ -87,8 +94,8 @@ fn read_doc(path: &Path) -> Result<Yaml, String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Yaml::Mapping(Mapping::new())),
         Err(e) => Err(e.to_string()),
         Ok(b) => {
-            let doc: Yaml =
-                serde_yaml::from_slice(&b).map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
+            let doc: Yaml = serde_yaml::from_slice(&b)
+                .map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
             if doc.is_null() {
                 Ok(Yaml::Mapping(Mapping::new()))
             } else if doc.is_mapping() {
@@ -756,7 +763,13 @@ mod tests {
             LayerKind::Project,
             "services:\n  api:\n    cmd: run\n  web:\n    cmd: serve\n    dependsOn: [api]\nprofiles:\n  default: [api, web]\n",
         )];
-        save_service_in(&mut layers, "backend", &json!({ "cmd": "run" }), Some("api")).unwrap();
+        save_service_in(
+            &mut layers,
+            "backend",
+            &json!({ "cmd": "run" }),
+            Some("api"),
+        )
+        .unwrap();
         let doc = &layers[0].doc;
         assert!(get(doc, &["services", "backend"]).is_some());
         assert!(get(doc, &["services", "api"]).is_none());
@@ -818,13 +831,7 @@ mod tests {
     #[test]
     fn profile_create_rename_delete() {
         let mut layers = vec![layer(LayerKind::Project, "{}")];
-        save_profile_in(
-            &mut layers,
-            "dev",
-            &["api".into(), "web".into()],
-            None,
-        )
-        .unwrap();
+        save_profile_in(&mut layers, "dev", &["api".into(), "web".into()], None).unwrap();
         assert_eq!(
             get(&layers[0].doc, &["profiles", "dev"])
                 .unwrap()
@@ -868,10 +875,7 @@ mod tests {
         assert_eq!(entry.get("cmd").unwrap().as_str(), Some("bash"));
         assert_eq!(entry.get("label").unwrap().as_str(), Some("Shell"));
         // Unmanaged env + inputs ride along untouched.
-        assert_eq!(
-            get(entry, &["env", "FOO"]).unwrap().as_str(),
-            Some("bar")
-        );
+        assert_eq!(get(entry, &["env", "FOO"]).unwrap().as_str(), Some("bar"));
         assert!(get(entry, &["inputs", "x"]).is_some());
     }
 
