@@ -303,6 +303,27 @@ fn codex_prefers_database_name_then_session_index_then_preview() {
 }
 
 #[test]
+fn codex_repeat_lookups_reuse_the_cached_databases_and_columns() {
+    let dir = TempDir::new().unwrap();
+    write_full_state_database(dir.path(), 5, None, Some("Cached preview"), None, None);
+
+    assert_eq!(
+        codex_session_title(dir.path(), SESSION_ID).as_deref(),
+        Some("Cached preview")
+    );
+    // Second call answers from the cached path list and column set; the schema
+    // it recorded still has to produce the same row.
+    assert_eq!(
+        codex_session_title(dir.path(), SESSION_ID).as_deref(),
+        Some("Cached preview")
+    );
+    let cache = codex_database_cache().lock().unwrap();
+    let entry = cache.get(dir.path()).unwrap();
+    assert_eq!(entry.paths.len(), 1);
+    assert_eq!(entry.columns.len(), 1);
+}
+
+#[test]
 fn codex_feature_detects_legacy_columns() {
     let dir = TempDir::new().unwrap();
     let connection = Connection::open(dir.path().join("state_4.sqlite")).unwrap();

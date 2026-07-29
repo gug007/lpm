@@ -7,10 +7,11 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 const MAX_TITLE_CHARS: usize = 60;
 const TRANSCRIPT_CACHE_MAX: usize = 64;
+const CODEX_DB_SCAN_TTL: Duration = Duration::from_secs(60);
 const CODEX_HOME_ENV: &str = "CODEX_HOME";
 const GLOBAL_PROJECT_NAME: &str = "__global__";
 
@@ -226,14 +227,48 @@ fn codex_session_title(home: &Path, session_id: &str) -> Option<String> {
 
 fn codex_thread_metadata(home: &Path, session_id: &str) -> Option<CodexThreadMetadata> {
     for path in codex_state_databases(home) {
-        if let Ok(Some(metadata)) = codex_metadata_from_database(&path, session_id) {
+        if let Ok(Some(metadata)) = codex_metadata_from_database(home, &path, session_id) {
             return Some(metadata);
         }
     }
     None
 }
 
+/// Which databases codex keeps, and the columns each one has. Neither changes
+/// between polls, but a lookup runs per Codex tab every few seconds — so both
+/// are cached and re-derived on a timer, which is what picks up a `state_<n>`
+/// (or a migrated schema) that a codex upgrade introduces mid-session.
+struct CodexDatabases {
+    scanned_at: Instant,
+    paths: Vec<PathBuf>,
+    columns: HashMap<PathBuf, HashSet<String>>,
+}
+
+fn codex_database_cache() -> &'static Mutex<HashMap<PathBuf, CodexDatabases>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, CodexDatabases>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 fn codex_state_databases(home: &Path) -> Vec<PathBuf> {
+    if let Some(entry) = codex_database_cache().lock().unwrap().get(home) {
+        if entry.scanned_at.elapsed() < CODEX_DB_SCAN_TTL {
+            return entry.paths.clone();
+        }
+    }
+
+    let paths = scan_codex_state_databases(home);
+    codex_database_cache().lock().unwrap().insert(
+        home.to_path_buf(),
+        CodexDatabases {
+            scanned_at: Instant::now(),
+            paths: paths.clone(),
+            columns: HashMap::new(),
+        },
+    );
+    paths
+}
+
+fn scan_codex_state_databases(home: &Path) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     for (root_priority, dir) in [(1u8, home.to_path_buf()), (0, home.join("sqlite"))] {
         let Ok(entries) = std::fs::read_dir(dir) else {
@@ -252,6 +287,32 @@ fn codex_state_databases(home: &Path) -> Vec<PathBuf> {
     candidates.into_iter().map(|(_, _, path)| path).collect()
 }
 
+fn threads_columns(
+    home: &Path,
+    path: &Path,
+    connection: &Connection,
+) -> rusqlite::Result<HashSet<String>> {
+    if let Some(columns) = codex_database_cache()
+        .lock()
+        .unwrap()
+        .get(home)
+        .and_then(|entry| entry.columns.get(path))
+    {
+        return Ok(columns.clone());
+    }
+
+    let mut columns = HashSet::new();
+    let mut statement = connection.prepare("PRAGMA table_info(threads)")?;
+    let rows = statement.query_map([], |row| row.get::<_, String>(1))?;
+    for column in rows {
+        columns.insert(column?);
+    }
+    if let Some(entry) = codex_database_cache().lock().unwrap().get_mut(home) {
+        entry.columns.insert(path.to_path_buf(), columns.clone());
+    }
+    Ok(columns)
+}
+
 fn state_database_version(name: &OsStr) -> Option<u64> {
     name.to_str()?
         .strip_prefix("state_")?
@@ -261,6 +322,7 @@ fn state_database_version(name: &OsStr) -> Option<u64> {
 }
 
 fn codex_metadata_from_database(
+    home: &Path,
     path: &Path,
     session_id: &str,
 ) -> rusqlite::Result<Option<CodexThreadMetadata>> {
@@ -270,12 +332,7 @@ fn codex_metadata_from_database(
     )?;
     connection.busy_timeout(Duration::from_millis(100))?;
 
-    let mut columns = HashSet::new();
-    let mut statement = connection.prepare("PRAGMA table_info(threads)")?;
-    let rows = statement.query_map([], |row| row.get::<_, String>(1))?;
-    for column in rows {
-        columns.insert(column?);
-    }
+    let columns = threads_columns(home, path, &connection)?;
     if !columns.contains("id") {
         return Ok(None);
     }
