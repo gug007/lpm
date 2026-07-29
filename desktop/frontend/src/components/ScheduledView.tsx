@@ -12,8 +12,10 @@ import {
 import { useAppStore } from "../store/app";
 import { ClockIcon, PlusIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { EmptyState } from "./ui/EmptyState";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
 import type { JobInfo } from "../jobsFormat";
+import type { ScheduledJob } from "../hooks/useJobs";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { JobRow } from "./project-detail/jobs/JobRow";
 import { JobMessages } from "./project-detail/jobs/JobMessages";
@@ -21,7 +23,6 @@ import { JobTaskView } from "./project-detail/jobs/JobTaskView";
 import { JobEditorModal } from "./project-detail/jobs/JobEditorModal";
 import { RunProjectsDialog } from "./project-detail/jobs/RunProjectsDialog";
 
-type ScheduledJob = JobInfo & { project?: string };
 
 type Editing = { mode: "new" } | { mode: "edit"; project: string; job: JobInfo } | null;
 
@@ -290,27 +291,26 @@ export function ScheduledView() {
 
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4">
         {error ? (
-          <Empty title="Couldn't load scheduled jobs" body={error} />
+          <EmptyState title="Couldn't load scheduled jobs" body={error} />
         ) : rows === null ? (
           <p className="py-8 text-center text-[12px] text-[var(--text-muted)]">
             Loading…
           </p>
         ) : rows.length === 0 ? (
-          <Empty
-            icon
+          <EmptyState
+            icon={<ClockIcon />}
             title="Nothing scheduled yet"
             body="Create a job to run an AI prompt, a command, or an action on a schedule — for one project or all of them."
-            action={
-              <button
-                type="button"
-                onClick={() => setEditing({ mode: "new" })}
-                className="mt-4 flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
-              >
-                <PlusIcon />
-                New job
-              </button>
-            }
-          />
+          >
+            <button
+              type="button"
+              onClick={() => setEditing({ mode: "new" })}
+              className="mt-4 flex items-center gap-1.5 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
+            >
+              <PlusIcon />
+              New job
+            </button>
+          </EmptyState>
         ) : (
           <div className="space-y-6">
             {[...projectGroups.entries()]
@@ -442,31 +442,3 @@ function RemoveJobDialog({
   );
 }
 
-function Empty({
-  icon,
-  title,
-  body,
-  action,
-}: {
-  icon?: boolean;
-  title: string;
-  body: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center px-6 py-16 text-center">
-      {icon && (
-        <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-[var(--accent-cyan)]/10 text-[var(--accent-cyan)]">
-          <ClockIcon />
-        </span>
-      )}
-      <p className="text-[14px] font-medium text-[var(--text-primary)]">
-        {title}
-      </p>
-      <p className="mt-1 max-w-sm text-[12px] leading-snug text-[var(--text-muted)]">
-        {body}
-      </p>
-      {action}
-    </div>
-  );
-}

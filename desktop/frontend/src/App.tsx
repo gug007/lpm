@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
+import { FleetView } from "./components/FleetView";
 import { StatsView } from "./components/StatsView";
 import { UsageModal } from "./components/UsageModal";
 import { ScheduledView } from "./components/ScheduledView";
@@ -105,11 +106,13 @@ export default function App() {
   };
 
   const isTerminalsView = view === "terminals";
+  const isFleetView = view === "fleet";
   const isStatsView = view === "stats";
   const isScheduledView = view === "scheduled";
   const isSettingsView =
     view !== "projects" &&
     view !== "terminals" &&
+    view !== "fleet" &&
     view !== "stats" &&
     view !== "scheduled";
   const isMobileSettings = view === "settings" && settingsTab === "mobile";
@@ -264,6 +267,7 @@ export default function App() {
           onOpenProjectView={openProjectDetailView}
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
+          onFleet={() => setView("fleet")}
           onStats={() => setView("stats")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}
@@ -292,6 +296,7 @@ export default function App() {
           onAttachProject={attachProject}
           detached={detached}
           showTerminals={isTerminalsView}
+          showFleet={isFleetView}
           showStats={isStatsView}
           showUsage={usageOpen}
           showMobile={isMobileSettings}
@@ -319,6 +324,12 @@ export default function App() {
             </div>
           )}
           {view === "settings" && <Settings onNavigate={setView} />}
+          {isFleetView && (
+            <FleetView
+              onExit={() => setView("projects")}
+              onOpenAutomations={() => setView("scheduled")}
+            />
+          )}
           {isStatsView && <StatsView />}
           {isScheduledView && <ScheduledView />}
           {view === "global-config" && (

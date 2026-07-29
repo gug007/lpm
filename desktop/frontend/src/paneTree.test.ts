@@ -4,9 +4,11 @@ import {
   adjacentPaneHeaderItem,
   applyManualTerminalRename,
   clearManualTerminalTitle,
+  findTerminalLocation,
   paneHeaderItems,
   terminalDisplayLabel,
   type PaneLeaf,
+  type PaneNode,
   type PaneHeaderItem,
 } from "./paneTree";
 
@@ -81,6 +83,50 @@ describe("adjacentPaneHeaderItem", () => {
     const pane = leaf(2, { activeServiceName: "gone", activeTabIdx: 1 });
     expect(next(pane, ["web"], 1)).toEqual({ kind: "service", name: "web" });
     expect(next(pane, ["web"], -1)).toEqual({ kind: "tab", idx: 0 });
+  });
+});
+
+describe("findTerminalLocation", () => {
+  function pane(id: string, terminalIds: string[]): PaneLeaf {
+    return {
+      kind: "leaf",
+      id,
+      tabs: terminalIds.map((tid) => ({ id: tid, label: tid })),
+      activeTabIdx: 0,
+    };
+  }
+
+  const tree: PaneNode = {
+    kind: "split",
+    direction: "row",
+    ratio: 0.5,
+    a: pane("pane-1", ["a0"]),
+    b: {
+      kind: "split",
+      direction: "col",
+      ratio: 0.5,
+      a: pane("pane-2", ["b0", "b1", "b2"]),
+      b: pane("pane-3", ["c0"]),
+    },
+  };
+
+  it("finds a terminal nested deep in the tree", () => {
+    expect(findTerminalLocation(tree, "c0")).toEqual({ paneId: "pane-3", tabIdx: 0 });
+  });
+
+  it("reports the tab index within its pane", () => {
+    expect(findTerminalLocation(tree, "b2")).toEqual({ paneId: "pane-2", tabIdx: 2 });
+  });
+
+  it("finds a terminal in a single-leaf tree", () => {
+    expect(findTerminalLocation(pane("solo", ["x", "y"]), "y")).toEqual({
+      paneId: "solo",
+      tabIdx: 1,
+    });
+  });
+
+  it("returns null when no pane holds the terminal", () => {
+    expect(findTerminalLocation(tree, "missing")).toBeNull();
   });
 });
 

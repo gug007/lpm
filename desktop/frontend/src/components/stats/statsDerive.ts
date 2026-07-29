@@ -1,19 +1,6 @@
 import type { AgentSessionUsage, DailyUsage, TokenUsage, UsageBreakdown } from "../../types";
 
-export interface ProviderMeta {
-  label: string;
-  short: string;
-  color: string;
-}
-
-const PROVIDER_META: Record<string, ProviderMeta> = {
-  claude: { label: "Claude Code", short: "Claude", color: "#D97757" },
-  codex: { label: "Codex", short: "Codex", color: "#10A37F" },
-};
-
-export function providerMeta(key: string): ProviderMeta {
-  return PROVIDER_META[key] ?? { label: key, short: key, color: "var(--text-muted)" };
-}
+export { providerMeta, type ProviderMeta } from "../../agentStatus";
 
 export function cacheShare(totals: TokenUsage): number {
   return totals.cachedInputTokens / Math.max(1, totals.inputTokens);

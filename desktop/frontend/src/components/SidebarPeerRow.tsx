@@ -1,26 +1,11 @@
 import type { ReactNode } from "react";
 import { StatusDot } from "./StatusDot";
 import { MoreVerticalIcon } from "./icons";
-import {
-  type ProjectInfo,
-  STATUS_RUNNING,
-  STATUS_DONE,
-  STATUS_WAITING,
-  STATUS_ERROR,
-} from "../types";
+import { type ProjectInfo } from "../types";
+import { computeProjectStatus } from "../agentStatus";
 
 const ROW_BASE_CLASS =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
-
-function statusClass(project: ProjectInfo): string | null {
-  const entries = project.statusEntries ?? [];
-  const has = (v: string) => entries.some((e) => e.value === v);
-  if (has(STATUS_ERROR)) return "text-red-400";
-  if (has(STATUS_WAITING)) return "sidebar-waiting";
-  if (has(STATUS_RUNNING)) return "sidebar-shimmer";
-  if (has(STATUS_DONE)) return null;
-  return null;
-}
 
 // One row in a paired Mac's section. It opens whichever project it addresses —
 // the Mac's own project, or the local copy of one when that Mac is away — and
@@ -42,7 +27,7 @@ export function SidebarPeerRow({
   onSelect: () => void;
   onContextMenu: (x: number, y: number) => void;
 }) {
-  const cls = statusClass(project);
+  const cls = computeProjectStatus(project.statusEntries).className;
   return (
     <div className="group/row relative">
       <button

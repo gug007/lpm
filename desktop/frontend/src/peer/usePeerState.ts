@@ -82,6 +82,11 @@ export function peerAlias(peers: PeerClient[], slug: string): string {
   return peer?.alias || peer?.host || "another Mac";
 }
 
+/// Every peer's display name, keyed by slug, for views that label many at once.
+export function peerAliasMap(peers: PeerClient[]): Record<string, string> {
+  return Object.fromEntries(peers.map((p) => [p.slug, p.alias || p.host || "another Mac"]));
+}
+
 // Live peer configuration + connection status for both roles. Refreshes on
 // `peer-state-changed`, emitted whenever a connection or the config changes.
 export function usePeerState(): { state: PeerStateShape; refresh: () => Promise<void> } {

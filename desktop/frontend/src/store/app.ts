@@ -85,6 +85,7 @@ import { projectStartProfile } from "../projectStartProfile";
 export type View =
   | "projects"
   | "terminals"
+  | "fleet"
   | "stats"
   | "scheduled"
   | "settings"
@@ -263,6 +264,12 @@ interface AppState {
     order: string[],
   ) => void;
   clearPendingRemoteTerminalOp: () => void;
+  // A "put this terminal on screen" request from a cross-project view. Selects+
+  // mounts the owning project, then parks the terminal id for the mounted
+  // ProjectDetail's consumer effect.
+  pendingFocusTerminal: { projectName: string; terminalId: string; nonce: number } | null;
+  focusProjectTerminal: (projectName: string, terminalId: string) => void;
+  clearPendingFocusTerminal: () => void;
   // A peer Mac spawned a terminal on this host; surface it as a tab. When the
   // project is mounted the live tree adopts it via this op; when it isn't, the
   // tab is parked in the persisted tree cache for the next open.
@@ -1171,6 +1178,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     })),
 
   clearPendingRemoteTerminalOp: () => set({ pendingRemoteTerminalOp: null }),
+
+  pendingFocusTerminal: null,
+
+  focusProjectTerminal: (projectName, terminalId) =>
+    set((s) => ({
+      selected: projectName,
+      selectedTemplate: null,
+      view: "projects",
+      visited: new Set([...s.visited, projectName]),
+      mruProjects: [projectName, ...s.mruProjects.filter((n) => n !== projectName)],
+      pendingFocusTerminal: {
+        projectName,
+        terminalId,
+        nonce: ++remoteRequestNonce,
+      },
+    })),
+
+  clearPendingFocusTerminal: () => set({ pendingFocusTerminal: null }),
 
   pendingAdoptTerminal: null,
 

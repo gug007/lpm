@@ -14,6 +14,7 @@ import { disposeInteractivePaneSession, isInteractivePaneSessionDead, type Inter
 import {
   collectPanes,
   collectTerminals,
+  findTerminalLocation,
   isTabPinned,
   isTerminalTab,
   terminalDisplayLabel,
@@ -78,6 +79,8 @@ export interface TerminalViewHandle {
   remoteRenameTerminal(id: string, label: string): void;
   remoteTogglePin(id: string): void;
   remoteReorderTerminals(order: string[]): void;
+  // Bring one of this project's terminals on screen, addressed by terminal id.
+  focusTerminalById(id: string): void;
   // Open (or focus) the session-memory tab, from the sidebar context menu.
   openMemory(): void;
 }
@@ -98,6 +101,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // Session the Memory tab should show, bumped per request so the same session
   // can be re-opened after the tab was navigated back to its list.
   const [memoryTarget, setMemoryTarget] = useState<{ name: string; seq: number } | null>(null);
+  const [focusRequest, setFocusRequest] = useState<string | null>(null);
 
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
@@ -412,6 +416,21 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     },
     [openMemory],
   );
+
+  // The layout restore is async, so a request that lands on a freshly mounted
+  // view waits for a tree to search before it resolves (or is dropped).
+  const focusTerminalById = useCallback((id: string) => setFocusRequest(id), []);
+
+  useEffect(() => {
+    if (!focusRequest || !tree) return;
+    setFocusRequest(null);
+    const at = findTerminalLocation(tree, focusRequest);
+    if (!at) return;
+    // A fullscreened pane covers the whole layout, so focusing a tab in any
+    // other pane would change nothing on screen.
+    setFullscreenPaneId((current) => (current === at.paneId ? current : null));
+    focusTerminal(at.paneId, at.tabIdx);
+  }, [focusRequest, tree, focusTerminal]);
 
   const findInPane = useCallback(
     (paneId: string, query: string, direction: "next" | "prev"): boolean => {
@@ -803,6 +822,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,
+      focusTerminalById,
       openMemory,
     }),
     [
@@ -816,6 +836,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteRenameTerminal,
       remoteTogglePin,
       remoteReorderTerminals,
+      focusTerminalById,
       openMemory,
     ],
   );

@@ -335,6 +335,26 @@ export function ProjectDetail({
     clearPendingRemoteTerminalOp,
   ]);
 
+  // A cross-project view asked to put one of our terminals on screen. The store
+  // selected+mounted us; focus the tab once per nonce.
+  const pendingFocusTerminal = useAppStore((s) => s.pendingFocusTerminal);
+  const clearPendingFocusTerminal = useAppStore((s) => s.clearPendingFocusTerminal);
+  const focusTerminalConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !pendingFocusTerminal ||
+      pendingFocusTerminal.projectName !== project.name ||
+      selectedProject !== project.name ||
+      focusTerminalConsumed.current === pendingFocusTerminal.nonce
+    ) {
+      return;
+    }
+    focusTerminalConsumed.current = pendingFocusTerminal.nonce;
+    const { terminalId } = pendingFocusTerminal;
+    clearPendingFocusTerminal();
+    terminalRef.current?.focusTerminalById(terminalId);
+  }, [pendingFocusTerminal, selectedProject, project.name, clearPendingFocusTerminal]);
+
   // A peer Mac spawned a terminal on this host; adopt its pty as a tab. No
   // `selected` guard — the project is kept mounted (visited) so a hidden detail
   // still surfaces the tab in its live tree.

@@ -3,6 +3,9 @@ import { EventsOn } from "../../bridge/runtime";
 import { useAppStore } from "../store/app";
 
 const POLL_INTERVAL_MS = 10_000;
+// Agent hooks fire status-changed on every prompt, tool call and completion,
+// so bursts across parallel CLIs would otherwise run a full ListProjects each.
+const STATUS_DEBOUNCE_MS = 250;
 
 interface ProjectsSyncOptions {
   // Detached windows skip templates (only the main settings UI shows
@@ -29,8 +32,17 @@ export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
       ? setInterval(refreshProjects, POLL_INTERVAL_MS)
       : null;
 
+    let statusTimer: ReturnType<typeof setTimeout> | null = null;
+    const onStatusChanged = () => {
+      if (statusTimer) clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => {
+        statusTimer = null;
+        refreshProjects();
+      }, STATUS_DEBOUNCE_MS);
+    };
+
     const cancelChanged = EventsOn("projects-changed", refreshProjects);
-    const cancelStatus = EventsOn("status-changed", refreshProjects);
+    const cancelStatus = EventsOn("status-changed", onStatusChanged);
     const cancelDetached = EventsOn("detached-changed", refreshDetached);
     const cancelSidebar = EventsOn("sidebar-changed", rehydrateSidebarLayout);
     const cancelTemplates = isMain
@@ -54,6 +66,7 @@ export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
 
     return () => {
       if (interval) clearInterval(interval);
+      if (statusTimer) clearTimeout(statusTimer);
       document.removeEventListener("visibilitychange", onVisibility);
       if (typeof cancelChanged === "function") cancelChanged();
       if (typeof cancelStatus === "function") cancelStatus();

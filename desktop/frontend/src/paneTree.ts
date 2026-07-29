@@ -186,6 +186,24 @@ export function findPane(node: PaneNode, paneId: string): PaneLeaf | null {
   return findPane(node.a, paneId) ?? findPane(node.b, paneId);
 }
 
+export interface TerminalLocation {
+  paneId: string;
+  tabIdx: number;
+}
+
+/**
+ * Locate a tab by its terminal id (the PTY id carried by status entries), as
+ * the pane that owns it plus its index within that pane — the pair every focus
+ * path takes. Null when no pane holds it.
+ */
+export function findTerminalLocation(node: PaneNode, terminalId: string): TerminalLocation | null {
+  if (node.kind === "leaf") {
+    const tabIdx = node.tabs.findIndex((t) => t.id === terminalId);
+    return tabIdx < 0 ? null : { paneId: node.id, tabIdx };
+  }
+  return findTerminalLocation(node.a, terminalId) ?? findTerminalLocation(node.b, terminalId);
+}
+
 export function firstPaneId(node: PaneNode): string {
   return node.kind === "leaf" ? node.id : firstPaneId(node.a);
 }

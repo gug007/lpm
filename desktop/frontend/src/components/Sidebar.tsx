@@ -17,8 +17,9 @@ import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
-import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo, STATUS_RUNNING, STATUS_DONE, STATUS_WAITING, STATUS_ERROR } from "../types";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
+import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
+import { agentAmbient, computeProjectStatus } from "../agentStatus";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon, LayersIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -83,6 +84,7 @@ interface SidebarProps {
   onOpenProjectView: (name: string, view: "config" | "notes" | "ai" | "memory") => void;
   onToggle: (name: string) => void;
   onTerminals: () => void;
+  onFleet: () => void;
   onStats: () => void;
   onUsage: () => void;
   onScheduled: () => void;
@@ -109,6 +111,7 @@ interface SidebarProps {
   detached: Set<string>;
   detachedSelf?: string;
   showTerminals: boolean;
+  showFleet: boolean;
   showStats: boolean;
   showUsage: boolean;
   showMobile: boolean;
@@ -118,31 +121,6 @@ interface SidebarProps {
   removingNames: Set<string>;
 }
 
-interface ProjectStatus {
-  isRunning: boolean;
-  isDone: boolean;
-  isWaiting: boolean;
-  isError: boolean;
-  className: string | null;
-}
-
-function computeStatus(project: ProjectInfo): ProjectStatus {
-  const entries = project.statusEntries ?? [];
-  const has = (v: string) => entries.some((e) => e.value === v);
-  const isRunning = has(STATUS_RUNNING);
-  const isDone = has(STATUS_DONE);
-  const isWaiting = has(STATUS_WAITING);
-  const isError = has(STATUS_ERROR);
-  const className = isError
-    ? "text-red-400"
-    : isWaiting
-    ? "sidebar-waiting"
-    : isRunning
-    ? "sidebar-shimmer"
-    : null;
-  return { isRunning, isDone, isWaiting, isError, className };
-}
-
 // One rendered sidebar row: a folder header, a project (loose, member, or
 // duplicate), or the empty-folder drop target.
 type TreeItem =
@@ -150,7 +128,7 @@ type TreeItem =
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -246,6 +224,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // only local projects since it drives the reorderable tree; context-menu-driven
   // modals (rename / remove / duplicate) must resolve a peer row's target too.
   const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
+
+  const ambient = useMemo(() => agentAmbient(projects), [projects]);
 
   const openGitModal = (kind: GitModalTarget["kind"]) => {
     if (contextProject?.root && contextMenu) {
@@ -608,7 +588,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   };
 
   const renderProjectRow = (project: ProjectInfo) => {
-    const status = computeStatus(project);
+    const status = computeProjectStatus(project.statusEntries);
     const isDetached = detached.has(project.name);
     const isSelf = project.name === detachedSelf;
     // A detached project is now mirrored (live in both windows), so the main
@@ -1274,6 +1254,38 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           >
             <TerminalIcon />
             Terminals
+          </button>
+        </Tooltip>
+        <Tooltip
+          content="Every agent and automation across your projects, ordered by what is waiting on you."
+          side="right"
+          wide
+          delay={500}
+          triggerClassName="flex w-full"
+        >
+          <button
+            onClick={onFleet}
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+              showFleet
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <LayersIcon />
+            Activity
+            {(ambient.needsYou > 0 || ambient.hasError) && (
+              <span className="ml-auto flex items-center gap-1.5">
+                {ambient.needsYou > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] font-medium tabular-nums text-[var(--accent-amber)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
+                    {ambient.needsYou}
+                  </span>
+                )}
+                {ambient.hasError && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
+                )}
+              </span>
+            )}
           </button>
         </Tooltip>
         <div className="flex items-stretch gap-1">
