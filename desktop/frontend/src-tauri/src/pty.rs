@@ -181,11 +181,20 @@ fn spawn_io_threads(
     }
 
     // Flush thread: accumulate, flush on >=32KB or after 4ms idle (recv_timeout
-    // collapses Go's one-shot timer). On EOF, wait the child and emit exit.
+    // collapses Go's one-shot timer). The timer is armed only while a flush is
+    // owed; with nothing pending there is nothing to flush on timeout, so an
+    // idle pane blocks in recv() rather than waking 250x/s to no-op — that cost
+    // is per-pane and dominates the app's idle wakeups. On EOF, wait the child
+    // and emit exit.
     std::thread::spawn(move || {
         let mut pending: Vec<u8> = Vec::with_capacity(PENDING_CAP);
         loop {
-            match rx.recv_timeout(Duration::from_millis(FLUSH_MS)) {
+            let next = if pending.is_empty() {
+                rx.recv().map_err(|_| RecvTimeoutError::Disconnected)
+            } else {
+                rx.recv_timeout(Duration::from_millis(FLUSH_MS))
+            };
+            match next {
                 Ok(Ok(chunk)) => {
                     pending.extend_from_slice(&chunk);
                     if pending.len() >= FLUSH_SIZE {
