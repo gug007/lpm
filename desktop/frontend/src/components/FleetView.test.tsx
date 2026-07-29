@@ -194,12 +194,23 @@ describe("FleetView", () => {
     );
   });
 
-  it("names the agents and terminals it cannot see", async () => {
-    mocks.projects = [project("api", [entry("claude_code_a", "Running")])];
+  it("explains how to populate an empty Activity view", async () => {
+    mocks.projects = [];
     await render();
     const page = flat(container);
-    expect(page).toContain("Gemini and OpenCode don't report back");
-    expect(page).toContain("anything you start in Terminals");
+    expect(page).toContain("Start a supported agent in an open project");
+    expect(page).toContain("Terminal sessions aren't tracked");
+    expect(page).not.toContain("projects with nothing running");
+  });
+
+  it("keeps tracking scope available from the Activity header", async () => {
+    mocks.projects = [project("api", [entry("claude_code_a", "Running")])];
+    await render();
+    const scope =
+      "Activity includes supported agents started from projects opened during this session. Terminal sessions aren't tracked.";
+    expect(
+      container.querySelector(`button[aria-label="${scope}"]`),
+    ).toBeTruthy();
   });
 });
 

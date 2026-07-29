@@ -1,8 +1,12 @@
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import type { FleetCounts } from "../fleetRows";
 import type { FleetKindFilter } from "../fleetFilter";
 import { SegmentedControl } from "./ui/SegmentedControl";
-import { LayersIcon, SearchIcon, XIcon } from "./icons";
+import { Tooltip } from "./ui/Tooltip";
+import { HelpCircleIcon, LayersIcon, SearchIcon, XIcon } from "./icons";
+
+const ACTIVITY_SCOPE =
+  "Activity includes supported agents started from projects opened during this session. Terminal sessions aren't tracked.";
 
 export const KIND_OPTIONS: readonly {
   value: FleetKindFilter;
@@ -46,7 +50,25 @@ export function FleetHeader({
     <>
       <div className="app-drag -mx-6 flex items-center gap-4 px-6 py-1">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
+            <Tooltip
+              content={ACTIVITY_SCOPE}
+              side="bottom"
+              align="start"
+              wide
+              delay={300}
+            >
+              <button
+                type="button"
+                aria-label={ACTIVITY_SCOPE}
+                style={{ "--app-draggable": "no-drag" } as CSSProperties}
+                className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
+              >
+                <HelpCircleIcon />
+              </button>
+            </Tooltip>
+          </div>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
             Your agents and automations, with anything waiting on you shown
             first.

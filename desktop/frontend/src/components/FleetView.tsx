@@ -207,7 +207,7 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
             body={
               filtered
                 ? "Try a different search, or switch back to All."
-                : "Start an agent in a project and it shows up here, along with anything a scheduled job is running."
+                : "Start a supported agent in an open project, or run a scheduled job. Terminal sessions aren't tracked."
             }
           />
         ) : (
@@ -260,21 +260,6 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
           </div>
         )}
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[var(--text-muted)]">
-          <span>
-            Agents show up for projects you have opened in this session, and go
-            when the app closes. Gemini and OpenCode don't report back, and
-            neither does anything you start in Terminals, so none of those
-            appear here.
-            {fleet.peerAutomationsHidden &&
-              ` Automations on ${fleet.peerAutomationMacs.join(", ")} aren't listed here.`}
-          </span>
-          <span className="tabular-nums">
-            {fleet.quietProjectCount}{" "}
-            {fleet.quietProjectCount === 1 ? "project" : "projects"} with nothing
-            running
-          </span>
-        </div>
       </div>
     </div>
   );
