@@ -28,6 +28,9 @@ export interface FleetRow {
   kind: FleetRowKind;
   project: FleetProjectIdentity;
   title: string;
+  /** What the terminal tab is called — the agent's session title once it names
+   *  one. Null when the tab has no name of its own beyond the agent. */
+  tabTitle: string | null;
   state: AgentState;
   statusKey: string | null;
   statusValue: string | null;
@@ -45,6 +48,9 @@ export interface FleetServiceGroup {
   project: FleetProjectIdentity;
   running: string[];
   declared: string[];
+  /** The port each service declares, when it declares one. Live detection wins
+   *  over this, but it lets a link render before detection comes back. */
+  ports: Record<string, number>;
 }
 
 export interface FleetCounts {
@@ -66,6 +72,9 @@ export interface FleetSnapshot {
   filter: FleetFilter;
   /** Paired-Mac slug to the name the user knows it by. */
   peerAliases: Record<string, string>;
+  /** Project -> terminal id -> the name that tab is showing. Only projects
+   *  open in this session publish one. */
+  terminalTitles: Record<string, Record<string, string>>;
 }
 
 export interface Fleet {
@@ -92,12 +101,17 @@ function agentRow(
   project: FleetProjectIdentity,
   entry: StatusEntry,
   now: number,
+  tabTitles: Record<string, string>,
 ): FleetRow {
+  const title = providerMeta(statusProvider(entry.key)).label;
+  const tab = tabTitles[entry.paneID ?? ""];
   return {
     id: `agent:${project.name}:${entry.key}`,
     kind: "agent",
     project,
-    title: providerMeta(statusProvider(entry.key)).label,
+    title,
+    // An untitled tab is named after its agent, which the row already says.
+    tabTitle: tab && tab !== title ? tab : null,
     state: agentStateOf(entry.value),
     statusKey: entry.key,
     statusValue: entry.value,
@@ -136,6 +150,7 @@ function automationRow(
     kind: "automation",
     project,
     title: job.label || job.id,
+    tabTitle: null,
     state: "working",
     statusKey: null,
     statusValue: null,
@@ -216,11 +231,13 @@ function serviceGroup(
     .map((s) => s.name)
     .filter((name) => !started.has(name));
   if (running.length === 0 && declared.length === 0) return null;
-  return { project: identity, running, declared };
+  const ports: Record<string, number> = {};
+  for (const s of project.allServices ?? []) if (s.port > 0) ports[s.name] = s.port;
+  return { project: identity, running, declared, ports };
 }
 
 export function buildFleet(snapshot: FleetSnapshot): Fleet {
-  const { projects, jobs, now, filter, peerAliases } = snapshot;
+  const { projects, jobs, now, filter, peerAliases, terminalTitles } = snapshot;
 
   const byName = new Map(projects.map((p) => [p.name, p]));
   const identities = new Map<string, FleetProjectIdentity>();
@@ -238,8 +255,9 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
   const busy = new Set<string>();
   for (const project of projects) {
     const identity = identities.get(project.name) as FleetProjectIdentity;
+    const tabTitles = terminalTitles[project.name] ?? {};
     for (const entry of project.statusEntries ?? []) {
-      rows.push(agentRow(identity, entry, now));
+      rows.push(agentRow(identity, entry, now, tabTitles));
       busy.add(project.name);
     }
     const group = serviceGroup(project, identity);

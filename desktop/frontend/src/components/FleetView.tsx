@@ -2,10 +2,12 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ClearStatus } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { useTerminalTitles } from "../store/terminalTitles";
 import { peerAliasMap, usePeerState } from "../peer/usePeerState";
 import { useAllJobs, type ScheduledJob } from "../hooks/useJobs";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
+import { useFleetServicePorts } from "../hooks/useFleetServicePorts";
 import { useFleetOrder } from "../useFleetOrder";
 import { buildFleet, type FleetRow } from "../fleetRows";
 import { applyFleetFilter, type FleetKindFilter } from "../fleetFilter";
@@ -31,6 +33,7 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   const selectProject = useAppStore((s) => s.selectProject);
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const toggleService = useAppStore((s) => s.toggleService);
+  const terminalTitles = useTerminalTitles((s) => s.byProject);
   const { state: peerState } = usePeerState();
   const reducedMotion = usePrefersReducedMotion();
   const { jobs } = useAllJobs();
@@ -55,14 +58,17 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
         now: Date.now(),
         filter: {},
         peerAliases,
+        terminalTitles,
       }),
-    [projects, jobs, peerAliases],
+    [projects, jobs, peerAliases, terminalTitles],
   );
 
   const visible = useMemo(
     () => applyFleetFilter(fleet.rows, fleet.services, { query, kind }),
     [fleet, query, kind],
   );
+
+  const servicePorts = useFleetServicePorts(fleet.services);
 
   const { rows, stale, hold, release, holdForKey, resettle } = useFleetOrder(
     visible.rows,
@@ -233,6 +239,7 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
 
             <FleetServices
               groups={visible.services}
+              detected={servicePorts}
               onToggle={(project, service) => void toggleService(project, service)}
               onOpenProject={selectProject}
             />

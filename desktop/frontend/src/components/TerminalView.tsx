@@ -38,6 +38,7 @@ import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
 import { forgetComposerDraft } from "../store/composerDrafts";
+import { useTerminalTitles } from "../store/terminalTitles";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -321,6 +322,19 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   useEffect(() => {
     void RemoteSetTerminalLabels(projectName, allTerminals);
   }, [projectName, allTerminals]);
+
+  // Same names, in-process: Activity lists agents from every open project and
+  // has no tree of its own to read a tab's title from.
+  useEffect(() => {
+    const titles: Record<string, string> = {};
+    for (const t of allTerminals) titles[t.id] = t.label;
+    useTerminalTitles.getState().setProjectTitles(projectName, titles);
+  }, [projectName, allTerminals]);
+
+  useEffect(
+    () => () => useTerminalTitles.getState().clearProjectTitles(projectName),
+    [projectName],
+  );
 
   useEffect(() => {
     return () => {

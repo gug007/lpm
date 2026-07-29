@@ -58,6 +58,7 @@ function build(over: Partial<FleetSnapshot> & { now: number }): Fleet {
     jobs: [],
     filter: {},
     peerAliases: {},
+    terminalTitles: {},
     ...over,
   });
 }
@@ -674,6 +675,44 @@ describe("automations", () => {
   });
 });
 
+describe("tab titles", () => {
+  const titled = (title: string) =>
+    build({
+      now: T0,
+      terminalTitles: { app: { "pty-1": title } },
+      projects: [
+        project({
+          name: "app",
+          statusEntries: [entry("claude_code_a", "Running", "pty-1")],
+        }),
+      ],
+    });
+
+  it("names the row after the tab the agent is running in", () => {
+    expect(titled("Fix terminal links").rows[0].tabTitle).toBe(
+      "Fix terminal links",
+    );
+  });
+
+  it("drops a tab title that only repeats the agent's name", () => {
+    expect(titled("Claude Code").rows[0].tabTitle).toBeNull();
+  });
+
+  it("leaves a row with no open tab untitled", () => {
+    const fleet = build({
+      now: T0,
+      terminalTitles: { other: { "pty-1": "Somewhere else" } },
+      projects: [
+        project({
+          name: "app",
+          statusEntries: [entry("claude_code_a", "Running", "pty-1")],
+        }),
+      ],
+    });
+    expect(fleet.rows[0].tabTitle).toBeNull();
+  });
+});
+
 describe("services", () => {
   it("splits running services from declared-but-not-started ones", () => {
     const fleet = build({
@@ -693,8 +732,24 @@ describe("services", () => {
         project: expect.objectContaining({ name: "app", label: "My App" }),
         running: ["web"],
         declared: ["api", "worker"],
+        ports: {},
       },
     ]);
+  });
+
+  it("carries the port each service declares", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          running: true,
+          services: [{ ...service("web"), port: 5173 }],
+          allServices: [{ ...service("web"), port: 5173 }, service("api")],
+        }),
+      ],
+    });
+    expect(fleet.services[0].ports).toEqual({ web: 5173 });
   });
 
   it("ignores a project that is not running", () => {

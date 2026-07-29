@@ -18,6 +18,7 @@ function row(id: string, state: AgentState, stateSince = T0): FleetRow {
       peerAlias: null,
     },
     title: "Claude Code",
+    tabTitle: null,
     state,
     statusKey: id,
     statusValue: "Running",

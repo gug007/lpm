@@ -1,24 +1,6 @@
 import { useEffect, useState } from "react";
 import { DetectServicePorts } from "../../bridge/commands";
-import { parseServicePorts } from "../servicePorts";
-
-// Ports arrive sorted+deduped from the backend, so an element-wise compare is
-// enough to tell whether anything changed — lets us keep the previous object
-// reference and skip a pane-tree re-render on every (usually-identical) poll.
-function samePorts(
-  a: Record<string, number[]>,
-  b: Record<string, number[]>,
-): boolean {
-  const keys = Object.keys(a);
-  if (keys.length !== Object.keys(b).length) return false;
-  for (const key of keys) {
-    const av = a[key];
-    const bv = b[key];
-    if (!bv || av.length !== bv.length) return false;
-    for (let i = 0; i < av.length; i++) if (av[i] !== bv[i]) return false;
-  }
-  return true;
-}
+import { parseServicePorts, samePorts } from "../servicePorts";
 
 // Live TCP-listen ports per running service, polled while the project runs.
 // A freshly-started service hasn't bound its port yet, so the map fills in over

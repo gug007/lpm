@@ -26,6 +26,7 @@ function row(
     kind,
     project: identity(id.split(":")[1] ?? "app", projectLabel),
     title,
+    tabTitle: null,
     state: "working",
     statusKey: kind === "agent" ? id : null,
     statusValue: kind === "agent" ? "Running" : null,
@@ -43,7 +44,12 @@ function group(
   running: string[],
   declared: string[] = [],
 ): FleetServiceGroup {
-  return { project: identity(label.toLowerCase(), label), running, declared };
+  return {
+    project: identity(label.toLowerCase(), label),
+    running,
+    declared,
+    ports: {},
+  };
 }
 
 const rows = [
@@ -84,7 +90,12 @@ describe("applyFleetFilter", () => {
     const visible = applyFleetFilter(rows, services, { query: "stripe" });
     expect(visible.rows).toEqual([]);
     expect(visible.services).toEqual([
-      { project: expect.objectContaining({ label: "Checkout" }), running: ["stripe-mock"], declared: [] },
+      {
+        project: expect.objectContaining({ label: "Checkout" }),
+        running: ["stripe-mock"],
+        declared: [],
+        ports: {},
+      },
     ]);
   });
 

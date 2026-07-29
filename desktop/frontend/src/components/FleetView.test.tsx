@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
   openAutomations: vi.fn(),
+  detectServicePorts: vi.fn(),
+  browserOpenURL: vi.fn(),
   projects: [] as ProjectInfo[],
   peerState: { state: { peers: [] }, refresh: vi.fn() },
   peerAliases: {} as Record<string, string>,
@@ -21,8 +23,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../bridge/commands", () => ({
   ListAllJobs: mocks.listAllJobs,
   ClearStatus: mocks.clearStatus,
+  DetectServicePorts: mocks.detectServicePorts,
 }));
-vi.mock("../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
+vi.mock("../../bridge/runtime", () => ({
+  EventsOn: vi.fn(() => () => {}),
+  BrowserOpenURL: mocks.browserOpenURL,
+}));
 vi.mock("sonner", () => ({
   toast: { info: mocks.info, error: mocks.error },
 }));
@@ -42,6 +48,7 @@ vi.mock("../peer/usePeerState", () => ({
 
 import { FleetView } from "./FleetView";
 import { FLEET_RESETTLE_MS } from "../useFleetOrder";
+import { useTerminalTitles } from "../store/terminalTitles";
 
 const T0 = 1_700_000_000_000;
 
@@ -103,9 +110,12 @@ function press(key: string) {
 beforeEach(() => {
   mocks.listAllJobs.mockResolvedValue([]);
   mocks.clearStatus.mockResolvedValue(undefined);
+  mocks.detectServicePorts.mockResolvedValue([]);
+  mocks.browserOpenURL.mockClear();
   mocks.info.mockClear();
   mocks.clearStatus.mockClear();
   mocks.focusProjectTerminal.mockClear();
+  mocks.toggleService.mockClear();
   mocks.selectProject.mockClear();
   mocks.openAutomations.mockClear();
   container = document.createElement("div");
@@ -292,5 +302,109 @@ describe("FleetView automations", () => {
     expect(mocks.openAutomations).toHaveBeenCalled();
     expect(mocks.selectProject).not.toHaveBeenCalled();
     expect(mocks.focusProjectTerminal).not.toHaveBeenCalled();
+  });
+});
+
+describe("FleetView tab titles", () => {
+  afterEach(() => {
+    useTerminalTitles.setState({ byProject: {} });
+  });
+
+  it("shows the name of the tab an agent is running in", async () => {
+    mocks.projects = [project("api", [entry("claude_code_a", "Running")])];
+    useTerminalTitles
+      .getState()
+      .setProjectTitles("api", { "pty-claude_code_a": "Fix terminal links" });
+    await render();
+    expect(rowText()[0]).toContain("Fix terminal links");
+  });
+
+  it("says nothing extra when the tab carries no name of its own", async () => {
+    mocks.projects = [project("api", [entry("claude_code_a", "Running")])];
+    useTerminalTitles
+      .getState()
+      .setProjectTitles("api", { "pty-claude_code_a": "Claude Code" });
+    await render();
+    expect(rowText()[0].match(/Claude Code/g)).toHaveLength(1);
+  });
+});
+
+describe("FleetView service links", () => {
+  const withServices = (port: number): ProjectInfo => ({
+    ...project("api", []),
+    running: true,
+    services: [{ name: "web", cmd: "npm run dev", cwd: "/tmp", port }],
+    allServices: [
+      { name: "web", cmd: "npm run dev", cwd: "/tmp", port },
+      { name: "worker", cmd: "npm run worker", cwd: "/tmp", port: 0 },
+    ],
+  });
+
+  it("opens the port a service is listening on, not the one it declares", async () => {
+    mocks.projects = [withServices(5173)];
+    mocks.detectServicePorts.mockResolvedValue([
+      { service: "web", ports: [4000] },
+    ]);
+    await render();
+    const link = button(":4000");
+    expect(link).toBeDefined();
+    act(() => link?.click());
+    expect(mocks.browserOpenURL).toHaveBeenCalledWith("http://localhost:4000");
+  });
+
+  it("falls back to the declared port until detection answers", async () => {
+    mocks.projects = [withServices(5173)];
+    mocks.detectServicePorts.mockResolvedValue([]);
+    await render();
+    act(() => button(":5173")?.click());
+    expect(mocks.browserOpenURL).toHaveBeenCalledWith("http://localhost:5173");
+  });
+
+  it("leaves a service with no port and a stopped service unlinked", async () => {
+    mocks.projects = [withServices(0)];
+    mocks.detectServicePorts.mockResolvedValue([]);
+    await render();
+    expect(button(":")).toBeUndefined();
+  });
+});
+
+describe("FleetView service rows", () => {
+  const withServices = (): ProjectInfo => ({
+    ...project("api", []),
+    running: true,
+    services: [{ name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 }],
+    allServices: [
+      { name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 },
+      { name: "worker", cmd: "npm run worker", cwd: "/tmp", port: 0 },
+    ],
+  });
+
+  function labelled(label: string): HTMLButtonElement | undefined {
+    return [...container.querySelectorAll("button")].find(
+      (el) => el.getAttribute("aria-label") === label,
+    ) as HTMLButtonElement | undefined;
+  }
+
+  it("gives every service a row saying whether it is running", async () => {
+    mocks.projects = [withServices()];
+    await render();
+    const page = flat(container);
+    expect(page).toContain("apiwebRunning");
+    expect(page).toContain("apiworkerStopped");
+  });
+
+  it("starts a stopped service from its row", async () => {
+    mocks.projects = [withServices()];
+    await render();
+    act(() => labelled("Start worker in api")?.click());
+    expect(mocks.toggleService).toHaveBeenCalledWith("api", "worker");
+  });
+
+  it("opens the project rather than toggling when the row itself is clicked", async () => {
+    mocks.projects = [withServices()];
+    await render();
+    act(() => button("Stopped")?.click());
+    expect(mocks.selectProject).toHaveBeenCalledWith("api");
+    expect(mocks.toggleService).not.toHaveBeenCalled();
   });
 });

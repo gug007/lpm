@@ -15,7 +15,8 @@ export interface FleetVisible {
 function matchesQuery(row: FleetRow, query: string): boolean {
   return (
     row.project.label.toLowerCase().includes(query) ||
-    row.title.toLowerCase().includes(query)
+    row.title.toLowerCase().includes(query) ||
+    (row.tabTitle ?? "").toLowerCase().includes(query)
   );
 }
 

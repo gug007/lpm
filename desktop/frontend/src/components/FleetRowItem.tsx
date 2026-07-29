@@ -59,10 +59,11 @@ export const FleetRowItem = memo(function FleetRowItem({
   const animate = row.state === "working" && !reducedMotion;
 
   const named = row.project.name !== "" && !hideProject;
-  const primary = named ? row.project.label : row.title;
-  const secondary = [named ? row.title : null, row.detail].filter(
-    (part): part is string => part !== null,
-  );
+  const primary = named ? row.project.label : row.tabTitle ?? row.title;
+  const secondary = [
+    named || row.tabTitle ? row.title : null,
+    row.detail,
+  ].filter((part): part is string => part !== null);
   // Screen readers get the project even when the header is the one showing it.
   const spokenName = row.project.name ? row.project.label : row.title;
 
@@ -96,6 +97,11 @@ export const FleetRowItem = memo(function FleetRowItem({
             {primary}
           </span>
           {named && <FleetTags project={row.project} />}
+          {named && row.tabTitle && (
+            <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">
+              {row.tabTitle}
+            </span>
+          )}
         </span>
         <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
           <span
