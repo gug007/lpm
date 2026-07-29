@@ -433,6 +433,24 @@ describe("FleetView project service rows", () => {
     ]);
   });
 
+  it("shows actual service states for a mixed set outside any profile", async () => {
+    mocks.projects = [
+      withServices({
+        services: [
+          { name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 },
+          { name: "worker", cmd: "npm run worker", cwd: "/tmp", port: 0 },
+        ],
+        profiles: [{ name: "dev", services: ["web"] }],
+        activeProfile: "",
+      }),
+    ];
+    await render();
+    expect(chipLabels()).toEqual([
+      "Stop web service in api",
+      "Stop worker service in api",
+    ]);
+  });
+
   it("starts a stopped service from its chip", async () => {
     mocks.projects = [withProfile()];
     await render();

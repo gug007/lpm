@@ -766,7 +766,7 @@ describe("services", () => {
     ]);
   });
 
-  it("lights no profile when the running set matches none of them", () => {
+  it("shows individual services when the running set matches no profile", () => {
     const fleet = build({
       now: T0,
       projects: [
@@ -781,8 +781,28 @@ describe("services", () => {
       ],
     });
     expect(fleet.services[0].chips).toEqual([
-      { kind: "profile", name: "full", running: false },
+      { kind: "service", name: "web", running: false },
       { kind: "service", name: "docs", running: true },
+    ]);
+  });
+
+  it("keeps profile services visibly running when an extra service starts", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "lpm",
+          running: true,
+          services: [service("dev"), service("website")],
+          allServices: [service("dev"), service("website")],
+          profiles: [{ name: "dev", services: ["dev"] }],
+          activeProfile: "",
+        }),
+      ],
+    });
+    expect(fleet.services[0].chips).toEqual([
+      { kind: "service", name: "dev", running: true },
+      { kind: "service", name: "website", running: true },
     ]);
   });
 

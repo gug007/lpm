@@ -46,8 +46,8 @@ export interface FleetRow {
 
 export type FleetChipKind = "profile" | "service";
 
-/** Something the project row can start or stop: a profile the project declares,
- *  or a service no profile covers. */
+/** Something the project row can start or stop: a profile shortcut when one
+ *  matches the running set, or an individual service in a custom running set. */
 export interface FleetChip {
   kind: FleetChipKind;
   name: string;
@@ -231,12 +231,22 @@ export function compareFleetRows(a: FleetRow, b: FleetRow): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-/** A profile runs only when the project's running set matches it exactly, which
- *  the backend already resolves into `activeProfile` — so at most one profile
- *  chip is lit, and a service a profile covers can never be running on its own
- *  while that profile is dark. */
+/** Collapse services into profile shortcuts only while a profile matches the
+ *  running set exactly. A custom mix needs individual service chips so every
+ *  running process remains visible and independently controllable. */
 function chipsOf(project: ProjectInfo, started: Set<string>): FleetChip[] {
   const profiles = project.profiles ?? [];
+  const activeProfile = profiles.find(
+    (profile) => profile.name === project.activeProfile,
+  );
+  if (!activeProfile && started.size > 0) {
+    return (project.allServices ?? []).map((service) => ({
+      kind: "service",
+      name: service.name,
+      running: started.has(service.name),
+    }));
+  }
+
   const covered = new Set(profiles.flatMap((p) => p.services ?? []));
   const chips: FleetChip[] = profiles.map((profile) => ({
     kind: "profile",
