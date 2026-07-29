@@ -48,8 +48,8 @@ export function FleetHeader({
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-            Your Claude Code and Codex agents and your automations, the ones
-            blocking you first
+            Your agents and automations, with anything waiting on you shown
+            first.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">

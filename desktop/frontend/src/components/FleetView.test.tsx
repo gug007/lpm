@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   selectProject: vi.fn(),
   focusProjectTerminal: vi.fn(),
   toggleService: vi.fn(),
+  startProject: vi.fn(),
+  stopProject: vi.fn(),
   info: vi.fn(),
   error: vi.fn(),
   openAutomations: vi.fn(),
@@ -39,6 +41,8 @@ vi.mock("../store/app", () => ({
       selectProject: mocks.selectProject,
       focusProjectTerminal: mocks.focusProjectTerminal,
       toggleService: mocks.toggleService,
+      startProject: mocks.startProject,
+      stopProject: mocks.stopProject,
     }),
 }));
 vi.mock("../peer/usePeerState", () => ({
@@ -116,6 +120,8 @@ beforeEach(() => {
   mocks.clearStatus.mockClear();
   mocks.focusProjectTerminal.mockClear();
   mocks.toggleService.mockClear();
+  mocks.startProject.mockClear();
+  mocks.stopProject.mockClear();
   mocks.selectProject.mockClear();
   mocks.openAutomations.mockClear();
   container = document.createElement("div");
@@ -368,8 +374,8 @@ describe("FleetView service links", () => {
   });
 });
 
-describe("FleetView service rows", () => {
-  const withServices = (): ProjectInfo => ({
+describe("FleetView project service rows", () => {
+  const withServices = (over: Partial<ProjectInfo> = {}): ProjectInfo => ({
     ...project("api", []),
     running: true,
     services: [{ name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 }],
@@ -377,7 +383,14 @@ describe("FleetView service rows", () => {
       { name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 },
       { name: "worker", cmd: "npm run worker", cwd: "/tmp", port: 0 },
     ],
+    ...over,
   });
+
+  const withProfile = () =>
+    withServices({
+      profiles: [{ name: "dev", services: ["web"] }],
+      activeProfile: "dev",
+    });
 
   function labelled(label: string): HTMLButtonElement | undefined {
     return [...container.querySelectorAll("button")].find(
@@ -385,25 +398,67 @@ describe("FleetView service rows", () => {
     ) as HTMLButtonElement | undefined;
   }
 
-  it("gives every service a row saying whether it is running", async () => {
-    mocks.projects = [withServices()];
+  function chipLabels(): string[] {
+    return [...container.querySelectorAll("button")]
+      .map((el) => el.getAttribute("aria-label") ?? "")
+      .filter((label) => label.includes(" in api"));
+  }
+
+  it("gives a project one row offering its profiles and leftover services", async () => {
+    mocks.projects = [withProfile()];
     await render();
-    const page = flat(container);
-    expect(page).toContain("apiwebRunning");
-    expect(page).toContain("apiworkerStopped");
+    expect(chipLabels()).toEqual([
+      "Stop dev profile in api",
+      "Start worker service in api",
+    ]);
   });
 
-  it("starts a stopped service from its row", async () => {
+  it("falls back to a chip per service when no profile covers them", async () => {
     mocks.projects = [withServices()];
     await render();
-    act(() => labelled("Start worker in api")?.click());
+    expect(chipLabels()).toEqual([
+      "Stop web service in api",
+      "Start worker service in api",
+    ]);
+  });
+
+  it("starts a stopped service from its chip", async () => {
+    mocks.projects = [withProfile()];
+    await render();
+    act(() => labelled("Start worker service in api")?.click());
     expect(mocks.toggleService).toHaveBeenCalledWith("api", "worker");
   });
 
-  it("opens the project rather than toggling when the row itself is clicked", async () => {
-    mocks.projects = [withServices()];
+  it("starts the project on the profile the chip names", async () => {
+    mocks.projects = [
+      withServices({
+        services: [],
+        profiles: [{ name: "dev", services: ["web"] }],
+      }),
+    ];
     await render();
-    act(() => button("Stopped")?.click());
+    act(() => labelled("Start dev profile in api")?.click());
+    expect(mocks.startProject).toHaveBeenCalledWith("api", "dev");
+  });
+
+  it("stops the project from the profile it is running", async () => {
+    mocks.projects = [withProfile()];
+    await render();
+    act(() => labelled("Stop dev profile in api")?.click());
+    expect(mocks.stopProject).toHaveBeenCalledWith("api");
+  });
+
+  it("stops everything from the row button", async () => {
+    mocks.projects = [withProfile()];
+    await render();
+    act(() => labelled("Stop api")?.click());
+    expect(mocks.stopProject).toHaveBeenCalledWith("api");
+  });
+
+  it("opens the project rather than toggling when its name is clicked", async () => {
+    mocks.projects = [withProfile()];
+    await render();
+    act(() => button("api")?.click());
     expect(mocks.selectProject).toHaveBeenCalledWith("api");
     expect(mocks.toggleService).not.toHaveBeenCalled();
   });

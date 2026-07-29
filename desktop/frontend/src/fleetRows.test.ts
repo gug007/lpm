@@ -733,7 +733,56 @@ describe("services", () => {
         running: ["web"],
         declared: ["api", "worker"],
         ports: {},
+        chips: [
+          { kind: "service", name: "web", running: true },
+          { kind: "service", name: "api", running: false },
+          { kind: "service", name: "worker", running: false },
+        ],
       },
+    ]);
+  });
+
+  it("offers a chip per profile, then the services no profile covers", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          running: true,
+          services: [service("web"), service("api")],
+          allServices: [service("web"), service("api"), service("docs")],
+          profiles: [
+            { name: "full", services: ["web", "api"] },
+            { name: "api-only", services: ["api"] },
+          ],
+          activeProfile: "full",
+        }),
+      ],
+    });
+    expect(fleet.services[0].chips).toEqual([
+      { kind: "profile", name: "full", running: true },
+      { kind: "profile", name: "api-only", running: false },
+      { kind: "service", name: "docs", running: false },
+    ]);
+  });
+
+  it("lights no profile when the running set matches none of them", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          running: true,
+          services: [service("docs")],
+          allServices: [service("web"), service("docs")],
+          profiles: [{ name: "full", services: ["web"] }],
+          activeProfile: "",
+        }),
+      ],
+    });
+    expect(fleet.services[0].chips).toEqual([
+      { kind: "profile", name: "full", running: false },
+      { kind: "service", name: "docs", running: true },
     ]);
   });
 

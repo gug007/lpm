@@ -9,7 +9,7 @@ import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useFleetServicePorts } from "../hooks/useFleetServicePorts";
 import { useFleetOrder } from "../useFleetOrder";
-import { buildFleet, type FleetRow } from "../fleetRows";
+import { buildFleet, type FleetChip, type FleetRow } from "../fleetRows";
 import { applyFleetFilter, type FleetKindFilter } from "../fleetFilter";
 import type { FleetProjectIdentity } from "../fleetIdentity";
 import { EmptyState } from "./ui/EmptyState";
@@ -33,6 +33,8 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   const selectProject = useAppStore((s) => s.selectProject);
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const toggleService = useAppStore((s) => s.toggleService);
+  const startProject = useAppStore((s) => s.startProject);
+  const stopProject = useAppStore((s) => s.stopProject);
   const terminalTitles = useTerminalTitles((s) => s.byProject);
   const { state: peerState } = usePeerState();
   const reducedMotion = usePrefersReducedMotion();
@@ -87,6 +89,17 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
       else selectProject(row.project.name);
     },
     [focusProjectTerminal, selectProject, openAutomations],
+  );
+
+  // A lit profile means the project is running that profile and nothing else,
+  // so stopping it is stopping the project.
+  const runChip = useCallback(
+    (project: string, chip: FleetChip) => {
+      if (chip.kind === "service") void toggleService(project, chip.name);
+      else if (chip.running) void stopProject(project);
+      else void startProject(project, chip.name);
+    },
+    [toggleService, startProject, stopProject],
   );
 
   const dismissRow = useCallback((row: FleetRow) => {
@@ -240,7 +253,8 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
             <FleetServices
               groups={visible.services}
               detected={servicePorts}
-              onToggle={(project, service) => void toggleService(project, service)}
+              onRunChip={runChip}
+              onStop={(project) => void stopProject(project)}
               onOpenProject={selectProject}
             />
           </div>

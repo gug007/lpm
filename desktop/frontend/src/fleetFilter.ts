@@ -20,8 +20,8 @@ function matchesQuery(row: FleetRow, query: string): boolean {
   );
 }
 
-/** A group whose project matches keeps all of its services; otherwise only the
- *  matching services stay, and a group left with none drops out. */
+/** A group whose project matches keeps everything it offers; otherwise only the
+ *  matching profiles and services stay, and a group left with none drops out. */
 function filterGroup(
   group: FleetServiceGroup,
   query: string,
@@ -30,8 +30,11 @@ function filterGroup(
   const hit = (name: string) => name.toLowerCase().includes(query);
   const running = group.running.filter(hit);
   const declared = group.declared.filter(hit);
-  if (running.length === 0 && declared.length === 0) return null;
-  return { ...group, running, declared };
+  const chips = group.chips.filter((chip) => hit(chip.name));
+  if (running.length === 0 && declared.length === 0 && chips.length === 0) {
+    return null;
+  }
+  return { ...group, running, declared, chips };
 }
 
 export function applyFleetFilter(

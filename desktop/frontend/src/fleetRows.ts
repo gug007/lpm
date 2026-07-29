@@ -44,6 +44,16 @@ export interface FleetRow {
   dismissBlocked: string | null;
 }
 
+export type FleetChipKind = "profile" | "service";
+
+/** Something the project row can start or stop: a profile the project declares,
+ *  or a service no profile covers. */
+export interface FleetChip {
+  kind: FleetChipKind;
+  name: string;
+  running: boolean;
+}
+
 export interface FleetServiceGroup {
   project: FleetProjectIdentity;
   running: string[];
@@ -51,6 +61,7 @@ export interface FleetServiceGroup {
   /** The port each service declares, when it declares one. Live detection wins
    *  over this, but it lets a link render before detection comes back. */
   ports: Record<string, number>;
+  chips: FleetChip[];
 }
 
 export interface FleetCounts {
@@ -220,6 +231,29 @@ export function compareFleetRows(a: FleetRow, b: FleetRow): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+/** A profile runs only when the project's running set matches it exactly, which
+ *  the backend already resolves into `activeProfile` — so at most one profile
+ *  chip is lit, and a service a profile covers can never be running on its own
+ *  while that profile is dark. */
+function chipsOf(project: ProjectInfo, started: Set<string>): FleetChip[] {
+  const profiles = project.profiles ?? [];
+  const covered = new Set(profiles.flatMap((p) => p.services ?? []));
+  const chips: FleetChip[] = profiles.map((profile) => ({
+    kind: "profile",
+    name: profile.name,
+    running: project.activeProfile === profile.name,
+  }));
+  for (const service of project.allServices ?? []) {
+    if (covered.has(service.name)) continue;
+    chips.push({
+      kind: "service",
+      name: service.name,
+      running: started.has(service.name),
+    });
+  }
+  return chips;
+}
+
 function serviceGroup(
   project: ProjectInfo,
   identity: FleetProjectIdentity,
@@ -233,7 +267,13 @@ function serviceGroup(
   if (running.length === 0 && declared.length === 0) return null;
   const ports: Record<string, number> = {};
   for (const s of project.allServices ?? []) if (s.port > 0) ports[s.name] = s.port;
-  return { project: identity, running, declared, ports };
+  return {
+    project: identity,
+    running,
+    declared,
+    ports,
+    chips: chipsOf(project, started),
+  };
 }
 
 export function buildFleet(snapshot: FleetSnapshot): Fleet {

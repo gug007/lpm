@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { applyFleetFilter } from "./fleetFilter";
-import type { FleetRow, FleetRowKind, FleetServiceGroup } from "./fleetRows";
+import type {
+  FleetChip,
+  FleetRow,
+  FleetRowKind,
+  FleetServiceGroup,
+} from "./fleetRows";
 
 const T0 = 1_700_000_000_000;
 
@@ -43,13 +48,19 @@ function group(
   label: string,
   running: string[],
   declared: string[] = [],
+  chips: FleetChip[] = [],
 ): FleetServiceGroup {
   return {
     project: identity(label.toLowerCase(), label),
     running,
     declared,
     ports: {},
+    chips,
   };
+}
+
+function chip(name: string, running = false): FleetChip {
+  return { kind: "service", name, running };
 }
 
 const rows = [
@@ -57,7 +68,12 @@ const rows = [
   row("agent:site:claude_code_b", "agent", "Marketing", "Claude Code"),
   row("automation:site:sweep", "automation", "Marketing", "Dependency sweep"),
 ];
-const services = [group("Checkout", ["stripe-mock"], ["api"])];
+const services = [
+  group("Checkout", ["stripe-mock"], ["api"], [
+    chip("stripe-mock", true),
+    chip("api"),
+  ]),
+];
 const ids = (list: FleetRow[]) => list.map((r) => r.id);
 
 describe("applyFleetFilter", () => {
@@ -95,7 +111,25 @@ describe("applyFleetFilter", () => {
         running: ["stripe-mock"],
         declared: [],
         ports: {},
+        chips: [chip("stripe-mock", true)],
       },
+    ]);
+  });
+
+  it("keeps a profile whose name matches even when no service does", () => {
+    const withProfile = [
+      group("Checkout", ["stripe-mock"], ["api"], [
+        { kind: "profile", name: "payments", running: true },
+        chip("api"),
+      ]),
+    ];
+    const visible = applyFleetFilter([], withProfile, { query: "payments" });
+    expect(visible.services).toEqual([
+      expect.objectContaining({
+        running: [],
+        declared: [],
+        chips: [{ kind: "profile", name: "payments", running: true }],
+      }),
     ]);
   });
 

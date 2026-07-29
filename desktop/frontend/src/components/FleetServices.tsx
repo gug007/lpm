@@ -1,18 +1,20 @@
-import type { FleetServiceGroup } from "../fleetRows";
+import type { FleetChip, FleetServiceGroup } from "../fleetRows";
 import type { FleetServicePorts } from "../hooks/useFleetServicePorts";
-import { FleetServiceRow } from "./FleetServiceRow";
+import { FleetServiceRow, type FleetServiceLink } from "./FleetServiceRow";
 
 export interface FleetServicesProps {
   groups: FleetServiceGroup[];
   detected: FleetServicePorts;
-  onToggle: (project: string, service: string) => void;
+  onRunChip: (project: string, chip: FleetChip) => void;
+  onStop: (project: string) => void;
   onOpenProject: (project: string) => void;
 }
 
 export function FleetServices({
   groups,
   detected,
-  onToggle,
+  onRunChip,
+  onStop,
   onOpenProject,
 }: FleetServicesProps) {
   if (groups.length === 0) return null;
@@ -21,12 +23,12 @@ export function FleetServices({
 
   // Only a started service can be opened, and only where a port is known: the
   // one it is listening on, or the one it declares while detection catches up.
-  const portOf = (group: FleetServiceGroup, service: string): number | null => {
-    const live = detected[group.project.name]?.[service];
-    if (live?.length) return live[0];
-    const declared = group.ports[service];
-    return declared > 0 ? declared : null;
-  };
+  const linksOf = (group: FleetServiceGroup): FleetServiceLink[] =>
+    group.running.flatMap((service) => {
+      const live = detected[group.project.name]?.[service];
+      const port = live?.length ? live[0] : group.ports[service];
+      return port > 0 ? [{ service, port }] : [];
+    });
 
   return (
     <section className="space-y-1.5">
@@ -40,22 +42,16 @@ export function FleetServices({
       </div>
 
       <div className="space-y-0.5">
-        {groups.flatMap((group) =>
-          [
-            ...group.running.map((name) => ({ name, running: true })),
-            ...group.declared.map((name) => ({ name, running: false })),
-          ].map((service) => (
-            <FleetServiceRow
-              key={`${group.project.name}/${service.name}`}
-              project={group.project}
-              service={service.name}
-              running={service.running}
-              port={service.running ? portOf(group, service.name) : null}
-              onToggle={() => onToggle(group.project.name, service.name)}
-              onOpenProject={() => onOpenProject(group.project.name)}
-            />
-          )),
-        )}
+        {groups.map((group) => (
+          <FleetServiceRow
+            key={group.project.name}
+            group={group}
+            links={linksOf(group)}
+            onRunChip={(chip) => onRunChip(group.project.name, chip)}
+            onStop={() => onStop(group.project.name)}
+            onOpenProject={() => onOpenProject(group.project.name)}
+          />
+        ))}
       </div>
     </section>
   );
