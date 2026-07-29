@@ -485,6 +485,11 @@ struct ProjectsView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    NavigationLink {
+                        ActivityScreen()
+                    } label: {
+                        Label("Activity", systemImage: "square.stack.3d.up")
+                    }
                     NavigationLink(value: NotificationRoute.automations) {
                         Label("Automations", systemImage: "clock.arrow.circlepath")
                     }
@@ -516,9 +521,23 @@ struct ProjectsView: View {
                         Label("Remove this Mac", systemImage: "trash")
                     }
                 } label: {
+                    // An agent waiting on you lives one tap deep, under Activity —
+                    // the dot is what says the menu is worth opening.
                     Image(systemName: "ellipsis")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(.primary)
+                        .overlay(alignment: .topTrailing) {
+                            let ambient = agentAmbient(model.projects)
+                            if ambient.isLit {
+                                Circle()
+                                    .fill(ambient.needsYou > 0 ? Color.orange : Color.red)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 5, y: -5)
+                            }
+                        }
+                        .accessibilityLabel(agentAmbient(model.projects).needsYou > 0
+                                            ? "More — an agent needs you"
+                                            : "More")
                 }
             }
         }
@@ -677,7 +696,10 @@ struct DemoBanner: View {
     }
 }
 
-private struct NotificationTerminalDestination: View {
+/// Opens a terminal named only by its id — the destination behind a notification
+/// tap and behind an Activity row, both of which know the terminal before the
+/// project's tab list has loaded.
+struct NotificationTerminalDestination: View {
     @Environment(AppModel.self) private var model
     let projectName: String
     let terminalId: String

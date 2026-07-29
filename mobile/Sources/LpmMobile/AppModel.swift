@@ -1163,6 +1163,53 @@ final class AppModel {
 
     func loadAutomations() { client?.requestJobs() }
 
+    // MARK: Activity
+
+    /// Project -> terminal id -> that tab's name, for naming the agent rows on the
+    /// Activity screen. Only projects whose terminals have been fetched contribute.
+    var activityTerminalTitles: [String: [String: String]] {
+        terminals.mapValues { list in
+            Dictionary(list.map { ($0.id, $0.label) }, uniquingKeysWith: { _, last in last })
+        }
+    }
+
+    /// Fetch the tab names behind the Activity rows: only projects that actually
+    /// report an agent, so an idle Mac costs nothing.
+    func loadActivityTerminals() {
+        for project in projects where !project.statusEntries.isEmpty {
+            client?.requestTerminals(project: project.name)
+        }
+    }
+
+    /// Pull-to-refresh on Activity: everything the screen reads comes from the
+    /// projects and automations lists plus the terminals behind them.
+    func refreshActivity() async {
+        guard case .ready = connection else {
+            reconnectIfNeeded()
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            return
+        }
+        client?.requestProjects()
+        client?.requestJobs()
+        loadActivityTerminals()
+        try? await Task.sleep(nanoseconds: 500_000_000)
+    }
+
+    /// Dismiss a finished agent status. The Mac clears every entry on that terminal
+    /// holding this value and broadcasts status-changed; the row is dropped locally
+    /// first so the list settles on the tap rather than on the round-trip.
+    func clearAgentStatus(project: String, paneId: String, value: String) {
+        guard !paneId.isEmpty, !value.isEmpty else { return }
+        Haptics.tap()
+        if let idx = projects.firstIndex(where: { $0.name == project }) {
+            let kept = projects[idx].statusEntries.filter {
+                !($0.paneID == paneId && $0.value == value)
+            }
+            projects[idx] = projects[idx].withStatus(kept)
+        }
+        client?.clearStatus(project: project, paneId: paneId, value: value)
+    }
+
     /// Load the agent-usage stats for a period (1/7/30 days, 0 = all time). Marks
     /// the screen active so a reconnect re-issues the query, and dims-not-blanks
     /// while reloading (the view keeps showing the prior snapshot).

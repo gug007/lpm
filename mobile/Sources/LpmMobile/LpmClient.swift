@@ -628,6 +628,9 @@ final class LpmClient: NSObject {
         send(Wire.historyAdd(project: project, id: id, label: label, text: text))
     }
     func requestStatus(project: String) { send(Wire.status(project: project)) }
+    func clearStatus(project: String, paneId: String, value: String) {
+        send(Wire.clearStatus(project: project, paneId: paneId, value: value))
+    }
     func requestJobs() { send(Wire.jobs()) }
     func requestJobHistory(project: String, jobId: String) {
         send(Wire.jobHistory(project: project, jobId: jobId))

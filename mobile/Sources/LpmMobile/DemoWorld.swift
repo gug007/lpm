@@ -25,6 +25,7 @@ struct DemoWorld {
         var value: String   // Running | Done | Waiting | Error
         var priority: Int
         var timestamp: Int  // unix millis
+        var paneID: String  // the terminal reporting it
     }
 
     struct Project {
@@ -33,6 +34,7 @@ struct DemoWorld {
         var running: Bool
         var isRemote: Bool = false
         var parentName: String = ""
+        var worktree: Bool = false
         var services: [Svc] = []
         var profiles: [Profile] = []
         var activeProfile: String = ""
@@ -502,7 +504,8 @@ extension DemoWorld {
     }
 
     func statusDict(_ s: Status) -> [String: Any] {
-        ["key": s.key, "value": s.value, "priority": s.priority, "timestamp": s.timestamp]
+        ["key": s.key, "value": s.value, "priority": s.priority, "timestamp": s.timestamp,
+         "paneID": s.paneID]
     }
 
     func projectDict(_ p: Project) -> [String: Any] {
@@ -512,6 +515,7 @@ extension DemoWorld {
             "running": p.running,
             "isRemote": p.isRemote,
             "parentName": p.parentName,
+            "worktree": p.worktree,
             "statusEntries": p.status.map(statusDict),
             "services": p.services.filter(\.running).map(serviceDict),
             "allServices": p.services.map(serviceDict),

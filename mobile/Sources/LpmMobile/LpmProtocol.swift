@@ -47,6 +47,11 @@ enum Wire {
         json(["t": "historyAdd", "project": project, "id": id, "label": label, "text": text])
     }
     static func status(project: String) -> String { json(["t": "status", "project": project]) }
+    /// Dismiss a finished agent status from the Activity list. Clears every entry on
+    /// `paneId` holding `value`, exactly like the desktop's tab-click dismiss.
+    static func clearStatus(project: String, paneId: String, value: String) -> String {
+        json(["t": "clearStatus", "project": project, "paneId": paneId, "value": value])
+    }
     static func jobs() -> String { json(["t": "jobs"]) }
     static func jobHistory(project: String, jobId: String) -> String {
         json(["t": "jobHistory", "project": project, "jobId": jobId])
@@ -1016,6 +1021,13 @@ struct AutomationJob: Identifiable {
     let agent: String
     let model: String
     let effort: String
+    // Which projects the job runs in. A project- or repo-layer job carries its one
+    // owning project; a global-layer job collapses to a single row whose `targets`
+    // are every project it covers ([] when it is standalone).
+    let targets: [String]
+    let targetCount: Int
+    let runningCount: Int
+    let standalone: Bool
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -1041,10 +1053,22 @@ struct AutomationJob: Identifiable {
         agent = o["agent"] as? String ?? ""
         model = o["model"] as? String ?? ""
         effort = o["effort"] as? String ?? ""
+        targets = o["targets"] as? [String] ?? []
+        targetCount = o["targetCount"] as? Int ?? 0
+        runningCount = o["runningCount"] as? Int ?? 0
+        standalone = o["standalone"] as? Bool ?? false
     }
 
     var key: String { project + "\n" + id }
     var displayName: String { label.isEmpty ? id : label }
+
+    /// The projects this job runs in — none when it is standalone. Older servers
+    /// omit `targets`, in which case the job's own project stands for it.
+    var runsIn: [String] {
+        if standalone { return [] }
+        if !targets.isEmpty { return targets }
+        return project.isEmpty ? [] : [project]
+    }
 }
 
 struct AutomationHistoryEntry: Identifiable {
@@ -1116,6 +1140,8 @@ struct Project: Identifiable {
     // The project this is a duplicate of; empty for originals. Drives whether the
     // phone offers "Remove" (only duplicates, whose folders are deleted on remove).
     let parentName: String
+    // A duplicate made as a linked git worktree rather than a folder copy.
+    let worktree: Bool
     let statusEntries: [StatusEntry]
     let services: [Service]      // currently running
     let allServices: [Service]   // every configured service
@@ -1132,6 +1158,7 @@ struct Project: Identifiable {
         running = o["running"] as? Bool ?? false
         isRemote = o["isRemote"] as? Bool ?? false
         parentName = o["parentName"] as? String ?? ""
+        worktree = o["worktree"] as? Bool ?? false
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
         allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
@@ -1141,10 +1168,11 @@ struct Project: Identifiable {
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
-                 statusEntries: [StatusEntry], services: [Service], allServices: [Service],
-                 profiles: [Profile], activeProfile: String, actions: [Action]) {
+                 worktree: Bool, statusEntries: [StatusEntry], services: [Service],
+                 allServices: [Service], profiles: [Profile], activeProfile: String,
+                 actions: [Action]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
-        self.parentName = parentName
+        self.parentName = parentName; self.worktree = worktree
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
     }
@@ -1153,8 +1181,9 @@ struct Project: Identifiable {
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                statusEntries: entries, services: services, allServices: allServices,
-                profiles: profiles, activeProfile: activeProfile, actions: actions)
+                worktree: worktree, statusEntries: entries, services: services,
+                allServices: allServices, profiles: profiles, activeProfile: activeProfile,
+                actions: actions)
     }
 }
 
@@ -1447,6 +1476,9 @@ struct StatusEntry: Identifiable {
     let value: String // Running | Done | Waiting | Error
     let priority: Int
     let timestamp: Int
+    // The terminal this status belongs to; empty when the reporting agent didn't
+    // name one (older servers, or a status raised outside a pane).
+    let paneID: String
 
     var id: String { key }
 
@@ -1455,6 +1487,7 @@ struct StatusEntry: Identifiable {
         value = o["value"] as? String ?? ""
         priority = o["priority"] as? Int ?? 0
         timestamp = o["timestamp"] as? Int ?? 0
+        paneID = o["paneID"] as? String ?? ""
     }
 }
 

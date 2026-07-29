@@ -148,6 +148,7 @@ any live connection.
 | `{ "t": "history", "project": "<name>", "q": "<search>" }` | `{ "t": "history", "project": "<name>", "rows": [HistoryRow…] }` — recent sent prompts for the project (newest first), for recall |
 | `{ "t": "historyAdd", "project": "<name>", "id": "<termId>", "label": "<tab>", "text": "…" }` | — records a prompt the phone sent into the shared message history |
 | `{ "t": "status", "project": "<name>" }` | `{ "t": "status", "project": "<name>", "status": [StatusEntry…] }` |
+| `{ "t": "clearStatus", "project": "<name>", "paneId": "<terminal id>", "value": "Done"\|"Error" }` | — dismisses a finished agent status (the Activity screen's clear), removing **every** entry on `paneId` whose value is `value`; two agents sharing one terminal therefore clear together, which is why the phone only offers it when the row is the pane's only holder of that value. No reply: on a change the Mac emits `status-changed`, which refreshes the desktop and every connected phone. A no-op when nothing matches |
 | `{ "t": "sub", "id": "<termId>", "from": <streamOffset>? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "off": <streamOffset>, "reset": bool, "owner": ControlOwner\|null, "draft": { "text": "…", "rev": N }? }`, then a live stream of `o` frames. Subscribing also *presents* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder. The optional `draft` carries the terminal composer's mirrored active-input text (see composer draft sync below); it is **present only** when a non-empty draft is stored, so on (re)open/reconnect the phone restores it — but only into an empty input, never clobbering a prompt in progress. **Resuming:** a phone that still has the terminal on screen (reconnect, unlock, a gap in `o` frames) sends `from` = the offset it last applied; when the Mac still holds that point the reply is `reset: false` and `data` is **only the missed slice**, appended to the live emulator. Otherwise (`from` omitted, or scrolled out of the ring) it is `reset: true`: reset the emulator and replay `data` as the whole screen. Prefer resuming — a replay only approximates the screen a running full-screen program believes it is drawing on, so its next incremental update lands on stale cells |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
 | `{ "t": "claim", "id": "<termId>" }` | — (the "Take control" action) takes ownership of the terminal; the previous owner is pushed a `control` frame and flips to its own placeholder |
@@ -505,6 +506,7 @@ activeProfile: string
 statusEntries: [StatusEntry]
 isRemote: bool
 parentName: string        // the project this is a duplicate of; empty for originals — the phone offers Remove only when set
+worktree: bool            // a duplicate made as a linked git worktree rather than a folder copy
 actions: [ActionInfo]     // recursive: { name (composite parent:child), label, emoji, cmd, type, display, children[] … }
 ```
 
@@ -555,7 +557,16 @@ runningSince: unix seconds | null
 agent: string?
 model: string?
 effort: string?
+targets: [string]         // the projects this job runs in
+targetCount: number       // targets.length
+runningCount: number      // how many of them are running it right now
+standalone: bool          // runs outside any project; `targets` is then empty
 ```
+
+Project- and repo-layer jobs stay one row per project (each carries its owning
+`project` and a single-entry `targets`); a global-layer job collapses to **one**
+aggregated row whose `project` is absent and whose `targets` are every project it
+covers, with `runningCount` / `targetCount` folded across them.
 
 **JobHistoryEntry**:
 ```

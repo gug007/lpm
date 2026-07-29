@@ -18,6 +18,15 @@ extension DemoServer {
             guard let self, let project = o["project"] as? String else { return }
             self.push(self.world.statusPayload(project))
         }
+        register("clearStatus") { [weak self] o in
+            guard let self, let project = o["project"] as? String,
+                  let pane = o["paneId"] as? String, let value = o["value"] as? String,
+                  let idx = self.world.projectIndex(project) else { return }
+            let before = self.world.projects[idx].status.count
+            self.world.projects[idx].status.removeAll { $0.paneID == pane && $0.value == value }
+            guard self.world.projects[idx].status.count != before else { return }
+            self.push(["t": "status-changed", "project": project])
+        }
         register("duplicateDefaults") { [weak self] _ in
             guard let self else { return }
             self.push([
@@ -678,7 +687,8 @@ extension DemoServer {
             DemoWorld.Status(key: e["key"] as? String ?? "",
                              value: e["value"] as? String ?? "",
                              priority: e["priority"] as? Int ?? 0,
-                             timestamp: e["timestamp"] as? Int ?? nowMs)
+                             timestamp: e["timestamp"] as? Int ?? nowMs,
+                             paneID: e["paneID"] as? String ?? "")
         }
         push(["t": "status-changed", "project": project])
     }

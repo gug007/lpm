@@ -2029,6 +2029,23 @@ fn handle_msg(
                 json!({ "t": "status", "project": project, "status": list }),
             )?;
         }
+        // Dismiss a finished agent status from the phone's Activity list — the same
+        // clear the desktop does on a tab click, so it drops every entry on that
+        // pane holding this value. The `status-changed` emit is what refreshes the
+        // desktop and every other connected phone.
+        "clearStatus" => {
+            let project = str_field("project").unwrap_or_default();
+            let pane_id = str_field("paneId").unwrap_or_default();
+            let value = str_field("value").unwrap_or_default();
+            if !pane_id.is_empty()
+                && !value.is_empty()
+                && app
+                    .state::<Arc<StatusStore>>()
+                    .clear_by_pane_value(&project, &pane_id, &value)
+            {
+                let _ = app.emit("status-changed", &project);
+            }
+        }
         // Register (or refresh) this device's push identity: the APNs device token,
         // its environment, and the phone's AES key the sealed payload is encrypted
         // under. Sent after every successful auth (the token can rotate). Persisted

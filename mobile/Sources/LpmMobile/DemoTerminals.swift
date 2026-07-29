@@ -779,9 +779,11 @@ extension DemoServer {
 
     // MARK: helpers
 
-    private func statusEntry(_ key: String, _ value: String, _ priority: Int) -> [String: Any] {
-        ["key": key, "value": value, "priority": priority,
-         "timestamp": Int(Date().timeIntervalSince1970 * 1000)]
+    /// A status entry the way an agent's hooks report one: the key carries the
+    /// provider (`claude_code_<session>`), `paneID` the terminal it came from.
+    private func statusEntry(_ terminal: String, _ value: String, _ priority: Int) -> [String: Any] {
+        ["key": "claude_code_\(terminal)", "value": value, "priority": priority,
+         "timestamp": Int(Date().timeIntervalSince1970 * 1000), "paneID": terminal]
     }
 
     private func fileExt(_ mime: String) -> String {
