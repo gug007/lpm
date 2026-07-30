@@ -141,17 +141,33 @@ fn trim_output(s: &str) -> String {
     }
 }
 
-/// Mirrors formatPastedPaths (InteractivePane.tsx): a single image path stays
-/// unquoted; otherwise each path is shell-quoted and space-joined.
+/// Mirrors formatPastedPaths (InteractivePane.tsx): a single image path goes in
+/// as one bare word; otherwise each path is shell-quoted and space-joined.
 fn format_paste_paths(paths: &[String]) -> String {
     if paths.len() == 1 && is_image_path(&paths[0]) {
-        return paths[0].clone();
+        return quote_image_path(&paths[0]);
     }
     paths
         .iter()
         .map(|p| shell_quote_single(p))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// quoteImagePathForPaste (composerValue.ts): a lone image path is what an agent
+/// lifts into an attachment, but Codex reads the paste as a path only when it
+/// parses as ONE shell word, so a screenshot's spaced filename — or a folder
+/// with an apostrophe, or a backslash — lands as plain text instead. Double
+/// quotes cover all of those and are equally accepted by Claude Code (both honor
+/// \" and \\), while a path with nothing to quote passes through byte-for-byte.
+fn quote_image_path(path: &str) -> String {
+    if !path
+        .chars()
+        .any(|c| c.is_whitespace() || matches!(c, '"' | '\'' | '\\'))
+    {
+        return path.to_string();
+    }
+    format!("\"{}\"", path.replace('\\', r"\\").replace('"', "\\\""))
 }
 
 // IMAGE_EXT_RE in InteractivePane.tsx, case-insensitive.
@@ -187,8 +203,46 @@ mod tests {
 
     #[test]
     fn single_image_unquoted() {
+        // Nothing to quote -> byte-identical, so agents see what they saw before.
         assert_eq!(format_paste_paths(&["/tmp/a.png".into()]), "/tmp/a.png");
-        assert_eq!(format_paste_paths(&["/tmp/x.PNG".into()]), "/tmp/x.PNG"); // case-insensitive
+        // Extension match is case-insensitive.
+        assert_eq!(format_paste_paths(&["/tmp/x.PNG".into()]), "/tmp/x.PNG");
+        assert_eq!(
+            format_paste_paths(&["/tmp/a(1)&c$d;e#f.png".into()]),
+            "/tmp/a(1)&c$d;e#f.png"
+        );
+    }
+
+    #[test]
+    fn single_image_is_double_quoted_when_it_is_not_one_shell_word() {
+        // A macOS screenshot: unquoted, Codex reads it as text, not an image.
+        assert_eq!(
+            format_paste_paths(&["/tmp/Screenshot 2026-07-30 at 09.37.48.png".into()]),
+            "\"/tmp/Screenshot 2026-07-30 at 09.37.48.png\""
+        );
+        // An apostrophe or a backslash breaks the parse with no space in sight.
+        assert_eq!(
+            format_paste_paths(&["/tmp/Bob's/logo.png".into()]),
+            "\"/tmp/Bob's/logo.png\""
+        );
+        assert_eq!(
+            format_paste_paths(&["/tmp/a\\b.png".into()]),
+            "\"/tmp/a\\\\b.png\""
+        );
+        // Single quotes stay literal inside double quotes (Claude Code does not
+        // read the POSIX '\'' splice), and \" / \\ escape what would end the quote.
+        assert_eq!(
+            format_paste_paths(&["/tmp/Bob's shot.png".into()]),
+            "\"/tmp/Bob's shot.png\""
+        );
+        assert_eq!(
+            format_paste_paths(&["/tmp/a\"b c.png".into()]),
+            "\"/tmp/a\\\"b c.png\""
+        );
+        assert_eq!(
+            format_paste_paths(&["/tmp/a\\b c.png".into()]),
+            "\"/tmp/a\\\\b c.png\""
+        );
     }
 
     #[test]

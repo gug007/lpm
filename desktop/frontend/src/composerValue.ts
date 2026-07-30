@@ -32,6 +32,33 @@ export function isImagePath(path: string): boolean {
   return IMAGE_EXT_RE.test(path);
 }
 
+// An image path pasted as its own part, in the form the receiving agent lifts
+// into an attachment. Claude Code takes the bare path, but Codex reads a paste
+// as a path only when it parses as ONE shell word: a screenshot's "Screenshot
+// 2026-07-30 at 09.37.48.png", an apostrophe in a folder name, or a backslash
+// all leave it as plain text instead, and lpm then waits out its whole image
+// gate before submitting. Double quotes cover every such character and are
+// equally accepted by Claude Code (both honor the \" and \\ escapes — Claude
+// Code does NOT read the POSIX '\'' splice, so single quotes are not usable);
+// a path with nothing to quote is passed through byte-for-byte.
+const NEEDS_QUOTING_RE = /[\s"'\\]/;
+
+export function quoteImagePathForPaste(path: string): string {
+  if (!NEEDS_QUOTING_RE.test(path)) return path;
+  return `"${path.replace(/([\\"])/g, "\\$1")}"`;
+}
+
+// Inverse of quoteImagePathForPaste: the bare path inside a pasted part, so a
+// delivered part can still be recognized as an image once it carries quotes.
+// Only a quoted ABSOLUTE path is unwrapped — every path this pairs with is
+// absolute — so prose that merely opens and closes with a quote (`"before.png"`)
+// stays quoted and is not mistaken for an attachment.
+export function unquotePastedPath(part: string): string {
+  const trimmed = part.trim();
+  if (!trimmed.startsWith('"/') || !trimmed.endsWith('"')) return trimmed;
+  return trimmed.slice(1, -1).replace(/\\([\\"])/g, "$1");
+}
+
 const IMAGE_TOKEN_RE = /\[Image #(\d+)\]/g;
 
 // The composer's value as one plain string: each attachment token replaced in
@@ -83,9 +110,11 @@ function flattenSeedText(text: string): string {
 }
 
 // A stored prompt string as terminal-delivery parts. Text-only prompts become
-// one flattened line; each standalone image path becomes its own part (raw,
-// space-padded, not shell-quoted) so the agent lifts it into an image the same
-// way a manual composer send does, instead of it arriving as quoted text.
+// one flattened line; each standalone image path becomes its own space-padded
+// part, bare unless it needs quoting, so the agent lifts it into an image the
+// same way a manual composer send does, instead of it arriving as quoted text.
+// A stored path can hold no whitespace (ABS_PATH_RE ends at one), so the prompt
+// field can't carry a screenshot's spaced path in the first place.
 export function promptTextToSeed(text: string): string | string[] | undefined {
   const parts: string[] = [];
   let last = 0;
@@ -96,7 +125,7 @@ export function promptTextToSeed(text: string): string | string[] | undefined {
     hasImages = true;
     const before = flattenSeedText(text.slice(last, match.index));
     if (before) parts.push(before);
-    parts.push(` ${path} `);
+    parts.push(` ${quoteImagePathForPaste(path)} `);
     last = match.index + path.length;
   }
   if (!hasImages) return flattenSeedText(text) || undefined;

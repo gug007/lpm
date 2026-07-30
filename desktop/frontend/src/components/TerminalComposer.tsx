@@ -60,6 +60,7 @@ import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
+import { quoteImagePathForPaste } from "../composerValue";
 import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
   caretEdges,
@@ -982,11 +983,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       segments.map(async (s) => {
         const path = s.image === null ? undefined : images[s.image];
         if (path === undefined) return s.text;
-        // For a peer terminal the path is already host-valid — the image was
-        // uploaded to the host when it was attached — so paste it through as-is.
+        // For a peer terminal the path is already host-valid AND already
+        // paste-formatted — the host quoted it when the image was uploaded there
+        // on attach — so paste it through as-is; quoting again would nest quotes.
         if (isRemotePeer) return ` ${path} `;
         const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
-        return ` ${uploaded || path} `;
+        return ` ${uploaded || quoteImagePathForPaste(path)} `;
       }),
     );
     return parts.filter((p) => p.trim().length > 0);

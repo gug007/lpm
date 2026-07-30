@@ -9,6 +9,7 @@ import {
   type ComposerValue,
 } from "./InputComposer";
 import { splitByImageTokens } from "./composerEditor";
+import { quoteImagePathForPaste } from "../composerValue";
 import { CopyRow, focusLabelSuffix } from "./CopyRow";
 import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
@@ -450,8 +451,8 @@ export function BulkDuplicateDialog({
 
   // Resolve the composer's `[Image #N]` tokens for delivery once the copy's
   // agent is ready. A text-only prompt is one flattened line; with images the
-  // seed becomes ordered paste parts — each image path is its own part (raw,
-  // space-padded, not shell-quoted) so the agent lifts it into an image the
+  // seed becomes ordered paste parts — each image path is its own space-padded
+  // part, bare unless it needs quoting, so the agent lifts it into an image the
   // same way a manual composer send does, instead of it arriving as quoted text.
   const composerSeed = (value: ComposerValue): string | string[] | undefined => {
     const byToken = new Map(value.images.map((im) => [im.token, im.path]));
@@ -464,7 +465,7 @@ export function BulkDuplicateDialog({
       .map((s) => {
         if (s.image === null) return flatten(s.text);
         const path = byToken.get(s.image);
-        return path ? ` ${path} ` : "";
+        return path ? ` ${quoteImagePathForPaste(path)} ` : "";
       })
       .filter((p) => p.trim().length > 0);
     return parts.length ? parts : undefined;

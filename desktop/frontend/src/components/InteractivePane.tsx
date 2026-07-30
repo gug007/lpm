@@ -19,6 +19,7 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
+import { quoteImagePathForPaste, unquotePastedPath } from "../composerValue";
 import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
@@ -398,11 +399,12 @@ function countImageMarkers(text: string): number {
   return (text.match(/\[image/gi) ?? []).length;
 }
 
-// Single image paths go in unquoted so a path-detecting receiver can stat
-// them; everything else is shell-quoted for shell users.
+// A single image path goes in as one bare word so a path-detecting receiver can
+// stat it, double-quoted only when it holds whitespace (see
+// quoteImagePathForPaste); everything else is shell-quoted for shell users.
 function formatPastedPaths(paths: string[]): string {
   if (paths.length === 1 && IMAGE_EXT_RE.test(paths[0])) {
-    return paths[0];
+    return quoteImagePathForPaste(paths[0]);
   }
   return paths.map(shellQuote).join(" ");
 }
@@ -1337,7 +1339,8 @@ export function InteractivePane({
           // appearing rather than on quiet, else the next part overtakes its cursor
           // slot. sentAt is sampled after the write so in-flight output can't satisfy
           // the gate early.
-          const isImage = bracketed && !/[\r\n]/.test(part) && IMAGE_EXT_RE.test(part.trim());
+          const isImage =
+            bracketed && !/[\r\n]/.test(part) && IMAGE_EXT_RE.test(unquotePastedPath(part));
           const before = isImage ? visibleImageMarks() : 0;
           await sendTerminalInput(terminalId, wrap(part));
           const sentAt = performance.now();
