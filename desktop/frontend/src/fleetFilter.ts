@@ -1,10 +1,16 @@
+import type { AgentState } from "./agentStatus";
 import type { FleetRow, FleetServiceGroup } from "./fleetRows";
 
 export type FleetKindFilter = "all" | "agents" | "services" | "automations";
 
+export type FleetStateFilter = "all" | AgentState;
+
 export interface FleetFilter {
   query?: string;
   kind?: FleetKindFilter;
+  /** Narrow to one agent status. A service holds no agent status, so anything
+   *  but "all" drops the services section. */
+  state?: FleetStateFilter;
 }
 
 export interface FleetVisible {
@@ -43,6 +49,7 @@ export function applyFleetFilter(
   filter: FleetFilter | undefined,
 ): FleetVisible {
   const kind = filter?.kind ?? "all";
+  const state = filter?.state ?? "all";
   const query = (filter?.query ?? "").trim().toLowerCase();
 
   let visibleRows = rows;
@@ -52,6 +59,11 @@ export function applyFleetFilter(
     visibleRows = rows.filter((r) => r.kind === "automation");
 
   let visibleServices = kind === "all" || kind === "services" ? services : [];
+
+  if (state !== "all") {
+    visibleRows = visibleRows.filter((row) => row.state === state);
+    visibleServices = [];
+  }
 
   if (query) {
     visibleRows = visibleRows.filter((row) => matchesQuery(row, query));

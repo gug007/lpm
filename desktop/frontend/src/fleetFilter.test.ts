@@ -165,6 +165,24 @@ describe("applyFleetFilter", () => {
     expect(ids(visible.rows)).toEqual(["agent:site:claude_code_b"]);
   });
 
+  it("narrows to one status and drops the services with it", () => {
+    const waiting = { ...rows[0], id: "agent:app:codex_c", state: "needs-you" as const };
+    const visible = applyFleetFilter([...rows, waiting], services, {
+      state: "needs-you",
+    });
+    expect(ids(visible.rows)).toEqual(["agent:app:codex_c"]);
+    expect(visible.services).toEqual([]);
+  });
+
+  it("applies the status, the kind and the query together", () => {
+    const visible = applyFleetFilter(rows, services, {
+      state: "working",
+      kind: "agents",
+      query: "marketing",
+    });
+    expect(ids(visible.rows)).toEqual(["agent:site:claude_code_b"]);
+  });
+
   it("does not mutate its inputs", () => {
     applyFleetFilter(rows, services, { kind: "agents", query: "market" });
     expect(rows).toHaveLength(3);

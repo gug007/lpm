@@ -1,6 +1,7 @@
 import type { CSSProperties, RefObject } from "react";
 import type { FleetCounts } from "../fleetRows";
-import type { FleetKindFilter } from "../fleetFilter";
+import type { FleetKindFilter, FleetStateFilter } from "../fleetFilter";
+import { FleetStatusFilter } from "./FleetStatusFilter";
 import { SegmentedControl } from "./ui/SegmentedControl";
 import { Tooltip } from "./ui/Tooltip";
 import { HelpCircleIcon, LayersIcon, SearchIcon, XIcon } from "./icons";
@@ -18,37 +19,39 @@ export const KIND_OPTIONS: readonly {
   { value: "automations", label: "Automations" },
 ];
 
-const COUNTS = [
-  { key: "needsYou", label: "needs you", dot: "bg-[var(--accent-amber)]" },
-  { key: "error", label: "problems", dot: "bg-[var(--accent-red)]" },
-  { key: "working", label: "working", dot: "bg-[var(--accent-cyan)]" },
-  { key: "done", label: "done", dot: "bg-[var(--accent-blue)]" },
-] as const;
-
 export interface FleetHeaderProps {
   counts: FleetCounts;
   kind: FleetKindFilter;
   onKindChange: (kind: FleetKindFilter) => void;
+  state: FleetStateFilter;
+  onStateChange: (state: FleetStateFilter) => void;
   query: string;
   onQueryChange: (query: string) => void;
   searchRef: RefObject<HTMLInputElement | null>;
   grouped: boolean;
   onGroupedChange: (grouped: boolean) => void;
+  /** Any filter narrows the list, so a way back to everything is offered. */
+  filtered: boolean;
+  onClearFilters: () => void;
 }
 
 export function FleetHeader({
   counts,
   kind,
   onKindChange,
+  state,
+  onStateChange,
   query,
   onQueryChange,
   searchRef,
   grouped,
   onGroupedChange,
+  filtered,
+  onClearFilters,
 }: FleetHeaderProps) {
   return (
     <>
-      <div className="app-drag -mx-6 flex items-center gap-4 px-6 py-1">
+      <div className="app-drag -mx-6 flex items-start gap-4 px-6 py-1">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <h1 className="text-xl font-semibold tracking-tight">Activity</h1>
@@ -69,36 +72,21 @@ export function FleetHeader({
               </button>
             </Tooltip>
           </div>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+          <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
             Your agents and automations, with anything waiting on you shown
             first.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {COUNTS.map((count) => {
-            const value = counts[count.key];
-            return (
-              <span
-                key={count.key}
-                className={`flex items-center gap-1.5 text-[11px] ${
-                  value === 0 ? "opacity-40" : ""
-                }`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${count.dot}`}
-                  aria-hidden
-                />
-                <span className="font-medium tabular-nums text-[var(--text-primary)]">
-                  {value}
-                </span>
-                <span className="text-[var(--text-muted)]">{count.label}</span>
-              </span>
-            );
-          })}
+        <div className="shrink-0 pt-1">
+          <FleetStatusFilter
+            counts={counts}
+            value={state}
+            onChange={onStateChange}
+          />
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="-mx-6 mt-3 flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-6 pb-3">
         <SegmentedControl
           value={kind}
           options={KIND_OPTIONS}
@@ -126,7 +114,7 @@ export function FleetHeader({
             }}
             className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] pl-8 pr-8 text-sm outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--text-primary)]/30"
           />
-          {query && (
+          {query ? (
             <button
               type="button"
               onClick={() => onQueryChange("")}
@@ -135,6 +123,10 @@ export function FleetHeader({
             >
               <XIcon />
             </button>
+          ) : (
+            <kbd className="pointer-events-none absolute right-2 rounded border border-[var(--border)] px-1 py-0.5 text-[10px] leading-none text-[var(--text-muted)]">
+              /
+            </kbd>
           )}
         </div>
         <button
@@ -142,7 +134,7 @@ export function FleetHeader({
           onClick={() => onGroupedChange(!grouped)}
           aria-pressed={grouped}
           title="Group by project (g)"
-          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
+          className={`flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] ${
             grouped
               ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
               : "text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
@@ -151,6 +143,16 @@ export function FleetHeader({
           <LayersIcon />
           Group by project
         </button>
+        {filtered && (
+          <button
+            type="button"
+            onClick={onClearFilters}
+            className="ml-auto flex h-8 items-center gap-1.5 rounded-md px-2 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)]"
+          >
+            <XIcon />
+            Clear filters
+          </button>
+        )}
       </div>
     </>
   );

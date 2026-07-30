@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
   openAutomations: vi.fn(),
+  addProject: vi.fn(),
   detectServicePorts: vi.fn(),
   browserOpenURL: vi.fn(),
   projects: [] as ProjectInfo[],
@@ -38,6 +39,8 @@ vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) =>
     select({
       projects: mocks.projects,
+      selected: null,
+      addProject: mocks.addProject,
       selectProject: mocks.selectProject,
       focusProjectTerminal: mocks.focusProjectTerminal,
       toggleService: mocks.toggleService,
@@ -194,13 +197,29 @@ describe("FleetView", () => {
     );
   });
 
-  it("explains how to populate an empty Activity view", async () => {
-    mocks.projects = [];
+  it("explains how to populate a quiet Activity view", async () => {
+    mocks.projects = [project("api", []), project("site", [])];
     await render();
     const page = flat(container);
-    expect(page).toContain("Start a supported agent in an open project");
+    expect(page).toContain("All 2 projects are quiet");
     expect(page).toContain("Terminal sessions aren't tracked");
-    expect(page).not.toContain("projects with nothing running");
+    // Four zeroes say nothing the empty state doesn't say better.
+    expect(page).not.toContain("0 needs you");
+  });
+
+  it("sends an empty Activity view into the last project the user was in", async () => {
+    mocks.projects = [project("api", []), project("site", [])];
+    await render();
+    act(() => button("Open api")?.click());
+    expect(mocks.selectProject).toHaveBeenCalledWith("api");
+  });
+
+  it("offers to add a project when there are none to track", async () => {
+    mocks.projects = [];
+    await render();
+    expect(flat(container)).toContain("No projects yet");
+    act(() => button("Add project")?.click());
+    expect(mocks.addProject).toHaveBeenCalled();
   });
 
   it("keeps tracking scope available from the Activity header", async () => {
@@ -211,6 +230,54 @@ describe("FleetView", () => {
     expect(
       container.querySelector(`button[aria-label="${scope}"]`),
     ).toBeTruthy();
+  });
+});
+
+describe("FleetView status filter", () => {
+  const twoStates = () => [
+    project("api", [entry("claude_code_a", "Running")]),
+    project("web", [entry("codex_b", "Waiting")]),
+  ];
+
+  it("narrows the list to the status the header chip names", async () => {
+    mocks.projects = twoStates();
+    await render();
+    act(() => button("needs you")?.click());
+    expect(rowText()).toHaveLength(1);
+    expect(rowText()[0]).toContain("Needs you");
+  });
+
+  it("gives every row back from Clear filters", async () => {
+    mocks.projects = twoStates();
+    await render();
+    act(() => button("needs you")?.click());
+    act(() => button("Clear filters")?.click());
+    expect(rowText()).toHaveLength(2);
+  });
+
+  it("cannot be pointed at a status nothing is in", async () => {
+    mocks.projects = [project("api", [entry("claude_code_a", "Running")])];
+    await render();
+    expect(button("problems")?.disabled).toBe(true);
+    expect(button("working")?.disabled).toBe(false);
+  });
+
+  it("drops the services section, which carries no agent status", async () => {
+    mocks.projects = [
+      {
+        ...project("api", [entry("claude_code_a", "Running")]),
+        running: true,
+        services: [{ name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 }],
+        allServices: [
+          { name: "web", cmd: "npm run dev", cwd: "/tmp", port: 5173 },
+        ],
+      },
+    ];
+    await render();
+    expect(flat(container)).toContain("1 of 1 running");
+    act(() => button("working")?.click());
+    expect(rowText()).toHaveLength(1);
+    expect(flat(container)).not.toContain("of 1 running");
   });
 });
 

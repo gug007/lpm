@@ -10,9 +10,14 @@ import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useFleetServicePorts } from "../hooks/useFleetServicePorts";
 import { useFleetOrder } from "../useFleetOrder";
 import { buildFleet, type FleetChip, type FleetRow } from "../fleetRows";
-import { applyFleetFilter, type FleetKindFilter } from "../fleetFilter";
+import {
+  applyFleetFilter,
+  type FleetKindFilter,
+  type FleetStateFilter,
+} from "../fleetFilter";
 import type { FleetProjectIdentity } from "../fleetIdentity";
-import { EmptyState } from "./ui/EmptyState";
+import { displayNameForProjectName } from "./ProjectNameDisplay";
+import { FleetEmpty } from "./FleetEmpty";
 import { FleetGroupHeader } from "./FleetGroupHeader";
 import { FleetHeader, KIND_OPTIONS } from "./FleetHeader";
 import { FleetRowItem, fleetRowDomId } from "./FleetRowItem";
@@ -30,6 +35,8 @@ export interface FleetViewProps {
 
 export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   const projects = useAppStore((s) => s.projects);
+  const selected = useAppStore((s) => s.selected);
+  const addProject = useAppStore((s) => s.addProject);
   const selectProject = useAppStore((s) => s.selectProject);
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const toggleService = useAppStore((s) => s.toggleService);
@@ -41,6 +48,7 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   const { jobs } = useAllJobs();
 
   const [kind, setKind] = useState<FleetKindFilter>("all");
+  const [state, setState] = useState<FleetStateFilter>("all");
   const [query, setQuery] = useState("");
   const [grouped, setGrouped] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -66,8 +74,8 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   );
 
   const visible = useMemo(
-    () => applyFleetFilter(fleet.rows, fleet.services, { query, kind }),
-    [fleet, query, kind],
+    () => applyFleetFilter(fleet.rows, fleet.services, { query, kind, state }),
+    [fleet, query, kind, state],
   );
 
   const servicePorts = useFleetServicePorts(fleet.services);
@@ -75,6 +83,21 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
   const { rows, stale, hold, release, holdForKey, resettle } = useFleetOrder(
     visible.rows,
   );
+
+  const openProject = useMemo(() => {
+    const project = projects.find((p) => p.name === selected) ?? projects[0];
+    if (!project) return null;
+    return {
+      name: project.name,
+      label: displayNameForProjectName(project.name, projects),
+    };
+  }, [projects, selected]);
+
+  const clearFilters = useCallback(() => {
+    setQuery("");
+    setKind("all");
+    setState("all");
+  }, []);
 
   const openAutomations = useCallback(() => {
     if (onOpenAutomations) onOpenAutomations();
@@ -180,7 +203,7 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
     />
   );
 
-  const filtered = query.trim() !== "" || kind !== "all";
+  const filtered = query.trim() !== "" || kind !== "all" || state !== "all";
   const nothing = rows.length === 0 && visible.services.length === 0;
 
   return (
@@ -189,26 +212,34 @@ export function FleetView({ onExit, onOpenAutomations }: FleetViewProps) {
         counts={fleet.counts}
         kind={kind}
         onKindChange={setKind}
+        state={state}
+        onStateChange={setState}
         query={query}
         onQueryChange={setQuery}
         searchRef={searchRef}
         grouped={grouped}
         onGroupedChange={setGrouped}
+        filtered={filtered}
+        onClearFilters={clearFilters}
       />
 
       <div className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto pb-2">
         {jobs === null && nothing ? (
-          <p className="py-8 text-center text-[12px] text-[var(--text-muted)]">
+          <p className="flex min-h-full items-center justify-center text-[12px] text-[var(--text-muted)]">
             Loading…
           </p>
         ) : nothing ? (
-          <EmptyState
-            title={filtered ? "Nothing matches" : "Nothing is running"}
-            body={
-              filtered
-                ? "Try a different search, or switch back to All."
-                : "Start a supported agent in an open project, or run a scheduled job. Terminal sessions aren't tracked."
+          <FleetEmpty
+            filtered={filtered}
+            quietProjectCount={fleet.quietProjectCount}
+            openProject={openProject}
+            hiddenAutomationMacs={
+              fleet.peerAutomationsHidden ? fleet.peerAutomationMacs : []
             }
+            onClearFilters={clearFilters}
+            onOpenProject={selectProject}
+            onAddProject={addProject}
+            onOpenAutomations={openAutomations}
           />
         ) : (
           <div className="space-y-6">
