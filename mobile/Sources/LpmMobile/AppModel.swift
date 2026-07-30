@@ -203,7 +203,8 @@ final class AppModel {
     var notifyError: Bool = AppModel.loadBoolPref(AppModel.notifyErrorKey) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
-    var notifyAutomationStarted: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationStartedKey) {
+    var notifyAutomationStarted: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationStartedKey,
+                                                              default: false) {
         didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
     }
     var notifyAutomationDone: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationDoneKey) {
@@ -1004,9 +1005,12 @@ final class AppModel {
     static let notifyAutomationDoneKey = "lpm.notify.automation.done"
     static let notifyAutomationErrorKey = "lpm.notify.automation.error"
 
-    // Absent keys default to enabled, so a fresh install opts in to every push type.
-    private static func loadBoolPref(_ key: String) -> Bool {
-        UserDefaults.standard.object(forKey: key) as? Bool ?? true
+    // Absent keys default to enabled, so a fresh install opts in to every push type
+    // that reports something the user has to act on. An automation starting isn't
+    // one of those — it's the phone announcing work the user already scheduled — so
+    // that one opts in only when asked for.
+    private static func loadBoolPref(_ key: String, default fallback: Bool = true) -> Bool {
+        UserDefaults.standard.object(forKey: key) as? Bool ?? fallback
     }
 
     private func persistNotifyPrefs() {
