@@ -169,6 +169,7 @@ interface AppState {
   detached: Set<string>;
 
   setView: (view: View) => void;
+  toggleAgentOverview: () => void;
   setSettingsTab: (tab: SettingsTab) => void;
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
   setFeedbackOpen: (open: boolean) => void;
@@ -819,6 +820,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   detached: new Set<string>(),
 
   setView: (view) => set({ view }),
+  toggleAgentOverview: () =>
+    set((state) => ({
+      view: state.view === "fleet" ? "projects" : "fleet",
+    })),
 
   setSettingsTab: (settingsTab) => set({ settingsTab }),
 

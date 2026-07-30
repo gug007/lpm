@@ -65,7 +65,8 @@ describe("isReservedShortcut", () => {
   });
 
   it("also blocks combos passed via the extra set", () => {
-    const extra = new Set(["cmd+alt+arrowright"]);
+    const extra = new Set(["cmd+shift+a", "cmd+alt+arrowright"]);
+    expect(isReservedShortcut(parseShortcut("cmd+shift+a")!, extra)).toBe(true);
     expect(isReservedShortcut(parseShortcut("cmd+alt+arrowright")!, extra)).toBe(true);
     expect(isReservedShortcut(parseShortcut("cmd+alt+arrowleft")!, extra)).toBe(false);
   });

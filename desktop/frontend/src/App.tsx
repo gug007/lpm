@@ -64,6 +64,7 @@ export default function App() {
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
 
   const setView = useAppStore((s) => s.setView);
+  const toggleAgentOverview = useAppStore((s) => s.toggleAgentOverview);
   const settingsTab = useAppStore((s) => s.settingsTab);
   const setSettingsTab = useAppStore((s) => s.setSettingsTab);
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
@@ -267,7 +268,7 @@ export default function App() {
           onOpenProjectView={openProjectDetailView}
           onToggle={toggleProjectRunning}
           onTerminals={() => setView("terminals")}
-          onFleet={() => setView("fleet")}
+          onFleet={toggleAgentOverview}
           onStats={() => setView("stats")}
           onUsage={() => setUsageOpen(true)}
           onScheduled={() => setView("scheduled")}

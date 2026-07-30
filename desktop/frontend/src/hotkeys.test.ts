@@ -8,6 +8,7 @@ import {
 describe("normalizeHotkeys", () => {
   it("returns a dense default map for missing/empty input", () => {
     expect(normalizeHotkeys(undefined)).toEqual({
+      toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+alt+arrowright",
       tabSwitchPrev: "cmd+alt+arrowleft",
     });
@@ -15,6 +16,7 @@ describe("normalizeHotkeys", () => {
 
   it("keeps valid entries and defaults invalid ones", () => {
     expect(normalizeHotkeys({ tabSwitchNext: "cmd+shift+]", tabSwitchPrev: "" })).toEqual({
+      toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+shift+]",
       tabSwitchPrev: "cmd+alt+arrowleft",
     });
@@ -23,6 +25,7 @@ describe("normalizeHotkeys", () => {
 
 describe("resolveHotkey", () => {
   it("falls back to the registry default when unset", () => {
+    expect(resolveHotkey(undefined, "toggleAgentOverview")).toBe("cmd+shift+a");
     expect(resolveHotkey(undefined, "tabSwitchNext")).toBe("cmd+alt+arrowright");
     expect(resolveHotkey({ tabSwitchNext: "" }, "tabSwitchNext")).toBe("cmd+alt+arrowright");
   });
@@ -35,13 +38,16 @@ describe("resolveHotkey", () => {
 describe("configuredHotkeyCombos", () => {
   it("collects the canonical combos of all configurable hotkeys", () => {
     expect(configuredHotkeyCombos(undefined)).toEqual(
-      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft"]),
+      new Set(["cmd+shift+a", "cmd+alt+arrowright", "cmd+alt+arrowleft"]),
     );
   });
 
   it("excludes the row being edited", () => {
+    expect(configuredHotkeyCombos(undefined, "toggleAgentOverview")).toEqual(
+      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft"]),
+    );
     expect(configuredHotkeyCombos(undefined, "tabSwitchNext")).toEqual(
-      new Set(["cmd+alt+arrowleft"]),
+      new Set(["cmd+shift+a", "cmd+alt+arrowleft"]),
     );
   });
 });

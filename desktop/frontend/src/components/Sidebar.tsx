@@ -19,9 +19,10 @@ import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
 import { agentAmbient, computeProjectStatus } from "../agentStatus";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon, LayersIcon } from "./icons";
+import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
+import { SidebarActivityButton } from "./SidebarActivityButton";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem } from "./ui/SortableList";
 import {
@@ -1256,38 +1257,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             Terminals
           </button>
         </Tooltip>
-        <Tooltip
-          content="Every agent and automation across your projects, ordered by what is waiting on you."
-          side="right"
-          wide
-          delay={500}
-          triggerClassName="flex w-full"
-        >
-          <button
-            onClick={onFleet}
-            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              showFleet
-                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <LayersIcon />
-            Activity
-            {(ambient.needsYou > 0 || ambient.hasError) && (
-              <span className="ml-auto flex items-center gap-1.5">
-                {ambient.needsYou > 0 && (
-                  <span className="flex items-center gap-1 text-[10px] font-medium tabular-nums text-[var(--accent-amber)]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" />
-                    {ambient.needsYou}
-                  </span>
-                )}
-                {ambient.hasError && (
-                  <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
-                )}
-              </span>
-            )}
-          </button>
-        </Tooltip>
+        <SidebarActivityButton
+          active={showFleet}
+          needsYou={ambient.needsYou}
+          hasError={ambient.hasError}
+          onToggle={onFleet}
+        />
         <SidebarFooterMore
           showScheduled={showScheduled}
           onScheduled={onScheduled}

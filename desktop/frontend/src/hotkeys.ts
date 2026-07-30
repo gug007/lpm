@@ -1,6 +1,9 @@
 import { canonicalShortcut, parseShortcut } from "./shortcutParse";
 
-export type HotkeyId = "tabSwitchNext" | "tabSwitchPrev";
+export type HotkeyId =
+  | "toggleAgentOverview"
+  | "tabSwitchNext"
+  | "tabSwitchPrev";
 
 export interface HotkeyDef {
   id: HotkeyId;
@@ -10,6 +13,12 @@ export interface HotkeyDef {
 }
 
 export const HOTKEYS: HotkeyDef[] = [
+  {
+    id: "toggleAgentOverview",
+    label: "Activity",
+    description: "Open Activity or return to the selected project",
+    default: "cmd+shift+a",
+  },
   {
     id: "tabSwitchNext",
     label: "Next tab",
