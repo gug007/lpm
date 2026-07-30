@@ -154,19 +154,9 @@ struct ActivityServiceGroup: Identifiable, Equatable {
     var id: String { project.name }
 }
 
-struct ActivityCounts: Equatable {
-    var needsYou = 0
-    var error = 0
-    var working = 0
-    var done = 0
-}
-
 struct Activity {
     var rows: [ActivityRow] = []
     var services: [ActivityServiceGroup] = []
-    /// Over every row, before any filter, so narrowing the list never hides an
-    /// approval prompt from the header.
-    var counts = ActivityCounts()
     /// Projects with nothing running at all — one footer line, not N dead rows.
     var quietProjectCount = 0
 }

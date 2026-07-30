@@ -67,7 +67,7 @@ struct ActivityScreen: View {
         let empty = rows.isEmpty && visible.services.isEmpty
 
         VStack(spacing: 0) {
-            ActivityHeader(counts: activity.counts, kind: $kind)
+            ActivityHeader(kind: $kind)
             list(rows: rows, services: visible.services, empty: empty, activity: activity)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())

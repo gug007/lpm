@@ -8,19 +8,15 @@ let activityScopeNote =
 // MARK: - Header
 
 struct ActivityHeader: View {
-    let counts: ActivityCounts
     @Binding var kind: ActivityKindFilter
 
     var body: some View {
-        VStack(spacing: 10) {
-            ActivityCountsStrip(counts: counts)
-            Picker("Filter activity", selection: $kind) {
-                ForEach(ActivityKindFilter.allCases) { option in
-                    Text(option.label).tag(option)
-                }
+        Picker("Filter activity", selection: $kind) {
+            ForEach(ActivityKindFilter.allCases) { option in
+                Text(option.label).tag(option)
             }
-            .pickerStyle(.segmented)
         }
+        .pickerStyle(.segmented)
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, 10)

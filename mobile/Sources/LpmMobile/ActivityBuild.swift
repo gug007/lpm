@@ -177,23 +177,11 @@ func buildActivity(projects: [Project], jobs: [AutomationJob], now: Int,
 
     markDismissable(&rows)
 
-    var counts = ActivityCounts()
-    for row in rows {
-        switch row.state {
-        case .needsYou: counts.needsYou += 1
-        case .error: counts.error += 1
-        case .working: counts.working += 1
-        case .done: counts.done += 1
-        case .idle: break
-        }
-    }
-
     // Services keep the projects list's own order — the one the sidebar shows —
     // rather than an attention order they have no signal to sort by.
     return Activity(
         rows: activityRowsInAttentionOrder(rows),
         services: services,
-        counts: counts,
         quietProjectCount: projects.filter { !busy.contains($0.name) }.count
     )
 }

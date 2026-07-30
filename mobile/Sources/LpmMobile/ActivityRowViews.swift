@@ -244,35 +244,3 @@ private struct ActivityChipButton: View {
         .accessibilityLabel("\(chip.running ? "Stop" : "Start") the \(chip.name) \(chip.noun)")
     }
 }
-
-/// The four attention counts, in the same order and colours as the desktop header.
-struct ActivityCountsStrip: View {
-    let counts: ActivityCounts
-
-    private var items: [(label: String, value: Int, tint: SwiftUI.Color)] {
-        [("needs you", counts.needsYou, .orange),
-         ("problems", counts.error, .red),
-         ("working", counts.working, .blue),
-         ("done", counts.done, .green)]
-    }
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ForEach(items, id: \.label) { item in
-                HStack(spacing: 5) {
-                    Circle().fill(item.tint).frame(width: 6, height: 6)
-                    Text("\(item.value)")
-                        .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(.primary)
-                    Text(item.label)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .opacity(item.value == 0 ? 0.4 : 1)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(item.value) \(item.label)")
-            }
-            Spacer(minLength: 0)
-        }
-    }
-}
