@@ -153,17 +153,22 @@ struct ActivityServiceCard: View {
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                         ActivityTags(project: group.project)
-                        if !ports.isEmpty {
-                            Text(ports.map { ":\($0.port)" }.joined(separator: " "))
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.tertiary)
-                        }
+                        Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
 
                 ActivityChipRow(chips: group.chips, pending: pending, onChip: onChip)
+
+                // Under the chips rather than beside the name: a port belongs to a
+                // service, so it says more paired with one than as a bare number.
+                if !ports.isEmpty {
+                    Text(ports.map { "\($0.service) :\($0.port)" }.joined(separator: "  "))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer(minLength: 4)
