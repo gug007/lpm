@@ -25,16 +25,22 @@ struct ActivityRowCard: View {
     let onOpen: () -> Void
 
     private var named: Bool { !row.project.name.isEmpty && !hideProject }
-    private var primary: String { named ? row.project.label : (row.tabTitle ?? row.title) }
-    private var secondary: String {
-        [named || row.tabTitle != nil ? row.title : nil, row.detail]
+    /// What the row calls the thing that is running: the tab's own name for an
+    /// agent, the job's name for an automation. Nil when it has none of its own.
+    private var subject: String? { row.kind == .automation ? row.title : row.tabTitle }
+    private var headline: String { named ? row.project.label : (subject ?? row.title) }
+    /// The subject earns its own line whenever the headline isn't already it — the
+    /// project name and the tab name each get the full width instead of sharing one.
+    private var subtitle: String? { subject == headline ? nil : subject }
+    private var meta: String {
+        [row.kind == .automation ? nil : row.title, row.detail]
             .compactMap { $0 }
             .joined(separator: " · ")
     }
 
     var body: some View {
         Button(action: onOpen) {
-            HStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
                 Image(systemName: row.kind == .automation ? "clock.arrow.circlepath" : "terminal.fill")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(row.state == .working ? AnyShapeStyle(row.state.tint) : AnyShapeStyle(.secondary))
@@ -44,40 +50,45 @@ struct ActivityRowCard: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(primary)
+                        Text(headline)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
                         if named {
                             ActivityTags(project: row.project)
-                            if let tab = row.tabTitle {
-                                Text(tab)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
                         }
+                        Spacer(minLength: 0)
                     }
+
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
                     HStack(spacing: 5) {
                         Circle().fill(row.state.tint).frame(width: 6, height: 6)
                         Text(row.state.label)
                             .font(.caption.weight(.medium))
                             .foregroundStyle(row.state.tint)
-                        if !secondary.isEmpty {
-                            Text("· \(secondary)")
+                        if !meta.isEmpty {
+                            Text("· \(meta)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
+                        Spacer(minLength: 8)
+                        // The elapsed label keeps its width: a truncated duration
+                        // reads as a different number, a truncated agent name doesn't.
+                        Text(activityElapsedLabel(row, now: now))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .layoutPriority(1)
                     }
                 }
-
-                Spacer(minLength: 6)
-
-                Text(activityElapsedLabel(row, now: now))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(14)
             .contentShape(Rectangle())
@@ -97,6 +108,9 @@ struct ActivityTags: View {
             Text(tag)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
+                // A long project name truncates before a tag does: half a word in a
+                // capsule says less than the name it stole the room from.
+                .fixedSize()
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color(.tertiarySystemFill), in: Capsule())

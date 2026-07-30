@@ -310,7 +310,7 @@ struct DemoWorld {
         }
         projects = [
             Project(
-                name: "storefront", label: "storefront", running: true,
+                name: "storefront", label: "storefront-checkout-experiment", running: true, worktree: true,
                 services: [
                     Svc(name: "web", cmd: "npm run dev", port: 3000, running: true),
                     Svc(name: "api", cmd: "npm run api", port: 4000, running: true),
@@ -356,7 +356,7 @@ struct DemoWorld {
         terminals["storefront"] = [
             Terminal(id: "demo-storefront-1", label: "Terminal 1", project: "storefront",
                      buffer: "~/dev/storefront $ "),
-            Terminal(id: "demo-storefront-claude", label: "Claude", project: "storefront",
+            Terminal(id: "demo-storefront-claude", label: "Review every changed file for security issues", project: "storefront",
                      emoji: "✨", cli: "claude",
                      buffer: "Welcome to Claude Code\r\n\r\n"),
         ]
