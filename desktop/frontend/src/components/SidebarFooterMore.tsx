@@ -7,6 +7,7 @@ import {
   HistoryIcon,
   MessageIcon,
   MoreHorizontalIcon,
+  SettingsIcon,
   SmartphoneIcon,
   StatsIcon,
   ZapIcon,
@@ -22,6 +23,8 @@ interface SidebarFooterMoreProps {
   onStats: () => void;
   showMobile: boolean;
   onMobile: () => void;
+  showSettings: boolean;
+  onSettings: () => void;
   onFeedback: () => void;
 }
 
@@ -64,7 +67,7 @@ function useJobsAmbient(showScheduled: boolean): {
   return { running, attention };
 }
 
-export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsage, showStats, onStats, showMobile, onMobile, onFeedback }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsage, showStats, onStats, showMobile, onMobile, showSettings, onSettings, onFeedback }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClick<HTMLDivElement>(() => setOpen(false), open);
   useEventListener("keydown", (e) => {
@@ -88,32 +91,33 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`relative flex h-full w-8 items-center justify-center rounded-md transition-colors ${
-          open || showScheduled || showUsage || showStats || showMobile
+        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
+          open || showScheduled || showUsage || showStats || showMobile || showSettings
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
         title={
           attention
-            ? "More views — a scheduled job hit a problem"
+            ? "More — a scheduled job hit a problem"
             : running > 0
-              ? "More views — a scheduled job is running"
-              : "More views"
+              ? "More — a scheduled job is running"
+              : "Settings and more views"
         }
-        aria-label="More views"
+        aria-label="More"
         aria-expanded={open}
       >
         <MoreHorizontalIcon />
+        More
         {attention ? (
-          <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
+          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
         ) : (
           running > 0 && (
-            <span className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
+            <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
           )
         )}
       </button>
       {open && (
-        <div className={`absolute bottom-full right-0 z-[80] mb-1.5 w-48 px-1 ${MENU_PANEL_CLASS}`}>
+        <div className={`absolute bottom-full left-0 z-[80] mb-1.5 w-full min-w-[12rem] px-1 ${MENU_PANEL_CLASS}`}>
           <button onClick={pick(onScheduled)} className={itemClass(showScheduled)}>
             <span className="shrink-0">
               <HistoryIcon />
@@ -148,8 +152,17 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
             </span>
             Mobile app
           </button>
+          <div className="my-1 h-px bg-[var(--border)]" />
+          <button onClick={pick(onSettings)} className={itemClass(showSettings)}>
+            <span className="shrink-0">
+              <SettingsIcon />
+            </span>
+            Settings
+          </button>
           <button onClick={pick(onFeedback)} className={itemClass(false)}>
-            <MessageIcon />
+            <span className="shrink-0">
+              <MessageIcon />
+            </span>
             Support &amp; Feedback
           </button>
         </div>
