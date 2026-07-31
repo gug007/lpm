@@ -128,7 +128,13 @@ export function useSessionRestore({
       focusedRef.current = focused;
       const all = collectTerminals(restored);
       onCountRef.current?.(all.length);
+      // Only into ptys this restore launched. The others were adopted from a
+      // peer that kept them running while we were closed, so their program is
+      // already up — typing the launch command again would land in a live
+      // agent's prompt.
+      const launched = new Set(allStartedIds);
       all.forEach((t) => {
+        if (!launched.has(t.id)) return;
         const cmd = t.resumeCmd ?? t.startCmd;
         if (cmd) scheduleCmdInject(t.id, cmd);
       });

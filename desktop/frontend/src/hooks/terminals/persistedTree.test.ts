@@ -74,6 +74,25 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(started).toEqual([]);
   });
 
+  // `startedIds` is how restore knows which panes to type the launch command
+  // into: an adopted terminal is already running its program, so injecting there
+  // would land in a live agent's prompt.
+  it("keeps an adopted terminal's launch command but leaves it out of startedIds", async () => {
+    h.terminalExists.mockResolvedValue(true);
+    const started: string[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7", startCmd: "claude" }]),
+        "peer-a1b2c3d4-demo",
+        started,
+      ),
+    );
+
+    expect(pane.tabs[0].startCmd).toBe("claude");
+    expect(started).not.toContain("peer-a1b2c3d4-project-7");
+  });
+
   it("relaunches a peer terminal the host has forgotten", async () => {
     h.terminalExists.mockResolvedValue(false);
     h.startTerminal.mockResolvedValue("pty-fresh");
