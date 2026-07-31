@@ -1,0 +1,26 @@
+[Unit]
+Description=lpm host
+Requires=lpm-wm.service
+After=lpm-wm.service
+# A restarted display is a dead window for a process that already drew into the
+# old one, so the app follows the display down and back up rather than surviving
+# as something that can no longer render.
+PartOf=lpm-xvfb.service
+
+[Service]
+Environment=DISPLAY=:99
+Environment=HOME=/root
+WorkingDirectory=/root
+ExecStart=/root/lpm-desktop
+
+# on-failure, NOT always — and this is a deliberate limit, not an oversight.
+# Agent terminals on this host are owned by the app process, so every restart of
+# this unit ends whatever agents are running, silently and with no way to get the
+# conversation back. `always` would turn an ordinary crash-and-recover into a
+# whole session lost, so restarts are for a process that actually died, and a
+# planned `systemctl restart lpm` is a decision to stop the agents on this box.
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

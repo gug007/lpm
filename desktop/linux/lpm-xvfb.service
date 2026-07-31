@@ -1,0 +1,18 @@
+[Unit]
+Description=Virtual display for lpm
+Before=lpm-wm.service
+
+[Service]
+# lpm is a desktop app running with nobody looking at it: the peer server and the
+# terminals live inside the same webview the Mac UI uses, so there has to be a
+# display for it to draw into, real or not.
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1400x900x24 -nolisten tcp
+# Hold the unit "activating" until the display actually answers. Without this the
+# window manager and the app race a display that isn't up yet, and the failure is
+# invisible — the app starts, draws into nothing, and never runs its page.
+ExecStartPost=/bin/sh -c 'for i in $(seq 1 50); do xdpyinfo -display :99 >/dev/null 2>&1 && exit 0; sleep 0.2; done; exit 1'
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
