@@ -15,7 +15,7 @@ use serde_json::Value;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use crate::peertunnel::{SshTarget, Tunnel};
+use crate::peertunnel::{push_target_args, ssh_common_args, SshTarget, Tunnel};
 
 /// Where a host fetches its own copy. The repo is public, so the server pulls the
 /// release directly rather than the Mac shipping 16MB up an SSH channel.
@@ -26,26 +26,8 @@ const REMOTE_TIMEOUT: Duration = Duration::from_secs(300);
 const TUNNEL_WAIT: Duration = Duration::from_secs(30);
 
 fn ssh_base_args(target: &SshTarget) -> Vec<String> {
-    let mut args = vec![
-        "-o".into(),
-        "BatchMode=yes".into(),
-        "-o".into(),
-        "ConnectTimeout=10".into(),
-        "-o".into(),
-        "ControlMaster=no".into(),
-        "-o".into(),
-        "ControlPath=none".into(),
-    ];
-    if target.port > 0 && target.port != 22 {
-        args.push("-p".into());
-        args.push(target.port.to_string());
-    }
-    let key = target.key.trim();
-    if !key.is_empty() {
-        args.push("-i".into());
-        args.push(crate::config::expand_home(key));
-    }
-    args.push(target.destination());
+    let mut args = ssh_common_args();
+    push_target_args(&mut args, target);
     args
 }
 
@@ -170,21 +152,12 @@ pub fn parse_invite(raw: &str) -> Result<RemoteInvite, String> {
 pub fn open_pairing_tunnel(target: &SshTarget, remote_port: u16) -> Result<(Tunnel, u16), String> {
     let tunnel = Tunnel::new(target.clone(), remote_port);
     tunnel.start();
-    let deadline = Instant::now() + TUNNEL_WAIT;
-    loop {
-        if let Some(port) = tunnel.local_port() {
-            return Ok((tunnel, port));
-        }
-        if Instant::now() >= deadline {
-            let err = tunnel.last_error();
+    match tunnel.wait_until_up(TUNNEL_WAIT, "could not forward the host's port over SSH") {
+        Ok(port) => Ok((tunnel, port)),
+        Err(e) => {
             tunnel.stop();
-            return Err(if err.is_empty() {
-                "could not forward the host's port over SSH".into()
-            } else {
-                err
-            });
+            Err(e)
         }
-        std::thread::sleep(Duration::from_millis(100));
     }
 }
 

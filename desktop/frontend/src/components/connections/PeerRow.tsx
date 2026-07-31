@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Server } from "lucide-react";
-import { PeerSetEnabled, PeerUpdateHost, GetVersion } from "../../../bridge/commands";
+import { PeerSetEnabled, PeerUpdateHost } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
 import { Toggle } from "./Toggle";
 import { Row } from "./GroupedList";
@@ -26,7 +26,7 @@ export function PeerRow({
   const name = peer.alias || peer.host;
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
-  const behind = peer.sshHost && isHostBehind(peer.version ?? "", appVersion);
+  const behind = !!peer.sshHost && isHostBehind(peer.version ?? "", appVersion);
 
   const update = async () => {
     setUpdating(true);

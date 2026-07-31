@@ -78,35 +78,27 @@ const READY_POLL: Duration = Duration::from_millis(100);
 const BACKOFF_MIN: Duration = Duration::from_secs(2);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 
-/// The ssh invocation for a forward. No `-t` (there is no terminal and no command
-/// to run), and `BatchMode` so a host that wants a password fails immediately
-/// instead of hanging forever on a prompt nobody can see. `ExitOnForwardFailure`
-/// matters most: without it ssh happily connects while the forward is dead, and
-/// the tunnel reads as up while nothing can traverse it.
-///
-/// The connection is deliberately NOT shared with the project ControlMaster: a
-/// long-lived forward should not die because some unrelated project's mux was
-/// reaped, and vice versa.
-pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -> Vec<String> {
-    let mut args = vec![
-        "-N".into(),
+/// The options every lpm-run ssh shares. `BatchMode` so a host that wants a
+/// password fails immediately instead of hanging forever on a prompt nobody can
+/// see, and the connection is deliberately NOT shared with the project
+/// ControlMaster: a long-lived forward should not die because some unrelated
+/// project's mux was reaped, and vice versa.
+pub fn ssh_common_args() -> Vec<String> {
+    vec![
         "-o".into(),
         "BatchMode=yes".into(),
         "-o".into(),
-        "ExitOnForwardFailure=yes".into(),
+        "ConnectTimeout=10".into(),
         "-o".into(),
         "ControlMaster=no".into(),
         "-o".into(),
         "ControlPath=none".into(),
-        "-o".into(),
-        "ServerAliveInterval=15".into(),
-        "-o".into(),
-        "ServerAliveCountMax=3".into(),
-        "-o".into(),
-        "ConnectTimeout=10".into(),
-        "-L".into(),
-        format!("127.0.0.1:{local_port}:127.0.0.1:{remote_port}"),
-    ];
+    ]
+}
+
+/// The tail every ssh command line ends with: which port, which key, which
+/// machine. Destination goes last, so this is always the final thing appended.
+pub fn push_target_args(args: &mut Vec<String>, target: &SshTarget) {
     if target.port > 0 && target.port != 22 {
         args.push("-p".into());
         args.push(target.port.to_string());
@@ -117,6 +109,26 @@ pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -
         args.push(crate::config::expand_home(key));
     }
     args.push(target.destination());
+}
+
+/// The ssh invocation for a forward. No `-t` (there is no terminal and no command
+/// to run). `ExitOnForwardFailure` is the one that matters most: without it ssh
+/// happily connects while the forward is dead, and the tunnel reads as up while
+/// nothing can traverse it.
+pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -> Vec<String> {
+    let mut args = vec!["-N".into()];
+    args.extend(ssh_common_args());
+    args.extend([
+        "-o".into(),
+        "ExitOnForwardFailure=yes".into(),
+        "-o".into(),
+        "ServerAliveInterval=15".into(),
+        "-o".into(),
+        "ServerAliveCountMax=3".into(),
+        "-L".into(),
+        format!("127.0.0.1:{local_port}:127.0.0.1:{remote_port}"),
+    ]);
+    push_target_args(&mut args, target);
     args
 }
 
@@ -208,6 +220,29 @@ impl Tunnel {
         self.inner.target == *target && self.inner.remote_port == remote_port
     }
 
+    /// Block until there's a port to dial, or give up. The supervisor may have
+    /// only just started, so callers wait rather than failing instantly — a peer
+    /// reported offline while its tunnel is two seconds from ready is wrong in
+    /// the most confusing way. On timeout the supervisor's own error wins over
+    /// `fallback`: "host key verification failed" beats "it didn't come up".
+    pub fn wait_until_up(&self, timeout: Duration, fallback: &str) -> Result<u16, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if let Some(port) = self.local_port() {
+                return Ok(port);
+            }
+            if Instant::now() >= deadline {
+                let err = self.last_error();
+                return Err(if err.is_empty() {
+                    fallback.to_string()
+                } else {
+                    err
+                });
+            }
+            std::thread::sleep(READY_POLL);
+        }
+    }
+
     /// Stop supervising and tear down the forward.
     pub fn stop(&self) {
         self.inner.enabled.store(false, Ordering::SeqCst);
@@ -224,14 +259,11 @@ impl Tunnel {
 impl Drop for Inner {
     fn drop(&mut self) {
         self.enabled.store(false, Ordering::SeqCst);
-        if let Some(mut child) = self.child.lock().unwrap().take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+        kill_child(self);
     }
 }
 
-fn kill_child(inner: &Arc<Inner>) {
+fn kill_child(inner: &Inner) {
     if let Some(mut child) = inner.child.lock().unwrap().take() {
         let _ = child.kill();
         let _ = child.wait();
@@ -265,13 +297,13 @@ fn supervise(inner: Arc<Inner>) {
     *inner.state.lock().unwrap() = TunnelState::Down;
 }
 
-fn set_down(inner: &Arc<Inner>, err: &str) {
+fn set_down(inner: &Inner, err: &str) {
     *inner.state.lock().unwrap() = TunnelState::Down;
     inner.local_port.store(0, Ordering::SeqCst);
     *inner.last_error.lock().unwrap() = err.to_string();
 }
 
-fn spawn_forward(inner: &Arc<Inner>) -> Result<(), String> {
+fn spawn_forward(inner: &Inner) -> Result<(), String> {
     let local = free_local_port()?;
     let args = ssh_forward_args(&inner.target, local, inner.remote_port);
     let child = Command::new("ssh")
@@ -310,7 +342,7 @@ fn spawn_forward(inner: &Arc<Inner>) -> Result<(), String> {
 }
 
 /// `Some(exit code)` once ssh is gone, `None` while it's still running.
-fn child_exited(inner: &Arc<Inner>) -> Option<Option<i32>> {
+fn child_exited(inner: &Inner) -> Option<Option<i32>> {
     let mut guard = inner.child.lock().unwrap();
     let child = guard.as_mut()?;
     match child.try_wait() {
@@ -320,7 +352,7 @@ fn child_exited(inner: &Arc<Inner>) -> Option<Option<i32>> {
     }
 }
 
-fn wait_for_exit(inner: &Arc<Inner>) {
+fn wait_for_exit(inner: &Inner) {
     loop {
         if !inner.enabled.load(Ordering::SeqCst) {
             kill_child(inner);
