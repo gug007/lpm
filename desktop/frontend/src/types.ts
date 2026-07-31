@@ -370,7 +370,13 @@ export function aiEffectiveEffort(cli: AICLI, model: string, effort: string): st
 // Codex Fast Mode (`service_tier=fast`) is currently honored only by the
 // flagship 5.x models. Listing the eligible models centrally so the picker
 // and the call-site guard agree.
-const CODEX_FAST_MODELS: ReadonlySet<string> = new Set(["gpt-5.5", "gpt-5.4"]);
+const CODEX_FAST_MODELS: ReadonlySet<string> = new Set([
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-5.5",
+  "gpt-5.4",
+]);
 
 export function aiSupportsFast(cli: AICLI, model: string): boolean {
   return cli === "codex" && CODEX_FAST_MODELS.has(model);

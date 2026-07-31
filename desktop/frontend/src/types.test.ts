@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aiEffectiveEffort, aiEfforts } from "./types";
+import { aiEffectiveEffort, aiEfforts, aiSupportsFast } from "./types";
 
 const values = (cli: "claude" | "codex" | "gemini", model: string) =>
   aiEfforts(cli, model).map((e) => e.value);
@@ -25,6 +25,22 @@ describe("aiEfforts", () => {
 
   it("has nothing for CLIs without an effort control", () => {
     expect(values("gemini", "")).toEqual([]);
+  });
+});
+
+describe("aiSupportsFast", () => {
+  it("offers Fast Mode on the flagship Codex models", () => {
+    expect(aiSupportsFast("codex", "gpt-5.6-sol")).toBe(true);
+    expect(aiSupportsFast("codex", "gpt-5.6-terra")).toBe(true);
+    expect(aiSupportsFast("codex", "gpt-5.6-luna")).toBe(true);
+    expect(aiSupportsFast("codex", "gpt-5.5")).toBe(true);
+    expect(aiSupportsFast("codex", "gpt-5.4")).toBe(true);
+  });
+
+  it("withholds it from the smaller models, an unpinned pick, and other CLIs", () => {
+    expect(aiSupportsFast("codex", "gpt-5.4-mini")).toBe(false);
+    expect(aiSupportsFast("codex", "")).toBe(false);
+    expect(aiSupportsFast("claude", "opus")).toBe(false);
   });
 });
 
