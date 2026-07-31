@@ -35,8 +35,3 @@ export function parseSshTarget(input: string): SshTarget | null {
 
   return { host, user, port, key: "" };
 }
-
-// The name to show before the host has told us its own.
-export function defaultAlias(target: SshTarget): string {
-  return target.host;
-}

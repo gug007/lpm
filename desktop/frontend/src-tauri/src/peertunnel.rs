@@ -217,6 +217,20 @@ impl Tunnel {
     }
 }
 
+/// The ssh child is a process, so nothing reclaims it just because the last
+/// handle went away. `stop()` is the intended path; this catches a Tunnel that
+/// is simply dropped — replaced by a reconfigured one, say — so the forward can't
+/// outlive the thing that was supervising it.
+impl Drop for Inner {
+    fn drop(&mut self) {
+        self.enabled.store(false, Ordering::SeqCst);
+        if let Some(mut child) = self.child.lock().unwrap().take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
 fn kill_child(inner: &Arc<Inner>) {
     if let Some(mut child) = inner.child.lock().unwrap().take() {
         let _ = child.kill();
@@ -393,6 +407,16 @@ mod tests {
 
     // No forward, nothing to dial: the caller must not fall back to some stale
     // port and connect to whatever happens to be listening there now.
+    // stop() must be safe to call on a tunnel that never started, since teardown
+    // paths run over whatever happens to be configured.
+    #[test]
+    fn stopping_an_unstarted_tunnel_is_harmless() {
+        let tunnel = Tunnel::new(target(), 8766);
+        tunnel.stop();
+        assert_eq!(tunnel.state().as_str(), "down");
+        assert!(tunnel.local_port().is_none());
+    }
+
     #[test]
     fn there_is_no_local_port_until_the_tunnel_is_up() {
         let tunnel = Tunnel::new(target(), 8766);

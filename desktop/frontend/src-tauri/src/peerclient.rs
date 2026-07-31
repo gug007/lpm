@@ -265,6 +265,9 @@ impl PeerClientHub {
     /// Stop and forget a peer's live connection (config is handled by the caller).
     fn stop_conn(&self, slug: &str) {
         if let Some(conn) = self.inner.conns.lock().unwrap().remove(slug) {
+            if let Some(tunnel) = conn.tunnel.lock().unwrap().take() {
+                tunnel.stop();
+            }
             conn.enabled.store(false, Ordering::SeqCst);
             conn.generation.fetch_add(1, Ordering::SeqCst);
             *conn.out.lock().unwrap() = None;
@@ -1069,6 +1072,13 @@ pub fn stop(hub: &PeerClientHub) {
         conn.enabled.store(false, Ordering::SeqCst);
         conn.generation.fetch_add(1, Ordering::SeqCst);
         conn.fail_pending("app exiting");
+        // An ssh forward is a CHILD PROCESS, not a thread: retiring the connection
+        // that used it leaves it running, re-parented to init, holding a session on
+        // the server and a local port for as long as the machine is up. One per
+        // launch adds up fast on a dev build.
+        if let Some(tunnel) = conn.tunnel.lock().unwrap().take() {
+            tunnel.stop();
+        }
     }
     hub.inner.conns.lock().unwrap().clear();
 }

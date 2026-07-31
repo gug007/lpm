@@ -230,6 +230,10 @@ pub fn run() {
                 true,
             );
             status::start_pid_sweep(store, handle.clone());
+            // Keep each SSH host's `ssh -R` status forward alive for as long as it
+            // has a live pane — without it a dropped forward silently ends remote
+            // agent status (and its sound) for the rest of the session.
+            statusfwd::start_watchdog(handle.clone());
 
             // Watch ~/.lpm so config edits by another lpm instance or an external
             // editor re-emit projects-changed / templates-changed here.
