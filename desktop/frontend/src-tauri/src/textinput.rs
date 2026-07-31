@@ -3,6 +3,12 @@
 // and prompts typed into the terminal composer — e.g. a double space becomes
 // ". ". WKWebView text input honors these standardUserDefaults keys, so clearing
 // them before any webview is created turns the substitutions off everywhere.
+/// Nothing to disable off macOS: automatic substitution is an AppKit text-input
+/// behaviour, and the objc2 crates aren't even linked on other platforms.
+#[cfg(not(target_os = "macos"))]
+pub fn disable_smart_substitutions() {}
+
+#[cfg(target_os = "macos")]
 pub fn disable_smart_substitutions() {
     use objc2::runtime::{AnyObject, Bool};
     use objc2::{class, msg_send};

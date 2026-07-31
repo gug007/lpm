@@ -18,8 +18,12 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime};
-use tauri::{AppHandle, Emitter, Manager, State};
+use std::time::Duration;
+#[cfg(target_os = "macos")]
+use std::time::SystemTime;
+use tauri::{AppHandle, State};
+#[cfg(target_os = "macos")]
+use tauri::{Emitter, Manager};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/gug007/lpm/releases/latest";
 
