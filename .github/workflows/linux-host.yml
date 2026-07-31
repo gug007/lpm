@@ -7,7 +7,10 @@ name: Linux host
 
 on:
   push:
-    branches: [main]
+    # `linux-**` is an escape hatch for bringing this job up: pushing to such a
+    # branch runs it without needing a PR open, and the pattern never matches a
+    # normal branch, so there is nothing to remember to remove later.
+    branches: [main, "linux-**"]
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
@@ -16,6 +19,9 @@ on:
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
+      # Iterating on CI means commits that touch ONLY this file. Without it
+      # listed here, the re-runs stop firing after the first push.
+      - ".github/workflows/linux-host.yml"
   workflow_dispatch:
 
 concurrency:
