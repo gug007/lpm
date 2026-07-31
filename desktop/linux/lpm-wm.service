@@ -1,0 +1,21 @@
+[Unit]
+Description=Window manager for lpm's virtual display
+Requires=lpm-xvfb.service
+After=lpm-xvfb.service
+Before=lpm.service
+# The display going away takes this with it, cleanly. Without PartOf, matchbox
+# just dies with the X server and the unit lands in `failed` — which then looks
+# like the thing to debug when the actual cause is one level down.
+PartOf=lpm-xvfb.service
+
+[Service]
+# Not optional, and not obvious: with a bare X server and no window manager the
+# app's window is created 10x10 and never mapped, so the page never runs. Nothing
+# in the logs says so — it only shows up in a screenshot of the display.
+Environment=DISPLAY=:99
+ExecStart=/usr/bin/matchbox-window-manager -use_titlebar no
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
