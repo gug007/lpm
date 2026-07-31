@@ -279,6 +279,7 @@ export function PeerDiscoveryStart(...args: any[]): Promise<any>;
 export function PeerDiscoveryStop(...args: any[]): Promise<any>;
 export function PeerDispatchReply(...args: any[]): Promise<any>;
 export function PeerAdd(...args: any[]): Promise<any>;
+export function PeerAddSshHost(...args: any[]): Promise<any>;
 export function PeerRemove(...args: any[]): Promise<any>;
 export function PeerSetEnabled(...args: any[]): Promise<any>;
 export function PeerSetAutoSync(...args: any[]): Promise<any>;

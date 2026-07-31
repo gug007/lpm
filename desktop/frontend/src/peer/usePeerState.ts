@@ -50,6 +50,12 @@ export interface PeerClient {
   lastSyncAt?: number;
   lastError?: string;
   autoSync?: boolean;
+  // Reachability over SSH, when this peer is behind a forward: `sshHost` is the
+  // destination and `tunnel` is up/connecting/down. Reported apart from
+  // `connected` because a dead forward and a dead host look identical and are
+  // fixed differently.
+  sshHost?: string;
+  tunnel?: string;
   // What the other end runs, re-reported on every connect. A "linux" peer is a
   // headless host rather than someone's Mac. Empty until its next connect for an
   // entry paired before hosts sent it — treat unknown as a Mac, never as Linux.

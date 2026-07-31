@@ -48,15 +48,7 @@ export function PeerRow({
                     : "var(--accent-amber)",
             }}
           />
-          <span className="truncate text-[var(--text-muted)]">
-            {!peer.enabled
-              ? "Off"
-              : peer.connected
-                ? "Connected"
-                : peer.lastError
-                  ? peer.lastError
-                  : "Connecting…"}
-          </span>
+          <span className="truncate text-[var(--text-muted)]">{statusText(peer)}</span>
         </div>
       </div>
       <button
@@ -72,4 +64,17 @@ export function PeerRow({
       />
     </Row>
   );
+}
+
+// A peer behind an SSH forward has two ways to be unreachable, and calling both
+// of them "offline" sends the user to look at the wrong machine. Only speak up
+// about the tunnel while it is actually the thing that's wrong.
+function statusText(peer: PeerClient): string {
+  if (!peer.enabled) return "Off";
+  if (peer.connected) return "Connected";
+  if (peer.sshHost) {
+    if (peer.tunnel === "connecting") return `Connecting over SSH to ${peer.sshHost}…`;
+    if (peer.tunnel !== "up") return peer.lastError || `No SSH connection to ${peer.sshHost}`;
+  }
+  return peer.lastError || "Connecting…";
 }
