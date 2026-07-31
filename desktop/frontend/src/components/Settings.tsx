@@ -64,7 +64,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
-import { ConnectMacsPane } from "./ConnectMacsPane";
+import { ConnectionsPane } from "./ConnectionsPane";
 import { PencilIcon, PlusIcon, TrashIcon } from "./icons";
 import { useAppStore } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
@@ -97,7 +97,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   templates: LayoutTemplate,
   backup: DatabaseBackup,
   mobile: Smartphone,
-  "connect-macs": MonitorSmartphone,
+  "connections": MonitorSmartphone,
   "global-config": FileCode2,
 };
 
@@ -1021,9 +1021,9 @@ export function Settings({
             </div>
           )}
 
-          {activeTab === "connect-macs" && (
-            <div data-settings-row="connect-macs.peers">
-              <ConnectMacsPane />
+          {activeTab === "connections" && (
+            <div data-settings-row="connections.peers">
+              <ConnectionsPane />
             </div>
           )}
 

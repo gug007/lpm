@@ -1,6 +1,6 @@
 // Mac-to-Mac peer client connection manager.
 //
-// The client half of "Connect Macs": for every remote Mac this Mac has paired
+// The client half of "Connections": for every remote machine this Mac has paired
 // with (persisted in ~/.lpm/peer.json, shared with peer.rs), it keeps one
 // WebSocket connection open, auto-reconnecting with backoff while the peer is
 // enabled. Commands the frontend router marks for a peer arrive here as
@@ -196,6 +196,7 @@ impl PeerClientHub {
                     "lastSyncAt": p.last_sync_at,
                     "lastError": last_error,
                     "autoSync": p.auto_sync,
+                    "platform": p.platform,
                 })
             })
             .collect();
@@ -267,7 +268,9 @@ impl PeerClientHub {
         };
 
         if let Err(e) = ws.send(Message::text(
-            json!({ "t": "pairRequest", "name": local_name() }).to_string(),
+            json!({ "t": "pairRequest", "name": local_name(),
+                "platform": peer::platform_id() })
+            .to_string(),
         )) {
             let e = e.to_string();
             self.emit_pair_failed(&e);
@@ -392,6 +395,7 @@ impl PeerClientHub {
                 enabled: true,
                 last_sync_at: 0,
                 auto_sync: false,
+                platform: s("hostPlatform"),
             });
             let snapshot = cfg.clone();
             drop(cfg);
@@ -1280,6 +1284,30 @@ fn persist_tls_fp(hub: &PeerClientHub, slug: &str, fp: &str) {
     emit_state_changed(hub);
 }
 
+/// Record what OS the host reported on this auth. Written on every connect, not
+/// just pairing, so an entry stored before hosts sent it fills in by itself — and
+/// so a host that changed machines under the same identity doesn't stay wrong.
+fn persist_platform(hub: &PeerClientHub, slug: &str, platform: &str) {
+    if platform.is_empty() {
+        return;
+    }
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
+        Some(p) if p.platform != platform => {
+            p.platform = platform.to_string();
+            true
+        }
+        _ => false,
+    };
+    if !changed {
+        return;
+    }
+    let snapshot = cfg.clone();
+    drop(cfg);
+    let _ = peer::save_config(&snapshot);
+    emit_state_changed(hub);
+}
+
 /// Dial, authenticate, then run the read/write loop until the socket drops. Ok
 /// means a session ran and ended; Err means we never got connected.
 fn connect_session(
@@ -1318,6 +1346,11 @@ fn connect_session(
     if let Some(fp) = pin_after_auth(entry.tls_fp.as_deref(), was_tls, captured_fp.as_deref()) {
         persist_tls_fp(hub, &conn.slug, &fp);
     }
+    persist_platform(
+        hub,
+        &conn.slug,
+        rv.get("hostPlatform").and_then(Value::as_str).unwrap_or(""),
+    );
     let features = rv.get("features").and_then(Value::as_array);
     let has_feature = |name: &str| {
         features
@@ -1617,6 +1650,10 @@ pub(crate) fn add_peer_blocking(
             enabled: true,
             last_sync_at: 0,
             auto_sync: false,
+            // Left for the auth below to fill: `start_conn` runs immediately and
+            // every `ready` reports it, so this takes the same back-fill path as
+            // an entry paired before hosts sent a platform at all.
+            platform: String::new(),
         });
         let snapshot = cfg.clone();
         drop(cfg);
@@ -1669,7 +1706,9 @@ fn dial_pair(
         },
     };
     ws.send(Message::text(
-        json!({ "t": "pair", "code": code, "name": local_name() }).to_string(),
+        json!({ "t": "pair", "code": code, "name": local_name(),
+            "platform": peer::platform_id() })
+        .to_string(),
     ))
     .map_err(|e| e.to_string())?;
     let reply = loop {
