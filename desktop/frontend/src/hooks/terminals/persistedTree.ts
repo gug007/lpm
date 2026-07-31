@@ -45,6 +45,41 @@ export async function reifyTreeWithFreshPtys(
   return restored ? disambiguateRestoredSessionTitles(restored) : null;
 }
 
+// How long a restore waits for the peer connection before deciding what to do
+// with a terminal it can't ask about. Restore routinely beats the connection by a
+// second or two on a cold start, and the tabs are checked in parallel, so this is
+// one short wait for the whole tree rather than one per tab.
+const PEER_CHECK_WINDOW_MS = 8000;
+const PEER_CHECK_RETRY_MS = 500;
+
+/**
+ * Whether to adopt a persisted peer terminal rather than launch a new one.
+ *
+ * Three outcomes, and the third is the one that bites. `true` — the host still
+ * has it. `false` — the host genuinely lost it, so a fresh pty is right. But
+ * "couldn't ask" is neither: launching a terminal we failed to verify leaves the
+ * real one running on the host with nothing attached to it — a stranded agent
+ * burning tokens, plus a duplicate nobody can reconcile.
+ *
+ * So retry across a short window first, which covers the ordinary cold start
+ * where restore simply got there before the peer connected. If it still can't be
+ * asked, adopt on faith: the host keeps its terminals across our restart by
+ * design, so the id is far more likely live than not, and the attach re-subscribes
+ * by itself once the peer connects. Being wrong costs a blank pane the user can
+ * close; the other way costs a running agent.
+ */
+async function shouldAdoptPeerTerminal(id: string): Promise<boolean> {
+  const deadline = Date.now() + PEER_CHECK_WINDOW_MS;
+  for (;;) {
+    try {
+      return await TerminalExists(id);
+    } catch {
+      if (Date.now() >= deadline) return true;
+      await new Promise((resolve) => setTimeout(resolve, PEER_CHECK_RETRY_MS));
+    }
+  }
+}
+
 /**
  * The pty backing a restored tab: an existing one when this is a peer terminal
  * that outlived us, else a freshly started pty.
@@ -54,16 +89,14 @@ export async function reifyTreeWithFreshPtys(
  * (along with its scrollback ring) while we were closed. Relaunching that would
  * strand the live session and any agent inside it, and hand back an empty pane;
  * adopting the id instead lets the normal attach path replay the host's
- * scrollback. A host that no longer knows the id has genuinely lost it, so we
- * fall back to starting fresh — as we do if the check itself fails.
+ * scrollback.
  */
 async function reifyTab(
   t: PersistedTab,
   projectName: string,
 ): Promise<{ id: string; adopted: boolean }> {
   if (t.id && isPeerMarked(t.id)) {
-    const alive = await TerminalExists(t.id).catch(() => false);
-    if (alive) return { id: t.id, adopted: true };
+    if (await shouldAdoptPeerTerminal(t.id)) return { id: t.id, adopted: true };
   }
   const id = await (t.actionName
     ? StartTerminalForRestore(projectName, t.actionName)
