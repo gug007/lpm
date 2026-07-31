@@ -283,6 +283,7 @@ export function PeerAddSshHost(...args: any[]): Promise<any>;
 export function PeerUpdateHost(...args: any[]): Promise<any>;
 export function PeerRemove(...args: any[]): Promise<any>;
 export function PeerSetEnabled(...args: any[]): Promise<any>;
+export function PeerReconnect(...args: any[]): Promise<any>;
 export function PeerSetAutoSync(...args: any[]): Promise<any>;
 export function PeerInvoke(...args: any[]): Promise<any>;
 export function PeerSyncStatus(...args: any[]): Promise<any>;

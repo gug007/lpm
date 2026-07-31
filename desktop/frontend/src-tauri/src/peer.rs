@@ -58,6 +58,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     "memory-changed",
     "clone-done",
     "duplicate-done",
+    // A headless host emits this instead of chiming to an empty room.
+    crate::sound::STATUS_SOUND_EVENT,
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -1845,6 +1847,14 @@ pub(crate) fn candidate_hosts() -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // A headless host has no speaker, so it forwards the transition instead of
+    // chiming. If this name ever drops off the list the host simply goes quiet —
+    // no error, no log, just a Mac that stops hearing its agents.
+    #[test]
+    fn the_status_chime_is_forwarded_to_peers() {
+        assert!(FORWARDED_EVENTS.contains(&crate::sound::STATUS_SOUND_EVENT));
+    }
 
     #[test]
     fn config_roundtrips_both_roles() {

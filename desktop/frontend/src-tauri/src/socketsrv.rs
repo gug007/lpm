@@ -825,7 +825,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     }
     if store.set(project, entry) {
         let _ = app.emit("status-changed", project);
-        crate::sound::play_status_sound(&value);
+        crate::sound::announce_status(app, &value);
     }
     "OK".into()
 }

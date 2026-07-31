@@ -264,7 +264,9 @@ impl PeerClientHub {
     }
 
     /// Stop and forget a peer's live connection (config is handled by the caller).
-    fn stop_conn(&self, slug: &str) {
+    /// `reason` is what any in-flight request to that peer fails with, so a caller
+    /// that is only restarting the connection doesn't report it as a removal.
+    fn stop_conn(&self, slug: &str, reason: &str) {
         if let Some(conn) = self.inner.conns.lock().unwrap().remove(slug) {
             if let Some(tunnel) = conn.tunnel.lock().unwrap().take() {
                 tunnel.stop();
@@ -273,7 +275,7 @@ impl PeerClientHub {
             conn.generation.fetch_add(1, Ordering::SeqCst);
             *conn.out.lock().unwrap() = None;
             conn.connected.store(false, Ordering::Relaxed);
-            conn.fail_pending("peer removed");
+            conn.fail_pending(reason);
         }
     }
 
@@ -1643,6 +1645,15 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                     &format!("peer-evt-{slug}"),
                     json!({ "name": name, "payload": payload }),
                 );
+                // A headless host can't chime for its own agents — nobody is at it
+                // — so it hands the transition here and this Mac plays it, under
+                // this Mac's sound settings. Only hosts that can't play send it, so
+                // a peer Mac chiming for itself is never doubled up here.
+                if name == crate::sound::STATUS_SOUND_EVENT {
+                    if let Some(value) = payload.as_str() {
+                        crate::sound::play_status_sound(value);
+                    }
+                }
                 // A forwarded config-change event is a remote sync trigger: the
                 // other Mac edited its projects/templates or wrote session memory,
                 // so an auto-enabled peer reconciles shortly after. Lossy forwarding
@@ -1924,7 +1935,7 @@ fn dial_pair(
 
 #[tauri::command]
 pub async fn peer_remove(hub: State<'_, PeerClientHub>, slug: String) -> Result<Value, String> {
-    hub.stop_conn(&slug);
+    hub.stop_conn(&slug, "peer removed");
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.peers.retain(|p| p.slug != slug);
@@ -1954,8 +1965,28 @@ pub async fn peer_set_enabled(
     if enabled {
         hub.start_conn(&slug);
     } else {
-        hub.stop_conn(&slug);
+        hub.stop_conn(&slug, "peer turned off");
     }
+    emit_state_changed(&hub);
+    Ok(hub.peers_state())
+}
+
+/// Dial a peer again now, without waiting out the backoff.
+///
+/// Retires the current connection first rather than starting a second thread on
+/// the same one: a dial that is still blocked in a TCP timeout would otherwise
+/// tear down the connection the retry just made when it finally gives up.
+#[tauri::command]
+pub async fn peer_reconnect(hub: State<'_, PeerClientHub>, slug: String) -> Result<Value, String> {
+    let enabled = hub
+        .peer_entry(&slug)
+        .map(|p| p.enabled)
+        .ok_or_else(|| "no such peer".to_string())?;
+    if !enabled {
+        return Ok(hub.peers_state());
+    }
+    hub.stop_conn(&slug, "reconnecting");
+    hub.start_conn(&slug);
     emit_state_changed(&hub);
     Ok(hub.peers_state())
 }

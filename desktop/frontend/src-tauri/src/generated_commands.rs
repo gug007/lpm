@@ -206,6 +206,7 @@ macro_rules! all_command_handlers {
             peer_update_host,
             peer_remove,
             peer_set_enabled,
+            peer_reconnect,
             peer_set_auto_sync,
             peer_invoke,
             peer_pair_request,

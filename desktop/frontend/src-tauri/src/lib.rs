@@ -125,7 +125,7 @@ use peer::{
 };
 use peerclient::{
     peer_add, peer_invoke, peer_pair_cancel, peer_pair_request, peer_remove, peer_set_auto_sync,
-    peer_add_ssh_host, peer_set_enabled, peer_update_host, peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach,
+    peer_add_ssh_host, peer_reconnect, peer_set_enabled, peer_update_host, peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach,
 };
 use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
 use portforward::*;

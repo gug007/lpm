@@ -1,8 +1,13 @@
 use crate::config;
 use crate::status::{STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use std::path::PathBuf;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::DialogExt;
+
+/// Carries a status transition to the machines paired with this one, so a host
+/// with nobody at it can still be heard. Forwarded verbatim to authed peers
+/// (`peer::FORWARDED_EVENTS`); the payload is the status value.
+pub const STATUS_SOUND_EVENT: &str = "status-sound";
 
 const SOUNDS_DIR: &str = "/System/Library/Sounds";
 
@@ -17,6 +22,21 @@ fn status_meta(value: &str) -> Option<(&'static str, &'static str)> {
         STATUS_WAITING => Some(("waitingSound", "waiting")),
         STATUS_ERROR => Some(("errorSound", "error")),
         _ => None,
+    }
+}
+
+/// A status transition worth hearing, announced wherever someone can hear it.
+///
+/// On a Mac that's a chime right here. A Linux host is headless — there is no one
+/// at it and no audio stack to assume — so instead it hands the transition to the
+/// Macs paired with it, which play it where the person actually is. Those Macs
+/// apply their own sound settings to it, which is the right owner of that choice:
+/// it's their speaker.
+pub fn announce_status(app: &AppHandle, value: &str) {
+    if cfg!(target_os = "macos") {
+        play_status_sound(value);
+    } else if status_meta(value).is_some() {
+        let _ = app.emit(STATUS_SOUND_EVENT, value);
     }
 }
 

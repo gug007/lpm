@@ -1,17 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Server } from "lucide-react";
-import { PeerSetEnabled, PeerUpdateHost } from "../../../bridge/commands";
+import { PeerReconnect, PeerSetEnabled, PeerUpdateHost } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
+import { peerStatus } from "../../peer/peerStatus";
 import { Toggle } from "./Toggle";
 import { Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
+import { StatusLine } from "./StatusLine";
+import { RowMenu } from "./RowMenu";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { isLinuxHost } from "../../peer/platform";
 import { isHostBehind } from "../../peer/hostVersion";
 
-// A connected machine's row: live indicator, name, status line, remove, on/off.
-// Shared by the Macs list and the Linux hosts list — the two differ only in icon,
-// which follows what the machine reported at pairing.
+const PILL_CLASS =
+  "shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60";
+
+// A connected machine's row: live indicator, name, status line, one action worth
+// a button, and on/off. Shared by the Macs list and the Linux hosts list — the
+// two differ only in icon, which follows what the machine reported at pairing.
 export function PeerRow({
   peer,
   onRemove,
@@ -28,6 +34,7 @@ export function PeerRow({
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   // Installing is only possible on a machine we can reach ourselves, which is
   // what sshHost means. A Mac we merely dial has no such action.
   const reachable = !!peer.sshHost;
@@ -35,7 +42,19 @@ export function PeerRow({
   // One action either way — it always installs the current release — so the label
   // only says which of the two the user is really doing.
   const actionLabel = behind ? "Update" : "Reinstall";
-  const busyLabel = behind ? "Updating…" : "Reinstalling…";
+
+  // A retry either lands (the peer goes connected) or falls back into whatever
+  // it was failing with. The dial gets a few seconds to say which before the row
+  // stops claiming to be working on it.
+  useEffect(() => {
+    if (!retrying) return;
+    if (peer.connected) {
+      setRetrying(false);
+      return;
+    }
+    const timer = setTimeout(() => setRetrying(false), 4000);
+    return () => clearTimeout(timer);
+  }, [retrying, peer.connected]);
 
   const update = async () => {
     setUpdating(true);
@@ -49,6 +68,21 @@ export function PeerRow({
       setUpdating(false);
     }
   };
+
+  // Dial now instead of waiting out the retry backoff, which is half a minute
+  // once a machine has been away for a while.
+  const reconnect = async () => {
+    setRetrying(true);
+    setUpdateError(null);
+    await PeerReconnect(peer.slug);
+    await refresh();
+  };
+
+  const status = peerStatus(peer);
+  // Only offer a retry once a dial has actually failed — while it's still
+  // "Connecting…" the button would just interrupt the attempt in flight.
+  const canRetry = status.tone === "error";
+
   return (
     <>
       <Row>
@@ -65,40 +99,56 @@ export function PeerRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[var(--text-primary)]">{name}</p>
-          <div className="flex items-center gap-1.5 text-[11px]">
-            <span
-              className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{
-                backgroundColor: !peer.enabled
-                  ? "var(--text-muted)"
-                  : peer.connected
-                    ? "var(--accent-green)"
-                    : peer.lastError
-                      ? "var(--accent-red)"
-                      : "var(--accent-amber)",
-              }}
+          {updating ? (
+            <StatusLine
+              tone="pending"
+              text={behind ? "Updating lpm over SSH…" : "Reinstalling lpm over SSH…"}
             />
-            <span className="truncate text-[var(--text-muted)]">
-              {updateError ?? statusText(peer)}
-              {!updateError && versionNote(peer, behind)}
-            </span>
-          </div>
+          ) : retrying ? (
+            <StatusLine tone="pending" text="Reconnecting…" />
+          ) : updateError ? (
+            <StatusLine tone="error" text={updateError} />
+          ) : (
+            <StatusLine
+              tone={status.tone}
+              text={status.text}
+              detail={status.detail}
+              note={versionNote(peer, behind)}
+            />
+          )}
         </div>
-        {reachable && (
+
+        {canRetry && !updating && !retrying ? (
+          <button
+            onClick={() => void reconnect()}
+            className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
+          >
+            Reconnect
+          </button>
+        ) : behind && !updating ? (
           <button
             onClick={() => setConfirming(true)}
-            disabled={updating}
-            className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--accent-cyan)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-60"
+            className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
           >
-            {updating ? busyLabel : actionLabel}
+            Update
           </button>
-        )}
-        <button
-          onClick={() => onRemove(peer)}
-          className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"
-        >
-          Remove
-        </button>
+        ) : null}
+
+        <RowMenu
+          ariaLabel={`Options for ${name}`}
+          items={[
+            ...(reachable
+              ? [
+                  {
+                    label: behind ? "Update lpm there" : "Reinstall lpm there",
+                    disabled: updating,
+                    onClick: () => setConfirming(true),
+                  },
+                ]
+              : []),
+            { label: "Disconnect…", destructive: true, onClick: () => onRemove(peer) },
+          ]}
+        />
         <Toggle
           enabled={peer.enabled}
           ariaLabel={`Connect to ${name}`}
@@ -113,8 +163,8 @@ export function PeerRow({
         body={
           <>
             This installs the current release on{" "}
-            <span className="font-medium text-[var(--text-primary)]">{name}</span> and restarts
-            lpm there. Anything running on that machine — including agents — will stop.
+            <span className="font-medium text-[var(--text-primary)]">{name}</span> and restarts lpm
+            there. Anything running on that machine — including agents — will stop.
           </>
         }
         onCancel={() => setConfirming(false)}
@@ -133,17 +183,4 @@ export function PeerRow({
 function versionNote(peer: PeerClient, behind: boolean): string {
   if (!isLinuxHost(peer) || !peer.version) return "";
   return behind ? ` · lpm ${peer.version} (update available)` : ` · lpm ${peer.version}`;
-}
-
-// A peer behind an SSH forward has two ways to be unreachable, and calling both
-// of them "offline" sends the user to look at the wrong machine. Only speak up
-// about the tunnel while it is actually the thing that's wrong.
-function statusText(peer: PeerClient): string {
-  if (!peer.enabled) return "Off";
-  if (peer.connected) return "Connected";
-  if (peer.sshHost) {
-    if (peer.tunnel === "connecting") return `Connecting over SSH to ${peer.sshHost}…`;
-    if (peer.tunnel !== "up") return peer.lastError || `No SSH connection to ${peer.sshHost}`;
-  }
-  return peer.lastError || "Connecting…";
 }
