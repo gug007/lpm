@@ -105,16 +105,10 @@ mod tests {
     fn repo() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
         let cwd = dir.path().to_string_lossy().to_string();
-        let identity = [
-            ("GIT_AUTHOR_NAME", "lpm"),
-            ("GIT_AUTHOR_EMAIL", "lpm@localhost"),
-            ("GIT_COMMITTER_NAME", "lpm"),
-            ("GIT_COMMITTER_EMAIL", "lpm@localhost"),
-        ];
         git_out(&cwd, &["init", "-q", "-b", "main"]).unwrap();
         std::fs::write(dir.path().join("a.txt"), "one\n").unwrap();
         git_out(&cwd, &["add", "-A"]).unwrap();
-        git_out_env(&cwd, &["commit", "-q", "-m", "first"], &identity).unwrap();
+        git_out_env(&cwd, &["commit", "-q", "-m", "first"], &LPM_IDENTITY).unwrap();
         (dir, cwd)
     }
 
@@ -159,7 +153,15 @@ mod tests {
         std::fs::write(d.path().join("a.txt"), "landed\n").unwrap();
         let head = head_sha(&cwd).unwrap();
         let tree = working_state_tree(&cwd, &head).unwrap();
-        let anchor = git_out(&cwd, &["commit-tree", &tree, "-p", &head, "-m", "landed"]).unwrap();
+        // commit-tree writes a commit, so it needs an identity like any other —
+        // without one this borrows the machine's global git config and fails
+        // wherever there isn't one (a bare CI runner, a fresh checkout).
+        let anchor = git_out_env(
+            &cwd,
+            &["commit-tree", &tree, "-p", &head, "-m", "landed"],
+            &LPM_IDENTITY,
+        )
+        .unwrap();
         git_out(&cwd, &["update-ref", "refs/lpm/from-test", &anchor]).unwrap();
 
         assert!(holds_only_state(&cwd, "refs/lpm/from-test"));
@@ -173,7 +175,15 @@ mod tests {
         let (d, cwd) = repo();
         let head = head_sha(&cwd).unwrap();
         let tree = working_state_tree(&cwd, &head).unwrap();
-        let anchor = git_out(&cwd, &["commit-tree", &tree, "-p", &head, "-m", "landed"]).unwrap();
+        // commit-tree writes a commit, so it needs an identity like any other —
+        // without one this borrows the machine's global git config and fails
+        // wherever there isn't one (a bare CI runner, a fresh checkout).
+        let anchor = git_out_env(
+            &cwd,
+            &["commit-tree", &tree, "-p", &head, "-m", "landed"],
+            &LPM_IDENTITY,
+        )
+        .unwrap();
         git_out(&cwd, &["update-ref", "refs/lpm/from-test", &anchor]).unwrap();
 
         std::fs::write(d.path().join("notes.md"), "mine\n").unwrap();
