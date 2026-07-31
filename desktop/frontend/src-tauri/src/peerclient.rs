@@ -39,6 +39,9 @@ pub(crate) const PEER_REQUEST_TIMED_OUT: &str = "peer request timed out";
 const PING_INTERVAL: Duration = Duration::from_secs(20);
 const BACKOFF_MIN: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
+/// How long a connect attempt waits for the forward before calling it a failure.
+/// Longer than a TCP dial because it includes ssh authenticating to the host.
+const TUNNEL_WAIT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024;
 
 // --- shared state -------------------------------------------------------------
@@ -65,6 +68,9 @@ struct PeerConn {
     supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
     supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
     generation: AtomicU64,     // bump to retire the current connection thread
+    // Present only for a peer reached over SSH. Owned here so the forward is torn
+    // down with the connection rather than outliving it as a stray ssh process.
+    tunnel: Mutex<Option<crate::peertunnel::Tunnel>>,
 }
 
 impl PeerConn {
@@ -74,6 +80,7 @@ impl PeerConn {
             out: Mutex::new(None),
             connected: AtomicBool::new(false),
             last_error: Mutex::new(String::new()),
+            tunnel: Mutex::new(None),
             attached: Mutex::new(HashSet::new()),
             pending: Mutex::new(HashMap::new()),
             enabled: AtomicBool::new(true),
@@ -179,6 +186,12 @@ impl PeerClientHub {
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
+                // Reported apart from `connected` on purpose: a dead forward and a
+                // dead host both leave a peer disconnected, and they have nothing
+                // in common to do about them.
+                let tunnel = conn
+                    .and_then(|c| c.tunnel.lock().unwrap().as_ref().map(|t| t.state().as_str()))
+                    .unwrap_or("");
                 json!({
                     "slug": p.slug,
                     "alias": p.alias,
@@ -197,6 +210,8 @@ impl PeerClientHub {
                     "lastError": last_error,
                     "autoSync": p.auto_sync,
                     "platform": p.platform,
+                    "sshHost": p.ssh.destination(),
+                    "tunnel": tunnel,
                 })
             })
             .collect();
@@ -396,6 +411,7 @@ impl PeerClientHub {
                 last_sync_at: 0,
                 auto_sync: false,
                 platform: s("hostPlatform"),
+                ssh: Default::default(),
             });
             let snapshot = cfg.clone();
             drop(cfg);
@@ -1228,15 +1244,64 @@ fn dial_plain(host: &str, port: u16, timeout: Option<Duration>) -> Result<Client
 /// Pinned → wss-only, no fallback. Unpinned → wss capturing the leaf, or plaintext
 /// if the TLS layer fails.
 fn dial_for_session(entry: &PeerEntry) -> Result<(ClientWs, bool, Option<String>), String> {
+    dial_endpoint(&entry.host, entry.port, entry)
+}
+
+/// Bring this peer's SSH forward up (idempotent) and return the local port to
+/// dial. Waits briefly rather than failing instantly: the supervisor may have just
+/// started, and a peer that reports "offline" while its tunnel is two seconds from
+/// ready would be wrong in the most confusing way.
+fn ensure_tunnel(conn: &Arc<PeerConn>, entry: &PeerEntry) -> Result<u16, String> {
+    let tunnel = {
+        let mut slot = conn.tunnel.lock().unwrap();
+        let stale = slot
+            .as_ref()
+            .map(|t| !t.matches(&entry.ssh, entry.port))
+            .unwrap_or(true);
+        if stale {
+            if let Some(old) = slot.take() {
+                old.stop();
+            }
+            *slot = Some(crate::peertunnel::Tunnel::new(entry.ssh.clone(), entry.port));
+        }
+        slot.as_ref().unwrap().clone()
+    };
+    tunnel.start();
+    let deadline = Instant::now() + TUNNEL_WAIT;
+    loop {
+        if let Some(port) = tunnel.local_port() {
+            return Ok(port);
+        }
+        if Instant::now() >= deadline {
+            let err = tunnel.last_error();
+            return Err(if err.is_empty() {
+                "could not open the SSH connection to this host".to_string()
+            } else {
+                err
+            });
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Same dial, against an endpoint the caller resolved — which is the forwarded
+/// `127.0.0.1:<local>` when this peer is reached over SSH. The pinned certificate
+/// is the host's either way: the tunnel moves bytes, it doesn't terminate TLS, so
+/// nothing about identity changes when the address does.
+fn dial_endpoint(
+    host: &str,
+    port: u16,
+    entry: &PeerEntry,
+) -> Result<(ClientWs, bool, Option<String>), String> {
     match entry.tls_fp.as_deref() {
         Some(fp) => {
-            let ws = dial_pinned(&entry.host, entry.port, fp, None, IDENTITY_CHANGED)?;
+            let ws = dial_pinned(host, port, fp, None, IDENTITY_CHANGED)?;
             Ok((ws, true, None))
         }
-        None => match dial_capture(&entry.host, entry.port, None) {
+        None => match dial_capture(host, port, None) {
             Ok((ws, fp)) => Ok((ws, true, Some(fp))),
             Err(_) => {
-                let ws = dial_plain(&entry.host, entry.port, None)?;
+                let ws = dial_plain(host, port, None)?;
                 Ok((ws, false, None))
             }
         },
@@ -1319,7 +1384,16 @@ fn connect_session(
     generation: u64,
     entry: &PeerEntry,
 ) -> Result<(), String> {
-    let (mut ws, was_tls, captured_fp) = dial_for_session(entry)?;
+    // An SSH-reached peer is dialled through its forward, not at its own address:
+    // the host is bound to loopback on its own machine and has no port we could
+    // reach directly. Bringing the tunnel up is part of connecting, and a tunnel
+    // that won't come up is reported as itself rather than as "host offline".
+    let (mut ws, was_tls, captured_fp) = if entry.ssh.is_set() {
+        let port = ensure_tunnel(conn, entry)?;
+        dial_endpoint("127.0.0.1", port, entry)?
+    } else {
+        dial_for_session(entry)?
+    };
     ws.send(Message::text(
         json!({ "t": "auth", "deviceId": entry.device_id, "token": entry.token }).to_string(),
     ))
@@ -1657,6 +1731,7 @@ pub(crate) fn add_peer_blocking(
             // every `ready` reports it, so this takes the same back-fill path as
             // an entry paired before hosts sent a platform at all.
             platform: String::new(),
+            ssh: Default::default(),
         });
         let snapshot = cfg.clone();
         drop(cfg);

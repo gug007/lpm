@@ -153,6 +153,8 @@ pub(crate) struct PeerEntry {
     pub auto_sync: bool, // keep config in sync automatically (Phase 4); old peer.json loads as false
     #[serde(default)]
     pub platform: String, // the remote's "macos" / "linux"; a Linux entry is a headless host, not a Mac. Empty until its next connect re-reports it
+    #[serde(default)]
+    pub ssh: crate::peertunnel::SshTarget, // set => reach this peer by forwarding `port` over SSH instead of dialling `host` directly
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -1871,6 +1873,11 @@ mod tests {
                 last_sync_at: 0,
                 auto_sync: true,
                 platform: "linux".into(),
+                ssh: crate::peertunnel::SshTarget {
+                    host: "198.51.100.7".into(),
+                    user: "root".into(),
+                    ..Default::default()
+                },
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -1878,6 +1885,9 @@ mod tests {
         assert_eq!(back.host.port, 9100);
         assert!(back.host.enabled && back.host.lan);
         assert_eq!(back.host.bind_address, "100.64.0.5");
+        // An SSH-reached peer must survive a round-trip: losing it would silently
+        // turn a tunnelled host into one lpm tries to dial directly.
+        assert_eq!(back.peers[0].ssh.destination(), "root@198.51.100.7");
         assert_eq!(back.host.devices[0].slug_assigned, "abcd1234");
         assert_eq!(back.peers.len(), 1);
         assert_eq!(back.peers[0].slug, "beefcafe");
