@@ -219,8 +219,8 @@ jobs:
           mkdir -p lpm-host
           cp desktop/frontend/src-tauri/target/release/lpm-desktop lpm-host/
           cp desktop/frontend/src-tauri/binaries/lpm-cli-x86_64-unknown-linux-gnu lpm-host/lpm
-          cp desktop/linux/*.service desktop/linux/install.sh desktop/linux/README.md lpm-host/
-          chmod +x lpm-host/lpm-desktop lpm-host/lpm lpm-host/install.sh
+          cp desktop/linux/*.service desktop/linux/*.sh desktop/linux/README.md lpm-host/
+          chmod +x lpm-host/lpm-desktop lpm-host/lpm lpm-host/install.sh lpm-host/host-cleanup.sh
           tar czf lpm-host-linux-amd64.tar.gz lpm-host
           ls -lh lpm-host-linux-amd64.tar.gz
 

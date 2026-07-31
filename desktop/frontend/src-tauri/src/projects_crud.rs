@@ -668,7 +668,7 @@ fn detect_package_manager(root: &Path) -> Option<PackageManager> {
 /// Login shell (`-ilc`) so PATH and version managers (nvm/fnm/volta, corepack)
 /// resolve the binary, matching how actions run.
 fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let shell = crate::sys::login_shell();
     let script = format!(
         "cd {} && {} 2>&1",
         config::shell_quote(&root.to_string_lossy()),

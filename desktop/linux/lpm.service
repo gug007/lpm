@@ -18,9 +18,28 @@ WorkingDirectory=%h
 EnvironmentFile=-/etc/lpm/host.env
 ExecStart=/opt/lpm/lpm-desktop
 
+# Kill the app, and only the app. Services on this host are tmux panes, and the
+# tmux server stays in this unit's cgroup — it forks and daemonizes away to PID 1,
+# but cgroup membership is inherited across fork and unaffected by setsid, so the
+# default KillMode=control-group took it down with the app, which is the one thing
+# tmux is used for here. Scheduled job agents are in the same position: they
+# `setsid` precisely so they outlive the app, and that doesn't leave the cgroup
+# either. `process` signals the main process alone, so `systemctl restart lpm`
+# (which the installer does on every update) stops being an event that ends the
+# work on this box.
+KillMode=process
+
+# The other half of KillMode=process: it exempts *everything*, including the
+# app's own `ssh -N` forwards, which nothing else reaps. See the script — the
+# sweep lives there rather than inline because systemd expands `$…` in Exec
+# lines, so a shell one-liner here would have its every variable eaten before
+# /bin/sh ever saw it. The leading `-` keeps a failed sweep from failing the stop.
+ExecStopPost=-/opt/lpm/host-cleanup.sh
+
 # on-failure, NOT always — and this is a deliberate limit, not an oversight.
-# Agent terminals on this host are owned by the app process, so every restart of
-# this unit ends whatever agents are running, silently and with no way to get the
+# KillMode above saves the services and the jobs, but not the agent terminals:
+# those are PTYs owned by the app process itself, so every restart of this unit
+# still ends whatever agents are running, silently and with no way to get the
 # conversation back. `always` would turn an ordinary crash-and-recover into a
 # whole session lost, so restarts are for a process that actually died, and a
 # planned `systemctl restart lpm` is a decision to stop the agents on this box.

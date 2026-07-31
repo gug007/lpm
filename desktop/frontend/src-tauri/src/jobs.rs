@@ -846,7 +846,7 @@ fn duplicate_defaults() -> (bool, bool, bool, bool) {
 /// streams detached and its own session (so an app launched from a terminal
 /// doesn't stop the shell with SIGTTIN).
 fn shell_command(cwd: &str, cmd: &str) -> Command {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let shell = crate::sys::login_shell();
     let script = format!("cd {} && {}", config::shell_quote(cwd), cmd);
     let mut c = Command::new(shell);
     c.arg("-ilc").arg(script).current_dir(cwd);

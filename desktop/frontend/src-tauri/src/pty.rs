@@ -249,48 +249,7 @@ fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I) -> bool {
         .any(|(k, _)| k == "LANG" || k == "LC_ALL" || k == "LC_CTYPE")
 }
 
-/// The shell to open terminals with.
-///
-/// `$SHELL` is the answer whenever it's set, but it is NOT always set: a service
-/// manager hands a process almost no environment, so a Linux host running lpm
-/// under systemd has no `$SHELL` at all. The old fallback was `/bin/zsh`, which is
-/// the macOS default and simply doesn't exist on a stock Ubuntu — every terminal
-/// on such a host failed to spawn. So ask the account database for the real login
-/// shell before falling back to a per-platform guess.
-fn login_shell() -> String {
-    if let Ok(shell) = std::env::var("SHELL") {
-        if !shell.is_empty() {
-            return shell;
-        }
-    }
-    if let Some(shell) = passwd_shell() {
-        return shell;
-    }
-    if cfg!(target_os = "macos") {
-        "/bin/zsh".into()
-    } else {
-        "/bin/sh".into()
-    }
-}
-
-/// This account's login shell per `/etc/passwd` (7th field). Read directly rather
-/// than through getpwuid so there's no libc call to gate per platform; a missing
-/// or unreadable file just falls through to the caller's default.
-fn passwd_shell() -> Option<String> {
-    let user = std::env::var("USER").or_else(|_| std::env::var("LOGNAME")).ok()?;
-    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
-    for line in passwd.lines() {
-        let mut fields = line.split(':');
-        if fields.next()? != user {
-            continue;
-        }
-        let shell = fields.nth(5)?.trim();
-        if !shell.is_empty() {
-            return Some(shell.to_string());
-        }
-    }
-    None
-}
+use crate::sys::login_shell;
 
 /// Project-level launch inputs resolved once per spawn: root dir, ssh (Some
 /// only when remote), and the Claude account env decision (applied to local
@@ -877,7 +836,8 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
 
 #[cfg(test)]
 mod tests {
-    use super::{env_lacks_locale, event_safe, login_shell};
+    use super::{env_lacks_locale, event_safe};
+    use crate::sys::login_shell;
 
     // The shell a terminal opens with must exist on the machine it opens on. A
     // service manager hands down no $SHELL, and the old fallback was macOS's

@@ -285,7 +285,7 @@ fn merge_stderr_into_stdout(cmd: &mut Command) {
 /// environment on the far side.
 fn action_command(plan: &ActionPlan) -> Command {
     let mut cmd = if plan.login_shell {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let shell = crate::sys::login_shell();
         let script = format!("cd {} && {}", config::shell_quote(&plan.cwd), plan.cmd_str);
         let mut cmd = Command::new(shell);
         cmd.arg("-ilc").arg(script).current_dir(&plan.cwd);

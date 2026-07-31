@@ -19,9 +19,14 @@ sudo ./install.sh
 ```
 
 It installs the runtime dependencies (`apt`), puts the binaries in `/opt/lpm`,
-links the CLI onto `PATH`, enables the three units, and waits for the peer server
-to come up. Pass `--no-deps` to skip the apt step on a machine where the GTK /
-WebKit runtime is already present.
+links the CLI onto `PATH`, enables the three units, and waits for the app to
+answer. Pass `--no-deps` to skip the apt step on a machine where the runtime is
+already present — in which case make sure `tmux` and `git` are installed too.
+They are not conveniences: services on a host are tmux panes, and the app refuses
+to render at all without tmux on `PATH`.
+
+The installer does *not* wait for the peer server, because there isn't one yet:
+hosting stays off until you pair, below.
 
 `lpm.service` pulls in the display and the window manager through `Requires=`, so
 enabling that one unit brings up the whole stack, at boot too.
@@ -42,9 +47,15 @@ shows "Could not connect to 127.0.0.1" on a machine with no dev server running.
 There is no UI to click here, so bring-up runs through the CLI:
 
 ```sh
-lpm pair          # prints an invite to paste into Settings → Connections on the Mac
-lpm connections   # what this machine hosts, and what it is connected to
+sudo -H lpm pair          # prints an invite to paste into Settings → Connections on the Mac
+sudo -H lpm connections   # what this machine hosts, and what it is connected to
 ```
+
+Both talk to the running app through a socket under *its* home directory, and the
+service runs as root — so from a `ubuntu@`-style login they need `sudo`, and `-H`
+so `$HOME` moves with it. Without `-H` the CLI looks in the login user's home,
+finds nothing, and reports that the app is not running on a host that is running
+fine. As root you can drop the `sudo -H`.
 
 `lpm pair` keeps the peer port bound to this machine only. If the Mac reaches the
 host through an SSH tunnel (`ssh -L 18766:127.0.0.1:8766 …`), that is what you
@@ -78,8 +89,16 @@ in `systemctl status` and logs nothing useful. Confirm the display instead:
 ```sh
 systemctl status lpm-xvfb lpm-wm lpm
 DISPLAY=:99 xwininfo -root -children      # the app's window should not be 10x10
-ss -lntp | grep 8766                       # peer server listening
+sudo -H lpm connections                    # the app answers = its page is running
 ```
 
-The peer port can take ~30s to bind on a small box; poll before concluding it's
-broken. `libEGL warning: DRI3 error` in the log is expected — there's no GPU.
+Ask the app, not the port: nothing listens on 8766 until you pair, so a missing
+listener on a host you haven't paired yet is the normal state and says nothing
+about whether the app is healthy. `libEGL warning: DRI3 error` in the log is
+expected — there's no GPU.
+
+One consequence of the app and the tmux server having separate lifetimes: the
+tmux server captures its environment when it starts, so editing
+`/etc/lpm/host.env` and restarting `lpm` no longer reaches the panes that were
+already running. `tmux kill-server` (which stops the services) is what picks up
+the new environment.

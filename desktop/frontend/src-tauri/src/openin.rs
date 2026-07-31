@@ -475,7 +475,7 @@ fn launch_iterm(path: &str) -> Result<(), String> {
 }
 
 fn launch_ghostty(path: &str) -> Result<(), String> {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let shell = crate::sys::login_shell();
     let inner = format!("cd {} && exec {shell}", shell_quote(path));
     run(Command::new("open").args(["-na", "Ghostty.app", "--args", "-e", &shell, "-lc", &inner]))
 }

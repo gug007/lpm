@@ -12,6 +12,65 @@ use std::time::Duration;
 /// shell would use, not the (reordered, augmented) process PATH.
 static LOGIN_PATH: OnceLock<String> = OnceLock::new();
 
+/// The shell to run terminals, actions and jobs through.
+///
+/// `$SHELL` is the answer whenever it's set, but it is NOT always set: a service
+/// manager hands a process almost no environment, so a Linux host running lpm
+/// under systemd has no `$SHELL` at all. The old fallback was `/bin/zsh`, which is
+/// the macOS default and simply doesn't exist on a stock Ubuntu — every terminal
+/// on such a host failed to spawn. So ask the account database for the real login
+/// shell before falling back to a per-platform guess.
+///
+/// Lives here rather than in pty.rs because terminals are only one of five things
+/// that spawn a login shell; the other four kept their own `/bin/zsh` fallback
+/// long after the terminal path was fixed, which is exactly the bug this prevents.
+pub(crate) fn login_shell() -> String {
+    if let Ok(shell) = std::env::var("SHELL") {
+        if !shell.is_empty() && !is_locked_out_shell(&shell) {
+            return shell;
+        }
+    }
+    if let Some(shell) = passwd_shell() {
+        return shell;
+    }
+    if cfg!(target_os = "macos") {
+        "/bin/zsh".into()
+    } else {
+        "/bin/sh".into()
+    }
+}
+
+/// This account's login shell per `/etc/passwd` (7th field). Read directly rather
+/// than through getpwuid so there's no libc call to gate per platform; a missing
+/// or unreadable file just falls through to the caller's default.
+///
+/// A locked-out account (`nologin`, `false`) is rejected rather than returned: it
+/// is a valid passwd entry that exits immediately, so honouring it would turn
+/// every spawn into a silent no-op. The platform default is wrong for that
+/// account too, but it at least runs.
+fn passwd_shell() -> Option<String> {
+    let user = std::env::var("USER").or_else(|_| std::env::var("LOGNAME")).ok()?;
+    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
+    for line in passwd.lines() {
+        let mut fields = line.split(':');
+        if fields.next()? != user {
+            continue;
+        }
+        let shell = fields.nth(5)?.trim();
+        if !shell.is_empty() && !is_locked_out_shell(shell) {
+            return Some(shell.to_string());
+        }
+    }
+    None
+}
+
+fn is_locked_out_shell(shell: &str) -> bool {
+    matches!(
+        Path::new(shell).file_name().and_then(|n| n.to_str()),
+        Some("nologin" | "false")
+    )
+}
+
 const EXTRA_PATHS: [&str; 2] = ["/opt/homebrew/bin", "/usr/local/bin"];
 
 // Home-relative bin dirs a Finder-launched app never sees on PATH: claude's
@@ -103,7 +162,7 @@ pub(crate) fn capture_login_env(name: &str) -> Option<String> {
     }
     const START: &str = "__LPM_ENV_START__";
     const END: &str = "__LPM_ENV_END__";
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let shell = login_shell();
     let mut child = Command::new(&shell)
         .arg("-ilc")
         .arg(format!("printf '{START}%s{END}' \"${{{name}:-}}\""))
@@ -225,6 +284,30 @@ pub fn which(bin: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The shell every spawn path resolves must exist on the machine it spawns on.
+    // A service manager hands down no $SHELL, and the old fallback was macOS's
+    // /bin/zsh — absent on a stock Linux host, so the spawn failed outright.
+    #[test]
+    fn resolves_a_shell_that_exists_on_this_platform() {
+        let shell = login_shell();
+        assert!(
+            Path::new(&shell).exists(),
+            "resolved shell must exist: {shell}"
+        );
+    }
+
+    // A locked-out account's shell is a valid passwd entry that exits immediately,
+    // so honouring it would turn every terminal, action and job into a silent
+    // no-op rather than an error anyone could read.
+    #[test]
+    fn a_locked_out_login_shell_is_not_used() {
+        assert!(is_locked_out_shell("/usr/sbin/nologin"));
+        assert!(is_locked_out_shell("/sbin/nologin"));
+        assert!(is_locked_out_shell("/bin/false"));
+        assert!(!is_locked_out_shell("/bin/bash"));
+        assert!(!is_locked_out_shell("/bin/sh"));
+    }
 
     #[test]
     fn nvm_node_bins_lists_only_version_dirs_with_bin() {

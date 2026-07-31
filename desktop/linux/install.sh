@@ -8,7 +8,12 @@
 # the Mac that will drive this machine.
 set -eu
 
-DEPS="xvfb matchbox-window-manager x11-utils libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1"
+# tmux and git are not optional extras: every service on a host runs as a tmux
+# pane, and the app refuses to render at all without tmux on PATH — leaving them
+# out made a host that installed cleanly and then started nothing. iproute2 is
+# softer: it provides `ss`, which the app's port detection prefers before falling
+# back to lsof.
+DEPS="xvfb matchbox-window-manager x11-utils libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 tmux git iproute2"
 PREFIX=/opt/lpm
 UNIT_DIR=/etc/systemd/system
 ENV_FILE=/etc/lpm/host.env
@@ -50,17 +55,33 @@ if [ "$SKIP_DEPS" = "0" ]; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $DEPS >/dev/null
 fi
 
+# tmux is the one dependency whose absence is fatal rather than degrading: the app
+# will not render a project at all without it. Check it even when the apt step was
+# skipped, here, where a person can act on it — the alternative is a host that
+# installs, starts, answers, pairs, and then does nothing.
+command -v tmux >/dev/null 2>&1 || {
+    echo "tmux is required and isn't installed (services on a host are tmux panes)." >&2
+    echo "Install it and re-run:  sudo apt-get install -y tmux git" >&2
+    exit 1
+}
+
 echo "==> Installing binaries into $PREFIX"
 install -d "$PREFIX"
 install -m755 "$SRC/lpm-desktop" "$PREFIX/lpm-desktop"
 install -m755 "$SRC/lpm" "$PREFIX/lpm"
+install -m755 "$SRC/host-cleanup.sh" "$PREFIX/host-cleanup.sh"
 ln -sf "$PREFIX/lpm" /usr/local/bin/lpm
 
 # systemd hands a service almost no environment: no login shell has run, so $SHELL
 # is simply absent. Terminals are spawned from it, so record the account's real
 # login shell now rather than letting the app guess at spawn time.
 LOGIN_SHELL=$(getent passwd "$(id -un)" | cut -d: -f7)
-[ -n "$LOGIN_SHELL" ] || LOGIN_SHELL=/bin/sh
+# A hardened image can give root `nologin`, which is a real passwd entry that
+# exits immediately — pinning it here would make every terminal on this host a
+# silent no-op rather than an error anyone could read.
+case "${LOGIN_SHELL##*/}" in
+    ''|nologin|false) LOGIN_SHELL=/bin/sh ;;
+esac
 echo "==> Recording SHELL=$LOGIN_SHELL in $ENV_FILE"
 install -d "$(dirname "$ENV_FILE")"
 printf 'SHELL=%s\n' "$LOGIN_SHELL" > "$ENV_FILE"
@@ -84,23 +105,44 @@ else
 fi
 systemctl restart lpm.service
 
-echo "==> Waiting for the peer server"
-# The port can take ~30s to bind on a small box; a slow start is not a failure.
+echo "==> Waiting for lpm to come up"
+# Wait for the APP, not for the peer port. Hosting is off until someone runs
+# `lpm pair`, so a healthy fresh install has nothing listening on 8766 yet — the
+# old port poll spent 60s on a working machine and then called it a failure, and
+# the Mac's "add a Linux host" flow turns that exit code into an error before it
+# ever gets as far as asking for an invite. Answering on the control socket is
+# the thing that actually means "the app started and its page is running".
+#
+# The unit's HOME is %h, which systemd resolves to /root for the *system* manager
+# — literally, not by looking the account up — so hard-code the same thing rather
+# than asking passwd and risking an answer the unit doesn't share. Not $HOME:
+# under `sudo ./install.sh` that is still the invoking user's home.
+SERVICE_HOME=/root
+
+# A small box can take ~30s to get through Xvfb, the window manager and the
+# webview; a slow start is not a failure.
 i=0
-while [ "$i" -lt 60 ]; do
-    if ss -lnt 2>/dev/null | grep -q ':8766 '; then
+while [ "$i" -lt 90 ]; do
+    if HOME="$SERVICE_HOME" "$PREFIX/lpm" connections >/dev/null 2>&1; then
         echo
-        echo "lpm is running as a host on this machine."
-        echo
-        echo "Next: run 'lpm pair' here, then paste the invite into"
-        echo "Settings → Connections on the Mac that will drive it."
+        echo "lpm is running on this machine."
+        # `sudo -H`, not a bare `lpm pair`: the app's socket lives in root's home
+        # and this installer was very likely run from a `ubuntu@`-style login, so
+        # the unescalated command reports that the app isn't running.
+        if HOME="$SERVICE_HOME" "$PREFIX/lpm" connections --json 2>/dev/null | grep -q '"running":true'; then
+            echo "It is already hosting; run 'sudo -H lpm pair' for an invite to add another Mac."
+        else
+            echo
+            echo "Next: run 'sudo -H lpm pair' here, then paste the invite into"
+            echo "Settings → Connections on the Mac that will drive it."
+        fi
         exit 0
     fi
     i=$((i + 1))
     sleep 1
 done
 
-echo "lpm started but its peer server never came up. Check:" >&2
+echo "lpm was installed but never started. Check:" >&2
 echo "  systemctl status lpm-xvfb lpm-wm lpm" >&2
 echo "  journalctl -u lpm -n 50" >&2
 exit 1
