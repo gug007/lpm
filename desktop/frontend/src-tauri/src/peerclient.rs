@@ -1289,9 +1289,7 @@ fn dial_for_session(entry: &PeerEntry) -> Result<(ClientWs, bool, Option<String>
 }
 
 /// Bring this peer's SSH forward up (idempotent) and return the local port to
-/// dial. Waits briefly rather than failing instantly: the supervisor may have just
-/// started, and a peer that reports "offline" while its tunnel is two seconds from
-/// ready would be wrong in the most confusing way.
+/// dial.
 fn ensure_tunnel(conn: &Arc<PeerConn>, entry: &PeerEntry) -> Result<u16, String> {
     let tunnel = {
         let mut slot = conn.tunnel.lock().unwrap();
@@ -1308,21 +1306,7 @@ fn ensure_tunnel(conn: &Arc<PeerConn>, entry: &PeerEntry) -> Result<u16, String>
         slot.as_ref().unwrap().clone()
     };
     tunnel.start();
-    let deadline = Instant::now() + TUNNEL_WAIT;
-    loop {
-        if let Some(port) = tunnel.local_port() {
-            return Ok(port);
-        }
-        if Instant::now() >= deadline {
-            let err = tunnel.last_error();
-            return Err(if err.is_empty() {
-                "could not open the SSH connection to this host".to_string()
-            } else {
-                err
-            });
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
+    tunnel.wait_until_up(TUNNEL_WAIT, "could not open the SSH connection to this host")
 }
 
 /// Same dial, against an endpoint the caller resolved — which is the forwarded
@@ -1393,44 +1377,28 @@ fn persist_tls_fp(hub: &PeerClientHub, slug: &str, fp: &str) {
     emit_state_changed(hub);
 }
 
-/// Record what OS the host reported on this auth. Written on every connect, not
-/// just pairing, so an entry stored before hosts sent it fills in by itself — and
-/// so a host that changed machines under the same identity doesn't stay wrong.
-fn persist_platform(hub: &PeerClientHub, slug: &str, platform: &str) {
-    if platform.is_empty() {
-        return;
-    }
+/// Record what the host said about itself on this auth. Written on every connect,
+/// not just pairing, so an entry stored before hosts reported these fills in by
+/// itself — and so a host that was updated, or moved to another machine under the
+/// same identity, doesn't go on claiming the old values.
+///
+/// Both fields in one pass because they arrive together: on a first connect after
+/// an upgrade they are both new, and saving twice would write the config and wake
+/// every listener twice for a single event. An empty value means "not reported",
+/// never "cleared".
+fn persist_host_report(hub: &PeerClientHub, slug: &str, platform: &str, version: &str) {
     let mut cfg = hub.inner.config.lock().unwrap();
     let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
-        Some(p) if p.platform != platform => {
-            p.platform = platform.to_string();
-            true
-        }
-        _ => false,
-    };
-    if !changed {
-        return;
-    }
-    let snapshot = cfg.clone();
-    drop(cfg);
-    let _ = peer::save_config(&snapshot);
-    emit_state_changed(hub);
-}
-
-/// Record the version the host reported. Same shape and same reason as
-/// `persist_platform`: it rides every auth, so an entry stored before hosts sent
-/// it fills in by itself, and a host that was updated stops claiming the old one.
-fn persist_version(hub: &PeerClientHub, slug: &str, version: &str) {
-    if version.is_empty() {
-        return;
-    }
-    let mut cfg = hub.inner.config.lock().unwrap();
-    let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
-        Some(p) if p.version != version => {
-            p.version = version.to_string();
-            true
-        }
-        _ => false,
+        Some(p) => [(&mut p.platform, platform), (&mut p.version, version)]
+            .into_iter()
+            .fold(false, |changed, (field, value)| {
+                if value.is_empty() || field.as_str() == value {
+                    return changed;
+                }
+                *field = value.to_string();
+                true
+            }),
+        None => false,
     };
     if !changed {
         return;
@@ -1488,14 +1456,10 @@ fn connect_session(
     if let Some(fp) = pin_after_auth(entry.tls_fp.as_deref(), was_tls, captured_fp.as_deref()) {
         persist_tls_fp(hub, &conn.slug, &fp);
     }
-    persist_platform(
+    persist_host_report(
         hub,
         &conn.slug,
         rv.get("hostPlatform").and_then(Value::as_str).unwrap_or(""),
-    );
-    persist_version(
-        hub,
-        &conn.slug,
         rv.get("hostVersion").and_then(Value::as_str).unwrap_or(""),
     );
     let features = rv.get("features").and_then(Value::as_array);
