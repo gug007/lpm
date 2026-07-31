@@ -13,7 +13,11 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 ## Conventions
 
 - Clean code and best practices; no comments unless the reasoning isn't clear from the code itself
-- macOS-only: don't add Windows/Linux code paths
+- The desktop UI ships on macOS only — don't add Windows code paths. Linux is a
+  supported *host* target (a headless server running the same binary, controlled
+  from a Mac), so core modules must stay portable: gate platform calls with
+  `#[cfg(target_os = "macos")]` and give non-macOS a working path or a clear
+  error, never an unconditional `scutil`/`lsof`/`pbcopy`/Keychain call
 - One React component per file
 - Keep files focused: don't grow a file past ~400 lines — put new features in their own module
 - Bump `version` in `cli/Cargo.toml` on any `cli/` change — patch for fixes, minor for new commands/flags — so stale installed binaries stay detectable via `lpm --version`

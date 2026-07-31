@@ -1,57 +1,24 @@
 // Shared 32-byte AES-256 vault key — port of desktop/vault/*.go.
 //
-// One item in the login Keychain (service="lpm", account="vault") holds the key
-// every at-rest-encryption feature uses, so the user sees one Touch ID /
-// password prompt per session. This module owns the Keychain FFI, AES-256-GCM
-// construction, and the passphrase-protected key export/import wire format.
-//
-// DATA SAFETY: reads/deletes query with kSecAttrSynchronizableAny so an existing
-// (possibly iCloud-synced) item is always found — a miss would recreate the key
-// and orphan every encrypted note. We never recreate on an access denial.
+// One key backs every at-rest-encryption feature. Where it lives is platform-
+// specific: the login Keychain on macOS (vaultkeychain.rs), a 0600 file on a
+// headless host with no keystore (vaultkeyfile.rs). This module owns the portable
+// half — get-or-create, AES-256-GCM construction, and the passphrase-protected
+// export/import wire format both backends share.
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
-use core_foundation::base::{CFType, TCFType};
-use core_foundation::boolean::CFBoolean;
-use core_foundation::data::CFData;
-use core_foundation::dictionary::CFDictionary;
-use core_foundation::string::CFString;
-use core_foundation_sys::base::{CFGetTypeID, CFTypeRef, OSStatus};
-use core_foundation_sys::string::CFStringRef;
-use security_framework_sys::access_control::{
-    kSecAttrAccessibleWhenUnlocked, kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-};
-use security_framework_sys::base::{errSecDuplicateItem, errSecItemNotFound};
-use security_framework_sys::item::{
-    kSecAttrAccount, kSecAttrLabel, kSecAttrService, kSecAttrSynchronizable,
-    kSecAttrSynchronizableAny, kSecClass, kSecClassGenericPassword, kSecReturnData, kSecValueData,
-};
-use security_framework_sys::keychain_item::{SecItemAdd, SecItemCopyMatching};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
+#[cfg(not(target_os = "macos"))]
+use crate::vaultkeyfile as store;
+#[cfg(target_os = "macos")]
+use crate::vaultkeychain as store;
+
 pub const KEY_LEN: usize = 32;
-
-const SERVICE: &str = "lpm";
-const ACCOUNT: &str = "vault";
-const LABEL: &str = "lpm vault key";
-
-// kSecAttrAccessible (the attribute KEY) isn't re-exported by
-// security-framework-sys; declare it directly. Security.framework is already
-// linked by that crate, so the symbol resolves.
-#[allow(non_upper_case_globals)]
-extern "C" {
-    static kSecAttrAccessible: CFStringRef;
-}
-
-// Apple OSStatus codes not named in security-framework-sys::base.
-const ERR_AUTH_FAILED: OSStatus = -25293; // errSecAuthFailed (also in -sys)
-const ERR_INTERACTION_NOT_ALLOWED: OSStatus = -25308;
-const ERR_NO_ACCESS_FOR_ITEM: OSStatus = -25243;
-const ERR_USER_CANCELED: OSStatus = -128;
-const ERR_MISSING_ENTITLEMENT: OSStatus = -34018;
 
 // --- export wire format constants (must match vault/export.go byte-for-byte) --
 const EXPORT_VERSION: u32 = 1;
@@ -79,17 +46,32 @@ pub enum VaultError {
 impl std::fmt::Display for VaultError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(target_os = "macos")]
             VaultError::Denied => write!(
                 f,
                 "vault: keychain item exists but access was denied (open Keychain Access, delete 'lpm vault key', then retry)"
             ),
+            #[cfg(not(target_os = "macos"))]
+            VaultError::Denied => write!(
+                f,
+                "vault: a vault key already exists but could not be read (check ownership and permissions of ~/.lpm/vault-key)"
+            ),
             VaultError::WrongPassphrase => write!(f, "vault: wrong passphrase or corrupted export"),
             VaultError::EmptyPassphrase => write!(f, "vault: passphrase required"),
+            #[cfg(target_os = "macos")]
             VaultError::KeyConflict => write!(
                 f,
                 "vault: local keychain holds a different vault key; delete it before importing"
             ),
+            #[cfg(not(target_os = "macos"))]
+            VaultError::KeyConflict => write!(
+                f,
+                "vault: this machine holds a different vault key; remove ~/.lpm/vault-key before importing"
+            ),
+            #[cfg(target_os = "macos")]
             VaultError::NotFound => write!(f, "vault: keychain item not found"),
+            #[cfg(not(target_os = "macos"))]
+            VaultError::NotFound => write!(f, "vault: no vault key stored on this machine"),
             VaultError::Other(s) => write!(f, "{s}"),
         }
     }
@@ -103,153 +85,9 @@ impl From<VaultError> for String {
     }
 }
 
-fn is_access_denied(status: OSStatus) -> bool {
-    matches!(
-        status,
-        ERR_AUTH_FAILED | ERR_INTERACTION_NOT_ALLOWED | ERR_NO_ACCESS_FOR_ITEM | ERR_USER_CANCELED
-    )
-}
-
-// --- Keychain helpers --------------------------------------------------------
-
-/// Wrap a static CFStringRef constant (get rule) as a CFType for dict keys/values.
-fn cf_const(s: CFStringRef) -> CFType {
-    unsafe { CFString::wrap_under_get_rule(s).as_CFType() }
-}
-
-/// Fetch the 32-byte key. Err(NotFound) when absent; Err(Other) carries OSStatus.
-fn fetch_key() -> Result<[u8; KEY_LEN], VaultError> {
-    let pairs = [
-        (
-            cf_const(unsafe { kSecClass }),
-            cf_const(unsafe { kSecClassGenericPassword }),
-        ),
-        (
-            cf_const(unsafe { kSecAttrService }),
-            CFString::new(SERVICE).as_CFType(),
-        ),
-        (
-            cf_const(unsafe { kSecAttrAccount }),
-            CFString::new(ACCOUNT).as_CFType(),
-        ),
-        (
-            cf_const(unsafe { kSecAttrSynchronizable }),
-            cf_const(unsafe { kSecAttrSynchronizableAny }),
-        ),
-        (
-            cf_const(unsafe { kSecReturnData }),
-            CFBoolean::true_value().as_CFType(),
-        ),
-    ];
-    let query = CFDictionary::from_CFType_pairs(&pairs);
-
-    let mut result: CFTypeRef = std::ptr::null();
-    let status = unsafe { SecItemCopyMatching(query.as_concrete_TypeRef(), &mut result) };
-    if status != 0 {
-        if status == errSecItemNotFound {
-            return Err(VaultError::NotFound);
-        }
-        if is_access_denied(status) {
-            return Err(VaultError::Denied);
-        }
-        return Err(VaultError::Other(format!(
-            "vault: read keychain: status {status}"
-        )));
-    }
-    if result.is_null() {
-        return Err(VaultError::NotFound);
-    }
-    // With kSecReturnData and the default match limit (one), the result is CFData.
-    if unsafe { CFGetTypeID(result) } != CFData::type_id() {
-        unsafe { core_foundation_sys::base::CFRelease(result) };
-        return Err(VaultError::Other(
-            "vault: keychain returned non-data".into(),
-        ));
-    }
-    let data =
-        unsafe { CFData::wrap_under_create_rule(result as core_foundation_sys::data::CFDataRef) };
-    let bytes = data.bytes();
-    if bytes.len() != KEY_LEN {
-        return Err(VaultError::Other(format!(
-            "vault: keychain key has wrong length {}",
-            bytes.len()
-        )));
-    }
-    let mut key = [0u8; KEY_LEN];
-    key.copy_from_slice(bytes);
-    Ok(key)
-}
-
-/// Add the key item. Returns the raw OSStatus so callers can branch on it.
-fn add_item(key: &[u8], accessible: CFStringRef, synchronizable: bool) -> OSStatus {
-    let sync = if synchronizable {
-        CFBoolean::true_value()
-    } else {
-        CFBoolean::false_value()
-    };
-    let pairs = [
-        (
-            cf_const(unsafe { kSecClass }),
-            cf_const(unsafe { kSecClassGenericPassword }),
-        ),
-        (
-            cf_const(unsafe { kSecAttrService }),
-            CFString::new(SERVICE).as_CFType(),
-        ),
-        (
-            cf_const(unsafe { kSecAttrAccount }),
-            CFString::new(ACCOUNT).as_CFType(),
-        ),
-        (
-            cf_const(unsafe { kSecAttrLabel }),
-            CFString::new(LABEL).as_CFType(),
-        ),
-        (
-            cf_const(unsafe { kSecValueData }),
-            CFData::from_buffer(key).as_CFType(),
-        ),
-        (
-            cf_const(unsafe { kSecAttrAccessible }),
-            cf_const(accessible),
-        ),
-        (
-            cf_const(unsafe { kSecAttrSynchronizable }),
-            sync.as_CFType(),
-        ),
-    ];
-    let attrs = CFDictionary::from_CFType_pairs(&pairs);
-    let mut result: CFTypeRef = std::ptr::null();
-    let status = unsafe { SecItemAdd(attrs.as_concrete_TypeRef(), &mut result) };
-    if !result.is_null() {
-        unsafe { core_foundation_sys::base::CFRelease(result) };
-    }
-    status
-}
-
-/// Write a fresh key, mirroring writeKey: WhenUnlocked+Sync, falling back to
-/// ThisDeviceOnly+NoSync when the iCloud-sync entitlement is missing. A
-/// duplicate means an existing item we can't see — surface it, never overwrite.
-fn write_key(key: &[u8]) -> Result<(), VaultError> {
-    let mut status = add_item(key, unsafe { kSecAttrAccessibleWhenUnlocked }, true);
-    if status == ERR_MISSING_ENTITLEMENT {
-        status = add_item(
-            key,
-            unsafe { kSecAttrAccessibleWhenUnlockedThisDeviceOnly },
-            false,
-        );
-    }
-    match status {
-        0 => Ok(()),
-        s if s == errSecDuplicateItem => Err(VaultError::Denied),
-        s => Err(VaultError::Other(format!(
-            "vault: write keychain item: status {s}"
-        ))),
-    }
-}
-
 /// The shared key, created on first use. Get-or-create, mirroring vault.Key().
 pub fn key() -> Result<[u8; KEY_LEN], VaultError> {
-    match fetch_key() {
+    match store::fetch_key() {
         Ok(k) => Ok(k),
         Err(VaultError::NotFound) => create_key(),
         Err(e) => Err(e),
@@ -260,7 +98,7 @@ fn create_key() -> Result<[u8; KEY_LEN], VaultError> {
     let mut key = [0u8; KEY_LEN];
     getrandom::fill(&mut key)
         .map_err(|e| VaultError::Other(format!("vault: generate key: {e}")))?;
-    write_key(&key)?;
+    store::write_key(&key)?;
     Ok(key)
 }
 
@@ -313,7 +151,7 @@ fn argon2_kek(
     Ok(kek)
 }
 
-fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError> {
+pub(crate) fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError> {
     let mut salt = [0u8; SALT_LEN];
     getrandom::fill(&mut salt).map_err(|e| VaultError::Other(format!("vault: rand salt: {e}")))?;
     let mut kek = argon2_kek(
@@ -362,7 +200,7 @@ fn wrap_key(passphrase: &str, key: &[u8; KEY_LEN]) -> Result<String, VaultError>
         .map_err(|e| VaultError::Other(format!("vault: marshal export: {e}")))
 }
 
-fn unwrap_key(passphrase: &str, data: &[u8]) -> Result<[u8; KEY_LEN], VaultError> {
+pub(crate) fn unwrap_key(passphrase: &str, data: &[u8]) -> Result<[u8; KEY_LEN], VaultError> {
     let ek: ExportedKey = serde_json::from_slice(data)
         .map_err(|e| VaultError::Other(format!("vault: parse export: {e}")))?;
     if ek.v != EXPORT_VERSION {
@@ -447,10 +285,10 @@ pub fn import_key(passphrase: &str, data: &[u8]) -> Result<(), VaultError> {
         return Err(VaultError::EmptyPassphrase);
     }
     let key = unwrap_key(passphrase, data)?;
-    match fetch_key() {
+    match store::fetch_key() {
         Ok(existing) if existing == key => Ok(()),
         Ok(_) => Err(VaultError::KeyConflict),
-        Err(_) => write_key(&key),
+        Err(_) => store::write_key(&key),
     }
 }
 

@@ -66,9 +66,16 @@ fn play_spec(spec: &str, event: &str) {
     }
 }
 
+/// Chimes are for the machine a person is sitting at. A Linux host runs headless
+/// with its notifications delivered to the paired Mac and phone instead, so there
+/// is nothing to play and no audio stack to assume.
+#[cfg(target_os = "macos")]
 fn afplay(path: &std::path::Path) {
     let _ = std::process::Command::new("afplay").arg(path).spawn();
 }
+
+#[cfg(not(target_os = "macos"))]
+fn afplay(_path: &std::path::Path) {}
 
 // Reject anything but a bare word so a system-sound value can't escape SOUNDS_DIR.
 fn is_safe_name(name: &str) -> bool {

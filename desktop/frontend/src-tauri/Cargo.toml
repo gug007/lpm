@@ -50,20 +50,15 @@ sha2 = "0.11"           # blob content addressing
 getrandom = "0.4"       # key / salt / nonce CSPRNG
 zeroize = "1"           # wipe key buffers
 tempfile = "3"          # atomic blob temp-then-rename
-# macOS Keychain (legacy login keychain, generic password). Raw SecItem FFI:
-# kSec* constants + errSec codes from -sys, core-foundation to build the query
-# dictionaries. We mirror go-keychain's exact attributes (SynchronizableAny on
-# read) so the existing vault key is found, never recreated.
-security-framework-sys = "2.17"
-core-foundation = "0.10"
-core-foundation-sys = "0.8"
 chrono = "0.4"         # vault-export filename timestamp (local time)
 mime_guess = "2"       # attachment MIME from extension
 tar = "0.4"            # config export/import archive
 flate2 = "1"           # gzip for the config archive
-# Blocking HTTP for the self-updater (GitHub release check + DMG download).
-# default-tls = native-tls = Security.framework on macOS (no extra OpenSSL).
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls"] }
+# Blocking HTTP for the self-updater and the push relay. The TLS backend is
+# per-target (see the two target sections below): native-tls on macOS resolves to
+# Security.framework, but on Linux it would resolve to OpenSSL and drag in a
+# libssl-dev build requirement, so that target uses rustls — already vendored
+# here for peertls/remotetls.
 
 # --- Mobile remote-control server (remote.rs) ---
 # Blocking WebSocket per the socketsrv std::thread house style (no tokio). Each
@@ -90,6 +85,20 @@ time = "0.3"
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString"] }
+# macOS Keychain (legacy login keychain, generic password), used only by
+# vaultkeychain.rs. Raw SecItem FFI: kSec* constants + errSec codes from -sys,
+# core-foundation to build the query dictionaries. We mirror go-keychain's exact
+# attributes (SynchronizableAny on read) so the existing vault key is found,
+# never recreated. Other platforms store the key via vaultkeyfile.rs instead.
+security-framework-sys = "2.17"
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls"] }
+
+# Linux host build. No Security.framework, so TLS comes from rustls rather than
+# OpenSSL — keeps the build free of libssl-dev on minimal server images.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
 
 # Every rebuild orphans its object files (content-hashed names) and cargo never
 # reclaims them. Coarser codegen units cut that leak from ~261 files per edit to

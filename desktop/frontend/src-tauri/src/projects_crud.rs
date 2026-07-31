@@ -1188,6 +1188,7 @@ pub fn move_project_root(
 /// NSFileManager — the same mechanism as dragging to Trash, so the folder stays
 /// restorable and no Finder-automation permission is needed. The path travels as
 /// an argv item, so it never has to be escaped into the script source.
+#[cfg(target_os = "macos")]
 const TRASH_SCRIPT: &str = r#"use framework "Foundation"
 on run argv
 set p to item 1 of argv
@@ -1197,8 +1198,41 @@ set {ok, err} to fm's trashItemAtURL:u resultingItemURL:(missing value) |error|:
 if not ok then error (err's localizedDescription() as text)
 end run"#;
 
+/// Move `path` to the host's trash, using whichever tool the desktop stack
+/// provides. A host with none is an ERROR, never a fallback hard delete: the user
+/// consented to a recoverable move, so `rm -rf` is not an acceptable substitute.
+#[cfg(not(target_os = "macos"))]
+fn move_to_trash(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    const TOOLS: &[(&str, &[&str])] = &[("gio", &["trash"]), ("trash-put", &[])];
+    for (bin, args) in TOOLS {
+        if !crate::sys::which(bin) {
+            continue;
+        }
+        let out = std::process::Command::new(bin)
+            .args(*args)
+            .arg(path)
+            .output()
+            .map_err(|e| format!("move to Trash: {e}"))?;
+        if out.status.success() {
+            return Ok(());
+        }
+        let err = String::from_utf8_lossy(&out.stderr);
+        let msg = err.trim();
+        return Err(if msg.is_empty() {
+            "move to Trash failed".to_string()
+        } else {
+            format!("move to Trash: {msg}")
+        });
+    }
+    Err("This host has no Trash, so the folder was left in place. Remove it on the host directly.".into())
+}
+
 /// Move `path` to the macOS Trash. A path that is already gone counts as success
 /// so a retried removal never gets stuck on a folder that's no longer there.
+#[cfg(target_os = "macos")]
 fn move_to_trash(path: &Path) -> Result<(), String> {
     if !path.exists() {
         return Ok(());

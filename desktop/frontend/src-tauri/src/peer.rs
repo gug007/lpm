@@ -1652,27 +1652,9 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-/// This Mac's user-facing name (System Settings → Sharing), for the client's peer
-/// list. Falls back to the network hostname, then a generic label.
+/// This host's user-facing name, for the client's peer list.
 pub(crate) fn machine_name() -> String {
-    if let Ok(out) = std::process::Command::new("scutil")
-        .args(["--get", "ComputerName"])
-        .output()
-    {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !s.is_empty() {
-                return s;
-            }
-        }
-    }
-    let mut buf = [0u8; 256];
-    let r = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
-    if r == 0 {
-        let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-        return String::from_utf8_lossy(&buf[..end]).to_string();
-    }
-    "Mac".to_string()
+    crate::sys::machine_name()
 }
 
 /// The Mac's primary LAN IP, found by asking the OS which local address would
