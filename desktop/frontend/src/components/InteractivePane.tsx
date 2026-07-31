@@ -15,6 +15,7 @@ import {
   SaveClipboardImage,
   SetClipboardText,
   IsTerminalRemote,
+  PeerTermAttach,
   UploadAndQuoteForTerminal,
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
@@ -896,6 +897,18 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     session.lastOutputAt = performance.now();
     writeData(data);
   });
+
+  // A peer terminal only streams to subscribers: the host answers a subscribe
+  // with its scrollback as a seed, then pushes live output. Opening the pty
+  // subscribes for the pane that started it, but a pane can also open onto one
+  // that already exists — restore adopting a session that outlived us — and then
+  // this is the only subscribe there is. Re-subscribing is idempotent (the host
+  // seeds with a screen clear), and this has to come AFTER the listener above so
+  // the seed can't arrive with nothing listening. A mirror renders from the
+  // owner's snapshot instead, so it never subscribes on its own.
+  if (isPeerName(terminalId) && !IS_MIRROR_WINDOW) {
+    PeerTermAttach(terminalId).catch(() => {});
+  }
 
   const cleanupExit = EventsOn(
     "pty-exit-" + terminalId,
