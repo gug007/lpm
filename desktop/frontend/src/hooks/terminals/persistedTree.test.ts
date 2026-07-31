@@ -110,20 +110,74 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(started).toEqual(["pty-fresh"]);
   });
 
-  // An unreachable peer must not strand the whole tree.
-  it("relaunches when the liveness check itself fails", async () => {
-    h.terminalExists.mockRejectedValue(new Error("peer went away"));
-    h.startTerminal.mockResolvedValue("pty-fresh");
+  // Restore routinely runs before the peer connection is up. Answering that with
+  // a fresh pty would leave the real terminal running on the host with nothing
+  // attached — a stranded agent — so the check is retried instead.
+  it("waits for the peer instead of relaunching, then adopts", async () => {
+    vi.useFakeTimers();
+    try {
+      h.terminalExists
+        .mockRejectedValueOnce(new Error("unknown peer"))
+        .mockRejectedValueOnce(new Error("unknown peer"))
+        .mockResolvedValue(true);
 
-    const pane = asLeaf(
-      await reifyTreeWithFreshPtys(
+      const pending = reifyTreeWithFreshPtys(
         leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7" }]),
         "peer-a1b2c3d4-demo",
         [],
-      ),
-    );
+      );
+      await vi.advanceTimersByTimeAsync(2000);
 
-    expect(pane.tabs[0].id).toBe("pty-fresh");
+      const pane = asLeaf(await pending);
+      expect(pane.tabs[0].id).toBe("peer-a1b2c3d4-project-7");
+      expect(h.startTerminal).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Once the peer answers, a host that really lost the terminal still gets a
+  // fresh one — retrying only covers "couldn't ask", not "isn't there".
+  it("relaunches once the peer answers that the terminal is gone", async () => {
+    vi.useFakeTimers();
+    try {
+      h.terminalExists.mockRejectedValueOnce(new Error("unknown peer")).mockResolvedValue(false);
+      h.startTerminal.mockResolvedValue("pty-fresh");
+
+      const pending = reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7" }]),
+        "peer-a1b2c3d4-demo",
+        [],
+      );
+      await vi.advanceTimersByTimeAsync(2000);
+
+      const pane = asLeaf(await pending);
+      expect(pane.tabs[0].id).toBe("pty-fresh");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A peer that never comes back must still not spawn a second terminal beside a
+  // possibly-live one: adopt on faith and let the attach resubscribe if it's there.
+  it("adopts rather than duplicating when the peer never answers", async () => {
+    vi.useFakeTimers();
+    try {
+      h.terminalExists.mockRejectedValue(new Error("unknown peer"));
+
+      const pending = reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7" }]),
+        "peer-a1b2c3d4-demo",
+        [],
+      );
+      await vi.advanceTimersByTimeAsync(10000);
+
+      const pane = asLeaf(await pending);
+      expect(pane.tabs[0].id).toBe("peer-a1b2c3d4-project-7");
+      expect(h.startTerminal).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // A local id is always stale after a restart; only peer ids are adoptable.
