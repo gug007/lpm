@@ -97,7 +97,7 @@ export type View =
   | "branch-instructions"
   | "template";
 
-export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "templates" | "backup" | "mobile" | "connect-macs";
+export type SettingsTab = "general" | "notifications" | "terminal" | "shortcuts" | "tts" | "ai" | "templates" | "backup" | "mobile" | "connections";
 
 export interface SSHProjectParams {
   name: string;

@@ -1,6 +1,6 @@
 // Bonjour/mDNS for the two LAN roles: advertising the mobile remote-control
 // server (remote.rs) and the Mac-to-Mac peer host server (peer.rs), plus browsing
-// for other Macs' peer servers so the Connect Macs pane can list nearby Macs.
+// for other Macs' peer servers so the Connections pane can list nearby Macs.
 //
 // A phone browses for `_lpm._tcp` and matches the TXT `id` to re-find a saved Mac
 // whose address changed. A Mac browses for `_lpm-peer._tcp` to discover peers to

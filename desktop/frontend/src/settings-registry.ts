@@ -58,7 +58,7 @@ export const TAB_TITLES: Record<SettingsTab, string> = {
   templates: "Templates",
   backup: "Backup & Transfer",
   mobile: "Mobile devices",
-  "connect-macs": "Connect Macs",
+  connections: "Connections",
 };
 
 export const NAV_GROUPS: SettingsNavGroup[] = [
@@ -90,7 +90,7 @@ export const NAV_GROUPS: SettingsNavGroup[] = [
     title: "Devices",
     items: [
       { kind: "tab", tab: "mobile", label: "Mobile devices" },
-      { kind: "tab", tab: "connect-macs", label: "Connect Macs" },
+      { kind: "tab", tab: "connections", label: "Connections" },
     ],
   },
 ];
@@ -374,21 +374,21 @@ export const ROWS = {
     description: "Pair your iPhone to mirror terminals and control projects",
     keywords: ["iphone", "phone", "ios", "remote"],
   },
-  "connect-macs.peers": {
+  "connections.peers": {
     kind: "row",
-    tab: "connect-macs",
-    id: "connect-macs.peers",
-    label: "Connect Macs",
-    description: "Control another Mac's projects from this one",
-    keywords: ["peer", "remote", "mac", "nearby", "discover"],
+    tab: "connections",
+    id: "connections.peers",
+    label: "Connections",
+    description: "Control another machine's projects from this one",
+    keywords: ["peer", "remote", "mac", "linux", "server", "host", "nearby", "discover"],
   },
-  "connect-macs.sync": {
+  "connections.sync": {
     kind: "row",
-    tab: "connect-macs",
-    id: "connect-macs.sync",
+    tab: "connections",
+    id: "connections.sync",
     label: "Config sync",
-    description: "Mirror projects and settings between paired Macs",
-    keywords: ["sync", "transfer", "mirror", "config", "peer", "mac"],
+    description: "Mirror projects and settings between connected machines",
+    keywords: ["sync", "transfer", "mirror", "config", "peer", "mac", "linux"],
   },
 } satisfies Record<string, SettingsRowEntry>;
 

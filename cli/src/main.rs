@@ -18,6 +18,7 @@ mod remove;
 mod run;
 mod service;
 mod service_cmd;
+mod pair;
 mod setstatus;
 mod start;
 mod status;
@@ -53,6 +54,7 @@ app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `automations`. \
+Connection commands (for a machine with no UI in front of it): `pair`, `connections`. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
@@ -194,6 +196,21 @@ enum Commands {
         /// Project to set on; omit to infer from the environment / cwd.
         #[arg(long, short = 'p')]
         project: Option<String>,
+    },
+    /// Mint an invite so another machine can control this one.
+    Pair {
+        /// Withdraw the outstanding invite instead of minting one.
+        #[arg(long)]
+        cancel: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show what this machine hosts and what it's connected to.
+    Connections {
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
     },
     /// Clear an agent-status key on a project (via the running app).
     ClearStatus {
@@ -382,6 +399,8 @@ fn main() -> ExitCode {
             pane.as_deref(),
             project.as_deref(),
         ),
+        Commands::Pair { cancel, json } => pair::run(&ctx, cancel, json),
+        Commands::Connections { json } => pair::run_connections(&ctx, json),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())
         }

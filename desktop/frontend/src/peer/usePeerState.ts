@@ -5,6 +5,8 @@ import { EventsOn } from "../../bridge/runtime";
 export interface PeerHostDevice {
   id: string;
   name: string;
+  // "macos" / "linux". Empty for a device paired before platforms were reported.
+  platform?: string;
 }
 
 export interface PeerHostPairing {
@@ -48,6 +50,10 @@ export interface PeerClient {
   lastSyncAt?: number;
   lastError?: string;
   autoSync?: boolean;
+  // What the other end runs, re-reported on every connect. A "linux" peer is a
+  // headless host rather than someone's Mac. Empty until its next connect for an
+  // entry paired before hosts sent it — treat unknown as a Mac, never as Linux.
+  platform?: string;
 }
 
 export interface DiscoveredPeer {

@@ -1,4 +1,4 @@
-# Peer Protocol (Connect Macs)
+# Peer Protocol (Connections)
 
 Wire protocol for Mac-to-Mac control in lpm. One lpm Mac (the **host**) exposes
 its projects to another lpm Mac (the **client**); the client renders the host's
@@ -41,13 +41,14 @@ Holds both roles behind one shared in-memory lock:
     "port": 0,
     "pairingCode": "",
     "devices": [
-      { "id": "uuid", "name": "Laptop", "tokenSha256": "…", "slugAssigned": "abcd1234", "createdAt": 0 }
+      { "id": "uuid", "name": "Laptop", "tokenSha256": "…", "slugAssigned": "abcd1234",
+        "createdAt": 0, "platform": "macos" }
     ]
   },
   "peers": [
     { "slug": "abcd1234", "alias": "Studio", "host": "100.64.0.5", "port": 8766,
       "deviceId": "uuid", "token": "raw-token", "tlsFp": "hex-sha256", "enabled": true,
-      "autoSync": false }
+      "autoSync": false, "platform": "linux" }
   ]
 }
 ```
@@ -121,13 +122,20 @@ marker before sending over the wire; the host only ever sees raw host-local ids.
 
 First client frame within 20s, or the host closes the socket.
 
-- **Pair** (first time): client → `{ "t": "pair", "code", "name" }`
-  host → `{ "t": "paired", "deviceId", "token", "slug", "hostName" }`
-  The single-use pairing code is consumed on success. `name` is the client Mac's
-  display name; `hostName` is the host Mac's.
+- **Pair** (first time): client → `{ "t": "pair", "code", "name", "platform" }`
+  host → `{ "t": "paired", "deviceId", "token", "slug", "hostName", "hostPlatform" }`
+  The single-use pairing code is consumed on success. `name` is the client
+  machine's display name; `hostName` is the host's.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
-  host → `{ "t": "ready", "hostName", "features": ["configSync", "configSync2"] }`
+  host → `{ "t": "ready", "hostName", "hostPlatform", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
+
+`platform` / `hostPlatform` are `std::env::consts::OS` spelling (`macos`, `linux`)
+and tell a headless Linux host apart from someone's Mac in the Connections pane.
+Both are absent from a build that predates them, which reads as unknown and is
+treated as a Mac. `hostPlatform` rides every `ready`, not just pairing, so an entry
+stored before it existed fills itself in on the next connect rather than needing a
+re-pair.
 
 `features` advertises optional capabilities the client keys behavior on (unknown
 entries ignored). `configSync` = the config-sync frames below exist at all;

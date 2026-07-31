@@ -74,6 +74,8 @@ pub(crate) struct PeerDevice {
     pub token_sha256: String, // sha256(token) hex — the raw token lives only on the client
     pub slug_assigned: String,
     pub created_at: i64,
+    #[serde(default)]
+    pub platform: String, // "macos" / "linux"; empty for devices paired before this was sent
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -122,6 +124,8 @@ pub(crate) struct PeerEntry {
     pub last_sync_at: i64, // millis of the last successful config sync, 0 = never
     #[serde(default)]
     pub auto_sync: bool, // keep config in sync automatically (Phase 4); old peer.json loads as false
+    #[serde(default)]
+    pub platform: String, // the remote's "macos" / "linux"; a Linux entry is a headless host, not a Mac. Empty until its next connect re-reports it
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -700,11 +704,13 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
         Some("pair") => {
             let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
             let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-            match pair_device(hub, code, name) {
+            let platform = v.get("platform").and_then(Value::as_str).unwrap_or_default();
+            match pair_device(hub, code, name, platform) {
                 Some((id, token, slug)) => {
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token,
-                            "slug": slug, "hostName": machine_name(), "hostId": hub.host_id() })
+                            "slug": slug, "hostName": machine_name(), "hostId": hub.host_id(),
+                            "hostPlatform": platform_id() })
                         .to_string(),
                     ));
                     let _ = app.emit("peer-state-changed", ());
@@ -720,7 +726,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
         }
         Some("pairRequest") => {
             let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-            handle_pair_request(ws, hub, app, name)
+            let platform = v.get("platform").and_then(Value::as_str).unwrap_or_default();
+            handle_pair_request(ws, hub, app, name, platform)
         }
         Some("auth") => {
             let id = v
@@ -729,8 +736,11 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 .unwrap_or_default();
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
             if check_device(hub, id, token) {
+                // hostPlatform rides every auth, not just pairing, so a peer
+                // paired before this existed learns it on its next connect.
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
+                        "hostPlatform": platform_id(),
                         "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2,
                             crate::gitbringhost::GIT_BRING_FEATURE,
                             crate::gitbringhost::GIT_FOLLOW_FEATURE,
@@ -759,7 +769,7 @@ fn normalize_code(s: &str) -> String {
 /// Mint and persist a new device (token, slug) for `name`, returning
 /// (id, token, slug). Shared by both pairing paths; unlike `pair_device` it never
 /// touches `pairing_code` — a tap-to-approve pairing has no code to consume.
-fn mint_device(hub: &PeerHub, name: &str) -> (String, String, String) {
+fn mint_device(hub: &PeerHub, name: &str, platform: &str) -> (String, String, String) {
     let mut cfg = hub.inner.config.lock().unwrap();
     let token = gen_token();
     let slug = gen_slug(&cfg.host.devices);
@@ -769,6 +779,7 @@ fn mint_device(hub: &PeerHub, name: &str) -> (String, String, String) {
         token_sha256: sha256_hex(token.as_bytes()),
         slug_assigned: slug.clone(),
         created_at: crate::status::now_millis(),
+        platform: platform.chars().take(16).collect(),
     };
     let id = device.id.clone();
     cfg.host.devices.push(device);
@@ -778,7 +789,12 @@ fn mint_device(hub: &PeerHub, name: &str) -> (String, String, String) {
     (id, token, slug)
 }
 
-fn pair_device(hub: &PeerHub, code: &str, name: &str) -> Option<(String, String, String)> {
+fn pair_device(
+    hub: &PeerHub,
+    code: &str,
+    name: &str,
+    platform: &str,
+) -> Option<(String, String, String)> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         let expected = normalize_code(&cfg.host.pairing_code);
@@ -790,7 +806,7 @@ fn pair_device(hub: &PeerHub, code: &str, name: &str) -> Option<(String, String,
         drop(cfg);
         let _ = save_config(&snapshot);
     }
-    Some(mint_device(hub, name))
+    Some(mint_device(hub, name, platform))
 }
 
 const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(120);
@@ -805,6 +821,7 @@ fn handle_pair_request(
     hub: &PeerHub,
     app: &AppHandle,
     name: &str,
+    platform: &str,
 ) -> Option<String> {
     let (id, sas, rx) = hub.begin_pair_request(name);
     let _ = ws.send(Message::text(
@@ -859,10 +876,11 @@ fn handle_pair_request(
 
     match decision {
         Some(d) if d.accept => {
-            let (dev_id, token, slug) = mint_device(hub, name);
+            let (dev_id, token, slug) = mint_device(hub, name, platform);
             let _ = ws.send(Message::text(
                 json!({ "t": "paired", "deviceId": dev_id, "token": token, "slug": slug,
-                    "hostName": machine_name(), "hostId": hub.host_id(), "reciprocal": d.reciprocal })
+                    "hostName": machine_name(), "hostId": hub.host_id(),
+                    "hostPlatform": platform_id(), "reciprocal": d.reciprocal })
                 .to_string(),
             ));
             if d.reciprocal {
@@ -1445,7 +1463,7 @@ fn host_state_value(hub: &PeerHub) -> Value {
     let devices: Vec<Value> = cfg
         .devices
         .iter()
-        .map(|d| json!({ "id": d.id, "name": d.name }))
+        .map(|d| json!({ "id": d.id, "name": d.name, "platform": d.platform }))
         .collect();
     let pair_requests: Vec<Value> = hub
         .inner
@@ -1467,14 +1485,18 @@ fn host_state_value(hub: &PeerHub) -> Value {
     })
 }
 
-/// Combined host+client state for the Connect Macs pane. Client peer rows carry
+/// Combined host+client state for the Connections pane. Client peer rows carry
 /// their live connection status from peerclient.rs.
+pub(crate) fn state_value(hub: &PeerHub, client: &crate::peerclient::PeerClientHub) -> Value {
+    json!({ "host": host_state_value(hub), "peers": client.peers_state() })
+}
+
 #[tauri::command]
 pub fn peer_state(
     hub: State<'_, PeerHub>,
     client: State<'_, crate::peerclient::PeerClientHub>,
 ) -> Value {
-    json!({ "host": host_state_value(&hub), "peers": client.peers_state() })
+    state_value(&hub, &client)
 }
 
 #[tauri::command]
@@ -1501,11 +1523,10 @@ pub async fn peer_host_set_config(
 
 /// Start (or refresh) a single-use pairing code, force-enabling the server on the
 /// LAN so the pairing Mac can reach it, and return the code + candidate addresses.
-#[tauri::command]
-pub async fn peer_host_start_pairing(
-    app: AppHandle,
-    hub: State<'_, PeerHub>,
-) -> Result<Value, String> {
+/// Shared by the Connections pane and the `lpm pair` socket verb — a headless host
+/// has no UI to click, and a second bring-up path would be a second way to get the
+/// crypto wrong.
+pub(crate) fn start_pairing(app: &AppHandle, hub: &PeerHub) -> Result<Value, String> {
     let code = gen_pairing_code();
     let (hosts, port) = {
         let mut cfg = hub.inner.config.lock().unwrap();
@@ -1518,7 +1539,7 @@ pub async fn peer_host_start_pairing(
         save_config(&snapshot)?;
         (candidate_hosts(), port)
     };
-    apply(&hub, &app);
+    apply(hub, app);
     let _ = app.emit("peer-state-changed", ());
     // The invite carries this Mac's leaf fingerprint so the joining Mac can pin it
     // up front (like the phone's pairing QR). Reading it here also forces the shared
@@ -1527,10 +1548,34 @@ pub async fn peer_host_start_pairing(
 }
 
 #[tauri::command]
-pub async fn peer_host_cancel_pairing(
+pub async fn peer_host_start_pairing(
     app: AppHandle,
     hub: State<'_, PeerHub>,
 ) -> Result<Value, String> {
+    start_pairing(&app, &hub)
+}
+
+/// Pack a `start_pairing` result into the one copy-pasteable token the joining
+/// Mac accepts. Must stay byte-identical to `encodeInvite` in src/peer/invite.ts:
+/// `lpm-pair:` + unpadded base64url of `{v:2, h:hosts, p:port, c:code, f?:fp}`.
+pub(crate) fn encode_invite(pairing: &Value) -> String {
+    let mut payload = json!({
+        "v": 2,
+        "h": pairing.get("hosts").cloned().unwrap_or(json!([])),
+        "p": pairing.get("port").and_then(Value::as_u64).unwrap_or(0),
+        "c": pairing.get("code").and_then(Value::as_str).unwrap_or(""),
+    });
+    if let Some(fp) = pairing.get("fp").and_then(Value::as_str) {
+        if !fp.is_empty() {
+            payload["f"] = json!(fp);
+        }
+    }
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(payload.to_string());
+    format!("lpm-pair:{encoded}")
+}
+
+pub(crate) fn cancel_pairing(app: &AppHandle, hub: &PeerHub) -> Result<Value, String> {
     {
         let mut cfg = hub.inner.config.lock().unwrap();
         cfg.host.pairing_code.clear();
@@ -1539,7 +1584,15 @@ pub async fn peer_host_cancel_pairing(
         save_config(&snapshot)?;
     }
     let _ = app.emit("peer-state-changed", ());
-    Ok(host_state_value(&hub))
+    Ok(host_state_value(hub))
+}
+
+#[tauri::command]
+pub async fn peer_host_cancel_pairing(
+    app: AppHandle,
+    hub: State<'_, PeerHub>,
+) -> Result<Value, String> {
+    cancel_pairing(&app, &hub)
 }
 
 #[tauri::command]
@@ -1657,6 +1710,15 @@ pub(crate) fn machine_name() -> String {
     crate::sys::machine_name()
 }
 
+/// Which OS this end is, reported both ways during pairing and on every auth. A
+/// Linux peer is a headless host running under Xvfb rather than someone's Mac,
+/// and the two are worth telling apart in the UI. `std::env::consts::OS` spelling
+/// ("macos" / "linux") — not `get_platform`'s Go-style "darwin/arm64", which
+/// exists to match update-asset names.
+pub(crate) fn platform_id() -> &'static str {
+    std::env::consts::OS
+}
+
 /// The Mac's primary LAN IP, found by asking the OS which local address would
 /// route outbound — no packets are sent (UDP connect only sets the peer).
 fn primary_lan_ip() -> Option<String> {
@@ -1728,6 +1790,7 @@ mod tests {
                     token_sha256: sha256_hex(b"t"),
                     slug_assigned: "abcd1234".into(),
                     created_at: 7,
+                    platform: "macos".into(),
                 }],
             },
             peers: vec![PeerEntry {
@@ -1742,6 +1805,7 @@ mod tests {
                 enabled: true,
                 last_sync_at: 0,
                 auto_sync: true,
+                platform: "linux".into(),
             }],
         };
         let s = serde_json::to_string(&cfg).unwrap();
@@ -1869,7 +1933,8 @@ mod tests {
                     let v: Value = serde_json::from_str(&txt).unwrap();
                     let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
                     let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-                    let paired = pair_device(&hub2, code, name);
+                    let platform = v.get("platform").and_then(Value::as_str).unwrap_or_default();
+                    let paired = pair_device(&hub2, code, name, platform);
                     if let Some((id, token, slug)) = &paired {
                         let _ = ws.send(Message::text(
                             json!({ "t": "paired", "deviceId": id, "token": token, "slug": slug })
@@ -1917,6 +1982,40 @@ mod tests {
         }
     }
 
+    // The joining Mac decodes this with src/peer/invite.ts, which has the matching
+    // literal in its own test. If these two ever drift, a headless host mints
+    // invites nobody can paste.
+    #[test]
+    fn encode_invite_matches_the_typescript_format() {
+        let invite = encode_invite(&json!({
+            "code": "AB12-CD34",
+            "port": 8766u64,
+            "hosts": ["10.0.0.5", "100.64.0.5"],
+            "fp": "deadbeef",
+        }));
+        assert_eq!(
+            invite,
+            "lpm-pair:eyJjIjoiQUIxMi1DRDM0IiwiZiI6ImRlYWRiZWVmIiwiaCI6WyIxMC4wLjAuNSIsIjEwMC42NC4wLjUiXSwicCI6ODc2NiwidiI6Mn0"
+        );
+    }
+
+    // An unpinned host (no identity yet) must not emit `f: ""` — v1 invites omit
+    // the key entirely, and a joiner that sees an empty fingerprint would pin junk.
+    #[test]
+    fn encode_invite_omits_an_empty_fingerprint() {
+        let invite = encode_invite(&json!({
+            "code": "AB12-CD34", "port": 8766u64, "hosts": ["10.0.0.5"], "fp": "",
+        }));
+        let encoded = invite.strip_prefix("lpm-pair:").expect("prefix");
+        use base64::Engine;
+        let json = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(encoded)
+            .expect("base64url");
+        let v: Value = serde_json::from_slice(&json).expect("json");
+        assert!(v.get("f").is_none());
+        assert_eq!(v.get("v").and_then(Value::as_u64), Some(2));
+    }
+
     #[test]
     fn mint_device_keeps_pairing_code_while_pair_device_clears_it() {
         let _guard = TEST_CFG_GUARD.lock().unwrap();
@@ -1931,15 +2030,16 @@ mod tests {
         }
 
         // A tap-to-approve mint never consumes the outstanding code.
-        let (id, token, slug) = mint_device(&hub, "Laptop");
+        let (id, token, slug) = mint_device(&hub, "Laptop", "macos");
         assert!(!id.is_empty() && !token.is_empty() && slug.len() == 8);
         assert_eq!(hub.host_config().pairing_code, "AAAA-BBBB");
         assert_eq!(hub.host_config().devices.len(), 1);
 
-        // A code-based pair still consumes it.
-        assert!(pair_device(&hub, "AAAA-BBBB", "Studio").is_some());
+        // A code-based pair still consumes it, and records what the joiner is.
+        assert!(pair_device(&hub, "AAAA-BBBB", "Studio", "linux").is_some());
         assert!(hub.host_config().pairing_code.is_empty());
         assert_eq!(hub.host_config().devices.len(), 2);
+        assert_eq!(hub.host_config().devices[1].platform, "linux");
 
         *TEST_CONFIG_PATH.lock().unwrap() = None;
         let _ = std::fs::remove_file(&tmp);
@@ -2005,7 +2105,7 @@ mod tests {
                     let decision = rx.recv().expect("decision");
                     hub2.remove_pair_request(&id);
                     if decision.accept {
-                        let (dev, token, slug) = mint_device(&hub2, name);
+                        let (dev, token, slug) = mint_device(&hub2, name, "macos");
                         let _ = ws.send(Message::text(
                             json!({ "t": "paired", "deviceId": dev, "token": token, "slug": slug,
                                 "hostName": machine_name(), "hostId": hub2.host_id(), "reciprocal": false })

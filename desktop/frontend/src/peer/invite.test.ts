@@ -61,6 +61,20 @@ describe("invite codec", () => {
     expect(decoded?.fp).toBeUndefined();
   });
 
+  // `lpm pair` on a headless host mints invites in Rust (peer.rs encode_invite),
+  // which has the matching literal in its own test. This is the seam where a
+  // Linux box's invite either pastes into this Mac or doesn't.
+  it("decodes an invite minted by the Rust side", () => {
+    const fromRust =
+      "lpm-pair:eyJjIjoiQUIxMi1DRDM0IiwiZiI6ImRlYWRiZWVmIiwiaCI6WyIxMC4wLjAuNSIsIjEwMC42NC4wLjUiXSwicCI6ODc2NiwidiI6Mn0";
+    expect(decodeInvite(fromRust)).toEqual({
+      hosts: ["10.0.0.5", "100.64.0.5"],
+      port: 8766,
+      code: "AB12-CD34",
+      fp: "deadbeef",
+    });
+  });
+
   it("ignores unknown fields", () => {
     const extra =
       "lpm-pair:" +

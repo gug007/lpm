@@ -1,4 +1,4 @@
-// Nearby-Mac discovery for the Connect Macs pane.
+// Nearby-Mac discovery for the Connections pane.
 //
 // Owns a single mDNS browse for other Macs' peer host servers and re-emits the
 // current list as the `peer-discovery` app event on every change. Start/stop are

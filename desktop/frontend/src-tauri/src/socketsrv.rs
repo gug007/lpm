@@ -175,6 +175,8 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "job_history" => cmd_job_history(args),
         "job_live_output" => cmd_job_live_output(args),
         "send_job_followup" => cmd_send_job_followup(args, app),
+        "peer_pair" => cmd_peer_pair(args, app),
+        "peer_state" => cmd_peer_state(app),
         _ => "ERROR: unknown command".into(),
     }
 }
@@ -589,6 +591,39 @@ fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
 
 /// `list_jobs <project>` → one JSON line, the same array `list_jobs` returns to
 /// the app (per-job id / schedule / enabled / last result / next run).
+/// `peer_pair [--cancel]` → mint a single-use invite so another machine can pair
+/// with this one, or withdraw the outstanding code. This is the only bring-up path
+/// on a headless host: there is no pane to click, and hand-writing peer.json means
+/// hand-writing the identity and the fingerprint too.
+fn cmd_peer_pair(args: &[String], app: &AppHandle) -> String {
+    let (_, options) = parse_options(args);
+    let hub = app.state::<crate::peer::PeerHub>();
+    if options.contains_key("cancel") {
+        return match crate::peer::cancel_pairing(app, &hub) {
+            Ok(_) => serde_json::json!({ "ok": true }).to_string(),
+            Err(e) => format!("ERROR: {e}"),
+        };
+    }
+    match crate::peer::start_pairing(app, &hub) {
+        Ok(pairing) => {
+            let invite = crate::peer::encode_invite(&pairing);
+            let mut out = pairing;
+            out["invite"] = serde_json::json!(invite);
+            out.to_string()
+        }
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+/// `peer_state` → the same host+peers snapshot the Connections pane renders, so a
+/// headless box can be inspected over the socket instead of by reading peer.json
+/// (whose camelCase keys silently ignore a typo).
+fn cmd_peer_state(app: &AppHandle) -> String {
+    let hub = app.state::<crate::peer::PeerHub>();
+    let client = app.state::<crate::peerclient::PeerClientHub>();
+    crate::peer::state_value(&hub, &client).to_string()
+}
+
 fn cmd_list_jobs(args: &[String]) -> String {
     let (positional, _) = parse_options(args);
     if positional.is_empty() {
