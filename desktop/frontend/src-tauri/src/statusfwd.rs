@@ -12,6 +12,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const RESOLVE_TIMEOUT: Duration = Duration::from_secs(8);
+const WATCHDOG_INTERVAL: Duration = Duration::from_secs(20);
 
 #[derive(Default)]
 pub struct StatusFwdState {
@@ -226,6 +227,35 @@ fn spawn_env_mismatch_probe(app: &AppHandle, ssh: &SshSettings, exec_home: Strin
                 pty_home,
             },
         );
+    });
+}
+
+/// Hosts with at least one live remote pane, deduped. Collected under the lock
+/// and returned by value so the caller's blocking ssh work never holds PtyState.
+fn live_remote_hosts(app: &AppHandle) -> Vec<SshSettings> {
+    let state = app.state::<crate::pty::PtyState>();
+    let sessions = state.sessions.lock().unwrap();
+    let mut seen = HashSet::new();
+    sessions
+        .values()
+        .filter_map(|s| s.ssh.clone())
+        .filter(|ssh| seen.insert(host_key(ssh)))
+        .collect()
+}
+
+/// The `ssh -N -R` child dies on its own — a network blip, a host reboot, a
+/// sleep/wake — and until now nothing rebuilt it: `ensure_status_forward` runs
+/// only at terminal spawn and the reaper merely drops the dead pid. Every status
+/// frame the remote agent sent after that was lost in silence, since the hook
+/// discards its own errors, so the pane's badge and its Done/Waiting chime just
+/// stopped for the rest of the session. Poll instead: any host still showing a
+/// live pane gets its forward re-established.
+pub fn start_watchdog(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(WATCHDOG_INTERVAL);
+        for ssh in live_remote_hosts(&app) {
+            ensure_forward_blocking(&app, &ssh);
+        }
     });
 }
 

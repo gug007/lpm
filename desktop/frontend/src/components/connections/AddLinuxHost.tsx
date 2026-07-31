@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PeerAddSshHost } from "../../../bridge/commands";
-import { parseSshTarget, defaultAlias } from "../../peer/sshTarget";
+import { parseSshTarget } from "../../peer/sshTarget";
 import { Row } from "./GroupedList";
 
 const FIELD_CLASS =
@@ -25,7 +25,10 @@ export function AddLinuxHost({ refresh }: { refresh: () => Promise<void> }) {
     setBusy(true);
     setError(null);
     try {
-      await PeerAddSshHost(target, defaultAlias(target), install);
+      // Empty alias on purpose: the host names itself during pairing, the same way
+      // a pasted invite does. Passing the address here would pin the row to the IP
+      // the user typed and hide the machine's actual hostname.
+      await PeerAddSshHost(target, "", install);
       await refresh();
       setValue("");
       setOpen(false);
