@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { Server } from "lucide-react";
-import { PeerSetEnabled } from "../../../bridge/commands";
+import { PeerSetEnabled, PeerUpdateHost, GetVersion } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
 import { Toggle } from "./Toggle";
 import { Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
 import { isLinuxHost } from "../../peer/platform";
+import { isHostBehind } from "../../peer/hostVersion";
 
 // A connected machine's row: live indicator, name, status line, remove, on/off.
 // Shared by the Macs list and the Linux hosts list — the two differ only in icon,
@@ -13,13 +15,31 @@ export function PeerRow({
   peer,
   onRemove,
   refresh,
+  appVersion = "",
 }: {
   peer: PeerClient;
   onRemove: (peer: PeerClient) => void;
   refresh: () => Promise<void>;
+  appVersion?: string;
 }) {
   const live = peer.enabled && peer.connected;
   const name = peer.alias || peer.host;
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const behind = peer.sshHost && isHostBehind(peer.version ?? "", appVersion);
+
+  const update = async () => {
+    setUpdating(true);
+    setUpdateError(null);
+    try {
+      await PeerUpdateHost(peer.slug);
+      await refresh();
+    } catch (err) {
+      setUpdateError(String(err));
+    } finally {
+      setUpdating(false);
+    }
+  };
   return (
     <Row>
       <div
@@ -48,9 +68,22 @@ export function PeerRow({
                     : "var(--accent-amber)",
             }}
           />
-          <span className="truncate text-[var(--text-muted)]">{statusText(peer)}</span>
+          <span className="truncate text-[var(--text-muted)]">
+            {updateError ?? statusText(peer)}
+            {behind && !updateError ? ` · lpm ${peer.version} (update available)` : ""}
+          </span>
         </div>
       </div>
+      {behind && (
+        <button
+          onClick={() => void update()}
+          disabled={updating}
+          title={`Host is on ${peer.version}. Updating restarts lpm there and ends any agents running on it.`}
+          className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--accent-cyan)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-60"
+        >
+          {updating ? "Updating…" : "Update"}
+        </button>
+      )}
       <button
         onClick={() => onRemove(peer)}
         className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)]"

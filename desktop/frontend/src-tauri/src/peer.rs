@@ -155,6 +155,8 @@ pub(crate) struct PeerEntry {
     pub platform: String, // the remote's "macos" / "linux"; a Linux entry is a headless host, not a Mac. Empty until its next connect re-reports it
     #[serde(default)]
     pub ssh: crate::peertunnel::SshTarget, // set => reach this peer by forwarding `port` over SSH instead of dialling `host` directly
+    #[serde(default)]
+    pub version: String, // what the remote reports running; re-read on every connect. Empty = a build that predates this
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -739,7 +741,8 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                     let _ = ws.send(Message::text(
                         json!({ "t": "paired", "deviceId": id, "token": token,
                             "slug": slug, "hostName": machine_name(), "hostId": hub.host_id(),
-                            "hostPlatform": platform_id() })
+                            "hostPlatform": platform_id(),
+                            "hostVersion": crate::commands_real::get_version() })
                         .to_string(),
                     ));
                     let _ = app.emit("peer-state-changed", ());
@@ -769,7 +772,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 // paired before this existed learns it on its next connect.
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
-                        "hostPlatform": platform_id(),
+                        "hostPlatform": platform_id(), "hostVersion": crate::commands_real::get_version(),
                         "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2,
                             crate::gitbringhost::GIT_BRING_FEATURE,
                             crate::gitbringhost::GIT_FOLLOW_FEATURE,
@@ -909,7 +912,9 @@ fn handle_pair_request(
             let _ = ws.send(Message::text(
                 json!({ "t": "paired", "deviceId": dev_id, "token": token, "slug": slug,
                     "hostName": machine_name(), "hostId": hub.host_id(),
-                    "hostPlatform": platform_id(), "reciprocal": d.reciprocal })
+                    "hostPlatform": platform_id(),
+                    "hostVersion": crate::commands_real::get_version(),
+                    "reciprocal": d.reciprocal })
                 .to_string(),
             ));
             if d.reciprocal {
@@ -1873,6 +1878,7 @@ mod tests {
                 last_sync_at: 0,
                 auto_sync: true,
                 platform: "linux".into(),
+                version: "1.2.3".into(),
                 ssh: crate::peertunnel::SshTarget {
                     host: "198.51.100.7".into(),
                     user: "root".into(),
@@ -1888,6 +1894,7 @@ mod tests {
         // An SSH-reached peer must survive a round-trip: losing it would silently
         // turn a tunnelled host into one lpm tries to dial directly.
         assert_eq!(back.peers[0].ssh.destination(), "root@198.51.100.7");
+        assert_eq!(back.peers[0].version, "1.2.3");
         assert_eq!(back.host.devices[0].slug_assigned, "abcd1234");
         assert_eq!(back.peers.len(), 1);
         assert_eq!(back.peers[0].slug, "beefcafe");

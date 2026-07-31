@@ -211,6 +211,7 @@ impl PeerClientHub {
                     "autoSync": p.auto_sync,
                     "platform": p.platform,
                     "sshHost": p.ssh.destination(),
+                    "version": p.version,
                     "tunnel": tunnel,
                 })
             })
@@ -443,6 +444,7 @@ impl PeerClientHub {
                 last_sync_at: 0,
                 auto_sync: false,
                 platform: s("hostPlatform"),
+                version: s("hostVersion"),
                 ssh: Default::default(),
             });
             let snapshot = cfg.clone();
@@ -1415,6 +1417,30 @@ fn persist_platform(hub: &PeerClientHub, slug: &str, platform: &str) {
     emit_state_changed(hub);
 }
 
+/// Record the version the host reported. Same shape and same reason as
+/// `persist_platform`: it rides every auth, so an entry stored before hosts sent
+/// it fills in by itself, and a host that was updated stops claiming the old one.
+fn persist_version(hub: &PeerClientHub, slug: &str, version: &str) {
+    if version.is_empty() {
+        return;
+    }
+    let mut cfg = hub.inner.config.lock().unwrap();
+    let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
+        Some(p) if p.version != version => {
+            p.version = version.to_string();
+            true
+        }
+        _ => false,
+    };
+    if !changed {
+        return;
+    }
+    let snapshot = cfg.clone();
+    drop(cfg);
+    let _ = peer::save_config(&snapshot);
+    emit_state_changed(hub);
+}
+
 /// Dial, authenticate, then run the read/write loop until the socket drops. Ok
 /// means a session ran and ended; Err means we never got connected.
 fn connect_session(
@@ -1466,6 +1492,11 @@ fn connect_session(
         hub,
         &conn.slug,
         rv.get("hostPlatform").and_then(Value::as_str).unwrap_or(""),
+    );
+    persist_version(
+        hub,
+        &conn.slug,
+        rv.get("hostVersion").and_then(Value::as_str).unwrap_or(""),
     );
     let features = rv.get("features").and_then(Value::as_array);
     let has_feature = |name: &str| {
@@ -1689,6 +1720,33 @@ fn parse_prefixed(id: &str) -> Option<(String, String)> {
 /// carry a LAN IP and a Tailscale IP): dial each in order until one pairs, persist
 /// that working address with the token + slug, and open its connection. If `alias`
 /// is blank the host's own name (from the paired reply) is used.
+/// Update the lpm on an SSH-reached host: re-run the published installer there.
+/// Only meaningful for a host we can reach — a peer we merely dial has no way for
+/// us to run anything on it, and saying so beats a confusing failure.
+///
+/// This RESTARTS lpm on that machine, which ends every agent running on it. The
+/// caller is responsible for having said so.
+#[tauri::command]
+pub async fn peer_update_host(hub: State<'_, PeerClientHub>, slug: String) -> Result<(), String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let target = {
+            let cfg = hub.inner.config.lock().unwrap();
+            cfg.peers
+                .iter()
+                .find(|p| p.slug == slug)
+                .map(|p| p.ssh.clone())
+                .ok_or_else(|| "that host is no longer configured".to_string())?
+        };
+        if !target.is_set() {
+            return Err("lpm can only update a host it reaches over SSH".into());
+        }
+        crate::peerssh::install(&target)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Add a Linux host: reach it over SSH, install lpm if it isn't there, and pair
 /// through a forward — the flow that replaces "download a tarball, run three
 /// commands, copy a secret out of a terminal".
@@ -1788,6 +1846,7 @@ pub(crate) fn add_peer_blocking(
             // every `ready` reports it, so this takes the same back-fill path as
             // an entry paired before hosts sent a platform at all.
             platform: String::new(),
+            version: String::new(),
             ssh: Default::default(),
         });
         let snapshot = cfg.clone();

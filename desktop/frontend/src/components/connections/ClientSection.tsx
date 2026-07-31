@@ -17,6 +17,7 @@ import { PasteInviteField } from "./PasteInviteField";
 import { Group, GroupHeader, Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
 import { PeerRow } from "./PeerRow";
+import { GetVersion } from "../../../bridge/commands";
 import { AddLinuxHost } from "./AddLinuxHost";
 import { isLinuxHost } from "../../peer/platform";
 
@@ -52,6 +53,14 @@ export function ClientSection({
   // on, not machines someone is sitting at, and they're brought online differently.
   const linuxHosts = peers.filter(isLinuxHost);
   const macs = peers.filter((p) => !isLinuxHost(p));
+
+  // This Mac's version, to tell whether a host has fallen behind it.
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    void GetVersion()
+      .then((v) => setAppVersion(String(v ?? "")))
+      .catch(() => {});
+  }, []);
 
   const [discovered, setDiscovered] = useState<DiscoveredPeer[]>([]);
   const [request, setRequest] = useState<PendingRequest | null>(null);
@@ -364,7 +373,13 @@ export function ClientSection({
       <GroupHeader className="mt-8">Linux hosts</GroupHeader>
       <Group>
         {linuxHosts.map((p) => (
-          <PeerRow key={p.slug} peer={p} onRemove={setRemovePeer} refresh={refresh} />
+          <PeerRow
+            key={p.slug}
+            peer={p}
+            onRemove={setRemovePeer}
+            refresh={refresh}
+            appVersion={appVersion}
+          />
         ))}
         <AddLinuxHost refresh={refresh} />
       </Group>
