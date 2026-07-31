@@ -591,10 +591,13 @@ fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
 
 /// `list_jobs <project>` → one JSON line, the same array `list_jobs` returns to
 /// the app (per-job id / schedule / enabled / last result / next run).
-/// `peer_pair [--cancel]` → mint a single-use invite so another machine can pair
-/// with this one, or withdraw the outstanding code. This is the only bring-up path
-/// on a headless host: there is no pane to click, and hand-writing peer.json means
-/// hand-writing the identity and the fingerprint too.
+/// `peer_pair [--cancel] [--lan]` → mint a single-use invite so another machine can
+/// pair with this one, or withdraw the outstanding code. This is the only bring-up
+/// path on a headless host: there is no pane to click, and hand-writing peer.json
+/// means hand-writing the identity and the fingerprint too.
+///
+/// `--lan` is opt-in here, unlike in the pane: a server on a public IP would
+/// otherwise put its peer port on the open internet just by minting an invite.
 fn cmd_peer_pair(args: &[String], app: &AppHandle) -> String {
     let (_, options) = parse_options(args);
     let hub = app.state::<crate::peer::PeerHub>();
@@ -604,7 +607,7 @@ fn cmd_peer_pair(args: &[String], app: &AppHandle) -> String {
             Err(e) => format!("ERROR: {e}"),
         };
     }
-    match crate::peer::start_pairing(app, &hub) {
+    match crate::peer::start_pairing(app, &hub, options.contains_key("lan")) {
         Ok(pairing) => {
             let invite = crate::peer::encode_invite(&pairing);
             let mut out = pairing;

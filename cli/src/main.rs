@@ -202,6 +202,10 @@ enum Commands {
         /// Withdraw the outstanding invite instead of minting one.
         #[arg(long)]
         cancel: bool,
+        /// Accept connections on every network interface, not just this machine.
+        /// Needed on a LAN; unsafe on a public IP without a firewall.
+        #[arg(long)]
+        lan: bool,
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
@@ -399,7 +403,7 @@ fn main() -> ExitCode {
             pane.as_deref(),
             project.as_deref(),
         ),
-        Commands::Pair { cancel, json } => pair::run(&ctx, cancel, json),
+        Commands::Pair { cancel, lan, json } => pair::run(&ctx, cancel, lan, json),
         Commands::Connections { json } => pair::run_connections(&ctx, json),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())
