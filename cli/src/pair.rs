@@ -149,7 +149,13 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
         let alias = p.get("alias").and_then(Value::as_str).unwrap_or("?");
         let connected = p.get("connected").and_then(Value::as_bool).unwrap_or(false);
         let state = if connected { "connected" } else { "offline" };
-        println!("  {alias}{} — {state}", platform_suffix(p));
+        let version = p.get("version").and_then(Value::as_str).unwrap_or("");
+        let version = if version.is_empty() {
+            String::new()
+        } else {
+            format!(" · lpm {version}")
+        };
+        println!("  {alias}{} — {state}{version}", platform_suffix(p));
         if let Some(err) = p.get("lastError").and_then(Value::as_str) {
             if !err.is_empty() && !connected {
                 println!("    {err}");

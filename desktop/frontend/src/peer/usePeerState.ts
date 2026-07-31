@@ -56,6 +56,10 @@ export interface PeerClient {
   // fixed differently.
   sshHost?: string;
   tunnel?: string;
+  // The lpm the far end reports, re-read on every connect. A Linux host never
+  // self-updates (the updater is macOS-only), so this is the only way to know it
+  // has drifted behind this Mac.
+  version?: string;
   // What the other end runs, re-reported on every connect. A "linux" peer is a
   // headless host rather than someone's Mac. Empty until its next connect for an
   // entry paired before hosts sent it — treat unknown as a Mac, never as Linux.
