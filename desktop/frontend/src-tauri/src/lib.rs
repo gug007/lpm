@@ -47,6 +47,7 @@ mod peerclient;
 mod peerdiscovery;
 mod peersync;
 mod peertls;
+mod peertunnel;
 mod portforward;
 mod ports;
 mod portsprobe;
