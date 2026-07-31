@@ -166,8 +166,14 @@ jobs:
   # CLI, the systemd units and an installer, because there is nothing to click on
   # the far end — without a published asset the only way to get this is a CI
   # artifact off a branch, which is not a thing a user can be told to do.
+  # Pinned to 22.04, not ubuntu-latest, and the pin is the whole point: this binary
+  # is dynamically linked, so the builder's glibc becomes the floor for every host
+  # that runs it. Built on 24.04 it needs glibc 2.39 and dies on a 22.04 server
+  # with missing symbols — after installing cleanly, which reads as a broken app
+  # rather than the wrong machine. Building on the older LTS runs on both.
+  # Bump this only together with NEED_GLIBC in desktop/linux/install.sh.
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 

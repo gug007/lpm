@@ -313,9 +313,13 @@ fn hosting_error(last: Option<&Hosting>, port: u16) -> String {
             "the host is listening on port {} now, not the {port} its invite named — try again",
             h.port
         ),
+        // The observed case: a leftover file server from an old session had been
+        // sitting on 8766 for a week, so the app couldn't take the port and the
+        // Mac's dial landed on a stranger. Name the possibility — it is not
+        // something anyone thinks to check — and point at the log that says so.
         _ => format!(
-            "lpm is installed on the host but isn't listening on port {port}. \
-             Check it there with: systemctl status lpm"
+            "lpm on the host isn't listening on port {port} — something else may already be \
+             using it. The host's own log records why: ~/.lpm/logs/lpm.log"
         ),
     }
 }
@@ -527,7 +531,7 @@ mod tests {
             8766,
         );
         assert!(err.contains("isn't listening on port 8766"), "{err}");
-        assert!(err.contains("systemctl status lpm"), "{err}");
+        assert!(err.contains("something else may already be using it"), "{err}");
         assert!(!err.contains("identity"), "{err}");
         // Nothing came back at all — same conclusion, same advice.
         assert!(hosting_error(None, 8766).contains("isn't listening on port 8766"));

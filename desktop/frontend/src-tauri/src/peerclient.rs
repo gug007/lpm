@@ -1161,11 +1161,14 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
 const IDENTITY_CHANGED: &str = "that machine's identity changed — remove it and pair again";
 const IDENTITY_UNVERIFIED: &str =
     "couldn't verify that machine's identity — get a fresh invite and try again";
-/// The handshake never got as far as a certificate. Named separately because it is
-/// the answer to a completely different question than the two above.
+/// The handshake never got as far as a certificate. Named separately because they
+/// answer a completely different question than the two above — and the silent one
+/// is its own case: a stranger holding the port (a stray file server, say) accepts
+/// the connection and then waits for a request line that never comes, so lpm's
+/// handshake ends in a read timeout rather than a refusal.
 const HANDSHAKE_HUNG_UP: &str =
     "the connection closed before that machine answered — lpm may not be running there";
-const HANDSHAKE_SILENT: &str = "that machine stopped answering while connecting";
+const HANDSHAKE_SILENT: &str = "something is listening on that port, but it never answered as lpm";
 
 /// One client connection's transport: a raw socket (legacy plaintext host) or a
 /// pinned/captured TLS session. One concrete type keeps the session loop monomorphic.

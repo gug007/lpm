@@ -40,6 +40,38 @@ done
 SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ -f "$SRC/lpm-desktop" ] || { echo "lpm-desktop not found next to install.sh" >&2; exit 1; }
 
+# Both checks below run BEFORE apt. Either one failing later means a machine that
+# spent minutes fetching a 300MB desktop runtime for an app that was never going
+# to start on it, and an error that describes a symptom rather than the box.
+
+# The unit files are the whole supervision model here, so a machine with no
+# service manager to install them into cannot be set up this way. Check the
+# manager, not just the binary: a container can carry the systemd package with
+# nothing running, where every unit command fails with "System has not been
+# booted with systemd". /run/systemd/system is the test everything else uses.
+if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
+    echo "This machine isn't running systemd — a container, most likely (PID 1 is $(cat /proc/1/comm 2>/dev/null || echo unknown))." >&2
+    echo "The host install supervises lpm with systemd units, so there is nothing here to install them into." >&2
+    echo "Use a VM or a machine booted with systemd." >&2
+    exit 1
+fi
+
+# The app is an ordinary dynamically-linked binary, so the Ubuntu it was built on
+# is the floor for the Ubuntu it runs on. Below that it installs perfectly and
+# then dies on missing glibc symbols — which reads as a broken app rather than as
+# the wrong machine. Keep in step with the build-linux runner in release.yml.
+NEED_GLIBC=2.35
+HAVE_GLIBC=$(ldd --version 2>/dev/null | head -1 | awk '{print $NF}')
+case "$HAVE_GLIBC" in
+    [0-9]*)
+        if [ "$(printf '%s\n%s\n' "$NEED_GLIBC" "$HAVE_GLIBC" | sort -V | head -1)" != "$NEED_GLIBC" ]; then
+            echo "This machine has glibc $HAVE_GLIBC; this build needs $NEED_GLIBC or newer (Ubuntu 22.04 and up)." >&2
+            echo "On an older release the app installs and then fails to start with missing symbols." >&2
+            exit 1
+        fi
+        ;;
+esac
+
 if [ "$SKIP_DEPS" = "0" ]; then
     command -v apt-get >/dev/null 2>&1 || {
         echo "This installer only knows apt. Install these yourself and re-run with --no-deps:" >&2
@@ -52,7 +84,18 @@ if [ "$SKIP_DEPS" = "0" ]; then
     # window manager is required too: without one the window is created 10x10 and
     # never mapped, and the page never runs.
     apt-get update -qq
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $DEPS >/dev/null
+    # A machine with packages left half-configured by some earlier interrupted
+    # run fails EVERY apt install until they are finished, with a dpkg error that
+    # says nothing about lpm — so the installer looks like the broken thing. It
+    # isn't ours to repair unattended (finishing it can answer conffile prompts on
+    # the user's behalf), but it is ours to name.
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $DEPS >/dev/null || {
+        echo "apt could not install the runtime dependencies." >&2
+        echo "If the error above mentions dpkg, this machine has packages left half-configured" >&2
+        echo "by an earlier interrupted install — every apt run fails until they are finished:" >&2
+        echo "  sudo DEBIAN_FRONTEND=noninteractive dpkg --configure -a" >&2
+        exit 1
+    }
 fi
 
 # tmux is the one dependency whose absence is fatal rather than degrading: the app

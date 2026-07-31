@@ -7,6 +7,19 @@ drives it over the peer protocol and its projects appear in the Mac's sidebar.
 The app is not rewritten for this — it runs as itself, drawing into a virtual
 display. That is why there is a window manager in the stack.
 
+## What the machine has to be
+
+- **Ubuntu 22.04 or newer** (glibc 2.35+). The published binary is dynamically
+  linked, so the Ubuntu it was built on is the floor; below it the app installs
+  cleanly and then dies on missing symbols.
+- **Booted with systemd.** The app, the virtual display and the window manager are
+  three units — a Docker container whose PID 1 is something else has nothing to
+  install them into.
+- **x86-64.** There is no arm64 host build yet.
+
+The installer checks the first two before it touches apt, so a machine that can't
+run this says so in one line rather than after a 300MB download.
+
 ## Install
 
 Download `lpm-host-linux-amd64.tar.gz` from the latest release and run the
