@@ -218,8 +218,37 @@ impl PeerClientHub {
         Value::Array(rows)
     }
 
+    /// Record that this peer is reached by forwarding over SSH, and restart its
+    /// connection so it comes back up through its own tunnel. `remote_port` is the
+    /// port on the HOST — with a forward in play, the entry's port is what the far
+    /// side listens on, not anything dialable from here.
+    pub(crate) fn set_peer_ssh(
+        &self,
+        slug: &str,
+        target: &crate::peertunnel::SshTarget,
+        remote_port: u16,
+    ) -> Result<(), String> {
+        {
+            let mut cfg = self.inner.config.lock().unwrap();
+            let entry = cfg
+                .peers
+                .iter_mut()
+                .find(|p| p.slug == slug)
+                .ok_or_else(|| "that peer is no longer configured".to_string())?;
+            entry.ssh = target.clone();
+            entry.host = target.host.trim().to_string();
+            entry.port = remote_port;
+            let snapshot = cfg.clone();
+            drop(cfg);
+            peer::save_config(&snapshot)?;
+        }
+        self.start_conn(slug);
+        emit_state_changed(self);
+        Ok(())
+    }
+
     /// (Re)start the connection thread for a peer, retiring any current one.
-    fn start_conn(&self, slug: &str) {
+    pub(crate) fn start_conn(&self, slug: &str) {
         let mut conns = self.inner.conns.lock().unwrap();
         let conn = conns
             .entry(slug.to_string())
@@ -1650,6 +1679,24 @@ fn parse_prefixed(id: &str) -> Option<(String, String)> {
 /// carry a LAN IP and a Tailscale IP): dial each in order until one pairs, persist
 /// that working address with the token + slug, and open its connection. If `alias`
 /// is blank the host's own name (from the paired reply) is used.
+/// Add a Linux host: reach it over SSH, install lpm if it isn't there, and pair
+/// through a forward — the flow that replaces "download a tarball, run three
+/// commands, copy a secret out of a terminal".
+#[tauri::command]
+pub async fn peer_add_ssh_host(
+    hub: State<'_, PeerClientHub>,
+    target: crate::peertunnel::SshTarget,
+    alias: String,
+    install: bool,
+) -> Result<Value, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::peerssh::add_host(&hub, &target, &alias, install)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub async fn peer_add(
     hub: State<'_, PeerClientHub>,

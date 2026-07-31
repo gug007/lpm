@@ -202,6 +202,7 @@ macro_rules! all_command_handlers {
             peer_host_respond_pairing,
             peer_dispatch_reply,
             peer_add,
+            peer_add_ssh_host,
             peer_remove,
             peer_set_enabled,
             peer_set_auto_sync,

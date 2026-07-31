@@ -17,6 +17,7 @@ import { PasteInviteField } from "./PasteInviteField";
 import { Group, GroupHeader, Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
 import { PeerRow } from "./PeerRow";
+import { AddLinuxHost } from "./AddLinuxHost";
 import { isLinuxHost } from "../../peer/platform";
 
 const FIELD_CLASS =
@@ -357,18 +358,16 @@ export function ClientSection({
         )}
       </Group>
 
-      {/* Only once there is one. A Linux host is set up from its own command line
-          (`lpm pair`), so there is nothing to show here until one has connected. */}
-      {linuxHosts.length > 0 && (
-        <>
-          <GroupHeader className="mt-8">Linux hosts</GroupHeader>
-          <Group>
-            {linuxHosts.map((p) => (
-              <PeerRow key={p.slug} peer={p} onRemove={setRemovePeer} refresh={refresh} />
-            ))}
-          </Group>
-        </>
-      )}
+      {/* Always shown, unlike the Macs list: a server has no lpm on it to discover
+          and no one sitting at it to approve a request, so the only way it can
+          appear here is if this is where you go to add it. */}
+      <GroupHeader className="mt-8">Linux hosts</GroupHeader>
+      <Group>
+        {linuxHosts.map((p) => (
+          <PeerRow key={p.slug} peer={p} onRemove={setRemovePeer} refresh={refresh} />
+        ))}
+        <AddLinuxHost refresh={refresh} />
+      </Group>
 
       {error && <p className="mt-2 px-1 text-[11px] text-[var(--accent-red)]">{error}</p>}
 
