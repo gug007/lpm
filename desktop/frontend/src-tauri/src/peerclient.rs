@@ -1649,9 +1649,21 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 // — so it hands the transition here and this Mac plays it, under
                 // this Mac's sound settings. Only hosts that can't play send it, so
                 // a peer Mac chiming for itself is never doubled up here.
+                //
+                // Read both shapes. A later release may want to say which project
+                // or pane chimed, and a client that only understood the bare string
+                // would answer None and go silent — a mute that looks like the
+                // feature was never built. Accepting the object now is what lets
+                // that change ship later without a flag day.
                 if name == crate::sound::STATUS_SOUND_EVENT {
-                    if let Some(value) = payload.as_str() {
-                        crate::sound::play_status_sound(value);
+                    let value = payload
+                        .as_str()
+                        .or_else(|| payload.get("value").and_then(Value::as_str));
+                    // Off this thread: it is the peer's single read loop, and it
+                    // also drains outbound frames. Blocking it on a sound would
+                    // stall terminal output for the whole connection.
+                    if let Some(value) = value.map(str::to_string) {
+                        std::thread::spawn(move || crate::sound::play_status_sound(&value));
                     }
                 }
                 // A forwarded config-change event is a remote sync trigger: the

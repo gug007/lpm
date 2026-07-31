@@ -117,6 +117,13 @@ function translateProject(slug: string, p: ProjectInfo): ProjectInfo {
     label: p.label || p.name,
     parentName: p.parentName ? prefixName(slug, p.parentName) : p.parentName,
     root: prefixRoot(slug, p.root),
+    // A status entry names the pty it belongs to by the HOST's own id, while
+    // every terminal here is peer-marked — so an untranslated paneID matches no
+    // tab and the badge never appears. The sidebar lights anyway (it reads only
+    // the value), which is exactly why this looked like a tab-only bug.
+    statusEntries: (p.statusEntries ?? []).map((e) =>
+      e.paneID ? { ...e, paneID: prefixName(slug, e.paneID) } : e,
+    ),
   };
 }
 

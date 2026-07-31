@@ -81,6 +81,24 @@ describe("translateResult", () => {
     expect(result[1].root).toBe(prefixRoot(A, "/Users/dev/app-1"));
   });
 
+  // A status entry names its pty by the host's id; tabs here are peer-marked. If
+  // this isn't translated the badge silently never appears, while the sidebar
+  // still lights (it reads only the value) — a bug that looks tab-specific.
+  it("prefixes the pane a status entry belongs to", () => {
+    const [p] = translateResult("list_projects", A, [
+      proj({
+        name: "app",
+        statusEntries: [
+          { key: "agent", value: "Waiting", paneID: "app-3", priority: 0, timestamp: 0 },
+          { key: "svc", value: "Running", priority: 0, timestamp: 0 },
+        ],
+      }),
+    ]) as ProjectInfo[];
+    expect(p.statusEntries[0].paneID).toBe(prefixName(A, "app-3"));
+    // No pane means project-wide: leave it alone rather than inventing an id.
+    expect(p.statusEntries[1].paneID).toBeUndefined();
+  });
+
   it("translates a single project for get_project", () => {
     const result = translateResult("get_project", A, proj({ name: "app", root: "/r" })) as ProjectInfo;
     expect(result.name).toBe(prefixName(A, "app"));

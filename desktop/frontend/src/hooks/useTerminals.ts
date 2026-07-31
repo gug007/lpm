@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from "react";
 import { StopTerminal } from "../../bridge/commands";
 import { collectTerminals } from "../paneTree";
 import { IS_MIRROR_WINDOW, requestMirrorAction } from "../mirror";
+import { isPeerName } from "../peer/markers";
 import { type UseTerminalsResult } from "./terminals/types";
 import { useTreeCore } from "./terminals/useTreeCore";
 import { useCmdInject } from "./terminals/useCmdInject";
@@ -42,6 +43,7 @@ export function useTerminals(
     treeRef,
     focusedRef,
     applyTree,
+    persist,
     schedulePersist,
     flushDeferredPersist,
     holdPersistedPanes,
@@ -68,6 +70,7 @@ export function useTerminals(
     setTree,
     setFocusedPaneId,
     applyTree,
+    persist,
     holdPersistedPanes,
     scheduleCmdInject,
   });
@@ -236,6 +239,12 @@ export function useTerminals(
       const current = treeRef.current;
       if (current) {
         collectTerminals(current).forEach((t) => {
+          // A peer terminal belongs to the other machine, which keeps it running
+          // on purpose — that is the whole point of a host: you switch away, and
+          // the agent carries on. Stopping it here would kill a live session
+          // (mid-run agent included) merely because this project stopped being
+          // the one on screen, and the next visit would adopt nothing.
+          if (isPeerName(t.id)) return;
           StopTerminal(t.id).catch(() => {});
         });
       }

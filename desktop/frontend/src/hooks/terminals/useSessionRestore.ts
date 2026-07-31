@@ -28,6 +28,7 @@ interface UseSessionRestoreProps {
   setTree: Dispatch<SetStateAction<PaneNode | null>>;
   setFocusedPaneId: Dispatch<SetStateAction<string | null>>;
   applyTree: (next: PaneNode | null, focus?: string | null) => void;
+  persist: (next: PaneNode | null) => void;
   holdPersistedPanes: () => void;
   scheduleCmdInject: (id: string, cmd: string, prompt?: string | string[]) => void;
 }
@@ -41,6 +42,7 @@ export function useSessionRestore({
   setTree,
   setFocusedPaneId,
   applyTree,
+  persist,
   holdPersistedPanes,
   scheduleCmdInject,
 }: UseSessionRestoreProps) {
@@ -126,6 +128,20 @@ export function useSessionRestore({
       const focused = savedFocusedLeaf?.id ?? firstPaneId(restored);
       setFocusedPaneId(focused);
       focusedRef.current = focused;
+      // Write the tree we actually ended up with. Restore mints ids — a local pty
+      // always, a peer pty whenever the saved one was genuinely gone — and until
+      // now none of them reached disk, because persist() is only reached from
+      // applyTree/schedulePersist and restore used the raw setters. The saved id
+      // therefore stayed frozen at the first one ever minted, so every later
+      // launch asked about a dead id, got a truthful "no", and started yet another
+      // terminal on the host while the previous one kept running with nothing
+      // attached. A single pane with a single tab never repairs itself either:
+      // focusPane and focusTerminal both early-return before they persist.
+      //
+      // Only for a complete restore. A partial one has already dropped tabs into
+      // `dropped`, and writing that would delete them from disk — the erasure
+      // holdPersistedPanes() exists to prevent.
+      if (dropped.length === 0) persist(restored);
       const all = collectTerminals(restored);
       onCountRef.current?.(all.length);
       // Only into ptys this restore launched. The others were adopted from a
