@@ -7,10 +7,10 @@ name: Linux host
 
 on:
   push:
-    # `linux-**` is an escape hatch for bringing this job up: pushing to such a
-    # branch runs it without needing a PR open, and the pattern never matches a
-    # normal branch, so there is nothing to remember to remove later.
-    branches: [main, "linux-**"]
+    # main only. A branch with a PR open is already covered by `pull_request`
+    # below, and matching both meant every commit on such a branch paid for two
+    # identical runs — 15 of 20 commits were built twice the day this was noticed.
+    branches: [main]
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
@@ -92,13 +92,13 @@ jobs:
         working-directory: desktop/frontend/src-tauri
         run: cargo test --lib
 
-  # A runnable binary for the headless smoke test. Kept out of `check` because
-  # it's the slow path (a release link, not a typecheck) and is only needed when
-  # someone is about to actually run it on a Linux box.
+  # A runnable binary for trying an UNRELEASED commit on a real Linux box. On
+  # request only: it's the slow path (a release link, not a typecheck), and
+  # shipped builds don't come from here — `release.yml` builds the tarball that
+  # users actually download. Run it with:
+  #     gh workflow run linux-host.yml --ref <branch>
   binary:
-    # head_ref is set only for pull_request events, where ref_name is the
-    # useless "<n>/merge"; falling back to ref_name covers the push case.
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'linux-')
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
