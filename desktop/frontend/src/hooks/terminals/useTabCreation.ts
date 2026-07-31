@@ -6,6 +6,7 @@ import {
   StartTerminalWithCwdEnv,
 } from "../../../bridge/commands";
 import { sendTerminalInput } from "../../terminal-io";
+import { logDiagnostic } from "../../diagnostics";
 import { buildForkLaunch, claudeSessionIdOf } from "../../forkSession";
 import { isInteractivePaneSessionDead } from "../../components/InteractivePane";
 import {
@@ -98,7 +99,14 @@ export function useTabCreation({
     try {
       const id = await StartTerminal(projectName);
       addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)));
-    } catch {}
+    } catch (err) {
+      // Swallowing this silently makes a failed spawn look like a dead button —
+      // which is exactly how a host that couldn't find its shell presented.
+      logDiagnostic("error", "terminal.create", "Could not open a terminal", {
+        project: projectName,
+        error: String(err),
+      });
+    }
   }, [projectName, addTerminal, forward]);
 
   // Adopt an already-spawned pty as a tab WITHOUT starting a new one or
