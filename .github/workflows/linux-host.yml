@@ -123,19 +123,17 @@ jobs:
           workspaces: desktop/frontend/src-tauri
           key: release
 
-      # Release, not debug: `strip`/`opt-level = "s"` keep the artifact small
-      # enough to move around, and the frontend is embedded into the binary by
-      # generate_context!, so the one file is self-contained.
-      - name: Build frontend and CLI sidecar
+      # MUST go through the Tauri CLI, not `cargo build --release`. Asset
+      # embedding is driven by the env the CLI sets up for tauri-build, NOT by
+      # the cargo profile: a plain cargo build yields a binary that still points
+      # at devUrl and shows "Could not connect to 127.0.0.1" on a machine with no
+      # dev server. --no-bundle skips the macOS-only bundle targets; the CLI runs
+      # beforeBuildCommand (frontend + CLI sidecar) itself.
+      - name: Build lpm binary
         working-directory: desktop/frontend
         run: |
           npm ci
-          npm run build:cli
-          npm run build
-
-      - name: Build lpm binary
-        working-directory: desktop/frontend/src-tauri
-        run: cargo build --release
+          npx tauri build --no-bundle
 
       - name: Stage artifact
         run: |
