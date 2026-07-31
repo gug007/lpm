@@ -10,6 +10,11 @@ PartOf=lpm-xvfb.service
 [Service]
 Environment=DISPLAY=:99
 Environment=HOME=/root
+# systemd starts a service with almost no environment, and a login shell is one of
+# the things it doesn't hand down. Terminals are spawned from $SHELL, so without
+# this every "new terminal" on the host fails — set it to whatever this account's
+# login shell actually is.
+Environment=SHELL=/bin/bash
 WorkingDirectory=/root
 ExecStart=/root/lpm-desktop
 
