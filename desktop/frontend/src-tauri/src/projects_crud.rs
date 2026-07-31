@@ -354,9 +354,39 @@ fn subtree_has_prunable(dir: &Path, skip_node_modules: bool) -> bool {
         .any(|d| subtree_has_prunable(d, skip_node_modules))
 }
 
+/// Recursive copy args, preferring a copy-on-write clone where the platform and
+/// filesystem offer one. macOS BSD cp spells that `-c` (APFS clonefile); GNU
+/// coreutils spells it `--reflink=auto` (btrfs/XFS, silently a full copy on
+/// ext4). BusyBox cp — common on container images — has neither and rejects
+/// unknown long options outright, so probe once and fall back to a plain copy.
+#[cfg(target_os = "macos")]
+fn clone_args() -> &'static [&'static str] {
+    &["-c", "-R"]
+}
+
+#[cfg(not(target_os = "macos"))]
+fn clone_args() -> &'static [&'static str] {
+    static REFLINK: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let supported = *REFLINK.get_or_init(|| {
+        Command::new("/bin/cp")
+            .arg("--help")
+            .output()
+            .map(|o| {
+                String::from_utf8_lossy(&o.stdout).contains("reflink")
+                    || String::from_utf8_lossy(&o.stderr).contains("reflink")
+            })
+            .unwrap_or(false)
+    });
+    if supported {
+        &["--reflink=auto", "-R"]
+    } else {
+        &["-R"]
+    }
+}
+
 fn cp_c_r(from: &Path, to: &Path) -> Result<(), String> {
     let out = Command::new("/bin/cp")
-        .args(["-c", "-R"])
+        .args(clone_args())
         .arg(from)
         .arg(to)
         .output()
