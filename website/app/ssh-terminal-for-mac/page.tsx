@@ -3,6 +3,7 @@ import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
   GIT_TERMINAL_MAC_PATH,
+  LINUX_HOST_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   SITE_URL,
   SSH_TERMINAL_MAC_PATH,
@@ -115,6 +116,12 @@ export default function SshTerminalForMacPage() {
             title: "Mac terminal for developers",
             description:
               "Run your whole stack — services, logs, and agents — in one native Mac app.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "Run Claude Code on a remote server",
+            description:
+              "Go a step further than SSH: install lpm on a Linux box and keep its projects and agents running when your Mac is closed.",
           },
         ]}
       />

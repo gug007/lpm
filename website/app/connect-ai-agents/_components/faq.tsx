@@ -46,7 +46,7 @@ const FAQS: QA[] = [
   {
     question: "Does this run on Windows or Linux?",
     answer:
-      "lpm is a native macOS app, so this is built for your Mac. There are no Windows or Linux builds.",
+      "The app itself is native macOS only — there is no Windows build. Linux is supported as a host: the same lpm runs headless on a Debian or Ubuntu x86_64 server, and you add it from your Mac by typing user@host in Settings → Connections. That server's projects, terminals and agents then appear in your Mac sidebar, and the lpm command-line tool is installed there too.",
   },
 ];
 

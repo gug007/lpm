@@ -5,6 +5,7 @@ import {
   AI_AGENTS_PATH,
   CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
+  LINUX_HOST_PATH,
   REVIEW_CHANGES_PATH,
   TOKEN_USAGE_PATH,
   WORKTREE_ALTERNATIVE_PATH,
@@ -107,6 +108,12 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
             title: "Claude Code & Codex token usage",
             description:
               "See tokens, approximate cost, cache usage, projects, models, and sessions in one local dashboard.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "Run Claude Code on a remote server",
+            description:
+              "Move the long runs to a Linux box you own and drive it from the same window.",
           },
           {
             href: vsPath("cmux"),

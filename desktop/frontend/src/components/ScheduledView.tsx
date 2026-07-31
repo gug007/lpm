@@ -14,8 +14,9 @@ import { ClockIcon, PlusIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { EmptyState } from "./ui/EmptyState";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
-import type { JobInfo } from "../jobsFormat";
+import { jobScopePhrase, type JobInfo } from "../jobsFormat";
 import type { ScheduledJob } from "../hooks/useJobs";
+import type { ProjectInfo } from "../types";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { JobRow } from "./project-detail/jobs/JobRow";
 import { JobMessages } from "./project-detail/jobs/JobMessages";
@@ -249,6 +250,7 @@ export function ScheduledView() {
         />
         <RemoveJobDialog
           removing={removing}
+          projects={projects}
           running={removingRunning}
           onCancel={() => setRemoving(null)}
           onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
@@ -362,6 +364,7 @@ export function ScheduledView() {
       />
       <RemoveJobDialog
         removing={removing}
+        projects={projects}
         running={removingRunning}
         onCancel={() => setRemoving(null)}
         onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
@@ -384,11 +387,13 @@ export function ScheduledView() {
 
 function RemoveJobDialog({
   removing,
+  projects,
   running,
   onCancel,
   onConfirm,
 }: {
   removing: { project: string; job: JobInfo } | null;
+  projects: ProjectInfo[];
   // The job has a run alive (in any project, for a global job) — its copies
   // can't be removed out from under it.
   running: boolean;
@@ -397,6 +402,11 @@ function RemoveJobDialog({
 }) {
   const [deleteCopies, setDeleteCopies] = useState(false);
   useEffect(() => setDeleteCopies(false), [removing]);
+  const removeScope = removing
+    ? jobScopePhrase(removing.job, (name) =>
+        displayNameForProjectName(name, projects),
+      )
+    : "";
   return (
     <ConfirmDialog
       open={removing !== null}
@@ -406,11 +416,9 @@ function RemoveJobDialog({
           Remove{" "}
           <span className="font-medium text-[var(--text-primary)]">
             {removing?.job.label || removing?.job.id}
-          </span>{" "}
-          {removing?.job.source === "global"
-            ? "from every project"
-            : `from ${removing?.project}, along with its run history`}
-          . This cannot be undone.
+          </span>
+          {removeScope ? ` ${removeScope}` : ""}, along with its run history.
+          This cannot be undone.
           {removing?.job.duplicate && (
             <label
               title={

@@ -15,20 +15,16 @@ import {
   ClearJobStateGlobal,
   TestJobCheck,
 } from "../../../../bridge/commands";
-import { slugify } from "../../../slugify";
-import { uniqueKey } from "../../../uniqueKey";
 import {
   deleteJob,
   deleteJobGlobal,
-  readGlobalJobIds,
   readJobPayloadFrom,
-  saveJob,
-  saveJobGlobal,
 } from "../../../jobsConfig";
+import { saveJobDraft, scopeProject } from "../../../jobsSave";
 import {
-  buildJobPayload,
   defaultJobDraft,
   describeDraftSchedule,
+  jobScopePhrase,
   payloadToDraft,
   validateJobDraft,
   type IntervalUnit,
@@ -37,7 +33,7 @@ import {
   type JobRunKind,
 } from "../../../jobsFormat";
 import { type ComposerValue } from "../../../composerValue";
-import { type ActionInfo } from "../../../types";
+import { isDuplicate, type ActionInfo } from "../../../types";
 import { useAppStore } from "../../../store/app";
 import { effortsFor, MODEL_OPTIONS } from "../../../agentModelOptions";
 
@@ -110,21 +106,14 @@ export function JobEditorModal({
   const [composerSession, setComposerSession] = useState(0);
   const nameRef = useRef<HTMLInputElement>(null);
   const promptRef = useRef<ComposerValue>(draft.prompt);
-  // A global job's original `projects` field, captured on open so editing (which
-  // never rewrites scope) preserves it rather than collapsing it to every-project.
-  const editProjectsRef = useRef<unknown>(undefined);
 
   const source = editing?.job.source ?? "project";
-  // New jobs choose their projects with the multi-select; empty = standalone.
-  // Exactly one selected unlocks the project-scoped features.
-  const singleProject =
-    draft.targets.length === 1 ? draft.targets[0] : undefined;
-  // The concrete project a scoped feature runs against: the job's project when
-  // editing, or the one selected project when creating.
-  const runProject = isEditing ? editing.project : singleProject;
-  // Actions need one project. Editing keeps today's rule (any non-global source);
-  // a new job needs exactly one selected project.
-  const actionsAvailable = isEditing ? source !== "global" : singleProject !== undefined;
+  // The scope picker holds the projects the job runs in — for a new job and for
+  // one being edited alike; empty = standalone. Exactly one project unlocks the
+  // project-scoped features.
+  const runProject = scopeProject(draft);
+  // Actions belong to one project, so they need exactly one in scope.
+  const actionsAvailable = runProject !== undefined;
   const actions = actionsAvailable && runProject ? actionsFor(runProject) : [];
   // AI-edit runs in the project the job runs in; a standalone or multi-project
   // job has no single root, so it gets a plain prompt field.
@@ -152,7 +141,6 @@ export function JobEditorModal({
     setAdvancedOpen(false);
     setTouched(false);
     setComposerSession((n) => n + 1);
-    editProjectsRef.current = undefined;
     if (!editing) {
       setDraft(defaultJobDraft());
       setLoading(false);
@@ -164,8 +152,15 @@ export function JobEditorModal({
     readJobPayloadFrom(editing.project, editing.job.source ?? "project", editing.job.id)
       .then((payload) => {
         if (cancelled) return;
-        editProjectsRef.current = payload?.projects;
         const next = payload ? payloadToDraft(payload) : defaultJobDraft();
+        // Only the shared layer carries a `projects` field: its absence there
+        // means every project, while a project- or repo-layer job runs in the
+        // one project whose config declares it.
+        if (editing.job.source === "global") {
+          next.everyProject = !Array.isArray(payload?.projects);
+        } else {
+          next.targets = [editing.project];
+        }
         setDraft(next);
         setComposerSession((n) => n + 1);
         // A job that already gates on a check must not hide it behind the
@@ -183,6 +178,18 @@ export function JobEditorModal({
   const set = <K extends keyof JobDraft>(key: K, value: JobDraft[K]) => {
     setTouched(true);
     setDraft((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // An action needs a single project, so a wider scope falls back to a prompt.
+  const setScope = (next: string[]) => {
+    setTouched(true);
+    setTest({ kind: "idle" });
+    setDraft((prev) => ({
+      ...prev,
+      targets: next,
+      runMode:
+        prev.runMode === "action" && next.length !== 1 ? "prompt" : prev.runMode,
+    }));
   };
 
   // Mirrors the prompt for setPrompt to compare against. Written during render so
@@ -227,7 +234,7 @@ export function JobEditorModal({
     }
   };
 
-  const isStandalone = !isEditing && draft.targets.length === 0;
+  const isStandalone = !draft.everyProject && draft.targets.length === 0;
   const scheduleSummary = useMemo(() => describeDraftSchedule(draft), [draft]);
   const validationError = validateJobDraft(draft, isStandalone);
   // Saving mid-save would write a prompt whose image isn't on disk yet.
@@ -256,32 +263,11 @@ export function JobEditorModal({
     if (!canSave) return;
     setSaving(true);
     try {
-      const payload = buildJobPayload(draft);
-      let id = editing?.job.id;
-      if (!id) {
-        // New jobs always live in the global layer, so their id must be unique
-        // there and across every job currently visible.
-        const layerIds = await readGlobalJobIds();
-        const visibleIds = knownIds?.(null) ?? [];
-        id = uniqueKey(slugify(draft.label) || "job", [
-          ...layerIds,
-          ...visibleIds,
-        ]);
-      }
-      if (isEditing) {
-        if (source === "global") {
-          if (scopeEditable) {
-            payload.projects = draft.targets;
-          } else if (editProjectsRef.current !== undefined) {
-            payload.projects = editProjectsRef.current;
-          }
-          await saveJobGlobal(id, payload);
-        } else {
-          await saveJob(editing.project, id, payload);
-        }
-      } else {
-        await saveJobGlobal(id, { ...payload, projects: draft.targets });
-      }
+      await saveJobDraft(
+        draft,
+        editing ? { project: editing.project, id: editing.job.id, source } : null,
+        knownIds?.(null) ?? [],
+      );
       toast.success(isEditing ? "Job updated" : "Job created");
       onSaved();
       onClose();
@@ -320,23 +306,39 @@ export function JobEditorModal({
     }
   };
 
-  // A global job whose scope is "every project" (not standalone, no explicit
-  // targets) — the multi-select can't express it (empty reads as standalone), so
-  // its scope stays read-only.
-  const isEveryProjectJob =
-    isEditing &&
-    source === "global" &&
-    !editing.job.standalone &&
-    !(editing.job.targets && editing.job.targets.length > 0);
-  // The "Runs in" scope is editable for new jobs and for global jobs that pick
-  // specific projects (or are standalone). Project/repo jobs are bound to their
-  // project, and every-project jobs stay read-only.
-  const scopeEditable = !isEditing || (source === "global" && !isEveryProjectJob);
-  const whereValue = scopeEditable
+  // Two scopes the picker can't rewrite: a repo job is declared by the project's
+  // own checked-in config, which travels with that folder (moving it would mean
+  // editing the repo, as its missing Delete already reflects), and an
+  // every-project job's scope has no equivalent in a list of projects.
+  const lockedScope = !isEditing
     ? undefined
-    : source !== "global"
-      ? displayNameForProjectName(editing!.project, storeProjects)
-      : "Every project";
+    : source === "repo"
+      ? displayNameForProjectName(editing.project, storeProjects)
+      : draft.everyProject
+        ? "Every project"
+        : undefined;
+
+  // What removal takes the job from, read off the saved job rather than the
+  // draft — the scope on screen may not be the one being deleted.
+  const removeScope = editing
+    ? jobScopePhrase(editing.job, (name) =>
+        displayNameForProjectName(name, storeProjects),
+      )
+    : "";
+
+  // A job spanning projects is kept out of copies (it would fire on the very
+  // copies its runs create), so name the ones the current scope quietly skips.
+  const skippedCopies = useMemo(() => {
+    if (runProject) return [];
+    const present = new Set(storeProjects.map((p) => p.name));
+    return storeProjects
+      .filter(
+        (p) =>
+          (draft.everyProject || draft.targets.includes(p.name)) &&
+          isDuplicate(p, present),
+      )
+      .map((p) => displayNameForProjectName(p.name, storeProjects));
+  }, [draft.everyProject, draft.targets, runProject, storeProjects]);
 
   return (
     <>
@@ -416,20 +418,14 @@ export function JobEditorModal({
                 <GroupLabel>Details</GroupLabel>
                 <Card>
                   <Row label="Runs in">
-                    {whereValue ? (
+                    {lockedScope ? (
                       <span className="text-[13px] text-[var(--text-secondary)]">
-                        {whereValue}
+                        {lockedScope}
                       </span>
                     ) : (
                       <RowMultiSelect
                         value={draft.targets}
-                        onChange={(next) => {
-                          set("targets", next);
-                          setTest({ kind: "idle" });
-                          if (next.length !== 1 && draft.runMode === "action") {
-                            set("runMode", "prompt");
-                          }
-                        }}
+                        onChange={setScope}
                         options={projects.map((p) => ({
                           value: p,
                           label: displayNameForProjectName(p, storeProjects),
@@ -504,6 +500,12 @@ export function JobEditorModal({
                     </div>
                   )}
                 </Card>
+                {skippedCopies.length > 0 && (
+                  <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
+                    A job that runs in more than one project skips copies — it
+                    won't run in {listNames(skippedCopies)}.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -704,9 +706,8 @@ export function JobEditorModal({
             Remove{" "}
             <span className="font-medium text-[var(--text-primary)]">
               {editing?.job.label || editing?.job.id}
-            </span>{" "}
-            from {source === "global" ? "every project" : "this project"}. This
-            cannot be undone.
+            </span>
+            {removeScope ? ` ${removeScope}` : ""}. This cannot be undone.
             {editing?.job.duplicate && (
               <label className="mt-3 flex cursor-pointer items-center gap-1.5 text-[12px] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
                 <input
@@ -727,6 +728,12 @@ export function JobEditorModal({
       />
     </>
   );
+}
+
+// "Foo", "Foo and Bar", "Foo, Bar and 3 more".
+function listNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" and ");
+  return `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`;
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {

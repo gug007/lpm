@@ -4,6 +4,7 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   CONNECT_AGENTS_PATH,
+  LINUX_HOST_PATH,
   REVIEW_CHANGES_PATH,
   WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
@@ -126,6 +127,12 @@ export default function GitWorktreeForAiAgentsPage() {
             title: "Review agent changes in the terminal",
             description:
               "Inspect every changed file and diff before you merge the result of a parallel agent run.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "Run Claude Code on a remote server",
+            description:
+              "Fan out on a Linux box with cores to spare instead of the laptop you are typing on.",
           },
         ]}
       />

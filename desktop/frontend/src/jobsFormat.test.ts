@@ -15,6 +15,7 @@ import {
   liveOutputTail,
   jobResultLabel,
   jobResultTone,
+  jobScopePhrase,
   payloadToDraft,
   validateJobDraft,
   type JobDraft,
@@ -495,5 +496,30 @@ describe("validateJobDraft", () => {
         cmd: "make",
       }),
     ).toBeNull();
+  });
+});
+
+describe("jobScopePhrase", () => {
+  const upper = (name: string) => name.toUpperCase();
+
+  it("names the one project a job runs in", () => {
+    expect(
+      jobScopePhrase({ id: "j", valid: true, enabled: true, targets: ["api"] }, upper),
+    ).toBe("from API");
+  });
+
+  it("counts the projects when there are several", () => {
+    expect(
+      jobScopePhrase(
+        { id: "j", valid: true, enabled: true, targets: ["api", "web", "cli"] },
+        upper,
+      ),
+    ).toBe("from all 3 projects it runs in");
+  });
+
+  it("says nothing for a job that runs in no project", () => {
+    expect(
+      jobScopePhrase({ id: "j", valid: true, enabled: true, standalone: true }, upper),
+    ).toBe("");
   });
 });

@@ -87,6 +87,19 @@ export function jobTargets(job: JobInfo & { project?: string }): string[] {
   return job.targets ?? (job.project ? [job.project] : []);
 }
 
+// Where a removal takes the job from: "from Foo", "from all 3 projects it runs
+// in", or nothing at all for a job that runs in no project. `label` resolves a
+// project name for display.
+export function jobScopePhrase(
+  job: JobInfo & { project?: string },
+  label: (name: string) => string,
+): string {
+  const targets = jobTargets(job);
+  if (targets.length === 0) return "";
+  if (targets.length === 1) return `from ${label(targets[0])}`;
+  return `from all ${targets.length} projects it runs in`;
+}
+
 export interface JobHistoryEntry {
   at: number;
   result: string;
@@ -371,9 +384,11 @@ export interface JobDraft {
   model: string;
   effort: string;
   access: "full" | "read";
-  // The projects a new job runs in (empty = standalone). New jobs only; the edit
-  // path shows scope read-only and never rewrites it from this.
+  // The projects the job runs in (empty = standalone). `everyProject` marks a
+  // legacy job that runs wherever projects exist: the editor preserves it, but
+  // never sets it — the picker only names concrete projects.
   targets: string[];
+  everyProject: boolean;
 }
 
 export function defaultJobDraft(): JobDraft {
@@ -396,6 +411,7 @@ export function defaultJobDraft(): JobDraft {
     effort: "",
     access: "full",
     targets: [],
+    everyProject: false,
   };
 }
 

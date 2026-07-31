@@ -4,6 +4,7 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
+  LINUX_HOST_PATH,
   MOBILE_PATH,
   REVIEW_CHANGES_PATH,
 } from "@/lib/links";
@@ -112,6 +113,12 @@ export default function MobilePage() {
             title: "Best terminal for Mac",
             description:
               "The native Apple Silicon workspace the companion mirrors to your phone.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "Run Claude Code on a remote server",
+            description:
+              "Put the long runs on a Linux box that never sleeps, and drive it from your Mac.",
           },
         ]}
       />

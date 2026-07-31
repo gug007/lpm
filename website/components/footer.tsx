@@ -5,6 +5,7 @@ import {
   CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
   GIT_TERMINAL_MAC_PATH,
+  LINUX_HOST_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
   PRIVACY_PATH,
@@ -174,6 +175,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             iPhone companion
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={LINUX_HOST_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Claude Code on a remote server
           </Link>
         </nav>
         <nav

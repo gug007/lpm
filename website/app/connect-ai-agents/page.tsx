@@ -5,6 +5,7 @@ import {
   CLAUDE_ACCOUNTS_PATH,
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  LINUX_HOST_PATH,
   WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
@@ -118,6 +119,12 @@ export default function ConnectAiAgentsPage() {
             title: "Configuration reference",
             description:
               "Every project config field agents can write — services, actions, terminals, and profiles.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "Run Claude Code on a remote server",
+            description:
+              "The same skill and CLI on a Linux box you own, so a long agent run outlives your laptop.",
           },
         ]}
       />
