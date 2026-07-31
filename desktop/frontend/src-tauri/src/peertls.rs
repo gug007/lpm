@@ -105,8 +105,11 @@ impl ServerCertVerifier for PinnedVerifier {
         if got == self.want_fp {
             Ok(ServerCertVerified::assertion())
         } else {
-            Err(TlsError::General(
-                "peer certificate fingerprint mismatch".into(),
+            // Typed, not `General`: the client decides whether a failed handshake
+            // was a refused pin or a connection that died, and it can only tell
+            // them apart by matching on this.
+            Err(TlsError::InvalidCertificate(
+                rustls::CertificateError::ApplicationVerificationFailure,
             ))
         }
     }

@@ -190,7 +190,13 @@ impl PeerClientHub {
                 // dead host both leave a peer disconnected, and they have nothing
                 // in common to do about them.
                 let tunnel = conn
-                    .and_then(|c| c.tunnel.lock().unwrap().as_ref().map(|t| t.state().as_str()))
+                    .and_then(|c| {
+                        c.tunnel
+                            .lock()
+                            .unwrap()
+                            .as_ref()
+                            .map(|t| t.state().as_str())
+                    })
                     .unwrap_or("");
                 json!({
                     "slug": p.slug,
@@ -311,7 +317,7 @@ impl PeerClientHub {
         let (mut ws, host, captured_fp) = match chosen {
             Some(v) => v,
             None => {
-                let e = format!("could not reach the other Mac: {last_err}");
+                let e = format!("could not reach that machine: {last_err}");
                 self.emit_pair_failed(&e);
                 return Err(e);
             }
@@ -1150,10 +1156,16 @@ fn run_conn(hub: PeerClientHub, conn: Arc<PeerConn>, generation: u64) {
 // transitional plaintext acceptor. `peertls.rs` holds the rustls verifiers.
 
 /// Stable, user-facing markers for a failed pin. Shown verbatim in the peer row's
-/// status; deliberately in product terms (no transport jargon).
-const IDENTITY_CHANGED: &str = "the other Mac's identity changed — remove it and pair again";
+/// status; deliberately in product terms (no transport jargon), and about a
+/// "machine" rather than a Mac — a peer is just as often a Linux host now.
+const IDENTITY_CHANGED: &str = "that machine's identity changed — remove it and pair again";
 const IDENTITY_UNVERIFIED: &str =
-    "couldn't verify the other Mac's identity — get a fresh invite and try again";
+    "couldn't verify that machine's identity — get a fresh invite and try again";
+/// The handshake never got as far as a certificate. Named separately because it is
+/// the answer to a completely different question than the two above.
+const HANDSHAKE_HUNG_UP: &str =
+    "the connection closed before that machine answered — lpm may not be running there";
+const HANDSHAKE_SILENT: &str = "that machine stopped answering while connecting";
 
 /// One client connection's transport: a raw socket (legacy plaintext host) or a
 /// pinned/captured TLS session. One concrete type keeps the session loop monomorphic.
@@ -1232,9 +1244,36 @@ fn finish_tls_ws(
     Ok(ws)
 }
 
+/// What a failed pinned handshake actually was.
+///
+/// rustls reports a rejected leaf and a socket that died through the same
+/// `io::Error`, and calling all of them a pin failure is how "the host isn't
+/// listening" reached people as "couldn't verify its identity — get a fresh
+/// invite". Over an SSH forward the two are especially easy to confuse: ssh
+/// accepts on the local port whether or not anything answers on the far end, so a
+/// host with no peer port up looks exactly like one that hung up mid-handshake.
+/// Only a certificate rejection is an identity problem.
+fn handshake_error(e: &io::Error, mismatch_err: &str) -> String {
+    let refused_pin = e
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<rustls::Error>())
+        .is_some_and(|err| matches!(err, rustls::Error::InvalidCertificate(_)));
+    if refused_pin {
+        return mismatch_err.to_string();
+    }
+    match e.kind() {
+        io::ErrorKind::UnexpectedEof
+        | io::ErrorKind::ConnectionReset
+        | io::ErrorKind::ConnectionAborted
+        | io::ErrorKind::BrokenPipe => HANDSHAKE_HUNG_UP.to_string(),
+        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut => HANDSHAKE_SILENT.to_string(),
+        _ => format!("could not open a secure connection: {e}"),
+    }
+}
+
 /// wss, verifying the host's leaf against `fp`. A TCP-reach failure surfaces as-is;
-/// a TLS-handshake failure means the presented leaf did not match the pin and
-/// surfaces as `mismatch_err`. Never downgrades to plaintext.
+/// a handshake failure is classified — `mismatch_err` only when the leaf was
+/// actually refused. Never downgrades to plaintext.
 fn dial_pinned(
     host: &str,
     port: u16,
@@ -1249,7 +1288,7 @@ fn dial_pinned(
     )
     .map_err(|e| e.to_string())?;
     conn.complete_io(&mut tcp)
-        .map_err(|_| mismatch_err.to_string())?;
+        .map_err(|e| handshake_error(&e, mismatch_err))?;
     finish_tls_ws(conn, tcp, host, port)
 }
 
@@ -1307,12 +1346,18 @@ fn ensure_tunnel(conn: &Arc<PeerConn>, entry: &PeerEntry) -> Result<u16, String>
             if let Some(old) = slot.take() {
                 old.stop();
             }
-            *slot = Some(crate::peertunnel::Tunnel::new(entry.ssh.clone(), entry.port));
+            *slot = Some(crate::peertunnel::Tunnel::new(
+                entry.ssh.clone(),
+                entry.port,
+            ));
         }
         slot.as_ref().unwrap().clone()
     };
     tunnel.start();
-    tunnel.wait_until_up(TUNNEL_WAIT, "could not open the SSH connection to this host")
+    tunnel.wait_until_up(
+        TUNNEL_WAIT,
+        "could not open the SSH connection to this host",
+    )
 }
 
 /// Same dial, against an endpoint the caller resolved — which is the forwarded
@@ -1869,7 +1914,7 @@ where
             Err(e) => last_err = e,
         }
     }
-    Err(format!("could not reach the other Mac: {last_err}"))
+    Err(format!("could not reach that machine: {last_err}"))
 }
 
 /// One-shot pairing handshake, returning (deviceId, token, slug, hostName, hostId).
@@ -2278,5 +2323,69 @@ mod tests {
     fn first_successful_empty_list_errors() {
         let err = first_successful(&[], |_| paired("x")).unwrap_err();
         assert!(err.contains("no candidate addresses"), "{err}");
+    }
+
+    // Only a refused certificate is an identity problem. Everything else the
+    // handshake can hit is the connection dying, and reporting that as a bad pin
+    // sends people to re-pair a machine whose peer port simply isn't up.
+    #[test]
+    fn only_a_refused_certificate_reads_as_an_identity_failure() {
+        let refused = io::Error::new(
+            io::ErrorKind::InvalidData,
+            rustls::Error::InvalidCertificate(
+                rustls::CertificateError::ApplicationVerificationFailure,
+            ),
+        );
+        assert_eq!(
+            handshake_error(&refused, IDENTITY_UNVERIFIED),
+            IDENTITY_UNVERIFIED
+        );
+
+        for kind in [
+            io::ErrorKind::UnexpectedEof,
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::BrokenPipe,
+        ] {
+            let e = handshake_error(&io::Error::from(kind), IDENTITY_UNVERIFIED);
+            assert_eq!(e, HANDSHAKE_HUNG_UP, "{kind:?}");
+        }
+        for kind in [io::ErrorKind::WouldBlock, io::ErrorKind::TimedOut] {
+            let e = handshake_error(&io::Error::from(kind), IDENTITY_UNVERIFIED);
+            assert_eq!(e, HANDSHAKE_SILENT, "{kind:?}");
+        }
+        // A TLS-level failure that isn't about the certificate is neither: say what
+        // happened rather than picking one of the two wrong answers.
+        let other = io::Error::new(
+            io::ErrorKind::InvalidData,
+            rustls::Error::AlertReceived(rustls::AlertDescription::HandshakeFailure),
+        );
+        let e = handshake_error(&other, IDENTITY_UNVERIFIED);
+        assert!(e.contains("could not open a secure connection"), "{e}");
+    }
+
+    // The bug this guards: over an SSH forward ssh accepts locally even when
+    // nothing answers on the far end, so a host whose peer port never came up
+    // reached the user as "couldn't verify that machine's identity".
+    #[test]
+    fn a_port_that_accepts_and_hangs_up_is_not_an_identity_failure() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                drop(stream); // exactly what ssh does when the remote port refuses
+            }
+        });
+        let err = dial_pinned(
+            "127.0.0.1",
+            port,
+            &"ab".repeat(32),
+            Some(Duration::from_secs(3)),
+            IDENTITY_UNVERIFIED,
+        )
+        .err()
+        .expect("a dial into a hung-up port must fail");
+        assert_eq!(err, HANDSHAKE_HUNG_UP, "{err}");
+        server.join().unwrap();
     }
 }
