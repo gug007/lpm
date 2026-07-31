@@ -83,10 +83,36 @@ pub(crate) struct PeerDevice {
 pub(crate) struct HostConfig {
     pub enabled: bool,
     pub lan: bool, // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1; no UI — the app always sets true, loopback-only is a manual-config escape hatch
+    #[serde(default)]
+    pub bind_address: String, // exact interface to listen on; overrides `lan` when set. Empty = fall back to the bool
     pub port: u16, // 0 => DEFAULT_PORT
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
     pub host_id: String, // this Mac's stable peer identity, advertised over mDNS; minted on first load
     pub devices: Vec<PeerDevice>,
+}
+
+pub(crate) const LOOPBACK: &str = "127.0.0.1";
+pub(crate) const ALL_INTERFACES: &str = "0.0.0.0";
+
+/// The address the peer server listens on.
+///
+/// `lan` is a bool, which only ever had two answers: this machine, or every
+/// interface. That is fine on a laptop behind a router and wrong on a rented
+/// server, where "every interface" includes the public one — the peer port ends
+/// up on the open internet, guarded only by the pairing code and the pinned
+/// certificate. `bind_address` is the way to say "this interface and no other"
+/// (a tailnet address, say), and takes precedence when set. Without it the old
+/// bool still decides, so existing configs keep their behaviour exactly.
+pub(crate) fn bind_address(cfg: &HostConfig) -> String {
+    let explicit = cfg.bind_address.trim();
+    if !explicit.is_empty() {
+        return explicit.to_string();
+    }
+    if cfg.lan {
+        ALL_INTERFACES.to_string()
+    } else {
+        LOOPBACK.to_string()
+    }
 }
 
 impl Default for HostConfig {
@@ -94,6 +120,7 @@ impl Default for HostConfig {
         Self {
             enabled: false,
             lan: false,
+            bind_address: String::new(),
             port: 0,
             pairing_code: String::new(),
             host_id: String::new(),
@@ -445,10 +472,10 @@ pub fn apply(hub: &PeerHub, app: &AppHandle) {
         crate::mdns::withdraw_peer();
         return;
     }
-    let bind = if cfg.lan { "0.0.0.0" } else { "127.0.0.1" };
+    let bind = bind_address(&cfg);
     let port = effective_port(cfg.port);
     let addr = format!("{bind}:{port}");
-    let advertise = cfg.lan;
+    let advertise = bind != LOOPBACK;
     let host_id = cfg.host_id.clone();
     let (hub, app) = (hub.clone(), app.clone());
     std::thread::spawn(move || {
@@ -1453,7 +1480,7 @@ fn pairing_value(cfg: &HostConfig) -> Value {
     json!({
         "code": cfg.pairing_code,
         "port": effective_port(cfg.port),
-        "hosts": candidate_hosts(),
+        "hosts": invite_hosts(cfg),
         "fp": crate::remotetls::fingerprint(),
     })
 }
@@ -1477,6 +1504,7 @@ fn host_state_value(hub: &PeerHub) -> Value {
         "enabled": cfg.enabled,
         "port": effective_port(cfg.port),
         "lan": cfg.lan,
+        "bindAddress": bind_address(&cfg),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "hostId": cfg.host_id,
         "pairing": pairing_value(&cfg),
@@ -1526,19 +1554,22 @@ pub async fn peer_host_set_config(
 /// headless host has no UI to click, and a second bring-up path would be a second
 /// way to get the crypto wrong.
 ///
-/// `force_lan` binds `0.0.0.0` so the pairing machine can reach us. The pane always
-/// wants it: two Macs find each other over the LAN. A headless host must ASK for it
-/// — it may sit on a public IP with no firewall, where binding every interface puts
-/// the peer port on the open internet, and it is typically reached through a tunnel
-/// to loopback anyway. So the socket verb leaves the current binding alone unless
-/// told otherwise.
+/// `bind` widens (or narrows) the listener so the pairing machine can reach us.
+/// The pane always passes every interface: two Macs find each other over the LAN.
+/// A headless host must ASK — it may sit on a public IP with no firewall, where
+/// every interface means the open internet, and it is typically reached through a
+/// tunnel to loopback anyway. `None` leaves the current binding untouched.
 /// The config half of `start_pairing`, split out so the binding decision — the part
 /// that can expose a port to the internet — is testable without an AppHandle.
-fn arm_pairing_code(cfg: &mut PeerConfig, code: &str, force_lan: bool) -> u16 {
+fn arm_pairing_code(cfg: &mut PeerConfig, code: &str, bind: Option<&str>) -> u16 {
     cfg.host.pairing_code = code.to_string();
     cfg.host.enabled = true;
-    if force_lan {
-        cfg.host.lan = true;
+    if let Some(addr) = bind {
+        cfg.host.bind_address = addr.to_string();
+        // Keep the old bool honest rather than letting the two disagree: it still
+        // drives the pane's toggle, and an older build reading this file has
+        // nothing else to go on.
+        cfg.host.lan = addr != LOOPBACK;
     }
     effective_port(cfg.host.port)
 }
@@ -1546,16 +1577,16 @@ fn arm_pairing_code(cfg: &mut PeerConfig, code: &str, force_lan: bool) -> u16 {
 pub(crate) fn start_pairing(
     app: &AppHandle,
     hub: &PeerHub,
-    force_lan: bool,
+    bind: Option<&str>,
 ) -> Result<Value, String> {
     let code = gen_pairing_code();
     let (hosts, port) = {
         let mut cfg = hub.inner.config.lock().unwrap();
-        let port = arm_pairing_code(&mut cfg, &code, force_lan);
+        let port = arm_pairing_code(&mut cfg, &code, bind);
         let snapshot = cfg.clone();
         drop(cfg);
         save_config(&snapshot)?;
-        (candidate_hosts(), port)
+        (invite_hosts(&snapshot.host), port)
     };
     apply(hub, app);
     let _ = app.emit("peer-state-changed", ());
@@ -1570,7 +1601,7 @@ pub async fn peer_host_start_pairing(
     app: AppHandle,
     hub: State<'_, PeerHub>,
 ) -> Result<Value, String> {
-    start_pairing(&app, &hub, true)
+    start_pairing(&app, &hub, Some(ALL_INTERFACES))
 }
 
 /// Pack a `start_pairing` result into the one copy-pasteable token the joining
@@ -1773,6 +1804,21 @@ fn tailscale_ip() -> Option<String> {
 
 /// Addresses to advertise for pairing, most-preferred first: LAN IP then
 /// Tailscale IP, falling back to loopback.
+/// The addresses to put in an invite.
+///
+/// Bound to one interface, that interface is the only truthful answer — listing
+/// the machine's other addresses would hand someone a token that cannot connect,
+/// and on a loopback-bound host the LAN address is exactly the misleading one.
+/// Bound to everything, any of them may work, so offer them all and let the
+/// joining machine try in order.
+pub(crate) fn invite_hosts(cfg: &HostConfig) -> Vec<String> {
+    let bind = bind_address(cfg);
+    if bind != ALL_INTERFACES {
+        return vec![bind];
+    }
+    candidate_hosts()
+}
+
 pub(crate) fn candidate_hosts() -> Vec<String> {
     let mut hosts = Vec::new();
     if let Some(ip) = primary_lan_ip() {
@@ -1799,6 +1845,7 @@ mod tests {
             host: HostConfig {
                 enabled: true,
                 lan: true,
+                bind_address: "100.64.0.5".into(),
                 port: 9100,
                 pairing_code: "AB12-CD34".into(),
                 host_id: "host-1".into(),
@@ -1830,6 +1877,7 @@ mod tests {
         let back: PeerConfig = serde_json::from_str(&s).unwrap();
         assert_eq!(back.host.port, 9100);
         assert!(back.host.enabled && back.host.lan);
+        assert_eq!(back.host.bind_address, "100.64.0.5");
         assert_eq!(back.host.devices[0].slug_assigned, "abcd1234");
         assert_eq!(back.peers.len(), 1);
         assert_eq!(back.peers[0].slug, "beefcafe");
@@ -2006,28 +2054,73 @@ mod tests {
     // tunnel to loopback anyway. Only an explicit `--lan` asks for that; the
     // Connections pane passes true because two Macs need the LAN to find each other.
     #[test]
-    fn arming_a_code_only_opens_the_lan_when_asked() {
+    fn arming_a_code_only_opens_the_listener_when_asked() {
         let mut cfg = PeerConfig::default();
-        assert!(!cfg.host.lan);
+        assert_eq!(bind_address(&cfg.host), LOOPBACK);
 
-        let port = arm_pairing_code(&mut cfg, "AAAA-BBBB", false);
+        let port = arm_pairing_code(&mut cfg, "AAAA-BBBB", None);
         assert_eq!(cfg.host.pairing_code, "AAAA-BBBB");
         assert!(cfg.host.enabled, "hosting still has to come on");
-        assert!(!cfg.host.lan, "no --lan must leave the binding alone");
+        assert_eq!(
+            bind_address(&cfg.host),
+            LOOPBACK,
+            "no bind argument must leave the listener alone"
+        );
         assert_eq!(port, DEFAULT_PORT);
 
-        arm_pairing_code(&mut cfg, "CCCC-DDDD", true);
-        assert!(cfg.host.lan, "--lan opens every interface");
+        arm_pairing_code(&mut cfg, "CCCC-DDDD", Some(ALL_INTERFACES));
+        assert_eq!(bind_address(&cfg.host), ALL_INTERFACES);
     }
 
     // Once the user has opened it up, minting another invite must not quietly
     // close it again — that would break a working LAN pairing mid-flow.
     #[test]
-    fn arming_a_code_never_closes_an_already_open_lan() {
+    fn arming_a_code_never_closes_an_already_open_listener() {
         let mut cfg = PeerConfig::default();
         cfg.host.lan = true;
-        arm_pairing_code(&mut cfg, "AAAA-BBBB", false);
-        assert!(cfg.host.lan);
+        arm_pairing_code(&mut cfg, "AAAA-BBBB", None);
+        assert_eq!(bind_address(&cfg.host), ALL_INTERFACES);
+    }
+
+    // The whole point of the address: a server on a public IP can be reachable
+    // over its tailnet without also answering the open internet.
+    #[test]
+    fn an_explicit_address_beats_the_lan_bool() {
+        let mut cfg = PeerConfig::default();
+        cfg.host.lan = true;
+        cfg.host.bind_address = "100.64.0.5".into();
+        assert_eq!(bind_address(&cfg.host), "100.64.0.5");
+
+        arm_pairing_code(&mut cfg, "AAAA-BBBB", Some("100.64.0.5"));
+        assert_eq!(bind_address(&cfg.host), "100.64.0.5");
+        assert!(cfg.host.lan, "the old bool tracks 'not loopback' for the pane");
+    }
+
+    // A config written before bind_address existed must behave exactly as it did.
+    #[test]
+    fn an_old_config_still_binds_by_the_bool() {
+        let mut cfg = PeerConfig::default();
+        assert_eq!(bind_address(&cfg.host), LOOPBACK);
+        cfg.host.lan = true;
+        assert_eq!(bind_address(&cfg.host), ALL_INTERFACES);
+    }
+
+    // An invite is a thing someone pastes on another machine: offering an address
+    // the listener isn't on hands them a token that cannot connect.
+    #[test]
+    fn an_invite_offers_only_the_address_actually_bound() {
+        let mut cfg = HostConfig {
+            bind_address: "100.64.0.5".into(),
+            ..Default::default()
+        };
+        assert_eq!(invite_hosts(&cfg), vec!["100.64.0.5".to_string()]);
+
+        cfg.bind_address = String::new();
+        assert_eq!(invite_hosts(&cfg), vec![LOOPBACK.to_string()]);
+
+        // Every interface is the one case where several addresses may work.
+        cfg.lan = true;
+        assert_eq!(invite_hosts(&cfg), candidate_hosts());
     }
 
     // The joining Mac decodes this with src/peer/invite.ts, which has the matching

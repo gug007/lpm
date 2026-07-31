@@ -9,6 +9,7 @@
 use crate::config::Ctx;
 use crate::control;
 use crate::error::RunError;
+use crate::statussock::quote_arg;
 use serde_json::Value;
 
 fn parse_reply(reply: &str) -> Result<Value, RunError> {
@@ -19,16 +20,24 @@ fn parse_reply(reply: &str) -> Result<Value, RunError> {
 /// Mint a single-use invite (or withdraw the outstanding one). Printing the
 /// invite string is the whole point: it carries address, port, code, and the TLS
 /// fingerprint as one token to paste into the other machine's Connections pane.
-pub fn run(ctx: &Ctx, cancel: bool, lan: bool, json: bool) -> Result<(), RunError> {
+pub fn run(
+    ctx: &Ctx,
+    cancel: bool,
+    lan: bool,
+    bind: Option<&str>,
+    json: bool,
+) -> Result<(), RunError> {
     control::require_app(ctx)?;
     let command = if cancel {
-        "peer_pair --cancel"
+        "peer_pair --cancel".to_string()
+    } else if let Some(addr) = bind {
+        format!("peer_pair --bind={}", quote_arg(addr))
     } else if lan {
-        "peer_pair --lan"
+        "peer_pair --lan".to_string()
     } else {
-        "peer_pair"
+        "peer_pair".to_string()
     };
-    let reply = control::send_command(ctx, command)?;
+    let reply = control::send_command(ctx, &command)?;
     let value = parse_reply(&reply)?;
 
     if json {
@@ -53,11 +62,19 @@ pub fn run(ctx: &Ctx, cancel: bool, lan: bool, json: bool) -> Result<(), RunErro
     println!();
     println!("Paste that into Settings → Connections on the machine that will drive this one.");
     println!("It can only be used once.");
-    if !lan {
-        println!();
-        println!("Listening on this machine only. If the other machine reaches you over a");
-        println!("tunnel, that is what you want; pass --lan to accept connections on every");
-        println!("network interface instead.");
+    match bind {
+        Some(addr) => {
+            println!();
+            println!("Listening on {addr} only.");
+        }
+        None if !lan => {
+            println!();
+            println!("Listening on this machine only. If the other machine reaches you over a");
+            println!("tunnel, that is what you want. Otherwise pass --bind <address> to listen");
+            println!("on one interface, or --lan for every interface — on a public IP, check");
+            println!("the firewall before you do.");
+        }
+        None => {}
     }
     println!();
     println!("  code       {code}");
@@ -87,10 +104,17 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let port = host.get("port").and_then(Value::as_u64).unwrap_or(0);
+    // The address matters more than the port on a server: it's the difference
+    // between "reachable over the tailnet" and "answering the open internet",
+    // and there's no window here to check it in.
+    let bind = host
+        .get("bindAddress")
+        .and_then(Value::as_str)
+        .unwrap_or("127.0.0.1");
     println!(
         "Hosting: {}",
         if running {
-            format!("on, port {port}")
+            format!("on, {bind}:{port}{}", reach_hint(bind))
         } else {
             "off".to_string()
         }
@@ -133,6 +157,16 @@ pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
         }
     }
     Ok(())
+}
+
+/// Spell out what a bind address means for who can reach this machine — the two
+/// that matter are "nobody without a tunnel" and "anyone who can route here".
+fn reach_hint(bind: &str) -> &'static str {
+    match bind {
+        "127.0.0.1" | "localhost" => " (this machine only)",
+        "0.0.0.0" => " (every network interface)",
+        _ => "",
+    }
 }
 
 /// Only worth showing when it isn't a Mac — a Linux entry is a headless host, and

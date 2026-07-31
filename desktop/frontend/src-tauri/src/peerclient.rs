@@ -420,6 +420,9 @@ impl PeerClientHub {
         let (code, out_port, out_hosts) = {
             let mut cfg = self.inner.config.lock().unwrap();
             cfg.host.enabled = true;
+            // Reciprocal pairing needs the other Mac to reach us, and it arrives
+            // over the LAN. An explicit bind_address still wins — someone who
+            // pinned the listener to one interface meant it.
             cfg.host.lan = true;
             if cfg.host.pairing_code.is_empty() {
                 cfg.host.pairing_code = peer::gen_pairing_code();
@@ -429,7 +432,7 @@ impl PeerClientHub {
             let snapshot = cfg.clone();
             drop(cfg);
             let _ = peer::save_config(&snapshot);
-            (code, out_port, peer::candidate_hosts())
+            (code, out_port, peer::invite_hosts(&snapshot.host))
         };
         let peer_hub = app.state::<peer::PeerHub>().inner().clone();
         peer::apply(&peer_hub, &app);

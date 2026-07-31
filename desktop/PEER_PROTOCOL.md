@@ -13,7 +13,8 @@ role). Both roles ship in every lpm, so a Mac can be host and client at once.
 - WebSocket, text frames only. Each frame is one JSON object with a discriminator
   field `t`. Unknown `t` values are ignored (forward-compatible).
 - Host listens on **port 8766** by default (mobile owns 8765). Binds `127.0.0.1`
-  (loopback) unless LAN is enabled, then `0.0.0.0`.
+  (loopback) unless LAN is enabled, then `0.0.0.0` — or exactly the interface named
+  in `bindAddress`, which a server on a public IP should prefer.
 - **Encrypted with a pinned self-signed leaf.** The host presents the *same*
   long-lived leaf the mobile server uses — ECDSA P-256, CN `lpm`, persisted at
   `~/.lpm/remote-cert.pem` (see `remotetls.rs`); there is never a second identity.
@@ -38,6 +39,7 @@ Holds both roles behind one shared in-memory lock:
   "host": {
     "enabled": false,
     "lan": false,
+    "bindAddress": "",
     "port": 0,
     "pairingCode": "",
     "devices": [
@@ -54,7 +56,12 @@ Holds both roles behind one shared in-memory lock:
 ```
 
 The host stores only `sha256(token)`; the raw `token` lives on the client. `port:
-0` means the default (8766). `tlsFp` is the pinned host leaf fingerprint (hex
+0` means the default (8766). `bindAddress` is the interface to listen on and wins
+over `lan` when set — `lan` only ever had two answers (this machine, or every
+interface), which on a server means the public one too. Empty falls back to the
+bool, so a config written before this keeps its exact behaviour. An invite offers
+only the address actually bound, except when bound to every interface, where all
+candidates are offered and the joiner tries them in order. `tlsFp` is the pinned host leaf fingerprint (hex
 sha256 of its cert DER); absent/`null` on an entry paired before this shipped —
 the first successful authenticated connect captures and pins the presented leaf.
 

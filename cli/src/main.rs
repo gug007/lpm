@@ -206,6 +206,10 @@ enum Commands {
         /// Needed on a LAN; unsafe on a public IP without a firewall.
         #[arg(long)]
         lan: bool,
+        /// Listen on this address only — e.g. a tailnet IP. Safer than --lan on a
+        /// server, which would also expose the port to the public internet.
+        #[arg(long, value_name = "ADDRESS", conflicts_with = "lan")]
+        bind: Option<String>,
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
@@ -403,7 +407,9 @@ fn main() -> ExitCode {
             pane.as_deref(),
             project.as_deref(),
         ),
-        Commands::Pair { cancel, lan, json } => pair::run(&ctx, cancel, lan, json),
+        Commands::Pair { cancel, lan, bind, json } => {
+            pair::run(&ctx, cancel, lan, bind.as_deref(), json)
+        }
         Commands::Connections { json } => pair::run_connections(&ctx, json),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())
