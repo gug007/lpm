@@ -48,9 +48,18 @@ lpm connections   # what this machine hosts, and what it is connected to
 
 `lpm pair` keeps the peer port bound to this machine only. If the Mac reaches the
 host through an SSH tunnel (`ssh -L 18766:127.0.0.1:8766 …`), that is what you
-want. Pass `--lan` to accept connections on every interface instead — but on a
-public IP, check the firewall first: binding every interface puts the peer port on
-the open internet, protected only by the pairing code and the pinned certificate.
+want, and it exposes nothing.
+
+To be reachable directly, name the interface:
+
+```sh
+lpm pair --bind 100.64.0.5    # e.g. this machine's tailnet address
+lpm pair --lan                # every interface
+```
+
+Prefer `--bind` on anything with a public IP. `--lan` also answers on the public
+interface, leaving the peer port on the open internet guarded only by the pairing
+code and the pinned certificate. `lpm connections` shows which address is live.
 
 ## What a restart costs
 

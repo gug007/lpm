@@ -70,7 +70,19 @@ install -m644 "$SRC/lpm-xvfb.service" "$SRC/lpm-wm.service" "$SRC/lpm.service" "
 systemctl daemon-reload
 # lpm.service pulls in the display and window manager through Requires=, so this
 # one enable brings up the whole stack, at boot too.
-systemctl enable --now lpm.service
+systemctl enable lpm.service >/dev/null 2>&1
+
+# `enable --now` would NOT be enough: it starts a stopped service but leaves a
+# running one alone, so re-running this to upgrade would put a new binary on disk
+# while the old process kept serving. Restart unconditionally — we just replaced
+# the executable, and the point of running the installer is to run what it
+# installed.
+if systemctl is-active --quiet lpm.service; then
+    echo "==> Restarting lpm (this ends any agents running on this machine)"
+else
+    echo "==> Starting lpm"
+fi
+systemctl restart lpm.service
 
 echo "==> Waiting for the peer server"
 # The port can take ~30s to bind on a small box; a slow start is not a failure.
