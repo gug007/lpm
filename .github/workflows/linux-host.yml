@@ -32,7 +32,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Tauri 2's Linux backend is WebKitGTK; tmux is load-bearing for the
       # services tests, and iproute2 supplies the `ss` the port probe shells out
@@ -53,7 +53,7 @@ jobs:
         with:
           components: clippy
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: npm
@@ -91,3 +91,62 @@ jobs:
       - name: Test desktop crate
         working-directory: desktop/frontend/src-tauri
         run: cargo test --lib
+
+  # A runnable binary for the headless smoke test. Kept out of `check` because
+  # it's the slow path (a release link, not a typecheck) and is only needed when
+  # someone is about to actually run it on a Linux box.
+  binary:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'linux-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            build-essential curl wget file pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/frontend/src-tauri
+          key: release
+
+      # Release, not debug: `strip`/`opt-level = "s"` keep the artifact small
+      # enough to move around, and the frontend is embedded into the binary by
+      # generate_context!, so the one file is self-contained.
+      - name: Build frontend and CLI sidecar
+        working-directory: desktop/frontend
+        run: |
+          npm ci
+          npm run build:cli
+          npm run build
+
+      - name: Build lpm binary
+        working-directory: desktop/frontend/src-tauri
+        run: cargo build --release
+
+      - name: Stage artifact
+        run: |
+          mkdir -p out
+          cp desktop/frontend/src-tauri/target/release/lpm-desktop out/
+          cp desktop/frontend/src-tauri/binaries/lpm-cli-* out/ || true
+          chmod +x out/*
+          ls -lh out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lpm-linux-x86_64
+          path: out/
+          retention-days: 14
