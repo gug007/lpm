@@ -15,9 +15,13 @@ export interface PersistedTab {
   pinned?: boolean;
   emoji?: string;
   color?: string;
-  // Live pty id, stored ONLY for a peer-adopted tab parked while its project is
-  // unmounted, so a later peer-close can find and drop it. Ignored on restore
-  // (the tab relaunches with a fresh pty); normal persistence never sets it.
+  // Live pty id. Two cases store it:
+  //   - a peer-adopted tab parked while its project is unmounted (host side),
+  //     so a later peer-close can find and drop it — an unmarked local id;
+  //   - a PEER terminal (client side), whose pty lives on the other machine and
+  //     survives our restart, so restore can adopt the running session instead
+  //     of relaunching it — a peer-marked id.
+  // Local ids are never persisted: they die with the app.
   id?: string;
 }
 

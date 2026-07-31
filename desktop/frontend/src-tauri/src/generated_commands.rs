@@ -286,6 +286,7 @@ macro_rules! all_command_handlers {
             stop_watching_project,
             terminal_claim_control,
             terminal_control_owner,
+            terminal_exists,
             terminal_present_control,
             terminal_unpresent_control,
             tmux_installed,
