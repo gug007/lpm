@@ -12,6 +12,7 @@
 //! in remains SSH.
 
 use serde_json::Value;
+use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -28,6 +29,9 @@ const RELEASE_URL: &str =
 /// going on the host — so an over-tight deadline leaves a half-configured box
 /// behind and reports a timeout that wasn't one.
 const REMOTE_TIMEOUT: Duration = Duration::from_secs(900);
+/// Removal is stopping units and deleting files — seconds of work. The slack is
+/// for a box that is thrashing, not for anything the script does.
+const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(120);
 const TUNNEL_WAIT: Duration = Duration::from_secs(30);
 /// How long the host gets to actually start listening after it mints an invite.
 /// `lpm pair` returns as soon as the code exists; the listener binds a moment
@@ -166,21 +170,43 @@ fn missing_tools_error(missing: &[String]) -> String {
     )
 }
 
-/// Fetch the published tarball on the host and run its installer. Deliberately
-/// the same installer a person would run by hand — one install path, so this
-/// can't drift into its own half-supported variant.
-pub fn install(target: &SshTarget) -> Result<(), String> {
+/// Run a command on the host under a deadline, optionally feeding it a script on
+/// stdin. Shared by the install and the removal: both are long, both report the
+/// host's stderr verbatim, and both must not hang a UI thread's worker forever if
+/// the far end stops answering mid-run.
+fn ssh_run(
+    target: &SshTarget,
+    command: String,
+    stdin_script: Option<&str>,
+    timeout: Duration,
+    on_failure: &str,
+    on_timeout: &str,
+) -> Result<(), String> {
     let mut args = ssh_base_args(target);
-    let script = install_script();
-    args.push(script);
+    args.push(command);
     let mut child = Command::new("ssh")
         .args(&args)
-        .stdin(Stdio::null())
+        .stdin(if stdin_script.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("could not run ssh: {e}"))?;
-    let deadline = Instant::now() + REMOTE_TIMEOUT;
+    if let Some(script) = stdin_script {
+        // Dropped immediately after, which closes the pipe — the remote `sh -s`
+        // reads to EOF, so a stdin left open would hang until the deadline.
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| "could not write to ssh".to_string())?;
+        stdin
+            .write_all(script.as_bytes())
+            .map_err(|e| format!("could not send the script to the host: {e}"))?;
+    }
+    let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait().map_err(|e| e.to_string())? {
             Some(status) if status.success() => return Ok(()),
@@ -188,7 +214,7 @@ pub fn install(target: &SshTarget) -> Result<(), String> {
                 let out = child.wait_with_output().map_err(|e| e.to_string())?;
                 let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
                 return Err(if err.is_empty() {
-                    "the installer failed on the host".into()
+                    on_failure.to_string()
                 } else {
                     err
                 });
@@ -197,10 +223,54 @@ pub fn install(target: &SshTarget) -> Result<(), String> {
         }
         if Instant::now() >= deadline {
             let _ = child.kill();
-            return Err("the installer timed out on the host".into());
+            return Err(on_timeout.to_string());
         }
         std::thread::sleep(Duration::from_millis(250));
     }
+}
+
+/// Fetch the published tarball on the host and run its installer. Deliberately
+/// the same installer a person would run by hand — one install path, so this
+/// can't drift into its own half-supported variant.
+pub fn install(target: &SshTarget) -> Result<(), String> {
+    ssh_run(
+        target,
+        install_script(),
+        None,
+        REMOTE_TIMEOUT,
+        "the installer failed on the host",
+        "the installer timed out on the host",
+    )
+}
+
+/// The uninstaller, shipped in the tarball *and* embedded here so it can run on a
+/// host whose installed copy predates it. The machine someone most wants to clean
+/// up is the one running an old build, and "update it before you can remove it"
+/// is not an answer. One authored script either way — this is a second delivery
+/// route, not a second implementation.
+const UNINSTALL_SCRIPT: &str = include_str!("../../../linux/uninstall.sh");
+
+/// Piped to `sh -s` rather than invoking the installed copy: see above. The flags
+/// go after `--` so the remote shell hands them to the script rather than reading
+/// them as its own.
+fn uninstall_command(purge_data: bool) -> String {
+    as_root(if purge_data {
+        "sh -s -- --purge"
+    } else {
+        "sh -s"
+    })
+}
+
+/// Undo the install on the host, and optionally delete its `~/.lpm` as well.
+pub fn uninstall(target: &SshTarget, purge_data: bool) -> Result<(), String> {
+    ssh_run(
+        target,
+        uninstall_command(purge_data),
+        Some(UNINSTALL_SCRIPT),
+        UNINSTALL_TIMEOUT,
+        "removing lpm failed on the host",
+        "removing lpm timed out on the host",
+    )
 }
 
 /// The invite a host mints for us: `lpm pair --json` is the same call a person
@@ -531,7 +601,10 @@ mod tests {
             8766,
         );
         assert!(err.contains("isn't listening on port 8766"), "{err}");
-        assert!(err.contains("something else may already be using it"), "{err}");
+        assert!(
+            err.contains("something else may already be using it"),
+            "{err}"
+        );
         assert!(!err.contains("identity"), "{err}");
         // Nothing came back at all — same conclusion, same advice.
         assert!(hosting_error(None, 8766).contains("isn't listening on port 8766"));
@@ -550,6 +623,62 @@ mod tests {
         );
         assert!(err.contains("port 9000"), "{err}");
         assert!(err.contains("try again"), "{err}");
+    }
+
+    // The removal is fed to the host's shell on stdin, not run from the installed
+    // copy: a host old enough to lack uninstall.sh is exactly the one someone
+    // wants off their machine, and "update it first" is not an answer.
+    #[test]
+    fn the_removal_is_piped_to_the_hosts_shell() {
+        for purge in [false, true] {
+            let script = uninstall_command(purge);
+            assert!(script.contains("sh -s"), "{script}");
+            assert!(!script.contains("/opt/lpm/uninstall.sh"), "{script}");
+            // Same escalation rule as everything else here: root logins never
+            // sudo, everyone else does, non-interactively and with -H.
+            assert!(script.contains("sudo -n -H sh -s"), "{script}");
+            assert!(script.contains("[ \"$(id -u)\" = 0 ]"), "{script}");
+        }
+    }
+
+    // Deleting the host's ~/.lpm is opt-in, and the flag is the only thing that
+    // can turn it on — an off-by-default that leaks would delete a machine's
+    // pairing identity and session memory on a plain uninstall.
+    #[test]
+    fn only_an_explicit_purge_deletes_the_hosts_data() {
+        assert!(!uninstall_command(false).contains("--purge"));
+        let purging = uninstall_command(true);
+        // After `--`, so the remote shell passes it to the script instead of
+        // trying to read it as its own option.
+        assert!(purging.contains("sh -s -- --purge"), "{purging}");
+    }
+
+    // The script ships in the tarball and is embedded here from the same file, so
+    // there is one authored uninstaller. These assert the shape the Rust side
+    // depends on — if the script stops taking --purge, or starts deleting the
+    // data unconditionally, the flag above becomes a lie.
+    #[test]
+    fn the_embedded_uninstaller_matches_what_we_call_it_with() {
+        assert!(UNINSTALL_SCRIPT.contains("--purge"), "takes the flag");
+        assert!(
+            UNINSTALL_SCRIPT.contains("PURGE=0"),
+            "defaults to keeping data"
+        );
+        assert_eq!(
+            UNINSTALL_SCRIPT
+                .matches("rm -rf \"$SERVICE_HOME/.lpm\"")
+                .count(),
+            1,
+            "the data is deleted in exactly one place — inside the --purge branch"
+        );
+        assert!(
+            UNINSTALL_SCRIPT.contains("if [ \"$PURGE\" = \"1\" ]"),
+            "and that place is guarded by the flag"
+        );
+        assert!(
+            UNINSTALL_SCRIPT.contains("rm -rf \"$PREFIX\""),
+            "removes the install"
+        );
     }
 
     // A cloud VM is normally handed over as a sudo-capable non-root account, so

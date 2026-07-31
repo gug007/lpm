@@ -85,6 +85,24 @@ Prefer `--bind` on anything with a public IP. `--lan` also answers on the public
 interface, leaving the peer port on the open internet guarded only by the pairing
 code and the pinned certificate. `lpm connections` shows which address is live.
 
+## Removing lpm
+
+From the Mac: **Settings → Connections → the host's ⋯ menu → Remove lpm from this
+host**. On the machine itself:
+
+```sh
+sudo ./uninstall.sh            # remove the install, keep ~/.lpm
+sudo ./uninstall.sh --purge    # also delete the service account's ~/.lpm
+```
+
+It undoes what the installer did — units, binaries, the `PATH` symlink, the
+environment file — and stops the services and agents that were running, which the
+app deliberately does not own (see below). Your projects and repos are left alone.
+
+`~/.lpm` is kept by default: project configuration, session memory and this
+machine's pairing identity live there, so a reinstall picks up where you left off.
+`--purge` is the deliberate other choice, and it is not reversible.
+
 ## What a restart costs
 
 Agent terminals on the host belong to the app process, so **restarting `lpm.service`

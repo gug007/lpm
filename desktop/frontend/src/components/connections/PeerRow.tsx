@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { Server } from "lucide-react";
-import { PeerReconnect, PeerSetEnabled, PeerUpdateHost } from "../../../bridge/commands";
+import {
+  PeerReconnect,
+  PeerSetEnabled,
+  PeerUninstallHost,
+  PeerUpdateHost,
+} from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
 import { peerStatus } from "../../peer/peerStatus";
 import { Toggle } from "./Toggle";
@@ -32,8 +37,15 @@ export function PeerRow({
   const live = peer.enabled && peer.connected;
   const name = peer.alias || peer.host;
   const [updating, setUpdating] = useState(false);
-  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  // Whatever the last thing we ran over SSH failed with — one line, because only
+  // one of these can be in flight at a time.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [confirmingRemoval, setConfirmingRemoval] = useState(false);
+  // Deleting the host's ~/.lpm is a separate decision from removing the install,
+  // and it is not one to carry over from a dialog someone already cancelled.
+  const [purgeData, setPurgeData] = useState(false);
   const [retrying, setRetrying] = useState(false);
   // Installing is only possible on a machine we can reach ourselves, which is
   // what sshHost means. A Mac we merely dial has no such action.
@@ -58,14 +70,28 @@ export function PeerRow({
 
   const update = async () => {
     setUpdating(true);
-    setUpdateError(null);
+    setActionError(null);
     try {
       await PeerUpdateHost(peer.slug);
       await refresh();
     } catch (err) {
-      setUpdateError(String(err));
+      setActionError(String(err));
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // On success this row is gone — the peer entry goes with the install — so
+  // there is nothing to reset afterwards, only something to say if it fails.
+  const uninstall = async (purge: boolean) => {
+    setRemoving(true);
+    setActionError(null);
+    try {
+      await PeerUninstallHost(peer.slug, purge);
+      await refresh();
+    } catch (err) {
+      setActionError(String(err));
+      setRemoving(false);
     }
   };
 
@@ -73,7 +99,7 @@ export function PeerRow({
   // once a machine has been away for a while.
   const reconnect = async () => {
     setRetrying(true);
-    setUpdateError(null);
+    setActionError(null);
     await PeerReconnect(peer.slug);
     await refresh();
   };
@@ -104,10 +130,12 @@ export function PeerRow({
               tone="pending"
               text={behind ? "Updating lpm over SSH…" : "Reinstalling lpm over SSH…"}
             />
+          ) : removing ? (
+            <StatusLine tone="pending" text="Removing lpm over SSH…" />
           ) : retrying ? (
             <StatusLine tone="pending" text="Reconnecting…" />
-          ) : updateError ? (
-            <StatusLine tone="error" text={updateError} />
+          ) : actionError ? (
+            <StatusLine tone="error" text={actionError} />
           ) : (
             <StatusLine
               tone={status.tone}
@@ -118,14 +146,14 @@ export function PeerRow({
           )}
         </div>
 
-        {canRetry && !updating && !retrying ? (
+        {canRetry && !updating && !removing && !retrying ? (
           <button
             onClick={() => void reconnect()}
             className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
           >
             Reconnect
           </button>
-        ) : behind && !updating ? (
+        ) : behind && !updating && !removing ? (
           <button
             onClick={() => setConfirming(true)}
             className={`${PILL_CLASS} text-[var(--accent-cyan)] hover:bg-[var(--bg-hover)]`}
@@ -141,12 +169,27 @@ export function PeerRow({
               ? [
                   {
                     label: behind ? "Update lpm there" : "Reinstall lpm there",
-                    disabled: updating,
+                    disabled: updating || removing,
                     onClick: () => setConfirming(true),
                   },
                 ]
               : []),
             { label: "Disconnect…", destructive: true, onClick: () => onRemove(peer) },
+            // Only for a machine we can reach: taking lpm off someone else's Mac
+            // isn't ours to do, and there is no way to do it there anyway.
+            ...(reachable
+              ? [
+                  {
+                    label: "Remove lpm from this host…",
+                    destructive: true,
+                    disabled: updating || removing,
+                    onClick: () => {
+                      setPurgeData(false);
+                      setConfirmingRemoval(true);
+                    },
+                  },
+                ]
+              : []),
           ]}
         />
         <Toggle
@@ -171,6 +214,43 @@ export function PeerRow({
         onConfirm={() => {
           setConfirming(false);
           void update();
+        }}
+      />
+      <ConfirmDialog
+        open={confirmingRemoval}
+        title={`Remove lpm from ${name}`}
+        variant="destructive"
+        confirmLabel="Remove lpm"
+        // Deleting the machine's data is the one step nothing can undo, so it is
+        // the one that asks for the name to be typed. Removing the install alone
+        // is as reversible as reinstalling it.
+        confirmText={purgeData ? name : undefined}
+        body={
+          <div className="space-y-3">
+            <p>
+              This uninstalls lpm from{" "}
+              <span className="font-medium text-[var(--text-primary)]">{name}</span> and disconnects
+              it. Services and agents running there stop. Your projects and files on that machine
+              are left alone.
+            </p>
+            <label className="flex items-start gap-2 text-[12px] text-[var(--text-muted)]">
+              <input
+                type="checkbox"
+                checked={purgeData}
+                onChange={(e) => setPurgeData(e.target.checked)}
+                className="mt-0.5 accent-[var(--accent-cyan)]"
+              />
+              <span>
+                Also delete its lpm data — project configuration, session memory, and the identity
+                it pairs with. Can&rsquo;t be undone.
+              </span>
+            </label>
+          </div>
+        }
+        onCancel={() => setConfirmingRemoval(false)}
+        onConfirm={() => {
+          setConfirmingRemoval(false);
+          void uninstall(purgeData);
         }}
       />
     </>

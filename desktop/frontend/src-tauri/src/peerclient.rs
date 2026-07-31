@@ -1786,6 +1786,54 @@ pub async fn peer_update_host(hub: State<'_, PeerClientHub>, slug: String) -> Re
     .map_err(|e| e.to_string())?
 }
 
+/// The other half of "add a Linux host": take lpm off the machine again and stop
+/// tracking it here. Adding it was one click and one string, so undoing it cannot
+/// be a list of paths to delete by hand — a server someone tried lpm on should be
+/// as easy to give back as it was to borrow.
+///
+/// The host is cleaned up FIRST and the entry dropped only on success: a failed
+/// removal that had already forgotten the machine would leave an install nothing
+/// here can reach, let alone retry.
+///
+/// `purge_data` also deletes the host's `~/.lpm` — project config, session memory
+/// and its pairing identity. The caller is responsible for having said so.
+#[tauri::command]
+pub async fn peer_uninstall_host(
+    hub: State<'_, PeerClientHub>,
+    slug: String,
+    purge_data: bool,
+) -> Result<Value, String> {
+    let hub_state = hub.inner().clone();
+    let removal_slug = slug.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (target, was_enabled) = {
+            let cfg = hub_state.inner.config.lock().unwrap();
+            cfg.peers
+                .iter()
+                .find(|p| p.slug == removal_slug)
+                .map(|p| (p.ssh.clone(), p.enabled))
+                .ok_or_else(|| "that host is no longer configured".to_string())?
+        };
+        if !target.is_set() {
+            return Err("lpm can only remove itself from a host it reaches over SSH".into());
+        }
+        // Before the ssh: the supervised forward keeps redialling a machine whose
+        // app is being stopped, and its retries would race the removal.
+        hub_state.stop_conn(&removal_slug, "removing lpm from this host");
+        let removed = crate::peerssh::uninstall(&target, purge_data);
+        // A removal that failed leaves a host that is still there and still ours
+        // to talk to. Without this it would sit disconnected with nothing saying
+        // why, and the only way back would be toggling it off and on.
+        if removed.is_err() && was_enabled {
+            hub_state.start_conn(&removal_slug);
+        }
+        removed
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    peer_remove(hub, slug).await
+}
+
 /// Add a Linux host: reach it over SSH, install lpm if it isn't there, and pair
 /// through a forward — the flow that replaces "download a tarball, run three
 /// commands, copy a secret out of a terminal".

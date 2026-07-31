@@ -862,6 +862,9 @@ export function PeerAddSshHost(target, alias, install) {
 export function PeerUpdateHost(slug) {
   return invoke("peer_update_host", { slug });
 }
+export function PeerUninstallHost(slug, purgeData) {
+  return invoke("peer_uninstall_host", { slug, purgeData });
+}
 export function PeerRemove(slug) {
   return invoke("peer_remove", { slug });
 }

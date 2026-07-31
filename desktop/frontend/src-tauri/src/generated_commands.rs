@@ -204,6 +204,7 @@ macro_rules! all_command_handlers {
             peer_add,
             peer_add_ssh_host,
             peer_update_host,
+            peer_uninstall_host,
             peer_remove,
             peer_set_enabled,
             peer_reconnect,
