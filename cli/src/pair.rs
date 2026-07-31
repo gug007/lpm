@@ -19,9 +19,16 @@ fn parse_reply(reply: &str) -> Result<Value, RunError> {
 /// Mint a single-use invite (or withdraw the outstanding one). Printing the
 /// invite string is the whole point: it carries address, port, code, and the TLS
 /// fingerprint as one token to paste into the other machine's Connections pane.
-pub fn run(ctx: &Ctx, cancel: bool, json: bool) -> Result<(), RunError> {
+pub fn run(ctx: &Ctx, cancel: bool, lan: bool, json: bool) -> Result<(), RunError> {
     control::require_app(ctx)?;
-    let reply = control::send_command(ctx, if cancel { "peer_pair --cancel" } else { "peer_pair" })?;
+    let command = if cancel {
+        "peer_pair --cancel"
+    } else if lan {
+        "peer_pair --lan"
+    } else {
+        "peer_pair"
+    };
+    let reply = control::send_command(ctx, command)?;
     let value = parse_reply(&reply)?;
 
     if json {
@@ -46,6 +53,12 @@ pub fn run(ctx: &Ctx, cancel: bool, json: bool) -> Result<(), RunError> {
     println!();
     println!("Paste that into Settings → Connections on the machine that will drive this one.");
     println!("It can only be used once.");
+    if !lan {
+        println!();
+        println!("Listening on this machine only. If the other machine reaches you over a");
+        println!("tunnel, that is what you want; pass --lan to accept connections on every");
+        println!("network interface instead.");
+    }
     println!();
     println!("  code       {code}");
     println!("  port       {port}");

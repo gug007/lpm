@@ -1521,19 +1521,37 @@ pub async fn peer_host_set_config(
     Ok(host_state_value(&hub))
 }
 
-/// Start (or refresh) a single-use pairing code, force-enabling the server on the
-/// LAN so the pairing Mac can reach it, and return the code + candidate addresses.
-/// Shared by the Connections pane and the `lpm pair` socket verb — a headless host
-/// has no UI to click, and a second bring-up path would be a second way to get the
-/// crypto wrong.
-pub(crate) fn start_pairing(app: &AppHandle, hub: &PeerHub) -> Result<Value, String> {
+/// Start (or refresh) a single-use pairing code and return it with the candidate
+/// addresses. Shared by the Connections pane and the `lpm pair` socket verb — a
+/// headless host has no UI to click, and a second bring-up path would be a second
+/// way to get the crypto wrong.
+///
+/// `force_lan` binds `0.0.0.0` so the pairing machine can reach us. The pane always
+/// wants it: two Macs find each other over the LAN. A headless host must ASK for it
+/// — it may sit on a public IP with no firewall, where binding every interface puts
+/// the peer port on the open internet, and it is typically reached through a tunnel
+/// to loopback anyway. So the socket verb leaves the current binding alone unless
+/// told otherwise.
+/// The config half of `start_pairing`, split out so the binding decision — the part
+/// that can expose a port to the internet — is testable without an AppHandle.
+fn arm_pairing_code(cfg: &mut PeerConfig, code: &str, force_lan: bool) -> u16 {
+    cfg.host.pairing_code = code.to_string();
+    cfg.host.enabled = true;
+    if force_lan {
+        cfg.host.lan = true;
+    }
+    effective_port(cfg.host.port)
+}
+
+pub(crate) fn start_pairing(
+    app: &AppHandle,
+    hub: &PeerHub,
+    force_lan: bool,
+) -> Result<Value, String> {
     let code = gen_pairing_code();
     let (hosts, port) = {
         let mut cfg = hub.inner.config.lock().unwrap();
-        cfg.host.pairing_code = code.clone();
-        cfg.host.enabled = true;
-        cfg.host.lan = true;
-        let port = effective_port(cfg.host.port);
+        let port = arm_pairing_code(&mut cfg, &code, force_lan);
         let snapshot = cfg.clone();
         drop(cfg);
         save_config(&snapshot)?;
@@ -1552,7 +1570,7 @@ pub async fn peer_host_start_pairing(
     app: AppHandle,
     hub: State<'_, PeerHub>,
 ) -> Result<Value, String> {
-    start_pairing(&app, &hub)
+    start_pairing(&app, &hub, true)
 }
 
 /// Pack a `start_pairing` result into the one copy-pasteable token the joining
@@ -1980,6 +1998,36 @@ mod tests {
                 "sas must be digits: {s}"
             );
         }
+    }
+
+    // Minting an invite must not widen the listener by itself. A headless host can
+    // sit on a public IP with no firewall, where binding every interface would put
+    // the peer port on the open internet — and it is usually reached through a
+    // tunnel to loopback anyway. Only an explicit `--lan` asks for that; the
+    // Connections pane passes true because two Macs need the LAN to find each other.
+    #[test]
+    fn arming_a_code_only_opens_the_lan_when_asked() {
+        let mut cfg = PeerConfig::default();
+        assert!(!cfg.host.lan);
+
+        let port = arm_pairing_code(&mut cfg, "AAAA-BBBB", false);
+        assert_eq!(cfg.host.pairing_code, "AAAA-BBBB");
+        assert!(cfg.host.enabled, "hosting still has to come on");
+        assert!(!cfg.host.lan, "no --lan must leave the binding alone");
+        assert_eq!(port, DEFAULT_PORT);
+
+        arm_pairing_code(&mut cfg, "CCCC-DDDD", true);
+        assert!(cfg.host.lan, "--lan opens every interface");
+    }
+
+    // Once the user has opened it up, minting another invite must not quietly
+    // close it again — that would break a working LAN pairing mid-flow.
+    #[test]
+    fn arming_a_code_never_closes_an_already_open_lan() {
+        let mut cfg = PeerConfig::default();
+        cfg.host.lan = true;
+        arm_pairing_code(&mut cfg, "AAAA-BBBB", false);
+        assert!(cfg.host.lan);
     }
 
     // The joining Mac decodes this with src/peer/invite.ts, which has the matching
