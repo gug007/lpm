@@ -9,14 +9,14 @@ PartOf=lpm-xvfb.service
 
 [Service]
 Environment=DISPLAY=:99
-Environment=HOME=/root
-# systemd starts a service with almost no environment, and a login shell is one of
-# the things it doesn't hand down. Terminals are spawned from $SHELL, so without
-# this every "new terminal" on the host fails — set it to whatever this account's
-# login shell actually is.
-Environment=SHELL=/bin/bash
-WorkingDirectory=/root
-ExecStart=/root/lpm-desktop
+Environment=HOME=%h
+WorkingDirectory=%h
+# Written by install.sh: SHELL, plus anything else this machine needs. systemd
+# starts a service with almost no environment — no login shell has run — and
+# terminals are spawned from $SHELL, so without it every "new terminal" on the
+# host fails. The leading dash makes a missing file non-fatal.
+EnvironmentFile=-/etc/lpm/host.env
+ExecStart=/opt/lpm/lpm-desktop
 
 # on-failure, NOT always — and this is a deliberate limit, not an oversight.
 # Agent terminals on this host are owned by the app process, so every restart of

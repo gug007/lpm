@@ -9,29 +9,33 @@ display. That is why there is a window manager in the stack.
 
 ## Install
 
-Requires `Xvfb`, `matchbox-window-manager`, `xdpyinfo` (`x11-utils`), and the GTK /
-WebKit runtime the app links against:
+Download `lpm-host-linux-amd64.tar.gz` from the latest release and run the
+installer:
 
 ```sh
-apt-get install -y xvfb matchbox-window-manager x11-utils \
-  libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1
+tar xzf lpm-host-linux-amd64.tar.gz
+cd lpm-host
+sudo ./install.sh
 ```
 
-Take the binaries from the `lpm-linux-x86_64` artifact of the **Linux host**
-workflow — the build has to go through the Tauri CLI, and a plain
-`cargo build --release` produces a binary that still points at the dev server:
+It installs the runtime dependencies (`apt`), puts the binaries in `/opt/lpm`,
+links the CLI onto `PATH`, enables the three units, and waits for the peer server
+to come up. Pass `--no-deps` to skip the apt step on a machine where the GTK /
+WebKit runtime is already present.
 
-```sh
-install -m755 lpm-desktop /root/lpm-desktop
-install -m755 lpm-cli-x86_64-unknown-linux-gnu /root/lpm-cli-x86_64-unknown-linux-gnu
-ln -sf /root/lpm-cli-x86_64-unknown-linux-gnu /usr/local/bin/lpm
+`lpm.service` pulls in the display and the window manager through `Requires=`, so
+enabling that one unit brings up the whole stack, at boot too.
 
-install -m644 lpm-xvfb.service lpm-wm.service lpm.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now lpm.service
-```
+It runs as root, which is what a dedicated box usually is. To run it as someone
+else, add a drop-in with `User=`, and set `HOME=` and `WorkingDirectory=`
+explicitly while you're there — the unit uses `%h`, and for a *system* service
+that specifier is the service manager's home (`/root`), not the home of the user
+in `User=`.
 
-`lpm.service` pulls in the other two, so enabling it is enough.
+Building by hand is possible but has a trap worth knowing: the build must go
+through the Tauri CLI (`npx tauri build --no-bundle`). A plain
+`cargo build --release` produces a binary that still points at the dev server and
+shows "Could not connect to 127.0.0.1" on a machine with no dev server running.
 
 ## Pairing
 

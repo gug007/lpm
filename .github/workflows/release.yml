@@ -155,13 +155,83 @@ jobs:
           [ -f "$KEYCHAIN_PATH" ] && security delete-keychain "$KEYCHAIN_PATH" || true
           rm -rf "$RUNNER_TEMP/private_keys"
 
-  # Collect both already-notarized DMGs and publish them in a single release —
-  # one creation, so the two parallel build jobs can't race on it.
-  release:
-    needs: build
+  # The headless Linux host: the same app, built for a server that runs it under a
+  # virtual display with a Mac driving it. Shipped as a tarball of the binary, the
+  # CLI, the systemd units and an installer, because there is nothing to click on
+  # the far end — without a published asset the only way to get this is a CI
+  # artifact off a branch, which is not a thing a user can be told to do.
+  build-linux:
     runs-on: ubuntu-latest
     steps:
-      - name: Download DMG artifacts
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            build-essential curl wget file pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      # MUST go through the Tauri CLI, not `cargo build --release`. Asset
+      # embedding is driven by the env the CLI sets up for tauri-build, not by the
+      # cargo profile: a plain cargo build yields a binary that still points at
+      # devUrl and shows "Could not connect to 127.0.0.1" on a machine with no dev
+      # server. --no-bundle skips the macOS-only bundle targets.
+      - name: Build
+        working-directory: desktop/frontend
+        env:
+          LPM_VERSION: ${{ env.VERSION }}
+          LPM_CLI_TARGET: x86_64-unknown-linux-gnu
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund
+          npx tauri build --no-bundle --config "{\"version\":\"$VERSION\"}"
+
+      # The embedded frontend is the difference between a working binary and one
+      # that starts and shows a connection error. Cheap to prove, so prove it.
+      - name: Verify the frontend is embedded
+        run: |
+          count=$(strings desktop/frontend/src-tauri/target/release/lpm-desktop | grep -c '/assets/' || true)
+          echo "embedded asset references: $count"
+          [ "$count" -gt 100 ] || { echo "binary looks like a plain cargo build" >&2; exit 1; }
+
+      - name: Stage tarball
+        run: |
+          mkdir -p lpm-host
+          cp desktop/frontend/src-tauri/target/release/lpm-desktop lpm-host/
+          cp desktop/frontend/src-tauri/binaries/lpm-cli-x86_64-unknown-linux-gnu lpm-host/lpm
+          cp desktop/linux/*.service desktop/linux/install.sh desktop/linux/README.md lpm-host/
+          chmod +x lpm-host/lpm-desktop lpm-host/lpm lpm-host/install.sh
+          tar czf lpm-host-linux-amd64.tar.gz lpm-host
+          ls -lh lpm-host-linux-amd64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-host
+          path: lpm-host-linux-amd64.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  # Collect the already-notarized DMGs and the Linux tarball and publish them in a
+  # single release — one creation, so the parallel build jobs can't race on it.
+  release:
+    needs: [build, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
@@ -170,7 +240,9 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
+          files: |
+            dist/*.dmg
+            dist/lpm-host-linux-amd64.tar.gz
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
