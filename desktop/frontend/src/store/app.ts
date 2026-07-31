@@ -68,8 +68,10 @@ import {
   projectAnchorIndex,
   dupInsertIndex,
   reconcile,
+  forgetProjects,
   layoutsEqual,
 } from "../components/sidebarLayout";
+import { mergeWithDisk } from "../components/sidebarMerge";
 import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
 import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
 import { activeChatStorageKey } from "../components/NotesView";
@@ -330,8 +332,10 @@ interface AppState {
   moveProjectsToGroup: (names: string[], groupId: string | null) => Promise<void>;
   // Commit a full sidebar layout (on DnD drop): persists folders + order.
   applySidebarLayout: (layout: SidebarLayout) => Promise<void>;
-  // Drop stale entries + append new projects after a project list refresh.
+  // Re-place duplicates + append new projects after a project list refresh.
+  // Never drops a name it can't see — only `forgetProjects` does that.
   reconcileSidebarLayout: (projects: ProjectInfo[]) => void;
+  adoptSidebarLayout: (layout: SidebarLayout) => void;
   rehydrateSidebarLayout: () => Promise<void>;
 
   detachProject: (name: string) => Promise<void>;
@@ -564,11 +568,19 @@ function templatesEqual(a: main.TemplateInfo[], b: main.TemplateInfo[]): boolean
 }
 
 // Drop client-side state tied to projects that no longer exist: their cached
-// terminal panes and persisted chat selection.
-function forgetRemovedProjects(names: string[]) {
+// terminal panes, persisted chat selection, and their slot in the sidebar.
+// The backend already pruned groups.json/settings for each removed name, so the
+// layout is only dropped from memory here — writing it back would just replay
+// the same result.
+function forgetRemovedProjects(set: AppSet, get: AppGet, names: string[]) {
   for (const name of names) {
     forgetProjectTerminals(name);
     window.localStorage.removeItem(activeChatStorageKey(name));
+  }
+  const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+  const pruned = forgetProjects(current, names);
+  if (!layoutsEqual(current, pruned)) {
+    set({ sidebarOrder: pruned.order, groups: pruned.groups });
   }
 }
 
@@ -593,7 +605,7 @@ async function runProjectRemoval(
   set((s) => ({ removingNames: withAdded(s.removingNames, removedNames) }));
   try {
     await call();
-    forgetRemovedProjects(removedNames);
+    forgetRemovedProjects(set, get, removedNames);
     const sel = get().selected;
     if (sel && removedNames.includes(sel)) set({ selected: null });
     await get().refreshProjects();
@@ -778,14 +790,40 @@ function resolveMemberName(projects: ProjectInfo[], name: string): string | unde
 // Folders -> groups.json; order -> settings (sidebarOrder + the flattened
 // projectOrder the backend reads). saveSettings dirty-checks, so a folders-only
 // change (e.g. collapse) skips the settings write.
-async function persistSidebarLayout(layout: SidebarLayout): Promise<void> {
+//
+// Both writes replace the file wholesale, so the layout is first three-way
+// merged against what's on disk right now — otherwise an instance holding an
+// older copy erases folders another instance (or the phone) just wrote. `base`
+// is the layout this change started from, which is what tells a folder we
+// deleted apart from one someone else added. Returns the layout that actually
+// landed, which the caller adopts as its state.
+async function persistSidebarLayout(
+  layout: SidebarLayout,
+  base: SidebarLayout,
+  known: Set<string>,
+): Promise<SidebarLayout> {
+  let merged = layout;
+  try {
+    const [cfg, fresh] = await Promise.all([loadGroups(), loadSettings()]);
+    const disk: SidebarLayout = { order: fresh.sidebarOrder ?? [], groups: cfg.groups };
+    merged = mergeWithDisk(layout, base, disk, known);
+  } catch (err) {
+    reportError("sidebar.merge_failed", err);
+  }
   await Promise.all([
-    saveGroups({ groups: layout.groups }),
+    saveGroups({ groups: merged.groups }),
     saveSettings({
-      sidebarOrder: layout.order,
-      projectOrder: flattenForProjectOrder(layout),
+      sidebarOrder: merged.order,
+      projectOrder: flattenForProjectOrder(merged),
     }),
   ]);
+  return merged;
+}
+
+// The names a merge may adopt from disk: every local project, peers excluded
+// (they render in their own sections and never join the layout).
+function layoutNames(projects: ProjectInfo[]): Set<string> {
+  return new Set(projects.filter((p) => !isPeerName(p.name)).map((p) => p.name));
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -863,7 +901,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   refreshProjects: async () => {
     try {
-      const list = (await ListProjects()) || [];
+      const list = await ListProjects();
+      // A non-array means the listing failed (the backend errors rather than
+      // reporting an empty ~/.lpm/projects it couldn't read) — keep the last
+      // known list instead of treating every project as gone.
+      if (!Array.isArray(list)) {
+        reportError("projects.refresh_failed", new Error("project list unavailable"));
+        return;
+      }
       // Status-only refreshes (the 10s poll, agent status events) leave the
       // project set unchanged — skip the reconcile, which can only differ when
       // projects are added or removed.
@@ -887,12 +932,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
     if (layoutsEqual(before, after)) return;
     set({ sidebarOrder: after.order, groups: after.groups });
-    persistSidebarLayout(after).catch(() => undefined);
+    persistSidebarLayout(after, before, layoutNames(projects))
+      .then((merged) => get().adoptSidebarLayout(merged))
+      .catch(() => undefined);
   },
 
-  // Adopt an external groups.json write (another lpm instance sharing ~/.lpm).
-  // Every persist here is a full overwrite from memory, so a layout change this
-  // instance didn't see would be clobbered on its next save.
+  // Take the layout a persist actually landed (it may carry folders or
+  // placements merged in from another instance), without writing again.
+  adoptSidebarLayout: (layout) => {
+    const current: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    if (layoutsEqual(current, layout)) return;
+    set({ sidebarOrder: layout.order, groups: layout.groups });
+  },
+
+  // Adopt an external groups.json write (another lpm instance sharing ~/.lpm,
+  // or the phone through remote.rs). Saves merge against disk rather than
+  // overwriting it, so this is convergence rather than the only thing standing
+  // between a stale layout and someone else's folders.
   rehydrateSidebarLayout: async () => {
     try {
       const [cfg, fresh] = await Promise.all([loadGroups(), loadSettings()]);
@@ -1556,7 +1612,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const failed: string[] = (await RemoveProjects(names)) || [];
       const failedSet = new Set(failed);
       const removed = names.filter((n) => !failedSet.has(n));
-      forgetRemovedProjects(removed);
+      forgetRemovedProjects(set, get, removed);
       set((s) =>
         s.selected && removed.includes(s.selected) ? { selected: null } : s,
       );
@@ -1622,7 +1678,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // update state but skip the persist.
     if (layoutsEqual(prev, next)) return;
     try {
-      await persistSidebarLayout(next);
+      get().adoptSidebarLayout(await persistSidebarLayout(next, prev, layoutNames(projects)));
     } catch (err) {
       toast.error(`Failed to save folders: ${err}`);
       const cfg = await loadGroups();

@@ -65,16 +65,29 @@ pub fn is_installed(target: &SshTarget) -> bool {
         .unwrap_or(false)
 }
 
+/// Fetch, unpack, install. The installer needs root, and the account someone
+/// SSHes in as often isn't — `ubuntu@`, `debian@` and friends are the normal way
+/// a cloud VM is handed over. So escalate when we aren't already root.
+///
+/// `sudo -n` for the same reason ssh runs with `BatchMode=yes`: stdin is closed
+/// here, so a sudo that decided to ask for a password would hang until the
+/// timeout with the prompt going nowhere. Non-interactive turns that into an
+/// immediate, readable failure.
+fn install_script() -> String {
+    format!(
+        "set -e; tmp=$(mktemp -d); cd \"$tmp\"; \
+         curl -fsSL {RELEASE_URL} -o lpm-host.tar.gz; \
+         tar xzf lpm-host.tar.gz; cd lpm-host; \
+         if [ \"$(id -u)\" = 0 ]; then ./install.sh; else sudo -n ./install.sh; fi"
+    )
+}
+
 /// Fetch the published tarball on the host and run its installer. Deliberately
 /// the same installer a person would run by hand — one install path, so this
 /// can't drift into its own half-supported variant.
 pub fn install(target: &SshTarget) -> Result<(), String> {
-    let script = format!(
-        "set -e; tmp=$(mktemp -d); cd \"$tmp\"; \
-         curl -fsSL {RELEASE_URL} -o lpm-host.tar.gz; \
-         tar xzf lpm-host.tar.gz; cd lpm-host; ./install.sh"
-    );
     let mut args = ssh_base_args(target);
+    let script = install_script();
     args.push(script);
     let mut child = Command::new("ssh")
         .args(&args)
@@ -255,6 +268,23 @@ mod tests {
     fn an_invite_without_the_essentials_is_rejected() {
         assert!(parse_invite(r#"{"port":8766}"#).is_err());
         assert!(parse_invite(r#"{"code":"AB12-CD34"}"#).is_err());
+    }
+
+    // A cloud VM is normally handed over as a sudo-capable non-root account, so
+    // an installer that only ran as root would fail for most people.
+    #[test]
+    fn the_installer_escalates_when_the_login_is_not_root() {
+        let script = install_script();
+        assert!(script.contains("id -u"), "{script}");
+        assert!(script.contains("sudo -n ./install.sh"), "{script}");
+    }
+
+    // Bare `sudo` would prompt for a password into a closed stdin and hang until
+    // the install timeout, with the prompt invisible.
+    #[test]
+    fn the_installer_never_waits_on_a_sudo_prompt() {
+        let script = install_script();
+        assert!(!script.contains("sudo ./install.sh"), "{script}");
     }
 
     // BatchMode keeps a password prompt from hanging a background command with no

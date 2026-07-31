@@ -432,6 +432,7 @@ fn cmd_duplicate_project(
     if !group_name.trim().is_empty() {
         let _ = crate::remote::group_copies_into_folder(&name, group_name.trim(), &created);
         let _ = app.emit("projects-changed", ());
+        let _ = app.emit("sidebar-changed", ());
     }
 
     let mut warning: Option<String> = None;

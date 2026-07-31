@@ -78,6 +78,12 @@ const READY_POLL: Duration = Duration::from_millis(100);
 const BACKOFF_MIN: Duration = Duration::from_secs(2);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
 
+/// Stamped onto every forward we spawn so a later run can recognise its own
+/// leftovers in `ps`. `SetEnv` is inert here — `-N` runs no remote command, and a
+/// server that doesn't accept the variable simply ignores it — which is the point:
+/// it changes nothing about the connection and exists only to be greppable.
+const TUNNEL_MARKER: &str = "LPM_PEER_TUNNEL=1";
+
 /// The options every lpm-run ssh shares. `BatchMode` so a host that wants a
 /// password fails immediately instead of hanging forever on a prompt nobody can
 /// see, and the connection is deliberately NOT shared with the project
@@ -120,6 +126,8 @@ pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -
     args.extend(ssh_common_args());
     args.extend([
         "-o".into(),
+        format!("SetEnv={TUNNEL_MARKER}"),
+        "-o".into(),
         "ExitOnForwardFailure=yes".into(),
         "-o".into(),
         "ServerAliveInterval=15".into(),
@@ -130,6 +138,51 @@ pub fn ssh_forward_args(target: &SshTarget, local_port: u16, remote_port: u16) -
     ]);
     push_target_args(&mut args, target);
     args
+}
+
+/// Pick our own abandoned forwards out of a `ps` listing.
+///
+/// Two conditions, and both are load-bearing. The marker, because someone's
+/// hand-run `ssh -L` to the same server is not ours to kill — matching on host or
+/// port would take it out. And PPID 1, because a forward with a living parent
+/// belongs to an lpm that is still using it, quite possibly a second instance.
+///
+/// Split from the killing so the filter can be tested against a listing without
+/// spawning anything.
+fn orphan_pids(ps_output: &str) -> Vec<i32> {
+    ps_output
+        .lines()
+        .filter_map(|line| {
+            let (pid, rest) = line.trim_start().split_once(char::is_whitespace)?;
+            let (ppid, command) = rest.trim_start().split_once(char::is_whitespace)?;
+            if ppid != "1" || !command.contains(TUNNEL_MARKER) {
+                return None;
+            }
+            pid.parse::<i32>().ok()
+        })
+        .collect()
+}
+
+/// Kill forwards left behind by a previous run.
+///
+/// `stop()` and `Drop` handle a graceful exit, but nothing in this process
+/// survives SIGKILL — a force-quit, a crash, or (constantly, in development) the
+/// rebuild that restarts the app. The ssh child is re-parented to init and holds
+/// its local port and its session on the server until the machine reboots, so
+/// they accumulate one per SSH-reached peer per launch.
+pub fn reap_orphaned_forwards() {
+    let Ok(out) = Command::new("ps")
+        .args(["-axo", "pid=,ppid=,command="])
+        .stdin(Stdio::null())
+        .output()
+    else {
+        return;
+    };
+    for pid in orphan_pids(&String::from_utf8_lossy(&out.stdout)) {
+        // SIGTERM, not SIGKILL: ssh tears its forward down on it, and a stuck one
+        // is re-reaped on the next launch anyway.
+        unsafe { libc::kill(pid, libc::SIGTERM) };
+    }
 }
 
 /// A free local port, claimed by binding and immediately releasing it. Racy in
@@ -428,6 +481,33 @@ mod tests {
         let mut t = target();
         t.port = 22;
         assert!(!ssh_forward_args(&t, 1, 2).contains(&"-p".to_string()));
+    }
+
+    // The marker is what separates our leftovers from a forward someone set up by
+    // hand; without it on the command line the reaper has nothing safe to match.
+    #[test]
+    fn a_forward_is_stamped_so_it_can_be_reaped_later() {
+        let args = ssh_forward_args(&target(), 1, 2);
+        assert!(args.iter().any(|a| a.contains(TUNNEL_MARKER)), "{args:?}");
+    }
+
+    #[test]
+    fn reaps_only_re_parented_forwards_of_ours() {
+        let listing = concat!(
+            "  501     1 ssh -N -o SetEnv=LPM_PEER_TUNNEL=1 -L 127.0.0.1:1:127.0.0.1:8766 root@h\n",
+            "  502  9999 ssh -N -o SetEnv=LPM_PEER_TUNNEL=1 -L 127.0.0.1:2:127.0.0.1:8766 root@h\n",
+            "  503     1 ssh -N -L 127.0.0.1:3:127.0.0.1:8766 root@h\n",
+        );
+        // 502 still has a parent — a running lpm is using it.
+        // 503 is someone's own forward to the very same host and port.
+        assert_eq!(orphan_pids(listing), vec![501]);
+    }
+
+    #[test]
+    fn a_garbled_listing_kills_nothing() {
+        assert!(orphan_pids("").is_empty());
+        assert!(orphan_pids("nonsense\n1\n").is_empty());
+        assert!(orphan_pids("notapid 1 ssh -N -o SetEnv=LPM_PEER_TUNNEL=1").is_empty());
     }
 
     #[test]

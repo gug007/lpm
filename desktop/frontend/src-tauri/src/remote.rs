@@ -1566,10 +1566,12 @@ fn handle_msg(
         }
         // Sidebar folder management, mirroring the desktop's applySidebarLayout
         // (groups.json + settings.json sidebarOrder/projectOrder). Each op writes
-        // both files, emits `projects-changed` so the desktop webview refreshes
-        // (same as the duplicate flow's group write), and replies the fresh sidebar
-        // so the requesting phone re-renders. Local config ops — no main window
-        // needed. `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`.
+        // both files, emits `projects-changed` plus `sidebar-changed` so the
+        // desktop webview re-reads the layout it holds in memory (without it, the
+        // desktop's next save overwrites the phone's change from a stale copy),
+        // and replies the fresh sidebar so the requesting phone re-renders. Local
+        // config ops — no main window needed.
+        // `sidebarCreateFolder`/`RenameFolder`/`DeleteFolder`/`MoveProject`.
         "sidebarCreateFolder"
         | "sidebarRenameFolder"
         | "sidebarDeleteFolder"
@@ -1593,6 +1595,7 @@ fn handle_msg(
             match r {
                 Ok(()) => {
                     let _ = app.emit("projects-changed", ());
+                    let _ = app.emit("sidebar-changed", ());
                     let sb = sidebar_json();
                     send(
                         ws,
@@ -2263,6 +2266,7 @@ fn handle_msg(
                 if !group_name.trim().is_empty() {
                     let _ = group_copies_into_folder(&name, group_name.trim(), &created);
                     let _ = app.emit("projects-changed", ());
+                    let _ = app.emit("sidebar-changed", ());
                 }
                 let mut warning: Option<String> = None;
                 if run_mode == "action" || run_mode == "command" {

@@ -18,6 +18,7 @@ import {
   setGroupCollapsed,
   flattenForProjectOrder,
   reconcile,
+  forgetProjects,
   layoutsEqual,
   classify,
   rangeBetween,
@@ -153,11 +154,15 @@ describe("reconcile", () => {
     expect(layoutsEqual(r, sample())).toBe(true);
   });
 
-  it("drops removed projects from members and order", () => {
+  it("keeps projects missing from the list in place (a short list is not a removal)", () => {
     const r = reconcile(sample(), ["api", "web", "scripts", "e1", "landing"]);
-    expect(r.groups[0].members).toEqual(["web"]);
-    expect(r.groups[1].members).toEqual(["e1"]);
-    expect(r.order).not.toContain("admin");
+    expect(r.groups[0].members).toEqual(["web", "admin"]);
+    expect(r.groups[1].members).toEqual(["e1", "e2"]);
+    expect(layoutsEqual(r, sample())).toBe(true);
+  });
+
+  it("keeps the whole layout when the project list comes back empty", () => {
+    expect(layoutsEqual(reconcile(sample(), [], []), sample())).toBe(true);
   });
 
   it("appends brand-new projects as loose at the end", () => {
@@ -207,13 +212,28 @@ describe("reconcile", () => {
     expect(r.groups[0].members).toEqual(["d1"]);
   });
 
-  it("drops a member missing from the existing project set", () => {
+  it("keeps a member missing from the existing project set", () => {
     const dirty: SidebarLayout = {
       order: ["api", groupToken("Front")],
       groups: [g("Front", ["gone"])],
     };
     const r = reconcile(dirty, ["api"], ["api"]);
-    expect(r.groups[0].members).toEqual([]);
+    expect(r.groups[0].members).toEqual(["gone"]);
+  });
+
+  it("keeps a loose token whose project is missing from the list", () => {
+    const dirty: SidebarLayout = { order: ["api", "gone"], groups: [] };
+    expect(reconcile(dirty, ["api"], ["api"]).order).toEqual(["api", "gone"]);
+  });
+
+  it("still de-dupes an unknown name claimed by two folders", () => {
+    const dirty: SidebarLayout = {
+      order: [groupToken("A"), groupToken("B")],
+      groups: [g("A", ["gone"]), g("B", ["gone"])],
+    };
+    const r = reconcile(dirty, [], []);
+    expect(r.groups[0].members).toEqual(["gone"]);
+    expect(r.groups[1].members).toEqual([]);
   });
 
   it("drops a loose token for a duplicate removed from a folder (no top-level slot)", () => {
@@ -224,6 +244,24 @@ describe("reconcile", () => {
     const r = reconcile(dirty, ["api"], ["api", "web-copy"]);
     expect(r.order).toEqual(["api", groupToken("Front")]);
     expect(r.groups[0].members).toEqual([]);
+  });
+});
+
+describe("forgetProjects", () => {
+  it("drops removed names from members and the loose order", () => {
+    const r = forgetProjects(sample(), ["admin", "landing"]);
+    expect(r.groups[0].members).toEqual(["web"]);
+    expect(r.order).toEqual(["api", groupToken("Front"), "scripts", groupToken("Exp")]);
+  });
+
+  it("keeps folder tokens and is a no-op for an empty removal", () => {
+    expect(layoutsEqual(forgetProjects(sample(), []), sample())).toBe(true);
+    const r = forgetProjects(sample(), ["group:Front"]);
+    expect(r.order).toContain(groupToken("Front"));
+  });
+
+  it("survives a name that isn't in the layout", () => {
+    expect(layoutsEqual(forgetProjects(sample(), ["nope"]), sample())).toBe(true);
   });
 });
 

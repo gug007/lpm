@@ -1967,23 +1967,41 @@ fn config_error_info(file_name: &str, err: &str) -> Value {
     })
 }
 
-pub(crate) fn project_names() -> Vec<String> {
-    let mut names: Vec<String> = match std::fs::read_dir(projects_dir()) {
-        Ok(entries) => entries
-            .flatten()
-            .filter_map(|e| {
-                let p = e.path();
-                if p.extension().and_then(|s| s.to_str()) == Some("yml") {
-                    p.file_stem().and_then(|s| s.to_str()).map(String::from)
-                } else {
-                    None
-                }
-            })
-            .collect(),
-        Err(_) => Vec::new(),
+/// Project names from ~/.lpm/projects, or an error when the directory can't be
+/// read. Never returns a partial listing: a per-entry error fails the whole
+/// call, because callers treat a name's absence as "this project is gone" —
+/// the sidebar prunes folder membership from it, so a silently short list
+/// erases the user's folders.
+///
+/// A missing directory is not an error: that is a fresh install with no
+/// projects yet, and `ensure_dirs` creates it on the first write.
+pub(crate) fn try_project_names() -> Result<Vec<String>, String> {
+    let dir = projects_dir();
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(format!("cannot read {}: {e}", dir.display())),
     };
+    let mut names: Vec<String> = Vec::new();
+    for entry in entries {
+        let p = entry
+            .map_err(|e| format!("cannot read {}: {e}", dir.display()))?
+            .path();
+        if p.extension().and_then(|s| s.to_str()) == Some("yml") {
+            if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                names.push(stem.to_string());
+            }
+        }
+    }
     names.sort();
-    names
+    Ok(names)
+}
+
+/// Best-effort name list for callers that only ask "does this name exist?" and
+/// are harmless when the answer is empty. Anything that decides what to *drop*
+/// must use `try_project_names` instead.
+pub(crate) fn project_names() -> Vec<String> {
+    try_project_names().unwrap_or_default()
 }
 
 /// The working-directory string the frontend sees as a project's `root` and
@@ -2111,7 +2129,9 @@ fn group_duplicates_after_parents(projects: Vec<Value>) -> Vec<Value> {
 
 pub fn list_projects(run: &HashMap<String, RunState>) -> Result<Vec<Value>, String> {
     let running = crate::tmux::running_sessions();
-    let projects: Vec<Value> = project_names()
+    // Fails rather than reporting an empty list when ~/.lpm/projects is
+    // unreadable: the frontend prunes sidebar folders against this list.
+    let projects: Vec<Value> = try_project_names()?
         .iter()
         .map(|name| read_project(name, &running, run))
         .collect();

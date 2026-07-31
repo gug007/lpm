@@ -262,10 +262,17 @@ export function flattenForProjectOrder(layout: SidebarLayout): string[] {
 // Self-healing pass run after a project-list refresh. `topLevelNames` are the
 // names eligible to sit loose at the top level (non-duplicate projects);
 // `memberNames` are every existing project name, since a folder may also hold a
-// duplicate that was explicitly placed in it. Drops stale members/tokens,
-// dedupes (a name claimed by a folder can't also be loose), guarantees every
-// folder has a token, and appends brand-new top-level projects as loose at the
-// end. Idempotent.
+// duplicate that was explicitly placed in it. Dedupes (a name claimed by a
+// folder can't also be loose), demotes a known duplicate out of a loose slot,
+// guarantees every folder has a token, and appends brand-new top-level projects
+// as loose at the end. Idempotent.
+//
+// A name this pass doesn't recognise is KEPT where it sits, not dropped. The
+// project list is a snapshot that can be short for reasons that have nothing to
+// do with the user (a refresh racing a rename, a mid-write project file), and
+// this pass persists — so dropping on absence silently empties folders, and the
+// projects resurface loose at the end of the list with no way back. Membership
+// is only ever given up by `forgetProjects`, on a removal we actually made.
 export function reconcile(
   layout: SidebarLayout,
   topLevelNames: string[],
@@ -275,11 +282,16 @@ export function reconcile(
   const memberable = new Set(memberNames);
   const claimed = new Set<string>();
   const groups = layout.groups.map((g) => {
-    const members = g.members.filter((m) => memberable.has(m) && !claimed.has(m));
+    const members = g.members.filter((m) => !claimed.has(m));
     members.forEach((m) => claimed.add(m));
     return { ...g, members };
   });
   const groupIds = new Set(groups.map((g) => g.id));
+
+  // A loose slot survives unless we positively know it doesn't belong there:
+  // the name is a known project that isn't top-level (a duplicate, which nests
+  // under its parent instead), or a folder already claims it.
+  const looseOk = (name: string) => looseNames.has(name) || !memberable.has(name);
 
   const seen = new Set<string>();
   const order: string[] = [];
@@ -290,7 +302,7 @@ export function reconcile(
         order.push(token);
         seen.add(token);
       }
-    } else if (looseNames.has(token) && !claimed.has(token) && !seen.has(token)) {
+    } else if (looseOk(token) && !claimed.has(token) && !seen.has(token)) {
       order.push(token);
       seen.add(token);
     }
@@ -309,6 +321,24 @@ export function reconcile(
     }
   }
   return { order, groups };
+}
+
+// Drop projects we actually removed from the layout — the counterpart to
+// `reconcile`, which keeps names it merely can't see. Only a removal that
+// succeeded should reach here: the backend prunes groups.json/settings the same
+// way (projects_crud.rs clean_group_references), so this just keeps the
+// in-memory layout from re-introducing the name on the next save.
+export function forgetProjects(layout: SidebarLayout, names: Iterable<string>): SidebarLayout {
+  const gone = new Set(names);
+  if (gone.size === 0) return layout;
+  return {
+    order: layout.order.filter((t) => groupIdOf(t) !== null || !gone.has(t)),
+    groups: layout.groups.map((g) =>
+      g.members.some((m) => gone.has(m))
+        ? { ...g, members: g.members.filter((m) => !gone.has(m)) }
+        : g,
+    ),
+  };
 }
 
 // What a sortable id represents in the current layout.

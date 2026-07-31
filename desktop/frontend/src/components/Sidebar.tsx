@@ -125,7 +125,10 @@ interface SidebarProps {
 // One rendered sidebar row: a folder header, a project (loose, member, or
 // duplicate), or the empty-folder drop target.
 type TreeItem =
-  | { kind: "group"; group: ProjectGroup }
+  // `count` is the members that resolve to a live project, not members.length:
+  // a folder can hold a name whose project isn't in the current list, and the
+  // header must count what the folder actually shows.
+  | { kind: "group"; group: ProjectGroup; count: number }
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup };
 
@@ -272,7 +275,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       const members = g.members
         .map((n) => byName.get(n))
         .filter((p): p is ProjectInfo => !!p);
-      out.push({ kind: "group", group: g });
+      out.push({ kind: "group", group: g, count: members.length });
       ids.push(groupToken(g.id));
       if (!g.collapsed) {
         if (members.length === 0) out.push({ kind: "empty", group: g });
@@ -712,7 +715,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         <SidebarGroupRow
           group={item.group}
           collapsed={!!item.group.collapsed}
-          count={item.group.members.length}
+          count={item.count}
           selectMode={selectMode}
           isContextTarget={groupMenu?.id === item.group.id}
           onToggle={() => onToggleGroupCollapsed(item.group.id)}

@@ -1058,6 +1058,10 @@ fn commit_sidecar(
 /// Store the app handle and open a connection for every enabled peer. Called once
 /// from lib.rs setup after the shared config is loaded.
 pub fn start(hub: PeerClientHub, app: AppHandle) {
+    // Before opening anything: a previous run that was killed rather than quit
+    // left its ssh forwards running, and they hold a local port and a session on
+    // the server until the machine reboots.
+    crate::peertunnel::reap_orphaned_forwards();
     *hub.inner.app.lock().unwrap() = Some(app);
     let peers = hub.inner.config.lock().unwrap().peers.clone();
     for p in peers {
