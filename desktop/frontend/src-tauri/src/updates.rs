@@ -6,6 +6,13 @@
 // downloads the DMG (emitting progress), mounts it, swaps the running .app, and
 // relaunches. In dev there is no enclosing .app, so InstallUpdate errors early
 // (before any destructive step).
+//
+// The whole flow is .app/DMG-shaped and therefore macOS-only. A Linux host is
+// updated by whatever installed it (package manager, tarball, image rebuild), so
+// there the commands stay registered — the peer protocol must look identical
+// from a Mac client — but refuse, and no auto-check thread is started.
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
+
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -77,13 +84,29 @@ fn newer(latest: &str, current: &str) -> bool {
     l[2] > c[2]
 }
 
+#[cfg(not(target_os = "macos"))]
+const UNSUPPORTED: &str = "lpm updates itself only on macOS — update this host the way you installed it.";
+
+#[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn check_for_update(state: State<'_, UpdateState>) -> Result<UpdateInfo, String> {
     do_check(&state)
 }
 
+#[cfg(not(target_os = "macos"))]
+#[tauri::command(async)]
+pub fn check_for_update(_state: State<'_, UpdateState>) -> Result<UpdateInfo, String> {
+    Err(UNSUPPORTED.into())
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn check_and_emit(_app: &AppHandle) -> Result<(), String> {
+    Err(UNSUPPORTED.into())
+}
+
 /// Background check used by the "Check for Updates…" menu item and the
 /// auto-checker — emits "update-available" when a newer release exists.
+#[cfg(target_os = "macos")]
 pub fn check_and_emit(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<UpdateState>();
     let info = do_check(&state)?;
@@ -102,6 +125,10 @@ const AUTO_CHECK_TICK: Duration = Duration::from_secs(15 * 60);
 /// slept — tick in short intervals and compare SystemTime instead. A failed
 /// check (e.g. network not up yet at login) retries on the next tick rather
 /// than silently waiting another 24h.
+#[cfg(not(target_os = "macos"))]
+pub fn start_auto_check(_app: AppHandle) {}
+
+#[cfg(target_os = "macos")]
 pub fn start_auto_check(app: AppHandle) {
     std::thread::spawn(move || {
         let mut next_check = SystemTime::now();
@@ -216,6 +243,13 @@ pub(crate) fn app_bundle_path() -> Result<PathBuf, String> {
     ))
 }
 
+#[cfg(not(target_os = "macos"))]
+#[tauri::command(async)]
+pub fn install_update(_app: AppHandle, _state: State<'_, UpdateState>) -> Result<(), String> {
+    Err(UNSUPPORTED.into())
+}
+
+#[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(), String> {
     // No enclosing .app in dev — bail with a product-terms message instead of
@@ -423,6 +457,16 @@ pub(crate) fn shell_quote(s: &str) -> String {
 
 // ---- tmux install ----------------------------------------------------------
 
+// tmux is load-bearing (services run as tmux panes), so this stays a real
+// command everywhere — only the way to get it differs. Homebrew is a macOS
+// assumption; a Linux host has a package manager lpm shouldn't guess at.
+#[cfg(not(target_os = "macos"))]
+#[tauri::command(async)]
+pub fn install_tmux(_app: AppHandle) -> Result<(), String> {
+    Err("tmux isn't installed. Install it with this host's package manager, then relaunch lpm.".into())
+}
+
+#[cfg(target_os = "macos")]
 #[tauri::command(async)]
 pub fn install_tmux(app: AppHandle) -> Result<(), String> {
     let brew = look_path("brew").ok_or(

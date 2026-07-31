@@ -175,6 +175,43 @@ pub fn shell_path_dirs() -> Vec<String> {
         .collect()
 }
 
+/// The network hostname, or None when the syscall fails or reports an empty name.
+fn hostname() -> Option<String> {
+    let mut buf = [0u8; 256];
+    if unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) } != 0 {
+        return None;
+    }
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    let name = String::from_utf8_lossy(&buf[..end]).trim().to_string();
+    (!name.is_empty()).then_some(name)
+}
+
+/// This machine's user-facing name — what a paired Mac's peer list and the
+/// phone's server switcher show. macOS prefers the Sharing pane's ComputerName
+/// (`scutil` exists nowhere else, so the call is skipped rather than failed);
+/// every platform then falls back to the network hostname, and finally to a
+/// generic label.
+pub fn machine_name() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(out) = Command::new("scutil").args(["--get", "ComputerName"]).output() {
+            if out.status.success() {
+                let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !name.is_empty() {
+                    return name;
+                }
+            }
+        }
+    }
+    if let Some(name) = hostname() {
+        return name;
+    }
+    #[cfg(target_os = "macos")]
+    return "Mac".to_string();
+    #[cfg(not(target_os = "macos"))]
+    return "Linux host".to_string();
+}
+
 /// True if `bin` resolves to a file on PATH (LookPath-style presence check).
 pub fn which(bin: &str) -> bool {
     let Ok(path) = std::env::var("PATH") else {

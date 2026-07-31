@@ -1,9 +1,11 @@
 // Port-conflict detection — port of internal/portcheck + desktop/portconflicts.go.
-// LOCAL only (lsof-based); these feed the start-flow conflict dialog. The SSH
+// LOCAL only (holder lookup lives in portsprobe.rs); these feed the start-flow
+// conflict dialog. The SSH
 // port-forwarding + suggestion + poller commands stay safe stubs and are
 // DEFERRED with remote-SSH (the Ports popover is gated on project.isRemote, so
 // none of that renders for local projects yet).
 use crate::config;
+use crate::portsprobe::{listening_ports, lookup_holders, Holder};
 use crate::services::ServiceState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -31,12 +33,6 @@ pub struct PortConflictInfo {
     pub port_conflict: String,
 }
 
-#[derive(Clone, Default)]
-struct Holder {
-    pid: i64,
-    command: String,
-}
-
 /// Ports a running service's process tree is currently listening on, keyed by
 /// service name. `ports` is empty while a service hasn't bound anything yet.
 #[derive(Serialize, Clone)]
@@ -54,98 +50,6 @@ fn holder_phrase(h: &Holder, lpm_project: &str) -> String {
         format!("PID {}", h.pid)
     } else {
         "an unknown local process".into()
-    }
-}
-
-// ---- lsof holder lookup -----------------------------------------------------
-
-fn port_from_addr(addr: &str) -> Option<i64> {
-    addr.rsplit_once(':')
-        .and_then(|(_, p)| p.parse::<i64>().ok())
-}
-
-fn parse_lsof(s: &str) -> HashMap<i64, Holder> {
-    let mut result = HashMap::new();
-    let mut current = Holder::default();
-    for line in s.split('\n') {
-        if line.len() < 2 {
-            continue;
-        }
-        let (tag, rest) = (line.as_bytes()[0], &line[1..]);
-        match tag {
-            b'p' => {
-                if let Ok(pid) = rest.parse::<i64>() {
-                    current = Holder {
-                        pid,
-                        command: String::new(),
-                    };
-                }
-            }
-            b'c' => current.command = rest.to_string(),
-            b'n' => {
-                if let Some(port) = port_from_addr(rest) {
-                    if current.pid > 0 {
-                        result.entry(port).or_insert_with(|| current.clone());
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    result
-}
-
-/// All (pid, port) pairs currently in TCP LISTEN, regardless of which port —
-/// one lsof call we then attribute to panes by process ancestry. A process may
-/// listen on several ports, so the same pid can appear more than once.
-fn parse_listeners(s: &str) -> Vec<(i64, i64)> {
-    let mut out = Vec::new();
-    let mut pid = 0i64;
-    for line in s.split('\n') {
-        if line.len() < 2 {
-            continue;
-        }
-        let (tag, rest) = (line.as_bytes()[0], &line[1..]);
-        match tag {
-            b'p' => pid = rest.parse().unwrap_or(0),
-            b'n' => {
-                if pid > 0 {
-                    if let Some(port) = port_from_addr(rest) {
-                        out.push((pid, port));
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    out
-}
-
-fn listening_ports() -> Vec<(i64, i64)> {
-    match Command::new("lsof")
-        .args(["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"])
-        .output()
-    {
-        Ok(o) if !o.stdout.is_empty() => parse_listeners(&String::from_utf8_lossy(&o.stdout)),
-        _ => Vec::new(),
-    }
-}
-
-fn lookup_holders(ports: &[i64]) -> HashMap<i64, Holder> {
-    if ports.is_empty() {
-        return HashMap::new();
-    }
-    let mut args: Vec<String> = vec!["-nP".into()];
-    for p in ports {
-        args.push(format!("-iTCP:{p}"));
-    }
-    args.push("-sTCP:LISTEN".into());
-    args.push("-Fpcn".into());
-    // lsof exits 1 when ANY -i filter has no match even if others matched —
-    // ignore the status and parse whatever stdout we got.
-    match Command::new("lsof").args(&args).output() {
-        Ok(o) if !o.stdout.is_empty() => parse_lsof(&String::from_utf8_lossy(&o.stdout)),
-        _ => HashMap::new(),
     }
 }
 

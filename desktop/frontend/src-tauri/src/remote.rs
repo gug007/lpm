@@ -262,27 +262,12 @@ impl RemoteConfig {
     }
 }
 
-/// This Mac's user-visible name, resolved once per process. Prefers the Sharing
-/// pane's ComputerName, falling back to the local hostname, then a literal.
+/// This host's user-visible name, resolved once per process. Prefers the macOS
+/// Sharing pane's ComputerName, falling back to the hostname (see sys.rs).
 fn server_name() -> String {
     static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     NAME.get_or_init(|| {
-        let mut base = "Mac".to_string();
-        for key in ["ComputerName", "LocalHostName"] {
-            if let Ok(out) = std::process::Command::new("scutil")
-                .arg("--get")
-                .arg(key)
-                .output()
-            {
-                if out.status.success() {
-                    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                    if !name.is_empty() {
-                        base = name;
-                        break;
-                    }
-                }
-            }
-        }
+        let mut base = crate::sys::machine_name();
         // Suffix the dev build so the phone's switcher shows two distinct entries
         // when a dev and a prod instance run on the same Mac.
         if is_dev_instance() {

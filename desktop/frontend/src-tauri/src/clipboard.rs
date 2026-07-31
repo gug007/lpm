@@ -89,16 +89,21 @@ pub fn reap_stale_clipboard_images() {
     }
 }
 
-/// Read the system clipboard's text via pbpaste — the read twin of
-/// set_clipboard_text. Returns an empty string when the clipboard holds no text.
-/// Capped at 16 KB: invites are tiny, and shipping a multi-MB clipboard to JS is
-/// wasteful.
+/// Read the system clipboard's text — the read twin of set_clipboard_text.
+/// Returns an empty string when the clipboard holds no text, or when this host
+/// has no clipboard at all (a headless server: nothing to read, not an error the
+/// invite-detect path should surface). Capped at 16 KB: invites are tiny, and
+/// shipping a multi-MB clipboard to JS is wasteful.
 #[tauri::command(async)]
 pub fn read_clipboard_text() -> Result<String, String> {
-    let out = std::process::Command::new("pbpaste")
+    let Some((program, args)) = read_argv() else {
+        return Ok(String::new());
+    };
+    let out = std::process::Command::new(program)
+        .args(args)
         .env("LC_CTYPE", "UTF-8")
         .output()
-        .map_err(|e| format!("spawn pbpaste: {e}"))?;
+        .map_err(|e| format!("spawn {program}: {e}"))?;
     if !out.status.success() {
         return Ok(String::new());
     }
@@ -162,12 +167,71 @@ pub fn save_clipboard_file_impl(b64_data: &str, name: &str) -> Result<String, St
     Ok(path.to_string_lossy().into_owned())
 }
 
-/// Write text to the system clipboard via pbcopy. The WKWebView refuses
+/// The clipboard helper for this host, as (program, args). macOS always has
+/// pbcopy/pbpaste; elsewhere we probe once for the usual Wayland/X11 tools.
+#[cfg(not(target_os = "macos"))]
+struct ClipboardTool {
+    write: (&'static str, &'static [&'static str]),
+    read: (&'static str, &'static [&'static str]),
+}
+
+#[cfg(not(target_os = "macos"))]
+const CLIPBOARD_TOOLS: &[ClipboardTool] = &[
+    ClipboardTool {
+        write: ("wl-copy", &[]),
+        read: ("wl-paste", &["--no-newline"]),
+    },
+    ClipboardTool {
+        write: ("xclip", &["-selection", "clipboard"]),
+        read: ("xclip", &["-selection", "clipboard", "-o"]),
+    },
+    ClipboardTool {
+        write: ("xsel", &["--clipboard", "--input"]),
+        read: ("xsel", &["--clipboard", "--output"]),
+    },
+];
+
+#[cfg(not(target_os = "macos"))]
+fn clipboard_tool() -> Option<&'static ClipboardTool> {
+    static FOUND: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    (*FOUND.get_or_init(|| CLIPBOARD_TOOLS.iter().position(|t| crate::sys::which(t.write.0))))
+        .map(|i| &CLIPBOARD_TOOLS[i])
+}
+
+#[cfg(not(target_os = "macos"))]
+const NO_CLIPBOARD: &str =
+    "This host has no clipboard available (install wl-clipboard, xclip, or xsel).";
+
+#[cfg(target_os = "macos")]
+fn write_argv() -> Result<(&'static str, &'static [&'static str]), String> {
+    Ok(("pbcopy", &[]))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn write_argv() -> Result<(&'static str, &'static [&'static str]), String> {
+    clipboard_tool()
+        .map(|t| t.write)
+        .ok_or_else(|| NO_CLIPBOARD.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn read_argv() -> Option<(&'static str, &'static [&'static str])> {
+    Some(("pbpaste", &[]))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn read_argv() -> Option<(&'static str, &'static [&'static str])> {
+    clipboard_tool().map(|t| t.read)
+}
+
+/// Write text to the system clipboard. The WKWebView refuses
 /// `navigator.clipboard` writes that aren't tied to a user gesture, which is
 /// exactly the case for OSC 52 writes arriving asynchronously from the PTY.
 #[tauri::command(async)]
 pub fn set_clipboard_text(text: String) -> Result<(), String> {
-    let mut child = std::process::Command::new("pbcopy")
+    let (program, args) = write_argv()?;
+    let mut child = std::process::Command::new(program)
+        .args(args)
         // Without a UTF-8 locale pbcopy decodes stdin as Mac Roman, mangling
         // multi-byte characters.
         .env("LC_CTYPE", "UTF-8")
@@ -175,19 +239,19 @@ pub fn set_clipboard_text(text: String) -> Result<(), String> {
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()
-        .map_err(|e| format!("spawn pbcopy: {e}"))?;
+        .map_err(|e| format!("spawn {program}: {e}"))?;
     // Always reap the child, even when the write fails, so no zombie is left.
     let write_res = match child.stdin.take() {
         Some(mut stdin) => stdin
             .write_all(text.as_bytes())
-            .map_err(|e| format!("write pbcopy: {e}")),
-        None => Err("pbcopy stdin unavailable".to_string()),
+            .map_err(|e| format!("write {program}: {e}")),
+        None => Err(format!("{program} stdin unavailable")),
     };
-    let wait_res = child.wait().map_err(|e| format!("wait pbcopy: {e}"));
+    let wait_res = child.wait().map_err(|e| format!("wait {program}: {e}"));
     write_res?;
     let status = wait_res?;
     if !status.success() {
-        return Err(format!("pbcopy exited with {status}"));
+        return Err(format!("{program} exited with {status}"));
     }
     Ok(())
 }

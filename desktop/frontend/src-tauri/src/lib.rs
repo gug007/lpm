@@ -49,6 +49,7 @@ mod peersync;
 mod peertls;
 mod portforward;
 mod ports;
+mod portsprobe;
 mod proctree;
 mod projects_crud;
 mod pty;
@@ -82,6 +83,10 @@ mod uninstall;
 mod updates;
 mod upload;
 mod vault;
+#[cfg(not(target_os = "macos"))]
+mod vaultkeyfile;
+#[cfg(target_os = "macos")]
+mod vaultkeychain;
 mod voicetotext;
 
 // Bring every command fn into scope so the generated `all_command_handlers!`
