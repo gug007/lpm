@@ -310,6 +310,9 @@ export function InstallUpdate() {
 export function IsTerminalRemote(id) {
   return invoke("is_terminal_remote", { id });
 }
+export function TerminalExists(id) {
+  return invoke("terminal_exists", { id });
+}
 export function ListBranches(cwd) {
   return invoke("list_branches", { cwd });
 }

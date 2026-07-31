@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   startTerminal: vi.fn(),
   startForRestore: vi.fn(),
+  terminalExists: vi.fn(),
 }));
 
 vi.mock(
@@ -16,6 +17,7 @@ vi.mock(
           if (prop === "then") return undefined;
           if (prop === "StartTerminal") return h.startTerminal;
           if (prop === "StartTerminalForRestore") return h.startForRestore;
+          if (prop === "TerminalExists") return h.terminalExists;
           return vi.fn();
         },
       },
@@ -46,6 +48,75 @@ describe("reifyTreeWithFreshPtys", () => {
   beforeEach(() => {
     h.startTerminal.mockReset();
     h.startForRestore.mockReset();
+    h.terminalExists.mockReset();
+    h.terminalExists.mockResolvedValue(false);
+  });
+
+  // A peer pty lives on the other machine and outlives our restart. Relaunching
+  // it would strand the running session (agent and all) behind an empty pane.
+  it("adopts a peer terminal the host still has, instead of relaunching it", async () => {
+    h.terminalExists.mockResolvedValue(true);
+    const started: string[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7" }]),
+        "peer-a1b2c3d4-demo",
+        started,
+      ),
+    );
+
+    expect(pane.tabs[0].id).toBe("peer-a1b2c3d4-project-7");
+    expect(h.startTerminal).not.toHaveBeenCalled();
+    expect(h.startForRestore).not.toHaveBeenCalled();
+    // Never queued for teardown: a failed restore must not kill a live session
+    // we merely adopted.
+    expect(started).toEqual([]);
+  });
+
+  it("relaunches a peer terminal the host has forgotten", async () => {
+    h.terminalExists.mockResolvedValue(false);
+    h.startTerminal.mockResolvedValue("pty-fresh");
+    const started: string[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7" }]),
+        "peer-a1b2c3d4-demo",
+        started,
+      ),
+    );
+
+    expect(pane.tabs[0].id).toBe("pty-fresh");
+    expect(started).toEqual(["pty-fresh"]);
+  });
+
+  // An unreachable peer must not strand the whole tree.
+  it("relaunches when the liveness check itself fails", async () => {
+    h.terminalExists.mockRejectedValue(new Error("peer went away"));
+    h.startTerminal.mockResolvedValue("pty-fresh");
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "peer-a1b2c3d4-project-7" }]),
+        "peer-a1b2c3d4-demo",
+        [],
+      ),
+    );
+
+    expect(pane.tabs[0].id).toBe("pty-fresh");
+  });
+
+  // A local id is always stale after a restart; only peer ids are adoptable.
+  it("never adopts an unmarked local id", async () => {
+    h.startTerminal.mockResolvedValue("pty-fresh");
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(leaf([{ label: "Terminal 1", id: "project-7" }]), "demo", []),
+    );
+
+    expect(h.terminalExists).not.toHaveBeenCalled();
+    expect(pane.tabs[0].id).toBe("pty-fresh");
   });
 
   it("keeps the tabs that started when one fails, and reports the loss", async () => {
@@ -258,5 +329,21 @@ describe("reifyTreeWithFreshPtys", () => {
       label: "My tab",
       sessionTitleSource: "manual",
     });
+  });
+
+  // The id is the one thing that makes adoption possible, and it's only
+  // meaningful for a pty on the other machine.
+  it("keeps a peer terminal's id and drops a local one", () => {
+    const persisted = treeToPersisted({
+      kind: "leaf",
+      id: "pane",
+      activeTabIdx: 0,
+      tabs: [
+        { id: "peer-a1b2c3d4-project-7", label: "Remote" },
+        { id: "project-7", label: "Local" },
+      ],
+    });
+    expect(persisted.tabs?.[0].id).toBe("peer-a1b2c3d4-project-7");
+    expect(persisted.tabs?.[1].id).toBeUndefined();
   });
 });

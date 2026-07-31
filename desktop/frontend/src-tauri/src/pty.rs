@@ -705,6 +705,15 @@ pub fn stop_terminal(app: AppHandle, state: State<'_, PtyState>, id: String) -> 
     Ok(())
 }
 
+/// Whether `id` still names a live session. A local pty dies with the app, so
+/// this is only ever interesting across the peer proxy: the other machine keeps
+/// its terminals (and their output rings) running while we are closed, and
+/// restore uses this to tell one that outlived us from a genuinely stale id.
+#[tauri::command]
+pub fn terminal_exists(state: State<'_, PtyState>, id: String) -> bool {
+    state.sessions.lock().unwrap().contains_key(&id)
+}
+
 #[tauri::command]
 pub fn is_terminal_remote(state: State<'_, PtyState>, id: String) -> bool {
     state

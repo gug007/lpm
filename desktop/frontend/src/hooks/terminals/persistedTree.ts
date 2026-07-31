@@ -1,4 +1,9 @@
-import { StartTerminal, StartTerminalForRestore } from "../../../bridge/commands";
+import {
+  StartTerminal,
+  StartTerminalForRestore,
+  TerminalExists,
+} from "../../../bridge/commands";
+import { isPeerMarked } from "../../peer/markers";
 import {
   type PersistedPaneNode,
   type PersistedTab,
@@ -40,6 +45,32 @@ export async function reifyTreeWithFreshPtys(
   return restored ? disambiguateRestoredSessionTitles(restored) : null;
 }
 
+/**
+ * The pty backing a restored tab: an existing one when this is a peer terminal
+ * that outlived us, else a freshly started pty.
+ *
+ * A local pty dies with the app, so its persisted id is always stale. A peer
+ * terminal does not — it belongs to the other machine, which kept it running
+ * (along with its scrollback ring) while we were closed. Relaunching that would
+ * strand the live session and any agent inside it, and hand back an empty pane;
+ * adopting the id instead lets the normal attach path replay the host's
+ * scrollback. A host that no longer knows the id has genuinely lost it, so we
+ * fall back to starting fresh — as we do if the check itself fails.
+ */
+async function reifyTab(
+  t: PersistedTab,
+  projectName: string,
+): Promise<{ id: string; adopted: boolean }> {
+  if (t.id && isPeerMarked(t.id)) {
+    const alive = await TerminalExists(t.id).catch(() => false);
+    if (alive) return { id: t.id, adopted: true };
+  }
+  const id = await (t.actionName
+    ? StartTerminalForRestore(projectName, t.actionName)
+    : StartTerminal(projectName));
+  return { id, adopted: false };
+}
+
 async function reifyTree(
   node: PersistedPaneNode,
   projectName: string,
@@ -51,13 +82,7 @@ async function reifyTree(
     // A service-only pane (no interactive terminals, just an active service
     // tab) is allowed. A truly empty pane is dropped.
     if (persistedTabs.length === 0 && !node.activeServiceName) return null;
-    const results = await Promise.allSettled(
-      persistedTabs.map((t) =>
-        t.actionName
-          ? StartTerminalForRestore(projectName, t.actionName)
-          : StartTerminal(projectName),
-      ),
-    );
+    const results = await Promise.allSettled(persistedTabs.map((t) => reifyTab(t, projectName)));
     const tabs: TerminalInstance[] = [];
     // Persisted index -> index in the surviving tabs, so the active tab stays
     // selected when an earlier tab dropped out.
@@ -69,10 +94,14 @@ async function reifyTree(
         dropped.push(t);
         return;
       }
-      startedIds.push(result.value);
+      const { id, adopted } = result.value;
+      // Only ptys we launched go in `startedIds` — the caller stops those when
+      // the restore fails outright, and an adopted terminal is someone's live
+      // session (very possibly a running agent), not ours to kill.
+      if (!adopted) startedIds.push(id);
       newIdx.push(tabs.length);
       tabs.push(
-        makeTerminal(result.value, t.label ?? "Terminal", {
+        makeTerminal(id, t.label ?? "Terminal", {
           sessionTitle: t.sessionTitle,
           sessionTitleId: t.sessionTitleId,
           sessionTitleSource: t.sessionTitleSource,
@@ -137,9 +166,15 @@ function disambiguateRestoredSessionTitles(node: PaneNode): PaneNode {
 }
 
 /**
- * Strips live PTY ids before persisting — ids won't be valid after a
- * restart, so we zero them. label/startCmd/resumeCmd are kept so restore
- * can re-inject them.
+ * Strips live PTY ids before persisting — a local pty dies with the app, so its
+ * id won't be valid after a restart. label/startCmd/resumeCmd are kept so
+ * restore can re-inject them.
+ *
+ * A PEER terminal's id is the exception worth keeping: it names a pty on the
+ * other machine, which keeps running while we're closed, so the id is still
+ * good when we come back and `reifyTab` can adopt the live session instead of
+ * stranding it. (The host side also parks an id here for adopted tabs while a
+ * project is unmounted; those are unmarked local ids, so the two never collide.)
  */
 export function treeToPersisted(node: PaneNode): PersistedPaneNode {
   if (node.kind === "leaf") {
@@ -153,6 +188,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
         .filter(isTerminalTab)
         .map((t) => ({
           label: t.label,
+          ...(isPeerMarked(t.id) ? { id: t.id } : {}),
           ...(t.sessionTitle ? { sessionTitle: t.sessionTitle } : {}),
           ...(t.sessionTitleId ? { sessionTitleId: t.sessionTitleId } : {}),
           ...(t.sessionTitleSource ? { sessionTitleSource: t.sessionTitleSource } : {}),
