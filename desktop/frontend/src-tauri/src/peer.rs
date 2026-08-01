@@ -21,11 +21,12 @@
 // Security posture (v1) matches mobile: a per-device bearer token established by a
 // single-use pairing code, only sha256(token) stored, plaintext WebSocket bound
 // to loopback by default (LAN/tailnet is an explicit opt-in).
+use crate::ptyring::PtyRings;
 use crate::{config, pty};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -37,11 +38,11 @@ use tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tungstenite::{accept_hdr, Error as WsError, Message, WebSocket};
 
 const DEFAULT_PORT: u16 = 8766; // mobile owns 8765
-const RING_CAP: usize = 96 * 1024; // recent scrollback seeded to a joining peer
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (client re-seeds)
 const DISPATCH_TIMEOUT: Duration = Duration::from_secs(30); // webview-dispatch reply deadline
+const REPAINT_NUDGE: Duration = Duration::from_millis(80); // grace for a TUI to act on the nudge
 
 /// Global events forwarded verbatim to every authed peer as `{t:"evt", …}`. The
 /// client re-emits each locally (with identifier translation) so the mirrored
@@ -247,10 +248,14 @@ struct PendingPair {
 struct HostInner {
     config: SharedConfig,
     clients: Mutex<HashMap<u64, Conn>>,
-    rings: Mutex<HashMap<String, VecDeque<u8>>>,
+    rings: PtyRings,
+    // Terminals with a repaint nudge in flight, each holding that nudge's token
+    // — see `nudge_repaint`. At most one per terminal at a time.
+    nudges: Mutex<HashMap<String, u64>>,
     pending: Mutex<HashMap<u64, PendingDispatch>>,
     pair_requests: Mutex<Vec<PendingPair>>,
     next_id: AtomicU64,
+    next_nudge: AtomicU64,
     next_dispatch: AtomicU64,
     generation: AtomicU64,
     enabled: AtomicBool, // mirror of config.host.enabled, checked on the pty tee hot path
@@ -274,10 +279,12 @@ impl PeerHub {
             inner: Arc::new(HostInner {
                 config,
                 clients: Mutex::new(HashMap::new()),
-                rings: Mutex::new(HashMap::new()),
+                rings: PtyRings::default(),
+                nudges: Mutex::new(HashMap::new()),
                 pending: Mutex::new(HashMap::new()),
                 pair_requests: Mutex::new(Vec::new()),
                 next_id: AtomicU64::new(0),
+                next_nudge: AtomicU64::new(0),
                 next_dispatch: AtomicU64::new(0),
                 generation: AtomicU64::new(0),
                 enabled: AtomicBool::new(false),
@@ -359,24 +366,34 @@ impl PeerHub {
             .unwrap_or_else(|| "Mac".to_string())
     }
 
-    /// Recent scrollback for a terminal, dropping a partial leading line when the
-    /// ring is full so the seed starts on a clean row.
-    fn ring_text(&self, id: &str) -> String {
-        let rings = self.inner.rings.lock().unwrap();
-        let Some(r) = rings.get(id) else {
-            return String::new();
-        };
-        let full = r.len() >= RING_CAP;
-        let bytes: Vec<u8> = r.iter().copied().collect();
-        let s = String::from_utf8_lossy(&bytes).into_owned();
-        match (full, s.find('\n')) {
-            (true, Some(i)) => s[i + 1..].to_string(),
-            _ => s,
+    /// Subscribe a connection to a terminal's live output and read where that
+    /// output has got to, as one step. Returns the bytes the peer must apply, the
+    /// stream offset they end at, and whether it has to clear its screen first.
+    ///
+    /// The two halves are locked together because `tee_output` locks the same
+    /// pair together: a chunk appended between the subscribe and the read would
+    /// otherwise reach the peer twice — inside the resume slice and again as live
+    /// output. Subscribing after the read instead would trade the duplicate for a
+    /// dropped chunk, which a viewer resuming by offset can never notice.
+    fn ring_attach(
+        &self,
+        subs: &Mutex<HashSet<String>>,
+        id: &str,
+        from: Option<u64>,
+    ) -> (String, u64, bool) {
+        let rings = self.inner.rings.locked();
+        subs.lock().unwrap().insert(id.to_string());
+        match from.and_then(|f| rings.since(id, f)) {
+            Some((data, off)) => (data, off, false),
+            None => {
+                let (data, off) = rings.seed(id);
+                (data, off, true)
+            }
         }
     }
 
     fn drop_ring(&self, id: &str) {
-        self.inner.rings.lock().unwrap().remove(id);
+        self.inner.rings.drop_ring(id);
     }
 }
 
@@ -391,21 +408,38 @@ pub fn tee_output(app: &AppHandle, id: &str, _project: &str, text: &str) {
     if !hub.inner.enabled.load(Ordering::Relaxed) {
         return;
     }
-    {
-        let mut rings = hub.inner.rings.lock().unwrap();
-        let ring = rings.entry(id.to_string()).or_default();
-        ring.extend(text.as_bytes());
-        let over = ring.len().saturating_sub(RING_CAP);
-        if over > 0 {
-            ring.drain(..over);
-        }
+    // Appending and taking the list of viewers to hand this chunk to are one
+    // step, against `ring_attach` doing its subscribe and read as one: whichever
+    // gets the rings first, a peer joining right now either finds this chunk in
+    // what it is handed or receives it live, never both.
+    //
+    // Encoding the frame and sending it run after the rings are released — every
+    // terminal on this host shares the one lock, so nothing that scales with the
+    // size of a chunk belongs under it. A peer that subscribes in between is not
+    // on the list — it can only have taken the rings after this push, so the
+    // chunk is already in what it was handed — and one that was on it still gets
+    // the chunk, just fractionally later. Order holds because one terminal has
+    // one flush thread (pty::flush), so this is its only sender.
+    let (off, viewers) = {
+        let mut rings = hub.inner.rings.locked();
+        let off = rings.push(id, text);
+        let clients = hub.inner.clients.lock().unwrap();
+        let viewers: Vec<SyncSender<String>> = clients
+            .values()
+            .filter(|c| c.subs.lock().unwrap().contains(id))
+            .map(|c| c.tx.clone())
+            .collect();
+        (off, viewers)
+    };
+    if viewers.is_empty() {
+        return;
     }
-    let payload = json!({ "t": "o", "id": id, "d": text }).to_string();
-    let clients = hub.inner.clients.lock().unwrap();
-    for c in clients.values() {
-        if c.subs.lock().unwrap().contains(id) {
-            let _ = c.tx.try_send(payload.clone());
-        }
+    // `off` positions the chunk in the terminal's byte stream: the peer tracks it
+    // so a connection that drops can be resumed from exactly where its screen
+    // stopped, instead of being rebuilt from a replay.
+    let payload = json!({ "t": "o", "id": id, "d": text, "off": off }).to_string();
+    for tx in viewers {
+        let _ = tx.try_send(payload.clone());
     }
 }
 
@@ -427,6 +461,90 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
         }
     }
     hub.drop_ring(id);
+}
+
+/// Make a full-screen program redraw itself after a peer was seeded with a
+/// replay. The replay only approximates the screen the program thinks it owns,
+/// and an unchanged winsize raises no SIGWINCH, so nothing else would prompt a
+/// redraw until the user resizes. These terminals are plain PTYs — pty.rs scrubs
+/// TMUX from their environment precisely so they are not panes — so there is no
+/// `refresh-client` lever; a winsize change is the only one.
+///
+/// Grow by a row, then restore once the program has had time to notice. Growing
+/// first never pushes content out of the emulator, and the restore fires only
+/// while the nudge is still the standing one and the terminal is still at exactly
+/// the size it set. A viewer asserting its own fit in the meantime (the usual
+/// case: a resize follows the sub immediately) retires the token, which is what
+/// makes that case safe on its own — a viewer that asks for exactly the grown
+/// size is indistinguishable from our own nudge, and only its cancel says
+/// otherwise. The geometry covers what has no such hook: a paired phone drives
+/// the same PTY through remote.rs, and its size is left standing.
+///
+/// One at a time per terminal. A nudge already in flight holds the true pre-nudge
+/// size and still owes its restore, which is itself a winsize change and so
+/// redraws for this peer too; starting a second one here would read the
+/// already-grown geometry as its baseline and leave the terminal a row taller
+/// than it began, for good.
+fn nudge_repaint(hub: &PeerHub, app: &AppHandle, id: &str) {
+    let Some((cols, rows)) = pty::remote_dims(&app.state::<pty::PtyState>(), id) else {
+        return;
+    };
+    let Some(grown) = rows.checked_add(1) else {
+        return;
+    };
+    if cols == 0 || rows == 0 {
+        return;
+    }
+    // Registered before the resize, so a viewer resize racing it is never missed.
+    let token = {
+        let mut pending = hub.inner.nudges.lock().unwrap();
+        if pending.contains_key(id) {
+            return;
+        }
+        let token = hub.inner.next_nudge.fetch_add(1, Ordering::SeqCst) + 1;
+        pending.insert(id.to_string(), token);
+        token
+    };
+    if pty::remote_resize(&app.state::<pty::PtyState>(), id, cols, grown).is_err() {
+        take_nudge(hub, id, token);
+        return;
+    }
+    let (hub, app, id) = (hub.clone(), app.clone(), id.to_string());
+    std::thread::spawn(move || {
+        std::thread::sleep(REPAINT_NUDGE);
+        if !take_nudge(&hub, &id, token) {
+            return;
+        }
+        // Restore only what this nudge actually set. The token is retired by the
+        // surfaces that go through peer.rs, but a paired phone drives the same
+        // PTY through remote.rs and never touches it — so the geometry it asked
+        // for is what stands here, and this leaves it alone.
+        let state = app.state::<pty::PtyState>();
+        if pty::remote_dims(&state, &id) == Some((cols, grown)) {
+            let _ = pty::remote_resize(&state, &id, cols, rows);
+        }
+    });
+}
+
+/// Claim the pending nudge for `id` if it is still `token`'s, clearing it. False
+/// means a viewer asserted its own geometry in the meantime — retiring this nudge,
+/// and possibly leaving a later one in its place — so this one must leave the
+/// terminal alone.
+fn take_nudge(hub: &PeerHub, id: &str, token: u64) -> bool {
+    let mut pending = hub.inner.nudges.lock().unwrap();
+    if pending.get(id) == Some(&token) {
+        pending.remove(id);
+        return true;
+    }
+    false
+}
+
+/// Retire any pending nudge for `id`: the viewer has stated the size it wants,
+/// which supersedes ours whatever it happens to be.
+fn cancel_nudge(app: &AppHandle, id: &str) {
+    if let Some(hub) = app.try_state::<PeerHub>() {
+        hub.inner.nudges.lock().unwrap().remove(id);
+    }
 }
 
 fn broadcast(hub: &PeerHub, val: Value) {
@@ -472,7 +590,14 @@ fn ensure_host_id(hub: &PeerHub) {
 pub fn apply(hub: &PeerHub, app: &AppHandle) {
     let generation = hub.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
     let cfg = hub.host_config();
-    hub.inner.enabled.store(cfg.enabled, Ordering::Relaxed);
+    // Terminals keep running while hosting is off, but `tee_output` returns
+    // early, so their output goes unrecorded. Either edge of that gap leaves the
+    // rings holding offsets with missing bytes behind them: retire every offset
+    // handed out so far, so a peer that comes back with one is refused a resume
+    // and reseeded instead of being handed a slice with a silent hole in front.
+    if hub.inner.enabled.swap(cfg.enabled, Ordering::Relaxed) != cfg.enabled {
+        hub.inner.rings.invalidate_all();
+    }
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
         crate::mdns::withdraw_peer();
@@ -1053,19 +1178,34 @@ fn handle_msg(
         "pong" => {}
         "sub" => {
             if let Some(id) = str_field("id") {
-                subs.lock().unwrap().insert(id.clone());
                 // Opening a terminal on the peer takes control of it, so host
-                // windows flip to their placeholder. `claim` mirrors mobile.
+                // windows flip to their placeholder. `claim` mirrors mobile, and
+                // runs first: its broadcast is a webview emit, which has no place
+                // inside the subscribe-and-read `ring_attach` holds atomic.
                 let (owner, changed) = app
                     .state::<crate::control::ControlState>()
                     .claim(&id, peer_owner(hub, device_id));
                 if changed {
                     crate::control::broadcast(app, &id, &Some(owner));
                 }
+                // A peer that still has this terminal on screen (its connection
+                // dropped and came back) sends the offset it got to. Handing it
+                // just that slice keeps its emulator — margins, alt buffer,
+                // charset and all — intact; a replay onto a reset emulator can
+                // only approximate the screen a running full-screen program
+                // believes it is drawing on, and the program's next incremental
+                // update then lands on stale cells. No cols/rows here, unlike
+                // the phone: the viewing Mac is the geometry authority and would
+                // only be fighting its own fit.
+                let from = v.get("from").and_then(Value::as_u64);
+                let (data, off, reset) = hub.ring_attach(subs, &id, from);
                 send(
                     ws,
-                    json!({ "t": "seed", "id": id, "d": hub.ring_text(&id) }),
+                    json!({ "t": "seed", "id": id, "d": data, "off": off, "reset": reset }),
                 )?;
+                if reset {
+                    nudge_repaint(hub, app, &id);
+                }
             }
         }
         "unsub" => {
@@ -1361,9 +1501,11 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
         "write_terminal" => {
             Some(pty::remote_write(&state, &s("id"), &s("data")).map(|_| Value::Null))
         }
-        "resize_terminal" => Some(
-            pty::remote_resize(&state, &s("id"), u16f("cols"), u16f("rows")).map(|_| Value::Null),
-        ),
+        "resize_terminal" => {
+            let id = s("id");
+            cancel_nudge(app, &id);
+            Some(pty::remote_resize(&state, &id, u16f("cols"), u16f("rows")).map(|_| Value::Null))
+        }
         "ack_terminal_data" => {
             // Args arrive with the frontend's camelCase keys — they bypass Tauri's
             // snake_case conversion on this direct path (unlike the webview tier).

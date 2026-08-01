@@ -43,6 +43,7 @@ import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerState } from "./peer/usePeerState";
 import { isPeerName, peerSlugOf } from "./peer/markers";
+import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 
 import { InstallTmux, TmuxInstalled } from "../bridge/commands";
@@ -131,6 +132,14 @@ export default function App() {
   usePeerAutoSyncToasts(peerState.peers);
   useSshEnvMismatchToasts();
   const isFullscreen = useIsFullscreen();
+
+  // Terminal sessions on a dropped peer are kept alive so the reconnect can resume
+  // their streams; the retention policy needs to tell a peer that is merely
+  // unreachable from one that was unpaired, and this is the window's single
+  // subscription to that state.
+  useEffect(() => {
+    publishPeerSnapshot(peerState.peers);
+  }, [peerState.peers]);
 
   // A selected remote project whose peer dropped: keep the selection and show a
   // banner in its place; both the row and detail return on reconnect.

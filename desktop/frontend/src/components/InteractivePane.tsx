@@ -16,6 +16,7 @@ import {
   SetClipboardText,
   IsTerminalRemote,
   PeerTermAttach,
+  PeerTermDetach,
   UploadAndQuoteForTerminal,
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
@@ -42,6 +43,7 @@ import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { registerFileDropHandler } from "../fileDrop";
 import { logDiagnostic } from "../diagnostics";
 import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
+import { reclaimPeerSession } from "../peer/retainedSessions";
 import { SSH_TRANSPORT_EXIT_CODE } from "../reconnect";
 import {
   IS_MIRROR_WINDOW,
@@ -236,6 +238,9 @@ interface InteractiveSession {
   host: HTMLDivElement;
 
   sessionDead: boolean;
+  // The pty itself reported an exit. Distinct from sessionDead, which this side
+  // also latches for reasons the pty knows nothing about.
+  exited: boolean;
   remote: Promise<boolean>;
 
   lastOutputAt: number;
@@ -327,17 +332,30 @@ export function disposeInteractivePaneSession(terminalId: string) {
   if (!s) return;
   disposeSession(s);
   interactiveSessions.delete(terminalId);
+  // The mirror of the attach below: the screen this id's stream was being applied
+  // to is gone, so the peer client must stop re-subscribing it on every reconnect
+  // and must forget the offset it would otherwise resume from — resuming into a
+  // screen that no longer exists delivers only the bytes since, onto nothing. A
+  // mirror shares this window's peer client and never subscribed itself, so it
+  // never detaches either.
+  if (isPeerName(terminalId) && !IS_MIRROR_WINDOW) {
+    PeerTermDetach(terminalId).catch(() => {});
+  }
 }
 
 // Vite HMR: dispose cached xterm sessions and the theme observer. The shared
-// fileDrop registry handles its own deregistration.
+// fileDrop registry handles its own deregistration. Sessions go through the
+// public dispose so a peer terminal also detaches — the replacement module builds
+// blank emulators, which the peer client must reseed in full rather than resume.
 const viteHot = (
   import.meta as ImportMeta & { hot?: { dispose: (cb: () => void) => void } }
 ).hot;
 if (viteHot) {
   viteHot.dispose(() => {
     fileDropInitialized = false;
-    for (const s of interactiveSessions.values()) disposeSession(s);
+    for (const id of [...interactiveSessions.keys()]) {
+      disposeInteractivePaneSession(id);
+    }
     interactiveSessions.clear();
     themeObserver?.disconnect();
     themeObserver = null;
@@ -415,6 +433,52 @@ function formatPastedPaths(paths: string[]): string {
 // the receiver unable to distinguish a paste from typed input.
 function pasteToTerminal(terminalId: string, text: string): void {
   interactiveSessions.get(terminalId)?.term.paste(text);
+}
+
+// Subscribe a peer terminal to its host stream: the host answers with its
+// scrollback as a seed, then pushes live output.
+//
+// `resume` is the one thing only this side can know. The peer client's applied
+// offsets live in Rust and outlive this webview, so it must never guess that
+// continuing from one is safe — resuming into a screen that no longer exists
+// delivers just the bytes since, onto nothing. So the caller states it: true only
+// when the emulator these bytes continue is the one still on screen; false for a
+// blank emulator (a first open, anything after a webview reload, or a screen we
+// just threw away), which needs the full reseed a non-resuming subscribe gets and
+// which also clears the offset the client was holding.
+//
+// No-op for local terminals and in a mirror, which renders the owner's snapshot
+// and never subscribes on its own.
+export function attachPeerTerminal(terminalId: string, resume: boolean): void {
+  if (!isPeerName(terminalId) || IS_MIRROR_WINDOW) return;
+  PeerTermAttach(terminalId, resume).catch(() => {});
+}
+
+// Whether a rejected write means this terminal's pty is gone.
+//
+// For a local one it does: the write went to a pty this app owns. For a peer one
+// it never does. The peer client rejects writes outright while the link is down
+// ("peer not connected") and fails in-flight ones when it drops, none of which
+// the host — the only side that can see the pty — was involved in. The host says
+// a peer terminal died by sending an `exit` frame, which arrives as pty-exit like
+// any other. Treating a write failure as death instead would end the session for
+// the duration of a hiccup its own reconnect is about to repair, and would print
+// the notice into the very screen the resume then continues from, scrolling a
+// full-screen agent's output out from under its next incremental redraw.
+export function writeErrorIsFatal(terminalId: string): boolean {
+  return !isPeerName(terminalId);
+}
+
+// Undo a death latch this side applied without the pty ever exiting, so a pane
+// that gets its retained emulator back can type into it again. A pty that really
+// exited stays dead — the host said so, and nothing on this side overrules that.
+export function revivePeerSession(terminalId: string): void {
+  const session = interactiveSessions.get(terminalId);
+  if (!session || !isPeerName(terminalId)) return;
+  if (!session.sessionDead || session.exited) return;
+  session.sessionDead = false;
+  session.term.options.disableStdin = false;
+  session.term.options.cursorBlink = true;
 }
 
 function writeTerminalError(terminalId: string, err: unknown): void {
@@ -647,6 +711,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     host,
     remote: IsTerminalRemote(terminalId).catch(() => false),
     sessionDead: false,
+    exited: false,
     presenting: false,
     lastOutputAt: 0,
     delivering: false,
@@ -772,7 +837,10 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     term.write(`\r\n\x1b[${ansiColor}m${msg}\x1b[0m\r\n`);
   };
 
-  const handleWriteError = () => markDead("[Session disconnected]", "91");
+  const handleWriteError = () => {
+    if (!writeErrorIsFatal(terminalId)) return;
+    markDead("[Session disconnected]", "91");
+  };
   session.handleWriteError = handleWriteError;
 
   term.onData((data) => {
@@ -898,21 +966,10 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     writeData(data);
   });
 
-  // A peer terminal only streams to subscribers: the host answers a subscribe
-  // with its scrollback as a seed, then pushes live output. Opening the pty
-  // subscribes for the pane that started it, but a pane can also open onto one
-  // that already exists — restore adopting a session that outlived us — and then
-  // this is the only subscribe there is. Re-subscribing is idempotent (the host
-  // seeds with a screen clear), and this has to come AFTER the listener above so
-  // the seed can't arrive with nothing listening. A mirror renders from the
-  // owner's snapshot instead, so it never subscribes on its own.
-  if (isPeerName(terminalId) && !IS_MIRROR_WINDOW) {
-    PeerTermAttach(terminalId).catch(() => {});
-  }
-
   const cleanupExit = EventsOn(
     "pty-exit-" + terminalId,
     (exitCode: number) => {
+      session.exited = true;
       // A remote terminal's SSH transport dropping exits 255; useTerminals then
       // auto-respawns the pane, so surface the recovery instead of a raw code.
       if (exitCode === SSH_TRANSPORT_EXIT_CODE) {
@@ -1089,6 +1146,9 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
         try {
           term.reset();
         } catch {}
+        // The screen the peer stream was continuing is gone with the reset, so
+        // it has to start over rather than resume.
+        attachPeerTerminal(terminalId, false);
       }
     };
     document.addEventListener("visibilitychange", onOwnerVis);
@@ -1110,15 +1170,21 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   return session;
 }
 
-function getOrCreateInteractiveSession(terminalId: string, cwd: string): InteractiveSession {
+// `reused` is what tells a peer terminal's subscribe whether it may resume: a
+// reused session still holds the screen its stream left off on, a fresh one is
+// blank.
+function getOrCreateInteractiveSession(
+  terminalId: string,
+  cwd: string,
+): { session: InteractiveSession; reused: boolean } {
   const existing = interactiveSessions.get(terminalId);
   if (existing) {
     existing.cwd = cwd;
-    return existing;
+    return { session: existing, reused: true };
   }
   const session = createInteractiveSession(terminalId, cwd);
   interactiveSessions.set(terminalId, session);
-  return session;
+  return { session, reused: false };
 }
 
 // Take control of a terminal this window is actively showing while it's focused
@@ -1377,7 +1443,22 @@ export function InteractivePane({
 
     initFileDrop();
 
-    const session = getOrCreateInteractiveSession(terminalId, cwd);
+    const { session, reused } = getOrCreateInteractiveSession(terminalId, cwd);
+    // A pane is showing this session again, so any retention held over a peer
+    // drop is done: the stream it resumed into is back on screen. The link that
+    // dropped may have failed a write on the way out, so the session also gets
+    // its input back unless the host reported the pty gone.
+    reclaimPeerSession(terminalId);
+    revivePeerSession(terminalId);
+    // The only place a peer terminal is subscribed, and every mount does it —
+    // not just the one that built the emulator. A peer client rebuilt underneath
+    // us (reconnect, disable/enable, host uninstall) starts with nothing
+    // attached, and a remounting pane reuses its cached session, so without this
+    // the pane keeps showing its frozen pre-drop screen while input still reaches
+    // the host. The session exists by now, so its output listener is registered
+    // and the seed can't arrive with nothing listening. A redundant subscribe on
+    // a connection that already has one costs a single empty non-resetting seed.
+    attachPeerTerminal(terminalId, reused);
     sessionRef.current = session;
 
     session.term.options.fontSize = fontSize;

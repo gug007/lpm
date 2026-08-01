@@ -189,13 +189,40 @@ depth). See `is_denied` in `peer.rs`.
 
 ## Terminal streaming
 
-- client → `{ "t": "sub", "id" }` — subscribe to a host terminal. The host
-  claims display control for this peer (host windows show the "Take control"
-  placeholder) and replies once with `{ "t": "seed", "id", "d" }`, the recent
-  scrollback (96 KiB ring, trimmed to a clean line boundary).
-- host → `{ "t": "o", "id", "d" }` — live output chunks.
+- client → `{ "t": "sub", "id", "from"? }` — subscribe to a host terminal. The
+  host claims display control for this peer (host windows show the "Take control"
+  placeholder) and replies once with a `seed`. `from` is the stream offset this
+  client has already applied, sent only when it still has that terminal's
+  emulator on screen.
+- host → `{ "t": "seed", "id", "d", "off", "reset" }` — the answer to `sub`,
+  delivered before any live output.
+  - `reset: false` — `d` is exactly the bytes emitted since the `from` that was
+    asked for. Apply it untouched to the surviving screen; clearing first would
+    erase the screen it continues.
+  - `reset: true` — `from` was absent or no longer honourable, so `d` is a replay
+    of the recent scrollback (96 KiB of a 512 KiB ring, trimmed to a clean line
+    boundary) for a screen rebuilt from scratch. The client prefixes it with its
+    own emulator-reset sequence.
+  - `off` is the stream offset `d` ends at, in UTF-8 **bytes**.
+- host → `{ "t": "o", "id", "d", "off" }` — live output chunks. `off` is the
+  **end** offset of `d` in the terminal's byte stream, again in UTF-8 bytes, so
+  `off - len(d)` is where the chunk starts. A chunk starting past what the client
+  holds means the host dropped frames for a backed-up queue: the client stops
+  resuming that terminal and asks for a replay instead.
 - host → `{ "t": "exit", "id", "code" }` — the terminal exited; its ring is freed.
 - client → `{ "t": "unsub", "id" }` — stop; the host releases control.
+
+Offsets are per terminal and only ever move forward. The host retires every offset
+it has handed out whenever hosting is toggled — terminals keep running while it is
+off, but their output goes unrecorded, so a later resume would hand back a slice
+with a silent hole in front of it. A retired offset simply falls back to a
+`reset` seed.
+
+After a `reset` seed the host nudges the terminal's winsize by a row and restores
+it ~80 ms later, so a full-screen program repaints onto the rebuilt screen (an
+unchanged winsize raises no SIGWINCH). A resize from the viewer inside that window
+retires the nudge, and the restore is skipped unless the geometry is still exactly
+what the nudge set.
 
 The client re-emits these locally under the prefixed event names the mirrored
 ProjectDetail already listens on, so the frontend needs zero changes:
@@ -205,7 +232,12 @@ ProjectDetail already listens on, so the frontend needs zero changes:
 - `exit` → `pty-exit-peer-{slug}-{id}` with the exit code.
 
 On reconnect the client re-sends `sub` for every terminal the frontend currently
-has attached (tracked via `peer_term_attach` / `peer_term_detach`).
+has attached (tracked via `peer_term_attach` / `peer_term_detach`), carrying the
+offset it holds for each.
+
+**Compatibility.** A host that sends no `off` predates this contract: its `d` is
+always a full replay, so the client takes the reset path and forgets the offset.
+A host that gets a `from` it cannot honour answers with `reset: true`.
 
 ## Global event forwarding
 
@@ -403,7 +435,13 @@ Client role:
 - `peer_set_enabled(slug, enabled)`
 - `peer_set_auto_sync(slug, enabled)` (unattended config sync; nudges a run when on)
 - `peer_invoke({ slug, cmd, args }) -> value` (blocks up to 35s)
-- `peer_term_attach(prefixedId)` / `peer_term_detach(prefixedId)`
+- `peer_term_attach(prefixedId, resume)` / `peer_term_detach(prefixedId)` —
+  `resume: true` asks for only the bytes missed since this Mac last applied
+  output, and is the caller's word that the emulator those bytes were being
+  applied to is still on screen. Nothing below the frontend can know that: the
+  offsets outlive the webview, so after a reload every pane is a blank emulator
+  while the offsets still point deep into their streams. `resume: false` drops
+  the offset first, so the `sub` carries no `from` and the host replays in full.
 
 Frontend-facing events: `peer-state-changed`, `peer-invoke` (host dispatcher),
 `peer-evt-{slug}`, `peer-autosync-result` (one per unattended run),

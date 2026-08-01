@@ -43,8 +43,15 @@ import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
 import { isPeerName } from "../peer/markers";
+import { retainPeerSession } from "../peer/retainedSessions";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { isPendingClose } from "../pendingClose";
+
+// Everything a terminal leaves behind in this window once it's really gone.
+function dropTerminalSession(id: string) {
+  disposeInteractivePaneSession(id);
+  forgetComposerDraft(id);
+}
 
 interface TerminalViewProps {
   projectName: string;
@@ -269,8 +276,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         // session must survive so undo can reattach it; its teardown runs
         // later when the toast resolves.
         if (isPendingClose(id)) continue;
-        disposeInteractivePaneSession(id);
-        forgetComposerDraft(id);
+        dropTerminalSession(id);
       }
     }
     interactiveKeysRef.current = next;
@@ -336,11 +342,27 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [projectName],
   );
 
+  // This view unmounts for two very different reasons on a peer-hosted project:
+  // the user (or the host) really closed it, or the peer link dropped and took
+  // the project out of the sidebar until it's back. In the second case the
+  // terminals are still alive on the other machine and their streams resume by
+  // offset on reconnect, so the emulators are handed to the retention policy
+  // instead of being torn down — resuming into a screen that no longer exists is
+  // what leaves a full-screen agent painting at the wrong coordinates. A mirror
+  // window renders the owner's snapshot and never subscribes, so it disposes as
+  // before.
+  //
+  // Which reason this is can't be known from here: a drop reaches the retention
+  // policy only in a later effect, after this cleanup has already run. So every
+  // peer terminal is offered, and the policy decides how long to hold it (see
+  // retainedSessions).
   useEffect(() => {
     return () => {
       for (const id of interactiveKeysRef.current) {
-        disposeInteractivePaneSession(id);
-        forgetComposerDraft(id);
+        if (!IS_MIRROR_WINDOW && retainPeerSession(id, () => dropTerminalSession(id))) {
+          continue;
+        }
+        dropTerminalSession(id);
       }
       interactiveKeysRef.current.clear();
     };

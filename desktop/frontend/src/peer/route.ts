@@ -114,8 +114,13 @@ async function dispatchToPeer(
     const launch =
       value !== null && typeof value === "object" ? (value as { id?: unknown }) : null;
     const prefixedId = prefixName(slug, String(launch ? (launch.id ?? "") : value));
-    // Subscribe so the seed + live output stream back before the pane mounts.
-    invoke("peer_term_attach", { id: prefixedId }).catch(() => {});
+    // Deliberately no subscribe here. The pane that renders this terminal
+    // subscribes when it mounts, and only it can say whether its emulator may
+    // resume — subscribing from here would have to guess, and guessing wrong is
+    // either a garbled screen or a second full replay. Nothing is missed in
+    // between: the host keeps every terminal's recent output in a ring and
+    // replays it to whoever subscribes, whereas output pushed before the pane
+    // exists arrives with no listener and is simply dropped.
     return launch ? { ...launch, id: prefixedId } : prefixedId;
   }
   if (cmd === "stop_terminal") {

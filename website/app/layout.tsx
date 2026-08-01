@@ -20,32 +20,34 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "lpm — Local Dev Process Manager for Mac",
+    default: "lpm — Local Dev Process Manager for Mac | Claude Code & Codex",
     template: "%s — lpm",
   },
   description:
-    "Free, open-source macOS app to start, stop, duplicate, and switch local dev projects. Run every service and AI coding agent without port conflicts.",
+    "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
   keywords: [
-    "dev tools",
+    "local dev process manager",
     "macOS app",
-    "process manager",
-    "developer workflow",
-    "terminal",
     "project switcher",
+    "run multiple dev servers",
+    "coding agents in parallel",
+    "Claude Code",
+    "Codex",
+    "dev tools",
   ],
   openGraph: {
-    title: "lpm — Local Dev Process Manager for Mac",
+    title: "lpm — Local Dev Process Manager for Mac | Claude Code & Codex",
     description:
-      "Free, open-source macOS app to start, stop, duplicate, and switch local dev projects. Run every service and AI coding agent without port conflicts.",
+      "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Local Dev Process Manager for Mac",
+    title: "lpm — Local Dev Process Manager for Mac | Claude Code & Codex",
     description:
-      "Free, open-source macOS app to start, stop, duplicate, and switch local dev projects. Run every service and AI coding agent without port conflicts.",
+      "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
   },
 };
 
@@ -67,7 +69,7 @@ const structuredData = {
       "@id": `${SITE_URL}/#app`,
       name: "lpm",
       description:
-        "A free, open-source local dev process manager for Mac. Start, stop, duplicate, and switch projects, services, and AI coding agents without port conflicts.",
+        "A free, open-source local dev process manager for Mac. Switch projects in one click, duplicate them in seconds, and run coding agents in parallel.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS",
       url: SITE_URL,

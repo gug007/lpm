@@ -289,8 +289,11 @@ export function PeerSetAutoSync(...args: any[]): Promise<any>;
 export function PeerInvoke(...args: any[]): Promise<any>;
 export function PeerSyncStatus(...args: any[]): Promise<any>;
 export function PeerSyncRun(...args: any[]): Promise<any>;
-export function PeerTermAttach(...args: any[]): Promise<any>;
-export function PeerTermDetach(...args: any[]): Promise<any>;
+// `resume` is typed (not `any[]`) because getting it wrong is silent: resuming a
+// screen this window no longer has yields a terminal that only ever shows the
+// bytes since a position it can't continue from.
+export function PeerTermAttach(prefixedId: string, resume: boolean): Promise<void>;
+export function PeerTermDetach(prefixedId: string): Promise<void>;
 export function SyncProjectStart(...args: any[]): Promise<any>;
 export function SyncProjectCancel(...args: any[]): Promise<any>;
 export function FollowList(...args: any[]): Promise<any>;

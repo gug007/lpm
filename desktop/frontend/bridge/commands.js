@@ -886,8 +886,8 @@ export function PeerSyncStatus(slug) {
 export function PeerSyncRun(slug, items) {
   return invoke("peer_sync_run", { slug, items });
 }
-export function PeerTermAttach(prefixedId) {
-  return invoke("peer_term_attach", { id: prefixedId });
+export function PeerTermAttach(prefixedId, resume) {
+  return invoke("peer_term_attach", { id: prefixedId, resume });
 }
 export function PeerTermDetach(prefixedId) {
   return invoke("peer_term_detach", { id: prefixedId });

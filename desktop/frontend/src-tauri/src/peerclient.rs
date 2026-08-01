@@ -43,6 +43,21 @@ const BACKOFF_MAX: Duration = Duration::from_secs(30);
 /// Longer than a TCP dial because it includes ssh authenticating to the host.
 const TUNNEL_WAIT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024;
+/// Floor between two loss-triggered replay requests for the same terminal. Bytes
+/// go missing because the host drops output frames for a client whose queue is
+/// backing up, and a replay is more bytes down that same queue — so a stream that
+/// keeps losing must not keep asking.
+const RESYNC_MIN_INTERVAL: Duration = Duration::from_secs(2);
+/// Prefix for a replay that rebuilds a pane from scratch: leave the alt buffer,
+/// DECOM off, DECAWM on, G0 back to ASCII, drop the scroll region, reset SGR, then
+/// clear screen + scrollback and home.
+///
+/// Deliberately NOT a soft reset (`ESC [ ! p`): xterm.js implements DECSTR by
+/// resetting the DEC private modes to their defaults, which clears the modes the
+/// remote program turned on at startup and will never advertise again — bracketed
+/// paste above all, which this app reads off the emulator on its own send path.
+/// Those are input-side modes; a replay only has to rebuild the screen.
+const SCREEN_RESET: &str = "\x1b[?1049l\x1b[?6l\x1b[?7h\x1b(B\x1b[r\x1b[0m\x1b[2J\x1b[3J\x1b[H";
 
 // --- shared state -------------------------------------------------------------
 
@@ -60,6 +75,12 @@ struct PeerConn {
     connected: AtomicBool,
     last_error: Mutex<String>,
     attached: Mutex<HashSet<String>>, // raw host terminal ids the frontend has open
+    // Per-terminal stream offset this Mac has already applied. Sent back as `sub`'s
+    // `from` so a reconnect resumes with only the missed bytes instead of replaying
+    // a mid-escape-sequence slice of the ring onto a half-reset emulator.
+    offsets: Mutex<HashMap<String, u64>>,
+    // When each terminal last asked the host to replay after detected byte loss.
+    last_resync: Mutex<HashMap<String, Instant>>,
     pending: Mutex<HashMap<u64, Arc<Pending>>>,
     enabled: AtomicBool,
     supports_sync: AtomicBool, // host advertised the configSync feature in `ready`
@@ -73,6 +94,25 @@ struct PeerConn {
     tunnel: Mutex<Option<crate::peertunnel::Tunnel>>,
 }
 
+/// Where a chunk sits relative to the stream already applied, given the chunk's
+/// END offset and its byte length. `Some` is the position to hold after applying
+/// it; `None` means bytes were lost and no position can be resumed from.
+fn advance_offset(held: u64, end: u64, len: usize) -> Option<u64> {
+    let start = end.saturating_sub(len as u64);
+    if start > held {
+        // The host drops output frames when a client's queue backs up, so a chunk
+        // that starts past what we hold is the far side of a hole. Resuming after
+        // one would hand back a stream missing those bytes for good, and nothing
+        // downstream would ever repair it.
+        None
+    } else {
+        // Starting at or before what we hold is an overlap, not a gap: the host
+        // subscribes an id before it reads the ring, so the same bytes can arrive
+        // once in the seed and again live. Keep the furthest point applied.
+        Some(held.max(end))
+    }
+}
+
 impl PeerConn {
     fn new(slug: &str) -> Self {
         PeerConn {
@@ -82,6 +122,8 @@ impl PeerConn {
             last_error: Mutex::new(String::new()),
             tunnel: Mutex::new(None),
             attached: Mutex::new(HashSet::new()),
+            offsets: Mutex::new(HashMap::new()),
+            last_resync: Mutex::new(HashMap::new()),
             pending: Mutex::new(HashMap::new()),
             enabled: AtomicBool::new(true),
             supports_sync: AtomicBool::new(false),
@@ -100,6 +142,122 @@ impl PeerConn {
                 .map_err(|_| "peer send queue full".to_string()),
             None => Err(PEER_NOT_CONNECTED.to_string()),
         }
+    }
+
+    /// The `sub` frame for a terminal, carrying `from` only when this Mac still
+    /// holds a screen for it. Omitting `from` asks the host for a full reseed,
+    /// which is also what an older host does with a `from` it can't honour.
+    fn sub_frame(&self, id: &str) -> String {
+        match self.offsets.lock().unwrap().get(id) {
+            Some(&from) => json!({ "t": "sub", "id": id, "from": from }).to_string(),
+            None => json!({ "t": "sub", "id": id }).to_string(),
+        }
+    }
+
+    /// Subscribe a terminal's host stream and remember it for reconnects.
+    ///
+    /// `resume` is the caller's word that the emulator these bytes were being
+    /// applied to is still on screen. Only the caller can know that: this state
+    /// outlives the webview, so after a reload every pane is a blank emulator
+    /// while the offsets still point deep into their streams — resuming there
+    /// would deliver nothing but the bytes since, onto nothing.
+    fn subscribe(&self, id: &str, resume: bool) {
+        let already = !self.attached.lock().unwrap().insert(id.to_string());
+        if !resume {
+            // A blank emulator needs the screen rebuilt whatever the stream is
+            // doing, so this always asks — the host answers a `from`-less sub with
+            // a reset seed, which overwrites whatever the live stream delivers.
+            self.forget_offset(id);
+        } else if already && self.connected.load(Ordering::Relaxed) {
+            // This id is already subscribed on a live connection, so the host never
+            // stopped sending it. Asking again would replay everything since the
+            // offset we hold — bytes the emulator took live — straight onto it a
+            // second time. Only a subscription that actually stopped needs resuming,
+            // and that is either a fresh PeerConn (`attached` empty) or the
+            // reconnect path, which re-subscribes from `attached` itself.
+            return;
+        }
+        let _ = self.send(self.sub_frame(id));
+    }
+
+    /// Anchor a terminal's stream at the end of a full replay: the screen is being
+    /// rebuilt from here, so no earlier position applies. `None` means the host
+    /// reported no offset — it predates the resume contract, so forget any offset
+    /// for that id and let the next `sub` ask for a full reseed.
+    fn anchor_offset(&self, id: &str, off: Option<u64>) {
+        let mut map = self.offsets.lock().unwrap();
+        match off {
+            Some(off) => {
+                map.insert(id.to_string(), off);
+            }
+            None => {
+                map.remove(id);
+            }
+        }
+    }
+
+    /// Advance a terminal's stream by a chunk that continues the screen already on
+    /// it. Only an id a replay has anchored can advance: once bytes are missing,
+    /// every position after them describes a screen with a hole in it and must
+    /// never become something to resume from.
+    fn extend_offset(&self, id: &str, off: Option<u64>, len: usize) {
+        let lost = {
+            let mut map = self.offsets.lock().unwrap();
+            let (next, lost) = match (off, map.get(id).copied()) {
+                (Some(end), Some(held)) => {
+                    let next = advance_offset(held, end, len);
+                    (next, next.is_none())
+                }
+                // No offset held is not loss, and a host that reports no offset at
+                // all predates the contract — neither has a replay to ask for.
+                _ => (None, false),
+            };
+            match next {
+                Some(next) => {
+                    map.insert(id.to_string(), next);
+                }
+                None => {
+                    map.remove(id);
+                }
+            }
+            lost
+        };
+        if lost {
+            self.request_resync(id);
+        }
+    }
+
+    /// Ask the host to rebuild a terminal's screen from scratch after bytes went
+    /// missing. The gapped chunk is emitted to the emulator regardless — dropping
+    /// it would only widen the hole — so without this the pane keeps a screen with
+    /// a hole in it for as long as the connection stays up.
+    ///
+    /// Two guards keep a losing stream from resubscribing in a loop: the offset was
+    /// just dropped, so no further loss is detectable until a reset seed anchors the
+    /// stream again, and a request inside `RESYNC_MIN_INTERVAL` of the last one is
+    /// skipped in case that seed is itself followed by loss.
+    fn request_resync(&self, id: &str) {
+        {
+            let now = Instant::now();
+            let mut last = self.last_resync.lock().unwrap();
+            if last
+                .get(id)
+                .is_some_and(|prev| now.duration_since(*prev) < RESYNC_MIN_INTERVAL)
+            {
+                return;
+            }
+            last.insert(id.to_string(), now);
+        }
+        // Deliberately not `sub_frame`: this must carry no `from` at all, whatever
+        // another thread may have anchored in the meantime.
+        let _ = self.send(json!({ "t": "sub", "id": id }).to_string());
+    }
+
+    fn forget_offset(&self, id: &str) {
+        self.offsets.lock().unwrap().remove(id);
+        // The stream this paced any repair of is over: a later attach on the same id
+        // is a new screen and must be able to repair itself immediately.
+        self.last_resync.lock().unwrap().remove(id);
     }
 
     /// Fail every outstanding invoke — called when the connection drops so no
@@ -281,6 +439,10 @@ impl PeerClientHub {
             conn.generation.fetch_add(1, Ordering::SeqCst);
             *conn.out.lock().unwrap() = None;
             conn.connected.store(false, Ordering::Relaxed);
+            // This connection is retired, not merely dropped: its streams end here,
+            // so nothing may later resume from an offset into them.
+            conn.attached.lock().unwrap().clear();
+            conn.offsets.lock().unwrap().clear();
             conn.fail_pending(reason);
         }
     }
@@ -1549,9 +1711,11 @@ fn connect_session(
     conn.last_error.lock().unwrap().clear();
     let _ = ws.get_ref().tcp().set_read_timeout(Some(POLL));
     // Re-subscribe every terminal the frontend currently has open, so a reconnect
-    // transparently reseeds them.
-    for id in conn.attached.lock().unwrap().iter() {
-        let _ = ws.write(Message::text(json!({ "t": "sub", "id": id }).to_string()));
+    // transparently resumes them: each `sub` carries the offset already applied,
+    // so a pane whose screen survived the drop gets only the bytes it missed.
+    let resubscribe: Vec<String> = conn.attached.lock().unwrap().iter().cloned().collect();
+    for id in &resubscribe {
+        let _ = ws.write(Message::text(conn.sub_frame(id)));
     }
     let _ = ws.flush();
     emit_state_changed(hub);
@@ -1662,26 +1826,50 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 p.cv.notify_all();
             }
         }
-        // Seed replays scrollback as ordinary output before live `o` frames. It is
-        // prefixed with a terminal reset (clear screen + scrollback + home) so a
-        // reconnect's reseed replaces the pane's contents instead of appending a
-        // second copy of the ring; harmless on first attach (the term is empty).
+        // Answer to `sub`, replayed as ordinary output before live `o` frames.
+        //
+        // `reset: true` — `d` is a fresh replay onto a cleared screen, so it is
+        // prefixed with SCREEN_RESET. Anything less leaves the emulator in whatever
+        // buffer and margins the previous session had while the replayed slice —
+        // which can start mid-escape-sequence — addresses rows absolutely,
+        // scattering the output.
+        //
+        // `reset: false` — `d` is exactly the bytes missed since the `from` we
+        // sent, appended to a screen that survived the drop. It must be applied
+        // untouched; clearing here would erase the very screen it continues.
+        //
+        // A host that sends neither field predates the contract: its `d` is always
+        // a full replay, so it takes the reset path.
         "seed" => {
             if let (Some(app), Some(id)) = (app, v.get("id").and_then(Value::as_str)) {
                 let d = v.get("d").and_then(Value::as_str).unwrap_or_default();
-                let chunk = format!("\x1b[2J\x1b[3J\x1b[H{d}");
+                let off = v.get("off").and_then(Value::as_u64);
+                let reset =
+                    off.is_none() || v.get("reset").and_then(Value::as_bool).unwrap_or(true);
+                let chunk = if reset {
+                    conn.anchor_offset(id, off);
+                    format!("{SCREEN_RESET}{d}")
+                } else {
+                    conn.extend_offset(id, off, d.as_bytes().len());
+                    d.to_string()
+                };
                 let _ = app.emit(&format!("pty-output-peer-{slug}-{id}"), chunk);
             }
         }
         "o" => {
             if let (Some(app), Some(id)) = (app, v.get("id").and_then(Value::as_str)) {
                 let d = v.get("d").and_then(Value::as_str).unwrap_or_default();
+                let off = v.get("off").and_then(Value::as_u64);
+                conn.extend_offset(id, off, d.as_bytes().len());
                 let _ = app.emit(&format!("pty-output-peer-{slug}-{id}"), d);
             }
         }
         "exit" => {
             if let (Some(app), Some(id)) = (app, v.get("id").and_then(Value::as_str)) {
                 let code = v.get("code").and_then(Value::as_i64).unwrap_or(0) as i32;
+                // The stream is over: forget the offset so a later terminal reusing
+                // this id can never ask to resume from a dead one.
+                conn.forget_offset(id);
                 let _ = app.emit(&format!("pty-exit-peer-{slug}-{id}"), code);
             }
         }
@@ -2172,8 +2360,18 @@ pub async fn peer_sync_run(
 
 /// Track a terminal the frontend opened and subscribe to its host stream (seed +
 /// live output). Attachment is remembered so a reconnect re-subscribes.
+///
+/// `resume` asks for only the bytes missed since this Mac last applied output —
+/// pass it only when the emulator that was applying them is still on screen, which
+/// nothing here can tell: this state lives in the app, not the webview, and a
+/// reload leaves it holding offsets for panes that no longer exist. With
+/// `resume: false` the offset is dropped first, so the host replays in full.
 #[tauri::command]
-pub fn peer_term_attach(hub: State<'_, PeerClientHub>, id: String) -> Result<(), String> {
+pub fn peer_term_attach(
+    hub: State<'_, PeerClientHub>,
+    id: String,
+    resume: bool,
+) -> Result<(), String> {
     let (slug, raw) = parse_prefixed(&id).ok_or_else(|| "not a peer terminal id".to_string())?;
     let conn = hub
         .inner
@@ -2183,11 +2381,13 @@ pub fn peer_term_attach(hub: State<'_, PeerClientHub>, id: String) -> Result<(),
         .get(&slug)
         .cloned()
         .ok_or_else(|| "unknown peer".to_string())?;
-    conn.attached.lock().unwrap().insert(raw.clone());
-    let _ = conn.send(json!({ "t": "sub", "id": raw }).to_string());
+    conn.subscribe(&raw, resume);
     Ok(())
 }
 
+/// Forget a terminal the frontend closed: stop re-subscribing it on reconnect and
+/// drop its offset, since its screen is gone and the next attach needs a full
+/// reseed. Idempotent — detaching an unknown id or an unconnected peer is a no-op.
 #[tauri::command]
 pub fn peer_term_detach(hub: State<'_, PeerClientHub>, id: String) -> Result<(), String> {
     let Some((slug, raw)) = parse_prefixed(&id) else {
@@ -2195,6 +2395,7 @@ pub fn peer_term_detach(hub: State<'_, PeerClientHub>, id: String) -> Result<(),
     };
     if let Some(conn) = hub.inner.conns.lock().unwrap().get(&slug).cloned() {
         conn.attached.lock().unwrap().remove(&raw);
+        conn.forget_offset(&raw);
         let _ = conn.send(json!({ "t": "unsub", "id": raw }).to_string());
     }
     Ok(())
@@ -2209,6 +2410,224 @@ fn local_name() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sub_frame_carries_from_only_once_an_offset_is_known() {
+        let conn = PeerConn::new("aabbccdd");
+        let parse = |s: String| serde_json::from_str::<Value>(&s).unwrap();
+
+        let fresh = parse(conn.sub_frame("web-3"));
+        assert_eq!(fresh.get("t").and_then(Value::as_str), Some("sub"));
+        assert_eq!(fresh.get("id").and_then(Value::as_str), Some("web-3"));
+        assert!(fresh.get("from").is_none());
+
+        conn.anchor_offset("web-3", Some(4096));
+        let resumed = parse(conn.sub_frame("web-3"));
+        assert_eq!(resumed.get("from").and_then(Value::as_u64), Some(4096));
+
+        // A host that reports no offset predates the resume contract: forget what we
+        // had so the next sub asks for a full reseed rather than a stale resume.
+        conn.anchor_offset("web-3", None);
+        assert!(parse(conn.sub_frame("web-3")).get("from").is_none());
+    }
+
+    #[test]
+    fn screen_reset_never_touches_input_side_modes() {
+        // A soft reset would take bracketed paste, application cursor keys and
+        // application keypad down with it in xterm.js. The remote program advertised
+        // those once at startup and never will again, and this app reads bracketed
+        // paste off the emulator to decide how to send what the user types.
+        assert!(!SCREEN_RESET.contains("\x1b[!p"));
+        assert!(!SCREEN_RESET.contains("\x1bc"));
+        assert!(SCREEN_RESET.ends_with("\x1b[2J\x1b[3J\x1b[H"));
+    }
+
+    fn held_offset(conn: &PeerConn, id: &str) -> Option<u64> {
+        conn.offsets.lock().unwrap().get(id).copied()
+    }
+
+    #[test]
+    fn advance_offset_reads_a_chunks_position_against_what_was_applied() {
+        // Contiguous: the chunk starts exactly where we stopped.
+        assert_eq!(advance_offset(1000, 1010, 10), Some(1010));
+        // Gap: the host dropped frames, so 1000..1005 never arrived.
+        assert_eq!(advance_offset(1000, 1015, 10), None);
+        // Overlap: bytes we already have, arriving again. Keep the furthest point.
+        assert_eq!(advance_offset(1000, 1005, 10), Some(1005));
+        assert_eq!(advance_offset(1000, 998, 10), Some(1000));
+        // A first chunk on a stream still at zero is contiguous, not a gap.
+        assert_eq!(advance_offset(0, 8, 8), Some(8));
+    }
+
+    #[test]
+    fn extend_offset_forgets_the_position_once_bytes_are_lost() {
+        let conn = PeerConn::new("aabbccdd");
+        conn.anchor_offset("web-3", Some(100));
+
+        conn.extend_offset("web-3", Some(105), "hello".as_bytes().len());
+        assert_eq!(held_offset(&conn, "web-3"), Some(105));
+
+        // Re-delivery of bytes already applied is not loss: stay resumable.
+        conn.extend_offset("web-3", Some(103), "hel".as_bytes().len());
+        assert_eq!(held_offset(&conn, "web-3"), Some(105));
+
+        // Byte length, not char count: three chars but five bytes, so this chunk
+        // starts at 105 and continues the stream.
+        conn.extend_offset("web-3", Some(110), "a√b".as_bytes().len());
+        assert_eq!(held_offset(&conn, "web-3"), Some(110));
+
+        // A chunk starting past 110 means the bytes between were dropped.
+        conn.extend_offset("web-3", Some(200), "gap".as_bytes().len());
+        assert_eq!(held_offset(&conn, "web-3"), None);
+
+        // And it stays forgotten: live output applied onto a screen with a hole in
+        // it must not re-anchor a position to resume from. Only a replay may.
+        conn.extend_offset("web-3", Some(210), "more".as_bytes().len());
+        assert_eq!(held_offset(&conn, "web-3"), None);
+        conn.anchor_offset("web-3", Some(210));
+        assert_eq!(held_offset(&conn, "web-3"), Some(210));
+
+        // A host that reports no offset can't be resumed from at all.
+        conn.extend_offset("web-3", None, 4);
+        assert_eq!(held_offset(&conn, "web-3"), None);
+    }
+
+    #[test]
+    fn attaching_without_resume_drops_the_offset_before_subscribing() {
+        let parse = |s: String| serde_json::from_str::<Value>(&s).unwrap();
+        let conn = PeerConn::new("aabbccdd");
+        let (tx, rx) = mpsc::sync_channel(4);
+        *conn.out.lock().unwrap() = Some(tx);
+        conn.anchor_offset("web-3", Some(4096));
+
+        // The pane's screen survived, so only the missed bytes are wanted.
+        conn.subscribe("web-3", true);
+        let resumed = parse(rx.recv().unwrap());
+        assert_eq!(resumed.get("from").and_then(Value::as_u64), Some(4096));
+        assert!(conn.attached.lock().unwrap().contains("web-3"));
+
+        // A reload built a blank emulator: the stored offset describes a screen that
+        // no longer exists, so it goes before the sub asks for a full replay.
+        conn.subscribe("web-3", false);
+        let full = parse(rx.recv().unwrap());
+        assert_eq!(full.get("id").and_then(Value::as_str), Some("web-3"));
+        assert!(full.get("from").is_none());
+        assert_eq!(held_offset(&conn, "web-3"), None);
+    }
+
+    fn live_conn() -> (PeerConn, mpsc::Receiver<String>) {
+        let conn = PeerConn::new("aabbccdd");
+        let (tx, rx) = mpsc::sync_channel(8);
+        *conn.out.lock().unwrap() = Some(tx);
+        conn.connected.store(true, Ordering::Relaxed);
+        (conn, rx)
+    }
+
+    #[test]
+    fn resubscribing_a_live_stream_never_asks_for_bytes_it_already_took() {
+        let parse = |s: String| serde_json::from_str::<Value>(&s).unwrap();
+        let (conn, rx) = live_conn();
+
+        conn.subscribe("web-3", true);
+        assert_eq!(
+            parse(rx.recv().unwrap()).get("t").and_then(Value::as_str),
+            Some("sub")
+        );
+
+        // The pane remounted (switched away from the project and back) while the
+        // subscription stayed up. Everything since the offset already reached the
+        // emulator live, so asking to resume would write it all a second time.
+        conn.anchor_offset("web-3", Some(4096));
+        conn.subscribe("web-3", true);
+        assert!(rx.try_recv().is_err());
+        assert_eq!(held_offset(&conn, "web-3"), Some(4096));
+
+        // A blank emulator still asks, live subscription or not: only a reset seed
+        // can put a screen on it, and it overwrites whatever the stream delivers.
+        conn.subscribe("web-3", false);
+        let reseed = parse(rx.recv().unwrap());
+        assert_eq!(reseed.get("id").and_then(Value::as_str), Some("web-3"));
+        assert!(reseed.get("from").is_none());
+    }
+
+    #[test]
+    fn resubscribing_still_asks_whenever_the_stream_could_have_stopped() {
+        let parse = |s: String| serde_json::from_str::<Value>(&s).unwrap();
+        // What stop_conn/start_conn mints: a fresh PeerConn attached to nothing, so
+        // the pane that was live on the retired connection is subscribed again.
+        let (conn, rx) = live_conn();
+        conn.subscribe("web-3", true);
+        assert_eq!(
+            parse(rx.recv().unwrap()).get("id").and_then(Value::as_str),
+            Some("web-3")
+        );
+
+        // Attached, but the connection is down: the stream did stop, so re-attaching
+        // asks to resume it rather than assuming the host is still sending.
+        conn.anchor_offset("web-3", Some(64));
+        conn.connected.store(false, Ordering::Relaxed);
+        conn.subscribe("web-3", true);
+        let resumed = parse(rx.recv().unwrap());
+        assert_eq!(resumed.get("from").and_then(Value::as_u64), Some(64));
+    }
+
+    #[test]
+    fn detected_loss_asks_the_host_to_rebuild_the_screen() {
+        let parse = |s: String| serde_json::from_str::<Value>(&s).unwrap();
+        let (conn, rx) = live_conn();
+        conn.subscribe("web-3", true);
+        let _ = rx.recv().unwrap();
+        conn.anchor_offset("web-3", Some(100));
+
+        // Output that continues the screen repairs nothing.
+        conn.extend_offset("web-3", Some(105), 5);
+        assert!(rx.try_recv().is_err());
+
+        // A gap: the chunk still reaches the emulator, so the pane is left showing a
+        // screen with a hole in it until the host replays from scratch.
+        conn.extend_offset("web-3", Some(200), 3);
+        let repair = parse(rx.recv().unwrap());
+        assert_eq!(repair.get("t").and_then(Value::as_str), Some("sub"));
+        assert_eq!(repair.get("id").and_then(Value::as_str), Some("web-3"));
+        assert!(repair.get("from").is_none());
+        assert_eq!(held_offset(&conn, "web-3"), None);
+
+        // A host that reports no offsets predates the contract — there is no gap to
+        // read and nothing it could replay differently.
+        conn.anchor_offset("web-3", Some(300));
+        conn.extend_offset("web-3", None, 4);
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn loss_repair_is_paced_so_a_losing_stream_cannot_resubscribe_in_a_loop() {
+        let (conn, rx) = live_conn();
+        conn.anchor_offset("web-3", Some(100));
+        conn.extend_offset("web-3", Some(200), 3);
+        assert!(rx.try_recv().is_ok());
+
+        // Loss again right after the replay landed: a second full replay down a queue
+        // that is already dropping frames is what caused this, so it waits.
+        conn.anchor_offset("web-3", Some(300));
+        conn.extend_offset("web-3", Some(400), 3);
+        assert!(rx.try_recv().is_err());
+
+        // Once the window has passed, a stream that loses bytes repairs again.
+        conn.last_resync
+            .lock()
+            .unwrap()
+            .insert("web-3".into(), Instant::now() - RESYNC_MIN_INTERVAL);
+        conn.anchor_offset("web-3", Some(500));
+        conn.extend_offset("web-3", Some(600), 3);
+        assert!(rx.try_recv().is_ok());
+
+        // A detach or an exit ends the stream: the next screen on that id repairs
+        // itself immediately instead of inheriting the old one's pacing.
+        conn.forget_offset("web-3");
+        conn.anchor_offset("web-3", Some(700));
+        conn.extend_offset("web-3", Some(800), 3);
+        assert!(rx.try_recv().is_ok());
+    }
 
     #[test]
     fn parse_prefixed_splits_slug_and_raw_id() {

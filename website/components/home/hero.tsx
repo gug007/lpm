@@ -19,12 +19,14 @@ export function Hero() {
           Built for Mac developers
         </p>
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          Run every local project, service, and AI agent without port conflicts.
+          Switch projects in one click, duplicate in seconds, run coding agents
+          in parallel.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed tracking-wide">
           lpm is the free, open-source local dev process manager for Mac. Start,
-          stop, duplicate, and switch full stacks, with one-click terminals for
-          Claude Code and Codex.
+          stop, and switch whole projects with live output per service, next to
+          one-click terminals for Claude Code and Codex — every duplicate keeps
+          its dependencies and uncommitted work intact.
         </p>
 
         <div className="mt-9 max-w-xl mx-auto space-y-4">

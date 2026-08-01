@@ -31,7 +31,8 @@ function emit(name: string, payload: unknown) {
 }
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
-const { subscribePeerGlobalEvent } = await import("./route");
+const { subscribePeerGlobalEvent, routedInvoke } = await import("./route");
+const invokeMock = vi.mocked((await import("@tauri-apps/api/core")).invoke);
 
 describe("subscribePeerGlobalEvent connect sequence (M1 regression)", () => {
   it("taps a peer only after it connects, then delivers translated payloads", async () => {
@@ -63,5 +64,19 @@ describe("subscribePeerGlobalEvent connect sequence (M1 regression)", () => {
     expect(h.listeners.some((l) => l.name === "peer-evt-aaaaaaaa")).toBe(false);
 
     off();
+  });
+});
+
+// Exactly one side subscribes a peer terminal: the pane that renders it, on
+// mount, because only it knows whether its emulator may resume. Subscribing the
+// id here as well made every remote terminal open with two full replays.
+describe("start_terminal", () => {
+  it("prefixes the new terminal id without subscribing it", async () => {
+    invokeMock.mockClear();
+    const id = await routedInvoke("start_terminal", { name: prefixName("aaaaaaaa", "proj") });
+
+    expect(typeof id).toBe("string");
+    expect(String(id).startsWith(prefixName("aaaaaaaa", ""))).toBe(true);
+    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "peer_term_attach")).toBe(false);
   });
 });
