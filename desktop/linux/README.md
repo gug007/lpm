@@ -85,6 +85,36 @@ Prefer `--bind` on anything with a public IP. `--lan` also answers on the public
 interface, leaving the peer port on the open internet guarded only by the pairing
 code and the pinned certificate. `lpm connections` shows which address is live.
 
+## Agent skills
+
+The agent skills that teach a coding agent how to drive lpm (`lpm`, `lpm-cli`,
+`lpm-config`, `lpm-memory`) are installed here by the app itself, into the service
+account's `~/.claude/skills` and `~/.agents/skills`, on every start. They ship
+inside the binary, so there is nothing to download and nothing to keep in step by
+hand: the first start installs them, and any start that finds them differing from
+the copies in the running binary rewrites them. Updating lpm on this machine
+therefore updates its skills — the new binary restarts into the same pass.
+
+This is the one thing a host does without being asked, and deliberately: on a Mac
+it is a button in Settings → Agent tools, and there is no pane in front of anyone
+here. A machine that exists to run agents is the last place they should be
+missing.
+
+When that isn't enough — a start that failed to write them, or files removed by
+hand — the Mac's **Settings → Connections → the host's ⋯ menu** has *Reinstall
+skills there*, which asks the host to write its own copies again. It restarts
+nothing, so unlike *Update lpm there* it costs no running agents. The row says
+`skills out of date` when it already knows there is something to fix, and the
+entry is hidden while the host is a release behind — there the skills to install
+are the ones its next binary carries.
+
+To keep them off this machine, say so where deleting the files cannot — the next
+start would only write them back:
+
+```sh
+sudo -H touch /root/.lpm/no-agent-skills
+```
+
 ## Removing lpm
 
 From the Mac: **Settings → Connections → the host's ⋯ menu → Remove lpm from this

@@ -277,8 +277,10 @@ pub fn run() {
             // Silently refresh what the user already opted into installing:
             // stale agent skills and active status-line presets get re-written,
             // and a stale CLI symlink gets repointed. Foreign installs stay alone.
+            // On a headless host the skills are installed here outright — there
+            // is no pane to opt in from; see refresh_at_startup.
             std::thread::spawn(|| {
-                skill_install::refresh_if_outdated();
+                skill_install::refresh_at_startup();
                 cli_install::repair_symlink_quietly();
                 hooks::reapply_claude_limits_if_enabled();
                 hooks::refresh_active_claude_statusline_template();

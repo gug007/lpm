@@ -90,6 +90,17 @@ rm -rf "$PREFIX"
 rm -f "$ENV_DIR/host.env"
 rmdir "$ENV_DIR" 2>/dev/null || true
 
+# The agent skills the app writes into the service account's skill directories on
+# every start. Named directories, removed one by one: these directories are shared
+# with every other skill on the machine, and none of those are ours to delete.
+# The Mac's own uninstall takes the same set the same way.
+echo "==> Removing agent skills"
+for skills_dir in "$SERVICE_HOME/.claude/skills" "$SERVICE_HOME/.agents/skills"; do
+    for skill in lpm lpm-cli lpm-config lpm-memory; do
+        rm -rf "$skills_dir/$skill"
+    done
+done
+
 if [ "$PURGE" = "1" ]; then
     echo "==> Deleting $SERVICE_HOME/.lpm"
     rm -rf "$SERVICE_HOME/.lpm"

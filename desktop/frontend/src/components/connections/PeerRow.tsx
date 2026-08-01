@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Server } from "lucide-react";
 import {
+  PeerInvoke,
   PeerReconnect,
   PeerSetEnabled,
   PeerUninstallHost,
@@ -16,6 +17,13 @@ import { RowMenu } from "./RowMenu";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { isLinuxHost } from "../../peer/platform";
 import { isHostBehind } from "../../peer/hostVersion";
+import {
+  hostSkillError,
+  hostSkillLabel,
+  hostSkillNote,
+  parseHostSkillState,
+  type HostSkillState,
+} from "../../peer/hostSkills";
 
 const PILL_CLASS =
   "shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60";
@@ -47,10 +55,16 @@ export function PeerRow({
   // and it is not one to carry over from a dialog someone already cancelled.
   const [purgeData, setPurgeData] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [installingSkills, setInstallingSkills] = useState(false);
+  const [skills, setSkills] = useState<HostSkillState>("unknown");
   // Installing is only possible on a machine we can reach ourselves, which is
   // what sshHost means. A Mac we merely dial has no such action.
   const reachable = !!peer.sshHost;
   const behind = reachable && isHostBehind(peer.version ?? "", appVersion);
+  // Skills ride the peer connection rather than SSH, so this covers a host we
+  // only reach through a tunnel too. A paired Mac is left out on purpose: it has
+  // the same button in its own Settings, and its answer there is its own.
+  const skillsActionable = live && isLinuxHost(peer) && !behind;
   // One action either way — it always installs the current release — so the label
   // only says which of the two the user is really doing.
   const actionLabel = behind ? "Update" : "Reinstall";
@@ -67,6 +81,38 @@ export function PeerRow({
     const timer = setTimeout(() => setRetrying(false), 4000);
     return () => clearTimeout(timer);
   }, [retrying, peer.connected]);
+
+  // Asked of the host, not worked out here: it compares what is on its disk
+  // against the copies inside the binary it is running, which is the only
+  // comparison that means anything on a machine that may be a release behind.
+  const loadSkills = useCallback(async () => {
+    if (!skillsActionable) return;
+    try {
+      setSkills(parseHostSkillState(await PeerInvoke(peer.slug, "agent_skill_status", {})));
+    } catch {
+      setSkills("unknown");
+    }
+  }, [skillsActionable, peer.slug]);
+
+  useEffect(() => {
+    void loadSkills();
+  }, [loadSkills]);
+
+  // No confirmation and no dialog, deliberately: this writes a dozen files and
+  // restarts nothing, which is the entire reason it is separate from the update
+  // above. Re-reads the host's own answer afterwards rather than assuming.
+  const installSkills = async () => {
+    setInstallingSkills(true);
+    setActionError(null);
+    try {
+      await PeerInvoke(peer.slug, "install_agent_skill", {});
+      await loadSkills();
+    } catch (err) {
+      setActionError(hostSkillError(String(err)));
+    } finally {
+      setInstallingSkills(false);
+    }
+  };
 
   const update = async () => {
     setUpdating(true);
@@ -132,6 +178,8 @@ export function PeerRow({
             />
           ) : removing ? (
             <StatusLine tone="pending" text="Removing lpm over SSH…" />
+          ) : installingSkills ? (
+            <StatusLine tone="pending" text="Installing skills…" />
           ) : retrying ? (
             <StatusLine tone="pending" text="Reconnecting…" />
           ) : actionError ? (
@@ -141,7 +189,7 @@ export function PeerRow({
               tone={status.tone}
               text={status.text}
               detail={status.detail}
-              note={versionNote(peer, behind)}
+              note={versionNote(peer, behind, skills)}
             />
           )}
         </div>
@@ -171,6 +219,20 @@ export function PeerRow({
                     label: behind ? "Update lpm there" : "Reinstall lpm there",
                     disabled: updating || removing,
                     onClick: () => setConfirming(true),
+                  },
+                ]
+              : []),
+            // Below the full install and above the destructive half: the cheap
+            // fix for the one part of a host that can be stale on its own. Not
+            // offered while the host is a release behind — there the skills that
+            // belong on it are the ones its next binary carries, and updating
+            // lpm installs them on the way up.
+            ...(skillsActionable
+              ? [
+                  {
+                    label: hostSkillLabel(skills),
+                    disabled: updating || removing || installingSkills,
+                    onClick: () => void installSkills(),
                   },
                 ]
               : []),
@@ -260,7 +322,11 @@ export function PeerRow({
 // Shown whenever we know it, not only when there's something to do about it: it's
 // how you tell what a server is running without opening a terminal on it. Hosts
 // only — someone else's Mac keeps itself up to date and isn't yours to mind.
-function versionNote(peer: PeerClient, behind: boolean): string {
+function versionNote(peer: PeerClient, behind: boolean, skills: HostSkillState): string {
   if (!isLinuxHost(peer) || !peer.version) return "";
-  return behind ? ` · lpm ${peer.version} (update available)` : ` · lpm ${peer.version}`;
+  // One thing to fix at a time. A host that is behind gets told that and nothing
+  // else — its skills come with the update, so naming them too would be two
+  // problems where there is one.
+  if (behind) return ` · lpm ${peer.version} (update available)`;
+  return ` · lpm ${peer.version}${hostSkillNote(skills)}`;
 }

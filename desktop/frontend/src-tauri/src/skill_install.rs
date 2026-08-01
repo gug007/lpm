@@ -194,22 +194,60 @@ fn overall_status(dirs: &[PathBuf]) -> &'static str {
     }
 }
 
-fn refresh_all(dirs: &[PathBuf]) {
-    if overall_status(dirs) != "outdated" {
-        return;
-    }
+fn write_all(dirs: &[PathBuf], what: &str) {
     for d in dirs {
         if let Err(e) = install_at(d) {
-            eprintln!("warning: agent skill refresh failed: {e}");
+            eprintln!("warning: agent skill {what} failed: {e}");
         }
     }
 }
 
-/// Startup repair: silently re-write the skills only when a previous install
-/// exists but is stale or incomplete. Never installs fresh — absence means the
-/// user never opted in (or removed them deliberately).
-pub fn refresh_if_outdated() {
-    refresh_all(&targets());
+fn refresh_all(dirs: &[PathBuf]) {
+    if overall_status(dirs) != "outdated" {
+        return;
+    }
+    write_all(dirs, "refresh");
+}
+
+fn ensure_all(dirs: &[PathBuf]) {
+    if overall_status(dirs) == "installed" {
+        return;
+    }
+    write_all(dirs, "install");
+}
+
+/// A host operator's only way to say "no lpm skills on this machine". The opt-in
+/// gate is a button in a pane nobody is in front of here, so deleting the files
+/// can't carry that meaning — the next start would just write them back.
+const HOST_OPT_OUT: &str = "no-agent-skills";
+
+fn opted_out_at(lpm_dir: &std::path::Path) -> bool {
+    lpm_dir.join(HOST_OPT_OUT).exists()
+}
+
+/// Startup pass, and the whole install path on a headless host.
+///
+/// On a Mac this only repairs what the user already opted into: stale or
+/// incomplete installs get re-written, absence is left alone because it means
+/// they never clicked Install (or deliberately removed them).
+///
+/// A Linux host has no Settings pane, so absence there can only ever mean nobody
+/// could be asked — and a machine whose entire purpose is running agents is the
+/// last place the skills describing lpm to those agents should be missing. So it
+/// installs on the first start and keeps the files current on every start after,
+/// which is also what makes `Update lpm there` update them: the new binary
+/// carries new copies and the unit restarts into this. `install_agent_hooks`
+/// already writes into the same home directory on the same terms.
+pub fn refresh_at_startup() {
+    let dirs = targets();
+    // cfg!, not #[cfg] — the host branch then compiles on a Mac too, so it is
+    // type-checked by the build everyone actually runs. lpm_dir() is not touched
+    // off-Linux; the constant folds the call away.
+    if cfg!(target_os = "linux") && !opted_out_at(&crate::config::lpm_dir()) {
+        ensure_all(&dirs);
+        return;
+    }
+    refresh_all(&dirs);
 }
 
 #[tauri::command(async)]
@@ -391,6 +429,37 @@ mod tests {
         assert_eq!(overall_status(&dirs), "outdated");
         refresh_all(&dirs);
         assert_eq!(overall_status(&dirs), "installed");
+    }
+
+    #[test]
+    fn ensure_installs_where_refresh_would_not() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        let dirs = pair(&a, &b);
+        refresh_all(&dirs);
+        assert_eq!(overall_status(&dirs), "not-installed");
+        ensure_all(&dirs);
+        assert_eq!(overall_status(&dirs), "installed");
+    }
+
+    #[test]
+    fn ensure_rewrites_stale_files() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        install_at(a.path()).unwrap();
+        install_at(b.path()).unwrap();
+        std::fs::write(a.path().join("lpm-config/SKILL.md"), "stale").unwrap();
+        let dirs = pair(&a, &b);
+        ensure_all(&dirs);
+        assert_eq!(overall_status(&dirs), "installed");
+    }
+
+    #[test]
+    fn opt_out_marker_is_the_files_absence_made_deliberate() {
+        let lpm = tempfile::tempdir().unwrap();
+        assert!(!opted_out_at(lpm.path()));
+        std::fs::write(lpm.path().join(HOST_OPT_OUT), "").unwrap();
+        assert!(opted_out_at(lpm.path()));
     }
 
     #[test]

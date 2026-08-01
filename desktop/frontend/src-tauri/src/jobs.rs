@@ -723,6 +723,49 @@ fn push_entry(st: &mut JobState, entry: HistoryEntry) {
     }
 }
 
+/// How far apart the pipeline's clock and the captured run's own start clock
+/// can land for the same spawn.
+const PLACEHOLDER_SKEW_SECS: u64 = 5;
+
+/// Outcomes only a captured run ever ends in — the pipeline never writes them
+/// itself, so an entry carrying one closes the run its marker opened.
+fn is_captured_outcome(result: &str) -> bool {
+    matches!(result, COMPLETED | TIMED_OUT | CONTEXT_FULL)
+}
+
+/// Whether `entry` is the "found work" marker that older builds wrote when
+/// `next` was spawned.
+fn is_run_placeholder(entry: &HistoryEntry, next: &HistoryEntry) -> bool {
+    if entry.result != FOUND_WORK || entry.output.is_some() || entry.copy != next.copy {
+        return false;
+    }
+    match next.duration_secs {
+        // A captured run names the second it started — when it landed, less how
+        // long it ran — which is the marker's own timestamp.
+        Some(secs) => next.at.saturating_sub(secs).abs_diff(entry.at) <= PLACEHOLDER_SKEW_SECS,
+        // A run salvaged after the app closed mid-flight has no duration to
+        // match on; what it ended in is enough to place it.
+        None => is_captured_outcome(&next.result),
+    }
+}
+
+/// Drop the markers older builds left in front of their runs, so a finished run
+/// is one row that says how it went rather than two, the second of which reads
+/// "running" forever.
+fn prune_run_placeholders(st: &mut JobState) {
+    let mut kept: Vec<HistoryEntry> = Vec::with_capacity(st.history.len());
+    for (i, entry) in st.history.iter().enumerate() {
+        let paired = st
+            .history
+            .get(i + 1)
+            .is_some_and(|next| is_run_placeholder(entry, next));
+        if !paired {
+            kept.push(entry.clone());
+        }
+    }
+    st.history = kept;
+}
+
 enum LockDecision {
     Acquire,
     Busy,
@@ -814,6 +857,11 @@ struct Outcome {
     /// on the history entry so the feed can explain a failure instead of
     /// showing a bare "Problem during the run".
     note: Option<String>,
+    /// Whether the pipeline writes this outcome to the history. A captured run
+    /// is recorded by its watcher once the agent is done; an entry here too
+    /// would leave every finished run trailed by a blank row still reading
+    /// "running".
+    record: bool,
 }
 
 fn err_outcome(note: impl Into<String>) -> Outcome {
@@ -822,11 +870,18 @@ fn err_outcome(note: impl Into<String>) -> Outcome {
         copy: None,
         advance: true,
         note: Some(note.into()),
+        record: true,
     }
 }
 
 enum Dispatch {
+    /// The work was handed off — an action opened in the app — and nothing
+    /// reports back afterwards, so the pipeline's own entry is the only record
+    /// the run ever gets.
     Ran,
+    /// A headless run whose watcher writes the outcome entry when the agent
+    /// exits.
+    Captured,
     Parked,
     Error,
 }
@@ -1581,7 +1636,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                 let (project, job_id) = key2.split_once('/').unwrap_or((key2.as_str(), ""));
                 emit_status(&app2, project, job_id, result, &None);
             });
-            Dispatch::Ran
+            Dispatch::Captured
         }
         Err(_) => Dispatch::Error,
     }
@@ -1682,6 +1737,7 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
                 copy: None,
                 advance: false,
                 note: None,
+                record: true,
             };
         }
     }
@@ -1704,6 +1760,7 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
                     copy: None,
                     advance: true,
                     note: None,
+                    record: true,
                 }
             }
             Err(e) if e == "check timed out" => {
@@ -1748,27 +1805,42 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
             copy,
             advance: true,
             note: None,
+            record: true,
         };
     }
 
-    match dispatch_run(app, key, &target, job) {
+    dispatch_outcome(dispatch_run(app, key, &target, job), copy)
+}
+
+fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
+    match dispatch {
         Dispatch::Ran => Outcome {
             result: FOUND_WORK,
             copy,
             advance: true,
             note: None,
+            record: true,
+        },
+        Dispatch::Captured => Outcome {
+            result: FOUND_WORK,
+            copy,
+            advance: true,
+            note: None,
+            record: false,
         },
         Dispatch::Parked => Outcome {
             result: PENDING_WINDOW,
             copy,
             advance: true,
             note: None,
+            record: true,
         },
         Dispatch::Error => Outcome {
             result: ERROR,
             copy,
             advance: true,
             note: Some("The run couldn't start.".to_string()),
+            record: true,
         },
     }
 }
@@ -1889,6 +1961,7 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
             copy: outcome.copy,
             advance: true,
             note: None,
+            record: true,
         };
     }
     let at = now_secs();
@@ -1897,16 +1970,18 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
         // like the agent watcher, never resurrect it with a ghost entry.
         if let Some(st) = f.jobs.get_mut(&key) {
             st.running = None;
-            push_entry(
-                st,
-                HistoryEntry {
-                    at,
-                    result: outcome.result.to_string(),
-                    copy: outcome.copy.clone(),
-                    output: outcome.note.clone(),
-                    ..HistoryEntry::default()
-                },
-            );
+            if outcome.record {
+                push_entry(
+                    st,
+                    HistoryEntry {
+                        at,
+                        result: outcome.result.to_string(),
+                        copy: outcome.copy.clone(),
+                        output: outcome.note.clone(),
+                        ..HistoryEntry::default()
+                    },
+                );
+            }
             if outcome.advance {
                 st.last_run_at = Some(at);
             }
@@ -2171,6 +2246,11 @@ fn tick(app: &AppHandle) {
 
 pub fn start_scheduler(app: AppHandle) {
     std::thread::spawn(move || {
+        let _ = with_state(|f| {
+            for st in f.jobs.values_mut() {
+                prune_run_placeholders(st);
+            }
+        });
         // Settle what the previous app process left behind before the first
         // due check, so an adopted run blocks its job from double-running.
         reconcile_orphans(&app);
@@ -2587,7 +2667,7 @@ pub fn send_job_followup(
         },
     };
     match spawn_captured(&app, &key, &root, spec) {
-        Dispatch::Ran => {
+        Dispatch::Captured => {
             emit_status(&app, &project, &job_id, RUNNING, &None);
             Ok(())
         }
@@ -3338,6 +3418,97 @@ mod tests {
                 (6, NOTHING_TO_DO, Some(3)),
             ],
         );
+    }
+
+    #[test]
+    fn a_captured_run_is_recorded_once_by_its_watcher() {
+        let captured = dispatch_outcome(Dispatch::Captured, Some("proj-abc123".into()));
+        assert_eq!(captured.result, FOUND_WORK);
+        assert!(captured.advance);
+        assert!(
+            !captured.record,
+            "the watcher writes the run's entry when the agent exits"
+        );
+        // Everything the pipeline hands off is only ever recorded here.
+        for dispatch in [Dispatch::Ran, Dispatch::Parked, Dispatch::Error] {
+            assert!(dispatch_outcome(dispatch, None).record);
+        }
+    }
+
+    #[test]
+    fn legacy_run_markers_are_pruned_from_history() {
+        let done = |at: u64, secs: u64| HistoryEntry {
+            at,
+            result: COMPLETED.to_string(),
+            output: Some("all set".into()),
+            duration_secs: Some(secs),
+            ..HistoryEntry::default()
+        };
+        let history = vec![
+            // The marker an older build wrote when the run below was spawned.
+            entry(100, FOUND_WORK, None, None, None, None),
+            done(189, 89),
+            // An action job's marker: nothing reports back, so it stays.
+            entry(200, FOUND_WORK, None, None, None, None),
+            entry(300, NOTHING_TO_DO, None, None, None, None),
+            // A run that started long after the marker before it is its own.
+            entry(400, FOUND_WORK, None, None, None, None),
+            done(900, 30),
+            // A run salvaged after the app closed mid-flight kept no duration.
+            entry(1000, FOUND_WORK, None, None, None, None),
+            entry(1100, COMPLETED, Some("picked up from the log"), None, None, None),
+            // The check failing on the next tick is not that marker's run.
+            entry(1200, FOUND_WORK, None, None, None, None),
+            entry(1300, ERROR, Some("The check couldn't run."), None, None, None),
+        ];
+        let mut st = JobState {
+            history,
+            ..JobState::default()
+        };
+        prune_run_placeholders(&mut st);
+        let got: Vec<(u64, &str)> = st
+            .history
+            .iter()
+            .map(|h| (h.at, h.result.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (189, COMPLETED),
+                (200, FOUND_WORK),
+                (300, NOTHING_TO_DO),
+                (400, FOUND_WORK),
+                (900, COMPLETED),
+                (1100, COMPLETED),
+                (1200, FOUND_WORK),
+                (1300, ERROR),
+            ],
+        );
+    }
+
+    #[test]
+    fn pruning_keeps_the_copy_a_run_worked_in() {
+        let mut st = JobState {
+            history: vec![
+                HistoryEntry {
+                    at: 10,
+                    result: FOUND_WORK.to_string(),
+                    copy: Some("proj-abc123".into()),
+                    ..HistoryEntry::default()
+                },
+                HistoryEntry {
+                    at: 70,
+                    result: COMPLETED.to_string(),
+                    copy: Some("proj-abc123".into()),
+                    duration_secs: Some(60),
+                    ..HistoryEntry::default()
+                },
+            ],
+            ..JobState::default()
+        };
+        prune_run_placeholders(&mut st);
+        assert_eq!(st.history.len(), 1);
+        assert_eq!(st.history[0].copy.as_deref(), Some("proj-abc123"));
     }
 
     #[test]

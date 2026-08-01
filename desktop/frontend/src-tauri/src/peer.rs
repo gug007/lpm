@@ -1571,7 +1571,14 @@ fn is_denied(cmd: &str) -> bool {
             | "install_kokoro"
             | "uninstall_kokoro"
             | "install_cli"
-            | "install_agent_skill"
+            // install_agent_skill is deliberately NOT here, alone among the
+            // installers. It writes the host's OWN embedded copies, so it can't
+            // skew them against the binary that is running; it restarts nothing,
+            // so it costs none of the agents a reinstall would; and a headless
+            // host's skills are precisely the thing its Mac has no other way to
+            // repair. The Mac's own Settings button can't arrive here by
+            // accident either — it carries no arguments, so nothing marks it for
+            // a host and it stays local (see router.ts).
             | "uninstall_app"
             // accounts / login
             | "load_claude_accounts"
@@ -2121,6 +2128,12 @@ mod tests {
         assert!(is_denied("save_generator_icon"));
         assert!(is_denied("save_terminals"));
         assert!(is_denied("stop_all"));
+        // The one installer a peer may run, and the status call that decides
+        // whether to offer it. Every other installer stays blocked.
+        assert!(!is_denied("install_agent_skill"));
+        assert!(!is_denied("agent_skill_status"));
+        assert!(is_denied("install_cli"));
+        assert!(is_denied("uninstall_app"));
         // Project-scoped operations flow through to the webview dispatcher.
         assert!(!is_denied("list_projects"));
         assert!(!is_denied("git_status"));
