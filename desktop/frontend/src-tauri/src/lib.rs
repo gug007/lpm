@@ -59,6 +59,7 @@ mod ptyring;
 mod remote;
 mod remote_memory;
 mod remote_notes;
+mod remotestore;
 mod remotetls;
 mod services;
 mod session_memory;

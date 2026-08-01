@@ -208,15 +208,29 @@ struct ActivityScreen: View {
         .activityRowChrome()
     }
 
+    // An empty list here means "nothing is running" only when the Mac is actually
+    // answering; while it refuses this device there is nothing to report on.
+    @ViewBuilder
     private var emptyState: some View {
-        let narrowed = !query.trimmingCharacters(in: .whitespaces).isEmpty || kind != .all
-        return ContentUnavailableView {
-            Label(narrowed ? "Nothing matches" : "Nothing is running",
-                  systemImage: narrowed ? "magnifyingglass" : "moon.zzz")
-        } description: {
-            Text(narrowed
-                 ? "Try a different search, or switch back to All."
-                 : "Start a supported agent in an open project, or run an automation. Terminal sessions aren't tracked.")
+        if model.needsRepair {
+            ContentUnavailableView {
+                Label("Not connected to your Mac", systemImage: "macbook.and.iphone")
+            } description: {
+                Text("Your Mac no longer recognizes this device, so its activity can't be shown. Pair with it again to restore access.")
+            } actions: {
+                Button("Pair Again") { model.repairActiveMac() }
+                    .buttonStyle(.borderedProminent)
+            }
+        } else {
+            let narrowed = !query.trimmingCharacters(in: .whitespaces).isEmpty || kind != .all
+            ContentUnavailableView {
+                Label(narrowed ? "Nothing matches" : "Nothing is running",
+                      systemImage: narrowed ? "magnifyingglass" : "moon.zzz")
+            } description: {
+                Text(narrowed
+                     ? "Try a different search, or switch back to All."
+                     : "Start a supported agent in an open project, or run an automation. Terminal sessions aren't tracked.")
+            }
         }
     }
 

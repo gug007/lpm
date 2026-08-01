@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { Modal } from "./ui/Modal";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PlusIcon, SmartphoneIcon } from "./icons";
+import { PairingModal, type Pairing } from "./PairingModal";
+import { RemoteNotice } from "./RemoteNotice";
 import {
   RemoteState,
   RemoteSetConfig,
@@ -8,6 +9,15 @@ import {
   RemoteRevokeDevice,
 } from "../../bridge/commands";
 import { EventsOn, BrowserOpenURL } from "../../bridge/runtime";
+import {
+  REMOTE_TONE_STYLE,
+  commandFailure,
+  mergeCommandState,
+  mergeRefreshedState,
+  remoteStatus,
+  type RemoteAction,
+  type RemoteFailure,
+} from "../remoteStatus";
 
 const APP_STORE_URL = "https://apps.apple.com/app/lpm-link/id6788396977";
 
@@ -26,16 +36,9 @@ interface RemoteStateShape {
   tailscaleHost: string | null;
   identityRotated: boolean;
   hasPendingCode: boolean;
+  bindError: string | null;
+  configError: string | null;
   devices: Device[];
-}
-
-interface Pairing {
-  code: string;
-  url: string;
-  svg: string | null;
-  host: string;
-  hosts: string[];
-  port: number;
 }
 
 const DEFAULT_STATE: RemoteStateShape = {
@@ -47,6 +50,8 @@ const DEFAULT_STATE: RemoteStateShape = {
   tailscaleHost: null,
   identityRotated: false,
   hasPendingCode: false,
+  bindError: null,
+  configError: null,
   devices: [],
 };
 
@@ -109,72 +114,108 @@ export function MobileSettingsPane() {
   const [state, setState] = useState<RemoteStateShape>(DEFAULT_STATE);
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
+  const [failure, setFailure] = useState<RemoteFailure | null>(null);
+  const reports = useRef(0);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<RemoteStateShape | null> => {
+    const seen = reports.current;
     try {
-      const s = (await RemoteState()) as RemoteStateShape;
-      setState({ ...DEFAULT_STATE, ...s });
+      const fresh = { ...DEFAULT_STATE, ...((await RemoteState()) as RemoteStateShape) };
+      setState((prev) => mergeRefreshedState(prev, fresh, reports.current !== seen));
+      return fresh;
     } catch {
-      /* server may be starting; leave defaults */
+      // The Mac may still be starting up — keep what the pane already shows.
+      return null;
     }
   }, []);
+
+  const reportFailure = useCallback(
+    async (action: RemoteAction, err: unknown) => {
+      const fresh = await refresh();
+      setFailure(commandFailure(action, err, fresh?.configError ?? null));
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  useEffect(
-    () =>
-      EventsOn("remote-devices-changed", () => {
-        void refresh();
-        setPairing(null);
-      }),
-    [refresh],
-  );
+  useEffect(() => {
+    const offDevices = EventsOn("remote-devices-changed", () => {
+      void refresh();
+      setPairing(null);
+    });
+    const offServer = EventsOn(
+      "remote-server-changed",
+      (payload: { running?: boolean; error?: string | null }) => {
+        reports.current += 1;
+        setState((s) => ({
+          ...s,
+          running: !!payload?.running,
+          bindError: payload?.error ?? null,
+        }));
+      },
+    );
+    return () => {
+      if (typeof offDevices === "function") offDevices();
+      if (typeof offServer === "function") offServer();
+    };
+  }, [refresh]);
 
   const apply = useCallback(
-    async (next: Partial<Pick<RemoteStateShape, "enabled" | "port" | "tailscale">>) => {
+    async (
+      next: Partial<Pick<RemoteStateShape, "enabled" | "port" | "tailscale">>,
+      action: RemoteAction,
+    ) => {
       const merged = { ...state, ...next };
-      setState(merged);
+      setState((s) => ({ ...s, ...next }));
+      setFailure(null);
       try {
         const s = (await RemoteSetConfig(
           merged.enabled,
           merged.port,
           merged.tailscale,
         )) as RemoteStateShape;
-        setState({ ...DEFAULT_STATE, ...s });
-      } catch {
-        void refresh();
+        setState((prev) => mergeCommandState(prev, { ...DEFAULT_STATE, ...s }));
+      } catch (err) {
+        await reportFailure(action, err);
       }
     },
-    [state, refresh],
+    [state, reportFailure],
   );
 
   const startPairing = useCallback(async () => {
     setPairingBusy(true);
+    setFailure(null);
     try {
       const p = (await RemoteStartPairing()) as Pairing;
       setPairing(p);
       await refresh();
+    } catch (err) {
+      await reportFailure("pair", err);
     } finally {
       setPairingBusy(false);
     }
-  }, [refresh]);
+  }, [refresh, reportFailure]);
 
   const revoke = useCallback(
     async (id: string) => {
+      setFailure(null);
       try {
         const s = (await RemoteRevokeDevice(id)) as RemoteStateShape;
-        setState({ ...DEFAULT_STATE, ...s });
-      } catch {
-        void refresh();
+        setState((prev) => mergeCommandState(prev, { ...DEFAULT_STATE, ...s }));
+      } catch (err) {
+        await reportFailure("revoke", err);
       }
     },
-    [refresh],
+    [reportFailure],
   );
 
-  const reachable = state.host ? `${state.host}:${state.port}` : `port ${state.port}`;
-  const live = state.enabled && state.running;
+  const status = remoteStatus(state);
+  const tone = REMOTE_TONE_STYLE[status.tone];
+  const problemTone = REMOTE_TONE_STYLE.problem;
+  const live = status.tone === "live";
 
   return (
     <>
@@ -213,27 +254,35 @@ export function MobileSettingsPane() {
           <div className="mt-0.5 flex items-center gap-1.5 text-[12px]">
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full"
-              style={{
-                backgroundColor: live
-                  ? "var(--accent-green)"
-                  : state.enabled
-                    ? "var(--accent-amber)"
-                    : "var(--text-muted)",
-              }}
+              style={{ backgroundColor: tone.dot }}
             />
-            {live ? (
-              <span className="text-[var(--text-secondary)]">
-                Live <span className="font-mono text-[var(--text-muted)]">{reachable}</span>
-              </span>
-            ) : state.enabled ? (
-              <span className="text-[var(--text-muted)]">Starting…</span>
-            ) : (
-              <span className="text-[var(--text-muted)]">Off — turn on to let a paired phone connect</span>
-            )}
+            <span style={{ color: tone.text }}>
+              {status.label}
+              {status.address && (
+                <span className="ml-1 font-mono text-[var(--text-muted)]">{status.address}</span>
+              )}
+            </span>
           </div>
         </div>
-        <Toggle enabled={state.enabled} onChange={(v) => apply({ enabled: v })} />
+        <Toggle enabled={state.enabled} onChange={(v) => apply({ enabled: v }, "server")} />
       </div>
+
+      {failure?.slot === "server" && (
+        <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
+      )}
+
+      {state.configError && (
+        <RemoteNotice tone={problemTone}>{state.configError}</RemoteNotice>
+      )}
+
+      {status.problem && (
+        <RemoteNotice tone={tone}>
+          <span className="font-medium" style={{ color: tone.text }}>
+            Remote control couldn&#39;t start.
+          </span>{" "}
+          {status.problem}
+        </RemoteNotice>
+      )}
 
       {state.enabled && (
         <div className="mt-3 divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
@@ -244,7 +293,7 @@ export function MobileSettingsPane() {
               min={1024}
               max={65535}
               onChange={(e) => setState((s) => ({ ...s, port: Number(e.target.value) || 0 }))}
-              onBlur={() => apply({ port: state.port })}
+              onBlur={() => apply({ port: state.port }, "server")}
               className="w-20 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-1 text-sm tabular-nums text-[var(--text-primary)] outline-none focus:border-[var(--accent-cyan)]"
             />
           </Row>
@@ -252,21 +301,13 @@ export function MobileSettingsPane() {
       )}
 
       {state.enabled && state.identityRotated && state.devices.length > 0 && (
-        <div
-          className="mt-3 rounded-xl border px-4 py-3"
-          style={{
-            borderColor: "color-mix(in srgb, var(--accent-amber) 45%, transparent)",
-            backgroundColor: "color-mix(in srgb, var(--accent-amber) 8%, transparent)",
-          }}
-        >
-          <p className="text-[12px] leading-relaxed text-[var(--text-secondary)]">
-            <span className="font-medium" style={{ color: "var(--accent-amber-text)" }}>
-              This Mac&#39;s security identity was reset.
-            </span>{" "}
-            Devices paired before the reset can&#39;t connect until they trust it again — on
-            each device, accept the new identity when prompted, or pair it again below.
-          </p>
-        </div>
+        <RemoteNotice tone={REMOTE_TONE_STYLE.starting}>
+          <span className="font-medium" style={{ color: "var(--accent-amber-text)" }}>
+            This Mac&#39;s security identity was reset.
+          </span>{" "}
+          Devices paired before the reset can&#39;t connect until they trust it again — on each
+          device, accept the new identity when prompted, or pair it again below.
+        </RemoteNotice>
       )}
 
       <div className="mt-8">
@@ -319,6 +360,9 @@ export function MobileSettingsPane() {
             </button>
           </div>
         </div>
+        {failure?.slot === "devices" && (
+          <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
+        )}
       </div>
 
       <div className="mt-8">
@@ -340,7 +384,7 @@ export function MobileSettingsPane() {
               >
                 <Toggle
                   enabled={state.tailscale}
-                  onChange={(v) => apply({ tailscale: v })}
+                  onChange={(v) => apply({ tailscale: v }, "tailscale")}
                 />
               </Row>
             </div>
@@ -351,59 +395,12 @@ export function MobileSettingsPane() {
             </p>
           )}
         </div>
+        {failure?.slot === "network" && (
+          <RemoteNotice tone={problemTone}>{failure.message}</RemoteNotice>
+        )}
       </div>
 
       <PairingModal pairing={pairing} onClose={() => setPairing(null)} />
     </>
-  );
-}
-
-function PairingModal({ pairing, onClose }: { pairing: Pairing | null; onClose: () => void }) {
-  return (
-    <Modal
-      open={pairing !== null}
-      onClose={onClose}
-      zIndexClassName="z-[60]"
-      contentClassName="w-[420px] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-6 shadow-xl"
-    >
-      {pairing && (
-        <>
-          <h3 className="text-base font-semibold text-[var(--text-primary)]">Pair a device</h3>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            In the lpm mobile app, tap Add device and scan this code. It works once and expires
-            after a device pairs.
-          </p>
-          <div className="mt-4 flex flex-col items-center gap-3">
-            {pairing.svg ? (
-              <div
-                className="rounded-lg bg-white p-3"
-                // The Rust side builds the QR as a self-contained SVG string.
-                dangerouslySetInnerHTML={{ __html: pairing.svg }}
-              />
-            ) : (
-              <div className="text-[11px] text-[var(--text-muted)]">QR unavailable — enter the code manually.</div>
-            )}
-            <div className="text-center">
-              <p className="font-mono text-lg tracking-widest text-[var(--text-primary)]">{pairing.code}</p>
-              <div className="mt-1 space-y-0.5">
-                {(pairing.hosts?.length ? pairing.hosts : [pairing.host]).map((h) => (
-                  <p key={h} className="font-mono text-[11px] text-[var(--text-muted)]">
-                    {h}:{pairing.port}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="mt-5 flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85"
-            >
-              Done
-            </button>
-          </div>
-        </>
-      )}
-    </Modal>
   );
 }

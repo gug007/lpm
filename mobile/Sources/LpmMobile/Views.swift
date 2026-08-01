@@ -478,7 +478,7 @@ struct ProjectsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                ConnectionIndicator(state: model.connection)
+                ConnectionIndicator(state: model.connection, needsRepair: model.needsRepair)
             }
             ToolbarItem(placement: .principal) {
                 MacSwitcherMenu()
@@ -516,6 +516,14 @@ struct ProjectsView: View {
                     }
                     Button { editingEndpoint = true } label: {
                         Label("Edit Address…", systemImage: "network")
+                    }
+                    // Also the way back when the phone's saved credential is
+                    // unusable but the connection never reports it (no stored
+                    // credential at all), which leaves no error to act on.
+                    if !model.demoMode {
+                        Button { model.repairActiveMac() } label: {
+                            Label("Pair Again…", systemImage: "macbook.and.iphone")
+                        }
                     }
                     Button(role: .destructive) { confirmingRemove = true } label: {
                         Label("Remove this Mac", systemImage: "trash")
@@ -556,9 +564,26 @@ struct ProjectsView: View {
                 AutomationDetailView(project: project, jobId: id)
             }
         }
+        // A list left over from the last session would otherwise look live while
+        // the Mac is refusing this device — say so above it, with the only action
+        // that can actually fix it.
+        .safeAreaInset(edge: .top) {
+            if model.needsRepair && !model.projects.isEmpty {
+                RepairNoticeBar { model.repairActiveMac() }
+            }
+        }
         .overlay {
             if model.projects.isEmpty {
-                if model.projectsLoaded {
+                if model.needsRepair {
+                    ContentUnavailableView {
+                        Label("Pair with your Mac again", systemImage: "macbook.and.iphone")
+                    } description: {
+                        Text("Your Mac no longer recognizes this device, so it won't accept the connection. Pair with it again to restore access.")
+                    } actions: {
+                        Button("Pair Again") { model.repairActiveMac() }
+                            .buttonStyle(.borderedProminent)
+                    }
+                } else if model.projectsLoaded {
                     ContentUnavailableView("No projects", systemImage: "folder")
                 } else if case .failed(let msg) = model.connection {
                     ContentUnavailableView {
@@ -926,6 +951,7 @@ private extension View {
 /// color; it pulses while the socket is still connecting.
 struct ConnectionIndicator: View {
     let state: LpmClient.State
+    var needsRepair = false
 
     private var tint: SwiftUI.Color {
         switch state {
@@ -936,6 +962,7 @@ struct ConnectionIndicator: View {
         }
     }
     private var label: String {
+        if needsRepair { return "not paired" }
         switch state {
         case .ready: return "live"
         case .connecting: return "connecting"
@@ -1136,9 +1163,10 @@ struct TerminalScreen: View {
                 // is down — keystrokes and scroll are live traffic, dropped by
                 // design, so the user needs to see WHY nothing responds.
                 if model.connection != .ready {
-                    TerminalConnectionBanner(state: model.connection) {
-                        model.retryConnection()
-                    }
+                    TerminalConnectionBanner(state: model.connection,
+                                             needsRepair: model.needsRepair,
+                                             onRetry: { model.retryConnection() },
+                                             onRepair: { model.repairActiveMac() })
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -1181,12 +1209,41 @@ struct TerminalScreen: View {
     }
 }
 
+/// Bar above a list the Mac is no longer serving: its records for this device are
+/// gone, so everything on screen is stale and only re-pairing brings it back.
+struct RepairNoticeBar: View {
+    let onRepair: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "macbook.and.iphone")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(.orange)
+            Text("Your Mac no longer recognizes this device.")
+                .font(.footnote)
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button("Pair Again", action: onRepair)
+                .font(.footnote.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+}
+
 /// Floating capsule over the terminal while the Mac link is down. Keystrokes and
 /// scroll are dropped (not queued) during a gap, so this is the only signal that
 /// the frozen screen is a connection problem and not a hung app.
 struct TerminalConnectionBanner: View {
     let state: LpmClient.State
+    var needsRepair = false
     let onRetry: () -> Void
+    var onRepair: () -> Void = {}
 
     private var reconnecting: Bool {
         if case .connecting = state { return true }
@@ -1200,6 +1257,13 @@ struct TerminalConnectionBanner: View {
                     .controlSize(.small)
                     .tint(.white)
                 Text("Reconnecting…")
+            } else if needsRepair {
+                // Retrying a credential the Mac has dropped can only fail again,
+                // so this offers the one action that works.
+                Image(systemName: "macbook.and.iphone")
+                Text("Not paired")
+                Button("Pair Again", action: onRepair)
+                    .fontWeight(.semibold)
             } else {
                 Image(systemName: "wifi.slash")
                 Text("Offline")

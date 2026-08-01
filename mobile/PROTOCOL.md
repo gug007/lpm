@@ -31,6 +31,12 @@ is a WebSocket client. This document is the contract both sides implement.
     client (never silently trusted).
 - Every frame is a **text** WebSocket message containing a JSON object with a
   discriminator field `t`. Unknown `t` values are ignored (forward-compatible).
+  **Unknown *fields* inside a known frame are ignored too, on both sides** — the
+  Mac reads named keys off the decoded object and the phone reads named keys off
+  the decoded dictionary, so neither trips over an extra one. That is what makes
+  every optional addition below (e.g. `replaces` on `pair`) safe in both
+  directions: a newer phone can send it to an older Mac, and a newer Mac never
+  requires it from an older phone.
 
 ## Discovery (Bonjour/mDNS)
 
@@ -68,6 +74,19 @@ The phone sends exactly one of:
 ```json
 { "t": "pair", "code": "AB12-CD34", "name": "My iPhone" }
 ```
+`replaces` (**optional**) names a device id this pairing supersedes:
+```json
+{ "t": "pair", "code": "AB12-CD34", "name": "My iPhone", "replaces": "<uuid>" }
+```
+The phone sends it when it is **re-pairing** a Mac it already has a credential
+for — the "Pair Again" flow it offers after an `unauthorized` reply — passing the
+`deviceId` the Mac just rejected. The Mac then drops that record in the same
+write that appends the new one, so the phone ends up with exactly one device
+record instead of accumulating a ghost per re-pair. Omit it (or send an empty
+string) for a first-time pairing; an older phone that never sends it, and an
+older Mac that ignores it, both behave exactly as before — the only difference is
+that the superseded record stays until it is revoked by hand.
+
 → on success the server replies and the code is consumed (single use):
 ```json
 { "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
@@ -80,13 +99,25 @@ hostname). Together they let a phone paired with **several Macs** tell them apar
 and label each one. On rejection:
 ```json
 { "t": "error", "error": "pairing rejected" }
+{ "t": "error", "error": "pairing unavailable" }
 ```
+`pairing rejected` means the **code** was wrong, already used, or expired — ask
+the Mac for a fresh one. `pairing unavailable` means the code was fine but the
+Mac **could not save** the new device (`remote.json` is unreadable, or another
+writer holds it), so a fresh code won't help either; lpm on the Mac shows what to
+fix. Both end the attempt and the connection. The strings stay readable sentences
+on purpose: a phone that predates `pairing unavailable` passes unknown error text
+straight to the user, so it still reads as an explanation rather than a code.
 
 **Pair by approval** (first time, no typed code — for a phone that found this Mac
 via [Discovery](#discovery-bonjourmdns) and asks the user to approve on the Mac):
 ```json
 { "t": "pairRequest", "name": "My iPhone" }
 ```
+It accepts the same **optional** `replaces` key as `pair`, with the same meaning
+(`{ "t": "pairRequest", "name": "My iPhone", "replaces": "<uuid>" }`) — this is
+the path the "Pair Again" flow takes for a Mac found on the LAN.
+
 The server replies immediately with one of:
 ```json
 { "t": "pairPending", "matchCode": "1234" }
@@ -124,6 +155,29 @@ and can route each connection to the right Mac.
 The server stores only `sha256(token)`; the raw token never leaves the phone
 after pairing. Revoking a device in desktop Settings deletes its hash and drops
 any live connection.
+
+Before checking the token the Mac **re-reads the paired-device list from
+`remote.json`** (at most once a second, and only the device list — never the
+server settings). A read that *fails* doesn't spend that second: it is retried
+after a much shorter floor, so a momentary failure can't turn away, for a whole
+second, phones this Mac would otherwise accept — while a file that stays damaged
+still isn't re-read on every frame.
+
+A device paired or revoked by another lpm instance sharing the same config is
+therefore honoured immediately, without restarting either build: the running
+process accepts a phone the other one just paired, and stops accepting one it
+just revoked.
+
+Already-authed connections get the same refresh every few seconds, so a revoke
+reaches a phone that is **already connected** — its socket is dropped mid-session
+rather than surviving until it next reconnects. This refresh is best-effort: if
+another writer holds the file it is skipped and retried on the next pass, so it
+never delays terminal output.
+
+`unauthorized` means the Mac holds **no record** for this `deviceId`/token —
+revoked, or the app's data was reset. Retrying the same credential can never
+succeed, so the phone stops reconnecting and offers to pair again (sending
+`replaces` with the dead `deviceId`, above) rather than looping.
 
 ## Requests (phone → desktop) and their replies
 
@@ -405,7 +459,7 @@ encrypted, so the relay sees only opaque blobs and device tokens.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool, "automationStarted": bool, "automationDone": bool, "automationError": bool } }` | `{ "t": "apnsToken", "ok": true }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which agent and automation outcomes this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. Missing agent fields default to enabled for older phones; missing automation fields default to disabled. All-false keeps the device registered with notifications off. Everything persists on the device record in `remote.json` |
+| `{ "t": "apnsToken", "token": "<hex APNs device token>", "env": "production"\|"sandbox", "key": "<base64 32-byte push key>", "notify": { "waiting": bool, "done": bool, "error": bool, "automationStarted": bool, "automationDone": bool, "automationError": bool } }` | `{ "t": "apnsToken", "ok": true }` / `{ "t": "apnsToken", "ok": false, "error": "…" }` — registers (or refreshes) this device's push identity; sent after every successful `auth`, since the token can rotate, and re-sent immediately when the user changes notification preferences. `env` is the APNs environment the build's token belongs to (debug builds → `sandbox`, TestFlight/App Store → `production`). `key` is the phone-generated AES-256 push key; the phone keeps **one** push key (Keychain, shared with the notification extension) and registers the same key with every paired Mac, so the extension never has to guess which key decrypts. `notify` selects which agent and automation outcomes this device wants pushed; the desktop filters **before** sealing/sending, so a disabled kind never leaves the Mac. Missing agent fields default to enabled for older phones; missing automation fields default to disabled. All-false keeps the device registered with notifications off. Everything persists on the device record in `remote.json`. `ok` is **false** for three reasons: the payload failed validation (`error` says which field), the Mac holds no device record for this `deviceId`, or — since every write became a read-modify-write, below — the device is paired but the registration **could not be saved**, e.g. `remote.json` is unreadable or another writer holds the lock too long. In that last case the device stays paired and the socket stays up; only push registration is missing, and the phone's next `auth` re-sends it |
 
 **When the desktop pushes.** On an agent status transition to `Waiting`, `Done`,
 or `Error` (the same `status-changed` signal that drives the socket push), for
@@ -716,9 +770,9 @@ d = "<utf-8 text>"              // sent as-is
 ## Dev/prod coexistence (shared ~/.lpm)
 
 A developer can run a debug build (`npm run tauri dev`) and the installed release
-app at the same time on one Mac. Both read the same `~/.lpm/remote.json`, so each
-build takes a distinct identity to avoid colliding — no phone-side changes are
-needed, each build simply looks like a separate Mac:
+app at the same time on one Mac. Both read and write the same
+`~/.lpm/remote.json`, so each build takes a distinct identity to avoid colliding
+— each build simply looks like a separate Mac to the phone:
 
 - **Port.** The dev build listens on the prod effective port **+ 2**
   (`8765 → 8767`; `+2` because `8766` is the Mac-to-Mac peer host). A user-set
@@ -740,3 +794,14 @@ needed, each build simply looks like a separate Mac:
   `paired_server_id` matches its own id. A missing/legacy `paired_server_id`
   (paired before this field existed) is treated as **prod**, so existing users
   keep their pushes and the dev build never sends them phantom notifications.
+- **The shared `devices` list.** Because the list is shared but each build holds
+  the config in memory, a whole-file overwrite by one build used to erase devices
+  the other had paired — the phone's next `auth` then failed with `unauthorized`
+  through no fault of its own. Every write to `remote.json` is now a
+  **read-modify-write under an advisory lock** on `remote.json.lock`: the writer
+  re-reads the file, keeps the `devices` list and `pairing_code` it finds there,
+  re-applies only the settings its own process owns (enabled/port/tailscale/push
+  relay/server ids), applies its change, and writes atomically. Combined with the
+  per-`auth` device-list refresh described in [Handshake](#handshake-first-frame-required-within-20s),
+  two co-running builds no longer clobber each other's pairings, and a device
+  paired with one build keeps working while the other runs.

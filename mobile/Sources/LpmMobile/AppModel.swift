@@ -132,6 +132,12 @@ final class AppModel {
     // re-pairing. Set from the raw connection state; cleared on any recovery.
     var identityMismatch = false
 
+    // True when the Mac rejected this device's credential — it no longer has a
+    // paired record for this phone. Retrying can't help, so every surface that
+    // would otherwise offer "Retry" offers re-pairing instead. Set from the raw
+    // connection state; cleared on any recovery.
+    var needsRepair = false
+
     // MARK: composer parity
 
     // The user's enabled AI-rewrite actions (global, from composer-actions.json).
@@ -321,6 +327,19 @@ final class AppModel {
     // The leaf-cert fingerprint the pairing QR advertised (`f` param), verified
     // during the pairing TLS handshake. Nil for manual entry or a pre-TLS QR.
     @ObservationIgnored private var pendingPairFingerprint: String?
+    // Set while the pairing sheet was opened to re-pair a saved Mac (rather than
+    // add a new one): the record whose stale credential the Mac should retire.
+    // Read at the top of pair()/pairViaApproval() — both of which reset the
+    // session, which clears it — and cleared when the sheet is dismissed.
+    @ObservationIgnored private var pendingRepairMacId: UUID?
+    // True while the in-flight pairing was started by "Pair Again", so the (often
+    // single, just-resolved) address it brings is folded into the saved record
+    // rather than replacing its list. Deliberately *not* gated on the address
+    // matching a saved one, unlike `replaces`: re-pairing a Mac whose address moved
+    // is exactly the case the fold exists for. Pairing a different Mac from the same
+    // sheet stays harmless — `handlePaired` only folds when the Mac's `serverId`
+    // matches the saved record, so an unrelated Mac lands as a plain new pairing.
+    @ObservationIgnored private var pendingPairIsRepair = false
 
     // Local-network discovery used only for automatic endpoint recovery: when the
     // active Mac's saved addresses stop responding, browse for it and reconnect on
@@ -406,8 +425,15 @@ final class AppModel {
     /// addresses, hostnames (e.g. `mac.local`, a MagicDNS name), and any IPv6
     /// address survive as the away-from-home fallback.
     private static func mergedHosts(existing: [String], fresh: String) -> [String] {
-        var out = [fresh]
-        for h in existing where h != fresh {
+        mergedHosts(existing: existing, fresh: [fresh])
+    }
+
+    /// The same fold for a pairing, which can bring several addresses at once (a
+    /// QR advertises every address the Mac knows about).
+    private static func mergedHosts(existing: [String], fresh: [String]) -> [String] {
+        var out: [String] = []
+        for h in fresh where !h.isEmpty && !out.contains(h) { out.append(h) }
+        for h in existing where !out.contains(h) {
             if isIPv4Literal(h) && !isCGNAT(h) { continue }
             out.append(h)
         }
@@ -532,6 +558,7 @@ final class AppModel {
         client?.disconnect()
         currentHost = host
         identityMismatch = false
+        needsRepair = false
         // Enforce the stored pin for this Mac, read fresh on each TLS handshake so
         // a just-completed TOFU pin takes effect on the next reconnect. A nil pin
         // (never pinned, or migration) is accepted, then pinned after auth.
@@ -545,13 +572,42 @@ final class AppModel {
         c.connect()
     }
 
+    /// True when the Mac now being paired is plausibly the one the saved record
+    /// belongs to, judged by it answering at an address that record already knows.
+    /// Gates `replaces` only — a pairing sheet opened by "Pair Again" can end up
+    /// scanning a *different* Mac's QR, and that Mac must never be handed this
+    /// phone's credential id for another one.
+    private func isRepairTarget(_ macId: UUID?, pairingAt hosts: [String]) -> Bool {
+        guard let macId, let record = macs.first(where: { $0.localId == macId }) else { return false }
+        let known = Set(record.hosts.map { $0.lowercased() })
+        return hosts.contains { known.contains($0.lowercased()) }
+    }
+
+    /// The device id a re-pair asks the Mac to retire — but only for a genuine
+    /// repair target. That id identifies this phone to exactly one Mac, so it must
+    /// never be handed to another. Omitting the id only costs the cleanup: the dead
+    /// record lingers until it's removed on the Mac, exactly as before this existed.
+    private func staleDeviceId(of macId: UUID?, pairingAt hosts: [String]) -> String? {
+        guard let macId, isRepairTarget(macId, pairingAt: hosts) else { return nil }
+        return Keychain.load(for: macId)?.deviceId
+    }
+
     /// Begin pairing a Mac — the first Mac, or an additional one from "Add a Mac".
     /// The saved-Mac record isn't created until the `paired` frame lands (see
     /// `handlePaired`), which is also where a re-pair of an already-saved Mac is
     /// deduped by serverId. Tears down any current session first, so pairing a new
     /// Mac cleanly replaces the live one.
-    func pair(hosts: [String], port: Int, code: String, fingerprint: String? = nil) {
+    /// `replacing` names a saved Mac being re-paired, whose stale credential the
+    /// Mac should retire (see `repairActiveMac` and `staleDeviceId`); it defaults
+    /// to whatever opened the pairing sheet, so the generic "Add a Mac" flow
+    /// passes nothing.
+    func pair(hosts: [String], port: Int, code: String, fingerprint: String? = nil,
+              replacing: UUID? = nil) {
+        let target = replacing ?? pendingRepairMacId
+        let replaces = staleDeviceId(of: target, pairingAt: hosts)
         resetSessionState()
+        pendingRepairMacId = target
+        pendingPairIsRepair = target != nil
         pendingPairHosts = hosts
         pendingPairPort = UInt16(clamping: port)
         pendingPairFingerprint = fingerprint
@@ -576,7 +632,7 @@ final class AppModel {
                               expectedFingerprint: fingerprint)
             wire(c)
             client = c
-            c.pair(host: host, port: port, code: code)
+            c.pair(host: host, port: port, code: code, replaces: replaces)
         }
     }
 
@@ -584,8 +640,12 @@ final class AppModel {
     /// address: send a pair request and wait for the user to confirm on the Mac (no
     /// code typed). Drives `approvalPairing`; success runs the same `handlePaired`
     /// flow as code pairing. Tears down any current session first, like `pair`.
-    func pairViaApproval(host: String, port: Int) {
+    func pairViaApproval(host: String, port: Int, replacing: UUID? = nil) {
+        let target = replacing ?? pendingRepairMacId
+        let replaces = staleDeviceId(of: target, pairingAt: [host])
         resetSessionState()
+        pendingRepairMacId = target
+        pendingPairIsRepair = target != nil
         pendingPairHosts = [host]
         pendingPairPort = UInt16(clamping: port)
         pendingPairFingerprint = nil
@@ -599,7 +659,7 @@ final class AppModel {
                           expectedFingerprint: nil)
         wire(c)
         client = c
-        c.pairRequest(host: host, port: port)
+        c.pairRequest(host: host, port: port, replaces: replaces)
     }
 
     /// Cancel an in-flight (or finished-but-unacknowledged) approve-on-Mac pairing:
@@ -669,6 +729,18 @@ final class AppModel {
     /// there's no Mac to add alongside — leave the demo and land on real pairing.
     func beginAddMac() {
         if demoMode { exitDemo(); return }
+        pendingRepairMacId = nil
+        addingMac = true
+    }
+
+    /// Pair the ACTIVE saved Mac again after it stopped recognizing this phone
+    /// (`needsRepair`). Opens the same pairing sheet, remembering which record is
+    /// being re-paired: the new credential replaces the dead one on the Mac, and
+    /// the `serverId` dedupe in `handlePaired` refreshes the saved record in place
+    /// rather than adding a second entry for the same Mac.
+    func repairActiveMac() {
+        guard !demoMode, activeMacId != nil else { return }
+        pendingRepairMacId = activeMacId
         addingMac = true
     }
 
@@ -710,6 +782,7 @@ final class AppModel {
     /// non-nil, so the guard skips it and the fresh connection is left untouched.
     func cancelAddMac() {
         addingMac = false
+        pendingRepairMacId = nil
         if let client, client.deviceId == nil {
             client.disconnect()
             self.client = nil
@@ -778,12 +851,17 @@ final class AppModel {
     private func handlePaired(deviceId: String, token: String, serverId: String?, serverName: String?) {
         let hosts = pendingPairHosts.isEmpty ? savedHosts() : pendingPairHosts
         let port = pendingPairPort
+        let isRepair = pendingPairIsRepair
         pendingPairHosts = []
+        pendingPairIsRepair = false
 
         let localId: UUID
         if let sid = serverId, !sid.isEmpty, let idx = macs.firstIndex(where: { $0.serverId == sid }) {
             localId = macs[idx].localId
-            macs[idx].hosts = hosts
+            // A re-pair often resolves only the one address it reached the Mac at
+            // (approve-on-Mac always does), so overwriting would drop the Tailscale
+            // address this phone needs away from home — fold the new ones in instead.
+            macs[idx].hosts = isRepair ? Self.mergedHosts(existing: macs[idx].hosts, fresh: hosts) : hosts
             macs[idx].port = port
             if let name = serverName, !name.isEmpty { macs[idx].name = name }
         } else {
@@ -854,6 +932,11 @@ final class AppModel {
         recoveryStatus = nil
         approvalPairing = nil
         identityMismatch = false
+        needsRepair = false
+        // Consumed by pair()/pairViaApproval() before they reset, so a re-pair that
+        // never started can't re-point a later pairing at the wrong saved Mac.
+        pendingRepairMacId = nil
+        pendingPairIsRepair = false
 
         connection = .idle
         projects = []
@@ -1846,6 +1929,9 @@ final class AppModel {
         if msg == "pairing rejected" {
             return .failed("Pairing code rejected. On your Mac, tap Add device for a fresh code, then scan again.")
         }
+        if msg == "pairing unavailable" {
+            return .failed("Your Mac couldn't save this pairing, so there's nothing wrong with the code. Open lpm on the Mac — it shows what needs fixing — then pair again.")
+        }
         if msg == LpmClient.identityChangedError {
             return .failed("This Mac's security identity has changed since you paired. Trust the new identity to reconnect, or re-pair from your Mac.")
         }
@@ -1857,6 +1943,9 @@ final class AppModel {
             let probes = lastProbeOutcomes.isEmpty ? "" :
                 " Probe: " + lastProbeOutcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ") + "."
             return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made\(code).\(probes) This usually means lpm on the Mac or this app is out of date, or the Mac's security identity was reset — update both, then re-pair from your Mac.")
+        }
+        if msg == LpmClient.unauthorizedError {
+            return .failed("This Mac no longer recognizes this device. Pair with it again to restore access.")
         }
         if msg == LpmClient.refusedError {
             return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but nothing is listening on port \(savedPort()). Make sure lpm is running on the Mac — if it is, its port may have changed; re-pair or fix it under Edit Address.")
@@ -1947,6 +2036,9 @@ final class AppModel {
             // the pairing screen surfaces): flag it so the UI can prompt to trust the
             // new identity. Any other state clears the flag.
             self.identityMismatch = { if case .failed(LpmClient.identityChangedError) = s { return true }; return false }()
+            // Same shape: the Mac no longer holds a record for this device, so the
+            // UI must offer re-pairing instead of a retry. Any other state clears it.
+            self.needsRepair = { if case .failed(LpmClient.unauthorizedError) = s { return true }; return false }()
             self.connection = self.userFacing(s)
             self.repickHostIfStale(s, from: c)
             self.startRecoveryIfStale(s, from: c)

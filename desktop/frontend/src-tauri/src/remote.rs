@@ -31,12 +31,15 @@
 // sniffing the first byte; that branch can be dropped once the pinned app ships.
 // When enabled the server binds every interface (0.0.0.0) so a paired phone can
 // reach it over the LAN or tailnet.
+use crate::remotestore::{
+    config_status, is_dev_instance, load_config, refresh_devices, try_refresh_devices, update,
+    Device, RemoteConfig, StoreError,
+};
 use crate::status::{StatusEntry, StatusStore, STATUS_DONE, STATUS_ERROR, STATUS_WAITING};
 use crate::{config, pty, services};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::Engine as _;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -106,69 +109,23 @@ const SEED_CAP: usize = 96 * 1024; // recent scrollback replayed onto a fresh sc
 const POLL: Duration = Duration::from_millis(25); // read-timeout / outbound-drain cadence
 const AUTH_TIMEOUT: Duration = Duration::from_secs(20);
 const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (phone resyncs)
-const DEFAULT_PUSH_RELAY: &str = "https://lpm.cx/api/push"; // APNs relay (holds the signing key)
 const PAIR_APPROVE_WINDOW: Duration = Duration::from_secs(30); // approve-on-Mac decision deadline
 const PAIR_MIN_GAP_MS: i64 = 5000; // min spacing between approve-on-Mac dialogs (anti-nag)
+const DEVICE_REFRESH_GAP: Duration = Duration::from_secs(1); // shared device-list re-read gap
+const DEVICE_REFRESH_FLOOR: Duration = Duration::from_millis(100); // min spacing between failed re-reads
+const LIVE_REFRESH_GAP: Duration = Duration::from_secs(5); // established-session device-list re-read gap
 
-// --- persisted config (~/.lpm/remote.json) -----------------------------------
-
-fn default_true() -> bool {
-    true
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(default)]
-struct Device {
-    id: String,
-    name: String,
-    token_hash: String, // sha256(token) hex — the raw token lives only on the phone
-    created_at: i64,
-    // Push identity (registered via `apnsToken` after each auth). apns_token is the
-    // hex APNs device token; apns_env is "production"|"sandbox"; push_key is the
-    // phone's base64 AES-256 key the notification payload is sealed under.
-    apns_token: String,
-    apns_env: String,
-    push_key: String,
-    // Per-device notification prefs (from the phone's `notify` object). Agent
-    // prefs default on for older records; automation prefs default off.
-    #[serde(default = "default_true")]
-    push_waiting: bool,
-    #[serde(default = "default_true")]
-    push_done: bool,
-    #[serde(default = "default_true")]
-    push_error: bool,
-    push_automation_started: bool,
-    push_automation_done: bool,
-    push_automation_error: bool,
-    // The flavor-aware server id of the instance that completed this pairing (dev
-    // vs prod). None on legacy entries — treated as prod — so the dev instance
-    // never pushes to them and their pushes keep flowing. Scopes push delivery so a
-    // phone paired with only one flavor gets no phantom pushes from the other.
-    #[serde(default)]
-    paired_server_id: Option<String>,
-}
-
-// Manual Default (not derived) so `..Default::default()` agrees with serde: agent
-// prefs start true, but a derived Default would make them false.
-impl Default for Device {
-    fn default() -> Self {
-        Self {
-            id: String::new(),
-            name: String::new(),
-            token_hash: String::new(),
-            created_at: 0,
-            apns_token: String::new(),
-            apns_env: String::new(),
-            push_key: String::new(),
-            push_waiting: true,
-            push_done: true,
-            push_error: true,
-            push_automation_started: false,
-            push_automation_done: false,
-            push_automation_error: false,
-            paired_server_id: None,
-        }
-    }
+/// Whether a device-list re-read may wait for a save that is in progress.
+#[derive(Clone, Copy)]
+enum RefreshWait {
+    /// Wait: this read decides whether a phone is authorized, so it has to see
+    /// the current truth rather than skip and accept a stale list.
+    Block,
+    /// Come straight back if the store is busy. This one runs at the top of the
+    /// connection loop, ahead of the outbound drain, so waiting out another
+    /// instance's save would stall a phone's terminal output — and the next pass
+    /// is 25ms away.
+    Skip,
 }
 
 #[derive(Clone, Copy)]
@@ -179,87 +136,6 @@ struct PushPreferences {
     automation_started: bool,
     automation_done: bool,
     automation_error: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(default)]
-struct RemoteConfig {
-    enabled: bool,
-    port: u16,            // 0 => DEFAULT_PORT
-    pairing_code: String, // non-empty while an unused pairing code is outstanding
-    tailscale: bool,      // advertise this Mac's Tailscale address in the pairing QR
-    push_relay: String,   // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
-    // Stable identity of this Mac, minted on first run and persisted. Sent to the
-    // phone so it can distinguish and label multiple paired Macs, and mixed into
-    // the push collapse id so same-named projects on different Macs don't collide.
-    server_id: Option<String>,
-    // The dev instance's own stable id, so a dev and a prod build sharing this
-    // config present as two distinct Macs to the phone. Prod uses `server_id`,
-    // dev uses this; each mints its own lazily. Absent in legacy configs.
-    #[serde(default)]
-    dev_server_id: Option<String>,
-    devices: Vec<Device>,
-}
-
-impl Default for RemoteConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            port: 0,
-            pairing_code: String::new(),
-            tailscale: true, // away-from-home works out of the box; the toggle opts out
-            push_relay: String::new(),
-            server_id: None,
-            dev_server_id: None,
-            devices: Vec::new(),
-        }
-    }
-}
-
-impl RemoteConfig {
-    /// The APNs relay URL to POST sealed notifications to: the configured override
-    /// when set, else the lpm website's default endpoint.
-    fn effective_relay(&self) -> String {
-        if self.push_relay.trim().is_empty() {
-            DEFAULT_PUSH_RELAY.to_string()
-        } else {
-            self.push_relay.clone()
-        }
-    }
-
-    /// Fill in this flavor's stable server id if absent, returning whether one was
-    /// minted (so the caller knows to persist). Dev mints/owns `dev_server_id`,
-    /// prod mints/owns `server_id`, so both coexist under one shared config.
-    fn ensure_server_id(&mut self) -> bool {
-        let slot = if is_dev_instance() {
-            &mut self.dev_server_id
-        } else {
-            &mut self.server_id
-        };
-        if slot.as_deref().unwrap_or_default().is_empty() {
-            *slot = Some(uuid::Uuid::new_v4().to_string());
-            true
-        } else {
-            false
-        }
-    }
-
-    /// This flavor's server id (may be empty until `ensure_server_id` mints one).
-    /// Every wire/push use of the server id must go through this, never the raw
-    /// field, so dev and prod stay distinguishable.
-    fn flavor_server_id(&self) -> String {
-        if is_dev_instance() {
-            self.dev_server_id.clone().unwrap_or_default()
-        } else {
-            self.server_id.clone().unwrap_or_default()
-        }
-    }
-
-    /// The prod (non-dev) server id — the default owner assumed for legacy device
-    /// records that predate per-flavor push scoping.
-    fn prod_server_id(&self) -> String {
-        self.server_id.clone().unwrap_or_default()
-    }
 }
 
 /// This host's user-visible name, resolved once per process. Prefers the macOS
@@ -278,14 +154,6 @@ fn server_name() -> String {
     .clone()
 }
 
-// Dev/prod discriminator for coexisting on one Mac with a shared ~/.lpm: the
-// `npm run tauri dev` build compiles a debug binary; the shipped app is release.
-// This drives the per-flavor port, server id, name suffix, and push scoping so a
-// dev and a prod instance never fight over the same identity or port.
-fn is_dev_instance() -> bool {
-    cfg!(debug_assertions)
-}
-
 /// The listen port for a configured value and flavor. The dev instance sits at the
 /// prod effective port + 2 (8766 is the Mac-to-Mac peer host) so the two instances
 /// can never collide through the shared remote.json, including a user-set port.
@@ -300,37 +168,6 @@ fn effective_port_for(p: u16, dev: bool) -> u16 {
 
 fn effective_port(p: u16) -> u16 {
     effective_port_for(p, is_dev_instance())
-}
-
-// Test-only override so a test exercising the real pair path (which persists on
-// success) writes to a temp file instead of the user's ~/.lpm/remote.json. A
-// static (not an env var) avoids the data race of mutating the process
-// environment while other test threads run.
-#[cfg(test)]
-static TEST_CONFIG_PATH: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
-
-fn config_path() -> std::path::PathBuf {
-    #[cfg(test)]
-    if let Some(p) = TEST_CONFIG_PATH.lock().unwrap().clone() {
-        return p;
-    }
-    config::lpm_dir().join("remote.json")
-}
-
-fn load_config() -> RemoteConfig {
-    match std::fs::read(config_path()) {
-        Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
-        Err(_) => RemoteConfig::default(),
-    }
-}
-
-fn save_config(cfg: &RemoteConfig) -> Result<(), String> {
-    std::fs::create_dir_all(config::lpm_dir()).map_err(|e| e.to_string())?;
-    let data = serde_json::to_vec_pretty(cfg).map_err(|e| e.to_string())?;
-    // remote.json holds device token hashes and push keys — Exact(0o600) so the
-    // temp never exists at a wider mode and the file stays 0600 on first creation.
-    crate::fsatomic::write(&config_path(), &data, crate::fsatomic::Mode::Exact(0o600))
-        .map_err(|e| e.to_string())
 }
 
 // --- shared state ------------------------------------------------------------
@@ -413,6 +250,25 @@ struct HubInner {
     // is a transition fact, not per-device); recomputed on every status-changed.
     push_dedup: Mutex<HashMap<(String, String), (String, i64)>>,
     config: Mutex<RemoteConfig>,
+    // When the shared device list was last re-read from disk, throttling the
+    // refresh a connection does before it evaluates an `auth` frame and the slower
+    // one an established session does.
+    last_device_refresh: Mutex<Option<Instant>>,
+    // When a re-read last failed. A failure deliberately doesn't spend the gap
+    // above (one unreadable moment would turn away legitimate phones for a whole
+    // second), so this floors the retries instead — the pre-auth refresh runs
+    // before any authentication, so a permanently damaged file must not let every
+    // inbound frame re-read it.
+    last_failed_refresh: Mutex<Option<Instant>>,
+    // Why the saved mobile settings can't be used, when the file is damaged or
+    // unreadable. Nothing can be saved (pairing included) until the user replaces
+    // it, and lpm won't overwrite it for them — so the Settings pane has to say
+    // so. None while the store is healthy.
+    config_error: Mutex<Option<String>>,
+    // Why the listener isn't up, when a bind genuinely failed — surfaced in the
+    // Settings pane instead of a permanent "Starting…". None once bound (or while
+    // the server is off).
+    bind_error: Mutex<Option<String>>,
     // The one in-flight approve-on-Mac pairing request (a phone that discovered
     // this Mac and asked to pair without a code). One at a time; the connection
     // thread parks on its decision channel while the user sees the dialog.
@@ -439,22 +295,165 @@ pub struct RemoteHub {
     inner: Arc<HubInner>,
 }
 
+/// What the Settings pane shows when the saved mobile settings can't be read.
+/// lpm deliberately leaves the file alone — the pairings in it may still be
+/// recoverable — so recovering is the user's call, and the copy names the file.
+fn config_unusable_message() -> String {
+    format!(
+        "lpm can't read its saved mobile settings, so pairing is paused. The file {} may be damaged — remove it and pair your device again.",
+        crate::remotestore::config_path().display()
+    )
+}
+
 impl RemoteHub {
     fn config(&self) -> RemoteConfig {
         self.inner.config.lock().unwrap().clone()
     }
 
+    /// Apply `f` to the persisted config: see `remotestore::update`. `None` means
+    /// the change is not in effect (it could not be saved). The closure must not
+    /// call back into any other config path — it runs with the store held and
+    /// would deadlock.
+    fn update_config<T>(&self, f: impl FnOnce(&mut RemoteConfig) -> T) -> Option<T> {
+        self.update_config_opt(|cfg| Some(f(cfg)))
+    }
+
+    /// `update_config` where the closure may decline: returning `None` leaves the
+    /// stored config completely untouched.
+    fn update_config_opt<T>(&self, f: impl FnOnce(&mut RemoteConfig) -> Option<T>) -> Option<T> {
+        self.update_config_result(f).unwrap_or(None)
+    }
+
+    /// `update_config_opt` for a caller that has to tell a change the closure
+    /// declined (`Ok(None)`) apart from one that could not be saved (`Err`) —
+    /// the phone is told two different things.
+    fn update_config_result<T>(
+        &self,
+        f: impl FnOnce(&mut RemoteConfig) -> Option<T>,
+    ) -> Result<Option<T>, String> {
+        let out = self.note_store(update(&self.inner.config, f));
+        if let Err(e) = &out {
+            eprintln!("warning: could not save remote.json: {e}");
+        }
+        out
+    }
+
+    /// `update_config` for the callers that surface a save failure to the UI.
+    fn try_update_config<T>(&self, f: impl FnOnce(&mut RemoteConfig) -> T) -> Result<T, String> {
+        self.note_store(update(&self.inner.config, |cfg| Some(f(cfg))))?
+            .ok_or_else(|| "the mobile settings were not saved".to_string())
+    }
+
+    /// Record what a store operation says about the saved settings file, then hand
+    /// its result on. A file we can't read blocks every save, pairing included,
+    /// and only the Settings pane can tell the user — so it is remembered, not
+    /// just logged. Any operation that got as far as the file clears it.
+    fn note_store<T>(&self, out: Result<T, StoreError>) -> Result<T, String> {
+        self.set_config_error(match &out {
+            Err(e) if e.is_unusable() => Some(config_unusable_message()),
+            _ => None,
+        });
+        out.map_err(|e| e.to_string())
+    }
+
+    fn config_error(&self) -> Option<String> {
+        self.inner.config_error.lock().unwrap().clone()
+    }
+
+    /// Re-classify the saved settings file, so what the pane reports is what is
+    /// true now rather than whatever the last save happened to find: the user may
+    /// have replaced a damaged file since, and a failure a phone ran into alone
+    /// never passed through the pane at all.
+    fn recheck_config(&self) {
+        let _ = self.note_store(config_status());
+    }
+
+    fn set_config_error(&self, err: Option<String>) {
+        *self.inner.config_error.lock().unwrap() = err;
+    }
+
+    /// Adopt the on-disk device list so this instance honours pairings and
+    /// revocations made by a second instance sharing ~/.lpm. Throttled, and never
+    /// on the per-connection hot path: a connection calls this once, before it
+    /// evaluates its `auth` frame.
+    fn refresh_devices(&self) {
+        self.refresh_devices_as_of(Instant::now());
+    }
+
+    /// The same adoption for a connection that is already established, on a much
+    /// slower gap: a device revoked in the other instance keeps a live socket
+    /// until something re-reads the list, and an idle phone never re-authenticates.
+    /// Process-global, so this costs one small file read every few seconds for the
+    /// whole app no matter how many phones are connected.
+    fn refresh_live_devices(&self) {
+        self.refresh_devices_within(LIVE_REFRESH_GAP, Instant::now(), RefreshWait::Skip);
+    }
+
+    /// `refresh_devices` against a caller-supplied clock.
+    fn refresh_devices_as_of(&self, now: Instant) -> bool {
+        self.refresh_devices_within(DEVICE_REFRESH_GAP, now, RefreshWait::Block)
+    }
+
+    /// Re-read the shared device list when the last successful read is at least
+    /// `gap` old, returning whether it happened. The gap is only spent on a read
+    /// that actually happened: a transient read failure that burned it would turn
+    /// away, for a whole second, phones this instance would otherwise have
+    /// accepted. A failure spends `DEVICE_REFRESH_FLOOR` instead, which is what
+    /// keeps a damaged file from being re-read on every inbound frame. A store the
+    /// `Skip` caller found busy spends nothing at all — it never reached the file,
+    /// so its next pass simply tries again.
+    fn refresh_devices_within(&self, gap: Duration, now: Instant, wait: RefreshWait) -> bool {
+        let last = *self.inner.last_device_refresh.lock().unwrap();
+        if last.is_some_and(|t| now.saturating_duration_since(t) < gap) {
+            return false;
+        }
+        let failed = *self.inner.last_failed_refresh.lock().unwrap();
+        if failed.is_some_and(|t| now.saturating_duration_since(t) < DEVICE_REFRESH_FLOOR) {
+            return false;
+        }
+        let read = match wait {
+            RefreshWait::Block => refresh_devices(&self.inner.config),
+            RefreshWait::Skip => match try_refresh_devices(&self.inner.config) {
+                Some(out) => out,
+                None => return false,
+            },
+        };
+        let adopted = self.note_store(read);
+        if adopted.is_err() {
+            *self.inner.last_failed_refresh.lock().unwrap() = Some(now);
+            return false;
+        }
+        *self.inner.last_device_refresh.lock().unwrap() = Some(now);
+        true
+    }
+
     /// This Mac's stable id, minting and persisting one if it is somehow still
     /// unset (start() normally does this at load time).
     fn server_id(&self) -> String {
-        let mut cfg = self.inner.config.lock().unwrap();
-        if cfg.ensure_server_id() {
-            let snapshot = cfg.clone();
-            drop(cfg);
-            let _ = save_config(&snapshot);
-            return snapshot.flavor_server_id();
+        let known = self.inner.config.lock().unwrap().flavor_server_id();
+        if !known.is_empty() {
+            return known;
         }
+        if let Some(id) = self.update_config(|cfg| {
+            cfg.ensure_server_id();
+            cfg.flavor_server_id()
+        }) {
+            return id;
+        }
+        // The config can't be saved right now (unreadable or read-only). Mint an
+        // id for this session anyway: an empty one would leave the phone unable to
+        // tell this Mac apart from any other.
+        let mut cfg = self.inner.config.lock().unwrap();
+        cfg.ensure_server_id();
         cfg.flavor_server_id()
+    }
+
+    fn bind_error(&self) -> Option<String> {
+        self.inner.bind_error.lock().unwrap().clone()
+    }
+
+    fn set_bind_error(&self, err: Option<String>) {
+        *self.inner.bind_error.lock().unwrap() = err;
     }
 
     /// Register a new approve-on-Mac pairing request, returning its id, the
@@ -690,13 +689,44 @@ fn mobile_owner(hub: &RemoteHub, device_id: &str) -> crate::control::Owner {
 /// Load persisted config, install event forwarders, and start the server if
 /// enabled. Called once from lib.rs setup (mirrors socketsrv::start).
 pub fn start(hub: RemoteHub, app: AppHandle) {
-    let mut cfg = load_config();
-    if cfg.ensure_server_id() {
-        let _ = save_config(&cfg);
+    *hub.inner.config.lock().unwrap() = load_config();
+    // A damaged settings file is never overwritten, so nothing can be saved until
+    // the user replaces it. Read it once here so the pane explains that up front
+    // instead of after a toggle mysteriously snaps back.
+    if let Err(e) = hub.note_store(config_status()) {
+        eprintln!("warning: {e}");
     }
-    *hub.inner.config.lock().unwrap() = cfg;
+    hub.server_id(); // mint and persist this flavor's id on first run
     install_forwarders(&hub, &app);
     apply(&hub, &app);
+}
+
+/// Tell an open Settings pane whether the listener is up, and why not when a bind
+/// failed — the pane can't infer either from the command's immediate return,
+/// since binding happens on the thread below.
+fn emit_server_changed(hub: &RemoteHub, app: &AppHandle) {
+    let _ = app.emit(
+        "remote-server-changed",
+        json!({
+            "running": hub.inner.running.load(Ordering::Relaxed),
+            "error": hub.bind_error(),
+        }),
+    );
+}
+
+/// Why the server couldn't start on `port`, in the words the Settings pane shows.
+/// The cause has to come from the failure itself: a busy port and a port the
+/// system reserves fail for entirely different reasons and need different fixes.
+fn listen_failure_message(port: u16, err: Option<&std::io::Error>) -> String {
+    match err.map(std::io::Error::kind) {
+        Some(std::io::ErrorKind::AddrInUse) => format!(
+            "Port {port} is already in use — another app or a second copy of lpm may be using it."
+        ),
+        Some(std::io::ErrorKind::PermissionDenied) => {
+            format!("Port {port} isn't available to lpm — pick a port above 1024.")
+        }
+        _ => format!("lpm couldn't start listening on port {port} — try a different port."),
+    }
 }
 
 /// (Re)start or stop the listener to match the current config. Bumping the
@@ -708,10 +738,17 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
     if !cfg.enabled {
         hub.inner.running.store(false, Ordering::Relaxed);
         crate::mdns::withdraw();
+        hub.set_bind_error(None);
+        emit_server_changed(hub, app);
         return;
     }
     let port = effective_port(cfg.port);
     let addr = format!("0.0.0.0:{port}");
+    // Whatever went wrong last time was about the old settings, so clear it before
+    // this bind: a user who just moved to a free port must not keep reading the
+    // old port's failure.
+    hub.set_bind_error(None);
+    emit_server_changed(hub, app);
     let server_id = hub.server_id();
     // Bind on a background thread so the invoking command never blocks the UI,
     // and retry: the previous generation's accept loop may still hold the port
@@ -721,6 +758,7 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
     let (hub, app) = (hub.clone(), app.clone());
     std::thread::spawn(move || {
         let mut bound = None;
+        let mut failure = None;
         for _ in 0..25 {
             if hub.inner.generation.load(Ordering::SeqCst) != generation {
                 return; // superseded by a newer apply() — let that one bind
@@ -730,13 +768,18 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
                     bound = Some(l);
                     break;
                 }
-                Err(_) => std::thread::sleep(Duration::from_millis(100)),
+                Err(e) => {
+                    failure = Some(e);
+                    std::thread::sleep(Duration::from_millis(100));
+                }
             }
         }
         let Some(listener) = bound else {
             eprintln!("warning: mobile remote server could not bind {addr}");
             hub.inner.running.store(false, Ordering::Relaxed);
             crate::mdns::withdraw();
+            hub.set_bind_error(Some(listen_failure_message(port, failure.as_ref())));
+            emit_server_changed(&hub, &app);
             return;
         };
         // A newer apply() may have superseded us between binding and here; that
@@ -749,6 +792,8 @@ fn apply(hub: &RemoteHub, app: &AppHandle) {
         }
         let _ = listener.set_nonblocking(true);
         hub.inner.running.store(true, Ordering::Relaxed);
+        hub.set_bind_error(None);
+        emit_server_changed(&hub, &app);
         crate::mdns::advertise(crate::mdns::AdParams {
             server_id,
             server_name: server_name(),
@@ -855,7 +900,9 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     let outcome = match authenticate(&mut ws, &hub) {
         FirstFrame::Done(outcome) => outcome,
         // Approve-on-Mac: drive the dialog here, where the AppHandle lives.
-        FirstFrame::PairRequest(name) => handle_pair_request(&mut ws, &hub, &app, &name),
+        FirstFrame::PairRequest { name, replaces } => {
+            handle_pair_request(&mut ws, &hub, &app, &name, replaces)
+        }
     };
     let device_id = match outcome {
         Some(outcome) => {
@@ -895,6 +942,11 @@ fn handle_conn(stream: TcpStream, hub: RemoteHub, app: AppHandle, generation: u6
     let mut watches: HashMap<String, RemoteWatch> = HashMap::new();
 
     'main: loop {
+        // A revoke in the other instance has to reach a phone that is connected
+        // but idle, not only one that reconnects. Throttled process-wide to a read
+        // every few seconds, so the tick below stays free of disk work — and it
+        // gives up rather than wait on a save, since the drain is right behind it.
+        hub.refresh_live_devices();
         // Retire on server restart or when this device is revoked.
         if hub.inner.generation.load(Ordering::SeqCst) != generation
             || !hub.device_exists(&device_id)
@@ -993,7 +1045,21 @@ impl AuthOutcome {
 /// `authenticate` itself free of any window/event dependency.
 enum FirstFrame {
     Done(Option<AuthOutcome>),
-    PairRequest(String), // the phone's device name
+    PairRequest {
+        name: String,             // the phone's device name
+        replaces: Option<String>, // the record this phone is re-pairing over
+    },
+}
+
+/// The optional `replaces` field of a pair frame: the device id this phone was
+/// last paired as, so a re-pair supersedes that record instead of leaving it
+/// authorized forever. Older phones omit it and nothing is dropped.
+fn replaced_device_id(v: &Value) -> Option<String> {
+    v.get("replaces")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
@@ -1014,13 +1080,16 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
     match v.get("t").and_then(Value::as_str) {
         Some("pairRequest") => {
             let name = v.get("name").and_then(Value::as_str).unwrap_or("iPhone");
-            FirstFrame::PairRequest(name.to_string())
+            FirstFrame::PairRequest {
+                name: name.to_string(),
+                replaces: replaced_device_id(&v),
+            }
         }
         Some("pair") => {
             let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
             let name = v.get("name").and_then(Value::as_str).unwrap_or("device");
-            match pair_device(hub, code, name) {
-                Some((id, token)) => {
+            match pair_device(hub, code, name, replaced_device_id(&v)) {
+                Ok((id, token)) => {
                     let _ = ws.send(Message::text(
                         json!({
                             "t": "paired",
@@ -1033,9 +1102,9 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                     ));
                     FirstFrame::Done(Some(AuthOutcome::Paired(id)))
                 }
-                None => {
+                Err(why) => {
                     let _ = ws.send(Message::text(
-                        json!({ "t": "error", "error": "pairing rejected" }).to_string(),
+                        json!({ "t": "error", "error": why.wire_error() }).to_string(),
                     ));
                     FirstFrame::Done(None)
                 }
@@ -1047,6 +1116,9 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             let token = v.get("token").and_then(Value::as_str).unwrap_or_default();
+            // Pick up whatever the other instance paired (or revoked) since we
+            // loaded, so a phone it just paired isn't turned away by this one.
+            hub.refresh_devices();
             if check_device(hub, id, token) {
                 let _ = ws.send(Message::text(
                     json!({
@@ -1086,6 +1158,7 @@ fn handle_pair_request(
     hub: &RemoteHub,
     app: &AppHandle,
     name: &str,
+    replaces: Option<String>,
 ) -> Option<AuthOutcome> {
     let Some((request_id, match_code, rx)) = hub.begin_pair_request() else {
         let _ = ws.send(Message::text(
@@ -1147,7 +1220,12 @@ fn handle_pair_request(
 
     match outcome {
         PairOutcome::Allow => {
-            let (id, token) = mint_device_persisted(hub, name);
+            let Some((id, token)) = mint_device_persisted(hub, name, replaces) else {
+                let _ = ws.send(Message::text(
+                    json!({ "t": "pairDenied", "reason": "declined" }).to_string(),
+                ));
+                return None;
+            };
             let _ = ws.send(Message::text(
                 json!({
                     "t": "paired",
@@ -1185,8 +1263,10 @@ fn normalize_code(s: &str) -> String {
 
 /// Mint a device record (token + id) for a newly paired phone, pushing it onto
 /// the config. The single token-issuing path shared by the code-based pair flow
-/// and approve-on-Mac; the caller persists the config.
-fn mint_device(cfg: &mut RemoteConfig, name: &str) -> (String, String) {
+/// and approve-on-Mac; the caller persists the config. `replaces` is the record
+/// this phone was last paired as: dropping it in the same write is what keeps a
+/// re-pair from leaving its predecessor's token authorized forever.
+fn mint_device(cfg: &mut RemoteConfig, name: &str, replaces: Option<&str>) -> (String, String) {
     let token = gen_token();
     // Stamp the pairing flavor's server id so push scoping later routes only this
     // flavor's alerts to this device; ensure the id exists first (start() normally
@@ -1202,32 +1282,68 @@ fn mint_device(cfg: &mut RemoteConfig, name: &str) -> (String, String) {
         ..Default::default()
     };
     let id = device.id.clone();
+    if let Some(old) = replaces {
+        cfg.devices.retain(|d| d.id != old);
+    }
     cfg.devices.push(device);
     (id, token)
 }
 
 /// Mint and persist a device outside the pairing-code flow (approve-on-Mac).
-fn mint_device_persisted(hub: &RemoteHub, name: &str) -> (String, String) {
-    let mut cfg = hub.inner.config.lock().unwrap();
-    let pair = mint_device(&mut cfg, name);
-    let snapshot = cfg.clone();
-    drop(cfg);
-    let _ = save_config(&snapshot);
-    pair
+/// `None` when the credential could not be stored — handing one out that no
+/// later `auth` can match would just strand the phone.
+fn mint_device_persisted(
+    hub: &RemoteHub,
+    name: &str,
+    replaces: Option<String>,
+) -> Option<(String, String)> {
+    hub.update_config(|cfg| mint_device(cfg, name, replaces.as_deref()))
 }
 
-fn pair_device(hub: &RemoteHub, code: &str, name: &str) -> Option<(String, String)> {
-    let mut cfg = hub.inner.config.lock().unwrap();
-    let expected = normalize_code(&cfg.pairing_code);
-    if expected.is_empty() || !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
-        return None;
+/// Why a pairing attempt handed out no credential. The phone acts on the two very
+/// differently: a rejected code means try again with a fresh one, while an
+/// unusable settings file is nothing the phone can fix by re-pairing.
+#[derive(Debug, PartialEq, Eq)]
+enum PairFailure {
+    Rejected,
+    Unavailable,
+}
+
+impl PairFailure {
+    /// The `error` text sent to the phone. Both are plain readable phrases, since
+    /// a phone that predates the second one shows unknown error text as it is.
+    fn wire_error(&self) -> &'static str {
+        match self {
+            PairFailure::Rejected => "pairing rejected",
+            PairFailure::Unavailable => "pairing unavailable",
+        }
     }
-    let pair = mint_device(&mut cfg, name);
-    cfg.pairing_code.clear(); // single use — the next device needs a fresh code
-    let snapshot = cfg.clone();
-    drop(cfg);
-    let _ = save_config(&snapshot);
-    Some(pair)
+}
+
+fn pair_device(
+    hub: &RemoteHub,
+    code: &str,
+    name: &str,
+    replaces: Option<String>,
+) -> Result<(String, String), PairFailure> {
+    // The code is validated against the state on disk, so a code the other
+    // instance already consumed can't be redeemed a second time here. A wrong
+    // code declines the update outright: anything that can reach the port can send
+    // one, and it must not cost a write of a file this process shares.
+    let saved = hub.update_config_result(|cfg| {
+        let expected = normalize_code(&cfg.pairing_code);
+        if expected.is_empty() || !ct_eq(expected.as_bytes(), normalize_code(code).as_bytes()) {
+            return None;
+        }
+        let pair = mint_device(cfg, name, replaces.as_deref());
+        cfg.pairing_code.clear(); // single use — the next device needs a fresh code
+        Some(pair)
+    });
+    match saved {
+        Ok(Some(pair)) => Ok(pair),
+        Ok(None) => Err(PairFailure::Rejected),
+        Err(_) => Err(PairFailure::Unavailable),
+    }
 }
 
 fn check_device(hub: &RemoteHub, id: &str, token: &str) -> bool {
@@ -2061,9 +2177,12 @@ fn handle_msg(
                 automation_error: pref("automationError", false),
             };
             match validate_apns(&token, &env, &key) {
+                // This ack is the phone's only sign that a registration didn't
+                // take (it re-sends on reconnect, never within a session), so it
+                // has to carry the real result rather than a fixed true.
                 Ok(()) => {
-                    set_apns_token(hub, device_id, &token, &env, &key, prefs);
-                    send(ws, json!({ "t": "apnsToken", "ok": true }))?;
+                    let stored = set_apns_token(hub, device_id, &token, &env, &key, prefs);
+                    send(ws, json!({ "t": "apnsToken", "ok": stored }))?;
                 }
                 Err(e) => send(ws, json!({ "t": "apnsToken", "ok": false, "error": e }))?,
             }
@@ -4097,32 +4216,18 @@ fn set_apns_token(
     key: &str,
     prefs: PushPreferences,
 ) -> bool {
-    let mut cfg = hub.inner.config.lock().unwrap();
-    if !apply_apns_token(&mut cfg.devices, device_id, token, env, key, prefs) {
-        return false;
-    }
-    let snapshot = cfg.clone();
-    drop(cfg);
-    let _ = save_config(&snapshot);
-    true
+    hub.update_config(|cfg| apply_apns_token(&mut cfg.devices, device_id, token, env, key, prefs))
+        .unwrap_or(false)
 }
 
 /// Clear a device's stored APNs token (kept paired) after the relay reports it
 /// dead (HTTP 410 / Unregistered), so a stale install stops generating traffic.
 fn clear_apns_token(hub: &RemoteHub, device_id: &str) {
-    let mut cfg = hub.inner.config.lock().unwrap();
-    let mut changed = false;
-    if let Some(d) = cfg.devices.iter_mut().find(|d| d.id == device_id) {
-        if !d.apns_token.is_empty() {
+    hub.update_config(|cfg| {
+        if let Some(d) = cfg.devices.iter_mut().find(|d| d.id == device_id) {
             d.apns_token.clear();
-            changed = true;
         }
-    }
-    if changed {
-        let snapshot = cfg.clone();
-        drop(cfg);
-        let _ = save_config(&snapshot);
-    }
+    });
 }
 
 /// Given the connection-independent dedup map (per (project, status key) → last
@@ -4971,6 +5076,8 @@ fn state_value(hub: &RemoteHub) -> Value {
         "port": effective_port(cfg.port),
         "tailscale": cfg.tailscale,
         "running": hub.inner.running.load(Ordering::Relaxed),
+        "bindError": hub.bind_error(),
+        "configError": hub.config_error(),
         "host": primary_lan_ip(),
         "tailscaleHost": tailscale_ip(),
         "identityRotated": cfg.enabled && crate::remotetls::identity_rotated(),
@@ -4981,8 +5088,13 @@ fn state_value(hub: &RemoteHub) -> Value {
 
 // --- frontend commands (Settings → Mobile devices pane) ----------------------
 
-#[tauri::command]
+/// Async because it reads the settings file (see the note on `remote_set_config`):
+/// the pane asks for this on open and on every refresh, and it must report a
+/// config that was repaired — or that only a phone has hit — not just what the
+/// last save saw.
+#[tauri::command(async)]
 pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
+    hub.recheck_config();
     state_value(&hub)
 }
 
@@ -5055,7 +5167,9 @@ pub fn remote_set_composer_draft(hub: State<'_, RemoteHub>, id: String, text: St
     }
 }
 
-#[tauri::command]
+/// Async (like every command below that touches the config file) so a save that
+/// waits on the other instance's turn never blocks the UI thread.
+#[tauri::command(async)]
 pub fn remote_set_config(
     app: AppHandle,
     hub: State<'_, RemoteHub>,
@@ -5063,34 +5177,26 @@ pub fn remote_set_config(
     port: u16,
     tailscale: bool,
 ) -> Result<Value, String> {
-    {
-        let mut cfg = hub.inner.config.lock().unwrap();
+    hub.try_update_config(|cfg| {
         cfg.enabled = enabled;
         cfg.port = port;
         cfg.tailscale = tailscale;
-        let snapshot = cfg.clone();
-        drop(cfg);
-        save_config(&snapshot)?;
-    }
+    })?;
     apply(&hub, &app);
     Ok(state_value(&hub))
 }
 
 /// Start (or refresh) a single-use pairing code, auto-enabling the server, and
 /// return the QR payload the phone scans.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result<Value, String> {
     let code = gen_pairing_code();
-    let (hosts, port) = {
-        let mut cfg = hub.inner.config.lock().unwrap();
+    let (tailscale, port) = hub.try_update_config(|cfg| {
         cfg.pairing_code = code.clone();
         cfg.enabled = true;
-        let port = effective_port(cfg.port);
-        let snapshot = cfg.clone();
-        drop(cfg);
-        save_config(&snapshot)?;
-        (candidate_hosts(snapshot.tailscale), port)
-    };
+        (cfg.tailscale, effective_port(cfg.port))
+    })?;
+    let hosts = candidate_hosts(tailscale);
     apply(&hub, &app); // ensure the listener is up so the phone can connect
                        // Every candidate address as a repeated `h=` param; the phone tries each and
                        // keeps the one it can reach (LAN at home, Tailscale away from home).
@@ -5109,15 +5215,9 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
     }))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn remote_revoke_device(hub: State<'_, RemoteHub>, id: String) -> Result<Value, String> {
-    {
-        let mut cfg = hub.inner.config.lock().unwrap();
-        cfg.devices.retain(|d| d.id != id);
-        let snapshot = cfg.clone();
-        drop(cfg);
-        save_config(&snapshot)?;
-    }
+    hub.try_update_config(|cfg| cfg.devices.retain(|d| d.id != id))?;
     // Drop any live connection for the revoked device (the poll loop also self-
     // exits on its next tick via device_exists).
     hub.inner
@@ -5139,6 +5239,53 @@ pub fn remote_respond_pair_request(hub: State<'_, RemoteHub>, request_id: String
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::remotestore::{TEST_CONFIG_PATH, TEST_CONFIG_PATH_GUARD};
+
+    /// Points the whole process's `config_path()` at a private temp file, and
+    /// serializes with every other test that does — the override is global, so
+    /// two of them running at once would let one clear it while the other is
+    /// mid-write, and that write would land on the user's real remote.json.
+    struct TestConfig {
+        _guard: std::sync::MutexGuard<'static, ()>,
+        _dir: tempfile::TempDir,
+    }
+
+    impl TestConfig {
+        fn new() -> Self {
+            let guard = TEST_CONFIG_PATH_GUARD
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            *TEST_CONFIG_PATH.lock().unwrap() = Some(dir.path().join("remote.json"));
+            Self {
+                _guard: guard,
+                _dir: dir,
+            }
+        }
+    }
+
+    impl Drop for TestConfig {
+        fn drop(&mut self) {
+            *TEST_CONFIG_PATH.lock().unwrap() = None;
+        }
+    }
+
+    /// A hub that has never read the config file — what a second lpm instance
+    /// looks like to the one that wrote it last.
+    fn fresh_hub() -> RemoteHub {
+        RemoteHub::default()
+    }
+
+    /// A hub seeded from disk, like a process that just started.
+    fn loaded_hub() -> RemoteHub {
+        let hub = RemoteHub::default();
+        *hub.inner.config.lock().unwrap() = load_config();
+        hub
+    }
+
+    fn device_ids(hub: &RemoteHub) -> Vec<String> {
+        hub.config().devices.iter().map(|d| d.id.clone()).collect()
+    }
 
     // Regression for the non-blocking-accept bug: a socket accepted from a
     // non-blocking listener (as accept_loop uses) inherits O_NONBLOCK on macOS,
@@ -5147,8 +5294,7 @@ mod tests {
     // the full accept path and asserts a real WS client still pairs.
     #[test]
     fn pairs_through_nonblocking_listener() {
-        let tmp = std::env::temp_dir().join(format!("lpm-remote-test-{}.json", std::process::id()));
-        *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
+        let _cfg = TestConfig::new();
 
         let hub = RemoteHub::default();
         hub.inner.config.lock().unwrap().pairing_code = "AAAA-BBBB".to_string();
@@ -5185,9 +5331,6 @@ mod tests {
         let reply = c.read().expect("no reply frame");
         let auth = server.join().unwrap();
 
-        *TEST_CONFIG_PATH.lock().unwrap() = None;
-        let _ = std::fs::remove_file(&tmp);
-
         assert!(
             matches!(auth, FirstFrame::Done(Some(_))),
             "authenticate did not pair through a non-blocking listener"
@@ -5204,9 +5347,7 @@ mod tests {
     // the plaintext branch in accept_ws is removed.
     #[test]
     fn legacy_plaintext_client_still_pairs() {
-        let tmp =
-            std::env::temp_dir().join(format!("lpm-remote-plain-test-{}.json", std::process::id()));
-        *TEST_CONFIG_PATH.lock().unwrap() = Some(tmp.clone());
+        let _cfg = TestConfig::new();
 
         let hub = RemoteHub::default();
         hub.inner.config.lock().unwrap().pairing_code = "AAAA-BBBB".to_string();
@@ -5238,9 +5379,6 @@ mod tests {
         let reply = c.read().expect("no reply frame");
         let auth = server.join().unwrap();
 
-        *TEST_CONFIG_PATH.lock().unwrap() = None;
-        let _ = std::fs::remove_file(&tmp);
-
         assert!(
             matches!(auth, FirstFrame::Done(Some(_))),
             "authenticate did not pair a legacy plaintext client"
@@ -5249,6 +5387,444 @@ mod tests {
             reply.to_text().unwrap().contains("paired"),
             "expected paired, got: {reply:?}"
         );
+    }
+
+    // The user-visible bug this whole store exists for: the release app and a
+    // `tauri dev` build share remote.json, and a pairing on one used to be erased
+    // by the next write from the other — after which the phone's `auth` was
+    // refused and only re-pairing got it back.
+    #[test]
+    fn pairing_keeps_a_device_another_instance_added() {
+        let _cfg = TestConfig::new();
+        let ours = loaded_hub();
+        ours.update_config(|c| c.pairing_code = "AAAA-BBBB".to_string());
+
+        // A second instance, started from the same file, pairs a phone.
+        let theirs = loaded_hub();
+        let (their_id, their_token) =
+            mint_device_persisted(&theirs, "their-phone", None).expect("mint");
+
+        // We pair another phone from our now-stale snapshot.
+        let (our_id, our_token) = pair_device(&ours, "AAAA-BBBB", "our-phone", None).expect("pair");
+
+        assert!(
+            check_device(&ours, &their_id, &their_token),
+            "their phone survived our write"
+        );
+        assert!(check_device(&ours, &our_id, &our_token));
+        let on_disk: Vec<String> = load_config().devices.iter().map(|d| d.id.clone()).collect();
+        assert_eq!(on_disk, [their_id, our_id]);
+    }
+
+    // Settings are this process's own, but a device the other instance revoked
+    // and a pairing code it consumed must not come back when we save settings.
+    #[test]
+    fn settings_save_does_not_resurrect_revoked_devices_or_codes() {
+        let _cfg = TestConfig::new();
+        let ours = loaded_hub();
+        ours.update_config(|c| c.pairing_code = "AAAA-BBBB".to_string());
+        let (id, token) = mint_device_persisted(&ours, "phone", None).expect("mint");
+
+        // The other instance revokes it and burns the code.
+        let theirs = loaded_hub();
+        theirs.update_config(|c| {
+            c.devices.retain(|d| d.id != id);
+            c.pairing_code.clear();
+        });
+
+        ours.update_config(|c| {
+            c.enabled = true;
+            c.port = 9100;
+        });
+
+        let disk = load_config();
+        assert!(disk.devices.is_empty(), "revoked device stays revoked");
+        assert!(disk.pairing_code.is_empty(), "consumed code stays consumed");
+        assert!(disk.enabled);
+        assert_eq!(disk.port, 9100);
+        assert!(!check_device(&ours, &id, &token));
+    }
+
+    // A re-pair names the record it supersedes, so the phone ends up with exactly
+    // one credential on the Mac instead of leaving its predecessor authorized.
+    #[test]
+    fn re_pairing_drops_only_the_replaced_record() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        hub.update_config(|c| c.pairing_code = "AAAA-BBBB".to_string());
+        let (first, first_token) = pair_device(&hub, "AAAA-BBBB", "phone", None).expect("pair");
+        let (other, other_token) =
+            mint_device_persisted(&hub, "another-phone", None).expect("mint");
+
+        hub.update_config(|c| c.pairing_code = "CCCC-DDDD".to_string());
+        let (second, second_token) =
+            pair_device(&hub, "CCCC-DDDD", "phone", Some(first.clone())).expect("re-pair");
+
+        assert!(
+            !check_device(&hub, &first, &first_token),
+            "superseded token is dead"
+        );
+        assert!(check_device(&hub, &second, &second_token));
+        assert!(
+            check_device(&hub, &other, &other_token),
+            "other phones untouched"
+        );
+        assert_eq!(device_ids(&hub), [other, second]);
+    }
+
+    // Older phones send no `replaces`, and a phone naming a record this Mac
+    // doesn't have (already revoked here) must simply pair.
+    #[test]
+    fn absent_or_unknown_replaces_removes_nothing() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        let (first, first_token) = mint_device_persisted(&hub, "phone", None).expect("mint");
+        let (second, _) = mint_device_persisted(&hub, "phone", None).expect("mint");
+        let (third, _) =
+            mint_device_persisted(&hub, "phone", Some("no-such-device".into())).expect("mint");
+
+        assert_eq!(device_ids(&hub), [first.clone(), second, third]);
+        assert!(check_device(&hub, &first, &first_token));
+    }
+
+    // Self-healing auth: a long-running instance re-reads the shared device list
+    // before it judges an `auth` frame, so it honours the other instance's
+    // pairings — and its revocations.
+    #[test]
+    fn refresh_devices_follows_another_instance() {
+        let _cfg = TestConfig::new();
+        let theirs = loaded_hub();
+        let ours = fresh_hub();
+        ours.update_config(|c| {
+            c.enabled = true;
+            c.port = 9100;
+        });
+
+        let (id, token) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+        assert!(!check_device(&ours, &id, &token), "not in our snapshot yet");
+
+        ours.refresh_devices();
+        assert!(check_device(&ours, &id, &token));
+
+        theirs.update_config(|c| c.devices.clear());
+        *ours.inner.last_device_refresh.lock().unwrap() = None; // bypass the throttle
+        ours.refresh_devices();
+        assert!(
+            !check_device(&ours, &id, &token),
+            "a revocation propagates too"
+        );
+
+        let cfg = ours.config();
+        assert!(cfg.enabled, "settings are still ours");
+        assert_eq!(cfg.port, 9100);
+    }
+
+    // Driven off an injected clock, not wall-clock: a test that stamps "now" and
+    // races the real 1s gap flips under a loaded parallel test run.
+    #[test]
+    fn refresh_devices_is_throttled() {
+        let _cfg = TestConfig::new();
+        let theirs = loaded_hub();
+        let ours = fresh_hub();
+        let start = Instant::now();
+        assert!(ours.refresh_devices_as_of(start), "the first read happens");
+
+        let (id, token) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+        assert!(
+            !ours.refresh_devices_as_of(start + DEVICE_REFRESH_GAP / 2),
+            "a refresh inside the gap is skipped"
+        );
+        assert!(!check_device(&ours, &id, &token));
+
+        assert!(ours.refresh_devices_as_of(start + DEVICE_REFRESH_GAP));
+        assert!(check_device(&ours, &id, &token));
+    }
+
+    // One unreadable moment must not turn phones away for the rest of the second:
+    // an `auth` that a working read would have accepted would be told to pair
+    // again. A retry is still floored, though — this runs before any
+    // authentication, so a permanently damaged file must not let every inbound
+    // frame re-read it.
+    #[test]
+    fn a_failed_refresh_retries_soon_but_not_freely() {
+        let _cfg = TestConfig::new();
+        let ours = fresh_hub();
+        let path = crate::remotestore::config_path();
+        std::fs::write(&path, b"{ not json").unwrap();
+
+        let at = Instant::now();
+        assert!(!ours.refresh_devices_as_of(at), "nothing was read");
+
+        let cfg = RemoteConfig {
+            devices: vec![Device {
+                id: "d1".into(),
+                token_hash: sha256_hex(b"tok"),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        std::fs::write(&path, serde_json::to_vec(&cfg).unwrap()).unwrap();
+
+        // Readable again, so only the floor can hold this one back.
+        assert!(
+            !ours.refresh_devices_as_of(at + DEVICE_REFRESH_FLOOR / 2),
+            "a retry inside the floor is skipped"
+        );
+        assert!(!check_device(&ours, "d1", "tok"));
+
+        assert!(DEVICE_REFRESH_FLOOR < DEVICE_REFRESH_GAP);
+        assert!(
+            ours.refresh_devices_as_of(at + DEVICE_REFRESH_FLOOR),
+            "the next connection still gets a read, well inside the 1s gap"
+        );
+        assert!(check_device(&ours, "d1", "tok"));
+    }
+
+    // An established session's slow refresh: a phone that is connected but idle
+    // never re-authenticates, so this is the only thing that ends its session when
+    // the device is revoked in the other instance.
+    #[test]
+    fn the_live_refresh_adopts_a_revoke() {
+        let _cfg = TestConfig::new();
+        let theirs = loaded_hub();
+        let ours = fresh_hub();
+        let (id, _) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+
+        let at = Instant::now();
+        assert!(live_refresh(&ours, at));
+        assert!(ours.device_exists(&id), "the session is authorized");
+
+        theirs.update_config(|c| c.devices.clear());
+        assert!(
+            !ours.refresh_devices_within(
+                LIVE_REFRESH_GAP,
+                at + LIVE_REFRESH_GAP / 2,
+                RefreshWait::Skip
+            ),
+            "an idle connection re-reads slowly"
+        );
+        assert!(ours.device_exists(&id));
+
+        assert!(live_refresh(&ours, at + LIVE_REFRESH_GAP));
+        assert!(
+            !ours.device_exists(&id),
+            "the revoke reaches the live session"
+        );
+    }
+
+    /// The live refresh, retried past a store another test's save happens to
+    /// hold: "busy" is a legitimate answer on that path, not a failed read.
+    fn live_refresh(hub: &RemoteHub, at: Instant) -> bool {
+        (0..100).any(|_| {
+            let read = hub.refresh_devices_within(LIVE_REFRESH_GAP, at, RefreshWait::Skip);
+            if !read {
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            read
+        })
+    }
+
+    // The live refresh runs at the top of the connection loop, ahead of the drain
+    // of a phone's outbound queue, so a second instance mid-save must cost it
+    // nothing: waiting out that save would stall terminal output and overflow the
+    // queue, which costs the phone frames.
+    #[test]
+    fn the_live_refresh_gives_up_on_a_busy_store() {
+        let _cfg = TestConfig::new();
+        let theirs = loaded_hub();
+        let ours = fresh_hub();
+        let (id, _) = mint_device_persisted(&theirs, "phone", None).expect("mint");
+
+        let at = Instant::now();
+        let held = crate::remotestore::hold_store_for_test();
+        let started = Instant::now();
+        let read = ours.refresh_devices_within(LIVE_REFRESH_GAP, at, RefreshWait::Skip);
+        let waited = started.elapsed();
+        drop(held);
+
+        assert!(!read, "it reports that it read nothing");
+        assert!(
+            waited < Duration::from_millis(100),
+            "it came back instead of waiting: {waited:?}"
+        );
+        assert!(!ours.device_exists(&id), "the file was never touched");
+        assert!(
+            ours.inner.last_device_refresh.lock().unwrap().is_none(),
+            "and no window was spent, so the next pass tries again"
+        );
+        assert!(
+            ours.inner.last_failed_refresh.lock().unwrap().is_none(),
+            "a busy store is not a failed read"
+        );
+        assert!(live_refresh(&ours, at), "the retry does happen");
+        assert!(ours.device_exists(&id));
+    }
+
+    // A damaged file freezes every save — the toggle snaps back, pairing returns
+    // nothing — and the file is deliberately left alone, so the pane is the only
+    // place the user can find out why.
+    #[test]
+    fn a_damaged_config_is_reported_until_it_is_replaced() {
+        let _cfg = TestConfig::new();
+        let hub = fresh_hub();
+        let path = crate::remotestore::config_path();
+        std::fs::write(&path, b"{ not json").unwrap();
+
+        assert_eq!(state_value(&hub)["configError"], Value::Null);
+        assert!(
+            hub.update_config(|c| c.enabled = true).is_none(),
+            "nothing was saved"
+        );
+
+        let reported = state_value(&hub)["configError"]
+            .as_str()
+            .expect("the pane is told")
+            .to_string();
+        assert!(reported.contains("remote.json"), "{reported}");
+        assert!(reported.contains("pairing is paused"), "{reported}");
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"{ not json",
+            "and the file is still there to recover"
+        );
+
+        std::fs::remove_file(&path).unwrap();
+        assert!(hub.update_config(|c| c.enabled = true).is_some());
+        assert_eq!(
+            state_value(&hub)["configError"],
+            Value::Null,
+            "a save that works clears it"
+        );
+    }
+
+    // Startup's own read, before the user touches anything: the pane must open
+    // already explaining a config that can't be used.
+    #[test]
+    fn startup_reports_a_damaged_config() {
+        let _cfg = TestConfig::new();
+        std::fs::write(crate::remotestore::config_path(), b"{ not json").unwrap();
+        let hub = fresh_hub();
+
+        assert!(hub.note_store(config_status()).is_err());
+
+        assert!(state_value(&hub)["configError"].is_string());
+    }
+
+    // The pane re-reads the file whenever it asks for state, so it stops warning
+    // about a config the user has since replaced, and starts warning about one
+    // only a phone has run into while the pane sat open.
+    #[test]
+    fn asking_for_state_re_reads_the_config() {
+        let _cfg = TestConfig::new();
+        let hub = fresh_hub();
+        let path = crate::remotestore::config_path();
+
+        std::fs::write(&path, b"{ not json").unwrap();
+        hub.recheck_config();
+        assert!(
+            state_value(&hub)["configError"].is_string(),
+            "an open pane finds out without a save of its own"
+        );
+
+        std::fs::remove_file(&path).unwrap();
+        hub.recheck_config();
+        assert_eq!(
+            state_value(&hub)["configError"],
+            Value::Null,
+            "and the warning goes as soon as the file is replaced"
+        );
+    }
+
+    // A phone whose credential could not be saved must not be told its code was
+    // wrong: it would loop through Pair Again with a good code forever, and only
+    // the desktop banner would say why.
+    #[test]
+    fn a_pairing_that_cannot_be_saved_is_not_a_rejection() {
+        let _cfg = TestConfig::new();
+        let hub = loaded_hub();
+        hub.update_config(|c| c.pairing_code = "AAAA-BBBB".to_string());
+        std::fs::write(crate::remotestore::config_path(), b"{ not json").unwrap();
+
+        let why = pair_device(&hub, "AAAA-BBBB", "phone", None).expect_err("no credential");
+
+        assert_eq!(why, PairFailure::Unavailable);
+        assert_eq!(why.wire_error(), "pairing unavailable");
+        assert_ne!(why.wire_error(), PairFailure::Rejected.wire_error());
+        assert!(
+            state_value(&hub)["configError"].is_string(),
+            "and the pane explains the real reason"
+        );
+    }
+
+    // Anything that can reach the port can send a wrong code, so a rejected
+    // pairing must not move the file — least of all reverting a setting the other
+    // instance just wrote.
+    #[test]
+    fn a_rejected_pairing_code_does_not_touch_the_config() {
+        use std::os::unix::fs::MetadataExt;
+        let _cfg = TestConfig::new();
+        let ours = loaded_hub();
+        ours.update_config(|c| c.pairing_code = "AAAA-BBBB".to_string());
+
+        // The other instance wrote last, with settings of its own.
+        let theirs = loaded_hub();
+        theirs.update_config(|c| {
+            c.enabled = true;
+            c.port = 9100;
+        });
+
+        let path = crate::remotestore::config_path();
+        let before = std::fs::read(&path).unwrap();
+        let before_inode = std::fs::metadata(&path).unwrap().ino();
+
+        let why = pair_device(&ours, "ZZZZ-YYYY", "phone", None).expect_err("no credential");
+        assert_eq!(why, PairFailure::Rejected);
+        assert_eq!(why.wire_error(), "pairing rejected");
+
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            before,
+            "file is byte-identical"
+        );
+        assert_eq!(
+            std::fs::metadata(&path).unwrap().ino(),
+            before_inode,
+            "the file was not rewritten"
+        );
+        let cfg = ours.config();
+        assert_eq!(cfg.pairing_code, "AAAA-BBBB", "the code is still armed");
+        assert!(cfg.devices.is_empty());
+        assert!(!cfg.enabled, "our in-memory settings are untouched");
+        assert_eq!(cfg.port, 0);
+    }
+
+    #[test]
+    fn the_listen_failure_names_the_cause() {
+        use std::io::{Error, ErrorKind};
+        let in_use = listen_failure_message(8765, Some(&Error::from(ErrorKind::AddrInUse)));
+        assert!(
+            in_use.contains("8765") && in_use.contains("already in use"),
+            "{in_use}"
+        );
+        let denied = listen_failure_message(80, Some(&Error::from(ErrorKind::PermissionDenied)));
+        assert!(denied.contains("above 1024"), "{denied}");
+        assert!(!denied.contains("already in use"), "{denied}");
+        let unknown = listen_failure_message(8765, None);
+        assert!(unknown.contains("8765"), "{unknown}");
+        assert!(!unknown.contains("already in use"), "{unknown}");
+    }
+
+    #[test]
+    fn state_reports_the_bind_error() {
+        let hub = RemoteHub::default();
+        assert_eq!(state_value(&hub)["bindError"], Value::Null);
+        hub.set_bind_error(Some("Port 8765 is already in use.".into()));
+        assert_eq!(
+            state_value(&hub)["bindError"],
+            json!("Port 8765 is already in use.")
+        );
+        hub.set_bind_error(None);
+        assert_eq!(state_value(&hub)["bindError"], Value::Null);
     }
 
     #[test]
@@ -5611,37 +6187,6 @@ mod tests {
         assert!(!back.devices[0].push_automation_error);
     }
 
-    // Old remote.json (written before push support) has neither the device push
-    // fields nor push_relay; #[serde(default)] must load it with empty defaults and
-    // the effective relay must fall back to the built-in endpoint. The per-status
-    // notification prefs are absent too and must default to enabled, not false.
-    #[test]
-    fn old_json_loads_with_default_push_fields() {
-        let json = r#"{
-            "enabled": true, "lan": false, "port": 0, "pairing_code": "",
-            "tailscale": true,
-            "devices": [{ "id": "d1", "name": "iPhone",
-                          "token_hash": "abc", "created_at": 1 }]
-        }"#;
-        let cfg: RemoteConfig = serde_json::from_str(json).unwrap();
-        assert!(cfg.push_relay.is_empty());
-        assert!(cfg.server_id.is_none());
-        // Per-flavor fields added later must default in from a legacy config.
-        assert!(cfg.dev_server_id.is_none());
-        assert_eq!(cfg.effective_relay(), DEFAULT_PUSH_RELAY);
-        assert_eq!(cfg.devices.len(), 1);
-        assert!(cfg.devices[0].paired_server_id.is_none());
-        assert!(cfg.devices[0].apns_token.is_empty());
-        assert!(cfg.devices[0].apns_env.is_empty());
-        assert!(cfg.devices[0].push_key.is_empty());
-        assert!(cfg.devices[0].push_waiting);
-        assert!(cfg.devices[0].push_done);
-        assert!(cfg.devices[0].push_error);
-        assert!(!cfg.devices[0].push_automation_started);
-        assert!(!cfg.devices[0].push_automation_done);
-        assert!(!cfg.devices[0].push_automation_error);
-    }
-
     #[test]
     fn validate_apns_enforces_shape() {
         let key = base64::engine::general_purpose::STANDARD.encode([1u8; 32]);
@@ -5818,20 +6363,6 @@ mod tests {
             push_collapse_id("srv-b", "web-app", "pane-1"),
             "server participates"
         );
-    }
-
-    #[test]
-    fn ensure_server_id_mints_once_and_is_stable() {
-        // Flavor-agnostic: ensure_server_id mints this build's flavor slot
-        // (dev_server_id under test's debug profile, server_id in release), so the
-        // test asserts through flavor_server_id() rather than a specific field.
-        let mut cfg = RemoteConfig::default();
-        assert!(cfg.flavor_server_id().is_empty());
-        assert!(cfg.ensure_server_id(), "first call mints");
-        let first = cfg.flavor_server_id();
-        assert!(!first.is_empty());
-        assert!(!cfg.ensure_server_id(), "second call is a no-op");
-        assert_eq!(cfg.flavor_server_id(), first, "stable across calls");
     }
 
     #[test]

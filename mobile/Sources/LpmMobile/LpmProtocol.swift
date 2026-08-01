@@ -13,13 +13,21 @@ enum Wire {
         return s
     }
 
-    static func pair(code: String, name: String) -> String {
-        json(["t": "pair", "code": code, "name": name])
+    /// `replaces` (optional) names a device record on the Mac this pairing should
+    /// retire — a re-pair after the Mac lost this phone's credential, which would
+    /// otherwise leave the dead record authorized forever. Omitted when absent, so
+    /// older Macs (which ignore unknown keys) behave exactly as before.
+    static func pair(code: String, name: String, replaces: String? = nil) -> String {
+        var obj: [String: Any] = ["t": "pair", "code": code, "name": name]
+        if let replaces, !replaces.isEmpty { obj["replaces"] = replaces }
+        return json(obj)
     }
     /// Request approve-on-Mac pairing: no code, the Mac shows an Allow dialog with a
     /// match code the phone also displays. Sent as the first frame in that mode.
-    static func pairRequest(name: String) -> String {
-        json(["t": "pairRequest", "name": name])
+    static func pairRequest(name: String, replaces: String? = nil) -> String {
+        var obj: [String: Any] = ["t": "pairRequest", "name": name]
+        if let replaces, !replaces.isEmpty { obj["replaces"] = replaces }
+        return json(obj)
     }
     static func auth(deviceId: String, token: String) -> String {
         json(["t": "auth", "deviceId": deviceId, "token": token])

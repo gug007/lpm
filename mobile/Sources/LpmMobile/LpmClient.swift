@@ -158,6 +158,11 @@ final class LpmClient: NSObject {
     // pop a second Allow dialog) and never runs the connect watchdog (approval can
     // take longer than it); the pair guard below bounds it instead.
     private var pairRequestName: String?
+    // Non-nil while re-pairing a Mac this phone already has a (now-rejected)
+    // credential for: the device id the Mac should drop as it mints the new one,
+    // sent as the optional `replaces` key on the pair/pairRequest frame. Older
+    // Macs ignore the key and simply keep the dead record.
+    private var replacesDeviceId: String?
     private var pairGuard: DispatchWorkItem?
     private let pairGuardTimeout: TimeInterval = 35
     private var deviceName: String
@@ -226,6 +231,12 @@ final class LpmClient: NSObject {
     // (lpm not running, or a stale port after a dev/prod port change).
     static let secureFailedError = "secure-failed"
     static let refusedError = "connection-refused"
+
+    // Sentinel for the Mac rejecting this device's credential: it no longer holds
+    // a paired record for this phone, so retrying the same credential can never
+    // succeed. Mapped to user-facing copy by the model, which turns it into a
+    // "pair again" prompt.
+    static let unauthorizedError = "device-unauthorized"
 
     /// True for any of the retryable "offline" hints — the states the model's
     /// stale-host repick and mDNS recovery should react to, not just the generic
@@ -361,17 +372,21 @@ final class LpmClient: NSObject {
     }
 
     /// Connect to consume a one-time pairing code scanned from the desktop QR.
-    func pair(host: String, port: Int, code: String) {
+    /// `replaces` names a device record the Mac should retire as it mints the new
+    /// one (a re-pair), so a rejected credential doesn't linger as a ghost.
+    func pair(host: String, port: Int, code: String, replaces: String? = nil) {
         endpoint = Endpoint(host: host, port: port)
         pairingCode = code
+        replacesDeviceId = replaces
         connect()
     }
 
     /// Connect for approve-on-Mac pairing: send a `pairRequest`, then wait (up to
     /// the pair guard) for the Mac to accept + the user to Allow. No code involved.
-    func pairRequest(host: String, port: Int) {
+    func pairRequest(host: String, port: Int, replaces: String? = nil) {
         endpoint = Endpoint(host: host, port: port)
         pairRequestName = deviceName
+        replacesDeviceId = replaces
         connect()
     }
 
@@ -414,6 +429,7 @@ final class LpmClient: NSObject {
     func disconnect() {
         wantConnected = false
         pairRequestName = nil
+        replacesDeviceId = nil
         pairGuard?.cancel(); pairGuard = nil
         cancelReconnect()
         teardownTask()
@@ -440,9 +456,9 @@ final class LpmClient: NSObject {
         // while the TLS handshake is still in flight can fail and tear down a
         // connection that was about to succeed — the exact away-from-home case.
         if let name = pairRequestName {
-            pendingHandshakeFrame = Wire.pairRequest(name: name)
+            pendingHandshakeFrame = Wire.pairRequest(name: name, replaces: replacesDeviceId)
         } else if let code = pairingCode {
-            pendingHandshakeFrame = Wire.pair(code: code, name: deviceName)
+            pendingHandshakeFrame = Wire.pair(code: code, name: deviceName, replaces: replacesDeviceId)
         } else if let c = credential {
             pendingHandshakeFrame = Wire.auth(deviceId: c.deviceId, token: c.token)
         } else {
@@ -471,6 +487,7 @@ final class LpmClient: NSObject {
     /// the socket down, and report the reason.
     private func failPair(_ reason: String) {
         pairRequestName = nil
+        replacesDeviceId = nil
         pairGuard?.cancel(); pairGuard = nil
         wantConnected = false
         cancelReconnect()
@@ -986,6 +1003,7 @@ final class LpmClient: NSObject {
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 self.pairRequestName = nil
+                self.replacesDeviceId = nil
                 self.pairGuard?.cancel(); self.pairGuard = nil
                 self.set(.ready)
                 self.onConnected()
@@ -1010,7 +1028,10 @@ final class LpmClient: NSObject {
                 self.flushPending()
                 self.onIdentity?(serverId, serverName)
             case .error(let e):
-                self.fatal(e)
+                // The Mac dropped this device's record: retrying the same
+                // credential is pointless, so stop and report it as the sentinel
+                // the model turns into a "pair again" prompt.
+                self.fatal(e == "unauthorized" ? Self.unauthorizedError : e)
             case .projects(let p): self.onProjects?(p)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
