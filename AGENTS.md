@@ -22,3 +22,7 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
 - Keep files focused: don't grow a file past ~400 lines — put new features in their own module
 - Bump `version` in `cli/Cargo.toml` on any `cli/` change — patch for fixes, minor for new commands/flags — so stale installed binaries stay detectable via `lpm --version`
 - Never commit or push any changes
+
+## Analytics
+- **Google Search Console**: https://search.google.com/search-console?resource_id=sc-domain%3Alpm.cx
+- **Google Analytics**: https://analytics.google.com/analytics/web/#/a389756177p531055430/reports/intelligenthome?params=_u..nav%3Dmaui
