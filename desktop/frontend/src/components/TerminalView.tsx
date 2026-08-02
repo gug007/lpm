@@ -27,6 +27,11 @@ import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
+import {
+  resolveUtilityTabAction,
+  type UtilityReturn,
+  type UtilityTabKind,
+} from "./terminal/utilityTabToggle";
 import { useKeyboardShortcut, type KeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { canonicalShortcut, parseShortcut } from "../shortcutParse";
 import { resolveHotkey, type HotkeyId } from "../hotkeys";
@@ -110,6 +115,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // can be re-opened after the tab was navigated back to its list.
   const [memoryTarget, setMemoryTarget] = useState<{ name: string; seq: number } | null>(null);
   const [focusRequest, setFocusRequest] = useState<string | null>(null);
+  const [serviceFocusRequest, setServiceFocusRequest] = useState<{ paneId: string; name: string } | null>(null);
+  // Per pane and per utility tab (⌘⇧R review, ⌘⇧M memory): the header entry the
+  // toggle was opened from, so the closing press lands back there.
+  const utilityReturns = useRef<Map<string, UtilityReturn>>(new Map());
 
   const terminalHandles = useRef<Map<string, InteractivePaneHandle>>(new Map());
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
@@ -468,6 +477,42 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     focusTerminal(at.paneId, at.tabIdx);
   }, [focusRequest, tree, focusTerminal]);
 
+  useEffect(() => {
+    if (!serviceFocusRequest || !tree) return;
+    setServiceFocusRequest(null);
+    const { paneId, name } = serviceFocusRequest;
+    if (getPane(paneId)) focusService(paneId, name);
+  }, [serviceFocusRequest, tree, getPane, focusService]);
+
+  // ⌘⇧R / ⌘⇧M open the tab, then put the pane back the way it was: the second
+  // press closes it and re-focuses whatever the first press was fired from.
+  const toggleUtilityTab = useCallback(
+    (tabKind: UtilityTabKind, openInPane: (paneId: string) => void) => {
+      const pane = getFocusedPane();
+      if (!pane) return;
+      const key = `${pane.id}:${tabKind}`;
+      const resolved = resolveUtilityTabAction(
+        pane,
+        tabKind,
+        utilityReturns.current.get(key) ?? null,
+        stableServices.map((s) => s.name),
+      );
+      if (resolved.action === "open") {
+        if (resolved.remember) utilityReturns.current.set(key, resolved.remember);
+        else utilityReturns.current.delete(key);
+        openInPane(pane.id);
+        return;
+      }
+      utilityReturns.current.delete(key);
+      closeTerminal(pane.id, resolved.tabIdx);
+      // Both writes land in one render, and the close renumbers the tabs, so the
+      // return focus has to be requested rather than applied inline.
+      if (resolved.back?.kind === "tab") setFocusRequest(resolved.back.id);
+      else if (resolved.back) setServiceFocusRequest({ paneId: pane.id, name: resolved.back.name });
+    },
+    [getFocusedPane, stableServices, closeTerminal],
+  );
+
   const findInPane = useCallback(
     (paneId: string, query: string, direction: "next" | "prev"): boolean => {
       const handle = resolveActiveHandle(paneId);
@@ -607,28 +652,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     (event, matched) => {
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
-      if (matched.key === "r") {
-        const pane = getFocusedPane();
-        if (!pane) return;
-        const reviewIdx = pane.tabs.findIndex((t) => t.kind === "review");
-        if (reviewIdx >= 0 && !pane.activeServiceName && pane.activeTabIdx === reviewIdx) {
-          closeTerminal(pane.id, reviewIdx);
-        } else {
-          openReviewInPane(pane.id);
-        }
-        return;
-      }
-      if (matched.key === "m") {
-        const pane = getFocusedPane();
-        if (!pane) return;
-        const memoryIdx = pane.tabs.findIndex((t) => t.kind === "memory");
-        if (memoryIdx >= 0 && !pane.activeServiceName && pane.activeTabIdx === memoryIdx) {
-          closeTerminal(pane.id, memoryIdx);
-        } else {
-          openMemoryInPane(pane.id);
-        }
-        return;
-      }
+      if (matched.key === "r") return toggleUtilityTab("review", openReviewInPane);
+      if (matched.key === "m") return toggleUtilityTab("memory", openMemoryInPane);
       if (matched.key === "i") {
         if (focusedComposerTerminalId) useComposerStore.getState().toggle();
         return;
