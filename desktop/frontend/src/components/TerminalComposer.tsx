@@ -23,7 +23,7 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
+import { peerSlugOf, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
 import {
@@ -54,7 +54,7 @@ import { PlusIcon, SquarePenIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
-import { loadImageDataUrl } from "./imageDataUrl";
+import { loadImageDataUrl, seedImageDataUrl } from "./imageDataUrl";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
@@ -205,10 +205,13 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
 }
 
 export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession }: TerminalComposerProps) {
-  // A remote (peer) terminal runs on another Mac. Images are still supported:
+  // A remote (peer) terminal runs on another machine. Images are still supported:
   // they're uploaded to the host (which returns a host-valid path) at attach time
-  // via UploadClipboardImageForTerminal; other file types stay unsupported.
-  const isRemotePeer = isPeerName(terminalId);
+  // via UploadClipboardImageForTerminal; other file types stay unsupported. The
+  // slug carries into every later read of those host paths — chip thumbnails, the
+  // hover preview, the lightbox — since the host is the only machine they exist on.
+  const peerSlug = peerSlugOf(terminalId);
+  const isRemotePeer = peerSlug !== null;
   // The input reads better slightly larger than the terminal text it feeds.
   const inputFontSize = fontSize + 2;
   // `blank` drives the placeholder (no content at all); `disabled` drives the
@@ -406,7 +409,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
       chip.dataset.thumb = "pending";
-      loadImageDataUrl(path)
+      loadImageDataUrl(path, peerSlug)
         .then((url) => {
           if (chip.isConnected) setChipThumbnail(chip, url);
         })
@@ -414,7 +417,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           chip.dataset.thumb = "failed";
         });
     });
-  }, []);
+  }, [peerSlug]);
 
   // Push the current tab set into the reactive mirror. Labels are computed only
   // when the strip is visible (2+ tabs); a lone tab carries an empty label so its
@@ -677,17 +680,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   }, []);
 
   // Register a chip for an image already uploaded to the host, seating its
-  // thumbnail from bytes we hold locally — the returned path lives on the host's
-  // disk, so hydrateChips (which reads from THIS Mac) would fail to load it. The
-  // `thumb` flag marks it handled so hydrateChips skips the doomed disk read.
+  // thumbnail from the bytes we just sent rather than reading the host path back.
+  // Seeding the shared cache under that path means every later reader of it — a
+  // chip rebuilt on a tab switch, the hover preview, the lightbox — is answered
+  // here too, instead of asking the host for pixels this Mac already holds.
   const registerPeerImageChip = useCallback(
     (hostPath: string, dataUrl: string): HTMLSpanElement => {
       const chip = registerImagePath(hostPath);
       chip.dataset.thumb = "data";
       setChipThumbnail(chip, dataUrl);
+      seedImageDataUrl(hostPath, peerSlug, dataUrl);
       return chip;
     },
-    [registerImagePath],
+    [registerImagePath, peerSlug],
   );
 
   // Upload one image (raw bytes + mime) to the host and return its chip, or null
@@ -2126,12 +2131,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         </div>
       </div>
       </div>
-      {preview?.kind === "image" && <ImagePreviewPopover path={preview.path} anchor={preview.rect} />}
+      {preview?.kind === "image" && (
+        <ImagePreviewPopover path={preview.path} anchor={preview.rect} slug={peerSlug} />
+      )}
       {preview?.kind === "memory" && (
         <MemoryPreviewPopover session={memorySessionById.get(preview.id)} anchor={preview.rect} />
       )}
       {lightboxPath && (
-        <ImageLightbox path={lightboxPath} onClose={() => setLightboxPath(null)} />
+        <ImageLightbox path={lightboxPath} onClose={() => setLightboxPath(null)} slug={peerSlug} />
       )}
       {slashOpen && (
         <SlashCommandMenu

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { NotesReadFileAsInput } from "../../bridge/commands";
+import { prefixRoot } from "../peer/markers";
 
 // Data URLs are reused across previews so re-opening the same image doesn't
 // re-read it from disk. Bounded LRU: base64 data URLs are large and the composer
@@ -7,18 +8,18 @@ import { NotesReadFileAsInput } from "../../bridge/commands";
 const MAX_CACHE_ENTRIES = 12;
 const urlCache = new Map<string, string>();
 
-function cacheGet(path: string): string | undefined {
-  const url = urlCache.get(path);
+function cacheGet(key: string): string | undefined {
+  const url = urlCache.get(key);
   if (url !== undefined) {
-    urlCache.delete(path);
-    urlCache.set(path, url);
+    urlCache.delete(key);
+    urlCache.set(key, url);
   }
   return url;
 }
 
-function cacheSet(path: string, url: string) {
-  urlCache.delete(path);
-  urlCache.set(path, url);
+function cacheSet(key: string, url: string) {
+  urlCache.delete(key);
+  urlCache.set(key, url);
   while (urlCache.size > MAX_CACHE_ENTRIES) {
     const oldest = urlCache.keys().next().value;
     if (oldest === undefined) break;
@@ -26,16 +27,34 @@ function cacheSet(path: string, url: string) {
   }
 }
 
-// Read a local image as a base64 data URL, served from the shared LRU cache so a
+// The key a path is read and cached under. An attachment of a peer terminal sits
+// on that host's disk, so it is read as a peer-marked root and the command router
+// forwards the read there; unmarked, the host path would be looked up on THIS
+// machine, which has nothing at it. The marker also keeps two hosts' identically
+// named temp files apart in the cache. `slug` is absent for a local file.
+function readKey(path: string, slug?: string | null): string {
+  return slug && path.startsWith("/") ? prefixRoot(slug, path) : path;
+}
+
+// Seat bytes already in hand — a peer image is uploaded FROM here, so its pixels
+// are known before the host path exists — so every later reader of that path (a
+// chip rebuilt from a draft, the hover preview, the lightbox) is served without a
+// round trip to the host.
+export function seedImageDataUrl(path: string, slug: string | null, dataUrl: string): void {
+  cacheSet(readKey(path, slug), dataUrl);
+}
+
+// Read an image as a base64 data URL, served from the shared LRU cache so a
 // thumbnail chip, its hover preview, and the click-to-open lightbox of the same
 // file each read disk at most once. Imperative form, for the chip thumbnails
 // rendered into the contenteditable outside React.
-export function loadImageDataUrl(path: string): Promise<string> {
-  const cached = cacheGet(path);
+export function loadImageDataUrl(path: string, slug?: string | null): Promise<string> {
+  const key = readKey(path, slug);
+  const cached = cacheGet(key);
   if (cached) return Promise.resolve(cached);
-  return NotesReadFileAsInput(path).then((input: { mimeType?: string; data: string }) => {
+  return NotesReadFileAsInput(key).then((input: { mimeType?: string; data: string }) => {
     const dataUrl = `data:${input.mimeType || "image/png"};base64,${input.data}`;
-    cacheSet(path, dataUrl);
+    cacheSet(key, dataUrl);
     return dataUrl;
   });
 }
@@ -43,12 +62,15 @@ export function loadImageDataUrl(path: string): Promise<string> {
 // Hook form of the same loader. `url` holds the previous value until a new
 // (uncached) path resolves — no blank flash between previews; `failed` flips
 // when the read errors.
-export function useImageDataUrl(path: string): { url: string | null; failed: boolean } {
-  const [url, setUrl] = useState<string | null>(() => cacheGet(path) ?? null);
+export function useImageDataUrl(
+  path: string,
+  slug?: string | null,
+): { url: string | null; failed: boolean } {
+  const [url, setUrl] = useState<string | null>(() => cacheGet(readKey(path, slug)) ?? null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    const cached = cacheGet(path);
+    const cached = cacheGet(readKey(path, slug));
     if (cached) {
       setUrl(cached);
       setFailed(false);
@@ -56,7 +78,7 @@ export function useImageDataUrl(path: string): { url: string | null; failed: boo
     }
     let cancelled = false;
     setFailed(false);
-    loadImageDataUrl(path)
+    loadImageDataUrl(path, slug)
       .then((dataUrl) => {
         if (!cancelled) setUrl(dataUrl);
       })
@@ -66,7 +88,7 @@ export function useImageDataUrl(path: string): { url: string | null; failed: boo
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, slug]);
 
   return { url, failed };
 }

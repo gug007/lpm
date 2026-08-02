@@ -5,13 +5,15 @@ import { XIcon } from "./icons";
 interface ImageLightboxProps {
   path: string;
   onClose: () => void;
+  // Peer slug when the file lives on a paired host rather than this machine.
+  slug?: string | null;
 }
 
 // Full-window view of a composer image, opened by clicking its chip. Backdrop
 // click and Escape close it (handled by Modal); the chip's small hover popover
 // stays for at-a-glance peeking.
-export function ImageLightbox({ path, onClose }: ImageLightboxProps) {
-  const { url, failed } = useImageDataUrl(path);
+export function ImageLightbox({ path, onClose, slug }: ImageLightboxProps) {
+  const { url, failed } = useImageDataUrl(path, slug);
 
   return (
     <Modal

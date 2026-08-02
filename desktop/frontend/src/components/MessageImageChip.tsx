@@ -7,12 +7,15 @@ import { useImageDataUrl } from "./imageDataUrl";
 interface MessageImageChipProps {
   index: number;
   path: string;
+  // Peer slug when the message was sent to a paired host, whose disk the
+  // attachment lives on.
+  slug?: string | null;
 }
 
-export function MessageImageChip({ index, path }: MessageImageChipProps) {
+export function MessageImageChip({ index, path, slug }: MessageImageChipProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
-  const { url } = useImageDataUrl(path);
+  const { url } = useImageDataUrl(path, slug);
 
   // The preview is pinned to the hover-time rect, so scrolling the (virtualized)
   // history list or resizing the window would leave it floating — dismiss on both.
@@ -47,7 +50,7 @@ export function MessageImageChip({ index, path }: MessageImageChipProps) {
         </span>
         Image {index}
       </span>
-      {anchor && <ImagePreviewPopover path={path} anchor={anchor} />}
+      {anchor && <ImagePreviewPopover path={path} anchor={anchor} slug={slug} />}
     </>
   );
 }

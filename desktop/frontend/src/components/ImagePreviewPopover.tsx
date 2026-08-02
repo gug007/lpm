@@ -8,12 +8,14 @@ const EDGE_MARGIN = 8;
 interface ImagePreviewPopoverProps {
   path: string;
   anchor: DOMRect;
+  // Peer slug when the file lives on a paired host rather than this machine.
+  slug?: string | null;
 }
 
 type Pos = { top: number; left: number; placement: "top" | "bottom" };
 
-export function ImagePreviewPopover({ path, anchor }: ImagePreviewPopoverProps) {
-  const { url, failed } = useImageDataUrl(path);
+export function ImagePreviewPopover({ path, anchor, slug }: ImagePreviewPopoverProps) {
+  const { url, failed } = useImageDataUrl(path, slug);
   const [pos, setPos] = useState<Pos | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 

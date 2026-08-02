@@ -30,6 +30,7 @@ import {
   type HistoryMessage,
   type HistoryScope,
 } from "../store/messageHistory";
+import { peerSlugOf } from "../peer/markers";
 import { relativeTime } from "../relativeTime";
 import { isImagePath, splitByImageTokens } from "./composerEditor";
 import { FolderIcon, HistoryIcon, PlusIcon, SearchIcon, SendIcon, SquarePenIcon, StarIcon, TrashIcon, XIcon } from "./icons";
@@ -512,14 +513,22 @@ function ScopeTab({
 // matching the composer — an image avatar for an image, a file glyph + basename
 // for any other attachment; a token the user typed literally (no mapped path)
 // stays text, mirroring how loadFromHistory rebuilds the field.
-function MessageText({ text, images }: { text: string; images: Record<string, string> }) {
+function MessageText({
+  text,
+  images,
+  slug,
+}: {
+  text: string;
+  images: Record<string, string>;
+  slug: string | null;
+}) {
   return (
     <>
       {splitByImageTokens(text).map((seg, i) => {
         if (seg.image === null || !images[seg.image]) return <span key={i}>{seg.text}</span>;
         const path = images[seg.image];
         return isImagePath(path) ? (
-          <MessageImageChip key={i} index={seg.image} path={path} />
+          <MessageImageChip key={i} index={seg.image} path={path} slug={slug} />
         ) : (
           <MessageFileChip key={i} path={path} />
         );
@@ -556,7 +565,13 @@ const HistoryRow = memo(function HistoryRow({
               Draft
             </span>
           )}
-          <MessageText text={message.text} images={message.images} />
+          {/* A message sent to a peer project carries host paths; its slug routes
+              their thumbnails back to the machine they live on. */}
+          <MessageText
+            text={message.text}
+            images={message.images}
+            slug={peerSlugOf(message.projectName)}
+          />
         </span>
         <span className="truncate text-[10px] text-[var(--text-muted)]">
           {source === "full" ? `${message.projectName} · ${message.terminalLabel}` : message.terminalLabel}
