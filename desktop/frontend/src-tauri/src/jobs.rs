@@ -1975,9 +1975,12 @@ fn reap_run(
     (result, output, session, cost)
 }
 
+/// A subshell, not a brace group: a command that exits by itself would otherwise
+/// end the login shell while the redirect is still in force, and bash greets that
+/// with `logout` — captured as if the command had said it.
 fn captured_shell_line(cmdline: &str, log_path: &Path) -> String {
     format!(
-        "{{ {cmdline} ; }} > {} 2>&1",
+        "( {cmdline} ) > {} 2>&1",
         config::shell_quote(&log_path.to_string_lossy())
     )
 }
