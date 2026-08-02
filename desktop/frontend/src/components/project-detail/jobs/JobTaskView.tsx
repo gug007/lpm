@@ -31,6 +31,7 @@ import {
   formatDuration,
   formatRunningFor,
   groupJobThreads,
+  jobEntryLabel,
   jobResultLabel,
   jobResultTone,
   jobThreadTail,
@@ -512,7 +513,7 @@ function EntryHeader({
         className={`h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[jobResultTone(entry.result)]}`}
       />
       <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--text-secondary)]">
-        {jobResultLabel(entry.result)}
+        {jobEntryLabel(entry)}
         {(entry.count ?? 1) > 1 && ` × ${entry.count}`}
         {entry.copy && (
           <>

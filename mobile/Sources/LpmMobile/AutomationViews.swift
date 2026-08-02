@@ -335,7 +335,7 @@ private struct AutomationHistoryRow: View {
                 .fill(automationResultColor(entry.result))
                 .frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 3) {
-                Text(automationResultLabel(entry.result))
+                Text(automationEntryLabel(entry))
                     .font(.body.weight(.medium))
                 HStack(spacing: 6) {
                     Text(automationDateText(entry.at))
@@ -494,7 +494,7 @@ private struct AutomationMessageMeta: View {
     var body: some View {
         HStack(spacing: 7) {
             Circle().fill(automationResultColor(entry.result)).frame(width: 7, height: 7)
-            Text(automationResultLabel(entry.result))
+            Text(automationEntryLabel(entry))
             if let duration = entry.durationSecs { Text(automationDurationText(duration)) }
             if let cost = entry.costUsd { Text(cost.formatted(.currency(code: "USD"))) }
             if entry.compacted { Text("Condensed") }
@@ -544,12 +544,24 @@ private struct AutomationLiveMessage: View {
     }
 }
 
+/// What a finished run is called once its own check has had a say. "Done" alone
+/// says the agent exited, not that it did what it was asked.
+private func automationEntryLabel(_ entry: AutomationHistoryEntry) -> String {
+    let base = automationResultLabel(entry.result)
+    guard entry.result == "completed", let verified = entry.verified else { return base }
+    return verified ? "\(base) — checks passed" : "\(base) — checks failed"
+}
+
 private func automationScheduleText(_ job: AutomationJob) -> String {
     if job.scheduleMode == "interval" {
         let hours = job.everySecs / 3600
         if hours > 0, hours % 24 == 0 {
             let days = hours / 24
             return days == 1 ? "Every day" : "Every \(days) days"
+        }
+        if job.everySecs > 0, job.everySecs < 3600 {
+            let minutes = max(1, job.everySecs / 60)
+            return minutes == 1 ? "Every minute" : "Every \(minutes) minutes"
         }
         return hours == 1 ? "Every hour" : "Every \(hours) hours"
     }
@@ -580,7 +592,7 @@ private func automationResultColor(_ result: String) -> Color {
     switch result {
     case "completed", "found-work": return .green
     case "error", "timed-out", "context-full": return .red
-    case "skipped-overlap", "skipped-pending-copy", "pending-window": return .orange
+    case "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "pending-window": return .orange
     default: return .secondary
     }
 }
@@ -596,6 +608,7 @@ private func automationResultLabel(_ result: String) -> String {
     case "context-full": return "Conversation full"
     case "skipped-overlap": return "Skipped — still running"
     case "skipped-pending-copy": return "Waiting for the previous copy"
+    case "skipped-capacity": return "Waiting — other automations were running"
     case "pending-window": return "Waiting for the app window"
     default: return result.isEmpty ? "No runs yet" : result
     }

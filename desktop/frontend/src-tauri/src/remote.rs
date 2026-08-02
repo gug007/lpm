@@ -2431,7 +2431,6 @@ fn handle_msg(
                     "excludeUncommitted": b("duplicateExcludeUncommitted", false),
                     "reinstallDeps": b("duplicateReinstallDeps", false),
                     "pullLatest": b("duplicatePullLatest", true),
-                    "worktree": s.get("duplicateMode").and_then(Value::as_str) == Some("worktree"),
                 }),
             )?;
         }
@@ -4365,6 +4364,7 @@ fn automation_alert_payload(
     server_id: &str,
     project: &str,
     job_id: &str,
+    name: &str,
     status: &str,
     ts: i64,
 ) -> String {
@@ -4372,7 +4372,9 @@ fn automation_alert_payload(
         "serverId": server_id,
         "project": project,
         "target": "automation",
-        "terminal": job_id,
+        // What the phone shows. `automationId` stays the id — it is the key the
+        // phone matches on to deep-link and to withdraw the notification.
+        "terminal": name,
         "automationId": job_id,
         "status": status,
         "ts": ts,
@@ -4807,7 +4809,14 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
     });
 }
 
-fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, result: &str) {
+fn push_automation_notification(
+    hub: &RemoteHub,
+    project: &str,
+    job_id: &str,
+    label: &str,
+    result: &str,
+    detail: Option<&str>,
+) {
     if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed) {
         return;
     }
@@ -4823,6 +4832,16 @@ fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, re
         "timed-out" => "Automation timed out",
         _ => return,
     };
+    // The phone renders "<name> — <status>", so the run's own verdict rides
+    // along on the status half; a bare "finished" says nothing about whether the
+    // job did what it was asked.
+    let status = match detail {
+        Some(d) if !d.is_empty() => format!("{status} · {d}"),
+        _ => status.to_string(),
+    };
+    // Every other surface shows the name the user gave the job; this one used to
+    // show the internal id.
+    let name = if label.is_empty() { job_id } else { label };
 
     let connected: HashSet<String> = hub
         .inner
@@ -4849,7 +4868,8 @@ fn push_automation_notification(hub: &RemoteHub, project: &str, job_id: &str, re
         &server_id,
         project,
         job_id,
-        status,
+        name,
+        &status,
         crate::status::now_millis(),
     );
 
@@ -4951,7 +4971,12 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
             .get("result")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        push_automation_notification(&h, project, job_id, result);
+        let label = payload
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let detail = payload.get("detail").and_then(Value::as_str);
+        push_automation_notification(&h, project, job_id, label, result, detail);
     });
 }
 
@@ -6404,15 +6429,22 @@ mod tests {
             "srv-a",
             "web-app",
             "daily-review",
-            "Automation finished",
+            "Daily review",
+            "Automation finished · Nothing needed changing · $0.04",
             456,
         ))
         .unwrap();
         assert_eq!(v["serverId"], "srv-a");
         assert_eq!(v["project"], "web-app");
         assert_eq!(v["target"], "automation");
+        // The phone shows the name the user gave the job...
+        assert_eq!(v["terminal"], "Daily review");
+        // ...but deep-links and withdrawals still key off the id.
         assert_eq!(v["automationId"], "daily-review");
-        assert_eq!(v["status"], "Automation finished");
+        assert_eq!(
+            v["status"],
+            "Automation finished · Nothing needed changing · $0.04"
+        );
         assert_eq!(v["ts"], 456);
         assert_eq!(v["key"], "automation:daily-review");
     }

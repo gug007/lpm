@@ -523,6 +523,8 @@ fn humanize_schedule(schedule: &Value) -> String {
                 .unwrap_or_default();
             if seconds > 0 && seconds % 86_400 == 0 {
                 format!("every {}d", seconds / 86_400)
+            } else if seconds > 0 && seconds < 3_600 {
+                format!("every {}m", (seconds / 60).max(1))
             } else {
                 format!("every {}h", seconds / 3600)
             }

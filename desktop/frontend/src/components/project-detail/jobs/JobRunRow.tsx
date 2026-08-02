@@ -4,7 +4,7 @@ import {
   formatCost,
   formatDuration,
   jobOutputSnippet,
-  jobResultLabel,
+  jobEntryLabel,
   jobResultTone,
   jobThreadTail,
   TONE_DOT_CLASS,
@@ -43,7 +43,7 @@ export function JobRunRow({
   ]
     .filter(Boolean)
     .join(" · ");
-  const label = `${jobResultLabel(root.result, root.copy)}${
+  const label = `${jobEntryLabel(root)}${
     (root.count ?? 1) > 1 ? ` × ${root.count}` : ""
   }`;
 

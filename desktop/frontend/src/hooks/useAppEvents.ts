@@ -18,21 +18,33 @@ export function useAmbientAppEvents(): void {
     // get a toast — quiet days and skipped runs stay silent.
     const cancelJobStatus = EventsOn(
       "job-status",
-      (payload: { project: string; jobId: string; result: string; copy?: string }) => {
+      (payload: {
+        project: string;
+        jobId: string;
+        label?: string;
+        result: string;
+        copy?: string;
+        detail?: string;
+      }) => {
         if (!payload?.project) return;
+        // The name the user gave it, not the id it is filed under.
+        const name = payload.label || payload.jobId;
+        // What the run actually reported — "finished" alone doesn't say whether
+        // it did what it was asked.
+        const detail = payload.detail ? ` ${payload.detail}` : "";
         if (payload.result === "found-work") {
           toast.success(
             payload.copy
-              ? `Job "${payload.jobId}" found work in ${payload.project} — running in ${payload.copy}.`
-              : `Job "${payload.jobId}" found work in ${payload.project}.`,
+              ? `"${name}" found work in ${payload.project} — running in ${payload.copy}.`
+              : `"${name}" found work in ${payload.project}.`,
           );
         } else if (payload.result === "completed") {
-          toast.success(`Job "${payload.jobId}" in ${payload.project} finished.`);
+          toast.success(`"${name}" in ${payload.project} finished.${detail}`);
         } else if (payload.result === "error") {
-          toast.error(`Job "${payload.jobId}" in ${payload.project} hit a problem.`);
+          toast.error(`"${name}" in ${payload.project} hit a problem.${detail}`);
         } else if (payload.result === "timed-out") {
           toast.error(
-            `Job "${payload.jobId}" in ${payload.project} ran too long and was stopped.`,
+            `"${name}" in ${payload.project} ran too long and was stopped.`,
           );
         }
       },

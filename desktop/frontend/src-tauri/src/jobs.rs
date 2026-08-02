@@ -16,10 +16,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
 const TICK: Duration = Duration::from_secs(60);
-const MIN_INTERVAL_SECS: u64 = 3600;
+// Five minutes, not one: the scheduler ticks once a minute, a run can easily
+// outlive a shorter gap and spend the rest of the day skipped for overlap, and
+// every run keeps its own log for a fortnight.
+const MIN_INTERVAL_SECS: u64 = 300;
 const STALE_LOCK_SECS: u64 = 6 * 3600;
 const CHECK_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const RUN_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+const VERIFY_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const HISTORY_CAP: usize = 50;
 const MAX_JITTER_SECS: u64 = 5 * 60;
 const OUTPUT_CAP_CHARS: usize = 12_000;
@@ -35,6 +39,7 @@ const CONTEXT_FULL: &str = "context-full";
 const SKIPPED_OVERLAP: &str = "skipped-overlap";
 const SKIPPED_PENDING_COPY: &str = "skipped-pending-copy";
 const PENDING_WINDOW: &str = "pending-window";
+const SKIPPED_CAPACITY: &str = "skipped-capacity";
 // Event-only status emitted when a run starts, never written to history.
 const RUNNING: &str = "running";
 
@@ -45,8 +50,12 @@ const DAY_NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 #[derive(Deserialize, Default)]
 struct JobsYaml {
     #[serde(default)]
-    jobs: BTreeMap<String, JobDef>,
+    jobs: BTreeMap<String, serde_yaml::Value>,
 }
+
+/// A layer's jobs, each parsed on its own so one unreadable job stays one
+/// unreadable job.
+type JobEntries = BTreeMap<String, Result<JobDef, String>>;
 
 #[derive(Deserialize, Default, Clone)]
 struct JobDef {
@@ -58,7 +67,9 @@ struct JobDef {
     #[serde(default)]
     check: String,
     #[serde(default)]
-    duplicate: bool,
+    verify: String,
+    #[serde(default)]
+    duplicate: DuplicateDef,
     run: Option<RunDef>,
     enabled: Option<bool>,
     /// Only meaningful on the global layer: which projects a shared job runs in.
@@ -66,6 +77,69 @@ struct JobDef {
     /// empty list = standalone (no project, runs in the home directory).
     #[serde(default)]
     projects: Option<Vec<String>>,
+}
+
+/// `duplicate: true` stays readable forever — an older build that meets the
+/// options form would otherwise fail to read the job at all.
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+enum DuplicateDef {
+    On(bool),
+    Options(DuplicateOptions),
+}
+
+impl Default for DuplicateDef {
+    fn default() -> Self {
+        DuplicateDef::On(false)
+    }
+}
+
+#[derive(Deserialize, Default, Clone)]
+struct DuplicateOptions {
+    #[serde(default)]
+    mode: String,
+    #[serde(rename = "pullLatest")]
+    pull_latest: Option<bool>,
+    #[serde(rename = "reinstallDeps")]
+    reinstall_deps: Option<bool>,
+    #[serde(rename = "excludeUncommitted")]
+    exclude_uncommitted: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct DuplicateSpec {
+    enabled: bool,
+    worktree: bool,
+    pull_latest: bool,
+    reinstall_deps: bool,
+    exclude_uncommitted: bool,
+}
+
+/// How a job makes its copy is part of the job. It used to be read from the
+/// settings the bulk-duplicate dialog remembers, so ticking a box in that
+/// dialog silently changed what every scheduled job did — and the worktree
+/// setting it looked for was never written by anything, leaving worktree mode
+/// unreachable.
+fn resolve_duplicate(def: &DuplicateDef) -> Result<DuplicateSpec, String> {
+    let opts = match def {
+        DuplicateDef::On(false) => return Ok(DuplicateSpec::default()),
+        DuplicateDef::On(true) => DuplicateOptions::default(),
+        DuplicateDef::Options(o) => o.clone(),
+    };
+    let worktree = match opts.mode.trim() {
+        "" | "copy" => false,
+        "worktree" => true,
+        other => return Err(format!("\"{other}\" isn't a way to copy a project.")),
+    };
+    Ok(DuplicateSpec {
+        enabled: true,
+        worktree,
+        // A worktree shares the original's history and working files, so
+        // pulling into it and leaving uncommitted work behind don't apply.
+        pull_latest: !worktree && opts.pull_latest.unwrap_or(true),
+        reinstall_deps: opts.reinstall_deps.unwrap_or(false),
+        exclude_uncommitted: !worktree && opts.exclude_uncommitted.unwrap_or(false),
+    })
 }
 
 /// What a global-layer job runs against, derived from its `projects` field.
@@ -173,7 +247,8 @@ struct JobResolved {
     emoji: String,
     schedule: Schedule,
     check: String,
-    duplicate: bool,
+    verify: String,
+    duplicate: DuplicateSpec,
     run: RunTarget,
     enabled: bool,
 }
@@ -182,13 +257,15 @@ fn parse_every_secs(v: &EveryValue) -> Result<u64, String> {
     let secs = match v {
         EveryValue::Int(h) => {
             if *h <= 0 {
-                return Err("The interval must be at least 1 hour.".into());
+                return Err("The interval must be at least 5 minutes.".into());
             }
             (*h as u64) * 3600
         }
         EveryValue::Str(s) => {
             let s = s.trim().to_lowercase();
-            let (num, mult) = if let Some(n) = s.strip_suffix('h') {
+            let (num, mult) = if let Some(n) = s.strip_suffix('m') {
+                (n.trim(), 60u64)
+            } else if let Some(n) = s.strip_suffix('h') {
                 (n.trim(), 3600u64)
             } else if let Some(n) = s.strip_suffix('d') {
                 (n.trim(), 86_400u64)
@@ -203,7 +280,7 @@ fn parse_every_secs(v: &EveryValue) -> Result<u64, String> {
         }
     };
     if secs < MIN_INTERVAL_SECS {
-        return Err("The interval must be at least 1 hour.".into());
+        return Err("The interval must be at least 5 minutes.".into());
     }
     Ok(secs)
 }
@@ -315,6 +392,12 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
         .as_ref()
         .ok_or_else(|| "Give this job something to run.".to_string())?;
     let run = resolve_run(project, run)?;
+    let verify = def.verify.trim();
+    // lpm hands an action off and never learns how it ended, so there is no
+    // moment at which a check after the run could mean anything.
+    if !verify.is_empty() && matches!(run, RunTarget::Action(_)) {
+        return Err("A check after the run isn't available for actions.".into());
+    }
     Ok(JobResolved {
         id: id.to_string(),
         label: if def.label.trim().is_empty() {
@@ -325,18 +408,29 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
         emoji: def.emoji.clone(),
         schedule,
         check: def.check.trim().to_string(),
-        duplicate: def.duplicate,
+        verify: verify.to_string(),
+        duplicate: resolve_duplicate(&def.duplicate)?,
         run,
         enabled: def.enabled.unwrap_or(true),
     })
 }
 
-fn load_jobs_yaml(path: &Path) -> BTreeMap<String, JobDef> {
+/// Each job is read on its own: a field the schema doesn't recognise breaks
+/// that job into a row the user can see and fix, instead of taking every other
+/// job in the file down with it silently.
+fn load_jobs_yaml(path: &Path) -> JobEntries {
     std::fs::read(path)
         .ok()
         .and_then(|b| serde_yaml::from_slice::<JobsYaml>(&b).ok())
         .map(|y| y.jobs)
         .unwrap_or_default()
+        .into_iter()
+        .map(|(id, body)| {
+            let def = serde_yaml::from_value::<JobDef>(body)
+                .map_err(|e| format!("This job's settings can't be read: {e}"));
+            (id, def)
+        })
+        .collect()
 }
 
 const SOURCE_PROJECT: &str = "project";
@@ -344,11 +438,11 @@ const SOURCE_REPO: &str = "repo";
 const SOURCE_GLOBAL: &str = "global";
 
 fn merge_job_defs(
-    registry: BTreeMap<String, JobDef>,
-    repo: BTreeMap<String, JobDef>,
-    global: BTreeMap<String, JobDef>,
-) -> BTreeMap<String, (JobDef, &'static str)> {
-    let mut out: BTreeMap<String, (JobDef, &'static str)> = global
+    registry: JobEntries,
+    repo: JobEntries,
+    global: JobEntries,
+) -> BTreeMap<String, (Result<JobDef, String>, &'static str)> {
+    let mut out: BTreeMap<String, (Result<JobDef, String>, &'static str)> = global
         .into_iter()
         .map(|(k, v)| (k, (v, SOURCE_GLOBAL)))
         .collect();
@@ -389,12 +483,18 @@ fn resolve_jobs(project: &str) -> Vec<(String, &'static str, Result<JobResolved,
         .into_iter()
         // Only global-layer jobs carry project targeting; a `projects` field on
         // a repo/registry job is ignored — those are already single-project.
-        .filter(|(_, (def, source))| *source != SOURCE_GLOBAL || global_resolves_for(def, project))
+        .filter(|(_, (def, source))| match def {
+            Ok(d) => *source != SOURCE_GLOBAL || global_resolves_for(d, project),
+            // An unreadable global job has no known targeting, so the
+            // Automations view lists it once from the global layer rather than
+            // repeating the same error under every project.
+            Err(_) => *source != SOURCE_GLOBAL,
+        })
         .map(|(id, (def, source))| {
             let r = if is_remote {
                 Err("Scheduled jobs aren't available on SSH projects.".to_string())
             } else {
-                resolve_job(project, &id, &def)
+                def.and_then(|d| resolve_job(project, &id, &d))
             };
             (id, source, r)
         })
@@ -407,9 +507,12 @@ fn resolve_jobs(project: &str) -> Vec<(String, &'static str, Result<JobResolved,
 fn resolve_standalone_jobs() -> Vec<(String, Result<JobResolved, String>)> {
     load_jobs_yaml(&config::global_path())
         .into_iter()
-        .filter(|(_, def)| matches!(job_targets(def), JobTargets::Standalone))
+        .filter(|(_, def)| {
+            def.as_ref()
+                .is_ok_and(|d| matches!(job_targets(d), JobTargets::Standalone))
+        })
         .map(|(id, def)| {
-            let r = resolve_job("", &id, &def);
+            let r = def.and_then(|d| resolve_job("", &id, &d));
             (id, r)
         })
         .collect()
@@ -495,13 +598,20 @@ fn next_calendar_occurrence(at_min: u32, days: &[u8], now: i64) -> Option<i64> {
     None
 }
 
-/// Interval jobs are due once `secs` (plus jitter) have elapsed since the last
-/// run. Calendar jobs are due when the most recent scheduled occurrence is
-/// strictly later than the last run — coalescing any number of occurrences
-/// missed while the app was closed into a single run.
+/// Interval jobs are due once `secs` have elapsed since the last run, so "every
+/// 6 hours" stays every 6 hours. Jitter is deliberately not charged here: it is
+/// measured from the previous run rather than from a fixed grid, so adding it
+/// would lengthen every period and walk the job further out of position on each
+/// run. Interval jobs are already spread by their own start times; the jobs that
+/// genuinely share a fire point are the calendar ones, which jitter still
+/// offsets below.
+///
+/// Calendar jobs are due when the most recent scheduled occurrence is strictly
+/// later than the last run — coalescing any number of occurrences missed while
+/// the app was closed into a single run.
 fn is_due(schedule: &Schedule, last_run: u64, now: u64, jitter: u64) -> bool {
     match schedule {
-        Schedule::Interval { secs } => now.saturating_sub(last_run) >= secs + jitter,
+        Schedule::Interval { secs } => now.saturating_sub(last_run) >= *secs,
         Schedule::Calendar { at_min, days } => {
             match most_recent_calendar_occurrence(*at_min, days, now as i64) {
                 Some(occ) => (occ as u64) > last_run && now >= (occ as u64) + jitter,
@@ -512,12 +622,14 @@ fn is_due(schedule: &Schedule, last_run: u64, now: u64, jitter: u64) -> bool {
     }
 }
 
-fn next_fire_at(schedule: &Schedule, last_run: u64, jitter: u64, now: u64) -> Option<i64> {
+/// When the job is next due, as the schedule states it. Calendar jobs are held
+/// back by up to `MAX_JITTER_SECS` so a fleet of 09:00 jobs doesn't all start in
+/// one tick, but showing "09:04" against a schedule that reads 09:00 just looks
+/// wrong — the spread is explained in words in the editor instead.
+fn next_fire_at(schedule: &Schedule, last_run: u64, now: u64) -> Option<i64> {
     match schedule {
-        Schedule::Interval { secs } => Some((last_run + secs + jitter) as i64),
-        Schedule::Calendar { at_min, days } => {
-            next_calendar_occurrence(*at_min, days, now as i64).map(|o| o + jitter as i64)
-        }
+        Schedule::Interval { secs } => Some((last_run + secs) as i64),
+        Schedule::Calendar { at_min, days } => next_calendar_occurrence(*at_min, days, now as i64),
         Schedule::Manual => None,
     }
 }
@@ -592,6 +704,18 @@ struct HistoryEntry {
     /// because the original session had no room left.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     compacted: bool,
+    /// Whether the job's `verify` command passed after the run. None means the
+    /// job declares no check, or there was no live run to check (a run salvaged
+    /// after the app closed) — those are unverified, not failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    verified: Option<bool>,
+    /// What the verify command said, capped.
+    #[serde(
+        default,
+        rename = "verifyOutput",
+        skip_serializing_if = "Option::is_none"
+    )]
+    verify_output: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -688,7 +812,7 @@ fn load_job_state(key: &str) -> JobState {
 fn is_collapsible(result: &str) -> bool {
     matches!(
         result,
-        SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | NOTHING_TO_DO
+        SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | SKIPPED_CAPACITY | NOTHING_TO_DO
     )
 }
 
@@ -711,6 +835,9 @@ fn push_entry(st: &mut JobState, entry: HistoryEntry) {
             if last.result == entry.result {
                 last.at = entry.at;
                 last.copy = entry.copy;
+                // Keep the newest reason — an unchanged one just rewrites the
+                // same text, and a changed one is the more useful of the two.
+                last.output = entry.output;
                 last.count = Some(last.count.unwrap_or(1) + 1);
                 return;
             }
@@ -886,25 +1013,17 @@ enum Dispatch {
     Error,
 }
 
-fn duplicate_defaults() -> (bool, bool, bool, bool) {
-    let s = config::load_settings();
-    let b = |k: &str, d: bool| s.get(k).and_then(Value::as_bool).unwrap_or(d);
-    (
-        b("duplicateExcludeUncommitted", false),
-        b("duplicateReinstallDeps", false),
-        b("duplicatePullLatest", true),
-        s.get("duplicateMode").and_then(Value::as_str) == Some("worktree"),
-    )
-}
-
 /// The same interactive-login-shell wrapper actions use, run headless with all
 /// streams detached and its own session (so an app launched from a terminal
 /// doesn't stop the shell with SIGTTIN).
-fn shell_command(cwd: &str, cmd: &str) -> Command {
+fn shell_command(cwd: &str, cmd: &str, env: &[(String, String)]) -> Command {
     let shell = crate::sys::login_shell();
     let script = format!("cd {} && {}", config::shell_quote(cwd), cmd);
     let mut c = Command::new(shell);
     c.arg("-ilc").arg(script).current_dir(cwd);
+    for (k, v) in env {
+        c.env(k, v);
+    }
     c.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -917,6 +1036,72 @@ fn shell_command(cwd: &str, cmd: &str) -> Command {
         });
     }
     c
+}
+
+/// What started this run. Passed to the children so a check can behave
+/// differently when a person pressed Run now.
+#[derive(Clone, Copy, PartialEq)]
+enum Trigger {
+    Schedule,
+    Manual,
+    Reply,
+}
+
+impl Trigger {
+    fn as_str(self) -> &'static str {
+        match self {
+            Trigger::Schedule => "schedule",
+            Trigger::Manual => "manual",
+            Trigger::Reply => "reply",
+        }
+    }
+}
+
+/// The fire point this run is servicing, as against the wall clock it actually
+/// ran at — a job scheduled for 09:00 that starts at 23:00 because the Mac was
+/// asleep can only tell the difference if it is told both.
+fn due_fire_at(schedule: &Schedule, last_run: u64, now: u64, jitter: u64) -> Option<u64> {
+    match schedule {
+        Schedule::Interval { secs } => Some(last_run + secs),
+        Schedule::Calendar { at_min, days } => {
+            most_recent_calendar_occurrence(*at_min, days, now as i64).map(|o| o as u64 + jitter)
+        }
+        Schedule::Manual => None,
+    }
+}
+
+/// What a run tells the children it starts. Nothing was passed before, so a
+/// check had no way to act only on what changed since the last run.
+fn run_env(
+    project: &str,
+    job_id: &str,
+    root: &str,
+    trigger: Trigger,
+    scheduled_for: Option<u64>,
+    last_run_at: Option<u64>,
+    is_copy: bool,
+) -> Vec<(String, String)> {
+    let mut env = vec![
+        ("LPM_JOB_ID".to_string(), job_id.to_string()),
+        ("LPM_RUN_ROOT".to_string(), root.to_string()),
+        ("LPM_TRIGGER".to_string(), trigger.as_str().to_string()),
+        ("LPM_ACTUAL_TIME".to_string(), now_secs().to_string()),
+        (
+            "LPM_IS_COPY".to_string(),
+            if is_copy { "1" } else { "0" }.to_string(),
+        ),
+    ];
+    // The name terminals already set, so a skill written for one works in both.
+    if !project.is_empty() {
+        env.push(("LPM_PROJECT_NAME".to_string(), project.to_string()));
+    }
+    if let Some(v) = scheduled_for {
+        env.push(("LPM_SCHEDULED_FOR".to_string(), v.to_string()));
+    }
+    if let Some(v) = last_run_at {
+        env.push(("LPM_LAST_RUN_AT".to_string(), v.to_string()));
+    }
+    env
 }
 
 fn kill_group(pid: i32) {
@@ -964,13 +1149,35 @@ fn wait_or_kill(
 /// pin the worker thread and its in-process inflight slot forever. `key` (the
 /// scheduler passes it, the editor's dry-run doesn't) makes the check child
 /// visible to Stop.
+/// What the check decided, and what it said while deciding. Its output used to
+/// be thrown away, which left a check that was quietly broken looking exactly
+/// like a check that found nothing to do.
+struct CheckOutcome {
+    work: bool,
+    output: Option<String>,
+}
+
+const CHECK_OUTPUT_CAP_CHARS: usize = 2_000;
+
 fn run_check(
     root: &str,
     check: &str,
     timeout: Duration,
     key: Option<&str>,
-) -> Result<bool, String> {
-    let mut child = shell_command(root, check)
+    env: &[(String, String)],
+) -> Result<CheckOutcome, String> {
+    // Jobs check concurrently, so the file has to be unique per call — a shared
+    // one would hand a job another job's output.
+    static CHECK_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let seq = CHECK_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let log_path = config::lpm_dir()
+        .join("job-logs")
+        .join(format!("check-{}-{seq}.log", std::process::id()));
+    if let Some(dir) = log_path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let _ = std::fs::remove_file(&log_path);
+    let mut child = shell_command(root, &captured_shell_line(check, &log_path), env)
         .spawn()
         .map_err(|e| e.to_string())?;
     if let Some(k) = key {
@@ -983,8 +1190,14 @@ fn run_check(
     if let Some(k) = key {
         active_runs().lock().unwrap().remove(k);
     }
+    let said = read_log_tail(&log_path, 64 * 1024);
+    let _ = std::fs::remove_file(&log_path);
+    let output = {
+        let trimmed = said.trim();
+        (!trimmed.is_empty()).then(|| tail_chars(trimmed, CHECK_OUTPUT_CAP_CHARS))
+    };
     match verdict? {
-        WaitVerdict::Exited(ok) => Ok(ok),
+        WaitVerdict::Exited(work) => Ok(CheckOutcome { work, output }),
         WaitVerdict::TimedOut => Err("check timed out".into()),
         WaitVerdict::Canceled => Err("check stopped".into()),
     }
@@ -1457,6 +1670,11 @@ struct CaptureSpec {
     follows: Option<u64>,
     fallback: Option<String>,
     compacted: bool,
+    env: Vec<(String, String)>,
+    /// Shell command run after the agent exits, deciding whether the run
+    /// actually did what it was asked. Absent on replies — a conversational
+    /// answer is not a run to check.
+    verify: Option<String>,
 }
 
 impl CaptureSpec {
@@ -1470,7 +1688,22 @@ impl CaptureSpec {
             follows: None,
             fallback: None,
             compacted: false,
+            env: Vec::new(),
+            verify: None,
         }
+    }
+
+    fn with_verify(mut self, verify: &str) -> Self {
+        let verify = verify.trim();
+        if !verify.is_empty() {
+            self.verify = Some(verify.to_string());
+        }
+        self
+    }
+
+    fn with_env(mut self, env: Vec<(String, String)>) -> Self {
+        self.env = env;
+        self
     }
 }
 
@@ -1547,10 +1780,13 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
         follows,
         fallback,
         compacted,
+        env,
+        verify,
     } = spec;
+    let env2 = env.clone();
     let log_path = logs.join(format!("{}-{}.log", key.replace('/', "_"), now_secs()));
     let cmdline = capture_cmdline(agent.as_deref(), &cmdline, &log_path);
-    match shell_command(root, &captured_shell_line(&cmdline, &log_path)).spawn() {
+    match shell_command(root, &captured_shell_line(&cmdline, &log_path), &env).spawn() {
         Ok(mut child) => {
             let started = now_secs();
             active_runs()
@@ -1586,7 +1822,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     if let Some(fb) = fallback {
                         let log2 = log_path.with_extension("compact.log");
                         if let Ok(mut retry) =
-                            shell_command(&root2, &captured_shell_line(&fb, &log2)).spawn()
+                            shell_command(&root2, &captured_shell_line(&fb, &log2), &env2).spawn()
                         {
                             active_runs()
                                 .lock()
@@ -1609,6 +1845,26 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                 }
                 active_runs().lock().unwrap().remove(&key2);
                 let at = now_secs();
+                // After the final attempt, including the condensed retry — a
+                // run that needed a second try still gets checked once.
+                let (verified, verify_output) = match &verify {
+                    Some(cmd) if result == COMPLETED => {
+                        match run_check(&root2, cmd, VERIFY_TIMEOUT, None, &env2) {
+                            Ok(v) => (Some(v.work), v.output),
+                            Err(e) => (
+                                Some(false),
+                                Some(format!("The check after the run couldn't finish: {e}.")),
+                            ),
+                        }
+                    }
+                    _ => (None, None),
+                };
+                let detail = notification_detail(output.as_deref(), cost)
+                    .into_iter()
+                    .chain(verify_note(verified))
+                    .collect::<Vec<_>>()
+                    .join(" · ");
+                let detail = (!detail.is_empty()).then_some(detail);
                 let _ = with_state(|f| {
                     // The job may have been deleted (its state cleared) while
                     // this run was live — don't resurrect it with a ghost entry.
@@ -1629,12 +1885,14 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                                 duration_secs: Some(at.saturating_sub(started)),
                                 cost_usd: cost,
                                 count: None,
+                                verified,
+                                verify_output,
                             },
                         );
                     }
                 });
                 let (project, job_id) = key2.split_once('/').unwrap_or((key2.as_str(), ""));
-                emit_status(&app2, project, job_id, result, &None);
+                emit_status_detail(&app2, project, job_id, result, &None, detail);
             });
             Dispatch::Captured
         }
@@ -1654,7 +1912,13 @@ fn dispatch_root(project: &str) -> Option<String> {
     }
 }
 
-fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> Dispatch {
+fn dispatch_run(
+    app: &AppHandle,
+    key: &str,
+    target: &str,
+    job: &JobResolved,
+    env: Vec<(String, String)>,
+) -> Dispatch {
     let project = key.split_once('/').map(|(p, _)| p).unwrap_or(key);
     let copy = (target != project).then(|| target.to_string());
     match &job.run {
@@ -1663,7 +1927,14 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                 Some(r) => r,
                 None => return Dispatch::Error,
             };
-            spawn_captured(app, key, &root, CaptureSpec::run(cmd.clone(), None, copy))
+            spawn_captured(
+                app,
+                key,
+                &root,
+                CaptureSpec::run(cmd.clone(), None, copy)
+                    .with_verify(&job.verify)
+                    .with_env(env),
+            )
         }
         RunTarget::Action(id) => {
             let terminal = config::resolve_action_full(target, id)
@@ -1722,13 +1993,21 @@ fn dispatch_run(app: &AppHandle, key: &str, target: &str, job: &JobResolved) -> 
                     agent_prompt_cmdline(&agent, model, effort, *full_access, prompt),
                     Some(agent),
                     copy,
-                ),
+                )
+                .with_verify(&job.verify)
+                .with_env(env),
             )
         }
     }
 }
 
-fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -> Outcome {
+fn pipeline_body(
+    app: &AppHandle,
+    project: &str,
+    job: &JobResolved,
+    key: &str,
+    trigger: Trigger,
+) -> Outcome {
     let st = load_job_state(key);
     if let Some(prev) = st.history.iter().rev().find_map(|h| h.copy.clone()) {
         if config::project_exists(&prev) {
@@ -1736,7 +2015,9 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
                 result: SKIPPED_PENDING_COPY,
                 copy: None,
                 advance: false,
-                note: None,
+                note: Some(format!(
+                    "The copy the last run made, {prev}, is still around. Look it over and remove it and this job picks up again."
+                )),
                 record: true,
             };
         }
@@ -1751,15 +2032,43 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
         }
     };
 
+    let scheduled_for = st.last_run_at.and_then(|last| {
+        due_fire_at(
+            &job.schedule,
+            last,
+            now_secs(),
+            jitter_secs(project, &job.id),
+        )
+    });
+    let context = |run_root: &str, is_copy: bool| {
+        run_env(
+            project,
+            &job.id,
+            run_root,
+            trigger,
+            scheduled_for,
+            st.last_run_at,
+            is_copy,
+        )
+    };
+
     if !job.check.is_empty() {
-        match run_check(&root, &job.check, CHECK_TIMEOUT, Some(key)) {
-            Ok(true) => {}
-            Ok(false) => {
+        // The check runs before any copy exists, so it always looks at the
+        // project itself.
+        match run_check(
+            &root,
+            &job.check,
+            CHECK_TIMEOUT,
+            Some(key),
+            &context(&root, false),
+        ) {
+            Ok(check) if check.work => {}
+            Ok(check) => {
                 return Outcome {
                     result: NOTHING_TO_DO,
                     copy: None,
                     advance: true,
-                    note: None,
+                    note: check.output,
                     record: true,
                 }
             }
@@ -1770,23 +2079,23 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
         }
     }
 
-    let (target, copy) = if job.duplicate && !project.is_empty() {
-        let (excl, reinstall, pull, worktree) = duplicate_defaults();
-        let result = if worktree {
+    let (target, copy) = if job.duplicate.enabled && !project.is_empty() {
+        let dup = &job.duplicate;
+        let result = if dup.worktree {
             crate::projects_crud::duplicate_worktree_project(
                 app.clone(),
                 project.to_string(),
                 None,
-                reinstall,
+                dup.reinstall_deps,
             )
         } else {
             crate::projects_crud::duplicate_project(
                 app.clone(),
                 project.to_string(),
                 None,
-                excl,
-                reinstall,
-                pull,
+                dup.exclude_uncommitted,
+                dup.reinstall_deps,
+                dup.pull_latest,
             )
         };
         match result {
@@ -1809,7 +2118,9 @@ fn pipeline_body(app: &AppHandle, project: &str, job: &JobResolved, key: &str) -
         };
     }
 
-    dispatch_outcome(dispatch_run(app, key, &target, job), copy)
+    let run_root = dispatch_root(&target).unwrap_or_else(|| root.clone());
+    let dispatch_env = context(&run_root, copy.is_some());
+    dispatch_outcome(dispatch_run(app, key, &target, job, dispatch_env), copy)
 }
 
 fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
@@ -1845,44 +2156,120 @@ fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
     }
 }
 
+/// The name the user gave the job. Notifications were the one surface still
+/// showing the internal id.
+fn job_label(project: &str, job_id: &str) -> String {
+    let resolved = if project.is_empty() {
+        resolve_standalone_jobs()
+            .into_iter()
+            .find(|(id, _)| id == job_id)
+            .and_then(|(_, r)| r.ok())
+    } else {
+        resolve_jobs(project)
+            .into_iter()
+            .find(|(id, _, _)| id == job_id)
+            .and_then(|(_, _, r)| r.ok())
+    };
+    resolved
+        .map(|j| j.label)
+        .filter(|l| !l.trim().is_empty())
+        .unwrap_or_else(|| job_id.to_string())
+}
+
+/// The run's own verdict, short enough for a notification: what the agent said
+/// first, and what the run cost. "Finished" on its own says nothing about
+/// whether the job did what it was asked.
+fn notification_detail(output: Option<&str>, cost: Option<f64>) -> Option<String> {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(line) = output.and_then(|o| first_line(o, 120)) {
+        parts.push(line);
+    }
+    if let Some(c) = cost.filter(|c| *c > 0.0) {
+        parts.push(format!("${c:.2}"));
+    }
+    (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+/// How a run's check reads in a notification. Nothing is said when the job
+/// declares no check — silence is not a pass.
+fn verify_note(verified: Option<bool>) -> Option<String> {
+    match verified {
+        Some(true) => Some("checks passed".to_string()),
+        Some(false) => Some("checks failed".to_string()),
+        None => None,
+    }
+}
+
+fn first_line(text: &str, max: usize) -> Option<String> {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let mut out: String = line.chars().take(max).collect();
+    if line.chars().count() > max {
+        out.push('…');
+    }
+    Some(out)
+}
+
 fn emit_status(app: &AppHandle, project: &str, job_id: &str, result: &str, copy: &Option<String>) {
-    let mut payload = json!({ "project": project, "jobId": job_id, "result": result });
+    emit_status_detail(app, project, job_id, result, copy, None);
+}
+
+fn emit_status_detail(
+    app: &AppHandle,
+    project: &str,
+    job_id: &str,
+    result: &str,
+    copy: &Option<String>,
+    detail: Option<String>,
+) {
+    let label = job_label(project, job_id);
+    let mut payload =
+        json!({ "project": project, "jobId": job_id, "result": result, "label": label });
     if let Some(c) = copy {
         payload["copy"] = json!(c);
     }
+    if let Some(d) = &detail {
+        payload["detail"] = json!(d);
+    }
     let _ = app.emit("job-status", payload);
-    notify_if_unattended(app, project, job_id, result);
+    notify_if_unattended(app, project, &label, result, detail.as_deref());
 }
 
 /// Jobs exist to work while the user is away — when the window is hidden or in
 /// the background, the in-app toast lands on glass nobody is looking at, so
 /// outcomes worth interrupting for also go out as a system notification. Quiet
 /// days and skips stay silent everywhere.
-fn notify_if_unattended(app: &AppHandle, project: &str, job_id: &str, result: &str) {
+fn notify_if_unattended(
+    app: &AppHandle,
+    project: &str,
+    label: &str,
+    result: &str,
+    detail: Option<&str>,
+) {
     let at = if project.is_empty() {
         String::new()
     } else {
         format!(" in {project}")
     };
-    let (title, body) = match result {
-        COMPLETED => (
-            "Scheduled job finished",
-            format!("\"{job_id}\"{at} is done."),
-        ),
+    let (title, mut body) = match result {
+        COMPLETED => ("Automation finished", format!("\"{label}\"{at} is done.")),
         FOUND_WORK => (
-            "Scheduled job found work",
-            format!("\"{job_id}\"{at} started working."),
+            "Automation found work",
+            format!("\"{label}\"{at} started working."),
         ),
         ERROR => (
-            "Scheduled job hit a problem",
-            format!("\"{job_id}\"{at} needs a look."),
+            "Automation hit a problem",
+            format!("\"{label}\"{at} needs a look."),
         ),
         TIMED_OUT => (
-            "Scheduled job stopped",
-            format!("\"{job_id}\"{at} ran too long and was stopped."),
+            "Automation stopped",
+            format!("\"{label}\"{at} ran too long and was stopped."),
         ),
         _ => return,
     };
+    if let Some(d) = detail {
+        body.push(' ');
+        body.push_str(d);
+    }
     let attended = app
         .get_webview_window("main")
         .map(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false))
@@ -1894,7 +2281,7 @@ fn notify_if_unattended(app: &AppHandle, project: &str, job_id: &str, result: &s
     let _ = app.notification().builder().title(title).body(&body).show();
 }
 
-fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
+fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved, trigger: Trigger) {
     let key = state_key(project, &job.id);
 
     // The pipeline releases its lock once the agent is spawned, so a live agent
@@ -1940,11 +2327,17 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
 
     if let LockDecision::Busy = decision {
         let _ = with_state(|f| {
-            push_history(
+            push_entry(
                 f.jobs.entry(key.clone()).or_default(),
-                now_secs(),
-                SKIPPED_OVERLAP,
-                None,
+                HistoryEntry {
+                    at: now_secs(),
+                    result: SKIPPED_OVERLAP.to_string(),
+                    output: Some(
+                        "The run before this one was still going, so this one was skipped."
+                            .to_string(),
+                    ),
+                    ..HistoryEntry::default()
+                },
             );
         });
         emit_status(app, project, &job.id, SKIPPED_OVERLAP, &None);
@@ -1952,7 +2345,7 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
     }
 
     emit_status(app, project, &job.id, RUNNING, &None);
-    let mut outcome = pipeline_body(app, project, job, &key);
+    let mut outcome = pipeline_body(app, project, job, &key, trigger);
     // The found-work path hands the cancel flag to the agent watcher; every
     // other exit consumes it here so a Stop pressed mid-pipeline is recorded.
     if outcome.result != FOUND_WORK && take_canceled(&key) {
@@ -1990,7 +2383,7 @@ fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved) {
     emit_status(app, project, &job.id, outcome.result, &outcome.copy);
 }
 
-fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved) {
+fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved, trigger: Trigger) {
     let key = state_key(project, &job.id);
     if !mark_inflight(&key) {
         return;
@@ -1998,7 +2391,7 @@ fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved) {
     let app2 = app.clone();
     let project2 = project.to_string();
     std::thread::spawn(move || {
-        run_pipeline(&app2, &project2, &job);
+        run_pipeline(&app2, &project2, &job, trigger);
         clear_inflight(&key);
     });
 }
@@ -2072,6 +2465,10 @@ fn orphan_entry(
     });
     HistoryEntry {
         at,
+        // A run salvaged from its log after the app closed has no live child
+        // left to check, so it is unverified rather than passed or failed.
+        verified: None,
+        verify_output: None,
         result: result.to_string(),
         copy: run.copy.clone(),
         output,
@@ -2204,43 +2601,115 @@ fn prune_job_logs() {
 
 /// Anchor, enablement, and due-check for one resolved job. `project` is the
 /// sentinel `""` for a standalone job.
-fn tick_job(app: &AppHandle, project: &str, id: &str, job: JobResolved) {
+/// How long a due job has been waiting, or None if it isn't due. Anchors a job
+/// seen for the first time so one added while the app was closed never fires
+/// retroactively.
+fn overdue_by(project: &str, id: &str, job: &JobResolved, now: u64) -> Option<u64> {
     let key = state_key(project, id);
     let st = load_job_state(&key);
 
     let last = match st.last_run_at {
         Some(l) => l,
         None => {
-            // First time we've seen this job: anchor it to now so a job added
-            // while the app was closed never fires retroactively.
             let _ = with_state(|f| {
                 let s = f.jobs.entry(key.clone()).or_default();
                 if s.last_run_at.is_none() {
                     s.last_run_at = Some(now_secs());
                 }
             });
-            return;
+            return None;
         }
     };
 
     if !st.enabled_override.unwrap_or(job.enabled) {
-        return;
+        return None;
     }
-    if is_due(&job.schedule, last, now_secs(), jitter_secs(project, id)) {
-        spawn_pipeline(app, project, job);
+    let jitter = jitter_secs(project, id);
+    if !is_due(&job.schedule, last, now, jitter) {
+        return None;
     }
+    Some(
+        due_fire_at(&job.schedule, last, now, jitter)
+            .map(|fire| now.saturating_sub(fire))
+            .unwrap_or(0),
+    )
+}
+
+/// How many automations may be under way at once. Nothing bounded this before:
+/// a morning where ten jobs came due together started ten agents, each of which
+/// may also duplicate a project first.
+const DEFAULT_MAX_CONCURRENT: usize = 3;
+
+fn max_concurrent() -> usize {
+    config::load_settings()
+        .get("maxConcurrentAutomations")
+        .and_then(Value::as_u64)
+        .map(|n| n.max(1) as usize)
+        .unwrap_or(DEFAULT_MAX_CONCURRENT)
+}
+
+/// A job counts as under way for its whole life: the in-flight set covers the
+/// check and duplicate steps, the active-run map covers the agent that outlives
+/// them. Neither alone spans the gap between the two.
+fn under_way() -> usize {
+    let pipelines: Vec<String> = inflight().lock().unwrap().keys().cloned().collect();
+    let mut keys: HashSet<String> = pipelines.into_iter().collect();
+    keys.extend(active_runs().lock().unwrap().keys().cloned());
+    keys.len()
+}
+
+/// Record a run deferred for capacity. It deliberately does not advance the
+/// job's last-run time — the job stays due and goes first on a later tick
+/// rather than forfeiting its turn.
+fn record_capacity_skip(app: &AppHandle, project: &str, job: &JobResolved) {
+    let key = state_key(project, &job.id);
+    let _ = with_state(|f| {
+        push_entry(
+            f.jobs.entry(key.clone()).or_default(),
+            HistoryEntry {
+                at: now_secs(),
+                result: SKIPPED_CAPACITY.to_string(),
+                output: Some(
+                    "Other automations were already running, so this one waited its turn."
+                        .to_string(),
+                ),
+                ..HistoryEntry::default()
+            },
+        );
+    });
+    emit_status(app, project, &job.id, SKIPPED_CAPACITY, &None);
 }
 
 fn tick(app: &AppHandle) {
+    let now = now_secs();
+    let mut due: Vec<(String, JobResolved, u64)> = Vec::new();
     for project in config::project_names() {
         for (id, _source, res) in resolve_jobs(&project) {
             let Ok(job) = res else { continue };
-            tick_job(app, &project, &id, job);
+            if let Some(waited) = overdue_by(&project, &id, &job, now) {
+                due.push((project.clone(), job, waited));
+            }
         }
     }
     for (id, res) in resolve_standalone_jobs() {
         let Ok(job) = res else { continue };
-        tick_job(app, "", &id, job);
+        if let Some(waited) = overdue_by("", &id, &job, now) {
+            due.push((String::new(), job, waited));
+        }
+    }
+
+    // Longest-waiting first. The scan walks projects in a fixed order, so
+    // taking them as they come would starve the same late-in-the-alphabet jobs
+    // every single morning.
+    due.sort_by(|a, b| b.2.cmp(&a.2));
+
+    let cap = max_concurrent();
+    for (project, job, _) in due {
+        if under_way() >= cap {
+            record_capacity_skip(app, &project, &job);
+            continue;
+        }
+        spawn_pipeline(app, &project, job, Trigger::Schedule);
     }
 }
 
@@ -2351,12 +2820,7 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
         }
         if let Ok(job) = &resolved {
             if job_enabled {
-                if let Some(nf) = next_fire_at(
-                    &job.schedule,
-                    st.last_run_at.unwrap_or(now),
-                    jitter_secs(t, id),
-                    now,
-                ) {
+                if let Some(nf) = next_fire_at(&job.schedule, st.last_run_at.unwrap_or(now), now) {
                     next = Some(next.map_or(nf, |n: i64| n.min(nf)));
                 }
             }
@@ -2372,7 +2836,7 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
                 "label": job.label,
                 "emoji": job.emoji,
                 "enabled": enabled,
-                "duplicate": job.duplicate,
+                "duplicate": job.duplicate.enabled,
                 "runKind": run_kind(&job.run),
                 "description": run_description(&job.run),
                 "schedule": schedule_json(&job.schedule),
@@ -2434,7 +2898,20 @@ pub fn list_all_jobs() -> Result<Vec<Value>, String> {
         }
     }
     for (id, def) in load_jobs_yaml(&config::global_path()) {
-        out.push(global_job_row(&id, &def, &projects, now));
+        out.push(match def {
+            Ok(d) => global_job_row(&id, &d, &projects, now),
+            Err(e) => json!({
+                "id": id,
+                "valid": false,
+                "source": SOURCE_GLOBAL,
+                "error": e,
+                "enabled": false,
+                "runningCount": 0,
+                "targetCount": 0,
+                "targets": [],
+                "standalone": false,
+            }),
+        });
     }
     Ok(out)
 }
@@ -2452,12 +2929,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                     let enabled = st.enabled_override.unwrap_or(job.enabled);
                     // A job the scheduler hasn't anchored yet (created moments
                     // ago) predicts from now — the anchor the next tick writes.
-                    let next = next_fire_at(
-                        &job.schedule,
-                        st.last_run_at.unwrap_or(now),
-                        jitter_secs(&project, &id),
-                        now,
-                    );
+                    let next = next_fire_at(&job.schedule, st.last_run_at.unwrap_or(now), now);
                     let since = running_since(&key);
                     let mut row = json!({
                         "id": id,
@@ -2466,7 +2938,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "label": job.label,
                         "emoji": job.emoji,
                         "enabled": enabled,
-                        "duplicate": job.duplicate,
+                        "duplicate": job.duplicate.enabled,
                         "runKind": run_kind(&job.run),
                         "description": run_description(&job.run),
                         "schedule": schedule_json(&job.schedule),
@@ -2517,8 +2989,8 @@ pub fn test_job_check(project: String, check: String) -> Result<Value, String> {
         Ok((_, true)) => return Err("Scheduled jobs aren't available on SSH projects.".into()),
         _ => return Err("This project has no local folder to run the check in.".into()),
     };
-    let work = run_check(&root, check, Duration::from_secs(60), None)?;
-    Ok(json!({ "work": work }))
+    let outcome = run_check(&root, check, Duration::from_secs(60), None, &[])?;
+    Ok(json!({ "work": outcome.work, "output": outcome.output }))
 }
 
 #[tauri::command(async)]
@@ -2536,7 +3008,7 @@ pub fn run_job_now(app: AppHandle, project: String, job_id: String) -> Result<()
             .ok_or_else(|| "That job doesn't exist.".to_string())?
             .2?
     };
-    spawn_pipeline(&app, &project, job);
+    spawn_pipeline(&app, &project, job, Trigger::Manual);
     Ok(())
 }
 
@@ -2638,6 +3110,15 @@ pub fn send_job_followup(
         .session
         .clone()
         .filter(|_| agent == "claude" && !thread_full);
+    let reply_env = run_env(
+        &project,
+        &job_id,
+        &root,
+        Trigger::Reply,
+        None,
+        None,
+        tail.copy.is_some(),
+    );
     let spec = match resume {
         Some(sid) => CaptureSpec {
             cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, &message),
@@ -2654,6 +3135,8 @@ pub fn send_job_followup(
                 &condensed,
             )),
             compacted: false,
+            env: reply_env.clone(),
+            verify: None,
         },
         None => CaptureSpec {
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, &condensed),
@@ -2664,6 +3147,8 @@ pub fn send_job_followup(
             follows: Some(tail.at),
             fallback: None,
             compacted: true,
+            env: reply_env,
+            verify: None,
         },
     };
     match spawn_captured(&app, &key, &root, spec) {
@@ -3139,7 +3624,17 @@ mod tests {
             3 * 3600
         );
         assert_eq!(parse_every_secs(&EveryValue::Int(4)).unwrap(), 4 * 3600);
-        assert!(parse_every_secs(&EveryValue::Str("30m".into())).is_err());
+        assert_eq!(
+            parse_every_secs(&EveryValue::Str("30m".into())).unwrap(),
+            1_800
+        );
+        assert_eq!(
+            parse_every_secs(&EveryValue::Str(" 15M ".into())).unwrap(),
+            900
+        );
+        // Below the floor the tick can't honour it and a run would routinely
+        // outlive its own gap.
+        assert!(parse_every_secs(&EveryValue::Str("4m".into())).is_err());
         assert!(parse_every_secs(&EveryValue::Str("0h".into())).is_err());
         assert!(parse_every_secs(&EveryValue::Int(0)).is_err());
         assert!(parse_every_secs(&EveryValue::Str("nope".into())).is_err());
@@ -3291,9 +3786,39 @@ mod tests {
         // due exactly at the boundary (>= interval)
         assert!(!is_due(&s, last, last + 3599, 0));
         assert!(is_due(&s, last, last + 3600, 0));
-        // jitter pushes the boundary out by its own amount
-        assert!(!is_due(&s, last, last + 3660, 120));
-        assert!(is_due(&s, last, last + 3720, 120));
+    }
+
+    #[test]
+    fn interval_period_does_not_stretch_by_the_jitter() {
+        let s = Schedule::Interval { secs: 3600 };
+        let last = 1_000_000u64;
+        // A job with jitter keeps the interval it was given: charging the
+        // jitter per period pushed every "every hour" job to 61-65 minutes and
+        // slid it further out on each run.
+        assert!(is_due(&s, last, last + 3600, 300));
+        assert_eq!(next_fire_at(&s, last, last), Some((last + 3600) as i64));
+
+        // Twenty-four runs later the job is exactly a day on, not five hours
+        // late.
+        let mut t = last;
+        for _ in 0..24 {
+            t = next_fire_at(&s, t, t).unwrap() as u64;
+        }
+        assert_eq!(t, last + 24 * 3600);
+    }
+
+    #[test]
+    fn calendar_jitter_still_offsets_without_accumulating() {
+        // Jitter belongs to the calendar mode, where jobs really do share a
+        // fire point — and it offsets each occurrence rather than being added
+        // to the gap between them.
+        let s = Schedule::Calendar {
+            at_min: 9 * 60,
+            days: Vec::new(),
+        };
+        let occ = most_recent_calendar_occurrence(9 * 60, &[], now_secs() as i64).unwrap() as u64;
+        assert!(!is_due(&s, occ - 1, occ + 100, 300));
+        assert!(is_due(&s, occ - 1, occ + 300, 300));
     }
 
     #[test]
@@ -3327,7 +3852,7 @@ mod tests {
         assert!(!is_due(&Schedule::Manual, 0, now, 0));
         assert!(!is_due(&Schedule::Manual, now, now + 10 * 86_400, 0));
         // And it has no next fire point.
-        assert_eq!(next_fire_at(&Schedule::Manual, 0, 0, now), None);
+        assert_eq!(next_fire_at(&Schedule::Manual, 0, now), None);
     }
 
     #[test]
@@ -3456,10 +3981,24 @@ mod tests {
             done(900, 30),
             // A run salvaged after the app closed mid-flight kept no duration.
             entry(1000, FOUND_WORK, None, None, None, None),
-            entry(1100, COMPLETED, Some("picked up from the log"), None, None, None),
+            entry(
+                1100,
+                COMPLETED,
+                Some("picked up from the log"),
+                None,
+                None,
+                None,
+            ),
             // The check failing on the next tick is not that marker's run.
             entry(1200, FOUND_WORK, None, None, None, None),
-            entry(1300, ERROR, Some("The check couldn't run."), None, None, None),
+            entry(
+                1300,
+                ERROR,
+                Some("The check couldn't run."),
+                None,
+                None,
+                None,
+            ),
         ];
         let mut st = JobState {
             history,
@@ -3512,10 +4051,64 @@ mod tests {
     }
 
     #[test]
+    fn check_reports_what_it_said_and_what_it_was_told() {
+        let root = std::env::temp_dir().to_string_lossy().into_owned();
+        let env = run_env(
+            "blog",
+            "nightly",
+            &root,
+            Trigger::Schedule,
+            Some(1_700_000_000),
+            Some(1_699_000_000),
+            false,
+        );
+
+        // The check's own words used to be discarded, so a broken check and a
+        // quiet one were indistinguishable.
+        let found = run_check(
+            &root,
+            "echo '3 packages are out of date'",
+            Duration::from_secs(30),
+            None,
+            &env,
+        )
+        .unwrap();
+        assert!(found.work);
+        assert_eq!(found.output.as_deref(), Some("3 packages are out of date"));
+
+        // Anything it wrote on the way to deciding there was nothing to do is
+        // kept too — that is the case the user cannot otherwise explain.
+        let quiet = run_check(
+            &root,
+            "echo 'up to date' >&2; exit 1",
+            Duration::from_secs(30),
+            None,
+            &env,
+        )
+        .unwrap();
+        assert!(!quiet.work);
+        assert_eq!(quiet.output.as_deref(), Some("up to date"));
+
+        // The run context reaches the child.
+        let ctx = run_check(
+            &root,
+            "echo \"$LPM_JOB_ID $LPM_PROJECT_NAME $LPM_TRIGGER $LPM_IS_COPY $LPM_LAST_RUN_AT\"",
+            Duration::from_secs(30),
+            None,
+            &env,
+        )
+        .unwrap();
+        assert_eq!(
+            ctx.output.as_deref(),
+            Some("nightly blog schedule 0 1699000000")
+        );
+    }
+
+    #[test]
     fn check_times_out_and_is_killed() {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
         let start = std::time::Instant::now();
-        let res = run_check(&root, "sleep 5", Duration::from_secs(1), None);
+        let res = run_check(&root, "sleep 5", Duration::from_secs(1), None, &[]);
         assert!(res.is_err(), "a check that outlives its timeout must error");
         assert!(
             start.elapsed() < Duration::from_secs(4),
@@ -3526,7 +4119,7 @@ mod tests {
     #[test]
     fn wait_or_kill_times_out() {
         let root = std::env::temp_dir().to_string_lossy().into_owned();
-        let mut child = shell_command(&root, "sleep 30").spawn().unwrap();
+        let mut child = shell_command(&root, "sleep 30", &[]).spawn().unwrap();
         let start = std::time::Instant::now();
         let verdict = wait_or_kill(
             &mut child,
@@ -3544,7 +4137,7 @@ mod tests {
     fn wait_or_kill_honors_stop_request() {
         let key = "test-cancel/job";
         let root = std::env::temp_dir().to_string_lossy().into_owned();
-        let mut child = shell_command(&root, "sleep 30").spawn().unwrap();
+        let mut child = shell_command(&root, "sleep 30", &[]).spawn().unwrap();
         canceled_keys().lock().unwrap().insert(key.to_string());
         let start = std::time::Instant::now();
         let verdict = wait_or_kill(
@@ -4059,25 +4652,206 @@ mod tests {
     }
 
     #[test]
+    fn verify_is_refused_where_it_could_never_mean_anything() {
+        let with_verify = |run: RunDef| {
+            resolve_job(
+                "blog",
+                "nightly",
+                &JobDef {
+                    schedule: Some(ScheduleDef {
+                        at: "09:00".into(),
+                        ..Default::default()
+                    }),
+                    verify: "npm test".into(),
+                    run: Some(run),
+                    ..Default::default()
+                },
+            )
+        };
+
+        // lpm hands an action off and never learns how it ended.
+        assert!(with_verify(RunDef {
+            action: "deploy".into(),
+            ..Default::default()
+        })
+        .is_err());
+
+        // Both captured kinds can be checked, because lpm watches them exit.
+        let prompt = with_verify(RunDef {
+            prompt: "upgrade deps".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(prompt.verify, "npm test");
+        assert!(with_verify(RunDef {
+            cmd: "make".into(),
+            ..Default::default()
+        })
+        .is_ok());
+    }
+
+    #[test]
+    fn a_run_with_no_check_is_unverified_not_passed() {
+        assert_eq!(verify_note(None), None);
+        assert_eq!(verify_note(Some(true)).as_deref(), Some("checks passed"));
+        assert_eq!(verify_note(Some(false)).as_deref(), Some("checks failed"));
+    }
+
+    #[test]
+    fn notification_detail_carries_the_verdict_and_cost() {
+        assert_eq!(
+            notification_detail(Some("  \nUpgraded 3 packages.\nTests pass.\n"), Some(0.42)),
+            Some("Upgraded 3 packages. · $0.42".to_string())
+        );
+        // A run with nothing to say and no recorded cost adds nothing to the
+        // notification rather than padding it.
+        assert_eq!(notification_detail(None, None), None);
+        assert_eq!(notification_detail(Some("   "), None), None);
+        // Agents other than Claude report no cost at all.
+        assert_eq!(
+            notification_detail(Some("Nothing needed changing."), None),
+            Some("Nothing needed changing.".to_string())
+        );
+        let long = "x".repeat(300);
+        let got = notification_detail(Some(&long), None).unwrap();
+        assert_eq!(got.chars().count(), 121, "clipped, with an ellipsis");
+        assert!(got.ends_with('…'));
+    }
+
+    #[test]
+    fn a_capacity_skip_never_forfeits_the_job_s_turn() {
+        // Deferred runs must stay collapsible or a job blocked all morning
+        // appends an entry a minute and evicts the real run history.
+        assert!(is_collapsible(SKIPPED_CAPACITY));
+        // And they must not be mistaken for a run that actually happened.
+        assert!(!is_captured_outcome(SKIPPED_CAPACITY));
+    }
+
+    #[test]
+    fn due_fire_at_is_the_promised_time_not_the_actual_one() {
+        // How overdue a job is — which decides who goes first when the cap is
+        // reached — is measured against the fire point it was owed.
+        let interval = Schedule::Interval { secs: 3600 };
+        let last = 1_000_000u64;
+        assert_eq!(
+            due_fire_at(&interval, last, last + 9_000, 0),
+            Some(last + 3600)
+        );
+
+        // A calendar job woken hours late still reports the occurrence it was
+        // owed, so it outranks a job that only just came due.
+        let calendar = Schedule::Calendar {
+            at_min: 9 * 60,
+            days: Vec::new(),
+        };
+        let now = now_secs();
+        let occurrence = most_recent_calendar_occurrence(9 * 60, &[], now as i64).unwrap() as u64;
+        assert_eq!(
+            due_fire_at(&calendar, occurrence - 1, now, 120),
+            Some(occurrence + 120)
+        );
+
+        // A manual job has no promised time — it is never picked up by a tick.
+        assert_eq!(due_fire_at(&Schedule::Manual, last, last + 9_000, 0), None);
+    }
+
+    #[test]
+    fn duplicate_options_come_from_the_job() {
+        let parse = |yaml: &str| {
+            let def: DuplicateDef = serde_yaml::from_str(yaml).unwrap();
+            resolve_duplicate(&def)
+        };
+
+        assert_eq!(parse("false").unwrap(), DuplicateSpec::default());
+
+        // The bare shorthand keeps the documented defaults instead of picking
+        // up whatever the duplicate dialog was last left on.
+        assert_eq!(
+            parse("true").unwrap(),
+            DuplicateSpec {
+                enabled: true,
+                worktree: false,
+                pull_latest: true,
+                reinstall_deps: false,
+                exclude_uncommitted: false,
+            }
+        );
+
+        // Worktree mode is now reachable at all — it used to be gated on a
+        // setting nothing ever wrote.
+        let wt = parse("{ mode: worktree, reinstallDeps: true }").unwrap();
+        assert!(wt.enabled && wt.worktree && wt.reinstall_deps);
+        assert!(
+            !wt.pull_latest && !wt.exclude_uncommitted,
+            "a worktree shares the original's files, so these don't apply"
+        );
+
+        assert_eq!(
+            parse("{ mode: copy, pullLatest: false, excludeUncommitted: true }").unwrap(),
+            DuplicateSpec {
+                enabled: true,
+                worktree: false,
+                pull_latest: false,
+                reinstall_deps: false,
+                exclude_uncommitted: true,
+            }
+        );
+
+        assert!(parse("{ mode: sideways }").is_err());
+    }
+
+    #[test]
+    fn one_unreadable_job_does_not_hide_the_others() {
+        let path = std::env::temp_dir().join("lpm-jobs-partial-parse.yml");
+        std::fs::write(
+            &path,
+            concat!(
+                "jobs:\n",
+                "  good:\n",
+                "    label: Nightly\n",
+                "    schedule: { at: \"09:00\" }\n",
+                "    run: { prompt: hello }\n",
+                "  broken:\n",
+                "    label: Busted\n",
+                "    enabled: sometimes\n",
+            ),
+        )
+        .unwrap();
+        let loaded = load_jobs_yaml(&path);
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(loaded.len(), 2, "both jobs should still be listed");
+        assert_eq!(
+            loaded["good"].as_ref().map(|d| d.label.as_str()),
+            Ok("Nightly"),
+            "a readable job must survive an unreadable sibling"
+        );
+        assert!(
+            loaded["broken"].is_err(),
+            "the job with the bad field reports its own error"
+        );
+    }
+
+    #[test]
     fn job_layers_merge_with_registry_winning() {
         let job = |label: &str| JobDef {
             label: label.into(),
             ..Default::default()
         };
-        let registry = BTreeMap::from([("a".to_string(), job("reg-a"))]);
-        let repo = BTreeMap::from([
-            ("a".to_string(), job("repo-a")),
-            ("b".to_string(), job("repo-b")),
+        let registry = JobEntries::from([("a".to_string(), Ok(job("reg-a")))]);
+        let repo = JobEntries::from([
+            ("a".to_string(), Ok(job("repo-a"))),
+            ("b".to_string(), Ok(job("repo-b"))),
         ]);
-        let global = BTreeMap::from([
-            ("a".to_string(), job("glob-a")),
-            ("b".to_string(), job("glob-b")),
-            ("c".to_string(), job("glob-c")),
+        let global = JobEntries::from([
+            ("a".to_string(), Ok(job("glob-a"))),
+            ("b".to_string(), Ok(job("glob-b"))),
+            ("c".to_string(), Ok(job("glob-c"))),
         ]);
         let merged = merge_job_defs(registry, repo, global);
         let got: Vec<(&str, &str, &str)> = merged
             .iter()
-            .map(|(k, (d, s))| (k.as_str(), d.label.as_str(), *s))
+            .map(|(k, (d, s))| (k.as_str(), d.as_ref().unwrap().label.as_str(), *s))
             .collect();
         assert_eq!(
             got,

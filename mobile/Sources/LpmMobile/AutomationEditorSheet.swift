@@ -25,8 +25,8 @@ private let DAY_LETTER = ["mon": "M", "tue": "T", "wed": "W", "thu": "T",
                           "fri": "F", "sat": "S", "sun": "S"]
 
 /// The editor's in-flight form state — the mobile analogue of the desktop's
-/// JobDraft. `duplicate` has no UI (the desktop modal has none either) but is
-/// carried through so editing a duplicate-creating job preserves it.
+/// JobDraft. The copy options have no control here, so they are carried through
+/// a save untouched rather than being dropped from the job.
 private struct JobEditorDraft {
     var label = ""
     var emoji = ""
@@ -34,9 +34,13 @@ private struct JobEditorDraft {
     var time = "09:00"
     var days: [String] = []
     var intervalValue = 6
-    var intervalUnit = "hours"      // hours | days
+    var intervalUnit = "hours"      // minutes | hours | days
     var check = ""
-    var duplicate = false
+    var verify = ""
+    var duplicateMode = "none"      // none | copy | worktree
+    var duplicatePullLatest: Bool?
+    var duplicateReinstallDeps: Bool?
+    var duplicateExcludeUncommitted: Bool?
     var runMode = "prompt"          // prompt | cmd | action
     var action = ""
     var cmd = ""
@@ -364,6 +368,7 @@ struct AutomationEditorSheet: View {
                     }
                 }
                 Picker("Unit", selection: $draft.intervalUnit) {
+                    Text("Minutes").tag("minutes")
                     Text("Hours").tag("hours")
                     Text("Days").tag("days")
                 }
@@ -408,6 +413,18 @@ struct AutomationEditorSheet: View {
             Text("Only when there's work (optional)")
         } footer: {
             Text("A command that decides whether the job has anything to do — it runs only when this succeeds. Leave blank to run every time.")
+        }
+        if draft.runMode != "action" {
+            Section {
+                TextField("npm test", text: $draft.verify, axis: .vertical)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .font(.system(.callout, design: .monospaced))
+            } header: {
+                Text("Check the work afterwards (optional)")
+            } footer: {
+                Text("Runs where the job ran, once the run finishes. If it fails, the run is reported as needing a look instead of done. Leave blank and the run isn't checked.")
+            }
         }
     }
 
@@ -481,7 +498,12 @@ struct AutomationEditorSheet: View {
         switch draft.scheduleMode {
         case "manual": return "Runs only when you start it."
         case "interval":
-            let unit = draft.intervalUnit == "days" ? "day" : "hour"
+            let unit: String
+            switch draft.intervalUnit {
+            case "days": unit = "day"
+            case "minutes": unit = "minute"
+            default: unit = "hour"
+            }
             return "Every \(draft.intervalValue) \(unit)\(draft.intervalValue == 1 ? "" : "s")."
         default:
             let time = draft.time
@@ -537,7 +559,14 @@ struct AutomationEditorSheet: View {
         var d = JobEditorDraft()
         if let s = body["label"] as? String { d.label = s }
         if let s = body["emoji"] as? String { d.emoji = s }
-        d.duplicate = (body["duplicate"] as? Bool) == true
+        if (body["duplicate"] as? Bool) == true {
+            d.duplicateMode = "copy"
+        } else if let options = body["duplicate"] as? [String: Any] {
+            d.duplicateMode = (options["mode"] as? String) == "worktree" ? "worktree" : "copy"
+            d.duplicatePullLatest = options["pullLatest"] as? Bool
+            d.duplicateReinstallDeps = options["reinstallDeps"] as? Bool
+            d.duplicateExcludeUncommitted = options["excludeUncommitted"] as? Bool
+        }
 
         if let schedule = body["schedule"] as? [String: Any] {
             if (schedule["manual"] as? Bool) == true {
@@ -575,6 +604,7 @@ struct AutomationEditorSheet: View {
         }
 
         if let check = body["check"] as? String { d.check = check }
+        if let verify = body["verify"] as? String { d.verify = verify }
         if let projects = body["projects"] as? [Any] {
             d.targets = projects.map { String(describing: $0) }
             scopeHasProjectsKey = true
@@ -584,6 +614,22 @@ struct AutomationEditorSheet: View {
 
     // MARK: build & submit
 
+    /// A plain copy with default options stays `duplicate: true`, the form every
+    /// build can read; the mapping is written only once an option departs from
+    /// its default.
+    private func buildDuplicate() -> Any? {
+        if draft.duplicateMode == "none" { return nil }
+        var options: [String: Any] = [:]
+        if draft.duplicateMode == "worktree" {
+            options["mode"] = "worktree"
+        } else {
+            if let v = draft.duplicatePullLatest { options["pullLatest"] = v }
+            if let v = draft.duplicateExcludeUncommitted { options["excludeUncommitted"] = v }
+        }
+        if let v = draft.duplicateReinstallDeps { options["reinstallDeps"] = v }
+        return options.isEmpty ? true : options
+    }
+
     private func buildJob() -> [String: Any] {
         var payload: [String: Any] = ["label": draft.label.trimmed]
         let emoji = draft.emoji.trimmed
@@ -591,7 +637,11 @@ struct AutomationEditorSheet: View {
         payload["schedule"] = buildSchedule()
         let check = draft.check.trimmed
         if !check.isEmpty { payload["check"] = check }
-        if draft.duplicate { payload["duplicate"] = true }
+        // Must be written back on every save: the Mac replaces the job's whole
+        // mapping, so a key this editor omits is a key the job loses.
+        let verify = draft.verify.trimmed
+        if !verify.isEmpty, draft.runMode != "action" { payload["verify"] = verify }
+        if let duplicate = buildDuplicate() { payload["duplicate"] = duplicate }
         payload["run"] = buildRun()
         // The "runs in" list lives only on global-layer jobs; a project/repo job
         // is bound to its file. An every-project global job (scope read-only)
@@ -604,7 +654,12 @@ struct AutomationEditorSheet: View {
         switch draft.scheduleMode {
         case "manual": return ["manual": true]
         case "interval":
-            let suffix = draft.intervalUnit == "days" ? "d" : "h"
+            let suffix: String
+            switch draft.intervalUnit {
+            case "days": suffix = "d"
+            case "minutes": suffix = "m"
+            default: suffix = "h"
+            }
             return ["every": "\(draft.intervalValue)\(suffix)"]
         default:
             var block: [String: Any] = ["at": draft.time]
@@ -682,6 +737,7 @@ private func parseEvery(_ every: Any) -> (Int, String) {
     let s = String(describing: every).trimmingCharacters(in: .whitespaces).lowercased()
     if let n = Int(s.dropLast()), s.hasSuffix("d") { return (max(1, n), "days") }
     if let n = Int(s.dropLast()), s.hasSuffix("h") { return (max(1, n), "hours") }
+    if let n = Int(s.dropLast()), s.hasSuffix("m") { return (max(1, n), "minutes") }
     if let n = Int(s) { return (max(1, n), "hours") }
     return (6, "hours")
 }

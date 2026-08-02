@@ -150,6 +150,23 @@ export function ScheduledView() {
       .filter((r) => project === null || r.project === project)
       .map((r) => r.id);
 
+  // A multi-project run can be started from the list or from a job's own page,
+  // so the picker has to be mounted in either branch.
+  const runPickDialog = (
+    <RunProjectsDialog
+      open={runPick !== null}
+      jobLabel={runPick?.label || runPick?.id || ""}
+      targets={runPick?.targets ?? []}
+      projects={projects}
+      onCancel={() => setRunPick(null)}
+      onRun={(selected) => {
+        const job = runPick;
+        setRunPick(null);
+        if (job) selected.forEach((p) => runNow(p, job.id));
+      }}
+    />
+  );
+
   const renderRows = (jobs: ScheduledJob[], sectionKey: string) => (
     <div className="mt-1 divide-y divide-[var(--border)]">
       {jobs.map((job) => (
@@ -238,13 +255,11 @@ export function ScheduledView() {
           onEdit={() =>
             setEditing({ mode: "edit", project: open.project, job: openJob })
           }
-          onRunNow={() => runNow(open.project, openJob.id)}
-          onStop={() => stopRun(open.project, openJob.id)}
+          onRunNow={() => runNowJob(openJob)}
+          onStop={() => stopRunJob(openJob)}
           onRemove={() => setRemoving({ project: open.project, job: openJob })}
           onChanged={() => void refetch()}
-          onToggleEnabled={(enabled) =>
-            toggleEnabled(open.project, openJob.id, enabled)
-          }
+          onToggleEnabled={(enabled) => toggleEnabledJob(openJob, enabled)}
           onOpenCopy={(name) => selectProject(name)}
           onOpenTask={(at) => setOpenTask(at)}
         />
@@ -268,6 +283,7 @@ export function ScheduledView() {
           onClose={() => setEditing(null)}
           onSaved={() => void refetch()}
         />
+        {runPickDialog}
       </>
     );
   }
@@ -369,18 +385,7 @@ export function ScheduledView() {
         onCancel={() => setRemoving(null)}
         onConfirm={(deleteCopies) => void removeJob(deleteCopies)}
       />
-      <RunProjectsDialog
-        open={runPick !== null}
-        jobLabel={runPick?.label || runPick?.id || ""}
-        targets={runPick?.targets ?? []}
-        projects={projects}
-        onCancel={() => setRunPick(null)}
-        onRun={(selected) => {
-          const job = runPick;
-          setRunPick(null);
-          if (job) selected.forEach((p) => runNow(p, job.id));
-        }}
-      />
+      {runPickDialog}
     </div>
   );
 }

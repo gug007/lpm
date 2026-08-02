@@ -117,6 +117,11 @@ export interface JobHistoryEntry {
   follows?: number;
   question?: string;
   compacted?: boolean;
+  // Whether the job's after-the-run check passed. Undefined means the job
+  // declares no check, or there was no live run to check — unverified, which is
+  // not the same as failed.
+  verified?: boolean;
+  verifyOutput?: string;
 }
 
 // One run and the conversation that grew out of it: the scheduled (or manual)
@@ -159,6 +164,7 @@ export type JobResult =
   | "context-full"
   | "skipped-overlap"
   | "skipped-pending-copy"
+  | "skipped-capacity"
   | "pending-window";
 
 export type JobResultTone = "neutral" | "success" | "error" | "warning";
@@ -185,12 +191,24 @@ const RESULT_META: Record<string, ResultMeta> = {
     label: () => "Waiting — the copy from the last run is still open",
     tone: "warning",
   },
+  "skipped-capacity": {
+    label: () => "Waiting — other automations were running",
+    tone: "warning",
+  },
   "pending-window": { label: () => "Waiting for the app window", tone: "warning" },
 };
 
 export function jobResultLabel(result: string | undefined, copy?: string): string {
   if (!result) return "";
   return RESULT_META[result]?.label(copy) ?? result;
+}
+
+// What a finished run is called once its own check has had a say. "Done" on its
+// own says the agent exited, not that it did what it was asked.
+export function jobEntryLabel(entry: JobHistoryEntry): string {
+  const base = jobResultLabel(entry.result, entry.copy);
+  if (entry.result !== "completed" || entry.verified === undefined) return base;
+  return entry.verified ? `${base} — checks passed` : `${base} — checks failed`;
 }
 
 export function jobResultTone(result: string | undefined): JobResultTone {
@@ -312,6 +330,10 @@ export function formatInterval(everySecs: number): string {
     const days = everySecs / 86400;
     return days === 1 ? "Every day" : `Every ${days} days`;
   }
+  if (everySecs > 0 && everySecs < 3600) {
+    const minutes = Math.max(1, Math.round(everySecs / 60));
+    return minutes === 1 ? "Every minute" : `Every ${minutes} minutes`;
+  }
   const hours = Math.max(1, Math.round(everySecs / 3600));
   return hours === 1 ? "Every hour" : `Every ${hours} hours`;
 }
@@ -359,7 +381,9 @@ export function formatNextRun(
 // ---- editor draft <-> YAML payload -----------------------------------------
 
 export type ScheduleMode = "time" | "interval" | "manual";
-export type IntervalUnit = "hours" | "days";
+
+export type DuplicateMode = "none" | "copy" | "worktree";
+export type IntervalUnit = "minutes" | "hours" | "days";
 
 export interface JobDraft {
   label: string;
@@ -370,7 +394,17 @@ export interface JobDraft {
   intervalValue: number;
   intervalUnit: IntervalUnit;
   check: string;
-  duplicate: boolean;
+  // Run after the agent exits: it decides whether the run is reported as having
+  // worked. Empty = the run is unverified.
+  verify: string;
+  // Where the run happens: in the project itself, in a fresh copy of it, or in
+  // a Git worktree of it. A standalone job has no project to copy.
+  duplicateMode: DuplicateMode;
+  // Copy options, `null` meaning "leave it at the default". They have no editor
+  // control yet, so they are carried through a save untouched.
+  duplicatePullLatest: boolean | null;
+  duplicateReinstallDeps: boolean | null;
+  duplicateExcludeUncommitted: boolean | null;
   runMode: JobRunKind;
   action: string;
   cmd: string;
@@ -401,7 +435,11 @@ export function defaultJobDraft(): JobDraft {
     intervalValue: 6,
     intervalUnit: "hours",
     check: "",
-    duplicate: false,
+    verify: "",
+    duplicateMode: "none",
+    duplicatePullLatest: null,
+    duplicateReinstallDeps: null,
+    duplicateExcludeUncommitted: null,
     runMode: "prompt",
     action: "",
     cmd: "",
@@ -430,15 +468,24 @@ export function describeDraftSchedule(draft: JobDraft): string {
     return "Runs only when you start it";
   }
   if (draft.scheduleMode === "interval") {
-    const secs =
-      draft.intervalUnit === "days"
-        ? draft.intervalValue * 86400
-        : draft.intervalValue * 3600;
-    return formatInterval(secs);
+    return formatInterval(intervalSecs(draft));
   }
   const minutes = parseTimeToMinutes(draft.time);
   if (minutes === null) return "";
   return formatSchedule({ mode: "calendar", atMinutes: minutes, days: draft.days });
+}
+
+const UNIT_SECS: Record<IntervalUnit, number> = {
+  minutes: 60,
+  hours: 3600,
+  days: 86400,
+};
+
+// The scheduler's floor (jobs.rs MIN_INTERVAL_SECS).
+const MIN_INTERVAL_SECS = 300;
+
+function intervalSecs(draft: JobDraft): number {
+  return draft.intervalValue * UNIT_SECS[draft.intervalUnit];
 }
 
 // Mirrors the backend validation (jobs.rs) so save is blocked before a write
@@ -457,9 +504,12 @@ export function validateJobDraft(
     if (!Number.isFinite(draft.intervalValue) || draft.intervalValue < 1) {
       return "The interval must be at least 1.";
     }
-    if (draft.intervalUnit === "hours" && draft.intervalValue < 1) {
-      return "The interval must be at least 1 hour.";
+    if (intervalSecs(draft) < MIN_INTERVAL_SECS) {
+      return "The interval must be at least 5 minutes.";
     }
+  }
+  if (draft.verify.trim() && draft.runMode === "action") {
+    return "A check after the run isn't available for actions.";
   }
   if (draft.runMode === "action" && !draft.action.trim()) {
     return "Choose an action to run.";
@@ -478,7 +528,7 @@ function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
     return { manual: true };
   }
   if (draft.scheduleMode === "interval") {
-    const suffix = draft.intervalUnit === "days" ? "d" : "h";
+    const suffix = { minutes: "m", hours: "h", days: "d" }[draft.intervalUnit];
     return { every: `${draft.intervalValue}${suffix}` };
   }
   const block: Record<string, unknown> = { at: draft.time.trim() };
@@ -501,6 +551,42 @@ function buildRunBlock(draft: JobDraft): Record<string, unknown> {
   return block;
 }
 
+// A plain copy with default options keeps writing `duplicate: true`, the form
+// every build can read — the options mapping is only written once a setting
+// actually departs from the default.
+function buildDuplicateValue(draft: JobDraft): unknown {
+  if (draft.duplicateMode === "none") return null;
+  const options: Record<string, unknown> = {};
+  if (draft.duplicateMode === "worktree") {
+    options.mode = "worktree";
+  } else {
+    if (draft.duplicatePullLatest !== null)
+      options.pullLatest = draft.duplicatePullLatest;
+    if (draft.duplicateExcludeUncommitted !== null)
+      options.excludeUncommitted = draft.duplicateExcludeUncommitted;
+  }
+  if (draft.duplicateReinstallDeps !== null)
+    options.reinstallDeps = draft.duplicateReinstallDeps;
+  return Object.keys(options).length === 0 ? true : options;
+}
+
+function asBoolOrNull(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
+function readDuplicateInto(draft: JobDraft, value: unknown): void {
+  if (value === true) {
+    draft.duplicateMode = "copy";
+    return;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const options = value as Record<string, unknown>;
+  draft.duplicateMode = options.mode === "worktree" ? "worktree" : "copy";
+  draft.duplicatePullLatest = asBoolOrNull(options.pullLatest);
+  draft.duplicateReinstallDeps = asBoolOrNull(options.reinstallDeps);
+  draft.duplicateExcludeUncommitted = asBoolOrNull(options.excludeUncommitted);
+}
+
 // The YAML mapping written under `jobs: <id>:`. Optional fields are omitted when
 // empty so a clean job stays terse (matching how actions are serialized).
 export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
@@ -508,7 +594,9 @@ export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
   if (draft.emoji.trim()) payload.emoji = draft.emoji.trim();
   payload.schedule = buildScheduleBlock(draft);
   if (draft.check.trim()) payload.check = draft.check.trim();
-  if (draft.duplicate) payload.duplicate = true;
+  if (draft.verify.trim()) payload.verify = draft.verify.trim();
+  const duplicate = buildDuplicateValue(draft);
+  if (duplicate !== null) payload.duplicate = duplicate;
   payload.run = buildRunBlock(draft);
   return payload;
 }
@@ -521,10 +609,12 @@ function parseEvery(every: unknown): {
     return { value: Math.max(1, Math.round(every)), unit: "hours" };
   }
   const s = String(every ?? "").trim().toLowerCase();
-  const m = /^(\d+)\s*([hd]?)$/.exec(s);
+  const m = /^(\d+)\s*([mhd]?)$/.exec(s);
   if (!m) return { value: 6, unit: "hours" };
   const value = Math.max(1, Number(m[1]));
-  return { value, unit: m[2] === "d" ? "days" : "hours" };
+  const unit: IntervalUnit =
+    m[2] === "d" ? "days" : m[2] === "m" ? "minutes" : "hours";
+  return { value, unit };
 }
 
 function asStringArray(value: unknown): Weekday[] {
@@ -540,7 +630,8 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
   const draft = defaultJobDraft();
   if (typeof payload.label === "string") draft.label = payload.label;
   if (typeof payload.emoji === "string") draft.emoji = payload.emoji;
-  draft.duplicate = payload.duplicate === true;
+  if (typeof payload.verify === "string") draft.verify = payload.verify;
+  readDuplicateInto(draft, payload.duplicate);
 
   const schedule = payload.schedule;
   if (schedule && typeof schedule === "object") {

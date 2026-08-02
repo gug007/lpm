@@ -3,6 +3,7 @@ import {
   buildJobPayload,
   defaultJobDraft,
   describeDraftSchedule,
+  jobEntryLabel,
   formatCost,
   formatDuration,
   formatInterval,
@@ -269,7 +270,7 @@ describe("draft <-> payload round-trip", () => {
       time: "09:00",
       days: ["mon", "thu"],
       check: "test -n \"$(npm outdated)\"",
-      duplicate: true,
+      duplicateMode: "copy",
       runMode: "prompt",
       prompt: prompt("Upgrade dependencies"),
     };
@@ -322,12 +323,110 @@ describe("draft <-> payload round-trip", () => {
       time: "09:00",
       days: ["mon", "thu"],
       check: "check.sh",
-      duplicate: true,
+      duplicateMode: "copy",
       runMode: "action",
       action: "deploy",
     };
     const payload = buildJobPayload(draft);
     expect(payloadToDraft(payload)).toEqual(draft);
+  });
+
+  it("round-trips a sub-hour interval instead of rewriting it", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Watcher",
+      scheduleMode: "interval",
+      intervalValue: 30,
+      intervalUnit: "minutes",
+      runMode: "cmd",
+      cmd: "make check",
+    };
+    expect(buildJobPayload(draft).schedule).toEqual({ every: "30m" });
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(describeDraftSchedule(draft)).toBe("Every 30 minutes");
+    expect(validateJobDraft(draft)).toBeNull();
+
+    // The list used to round a 30-minute job to "Every hour".
+    expect(formatInterval(1800)).toBe("Every 30 minutes");
+    expect(formatInterval(3600)).toBe("Every hour");
+    expect(formatInterval(86400)).toBe("Every day");
+
+    // Below the scheduler's floor, save is blocked before the write.
+    expect(
+      validateJobDraft({ ...draft, intervalValue: 2 }),
+    ).toBe("The interval must be at least 5 minutes.");
+  });
+
+  it("round-trips a verify command and labels the run by its verdict", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Nightly deps",
+      check: "npm outdated | grep .",
+      verify: "npm test",
+      runMode: "prompt",
+      prompt: prompt("Upgrade dependencies"),
+    };
+    expect(buildJobPayload(draft).verify).toBe("npm test");
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+
+    // A run lpm never checked is unverified, which is not a pass.
+    expect(jobEntryLabel({ at: 1, result: "completed" })).toBe("Done");
+    expect(jobEntryLabel({ at: 1, result: "completed", verified: true })).toBe(
+      "Done — checks passed",
+    );
+    expect(jobEntryLabel({ at: 1, result: "completed", verified: false })).toBe(
+      "Done — checks failed",
+    );
+    // Only a finished run has a verdict to report.
+    expect(jobEntryLabel({ at: 1, result: "canceled", verified: false })).toBe(
+      "Stopped",
+    );
+
+    // lpm hands an action off and never learns how it ended.
+    expect(
+      validateJobDraft({ ...draft, runMode: "action", action: "deploy" }),
+    ).toBe("A check after the run isn't available for actions.");
+  });
+
+  it("keeps writing duplicate: true for a plain copy", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Copy job",
+      duplicateMode: "copy",
+      runMode: "cmd",
+      cmd: "make",
+    };
+    expect(buildJobPayload(draft).duplicate).toBe(true);
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+  });
+
+  it("round-trips a worktree job and carries options it has no control for", () => {
+    const worktree: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Worktree job",
+      duplicateMode: "worktree",
+      duplicateReinstallDeps: true,
+      runMode: "cmd",
+      cmd: "make",
+    };
+    expect(buildJobPayload(worktree).duplicate).toEqual({
+      mode: "worktree",
+      reinstallDeps: true,
+    });
+    expect(payloadToDraft(buildJobPayload(worktree))).toEqual(worktree);
+
+    // A hand-written option survives a save made from the editor.
+    const handWritten = payloadToDraft({
+      label: "Copy job",
+      schedule: { at: "09:00" },
+      duplicate: { pullLatest: false, excludeUncommitted: true },
+      run: { cmd: "make" },
+    });
+    expect(handWritten.duplicateMode).toBe("copy");
+    expect(buildJobPayload(handWritten).duplicate).toEqual({
+      pullLatest: false,
+      excludeUncommitted: true,
+    });
   });
 
   it("reads an interval-in-days payload", () => {

@@ -31,6 +31,7 @@ import {
   type JobDraft,
   type JobInfo,
   type JobRunKind,
+  type DuplicateMode,
 } from "../../../jobsFormat";
 import { type ComposerValue } from "../../../composerValue";
 import { isDuplicate, type ActionInfo } from "../../../types";
@@ -55,8 +56,8 @@ interface JobEditorModalProps {
 type TestState =
   | { kind: "idle" }
   | { kind: "running" }
-  | { kind: "work" }
-  | { kind: "nowork" }
+  | { kind: "work"; output?: string }
+  | { kind: "nowork"; output?: string }
   | { kind: "error"; message: string };
 
 // The UI's repeat vocabulary, derived from (and written back to) the draft's
@@ -114,6 +115,8 @@ export function JobEditorModal({
   const runProject = scopeProject(draft);
   // Actions belong to one project, so they need exactly one in scope.
   const actionsAvailable = runProject !== undefined;
+  // A standalone job runs in the home folder, so there is no project to copy.
+  const canDuplicate = draft.targets.length > 0 || draft.everyProject;
   const actions = actionsAvailable && runProject ? actionsFor(runProject) : [];
   // AI-edit runs in the project the job runs in; a standalone or multi-project
   // job has no single root, so it gets a plain prompt field.
@@ -249,12 +252,18 @@ export function JobEditorModal({
     try {
       const result = (await TestJobCheck(runProject, draft.check)) as {
         work?: boolean;
+        output?: string | null;
       };
-      setTest({ kind: result.work ? "work" : "nowork" });
+      setTest({
+        kind: result.work ? "work" : "nowork",
+        output: result.output ?? undefined,
+      });
     } catch (err) {
       setTest({
         kind: "error",
-        message: err instanceof Error ? err.message : "The check couldn't run.",
+        // Tauri rejects with a plain string, so `err instanceof Error` is false
+        // and would swallow the message the backend wrote.
+        message: String(err) || "The check couldn't run.",
       });
     }
   };
@@ -433,6 +442,21 @@ export function JobEditorModal({
                       />
                     )}
                   </Row>
+                  {canDuplicate && (
+                    <Row label="Works on">
+                      <RowSelect
+                        value={draft.duplicateMode}
+                        onChange={(mode) =>
+                          set("duplicateMode", mode as DuplicateMode)
+                        }
+                        options={[
+                          { value: "none", label: "The project itself" },
+                          { value: "copy", label: "A fresh copy of it" },
+                          { value: "worktree", label: "A Git worktree of it" },
+                        ]}
+                      />
+                    </Row>
+                  )}
                   <Row label="Does">
                     <RowSelect
                       value={draft.runMode}
@@ -506,6 +530,14 @@ export function JobEditorModal({
                     won't run in {listNames(skippedCopies)}.
                   </p>
                 )}
+                {canDuplicate && draft.duplicateMode !== "none" && (
+                  <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
+                    Each run works in a new{" "}
+                    {draft.duplicateMode === "worktree" ? "worktree" : "copy"},
+                    leaving the project untouched. The next run waits until
+                    you've looked at the last one and removed it.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -550,6 +582,7 @@ export function JobEditorModal({
                           value={draft.intervalUnit}
                           onChange={(u) => set("intervalUnit", u as IntervalUnit)}
                           options={[
+                            { value: "minutes", label: "minutes" },
                             { value: "hours", label: "hours" },
                             { value: "days", label: "days" },
                           ]}
@@ -571,6 +604,8 @@ export function JobEditorModal({
                 {scheduleSummary && (
                   <p className="mt-2 text-[12px] text-[var(--text-muted)]">
                     {scheduleSummary}.
+                    {(repeat === "daily" || repeat === "days") &&
+                      " It starts within a few minutes of that time, so automations set to the same hour don't all begin at once."}
                   </p>
                 )}
               </div>
@@ -631,6 +666,12 @@ export function JobEditorModal({
                         Nothing to do right now.
                       </p>
                     )}
+                    {(test.kind === "work" || test.kind === "nowork") &&
+                      test.output && (
+                        <pre className="max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-[var(--text-muted)]">
+                          {test.output}
+                        </pre>
+                      )}
                     {test.kind === "error" && (
                       <p className="text-[12px] text-[var(--accent-red)]">
                         {test.message}
@@ -643,6 +684,27 @@ export function JobEditorModal({
                       it runs only when this succeeds. Leave blank to run every
                       time.
                     </p>
+                    {draft.runMode !== "action" && (
+                      <div className="mt-4">
+                        <GroupLabel>Check the work afterwards (optional)</GroupLabel>
+                        <Card>
+                          <div className="px-4 py-3">
+                            <input
+                              value={draft.verify}
+                              onChange={(e) => set("verify", e.target.value)}
+                              placeholder="npm test"
+                              spellCheck={false}
+                              className="w-full border-none bg-transparent font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                            />
+                          </div>
+                        </Card>
+                        <p className="mt-2 text-[12px] leading-snug text-[var(--text-muted)]">
+                          Runs where the job ran, once the run finishes. If it
+                          fails, the run is reported as needing a look instead of
+                          done. Leave blank and the run isn't checked.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

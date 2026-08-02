@@ -1092,11 +1092,15 @@ struct AutomationHistoryEntry: Identifiable {
     let resumed: String
     let follows: Int?
     let compacted: Bool
+    /// Whether the job's after-the-run check passed. nil means the job declares
+    /// no check, or there was no live run to check — unverified, not failed.
+    let verified: Bool?
 
     init(_ o: [String: Any]) {
         at = o["at"] as? Int ?? 0
         result = o["result"] as? String ?? ""
         count = o["count"] as? Int ?? 1
+        verified = o["verified"] as? Bool
         copy = o["copy"] as? String ?? ""
         output = o["output"] as? String ?? ""
         durationSecs = o["durationSecs"] as? Int
