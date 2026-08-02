@@ -39,9 +39,20 @@ const DAY_PLURAL: Record<Weekday, string> = {
 
 export type JobRunKind = "action" | "cmd" | "prompt";
 
+// `everyMaxSecs` (interval) and `untilMinutes` (calendar) open the schedule into
+// a range the actual run time is drawn from, rather than a fixed point; `times`
+// puts more than one run in that window and `pickDays` uses only some of `days`
+// each week. All are absent on a schedule that fires at a fixed point.
 export type JobSchedule =
-  | { mode: "interval"; everySecs: number }
-  | { mode: "calendar"; atMinutes: number; days: Weekday[] }
+  | { mode: "interval"; everySecs: number; everyMaxSecs?: number }
+  | {
+      mode: "calendar";
+      atMinutes: number;
+      days: Weekday[];
+      untilMinutes?: number;
+      times?: number;
+      pickDays?: number;
+    }
   | { mode: "manual" };
 
 // Which config layer defines the job: the project registry file, the repo's
@@ -309,33 +320,87 @@ function joinDayPhrase(days: Weekday[]): string {
   return `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
 }
 
+// Which days a calendar schedule runs on: "every day", "Mondays and Thursdays",
+// "2 random weekdays". Lower case — the caller capitalizes when it leads.
+function dayPhrase(days: Weekday[], pickDays?: number): string {
+  const all = days.length === 0 || days.length === 7;
+  if (!pickDays) return all ? "every day" : joinDayPhrase(days);
+  return `${pickDays} random ${dayPoolNoun(days, pickDays)} a week`;
+}
+
+// What to call the days a random pick is drawn from, so "2 random weekdays"
+// beats "2 random days out of Mondays, Tuesdays, ...".
+function dayPoolNoun(days: Weekday[], count: number): string {
+  const set = new Set(days);
+  const same = (names: Weekday[]) =>
+    set.size === names.length && names.every((d) => set.has(d));
+  const s = count === 1 ? "" : "s";
+  if (same(["mon", "tue", "wed", "thu", "fri"])) return `weekday${s}`;
+  if (same(["sat", "sun"])) return `weekend day${s}`;
+  return `day${s}`;
+}
+
+// When in the day it runs: "at 09:00", or "between 09:00 and 17:00" when the
+// time is drawn from a window.
+function timePhrase(atMinutes: number, untilMinutes?: number): string {
+  const at = formatMinutes(atMinutes);
+  if (untilMinutes === undefined) return `at ${at}`;
+  return `between ${at} and ${formatMinutes(untilMinutes)}`;
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // Plain-language schedule: "Every day at 09:00", "Mondays and Thursdays at
-// 09:00", "Every 6 hours", "Every 2 days".
+// 09:00", "Every 6 hours", "Every 4–8 hours", "Every day between 09:00 and
+// 17:00", "3 times a day between 09:00 and 17:00", "2 random weekdays at 09:00".
 export function formatSchedule(schedule: JobSchedule): string {
   if (schedule.mode === "manual") {
     return "Manual";
   }
   if (schedule.mode === "interval") {
-    return formatInterval(schedule.everySecs);
+    return formatInterval(schedule.everySecs, schedule.everyMaxSecs);
   }
-  const time = formatMinutes(schedule.atMinutes);
-  if (schedule.days.length === 0 || schedule.days.length === 7) {
-    return `Every day at ${time}`;
+  const days = dayPhrase(schedule.days, schedule.pickDays);
+  const time = timePhrase(schedule.atMinutes, schedule.untilMinutes);
+  const times = schedule.times ?? 1;
+  if (times > 1) {
+    const where = days === "every day" ? "a day" : `on ${days}`;
+    return `${times} times ${where} ${time}`;
   }
-  return `${joinDayPhrase(schedule.days)} at ${time}`;
+  return `${capitalize(days)} ${time}`;
 }
 
-export function formatInterval(everySecs: number): string {
-  if (everySecs > 0 && everySecs % 86400 === 0) {
-    const days = everySecs / 86400;
-    return days === 1 ? "Every day" : `Every ${days} days`;
+// "6 hours" / "30 minutes" / "2 days" — the number and its unit, sized to the
+// value so a gap reads the way it was written.
+function intervalParts(secs: number): { value: number; unit: string } {
+  if (secs > 0 && secs % 86400 === 0) {
+    return { value: secs / 86400, unit: "day" };
   }
-  if (everySecs > 0 && everySecs < 3600) {
-    const minutes = Math.max(1, Math.round(everySecs / 60));
-    return minutes === 1 ? "Every minute" : `Every ${minutes} minutes`;
+  if (secs > 0 && secs < 3600) {
+    return { value: Math.max(1, Math.round(secs / 60)), unit: "minute" };
   }
-  const hours = Math.max(1, Math.round(everySecs / 3600));
-  return hours === 1 ? "Every hour" : `Every ${hours} hours`;
+  return { value: Math.max(1, Math.round(secs / 3600)), unit: "hour" };
+}
+
+function plural(value: number, unit: string): string {
+  return value === 1 ? unit : `${unit}s`;
+}
+
+// "Every 6 hours" / "Every day", or "Every 4–8 hours" for a gap drawn from a
+// band. A band whose ends don't share a unit is spelled out on both sides.
+export function formatInterval(everySecs: number, everyMaxSecs?: number): string {
+  const lo = intervalParts(everySecs);
+  if (everyMaxSecs === undefined || everyMaxSecs <= everySecs) {
+    if (lo.value === 1) return `Every ${lo.unit}`;
+    return `Every ${lo.value} ${plural(lo.value, lo.unit)}`;
+  }
+  const hi = intervalParts(everyMaxSecs);
+  if (lo.unit === hi.unit) {
+    return `Every ${lo.value}–${hi.value} ${plural(hi.value, hi.unit)}`;
+  }
+  return `Every ${lo.value} ${plural(lo.value, lo.unit)} to ${hi.value} ${plural(hi.value, hi.unit)}`;
 }
 
 function sameDay(a: Date, b: Date): boolean {
@@ -391,8 +456,20 @@ export interface JobDraft {
   scheduleMode: ScheduleMode;
   time: string;
   days: Weekday[];
+  // Randomized timing. Each is gated by its own toggle so turning one off and
+  // back on doesn't lose what was typed into it: `randomWindow` draws the run
+  // time from `time`..`untilTime` and spreads `timesPerDay` runs across it,
+  // `randomDays` uses only `pickDays` of the selected days each week, and
+  // `varyInterval` draws each gap from `intervalValue`..`intervalMaxValue`.
+  randomWindow: boolean;
+  untilTime: string;
+  timesPerDay: number;
+  randomDays: boolean;
+  pickDays: number;
   intervalValue: number;
   intervalUnit: IntervalUnit;
+  varyInterval: boolean;
+  intervalMaxValue: number;
   check: string;
   // Run after the agent exits: it decides whether the run is reported as having
   // worked. Empty = the run is unverified.
@@ -432,8 +509,15 @@ export function defaultJobDraft(): JobDraft {
     scheduleMode: "time",
     time: "09:00",
     days: [],
+    randomWindow: false,
+    untilTime: "17:00",
+    timesPerDay: 1,
+    randomDays: false,
+    pickDays: 1,
     intervalValue: 6,
     intervalUnit: "hours",
+    varyInterval: false,
+    intervalMaxValue: 12,
     check: "",
     verify: "",
     duplicateMode: "none",
@@ -468,11 +552,37 @@ export function describeDraftSchedule(draft: JobDraft): string {
     return "Runs only when you start it";
   }
   if (draft.scheduleMode === "interval") {
-    return formatInterval(intervalSecs(draft));
+    return formatInterval(intervalSecs(draft), intervalMaxSecs(draft));
   }
   const minutes = parseTimeToMinutes(draft.time);
   if (minutes === null) return "";
-  return formatSchedule({ mode: "calendar", atMinutes: minutes, days: draft.days });
+  const until = draftUntilMinutes(draft);
+  if (draft.randomWindow && until === null) return "";
+  return formatSchedule({
+    mode: "calendar",
+    atMinutes: minutes,
+    days: draft.days,
+    untilMinutes: until ?? undefined,
+    times: draft.randomWindow ? Math.max(1, draft.timesPerDay) : 1,
+    pickDays: draftPickDays(draft),
+  });
+}
+
+// The window's end, or null when the draft isn't using one (or hasn't typed a
+// valid time into it yet).
+function draftUntilMinutes(draft: JobDraft): number | null {
+  if (!draft.randomWindow) return null;
+  return parseTimeToMinutes(draft.untilTime);
+}
+
+// How many days a week the draft picks, or undefined when it uses all of them.
+// A pick wider than the days now selected is clamped rather than refused: the
+// control disappears once a single day is left, so an error there would be
+// unfixable, and "1 of [Monday]" is exactly "every Monday" anyway.
+function draftPickDays(draft: JobDraft): number | undefined {
+  if (!draft.randomDays || draft.pickDays < 1) return undefined;
+  const pool = draft.days.length === 0 ? 7 : draft.days.length;
+  return draft.pickDays >= pool ? undefined : draft.pickDays;
 }
 
 const UNIT_SECS: Record<IntervalUnit, number> = {
@@ -488,6 +598,13 @@ function intervalSecs(draft: JobDraft): number {
   return draft.intervalValue * UNIT_SECS[draft.intervalUnit];
 }
 
+// The far end of a varying gap, or undefined for a fixed one. Both ends share
+// the draft's single unit, so only the number differs.
+function intervalMaxSecs(draft: JobDraft): number | undefined {
+  if (!draft.varyInterval) return undefined;
+  return draft.intervalMaxValue * UNIT_SECS[draft.intervalUnit];
+}
+
 // Mirrors the backend validation (jobs.rs) so save is blocked before a write
 // that the scheduler would reject, and the message reads in product terms.
 export function validateJobDraft(
@@ -499,13 +616,27 @@ export function validateJobDraft(
     return "Standalone jobs can't run an action.";
   }
   if (draft.scheduleMode === "time") {
-    if (parseTimeToMinutes(draft.time) === null) return "Pick a valid time.";
+    const at = parseTimeToMinutes(draft.time);
+    if (at === null) return "Pick a valid time.";
+    if (draft.randomWindow) {
+      const until = parseTimeToMinutes(draft.untilTime);
+      if (until === null) return "Pick a valid time for the end of the window.";
+      if (until <= at) return "The window has to end after it starts.";
+      const times = Math.max(1, draft.timesPerDay);
+      if (((until - at) * 60) / times < MIN_INTERVAL_SECS) {
+        return "That's more runs than the window has room for.";
+      }
+    }
+    if (draft.randomDays && draft.pickDays < 1) return "Pick at least one day.";
   } else if (draft.scheduleMode === "interval") {
     if (!Number.isFinite(draft.intervalValue) || draft.intervalValue < 1) {
       return "The interval must be at least 1.";
     }
     if (intervalSecs(draft) < MIN_INTERVAL_SECS) {
       return "The interval must be at least 5 minutes.";
+    }
+    if (draft.varyInterval && draft.intervalMaxValue < draft.intervalValue) {
+      return "The longest gap has to be at least the shortest.";
     }
   }
   if (draft.verify.trim() && draft.runMode === "action") {
@@ -529,12 +660,23 @@ function buildScheduleBlock(draft: JobDraft): Record<string, unknown> {
   }
   if (draft.scheduleMode === "interval") {
     const suffix = { minutes: "m", hours: "h", days: "d" }[draft.intervalUnit];
-    return { every: `${draft.intervalValue}${suffix}` };
+    const vary =
+      draft.varyInterval && draft.intervalMaxValue > draft.intervalValue;
+    const every = vary
+      ? `${draft.intervalValue}-${draft.intervalMaxValue}${suffix}`
+      : `${draft.intervalValue}${suffix}`;
+    return { every };
   }
   const block: Record<string, unknown> = { at: draft.time.trim() };
+  if (draft.randomWindow) {
+    block.until = draft.untilTime.trim();
+    if (draft.timesPerDay > 1) block.times = draft.timesPerDay;
+  }
   if (draft.days.length > 0 && draft.days.length < 7) {
     block.days = orderDays(draft.days);
   }
+  const pickDays = draftPickDays(draft);
+  if (pickDays !== undefined) block.pickDays = pickDays;
   return block;
 }
 
@@ -601,20 +743,26 @@ export function buildJobPayload(draft: JobDraft): Record<string, unknown> {
   return payload;
 }
 
+// `every` is "6h" / "2d" / a bare number read as hours, or a band ("4h-8h",
+// "4-8h") whose ends may share one unit written on the far side.
 function parseEvery(every: unknown): {
   value: number;
   unit: IntervalUnit;
+  maxValue?: number;
 } {
   if (typeof every === "number") {
     return { value: Math.max(1, Math.round(every)), unit: "hours" };
   }
   const s = String(every ?? "").trim().toLowerCase();
-  const m = /^(\d+)\s*([mhd]?)$/.exec(s);
+  const m = /^(\d+)\s*([mhd]?)(?:\s*-\s*(\d+)\s*([mhd]?))?$/.exec(s);
   if (!m) return { value: 6, unit: "hours" };
   const value = Math.max(1, Number(m[1]));
+  // Both ends share the draft's one unit; the far end's is the one written.
+  const suffix = m[3] !== undefined ? m[4] || m[2] : m[2];
   const unit: IntervalUnit =
-    m[2] === "d" ? "days" : m[2] === "m" ? "minutes" : "hours";
-  return { value, unit };
+    suffix === "d" ? "days" : suffix === "m" ? "minutes" : "hours";
+  if (m[3] === undefined) return { value, unit };
+  return { value, unit, maxValue: Math.max(value, Number(m[3])) };
 }
 
 function asStringArray(value: unknown): Weekday[] {
@@ -639,14 +787,31 @@ export function payloadToDraft(payload: Record<string, unknown>): JobDraft {
     if (s.manual === true) {
       draft.scheduleMode = "manual";
     } else if (s.every !== undefined && s.every !== null) {
-      const { value, unit } = parseEvery(s.every);
+      const { value, unit, maxValue } = parseEvery(s.every);
       draft.scheduleMode = "interval";
       draft.intervalValue = value;
       draft.intervalUnit = unit;
+      if (maxValue !== undefined && maxValue > value) {
+        draft.varyInterval = true;
+        draft.intervalMaxValue = maxValue;
+      }
     } else {
       draft.scheduleMode = "time";
       if (typeof s.at === "string" && s.at.trim()) draft.time = s.at.trim();
       draft.days = asStringArray(s.days);
+      if (typeof s.until === "string" && s.until.trim()) {
+        draft.randomWindow = true;
+        draft.untilTime = s.until.trim();
+        const times = Number(s.times);
+        if (Number.isFinite(times) && times > 1) {
+          draft.timesPerDay = Math.floor(times);
+        }
+      }
+      const pickDays = Number(s.pickDays);
+      if (Number.isFinite(pickDays) && pickDays >= 1) {
+        draft.randomDays = true;
+        draft.pickDays = Math.floor(pickDays);
+      }
     }
   }
 

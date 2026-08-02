@@ -77,12 +77,93 @@ describe("formatSchedule", () => {
   it("labels a manual schedule", () => {
     expect(formatSchedule({ mode: "manual" })).toBe("Manual");
   });
+
+  it("describes a window the run time is drawn from", () => {
+    expect(
+      formatSchedule({
+        mode: "calendar",
+        atMinutes: 540,
+        untilMinutes: 17 * 60,
+        days: [],
+      }),
+    ).toBe("Every day between 09:00 and 17:00");
+    expect(
+      formatSchedule({
+        mode: "calendar",
+        atMinutes: 540,
+        untilMinutes: 17 * 60,
+        days: ["mon", "thu"],
+      }),
+    ).toBe("Mondays and Thursdays between 09:00 and 17:00");
+  });
+
+  it("counts more than one run a day", () => {
+    expect(
+      formatSchedule({
+        mode: "calendar",
+        atMinutes: 540,
+        untilMinutes: 17 * 60,
+        times: 3,
+        days: [],
+      }),
+    ).toBe("3 times a day between 09:00 and 17:00");
+    expect(
+      formatSchedule({
+        mode: "calendar",
+        atMinutes: 540,
+        untilMinutes: 17 * 60,
+        times: 2,
+        days: ["mon", "thu"],
+      }),
+    ).toBe("2 times on Mondays and Thursdays between 09:00 and 17:00");
+  });
+
+  it("names the pool a random day is drawn from", () => {
+    expect(
+      formatSchedule({
+        mode: "calendar",
+        atMinutes: 540,
+        days: ["mon", "tue", "wed", "thu", "fri"],
+        pickDays: 2,
+      }),
+    ).toBe("2 random weekdays a week at 09:00");
+    expect(
+      formatSchedule({ mode: "calendar", atMinutes: 540, days: [], pickDays: 3 }),
+    ).toBe("3 random days a week at 09:00");
+    expect(
+      formatSchedule({
+        mode: "calendar",
+        atMinutes: 540,
+        days: ["sat", "sun"],
+        pickDays: 1,
+      }),
+    ).toBe("1 random weekend day a week at 09:00");
+  });
+
+  it("describes a gap drawn from a band", () => {
+    expect(
+      formatSchedule({
+        mode: "interval",
+        everySecs: 4 * 3600,
+        everyMaxSecs: 8 * 3600,
+      }),
+    ).toBe("Every 4–8 hours");
+  });
 });
 
 describe("formatInterval", () => {
   it("prefers whole days when evenly divisible", () => {
     expect(formatInterval(48 * 3600)).toBe("Every 2 days");
     expect(formatInterval(5 * 3600)).toBe("Every 5 hours");
+  });
+
+  it("joins a band's ends, spelling both out when their units differ", () => {
+    expect(formatInterval(4 * 3600, 8 * 3600)).toBe("Every 4–8 hours");
+    expect(formatInterval(3600, 2 * 3600)).toBe("Every 1–2 hours");
+    expect(formatInterval(1800, 2 * 3600)).toBe("Every 30 minutes to 2 hours");
+    expect(formatInterval(86400, 3 * 86400)).toBe("Every 1–3 days");
+    // A band whose ends match is just the fixed gap it describes.
+    expect(formatInterval(3600, 3600)).toBe("Every hour");
   });
 });
 
@@ -355,6 +436,145 @@ describe("draft <-> payload round-trip", () => {
     expect(
       validateJobDraft({ ...draft, intervalValue: 2 }),
     ).toBe("The interval must be at least 5 minutes.");
+  });
+
+  it("round-trips a window and the runs spread across it", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Inbox sweep",
+      scheduleMode: "time",
+      time: "09:00",
+      randomWindow: true,
+      untilTime: "17:00",
+      timesPerDay: 3,
+      runMode: "cmd",
+      cmd: "make sweep",
+    };
+    expect(buildJobPayload(draft).schedule).toEqual({
+      at: "09:00",
+      until: "17:00",
+      times: 3,
+    });
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(describeDraftSchedule(draft)).toBe(
+      "3 times a day between 09:00 and 17:00",
+    );
+    expect(validateJobDraft(draft)).toBeNull();
+  });
+
+  it("blocks a window that can't hold the runs asked of it", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Too eager",
+      randomWindow: true,
+      time: "09:00",
+      untilTime: "09:20",
+      timesPerDay: 5,
+      runMode: "cmd",
+      cmd: "make",
+    };
+    expect(validateJobDraft(draft)).toBe(
+      "That's more runs than the window has room for.",
+    );
+    expect(validateJobDraft({ ...draft, timesPerDay: 4 })).toBeNull();
+    expect(validateJobDraft({ ...draft, untilTime: "08:00" })).toBe(
+      "The window has to end after it starts.",
+    );
+  });
+
+  it("round-trips a weekly pick of the selected days", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Twice a week",
+      scheduleMode: "time",
+      time: "09:00",
+      days: ["mon", "tue", "wed", "thu", "fri"],
+      randomDays: true,
+      pickDays: 2,
+      runMode: "cmd",
+      cmd: "make",
+    };
+    expect(buildJobPayload(draft).schedule).toEqual({
+      at: "09:00",
+      days: ["mon", "tue", "wed", "thu", "fri"],
+      pickDays: 2,
+    });
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(describeDraftSchedule(draft)).toBe(
+      "2 random weekdays a week at 09:00",
+    );
+    expect(validateJobDraft(draft)).toBeNull();
+  });
+
+  it("clamps a pick left wider than the days still selected", () => {
+    // The pick control disappears once one day is left, so a stale "2 random
+    // days" must normalize instead of blocking a save nothing can fix.
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Narrowed down",
+      days: ["mon"],
+      randomDays: true,
+      pickDays: 2,
+      runMode: "cmd",
+      cmd: "make",
+    };
+    expect(validateJobDraft(draft)).toBeNull();
+    expect(buildJobPayload(draft).schedule).toEqual({
+      at: "09:00",
+      days: ["mon"],
+    });
+    expect(describeDraftSchedule(draft)).toBe("Mondays at 09:00");
+  });
+
+  it("drops a pick that covers every day the job has", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "All of them",
+      days: ["mon", "tue"],
+      randomDays: true,
+      pickDays: 2,
+      runMode: "cmd",
+      cmd: "make",
+    };
+    // Picking 2 of 2 is just "both", so nothing random is written down.
+    expect(buildJobPayload(draft).schedule).toEqual({
+      at: "09:00",
+      days: ["mon", "tue"],
+    });
+    expect(describeDraftSchedule(draft)).toBe("Mondays and Tuesdays at 09:00");
+  });
+
+  it("round-trips an interval band", () => {
+    const draft: JobDraft = {
+      ...defaultJobDraft(),
+      label: "Poll",
+      scheduleMode: "interval",
+      intervalValue: 4,
+      intervalUnit: "hours",
+      varyInterval: true,
+      intervalMaxValue: 8,
+      runMode: "cmd",
+      cmd: "git fetch",
+    };
+    expect(buildJobPayload(draft).schedule).toEqual({ every: "4-8h" });
+    expect(payloadToDraft(buildJobPayload(draft))).toEqual(draft);
+    expect(describeDraftSchedule(draft)).toBe("Every 4–8 hours");
+    expect(validateJobDraft(draft)).toBeNull();
+    expect(validateJobDraft({ ...draft, intervalMaxValue: 2 })).toBe(
+      "The longest gap has to be at least the shortest.",
+    );
+  });
+
+  it("reads a band whose unit is written once, on the far end", () => {
+    const draft = payloadToDraft({
+      label: "Poll",
+      schedule: { every: "30-90m" },
+      run: { cmd: "git fetch" },
+    });
+    expect(draft.intervalValue).toBe(30);
+    expect(draft.intervalMaxValue).toBe(90);
+    expect(draft.intervalUnit).toBe("minutes");
+    expect(draft.varyInterval).toBe(true);
   });
 
   it("round-trips a verify command and labels the run by its verdict", () => {

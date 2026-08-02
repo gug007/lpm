@@ -1021,6 +1021,14 @@ struct AutomationJob: Identifiable {
     let everySecs: Int
     let atMinutes: Int
     let days: [String]
+    // Randomized timing, absent on a schedule that fires at a fixed point:
+    // `everyMaxSecs` and `untilMinutes` open the schedule into a range the run
+    // time is drawn from, `times` puts several runs in that window, and
+    // `pickDays` uses only some of `days` each week.
+    let everyMaxSecs: Int
+    let untilMinutes: Int?
+    let times: Int
+    let pickDays: Int
     let lastRunAt: Int?
     let lastResult: String
     let nextFireAt: Int?
@@ -1053,6 +1061,10 @@ struct AutomationJob: Identifiable {
         everySecs = schedule["everySecs"] as? Int ?? 0
         atMinutes = schedule["atMinutes"] as? Int ?? 0
         days = schedule["days"] as? [String] ?? []
+        everyMaxSecs = schedule["everyMaxSecs"] as? Int ?? 0
+        untilMinutes = schedule["untilMinutes"] as? Int
+        times = schedule["times"] as? Int ?? 1
+        pickDays = schedule["pickDays"] as? Int ?? 0
         lastRunAt = o["lastRunAt"] as? Int
         lastResult = o["lastResult"] as? String ?? ""
         nextFireAt = o["nextFireAt"] as? Int

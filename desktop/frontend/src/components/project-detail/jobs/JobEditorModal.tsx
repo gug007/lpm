@@ -7,9 +7,10 @@ import { InputComposer } from "../../InputComposer";
 import { EmojiSlotButton } from "../../EmojiPickerButton";
 import { displayNameForProjectName } from "../../ProjectNameDisplay";
 import { ChevronDownIcon, ClockIcon, XIcon } from "../../icons";
-import { WeekdayPicker } from "./WeekdayPicker";
 import { RowSelect } from "./RowSelect";
 import { RowMultiSelect } from "./RowMultiSelect";
+import { JobFrequencyCard } from "./JobFrequencyCard";
+import { Card, GroupLabel, Row } from "./JobFormRows";
 import {
   ClearJobState,
   ClearJobStateGlobal,
@@ -27,7 +28,6 @@ import {
   jobScopePhrase,
   payloadToDraft,
   validateJobDraft,
-  type IntervalUnit,
   type JobDraft,
   type JobInfo,
   type JobRunKind,
@@ -178,9 +178,13 @@ export function JobEditorModal({
     };
   }, [open, editing]);
 
-  const set = <K extends keyof JobDraft>(key: K, value: JobDraft[K]) => {
+  const patch = (values: Partial<JobDraft>) => {
     setTouched(true);
-    setDraft((prev) => ({ ...prev, [key]: value }));
+    setDraft((prev) => ({ ...prev, ...values }));
+  };
+
+  const set = <K extends keyof JobDraft>(key: K, value: JobDraft[K]) => {
+    patch({ [key]: value } as Partial<JobDraft>);
   };
 
   // An action needs a single project, so a wider scope falls back to a prompt.
@@ -211,30 +215,6 @@ export function JobEditorModal({
       setTouched(true);
     }
     setDraft((d) => ({ ...d, prompt: value }));
-  };
-
-  const repeat: Repeat =
-    draft.scheduleMode === "manual"
-      ? "manual"
-      : draft.scheduleMode === "interval"
-        ? "interval"
-        : draft.days.length > 0
-          ? "days"
-          : "daily";
-
-  const setRepeat = (next: Repeat) => {
-    if (next === "manual") {
-      set("scheduleMode", "manual");
-    } else if (next === "interval") {
-      set("scheduleMode", "interval");
-    } else {
-      setTouched(true);
-      setDraft((prev) => ({
-        ...prev,
-        scheduleMode: "time",
-        days: next === "daily" ? [] : prev.days.length > 0 ? prev.days : ["mon"],
-      }));
-    }
   };
 
   const isStandalone = !draft.everyProject && draft.targets.length === 0;
@@ -540,75 +520,11 @@ export function JobEditorModal({
                 )}
               </div>
 
-              <div>
-                <GroupLabel>Frequency</GroupLabel>
-                <Card>
-                  <Row label="Repeat">
-                    <RowSelect
-                      value={repeat}
-                      onChange={(v) => setRepeat(v as Repeat)}
-                      options={[
-                        { value: "daily", label: "Every day" },
-                        { value: "days", label: "On certain days" },
-                        { value: "interval", label: "On an interval" },
-                        { value: "manual", label: "Manually" },
-                      ]}
-                    />
-                  </Row>
-                  {repeat === "days" && (
-                    <Row label="On" alignTop>
-                      <WeekdayPicker
-                        value={draft.days}
-                        onChange={(days) => set("days", days)}
-                      />
-                    </Row>
-                  )}
-                  {repeat === "interval" && (
-                    <Row label="Every">
-                      <span className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          min={1}
-                          value={draft.intervalValue}
-                          onChange={(e) =>
-                            set(
-                              "intervalValue",
-                              Math.max(1, Math.floor(Number(e.target.value) || 1)),
-                            )
-                          }
-                          className="w-12 border-none bg-transparent text-right text-[13px] text-[var(--text-secondary)] outline-none transition-colors hover:text-[var(--text-primary)] focus:text-[var(--text-primary)]"
-                        />
-                        <RowSelect
-                          value={draft.intervalUnit}
-                          onChange={(u) => set("intervalUnit", u as IntervalUnit)}
-                          options={[
-                            { value: "minutes", label: "minutes" },
-                            { value: "hours", label: "hours" },
-                            { value: "days", label: "days" },
-                          ]}
-                        />
-                      </span>
-                    </Row>
-                  )}
-                  {(repeat === "daily" || repeat === "days") && (
-                    <Row label="At">
-                      <input
-                        type="time"
-                        value={draft.time}
-                        onChange={(e) => set("time", e.target.value)}
-                        className="border-none bg-transparent text-right text-[13px] text-[var(--text-secondary)] outline-none transition-colors hover:text-[var(--text-primary)] focus:text-[var(--text-primary)]"
-                      />
-                    </Row>
-                  )}
-                </Card>
-                {scheduleSummary && (
-                  <p className="mt-2 text-[12px] text-[var(--text-muted)]">
-                    {scheduleSummary}.
-                    {(repeat === "daily" || repeat === "days") &&
-                      " It starts within a few minutes of that time, so automations set to the same hour don't all begin at once."}
-                  </p>
-                )}
-              </div>
+              <JobFrequencyCard
+                draft={draft}
+                patch={patch}
+                summary={scheduleSummary}
+              />
 
               <div>
                 <button
@@ -798,40 +714,4 @@ function listNames(names: string[]): string {
   return `${names.slice(0, 2).join(", ")} and ${names.length - 2} more`;
 }
 
-function GroupLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-2 px-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-      {children}
-    </div>
-  );
-}
-
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="divide-y divide-[var(--border)]/70 overflow-hidden rounded-xl bg-[var(--bg-secondary)]/40">
-      {children}
-    </div>
-  );
-}
-
-function Row({
-  label,
-  alignTop,
-  children,
-}: {
-  label: string;
-  alignTop?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={`flex ${alignTop ? "items-start" : "items-center"} justify-between gap-4 px-4 py-2.5`}
-    >
-      <span className="shrink-0 text-[13px] text-[var(--text-secondary)]">
-        {label}
-      </span>
-      {children}
-    </div>
-  );
-}
 

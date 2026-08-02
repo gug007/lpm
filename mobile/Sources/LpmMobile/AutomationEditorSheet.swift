@@ -21,6 +21,9 @@ private let CODEX_MAX_MODELS: Set<String> = ["gpt-5.6-sol", "gpt-5.6-terra", "gp
 private let CODEX_ULTRA_MODELS: Set<String> = ["gpt-5.6-sol", "gpt-5.6-terra"]
 
 private let WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+/// The scheduler's floor, and the least room a single run needs in a window
+/// (jobs.rs MIN_INTERVAL_SECS).
+private let MIN_INTERVAL_SECS = 300
 private let DAY_LETTER = ["mon": "M", "tue": "T", "wed": "W", "thu": "T",
                           "fri": "F", "sat": "S", "sun": "S"]
 
@@ -33,8 +36,20 @@ private struct JobEditorDraft {
     var scheduleMode = "time"       // time | interval | manual
     var time = "09:00"
     var days: [String] = []
+    // Randomized timing. Each is gated by its own flag so turning one off and
+    // back on doesn't lose what was set: `randomWindow` draws the run time from
+    // `time`..`untilTime` and spreads `timesPerDay` runs across it, `randomDays`
+    // uses only `pickDays` of the selected days each week, and `varyInterval`
+    // draws each gap from `intervalValue`..`intervalMaxValue`.
+    var randomWindow = false
+    var untilTime = "17:00"
+    var timesPerDay = 1
+    var randomDays = false
+    var pickDays = 1
     var intervalValue = 6
     var intervalUnit = "hours"      // minutes | hours | days
+    var varyInterval = false
+    var intervalMaxValue = 12
     var check = ""
     var verify = ""
     var duplicateMode = "none"      // none | copy | worktree
@@ -114,11 +129,24 @@ struct AutomationEditorSheet: View {
         if isStandalone && draft.runMode == "action" {
             return "Standalone jobs can't run an action."
         }
-        if draft.scheduleMode == "time", parseTimeMinutes(draft.time) == nil {
-            return "Pick a valid time."
+        if draft.scheduleMode == "time" {
+            guard let at = parseTimeMinutes(draft.time) else { return "Pick a valid time." }
+            if draft.randomWindow {
+                guard let until = parseTimeMinutes(draft.untilTime) else {
+                    return "Pick a valid time for the end of the window."
+                }
+                if until <= at { return "The window has to end after it starts." }
+                if (until - at) * 60 / max(1, draft.timesPerDay) < MIN_INTERVAL_SECS {
+                    return "That's more runs than the window has room for."
+                }
+            }
+            if draft.randomDays, draft.pickDays < 1 { return "Pick at least one day." }
         }
-        if draft.scheduleMode == "interval", draft.intervalValue < 1 {
-            return "The interval must be at least 1."
+        if draft.scheduleMode == "interval" {
+            if draft.intervalValue < 1 { return "The interval must be at least 1." }
+            if draft.varyInterval, draft.intervalMaxValue < draft.intervalValue {
+                return "The longest gap has to be at least the shortest."
+            }
         }
         switch draft.runMode {
         case "action": if draft.action.trimmed.isEmpty { return "Choose an action to run." }
@@ -358,13 +386,46 @@ struct AutomationEditorSheet: View {
                 if !draft.days.isEmpty || repeatBinding.wrappedValue == "days" {
                     weekdayRow
                 }
-                DatePicker("At", selection: timeBinding, displayedComponents: .hourAndMinute)
+                if dayPool > 1 {
+                    Picker("Use", selection: pickDaysBinding) {
+                        Text("All of them").tag(0)
+                        ForEach(1..<dayPool, id: \.self) { n in
+                            Text("\(n) random day\(n == 1 ? "" : "s") a week").tag(n)
+                        }
+                    }
+                }
+                Toggle("A random time in a window", isOn: $draft.randomWindow)
+                DatePicker(draft.randomWindow ? "Between" : "At",
+                           selection: timeBinding, displayedComponents: .hourAndMinute)
+                if draft.randomWindow {
+                    DatePicker("And", selection: untilBinding, displayedComponents: .hourAndMinute)
+                    Stepper(value: $draft.timesPerDay, in: 1...48) {
+                        HStack {
+                            Text("Runs a day")
+                            Spacer()
+                            Text("\(draft.timesPerDay)").foregroundStyle(.secondary).monospacedDigit()
+                        }
+                    }
+                }
             } else if draft.scheduleMode == "interval" {
                 Stepper(value: $draft.intervalValue, in: 1...240) {
                     HStack {
-                        Text("Every")
+                        Text(draft.varyInterval ? "Between" : "Every")
                         Spacer()
                         Text("\(draft.intervalValue)").foregroundStyle(.secondary).monospacedDigit()
+                    }
+                }
+                .onChange(of: draft.intervalValue) { _, value in
+                    draft.intervalMaxValue = max(draft.intervalMaxValue, value)
+                }
+                Toggle("Vary the gap", isOn: varyIntervalBinding)
+                if draft.varyInterval {
+                    Stepper(value: $draft.intervalMaxValue, in: draft.intervalValue...480) {
+                        HStack {
+                            Text("And")
+                            Spacer()
+                            Text("\(draft.intervalMaxValue)").foregroundStyle(.secondary).monospacedDigit()
+                        }
                     }
                 }
                 Picker("Unit", selection: $draft.intervalUnit) {
@@ -471,16 +532,46 @@ struct AutomationEditorSheet: View {
         )
     }
 
-    private var timeBinding: Binding<Date> {
+    private var timeBinding: Binding<Date> { clockBinding(\.time, fallback: 540) }
+
+    private var untilBinding: Binding<Date> { clockBinding(\.untilTime, fallback: 17 * 60) }
+
+    private func clockBinding(_ key: WritableKeyPath<JobEditorDraft, String>,
+                              fallback: Int) -> Binding<Date> {
         Binding(
             get: {
-                let minutes = parseTimeMinutes(draft.time) ?? 540
+                let minutes = parseTimeMinutes(draft[keyPath: key]) ?? fallback
                 return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60,
                                              second: 0, of: Date()) ?? Date()
             },
             set: { date in
                 let c = Calendar.current.dateComponents([.hour, .minute], from: date)
-                draft.time = String(format: "%02d:%02d", c.hour ?? 9, c.minute ?? 0)
+                draft[keyPath: key] = String(format: "%02d:%02d",
+                                             c.hour ?? fallback / 60, c.minute ?? 0)
+            }
+        )
+    }
+
+    /// The days a random pick draws from: the ones selected, or all seven.
+    private var dayPool: Int { draft.days.isEmpty ? 7 : draft.days.count }
+
+    /// 0 = use every day the job has, which is what no pick at all means.
+    private var pickDaysBinding: Binding<Int> {
+        Binding(
+            get: { draft.randomDays ? min(draft.pickDays, dayPool) : 0 },
+            set: { n in
+                draft.randomDays = n > 0
+                if n > 0 { draft.pickDays = n }
+            }
+        )
+    }
+
+    private var varyIntervalBinding: Binding<Bool> {
+        Binding(
+            get: { draft.varyInterval },
+            set: { on in
+                draft.varyInterval = on
+                draft.intervalMaxValue = max(draft.intervalMaxValue, draft.intervalValue)
             }
         )
     }
@@ -504,15 +595,49 @@ struct AutomationEditorSheet: View {
             case "minutes": unit = "minute"
             default: unit = "hour"
             }
-            return "Every \(draft.intervalValue) \(unit)\(draft.intervalValue == 1 ? "" : "s")."
+            let plural = { (n: Int) in "\(unit)\(n == 1 ? "" : "s")" }
+            guard draft.varyInterval, draft.intervalMaxValue > draft.intervalValue else {
+                return "Every \(draft.intervalValue) \(plural(draft.intervalValue))."
+            }
+            return "Every \(draft.intervalValue)–\(draft.intervalMaxValue) "
+                + "\(plural(draft.intervalMaxValue)). The gap is picked fresh after every run."
         default:
-            let time = draft.time
-            if draft.days.isEmpty || draft.days.count == 7 { return "Every day at \(time)." }
-            let names = WEEKDAYS.filter { draft.days.contains($0) }
-                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-                .joined(separator: ", ")
-            return "\(names) at \(time)."
+            let days = summaryDayPhrase
+            let time = draft.randomWindow
+                ? "between \(draft.time) and \(draft.untilTime)"
+                : "at \(draft.time)"
+            let sentence: String
+            if draft.randomWindow, draft.timesPerDay > 1 {
+                sentence = "\(draft.timesPerDay) times \(days == "every day" ? "a day" : "on \(days)") \(time)"
+            } else {
+                sentence = days.prefix(1).uppercased() + days.dropFirst() + " " + time
+            }
+            let note = draft.randomWindow
+                ? " The time inside the window is picked for you and changes each day."
+                : " It starts within a few minutes of that time, so automations set to the same hour don't all begin at once."
+            return sentence + "." + note
         }
+    }
+
+    /// Which days the summary says it runs on: "every day", "Mon, Thu", or the
+    /// weekly draw when the job only uses some of them.
+    private var summaryDayPhrase: String {
+        let selected = WEEKDAYS.filter { draft.days.contains($0) }
+        guard draft.randomDays, draft.pickDays < dayPool else {
+            if selected.isEmpty || selected.count == 7 { return "every day" }
+            return selected.map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: ", ")
+        }
+        let s = draft.pickDays == 1 ? "" : "s"
+        let noun: String
+        if Set(selected) == ["mon", "tue", "wed", "thu", "fri"] {
+            noun = "weekday\(s)"
+        } else if Set(selected) == ["sat", "sun"] {
+            noun = "weekend day\(s)"
+        } else {
+            noun = "day\(s)"
+        }
+        return "\(draft.pickDays) random \(noun) a week"
     }
 
     private var mutationErrorPresented: Binding<Bool> {
@@ -573,15 +698,28 @@ struct AutomationEditorSheet: View {
                 d.scheduleMode = "manual"
             } else if let every = schedule["every"] {
                 d.scheduleMode = "interval"
-                let (value, unit) = parseEvery(every)
+                let (value, unit, maxValue) = parseEvery(every)
                 d.intervalValue = value
                 d.intervalUnit = unit
+                if let maxValue, maxValue > value {
+                    d.varyInterval = true
+                    d.intervalMaxValue = maxValue
+                }
             } else {
                 d.scheduleMode = "time"
                 if let at = (schedule["at"] as? String)?.trimmed, !at.isEmpty { d.time = at }
                 if let days = schedule["days"] as? [Any] {
                     let set = Set(days.map { String(describing: $0).lowercased() })
                     d.days = WEEKDAYS.filter { set.contains($0) }
+                }
+                if let until = (schedule["until"] as? String)?.trimmed, !until.isEmpty {
+                    d.randomWindow = true
+                    d.untilTime = until
+                    if let times = schedule["times"] as? Int, times > 1 { d.timesPerDay = times }
+                }
+                if let pick = schedule["pickDays"] as? Int, pick >= 1 {
+                    d.randomDays = true
+                    d.pickDays = pick
                 }
             }
         }
@@ -660,11 +798,25 @@ struct AutomationEditorSheet: View {
             case "minutes": suffix = "m"
             default: suffix = "h"
             }
-            return ["every": "\(draft.intervalValue)\(suffix)"]
+            guard draft.varyInterval, draft.intervalMaxValue > draft.intervalValue else {
+                return ["every": "\(draft.intervalValue)\(suffix)"]
+            }
+            return ["every": "\(draft.intervalValue)-\(draft.intervalMaxValue)\(suffix)"]
         default:
             var block: [String: Any] = ["at": draft.time]
+            if draft.randomWindow {
+                block["until"] = draft.untilTime
+                if draft.timesPerDay > 1 { block["times"] = draft.timesPerDay }
+            }
             let ordered = WEEKDAYS.filter { draft.days.contains($0) }
             if !ordered.isEmpty, ordered.count < 7 { block["days"] = ordered }
+            // Picking every day it has is what using all of them already means,
+            // so nothing random is written down for it. A pick left wider than
+            // the days still selected clamps the same way, since the control
+            // disappears once a single day is left.
+            if draft.randomDays, draft.pickDays >= 1, draft.pickDays < dayPool {
+                block["pickDays"] = draft.pickDays
+            }
             return block
         }
     }
@@ -730,16 +882,30 @@ private func parseTimeMinutes(_ time: String) -> Int? {
     return h * 60 + m
 }
 
-// `every` is a string like "6h"/"2d" or a bare number read as hours.
-private func parseEvery(_ every: Any) -> (Int, String) {
-    if let n = every as? Int { return (max(1, n), "hours") }
-    if let n = every as? Double { return (max(1, Int(n)), "hours") }
+// `every` is a string like "6h"/"2d" or a bare number read as hours, or a band
+// ("4h-8h", "4-8h") whose ends may share one unit written on the far side.
+private func parseEvery(_ every: Any) -> (Int, String, Int?) {
+    if let n = every as? Int { return (max(1, n), "hours", nil) }
+    if let n = every as? Double { return (max(1, Int(n)), "hours", nil) }
     let s = String(describing: every).trimmingCharacters(in: .whitespaces).lowercased()
-    if let n = Int(s.dropLast()), s.hasSuffix("d") { return (max(1, n), "days") }
-    if let n = Int(s.dropLast()), s.hasSuffix("h") { return (max(1, n), "hours") }
-    if let n = Int(s.dropLast()), s.hasSuffix("m") { return (max(1, n), "minutes") }
-    if let n = Int(s) { return (max(1, n), "hours") }
-    return (6, "hours")
+    let ends = s.split(separator: "-", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+    guard let first = ends.first, !first.isEmpty else { return (6, "hours", nil) }
+    let unit = unitSuffix(ends.count == 2 ? ends[1] : first)
+    guard let value = parseCount(first) else { return (6, "hours", nil) }
+    guard ends.count == 2, let maxValue = parseCount(ends[1]) else { return (value, unit, nil) }
+    return (value, unit, max(value, maxValue))
+}
+
+private func unitSuffix(_ s: String) -> String {
+    if s.hasSuffix("d") { return "days" }
+    if s.hasSuffix("m") { return "minutes" }
+    return "hours"
+}
+
+private func parseCount(_ s: String) -> Int? {
+    let digits = s.hasSuffix("d") || s.hasSuffix("h") || s.hasSuffix("m") ? String(s.dropLast()) : s
+    guard let n = Int(digits.trimmingCharacters(in: .whitespaces)) else { return nil }
+    return max(1, n)
 }
 
 private extension String {

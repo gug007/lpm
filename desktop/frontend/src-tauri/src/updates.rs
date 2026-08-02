@@ -89,7 +89,8 @@ fn newer(latest: &str, current: &str) -> bool {
 }
 
 #[cfg(not(target_os = "macos"))]
-const UNSUPPORTED: &str = "lpm updates itself only on macOS — update this host the way you installed it.";
+const UNSUPPORTED: &str =
+    "lpm updates itself only on macOS — update this host the way you installed it.";
 
 #[cfg(target_os = "macos")]
 #[tauri::command(async)]
@@ -467,7 +468,10 @@ pub(crate) fn shell_quote(s: &str) -> String {
 #[cfg(not(target_os = "macos"))]
 #[tauri::command(async)]
 pub fn install_tmux(_app: AppHandle) -> Result<(), String> {
-    Err("tmux isn't installed. Install it with this host's package manager, then relaunch lpm.".into())
+    Err(
+        "tmux isn't installed. Install it with this host's package manager, then relaunch lpm."
+            .into(),
+    )
 }
 
 #[cfg(target_os = "macos")]

@@ -552,25 +552,60 @@ private func automationEntryLabel(_ entry: AutomationHistoryEntry) -> String {
     return verified ? "\(base) — checks passed" : "\(base) — checks failed"
 }
 
+/// "6 hours" / "30 minutes" / "2 days" — a gap sized to the unit it reads best in.
+private func intervalParts(_ secs: Int) -> (value: Int, unit: String) {
+    if secs > 0, secs % 86400 == 0 { return (secs / 86400, "day") }
+    if secs > 0, secs < 3600 { return (max(1, secs / 60), "minute") }
+    return (max(1, secs / 3600), "hour")
+}
+
+private func pluralized(_ value: Int, _ unit: String) -> String {
+    value == 1 ? unit : "\(unit)s"
+}
+
 private func automationScheduleText(_ job: AutomationJob) -> String {
     if job.scheduleMode == "interval" {
-        let hours = job.everySecs / 3600
-        if hours > 0, hours % 24 == 0 {
-            let days = hours / 24
-            return days == 1 ? "Every day" : "Every \(days) days"
+        let lo = intervalParts(job.everySecs)
+        guard job.everyMaxSecs > job.everySecs else {
+            return lo.value == 1 ? "Every \(lo.unit)" : "Every \(lo.value) \(pluralized(lo.value, lo.unit))"
         }
-        if job.everySecs > 0, job.everySecs < 3600 {
-            let minutes = max(1, job.everySecs / 60)
-            return minutes == 1 ? "Every minute" : "Every \(minutes) minutes"
+        let hi = intervalParts(job.everyMaxSecs)
+        if lo.unit == hi.unit {
+            return "Every \(lo.value)–\(hi.value) \(pluralized(hi.value, hi.unit))"
         }
-        return hours == 1 ? "Every hour" : "Every \(hours) hours"
+        return "Every \(lo.value) \(pluralized(lo.value, lo.unit)) to \(hi.value) \(pluralized(hi.value, hi.unit))"
     }
-    let hour = job.atMinutes / 60
-    let minute = job.atMinutes % 60
-    let time = String(format: "%02d:%02d", hour, minute)
-    if job.days.isEmpty { return "Every day at \(time)" }
-    let names = job.days.map { $0.prefix(1).uppercased() + String($0.dropFirst()) }.joined(separator: ", ")
-    return "\(names) at \(time)"
+    let days = automationDayPhrase(job)
+    let time = automationTimePhrase(job)
+    guard job.times > 1 else { return days.prefix(1).uppercased() + days.dropFirst() + " " + time }
+    return "\(job.times) times \(days == "every day" ? "a day" : "on \(days)") \(time)"
+}
+
+/// Which days the job runs on: "every day", "Mon, Thu", "2 random weekdays".
+private func automationDayPhrase(_ job: AutomationJob) -> String {
+    guard job.pickDays > 0 else {
+        if job.days.isEmpty { return "every day" }
+        return job.days.map { $0.prefix(1).uppercased() + String($0.dropFirst()) }
+            .joined(separator: ", ")
+    }
+    let set = Set(job.days)
+    let s = job.pickDays == 1 ? "" : "s"
+    let noun: String
+    if set == ["mon", "tue", "wed", "thu", "fri"] {
+        noun = "weekday\(s)"
+    } else if set == ["sat", "sun"] {
+        noun = "weekend day\(s)"
+    } else {
+        noun = "day\(s)"
+    }
+    return "\(job.pickDays) random \(noun) a week"
+}
+
+/// When in the day: "at 09:00", or the window a random time is drawn from.
+private func automationTimePhrase(_ job: AutomationJob) -> String {
+    let clock = { (minutes: Int) in String(format: "%02d:%02d", minutes / 60, minutes % 60) }
+    guard let until = job.untilMinutes else { return "at \(clock(job.atMinutes))" }
+    return "between \(clock(job.atMinutes)) and \(clock(until))"
 }
 
 private func automationStatusText(_ job: AutomationJob) -> String {

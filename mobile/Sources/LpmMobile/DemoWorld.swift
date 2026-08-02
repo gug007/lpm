@@ -187,8 +187,12 @@ struct DemoWorld {
         var runKind: String = "cmd"        // action | cmd | prompt
         var scheduleMode: String = "calendar" // interval | calendar
         var everySecs: Int = 0
+        var everyMaxSecs: Int = 0
         var atMinutes: Int = 0
+        var untilMinutes: Int? = nil
+        var times: Int = 1
         var days: [String] = []
+        var pickDays: Int = 0
         var lastRunAt: Int? = nil
         var lastResult: String = ""
         var nextFireAt: Int? = nil
@@ -577,9 +581,16 @@ extension DemoWorld {
     func jobDict(_ j: Job) -> [String: Any] {
         var schedule: [String: Any] = ["mode": j.scheduleMode]
         switch j.scheduleMode {
-        case "interval": schedule["everySecs"] = j.everySecs
+        case "interval":
+            schedule["everySecs"] = j.everySecs
+            if j.everyMaxSecs > j.everySecs { schedule["everyMaxSecs"] = j.everyMaxSecs }
         case "manual": break
-        default: schedule["atMinutes"] = j.atMinutes; schedule["days"] = j.days
+        default:
+            schedule["atMinutes"] = j.atMinutes
+            schedule["days"] = j.days
+            if let until = j.untilMinutes { schedule["untilMinutes"] = until }
+            if j.times > 1 { schedule["times"] = j.times }
+            if j.pickDays > 0 { schedule["pickDays"] = j.pickDays }
         }
         var o: [String: Any] = [
             "id": j.id, "project": j.project, "valid": true, "source": j.source,

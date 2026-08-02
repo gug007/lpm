@@ -194,8 +194,12 @@ const CLIPBOARD_TOOLS: &[ClipboardTool] = &[
 #[cfg(not(target_os = "macos"))]
 fn clipboard_tool() -> Option<&'static ClipboardTool> {
     static FOUND: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
-    (*FOUND.get_or_init(|| CLIPBOARD_TOOLS.iter().position(|t| crate::sys::which(t.write.0))))
-        .map(|i| &CLIPBOARD_TOOLS[i])
+    (*FOUND.get_or_init(|| {
+        CLIPBOARD_TOOLS
+            .iter()
+            .position(|t| crate::sys::which(t.write.0))
+    }))
+    .map(|i| &CLIPBOARD_TOOLS[i])
 }
 
 #[cfg(not(target_os = "macos"))]

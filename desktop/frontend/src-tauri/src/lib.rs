@@ -45,9 +45,9 @@ mod openin;
 mod peer;
 mod peerclient;
 mod peerdiscovery;
+mod peerssh;
 mod peersync;
 mod peertls;
-mod peerssh;
 mod peertunnel;
 mod portforward;
 mod ports;
@@ -87,10 +87,10 @@ mod uninstall;
 mod updates;
 mod upload;
 mod vault;
-#[cfg(not(target_os = "macos"))]
-mod vaultkeyfile;
 #[cfg(target_os = "macos")]
 mod vaultkeychain;
+#[cfg(not(target_os = "macos"))]
+mod vaultkeyfile;
 mod voicetotext;
 
 // Bring every command fn into scope so the generated `all_command_handlers!`
@@ -126,8 +126,9 @@ use peer::{
     peer_host_revoke_device, peer_host_set_config, peer_host_start_pairing, peer_state,
 };
 use peerclient::{
-    peer_add, peer_invoke, peer_pair_cancel, peer_pair_request, peer_remove, peer_set_auto_sync,
-    peer_add_ssh_host, peer_reconnect, peer_set_enabled, peer_uninstall_host, peer_update_host, peer_sync_run, peer_sync_status, peer_term_attach, peer_term_detach,
+    peer_add, peer_add_ssh_host, peer_invoke, peer_pair_cancel, peer_pair_request, peer_reconnect,
+    peer_remove, peer_set_auto_sync, peer_set_enabled, peer_sync_run, peer_sync_status,
+    peer_term_attach, peer_term_detach, peer_uninstall_host, peer_update_host,
 };
 use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
 use portforward::*;

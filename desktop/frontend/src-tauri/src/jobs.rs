@@ -173,8 +173,17 @@ fn global_resolves_for(def: &JobDef, project: &str) -> bool {
 struct ScheduleDef {
     #[serde(default)]
     at: String,
+    /// End of the window the run lands somewhere inside, instead of `at` being
+    /// the fire point itself.
+    #[serde(default)]
+    until: String,
+    /// Runs per day, spread across that window.
+    times: Option<u32>,
     #[serde(default)]
     days: Vec<String>,
+    /// Use only this many of `days` each week, chosen at random.
+    #[serde(default, rename = "pickDays")]
+    pick_days: Option<u32>,
     every: Option<EveryValue>,
     /// The job never fires on its own — it only runs when started by hand.
     #[serde(default)]
@@ -182,7 +191,8 @@ struct ScheduleDef {
 }
 
 /// `every: 6h` / `every: 2d` (string with an h/d suffix) or a bare integer read
-/// as hours — both collapse to a whole number of seconds.
+/// as hours — both collapse to a whole number of seconds. A string may also name
+/// a band (`4h-8h`), which every gap is drawn from.
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]
 enum EveryValue {
@@ -210,17 +220,31 @@ struct RunDef {
 
 const KNOWN_AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
 
+/// A time-of-day schedule. `at_min` is minutes since local midnight and `days`
+/// are weekday numbers (0 = Mon .. 6 = Sun), empty meaning every day. The three
+/// optional fields make the job's timing deliberately unpredictable: `until_min`
+/// opens a window the run lands somewhere inside rather than at a fixed minute,
+/// `times` puts more than one run in that window, and `pick_days` uses only some
+/// of `days` each week. Every choice is drawn from the job's own seed, so it is
+/// the same answer on every tick and after a restart with nothing written down.
+#[derive(Clone, Debug, PartialEq)]
+struct CalendarSpec {
+    at_min: u32,
+    until_min: Option<u32>,
+    times: u32,
+    days: Vec<u8>,
+    pick_days: Option<u32>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum Schedule {
+    /// Each gap is drawn from `min_secs..=max_secs`; the two are equal for a
+    /// plain fixed interval.
     Interval {
-        secs: u64,
+        min_secs: u64,
+        max_secs: u64,
     },
-    /// `at_min` is minutes since local midnight; `days` are weekday numbers
-    /// (0 = Mon .. 6 = Sun), empty meaning every day.
-    Calendar {
-        at_min: u32,
-        days: Vec<u8>,
-    },
+    Calendar(CalendarSpec),
     /// Never fires automatically; runs only when started by hand.
     Manual,
 }
@@ -285,6 +309,36 @@ fn parse_every_secs(v: &EveryValue) -> Result<u64, String> {
     Ok(secs)
 }
 
+/// `every: 4h-8h` (or `4-8h`, which carries the unit once) is a band: the gap
+/// after each run is drawn from it. Anything else is the degenerate band whose
+/// ends match.
+fn parse_every_band(v: &EveryValue) -> Result<(u64, u64), String> {
+    let fixed = |v: &EveryValue| parse_every_secs(v).map(|s| (s, s));
+    let EveryValue::Str(raw) = v else {
+        return fixed(v);
+    };
+    let raw = raw.trim().to_lowercase();
+    let Some((lo, hi)) = raw.split_once('-') else {
+        return fixed(v);
+    };
+    let (lo, hi) = (lo.trim(), hi.trim());
+    if lo.is_empty() || hi.is_empty() {
+        return Err("The interval isn't a valid length.".into());
+    }
+    let has_unit = |s: &str| s.ends_with(['m', 'h', 'd']);
+    let lo = if has_unit(hi) && !has_unit(lo) {
+        format!("{lo}{}", &hi[hi.len() - 1..])
+    } else {
+        lo.to_string()
+    };
+    let min = parse_every_secs(&EveryValue::Str(lo))?;
+    let max = parse_every_secs(&EveryValue::Str(hi.to_string()))?;
+    if max < min {
+        return Err("The longest gap has to be at least the shortest.".into());
+    }
+    Ok((min, max))
+}
+
 fn parse_at_minutes(at: &str) -> Result<u32, String> {
     let bad = || "Use a time like 09:00.".to_string();
     let (h, m) = at.split_once(':').ok_or_else(bad)?;
@@ -305,6 +359,67 @@ fn parse_day(d: &str) -> Result<u8, String> {
         .ok_or_else(|| format!("\"{d}\" isn't a valid day."))
 }
 
+fn resolve_calendar(sched: &ScheduleDef) -> Result<CalendarSpec, String> {
+    let at_min = parse_at_minutes(sched.at.trim())?;
+    let mut days: Vec<u8> = Vec::new();
+    for d in &sched.days {
+        let n = parse_day(d)?;
+        if !days.contains(&n) {
+            days.push(n);
+        }
+    }
+    // Week order, not the order they were written in: a weekly pick draws from
+    // this list by position, so the days a job lands on must not depend on how
+    // its config happened to spell them.
+    days.sort_unstable();
+
+    let until = sched.until.trim();
+    let until_min = if until.is_empty() {
+        None
+    } else {
+        Some(parse_at_minutes(until)?)
+    };
+    if until_min.is_some_and(|u| u <= at_min) {
+        return Err("The window has to end after it starts.".into());
+    }
+
+    let times = sched.times.unwrap_or(1).max(1);
+    match until_min {
+        None if times > 1 => return Err("Give the job a window to spread its runs across.".into()),
+        // Each run gets an equal slice of the window to land in, and a slice has
+        // to be wide enough that two runs can't collapse into one tick.
+        Some(u) if ((u - at_min) as u64) * 60 / (times as u64) < MIN_INTERVAL_SECS => {
+            return Err("That's more runs than the window has room for.".into())
+        }
+        _ => {}
+    }
+
+    let pick_days = resolve_pick_days(sched.pick_days, &days)?;
+    Ok(CalendarSpec {
+        at_min,
+        until_min,
+        times,
+        days,
+        pick_days,
+    })
+}
+
+/// How many of the job's days to use each week. Asking for as many as it has (or
+/// more than exist) is just "all of them", which needs no drawing.
+fn resolve_pick_days(pick: Option<u32>, days: &[u8]) -> Result<Option<u32>, String> {
+    let pool = if days.is_empty() { 7 } else { days.len() };
+    match pick {
+        None => Ok(None),
+        Some(0) => Err("Pick at least one day.".into()),
+        Some(n) if n as usize > pool => Err(format!(
+            "This job only has {pool} day{} to pick from.",
+            if pool == 1 { "" } else { "s" }
+        )),
+        Some(n) if n as usize == pool => Ok(None),
+        Some(n) => Ok(Some(n)),
+    }
+}
+
 fn resolve_schedule(sched: &ScheduleDef) -> Result<Schedule, String> {
     if sched.manual {
         return Ok(Schedule::Manual);
@@ -312,20 +427,17 @@ fn resolve_schedule(sched: &ScheduleDef) -> Result<Schedule, String> {
     let has_at = !sched.at.trim().is_empty();
     let has_every = sched.every.is_some();
     match (has_at, has_every) {
-        (true, false) => {
-            let at_min = parse_at_minutes(sched.at.trim())?;
-            let mut days: Vec<u8> = Vec::new();
-            for d in &sched.days {
-                let n = parse_day(d)?;
-                if !days.contains(&n) {
-                    days.push(n);
-                }
+        (true, false) => Ok(Schedule::Calendar(resolve_calendar(sched)?)),
+        (false, true) => {
+            if !sched.until.trim().is_empty() || sched.times.is_some() {
+                return Err("A window belongs to a job that runs at a time of day.".into());
             }
-            Ok(Schedule::Calendar { at_min, days })
+            if sched.pick_days.is_some() {
+                return Err("Picking days belongs to a job that runs at a time of day.".into());
+            }
+            let (min_secs, max_secs) = parse_every_band(sched.every.as_ref().unwrap())?;
+            Ok(Schedule::Interval { min_secs, max_secs })
         }
-        (false, true) => Ok(Schedule::Interval {
-            secs: parse_every_secs(sched.every.as_ref().unwrap())?,
-        }),
         (false, false) => Err("Give this job a time or an interval.".into()),
         (true, true) => Err("Give this job either a time or an interval, not both.".into()),
     }
@@ -534,20 +646,79 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
-/// A stable 0–5 minute offset per job so jobs sharing a fire point (e.g. every
-/// 09:00 job) don't all run in the same tick. FNV-1a over "<project>/<jobId>".
-fn jitter_secs(project: &str, job_id: &str) -> u64 {
+/// The number every random choice a job makes is drawn from: FNV-1a over
+/// "<project>/<jobId>". Because it is derived rather than rolled, the scheduler,
+/// the list row predicting the next run, and the app after a restart all reach
+/// the same answer without anything being persisted.
+fn job_seed(project: &str, job_id: &str) -> u64 {
     let key = format!("{project}/{job_id}");
     let mut h: u64 = 0xcbf29ce484222325;
     for b in key.bytes() {
         h ^= b as u64;
         h = h.wrapping_mul(0x100000001b3);
     }
-    h % (MAX_JITTER_SECS + 1)
+    h
 }
 
-fn day_ok(date: chrono::NaiveDate, days: &[u8]) -> bool {
-    days.is_empty() || days.contains(&(date.weekday().num_days_from_monday() as u8))
+/// A further draw from `seed` for one particular occasion — the day a run
+/// belongs to, its slot within that day, or the run a gap follows.
+fn draw(seed: u64, a: i64, b: u64) -> u64 {
+    let mut h = seed;
+    for v in [a as u64, b] {
+        for i in 0..8 {
+            h ^= (v >> (i * 8)) & 0xff;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+    }
+    h
+}
+
+/// A stable 0–5 minute offset per job so jobs sharing a fire point (e.g. every
+/// 09:00 job) don't all run in the same tick. A job with a window of its own
+/// doesn't get one: the window already spreads it, and the offset would push a
+/// run past the end the user set.
+fn implicit_jitter(spec: &CalendarSpec, seed: u64) -> u64 {
+    if spec.until_min.is_some() {
+        0
+    } else {
+        seed % (MAX_JITTER_SECS + 1)
+    }
+}
+
+/// The days a spec may run on: the ones it names, or all seven.
+fn day_pool(days: &[u8]) -> Vec<u8> {
+    if days.is_empty() {
+        (0..7).collect()
+    } else {
+        days.to_vec()
+    }
+}
+
+/// The `n` days drawn for one week — a shuffle of the pool seeded on the week
+/// itself, so every day of that week agrees on which ones were picked.
+fn picked_days(pool: &[u8], n: usize, week_seed: u64) -> Vec<u8> {
+    let mut rest = pool.to_vec();
+    let mut out = Vec::with_capacity(n);
+    let mut h = week_seed;
+    for i in 0..n.min(rest.len()) {
+        h = draw(h, i as i64, 0);
+        out.push(rest.remove((h % rest.len() as u64) as usize));
+    }
+    out
+}
+
+fn day_ok(date: chrono::NaiveDate, spec: &CalendarSpec, seed: u64) -> bool {
+    let weekday = date.weekday().num_days_from_monday() as u8;
+    let pool = day_pool(&spec.days);
+    if !pool.contains(&weekday) {
+        return false;
+    }
+    let Some(n) = spec.pick_days else {
+        return true;
+    };
+    let week = date.iso_week();
+    let week_seed = draw(seed, week.year() as i64, week.week() as u64);
+    picked_days(&pool, n as usize, week_seed).contains(&weekday)
 }
 
 /// Local wall-clock to epoch, surviving DST folds: an ambiguous time (clocks
@@ -566,70 +737,130 @@ fn local_epoch(date: chrono::NaiveDate, at_min: u32) -> Option<i64> {
     }
 }
 
-fn most_recent_calendar_occurrence(at_min: u32, days: &[u8], now: i64) -> Option<i64> {
+/// How far the occurrence search looks either way. A job picking two days out of
+/// seven can leave a fortnight between the pair it lands on in one week and the
+/// pair it lands on in the next, so a week's worth of lookahead isn't enough.
+const LOOKAROUND_DAYS: i64 = 16;
+
+/// Every instant the spec fires at on `date`. An exact-time spec has one; a
+/// windowed spec has `times`, each drawn from its own equal slice of the window
+/// so two runs of the same job can't crowd together.
+fn day_fire_points(date: chrono::NaiveDate, spec: &CalendarSpec, seed: u64) -> Vec<i64> {
+    let Some(start) = local_epoch(date, spec.at_min) else {
+        return Vec::new();
+    };
+    // The window is measured end to end rather than in wall-clock minutes, so
+    // one spanning a DST change keeps the length the clock says it has.
+    let end = spec.until_min.and_then(|u| local_epoch(date, u));
+    let window = end.map(|e| e - start).unwrap_or(0);
+    if window <= 0 {
+        return vec![start];
+    }
+    let times = spec.times.max(1) as i64;
+    let slice = window / times;
+    (0..times)
+        .map(|k| {
+            // Every slice but the last holds back a gap at its end, so a draw
+            // late in one slice and one early in the next can't land together.
+            let span = slice
+                - if k + 1 < times {
+                    MIN_INTERVAL_SECS as i64
+                } else {
+                    0
+                };
+            let offset = if span > 0 {
+                (draw(seed, date.num_days_from_ce() as i64, k as u64) % (span as u64 + 1)) as i64
+            } else {
+                0
+            };
+            start + k * slice + offset
+        })
+        .collect()
+}
+
+fn most_recent_fire_point(spec: &CalendarSpec, now: i64, seed: u64) -> Option<i64> {
     let today = chrono::Local.timestamp_opt(now, 0).single()?.date_naive();
-    for back in 0..8i64 {
+    for back in 0..LOOKAROUND_DAYS {
         let d = today - chrono::Duration::days(back);
-        if !day_ok(d, days) {
+        if !day_ok(d, spec, seed) {
             continue;
         }
-        if let Some(e) = local_epoch(d, at_min) {
-            if e <= now {
-                return Some(e);
-            }
+        if let Some(p) = day_fire_points(d, spec, seed)
+            .into_iter()
+            .rev()
+            .find(|p| *p <= now)
+        {
+            return Some(p);
         }
     }
     None
 }
 
-fn next_calendar_occurrence(at_min: u32, days: &[u8], now: i64) -> Option<i64> {
+fn next_fire_point(spec: &CalendarSpec, now: i64, seed: u64) -> Option<i64> {
     let today = chrono::Local.timestamp_opt(now, 0).single()?.date_naive();
-    for fwd in 0..8i64 {
+    for fwd in 0..LOOKAROUND_DAYS {
         let d = today + chrono::Duration::days(fwd);
-        if !day_ok(d, days) {
+        if !day_ok(d, spec, seed) {
             continue;
         }
-        if let Some(e) = local_epoch(d, at_min) {
-            if e > now {
-                return Some(e);
-            }
+        if let Some(p) = day_fire_points(d, spec, seed)
+            .into_iter()
+            .find(|p| *p > now)
+        {
+            return Some(p);
         }
     }
     None
 }
 
-/// Interval jobs are due once `secs` have elapsed since the last run, so "every
-/// 6 hours" stays every 6 hours. Jitter is deliberately not charged here: it is
-/// measured from the previous run rather than from a fixed grid, so adding it
-/// would lengthen every period and walk the job further out of position on each
-/// run. Interval jobs are already spread by their own start times; the jobs that
-/// genuinely share a fire point are the calendar ones, which jitter still
-/// offsets below.
+/// How long the job waits after `last_run`. A band draws a fresh length for each
+/// gap, seeded on the run it follows so the tick asking whether the job is due
+/// and the row saying when it is next both get the same answer.
+fn interval_gap(min_secs: u64, max_secs: u64, last_run: u64, seed: u64) -> u64 {
+    if max_secs <= min_secs {
+        return min_secs;
+    }
+    min_secs + draw(seed, last_run as i64, 0) % (max_secs - min_secs + 1)
+}
+
+/// Interval jobs are due once their gap has elapsed since the last run, so
+/// "every 6 hours" stays every 6 hours. Jitter is deliberately not charged here:
+/// the gap is measured from the previous run rather than from a fixed grid, so
+/// adding it would lengthen every period and walk the job further out of
+/// position on each run. Interval jobs are already spread by their own start
+/// times; the jobs that genuinely share a fire point are the calendar ones,
+/// which jitter still offsets below.
 ///
-/// Calendar jobs are due when the most recent scheduled occurrence is strictly
+/// Calendar jobs are due when the most recent scheduled fire point is strictly
 /// later than the last run — coalescing any number of occurrences missed while
 /// the app was closed into a single run.
-fn is_due(schedule: &Schedule, last_run: u64, now: u64, jitter: u64) -> bool {
+fn is_due(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> bool {
     match schedule {
-        Schedule::Interval { secs } => now.saturating_sub(last_run) >= *secs,
-        Schedule::Calendar { at_min, days } => {
-            match most_recent_calendar_occurrence(*at_min, days, now as i64) {
-                Some(occ) => (occ as u64) > last_run && now >= (occ as u64) + jitter,
-                None => false,
-            }
+        Schedule::Interval { min_secs, max_secs } => {
+            now.saturating_sub(last_run) >= interval_gap(*min_secs, *max_secs, last_run, seed)
         }
+        Schedule::Calendar(spec) => match most_recent_fire_point(spec, now as i64, seed) {
+            Some(occ) => {
+                (occ as u64) > last_run && now >= (occ as u64) + implicit_jitter(spec, seed)
+            }
+            None => false,
+        },
         Schedule::Manual => false,
     }
 }
 
-/// When the job is next due, as the schedule states it. Calendar jobs are held
-/// back by up to `MAX_JITTER_SECS` so a fleet of 09:00 jobs doesn't all start in
-/// one tick, but showing "09:04" against a schedule that reads 09:00 just looks
-/// wrong — the spread is explained in words in the editor instead.
-fn next_fire_at(schedule: &Schedule, last_run: u64, now: u64) -> Option<i64> {
+/// When the job is next due, as the schedule states it. A fixed-time calendar
+/// job is held back by up to `MAX_JITTER_SECS` so a fleet of 09:00 jobs doesn't
+/// all start in one tick, but showing "09:04" against a schedule that reads
+/// 09:00 just looks wrong — that spread is explained in words in the editor
+/// instead. A job given a window of its own is the opposite case: the drawn time
+/// *is* its schedule, so it is the time to show.
+fn next_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Option<i64> {
     match schedule {
-        Schedule::Interval { secs } => Some((last_run + secs) as i64),
-        Schedule::Calendar { at_min, days } => next_calendar_occurrence(*at_min, days, now as i64),
+        Schedule::Interval { min_secs, max_secs } => {
+            Some((last_run + interval_gap(*min_secs, *max_secs, last_run, seed)) as i64)
+        }
+        Schedule::Calendar(spec) => next_fire_point(spec, now as i64, seed),
         Schedule::Manual => None,
     }
 }
@@ -1060,12 +1291,13 @@ impl Trigger {
 /// The fire point this run is servicing, as against the wall clock it actually
 /// ran at — a job scheduled for 09:00 that starts at 23:00 because the Mac was
 /// asleep can only tell the difference if it is told both.
-fn due_fire_at(schedule: &Schedule, last_run: u64, now: u64, jitter: u64) -> Option<u64> {
+fn due_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Option<u64> {
     match schedule {
-        Schedule::Interval { secs } => Some(last_run + secs),
-        Schedule::Calendar { at_min, days } => {
-            most_recent_calendar_occurrence(*at_min, days, now as i64).map(|o| o as u64 + jitter)
+        Schedule::Interval { min_secs, max_secs } => {
+            Some(last_run + interval_gap(*min_secs, *max_secs, last_run, seed))
         }
+        Schedule::Calendar(spec) => most_recent_fire_point(spec, now as i64, seed)
+            .map(|o| o as u64 + implicit_jitter(spec, seed)),
         Schedule::Manual => None,
     }
 }
@@ -2032,14 +2264,9 @@ fn pipeline_body(
         }
     };
 
-    let scheduled_for = st.last_run_at.and_then(|last| {
-        due_fire_at(
-            &job.schedule,
-            last,
-            now_secs(),
-            jitter_secs(project, &job.id),
-        )
-    });
+    let scheduled_for = st
+        .last_run_at
+        .and_then(|last| due_fire_at(&job.schedule, last, now_secs(), job_seed(project, &job.id)));
     let context = |run_root: &str, is_copy: bool| {
         run_env(
             project,
@@ -2624,12 +2851,12 @@ fn overdue_by(project: &str, id: &str, job: &JobResolved, now: u64) -> Option<u6
     if !st.enabled_override.unwrap_or(job.enabled) {
         return None;
     }
-    let jitter = jitter_secs(project, id);
-    if !is_due(&job.schedule, last, now, jitter) {
+    let seed = job_seed(project, id);
+    if !is_due(&job.schedule, last, now, seed) {
         return None;
     }
     Some(
-        due_fire_at(&job.schedule, last, now, jitter)
+        due_fire_at(&job.schedule, last, now, seed)
             .map(|fire| now.saturating_sub(fire))
             .unwrap_or(0),
     )
@@ -2757,10 +2984,26 @@ fn run_description(run: &RunTarget) -> String {
 
 fn schedule_json(schedule: &Schedule) -> Value {
     match schedule {
-        Schedule::Interval { secs } => json!({ "mode": "interval", "everySecs": secs }),
-        Schedule::Calendar { at_min, days } => {
-            let days: Vec<&str> = days.iter().map(|d| DAY_NAMES[*d as usize]).collect();
-            json!({ "mode": "calendar", "atMinutes": at_min, "days": days })
+        Schedule::Interval { min_secs, max_secs } => {
+            let mut v = json!({ "mode": "interval", "everySecs": min_secs });
+            if max_secs > min_secs {
+                v["everyMaxSecs"] = json!(max_secs);
+            }
+            v
+        }
+        Schedule::Calendar(spec) => {
+            let days: Vec<&str> = spec.days.iter().map(|d| DAY_NAMES[*d as usize]).collect();
+            let mut v = json!({ "mode": "calendar", "atMinutes": spec.at_min, "days": days });
+            if let Some(until) = spec.until_min {
+                v["untilMinutes"] = json!(until);
+            }
+            if spec.times > 1 {
+                v["times"] = json!(spec.times);
+            }
+            if let Some(n) = spec.pick_days {
+                v["pickDays"] = json!(n);
+            }
+            v
         }
         Schedule::Manual => json!({ "mode": "manual" }),
     }
@@ -2820,7 +3063,12 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
         }
         if let Ok(job) = &resolved {
             if job_enabled {
-                if let Some(nf) = next_fire_at(&job.schedule, st.last_run_at.unwrap_or(now), now) {
+                if let Some(nf) = next_fire_at(
+                    &job.schedule,
+                    st.last_run_at.unwrap_or(now),
+                    now,
+                    job_seed(t, id),
+                ) {
                     next = Some(next.map_or(nf, |n: i64| n.min(nf)));
                 }
             }
@@ -2929,7 +3177,12 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                     let enabled = st.enabled_override.unwrap_or(job.enabled);
                     // A job the scheduler hasn't anchored yet (created moments
                     // ago) predicts from now — the anchor the next tick writes.
-                    let next = next_fire_at(&job.schedule, st.last_run_at.unwrap_or(now), now);
+                    let next = next_fire_at(
+                        &job.schedule,
+                        st.last_run_at.unwrap_or(now),
+                        now,
+                        job_seed(&project, &id),
+                    );
                     let since = running_since(&key);
                     let mut row = json!({
                         "id": id,
@@ -3605,7 +3858,17 @@ mod tests {
             at: at.to_string(),
             days: days.iter().map(|s| s.to_string()).collect(),
             every,
-            manual: false,
+            ..Default::default()
+        }
+    }
+
+    fn cal(at_min: u32, days: Vec<u8>) -> CalendarSpec {
+        CalendarSpec {
+            at_min,
+            until_min: None,
+            times: 1,
+            days,
+            pick_days: None,
         }
     }
 
@@ -3663,28 +3926,116 @@ mod tests {
     fn schedule_resolution() {
         assert_eq!(
             resolve_schedule(&sched("09:00", &["mon", "thu"], None)).unwrap(),
-            Schedule::Calendar {
-                at_min: 540,
-                days: vec![0, 3]
-            },
+            Schedule::Calendar(cal(540, vec![0, 3])),
         );
         assert_eq!(
             resolve_schedule(&sched("", &[], Some(EveryValue::Str("6h".into())))).unwrap(),
-            Schedule::Interval { secs: 6 * 3600 },
+            Schedule::Interval {
+                min_secs: 6 * 3600,
+                max_secs: 6 * 3600
+            },
         );
         // days default to all
         assert_eq!(
             resolve_schedule(&sched("07:30", &[], None)).unwrap(),
-            Schedule::Calendar {
-                at_min: 450,
-                days: vec![]
-            },
+            Schedule::Calendar(cal(450, vec![])),
         );
         // both / neither are errors
         assert!(resolve_schedule(&sched("09:00", &[], Some(EveryValue::Int(6)))).is_err());
         assert!(resolve_schedule(&sched("", &[], None)).is_err());
         // bad day propagates
         assert!(resolve_schedule(&sched("09:00", &["monday"], None)).is_err());
+    }
+
+    #[test]
+    fn every_band_parsing() {
+        assert_eq!(
+            parse_every_band(&EveryValue::Str("4h-8h".into())).unwrap(),
+            (4 * 3600, 8 * 3600)
+        );
+        // The unit may be written once, on the far end.
+        assert_eq!(
+            parse_every_band(&EveryValue::Str("4-8h".into())).unwrap(),
+            (4 * 3600, 8 * 3600)
+        );
+        assert_eq!(
+            parse_every_band(&EveryValue::Str(" 30m - 2h ".into())).unwrap(),
+            (1_800, 7_200)
+        );
+        // A plain value is the band whose ends match.
+        assert_eq!(
+            parse_every_band(&EveryValue::Str("6h".into())).unwrap(),
+            (6 * 3600, 6 * 3600)
+        );
+        assert_eq!(
+            parse_every_band(&EveryValue::Int(4)).unwrap(),
+            (4 * 3600, 4 * 3600)
+        );
+        assert!(parse_every_band(&EveryValue::Str("8h-4h".into())).is_err());
+        assert!(parse_every_band(&EveryValue::Str("4m-8m".into())).is_err());
+        assert!(parse_every_band(&EveryValue::Str("4h-".into())).is_err());
+        assert!(parse_every_band(&EveryValue::Str("-8h".into())).is_err());
+    }
+
+    #[test]
+    fn window_resolution() {
+        let windowed = |at: &str, until: &str, times: Option<u32>| ScheduleDef {
+            at: at.into(),
+            until: until.into(),
+            times,
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_schedule(&windowed("09:00", "17:00", Some(3))).unwrap(),
+            Schedule::Calendar(CalendarSpec {
+                at_min: 540,
+                until_min: Some(17 * 60),
+                times: 3,
+                days: vec![],
+                pick_days: None,
+            }),
+        );
+        // A window has to end after it starts, and can't be asked for more runs
+        // than it has room for.
+        assert!(resolve_schedule(&windowed("17:00", "09:00", None)).is_err());
+        assert!(resolve_schedule(&windowed("09:00", "09:00", None)).is_err());
+        assert!(resolve_schedule(&windowed("09:00", "09:20", Some(5))).is_err());
+        assert!(resolve_schedule(&windowed("09:00", "09:20", Some(4))).is_ok());
+        // More than one run a day needs a window to spread them across.
+        assert!(resolve_schedule(&windowed("09:00", "", Some(3))).is_err());
+        // A window is a time-of-day idea; an interval job can't take one.
+        assert!(resolve_schedule(&ScheduleDef {
+            until: "17:00".into(),
+            every: Some(EveryValue::Str("6h".into())),
+            ..Default::default()
+        })
+        .is_err());
+    }
+
+    #[test]
+    fn pick_days_resolution() {
+        let picking = |days: &[&str], pick: Option<u32>| ScheduleDef {
+            at: "09:00".into(),
+            days: days.iter().map(|s| s.to_string()).collect(),
+            pick_days: pick,
+            ..Default::default()
+        };
+        assert_eq!(
+            resolve_schedule(&picking(&["mon", "tue", "wed"], Some(2))).unwrap(),
+            Schedule::Calendar(CalendarSpec {
+                at_min: 540,
+                until_min: None,
+                times: 1,
+                days: vec![0, 1, 2],
+                pick_days: Some(2),
+            }),
+        );
+        // Asking for every day it has is just "all of them" — no drawing needed.
+        assert_eq!(resolve_pick_days(Some(3), &[0, 1, 2]).unwrap(), None);
+        assert_eq!(resolve_pick_days(Some(7), &[]).unwrap(), None);
+        assert_eq!(resolve_pick_days(Some(2), &[]).unwrap(), Some(2));
+        assert!(resolve_pick_days(Some(0), &[0, 1]).is_err());
+        assert!(resolve_pick_days(Some(4), &[0, 1, 2]).is_err());
     }
 
     #[test]
@@ -3781,7 +4132,10 @@ mod tests {
 
     #[test]
     fn interval_due_math() {
-        let s = Schedule::Interval { secs: 3600 };
+        let s = Schedule::Interval {
+            min_secs: 3600,
+            max_secs: 3600,
+        };
         let last = 1_000_000u64;
         // due exactly at the boundary (>= interval)
         assert!(!is_due(&s, last, last + 3599, 0));
@@ -3790,21 +4144,58 @@ mod tests {
 
     #[test]
     fn interval_period_does_not_stretch_by_the_jitter() {
-        let s = Schedule::Interval { secs: 3600 };
+        let s = Schedule::Interval {
+            min_secs: 3600,
+            max_secs: 3600,
+        };
         let last = 1_000_000u64;
         // A job with jitter keeps the interval it was given: charging the
         // jitter per period pushed every "every hour" job to 61-65 minutes and
         // slid it further out on each run.
-        assert!(is_due(&s, last, last + 3600, 300));
-        assert_eq!(next_fire_at(&s, last, last), Some((last + 3600) as i64));
+        let seed = job_seed("proj", "hourly");
+        assert!(is_due(&s, last, last + 3600, seed));
+        assert_eq!(
+            next_fire_at(&s, last, last, seed),
+            Some((last + 3600) as i64)
+        );
 
         // Twenty-four runs later the job is exactly a day on, not five hours
         // late.
         let mut t = last;
         for _ in 0..24 {
-            t = next_fire_at(&s, t, t).unwrap() as u64;
+            t = next_fire_at(&s, t, t, seed).unwrap() as u64;
         }
         assert_eq!(t, last + 24 * 3600);
+    }
+
+    #[test]
+    fn interval_band_draws_a_gap_inside_it_and_holds_it_still() {
+        let s = Schedule::Interval {
+            min_secs: 4 * 3600,
+            max_secs: 8 * 3600,
+        };
+        let seed = job_seed("proj", "poll");
+        // The gap is stable for a given last run — the tick that asks whether
+        // the job is due and the row predicting its next run must agree.
+        for last in [1_000_000u64, 1_234_567, 1_700_000_000] {
+            let gap = next_fire_at(&s, last, last, seed).unwrap() as u64 - last;
+            assert!((4 * 3600..=8 * 3600).contains(&gap));
+            assert_eq!(
+                next_fire_at(&s, last, last + 99, seed).unwrap() as u64 - last,
+                gap
+            );
+            assert!(!is_due(&s, last, last + gap - 1, seed));
+            assert!(is_due(&s, last, last + gap, seed));
+        }
+        // And it really varies from gap to gap rather than being one draw the
+        // job keeps forever.
+        let gaps: HashSet<u64> = (0..40)
+            .map(|i| {
+                let last = 1_000_000 + i * 4_321;
+                next_fire_at(&s, last, last, seed).unwrap() as u64 - last
+            })
+            .collect();
+        assert!(gaps.len() > 20, "band collapsed to {} gaps", gaps.len());
     }
 
     #[test]
@@ -3812,24 +4203,24 @@ mod tests {
         // Jitter belongs to the calendar mode, where jobs really do share a
         // fire point — and it offsets each occurrence rather than being added
         // to the gap between them.
-        let s = Schedule::Calendar {
-            at_min: 9 * 60,
-            days: Vec::new(),
-        };
-        let occ = most_recent_calendar_occurrence(9 * 60, &[], now_secs() as i64).unwrap() as u64;
-        assert!(!is_due(&s, occ - 1, occ + 100, 300));
-        assert!(is_due(&s, occ - 1, occ + 300, 300));
+        let spec = cal(9 * 60, Vec::new());
+        let s = Schedule::Calendar(spec.clone());
+        // A seed whose jitter works out to a known 5 minutes keeps the
+        // assertion exact.
+        let seed = MAX_JITTER_SECS;
+        assert_eq!(implicit_jitter(&spec, seed), 300);
+        let occ = most_recent_fire_point(&spec, now_secs() as i64, seed).unwrap() as u64;
+        assert!(!is_due(&s, occ - 1, occ + 100, seed));
+        assert!(is_due(&s, occ - 1, occ + 300, seed));
     }
 
     #[test]
     fn calendar_due_coalesces_and_never_fires_at_init() {
         // Midnight every day. Its most-recent occurrence is always <= now.
-        let s = Schedule::Calendar {
-            at_min: 0,
-            days: vec![],
-        };
+        let spec = cal(0, vec![]);
+        let s = Schedule::Calendar(spec.clone());
         let now = 1_700_000_000i64;
-        let occ = most_recent_calendar_occurrence(0, &[], now).unwrap();
+        let occ = most_recent_fire_point(&spec, now, 0).unwrap();
         assert!(occ <= now);
 
         // A long gap (last run 30 days ago) collapses to a single due=true.
@@ -3846,13 +4237,168 @@ mod tests {
     }
 
     #[test]
+    fn window_lands_inside_itself_and_replaces_the_implicit_jitter() {
+        let spec = CalendarSpec {
+            at_min: 9 * 60,
+            until_min: Some(17 * 60),
+            times: 1,
+            days: Vec::new(),
+            pick_days: None,
+        };
+        // A window is the job's own spread, so the blind 0-5 minute offset that
+        // would push a run past 17:00 is not charged on top of it.
+        assert_eq!(implicit_jitter(&spec, u64::MAX), 0);
+
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
+        let start = local_epoch(date, 9 * 60).unwrap();
+        let end = local_epoch(date, 17 * 60).unwrap();
+        let mut seen = HashSet::new();
+        for id in 0..60 {
+            let points = day_fire_points(date, &spec, job_seed("proj", &format!("job-{id}")));
+            assert_eq!(points.len(), 1);
+            assert!((start..=end).contains(&points[0]));
+            seen.insert(points[0]);
+        }
+        // Different jobs land at different points — that is the whole feature.
+        assert!(seen.len() > 40, "window collapsed to {} times", seen.len());
+    }
+
+    #[test]
+    fn window_is_stable_per_day_and_moves_between_days() {
+        let spec = CalendarSpec {
+            at_min: 9 * 60,
+            until_min: Some(17 * 60),
+            times: 1,
+            days: Vec::new(),
+            pick_days: None,
+        };
+        let seed = job_seed("proj", "sweep");
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
+        // Asked twice on the same day, the same answer — otherwise a job would
+        // re-roll its time on every tick and fire at the first minute a draw
+        // came up short.
+        assert_eq!(
+            day_fire_points(date, &spec, seed),
+            day_fire_points(date, &spec, seed)
+        );
+        let times: HashSet<i64> = (0..30)
+            .map(|d| {
+                let day = date + chrono::Duration::days(d);
+                day_fire_points(day, &spec, seed)[0] - local_epoch(day, 9 * 60).unwrap()
+            })
+            .collect();
+        assert!(times.len() > 20, "window froze at {} offsets", times.len());
+    }
+
+    #[test]
+    fn several_runs_a_day_spread_across_the_window_without_crowding() {
+        let spec = CalendarSpec {
+            at_min: 9 * 60,
+            until_min: Some(17 * 60),
+            times: 3,
+            days: Vec::new(),
+            pick_days: None,
+        };
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
+        let start = local_epoch(date, 9 * 60).unwrap();
+        let end = local_epoch(date, 17 * 60).unwrap();
+        for id in 0..40 {
+            let points = day_fire_points(date, &spec, job_seed("proj", &format!("job-{id}")));
+            assert_eq!(points.len(), 3);
+            assert!(points[0] >= start && *points.last().unwrap() <= end);
+            for pair in points.windows(2) {
+                assert!(pair[1] > pair[0], "runs out of order: {points:?}");
+                assert!(
+                    pair[1] - pair[0] >= MIN_INTERVAL_SECS as i64,
+                    "two runs crowded into {}s",
+                    pair[1] - pair[0]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn each_run_in_the_window_fires_once() {
+        let spec = CalendarSpec {
+            at_min: 0,
+            until_min: Some(23 * 60),
+            times: 3,
+            days: Vec::new(),
+            pick_days: None,
+        };
+        let s = Schedule::Calendar(spec.clone());
+        let seed = job_seed("proj", "thrice");
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
+        let points = day_fire_points(date, &spec, seed);
+        // Walking the day a slot at a time: each fire point comes due exactly
+        // once, and the run it records is what the next one is measured from.
+        let mut last = points[0] as u64 - 1;
+        for p in &points {
+            assert!(is_due(&s, last, *p as u64, seed));
+            assert!(!is_due(&s, *p as u64, *p as u64, seed));
+            last = *p as u64;
+        }
+        assert_eq!(next_fire_point(&spec, points[0], seed), Some(points[1]));
+    }
+
+    #[test]
+    fn picked_days_takes_the_asked_for_number_from_the_week() {
+        let spec = CalendarSpec {
+            at_min: 9 * 60,
+            until_min: None,
+            times: 1,
+            days: vec![0, 1, 2, 3, 4],
+            pick_days: Some(2),
+        };
+        let seed = job_seed("proj", "weekly-sweep");
+        let monday = chrono::NaiveDate::from_ymd_opt(2026, 3, 2).unwrap();
+        assert_eq!(monday.weekday().num_days_from_monday(), 0);
+        for week in 0..12i64 {
+            let start = monday + chrono::Duration::weeks(week);
+            let chosen: Vec<u8> = (0..7)
+                .filter(|d| day_ok(start + chrono::Duration::days(*d), &spec, seed))
+                .map(|d| d as u8)
+                .collect();
+            assert_eq!(chosen.len(), 2, "week {week} picked {chosen:?}");
+            // Never a weekend: the draw comes out of the days the job named.
+            assert!(chosen.iter().all(|d| *d < 5));
+        }
+        // Over enough weeks every allowed day gets its turn.
+        let ever: HashSet<u8> = (0..70i64)
+            .filter(|d| day_ok(monday + chrono::Duration::days(*d), &spec, seed))
+            .map(|d| (d % 7) as u8)
+            .collect();
+        assert_eq!(ever.len(), 5);
+    }
+
+    #[test]
+    fn picked_days_still_finds_the_next_run_across_a_long_gap() {
+        // Two days out of seven can leave a fortnight between the pair one week
+        // lands on and the pair the next does — the search has to look that far.
+        let spec = CalendarSpec {
+            at_min: 9 * 60,
+            until_min: None,
+            times: 1,
+            days: Vec::new(),
+            pick_days: Some(1),
+        };
+        let now = local_epoch(chrono::NaiveDate::from_ymd_opt(2026, 3, 2).unwrap(), 0).unwrap();
+        for id in 0..40 {
+            let seed = job_seed("proj", &format!("job-{id}"));
+            let next = next_fire_point(&spec, now, seed);
+            assert!(next.is_some(), "job-{id} never comes due");
+            assert!(most_recent_fire_point(&spec, now, seed).is_some());
+        }
+    }
+
+    #[test]
     fn manual_never_auto_fires() {
         let now = 1_700_000_000u64;
         // Never due, no matter how long since the last (or never a) run.
         assert!(!is_due(&Schedule::Manual, 0, now, 0));
         assert!(!is_due(&Schedule::Manual, now, now + 10 * 86_400, 0));
         // And it has no next fire point.
-        assert_eq!(next_fire_at(&Schedule::Manual, 0, now), None);
+        assert_eq!(next_fire_at(&Schedule::Manual, 0, now, 0), None);
     }
 
     #[test]
@@ -3866,11 +4412,12 @@ mod tests {
 
     #[test]
     fn jitter_is_stable_and_bounded() {
-        let a = jitter_secs("proj", "dep-updates");
-        assert_eq!(a, jitter_secs("proj", "dep-updates"));
+        let spec = cal(9 * 60, Vec::new());
+        let a = implicit_jitter(&spec, job_seed("proj", "dep-updates"));
+        assert_eq!(a, implicit_jitter(&spec, job_seed("proj", "dep-updates")));
         assert!(a <= MAX_JITTER_SECS);
         // different keys generally differ; at minimum the function is total.
-        let b = jitter_secs("proj", "other");
+        let b = implicit_jitter(&spec, job_seed("proj", "other"));
         assert!(b <= MAX_JITTER_SECS);
     }
 
@@ -4731,7 +5278,10 @@ mod tests {
     fn due_fire_at_is_the_promised_time_not_the_actual_one() {
         // How overdue a job is — which decides who goes first when the cap is
         // reached — is measured against the fire point it was owed.
-        let interval = Schedule::Interval { secs: 3600 };
+        let interval = Schedule::Interval {
+            min_secs: 3600,
+            max_secs: 3600,
+        };
         let last = 1_000_000u64;
         assert_eq!(
             due_fire_at(&interval, last, last + 9_000, 0),
@@ -4740,14 +5290,14 @@ mod tests {
 
         // A calendar job woken hours late still reports the occurrence it was
         // owed, so it outranks a job that only just came due.
-        let calendar = Schedule::Calendar {
-            at_min: 9 * 60,
-            days: Vec::new(),
-        };
+        let spec = cal(9 * 60, Vec::new());
+        let calendar = Schedule::Calendar(spec.clone());
         let now = now_secs();
-        let occurrence = most_recent_calendar_occurrence(9 * 60, &[], now as i64).unwrap() as u64;
+        let seed = 120u64;
+        assert_eq!(implicit_jitter(&spec, seed), 120);
+        let occurrence = most_recent_fire_point(&spec, now as i64, seed).unwrap() as u64;
         assert_eq!(
-            due_fire_at(&calendar, occurrence - 1, now, 120),
+            due_fire_at(&calendar, occurrence - 1, now, seed),
             Some(occurrence + 120)
         );
 

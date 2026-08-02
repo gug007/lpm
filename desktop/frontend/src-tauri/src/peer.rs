@@ -88,7 +88,7 @@ pub(crate) struct HostConfig {
     pub lan: bool, // bind 0.0.0.0 (LAN/tailnet) vs 127.0.0.1; no UI — the app always sets true, loopback-only is a manual-config escape hatch
     #[serde(default)]
     pub bind_address: String, // exact interface to listen on; overrides `lan` when set. Empty = fall back to the bool
-    pub port: u16, // 0 => DEFAULT_PORT
+    pub port: u16,            // 0 => DEFAULT_PORT
     pub pairing_code: String, // non-empty while an unused pairing code is outstanding
     pub host_id: String, // this Mac's stable peer identity, advertised over mDNS; minted on first load
     pub devices: Vec<PeerDevice>,
@@ -862,7 +862,10 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
         Some("pair") => {
             let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
             let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-            let platform = v.get("platform").and_then(Value::as_str).unwrap_or_default();
+            let platform = v
+                .get("platform")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             match pair_device(hub, code, name, platform) {
                 Some((id, token, slug)) => {
                     let _ = ws.send(Message::text(
@@ -885,7 +888,10 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
         }
         Some("pairRequest") => {
             let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-            let platform = v.get("platform").and_then(Value::as_str).unwrap_or_default();
+            let platform = v
+                .get("platform")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
             handle_pair_request(ws, hub, app, name, platform)
         }
         Some("auth") => {
@@ -2181,7 +2187,10 @@ mod tests {
                     let v: Value = serde_json::from_str(&txt).unwrap();
                     let code = v.get("code").and_then(Value::as_str).unwrap_or_default();
                     let name = v.get("name").and_then(Value::as_str).unwrap_or("Mac");
-                    let platform = v.get("platform").and_then(Value::as_str).unwrap_or_default();
+                    let platform = v
+                        .get("platform")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
                     let paired = pair_device(&hub2, code, name, platform);
                     if let Some((id, token, slug)) = &paired {
                         let _ = ws.send(Message::text(
@@ -2275,7 +2284,10 @@ mod tests {
 
         arm_pairing_code(&mut cfg, "AAAA-BBBB", Some("100.64.0.5"));
         assert_eq!(bind_address(&cfg.host), "100.64.0.5");
-        assert!(cfg.host.lan, "the old bool tracks 'not loopback' for the pane");
+        assert!(
+            cfg.host.lan,
+            "the old bool tracks 'not loopback' for the pane"
+        );
     }
 
     // A config written before bind_address existed must behave exactly as it did.

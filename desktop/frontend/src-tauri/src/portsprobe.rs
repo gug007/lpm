@@ -205,7 +205,9 @@ pub fn listening_ports() -> Vec<(i64, i64)> {
     #[cfg(not(target_os = "macos"))]
     {
         if have_ss() {
-            return ss_output().map(|o| parse_ss_listeners(&o)).unwrap_or_default();
+            return ss_output()
+                .map(|o| parse_ss_listeners(&o))
+                .unwrap_or_default();
         }
         lsof_listeners()
     }

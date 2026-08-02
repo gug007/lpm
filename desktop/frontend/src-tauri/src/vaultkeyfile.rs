@@ -45,9 +45,7 @@ pub fn key_path() -> PathBuf {
 }
 
 fn passphrase() -> Option<String> {
-    std::env::var(PASSPHRASE_ENV)
-        .ok()
-        .filter(|s| !s.is_empty())
+    std::env::var(PASSPHRASE_ENV).ok().filter(|s| !s.is_empty())
 }
 
 /// Serialize the key for disk: passphrase-wrapped when one is configured, else a

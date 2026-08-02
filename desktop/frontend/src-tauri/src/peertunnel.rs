@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 pub struct SshTarget {
     pub host: String,
     pub user: String,
-    pub port: u16, // 0 => 22
+    pub port: u16,   // 0 => 22
     pub key: String, // identity file; empty = let ssh decide
 }
 
@@ -191,10 +191,7 @@ pub fn reap_orphaned_forwards() {
 fn free_local_port() -> Result<u16, String> {
     let listener = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0))
         .map_err(|e| format!("could not reserve a local port: {e}"))?;
-    let port = listener
-        .local_addr()
-        .map_err(|e| e.to_string())?
-        .port();
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     drop(listener);
     Ok(port)
 }
@@ -472,7 +469,9 @@ mod tests {
         t.key = "/tmp/id_test".into();
         let args = ssh_forward_args(&t, 1, 2);
         assert!(args.windows(2).any(|w| w[0] == "-p" && w[1] == "2222"));
-        assert!(args.windows(2).any(|w| w[0] == "-i" && w[1] == "/tmp/id_test"));
+        assert!(args
+            .windows(2)
+            .any(|w| w[0] == "-i" && w[1] == "/tmp/id_test"));
     }
 
     // Port 22 is ssh's own default; passing it adds noise to every command line.

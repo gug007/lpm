@@ -13,10 +13,10 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
-#[cfg(not(target_os = "macos"))]
-use crate::vaultkeyfile as store;
 #[cfg(target_os = "macos")]
 use crate::vaultkeychain as store;
+#[cfg(not(target_os = "macos"))]
+use crate::vaultkeyfile as store;
 
 pub const KEY_LEN: usize = 32;
 

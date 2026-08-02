@@ -1257,7 +1257,10 @@ fn move_to_trash(path: &Path) -> Result<(), String> {
             format!("move to Trash: {msg}")
         });
     }
-    Err("This host has no Trash, so the folder was left in place. Remove it on the host directly.".into())
+    Err(
+        "This host has no Trash, so the folder was left in place. Remove it on the host directly."
+            .into(),
+    )
 }
 
 /// Move `path` to the macOS Trash. A path that is already gone counts as success

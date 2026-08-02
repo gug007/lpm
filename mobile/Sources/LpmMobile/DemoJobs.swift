@@ -316,21 +316,53 @@ extension DemoServer {
             return nil
         case "interval":
             guard j.everySecs > 0 else { return nil }
-            return Int(now.timeIntervalSince1970) + j.everySecs
+            let gap = j.everyMaxSecs > j.everySecs
+                ? j.everySecs + Int(Self.draw(j.id, 0) % UInt64(j.everyMaxSecs - j.everySecs + 1))
+                : j.everySecs
+            return Int(now.timeIntervalSince1970) + gap
         default:
             let cal = Calendar.current
             let names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
             let allowed = j.days.isEmpty ? Set(names) : Set(j.days)
             for offset in 0...7 {
-                guard let day = cal.date(byAdding: .day, value: offset, to: now),
-                      let fire = cal.date(bySettingHour: min(23, j.atMinutes / 60),
-                                          minute: j.atMinutes % 60, second: 0, of: day)
-                else { continue }
-                let name = names[cal.component(.weekday, from: fire) - 1]
-                if fire > now, allowed.contains(name) { return Int(fire.timeIntervalSince1970) }
+                guard let day = cal.date(byAdding: .day, value: offset, to: now) else { continue }
+                guard allowed.contains(names[cal.component(.weekday, from: day) - 1]) else { continue }
+                if let fire = Self.dayFires(j, on: day, cal: cal).first(where: { $0 > now }) {
+                    return Int(fire.timeIntervalSince1970)
+                }
             }
             return nil
         }
+    }
+
+    /// The instants a calendar job fires at on `day` — one for a set time, or
+    /// `times` spread across its window the way the Mac spreads them, so the
+    /// demo's next-run times look like the real thing.
+    private static func dayFires(_ j: DemoWorld.Job, on day: Date, cal: Calendar) -> [Date] {
+        let at = { (minutes: Int) in
+            cal.date(bySettingHour: min(23, minutes / 60), minute: minutes % 60, second: 0, of: day)
+        }
+        guard let start = at(j.atMinutes) else { return [] }
+        guard let until = j.untilMinutes, let end = at(until), end > start else { return [start] }
+        let times = max(1, j.times)
+        let slice = end.timeIntervalSince(start) / Double(times)
+        let dayKey = cal.ordinality(of: .day, in: .era, for: day) ?? 0
+        return (0..<times).map { k in
+            let span = max(1, Int(slice) - (k + 1 < times ? 300 : 0))
+            let offset = Int(Self.draw(j.id, UInt64(dayKey * 100 + k)) % UInt64(span))
+            return start.addingTimeInterval(Double(k) * slice + Double(offset))
+        }
+    }
+
+    /// FNV-1a over the job id and an occasion — the demo's stand-in for the
+    /// Mac's seeded draw, so a window's times hold still between refreshes.
+    private static func draw(_ id: String, _ occasion: UInt64) -> UInt64 {
+        var h: UInt64 = 0xcbf29ce484222325
+        for b in Array(id.utf8) + withUnsafeBytes(of: occasion, Array.init) {
+            h ^= UInt64(b)
+            h = h &* 0x100000001b3
+        }
+        return h
     }
 
     // MARK: body ↔ job
@@ -346,11 +378,16 @@ extension DemoServer {
             j.scheduleMode = "manual"
         } else if let every = schedule["every"] {
             j.scheduleMode = "interval"
-            j.everySecs = Self.parseEverySecs(every)
+            let (min, max) = Self.parseEveryBand(every)
+            j.everySecs = min
+            j.everyMaxSecs = max
         } else {
             j.scheduleMode = "calendar"
             j.atMinutes = Self.parseAtMinutes(schedule["at"] as? String ?? "")
             j.days = (schedule["days"] as? [Any])?.map { String(describing: $0).lowercased() } ?? []
+            j.untilMinutes = (schedule["until"] as? String).map(Self.parseAtMinutes)
+            j.times = max(1, schedule["times"] as? Int ?? 1)
+            j.pickDays = schedule["pickDays"] as? Int ?? 0
         }
 
         let run = body["run"] as? [String: Any] ?? [:]
@@ -376,10 +413,24 @@ extension DemoServer {
             body["schedule"] = ["manual": true]
         case "interval":
             let hours = max(1, j.everySecs / 3600)
-            body["schedule"] = hours % 24 == 0 ? ["every": "\(hours / 24)d"] : ["every": "\(hours)h"]
+            let every = hours % 24 == 0 ? "\(hours / 24)d" : "\(hours)h"
+            if j.everyMaxSecs > j.everySecs {
+                let maxHours = max(1, j.everyMaxSecs / 3600)
+                body["schedule"] = hours % 24 == 0 && maxHours % 24 == 0
+                    ? ["every": "\(hours / 24)-\(maxHours / 24)d"]
+                    : ["every": "\(hours)-\(maxHours)h"]
+            } else {
+                body["schedule"] = ["every": every]
+            }
         default:
-            var s: [String: Any] = ["at": String(format: "%02d:%02d", j.atMinutes / 60, j.atMinutes % 60)]
+            let clock = { (minutes: Int) in String(format: "%02d:%02d", minutes / 60, minutes % 60) }
+            var s: [String: Any] = ["at": clock(j.atMinutes)]
+            if let until = j.untilMinutes {
+                s["until"] = clock(until)
+                if j.times > 1 { s["times"] = j.times }
+            }
             if !j.days.isEmpty { s["days"] = j.days }
+            if j.pickDays > 0 { s["pickDays"] = j.pickDays }
             body["schedule"] = s
         }
         switch j.runKind {
@@ -398,14 +449,23 @@ extension DemoServer {
         return body
     }
 
-    private static func parseEverySecs(_ every: Any) -> Int {
-        if let n = every as? Int { return max(1, n) * 3600 }
-        if let n = every as? Double { return max(1, Int(n)) * 3600 }
+    /// `every` as a band: "4h-8h" (or "4-8h", where the unit is written once on
+    /// the far end). A plain value comes back as the band whose ends match.
+    private static func parseEveryBand(_ every: Any) -> (Int, Int) {
+        if let n = every as? Int { return (max(1, n) * 3600, max(1, n) * 3600) }
+        if let n = every as? Double { return (max(1, Int(n)) * 3600, max(1, Int(n)) * 3600) }
         let s = String(describing: every).trimmingCharacters(in: .whitespaces).lowercased()
-        if s.hasSuffix("d"), let n = Int(s.dropLast()) { return max(1, n) * 86400 }
-        if s.hasSuffix("h"), let n = Int(s.dropLast()) { return max(1, n) * 3600 }
-        if let n = Int(s) { return max(1, n) * 3600 }
-        return 6 * 3600
+        let ends = s.split(separator: "-", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let first = ends.first, !first.isEmpty else { return (6 * 3600, 6 * 3600) }
+        let unit = ends.count == 2 ? ends[1] : first
+        let scale = unit.hasSuffix("d") ? 86400 : (unit.hasSuffix("m") ? 60 : 3600)
+        let count = { (part: String) -> Int? in
+            let digits = "dhm".contains(part.last ?? " ") ? String(part.dropLast()) : part
+            return Int(digits.trimmingCharacters(in: .whitespaces)).map { max(1, $0) }
+        }
+        guard let lo = count(first) else { return (6 * 3600, 6 * 3600) }
+        guard ends.count == 2, let hi = count(ends[1]) else { return (lo * scale, lo * scale) }
+        return (lo * scale, max(lo, hi) * scale)
     }
 
     private static func parseAtMinutes(_ time: String) -> Int {

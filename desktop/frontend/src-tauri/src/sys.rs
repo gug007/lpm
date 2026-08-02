@@ -49,7 +49,9 @@ pub(crate) fn login_shell() -> String {
 /// every spawn into a silent no-op. The platform default is wrong for that
 /// account too, but it at least runs.
 fn passwd_shell() -> Option<String> {
-    let user = std::env::var("USER").or_else(|_| std::env::var("LOGNAME")).ok()?;
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("LOGNAME"))
+        .ok()?;
     let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
     for line in passwd.lines() {
         let mut fields = line.split(':');
@@ -253,7 +255,10 @@ fn hostname() -> Option<String> {
 pub fn machine_name() -> String {
     #[cfg(target_os = "macos")]
     {
-        if let Ok(out) = Command::new("scutil").args(["--get", "ComputerName"]).output() {
+        if let Ok(out) = Command::new("scutil")
+            .args(["--get", "ComputerName"])
+            .output()
+        {
             if out.status.success() {
                 let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
                 if !name.is_empty() {
