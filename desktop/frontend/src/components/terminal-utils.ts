@@ -8,6 +8,17 @@ export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(
 export const TERMINAL_FONT_FAMILY =
   "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
 
+// Fitting while the host is collapsed (hidden tab, mid-layout flex transition)
+// would shrink the terminal to xterm's 2-col minimum and garble everything
+// written after; skip and let the ResizeObserver refit once the host reaches a
+// usable size.
+const MIN_FIT_WIDTH_PX = 64;
+const MIN_FIT_HEIGHT_PX = 24;
+
+export function canFitHost(host: HTMLElement): boolean {
+  return host.clientWidth >= MIN_FIT_WIDTH_PX && host.clientHeight >= MIN_FIT_HEIGHT_PX;
+}
+
 export interface TerminalThemeStyle {
   background: string;
   foreground: string;

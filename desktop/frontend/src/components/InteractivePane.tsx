@@ -22,7 +22,7 @@ import {
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { quoteImagePathForPaste, unquotePastedPath } from "../composerValue";
-import { getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
+import { canFitHost, getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
@@ -254,6 +254,14 @@ interface InteractiveSession {
   // exposed so the context menu shares the ⌘C path's gates.
   canAppCopy: () => boolean;
   tryAppCopy: () => boolean;
+
+  // Geometry provenance, for repairBlindScreen: whether the emulator has been
+  // fitted to a laid-out container at least once, and whether output was applied
+  // before that ever happened (so the screen was drawn at a width nothing chose).
+  // Both stay false in a mirror window, which renders at the owner's size rather
+  // than fitting, and drops output while hidden instead of applying it.
+  fitted: boolean;
+  blindOutput: boolean;
 
   // Whether this window is currently showing this terminal as its active,
   // visible tab (set by the React mount from the `visible` prop). Note this is
@@ -712,6 +720,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     remote: IsTerminalRemote(terminalId).catch(() => false),
     sessionDead: false,
     exited: false,
+    fitted: false,
+    blindOutput: false,
     presenting: false,
     lastOutputAt: 0,
     delivering: false,
@@ -826,6 +836,10 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       droppedWhileHidden = true;
       return;
     }
+    // Drawn at a width nothing chose (see repairBlindScreen). Recorded rather
+    // than measured: this runs per chunk, and asking the DOM would cost a forced
+    // layout on every one.
+    if (!session.fitted) session.blindOutput = true;
     term.write(data, () => ackData(data.length));
   };
 
@@ -1210,6 +1224,36 @@ function resync(session: InteractiveSession, terminalId: string): void {
   session.reassertSize?.();
 }
 
+// Start over a screen that was drawn before this pane had ever been measured.
+//
+// A tab that was in the background when its pane mounted has no layout, so its
+// emulator sat at xterm's default 80x24 while the pty it renders kept whatever
+// geometry the last viewer gave it — a peer pty lives on the other machine and
+// outlives this app, so after a restart that is the previous session's
+// full-width screen. Everything applied meanwhile, the subscribe's replay above
+// all, was wrapped to the wrong width, and the fit that finally runs can't undo
+// it: the size it drives is one the pty already has, so no SIGWINCH reaches the
+// program and it never repaints. (Hence resizing the window is what "fixes"
+// such a tab: only a size the pty does NOT already have makes it redraw.)
+//
+// A non-resuming subscribe replays the host's ring onto the now-fitted emulator
+// instead, and the host nudges the program into a repaint. The emulator isn't
+// cleared first: that seed arrives prefixed with a reset which wipes screen and
+// scrollback, and until it does a stale screen beats a blank one — the peer may
+// be unreachable, in which case the repair waits for the reconnect (the
+// subscribe drops its offset either way, so what comes back is a full replay).
+//
+// The price is history: the replay is the ring, not this pane's scrollback, and
+// it lands at the size the pane fits to rather than the one its bytes were
+// written at — so only the repaint that follows is exact.
+//
+// Only a peer terminal can be left this way: pty.rs opens a local one at exactly
+// the 80x24 a blind emulator renders at.
+export function repairBlindScreen(session: InteractiveSession, terminalId: string): void {
+  if (!session.blindOutput || !isPeerName(terminalId)) return;
+  attachPeerTerminal(terminalId, false);
+}
+
 // React to a geometry trigger (mount, container resize, font change, becoming
 // visible or focused): the owner fits its xterm to its container and drives the
 // shared PTY size, while a mirror never fits (that would mis-wrap the shared
@@ -1232,9 +1276,18 @@ function reconcileGeometry(session: InteractiveSession, terminalId: string): voi
     }
     return;
   }
+  if (!canFitHost(session.host)) return;
+  const firstFit = !session.fitted;
   try {
     session.fit.fit();
-  } catch {}
+    session.fitted = true;
+  } catch {
+    return;
+  }
+  // The one moment a screen drawn blind can be rebuilt at a size that means
+  // something. Every geometry trigger lands here, so whichever one first gives
+  // this pane a layout repairs it.
+  if (firstFit) repairBlindScreen(session, terminalId);
 }
 
 // The owner focuses its terminal on mount/visible unless the composer already
@@ -1485,7 +1538,6 @@ export function InteractivePane({
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
         resizeTimer = 0;
-        if (!session.host.clientWidth || !session.host.clientHeight) return;
         reconcileGeometry(session, terminalId);
       }, 200);
     });

@@ -5,7 +5,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { SerializeAddon } from "@xterm/addon-serialize";
-import { getTerminalTheme, openTerminalLink } from "./terminal-utils";
+import { canFitHost, getTerminalTheme, openTerminalLink } from "./terminal-utils";
 import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut } from "./terminal/copySelection";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
@@ -107,15 +107,8 @@ function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string 
   return session;
 }
 
-// Fitting while the host is collapsed (hidden tab, mid-layout flex
-// transition) would shrink the terminal to ~1-2 cols and garble
-// subsequently written lines; skip and let the ResizeObserver refit
-// once the host reaches a usable size.
-const MIN_FIT_WIDTH_PX = 64;
-const MIN_FIT_HEIGHT_PX = 24;
-
 function fitPaneSession(session: PaneSession): void {
-  if (session.host.clientWidth < MIN_FIT_WIDTH_PX || session.host.clientHeight < MIN_FIT_HEIGHT_PX) return;
+  if (!canFitHost(session.host)) return;
   try { session.fit.fit(); } catch {}
 }
 

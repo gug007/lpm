@@ -30,6 +30,7 @@ import {
   attachPeerTerminal,
   disposeInteractivePaneSession,
   interactiveSessions,
+  repairBlindScreen,
   revivePeerSession,
   writeErrorIsFatal,
 } from "./InteractivePane";
@@ -112,6 +113,37 @@ describe("attachPeerTerminal", () => {
 
   it("never subscribes a local terminal", () => {
     attachPeerTerminal("web-3", false);
+    expect(mocks.peerTermAttach).not.toHaveBeenCalled();
+  });
+});
+
+// A tab that was in the background when its pane mounted is never measured, so
+// the replay it was seeded with was wrapped at xterm's default 80x24 while the
+// host's pty kept its real geometry. The fit it finally gets on reveal drives a
+// size that pty already has — no SIGWINCH, no repaint — so only a fresh replay
+// puts the screen right.
+describe("repairBlindScreen", () => {
+  function blindSession(id: string) {
+    fakeSession(id);
+    const session = interactiveSessions.get(id)!;
+    session.blindOutput = true;
+    return session;
+  }
+
+  it("asks for a full replay once a blind peer screen is first measured", () => {
+    repairBlindScreen(blindSession(TERM), TERM);
+    expect(mocks.peerTermAttach).toHaveBeenCalledWith(TERM, false);
+  });
+
+  it("leaves a screen that was drawn at a measured size alone", () => {
+    const session = blindSession(TERM);
+    session.blindOutput = false;
+    repairBlindScreen(session, TERM);
+    expect(mocks.peerTermAttach).not.toHaveBeenCalled();
+  });
+
+  it("leaves local terminals alone — their pty opens at the blind size", () => {
+    repairBlindScreen(blindSession("web-3"), "web-3");
     expect(mocks.peerTermAttach).not.toHaveBeenCalled();
   });
 });
