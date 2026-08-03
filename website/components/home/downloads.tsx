@@ -10,13 +10,16 @@ import {
 } from "lucide-react";
 import { trackDownload } from "@/lib/analytics";
 import { releaseAsset, RELEASES_URL } from "@/lib/links";
-import type { Platform } from "@/lib/use-platform";
+import {
+  usePlatform,
+  type MacDownloadPlatform,
+} from "@/lib/use-platform";
 import { HighlightPlatform } from "./highlight-platform";
 import { SignatureBadge } from "./signature-badge";
 
 type Download = {
   href: string;
-  platform: Exclude<Platform, null>;
+  platform: MacDownloadPlatform;
   product: "desktop";
   label: string;
   sub: string;
@@ -43,6 +46,9 @@ const DOWNLOADS: Download[] = [
 ];
 
 export function Downloads({ children }: { children?: ReactNode }) {
+  const platform = usePlatform();
+  const isUnavailable = platform === "ipad" || platform === "unsupported";
+
   return (
     <section
       id="download"
@@ -63,26 +69,42 @@ export function Downloads({ children }: { children?: ReactNode }) {
           </p>
           <SignatureBadge />
         </div>
-        <HighlightPlatform />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
-          {DOWNLOADS.map(({ href, platform, label, sub, icon: Icon }) => (
-            <a
-              key={href}
-              href={href}
-              data-platform={platform}
-              onClick={() =>
-                trackDownload({ source: "downloads", platform, href })
-              }
-              className="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
-            >
-              <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
-                <Icon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-              </div>
-              <span className="text-sm font-semibold">{label}</span>
-              <span className="text-xs text-gray-400">{sub}</span>
-            </a>
-          ))}
-        </div>
+        {isUnavailable ? (
+          <div
+            className="mx-auto max-w-xl rounded-2xl border border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-800 dark:bg-white/[0.025]"
+          >
+            <Monitor className="mx-auto h-8 w-8 text-gray-400" aria-hidden />
+            <p className="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-200">
+              The lpm desktop app requires macOS
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              Open lpm.cx on your Mac to choose the correct installer.
+            </p>
+          </div>
+        ) : (
+          <>
+            <HighlightPlatform />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
+              {DOWNLOADS.map(({ href, platform, label, sub, icon: Icon }) => (
+                <a
+                  key={href}
+                  href={href}
+                  data-platform={platform}
+                  onClick={() =>
+                    trackDownload({ source: "downloads", platform, href })
+                  }
+                  className="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
+                    <Icon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+                  </div>
+                  <span className="text-sm font-semibold">{label}</span>
+                  <span className="text-xs text-gray-400">{sub}</span>
+                </a>
+              ))}
+            </div>
+          </>
+        )}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
           <a
             href={RELEASES_URL}

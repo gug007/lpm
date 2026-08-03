@@ -1,32 +1,138 @@
 "use client";
 
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { trackDownload } from "@/lib/analytics";
-import { releaseAsset } from "@/lib/links";
-import { usePlatform, type Platform } from "@/lib/use-platform";
+import { releaseAsset, RELEASES_URL } from "@/lib/links";
+import {
+  isMacDownloadPlatform,
+  usePlatform,
+  type MacDownloadPlatform,
+} from "@/lib/use-platform";
 import { SignatureBadge } from "./signature-badge";
 
-type Entry = { href: string; label: string };
+type Entry = {
+  href: string;
+  label: string;
+  choiceLabel: string;
+  choiceDescription: string;
+  ariaLabel: string;
+};
 
-const ENTRIES: Record<Exclude<Platform, null>, Entry> = {
+const ENTRIES: Record<MacDownloadPlatform, Entry> = {
   "mac-arm": {
     href: releaseAsset("lpm-desktop-macos-arm64.dmg"),
     label: "Download for macOS (Apple Silicon)",
+    choiceLabel: "Apple Silicon",
+    choiceDescription: "For M-series Macs",
+    ariaLabel: "Download lpm for Apple Silicon M-series Macs",
   },
   "mac-intel": {
     href: releaseAsset("lpm-desktop-macos-amd64.dmg"),
     label: "Download for macOS (Intel)",
+    choiceLabel: "Intel",
+    choiceDescription: "For x86-64 Macs",
+    ariaLabel: "Download lpm for Intel x86-64 Macs",
   },
 };
 
-const FALLBACK: Entry = { href: "/#download", label: "Download for macOS" };
+const FALLBACK = {
+  href: "/#download",
+  label: "Choose your Mac download",
+};
 
 export function HeroDownload() {
   const platform = usePlatform();
-  const { href, label } = platform ? ENTRIES[platform] : FALLBACK;
+
+  const downloadDetails = (
+    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+      <SignatureBadge />
+      <span className="text-gray-300 dark:text-gray-700" aria-hidden>
+        ·
+      </span>
+      <Link
+        href="/#download-safety"
+        prefetch={false}
+        className="text-[11px] text-gray-500 underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white transition-colors"
+      >
+        Safety, checksums &amp; removal
+      </Link>
+    </div>
+  );
+  const releasesLink = (
+    <a
+      href={RELEASES_URL}
+      className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+    >
+      View all downloads
+      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+    </a>
+  );
+
+  if (platform === "ipad" || platform === "unsupported") {
+    return (
+      <div className="mx-auto max-w-sm rounded-2xl border border-gray-200 bg-white/80 px-5 py-3 text-center shadow-sm dark:border-gray-800 dark:bg-white/[0.035]">
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+          lpm desktop requires a Mac
+        </p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Open lpm.cx on your Mac to choose the correct installer.
+        </p>
+        <div className="mt-3">{releasesLink}</div>
+      </div>
+    );
+  }
+
+  if (platform === "mac-unknown") {
+    return (
+      <div className="flex w-full flex-col items-center gap-3">
+        <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+          Choose the installer that matches your Mac:
+        </p>
+        <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
+          {(Object.entries(ENTRIES) as [MacDownloadPlatform, Entry][]).map(
+            ([downloadPlatform, entry]) => (
+              <a
+                key={downloadPlatform}
+                href={entry.href}
+                aria-label={entry.ariaLabel}
+                onClick={() =>
+                  trackDownload({
+                    source: "hero",
+                    platform: downloadPlatform,
+                    href: entry.href,
+                  })
+                }
+                className="group flex items-center justify-between gap-4 rounded-2xl bg-gray-900 px-5 py-4 text-left text-white shadow-sm transition-[background-color,box-shadow,transform] duration-200 hover:-translate-y-px hover:bg-gray-800 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
+              >
+                <span>
+                  <span className="block text-sm font-semibold">
+                    {entry.choiceLabel}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-white/70 dark:text-gray-500">
+                    {entry.choiceDescription}
+                  </span>
+                </span>
+                <ArrowDown
+                  className="h-4 w-4 shrink-0 opacity-70 transition-transform group-hover:translate-y-0.5"
+                  aria-hidden
+                />
+              </a>
+            ),
+          )}
+        </div>
+        {releasesLink}
+        {downloadDetails}
+      </div>
+    );
+  }
+
+  const { href, label } = isMacDownloadPlatform(platform)
+    ? ENTRIES[platform]
+    : FALLBACK;
 
   const handleClick = () => {
-    if (!platform) return;
+    if (!isMacDownloadPlatform(platform)) return;
     trackDownload({ source: "hero", platform, href });
   };
 
@@ -51,18 +157,7 @@ export function HeroDownload() {
           aria-hidden
         />
       </a>
-      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-        <SignatureBadge />
-        <span className="text-gray-300 dark:text-gray-700" aria-hidden>
-          ·
-        </span>
-        <a
-          href="#download-safety"
-          className="text-[11px] text-gray-500 underline decoration-gray-300 underline-offset-4 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white transition-colors"
-        >
-          Safety, checksums &amp; removal
-        </a>
-      </div>
+      {downloadDetails}
     </div>
   );
 }

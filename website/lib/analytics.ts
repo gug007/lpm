@@ -1,10 +1,12 @@
+import type { MacDownloadPlatform } from "@/lib/use-platform";
+
 declare global {
   interface Window {
     gtag?: (command: string, event: string, params?: Record<string, unknown>) => void;
   }
 }
 
-export type DownloadPlatform = "mac-arm" | "mac-intel";
+export type DownloadPlatform = MacDownloadPlatform;
 export type DownloadSource = "hero" | "downloads";
 
 type TrackDownloadParams = {

@@ -2,14 +2,18 @@
 
 import { useSyncExternalStore } from "react";
 
-export type Platform = "mac-arm" | "mac-intel" | null;
+export type MacDownloadPlatform = "mac-arm" | "mac-intel";
+export type DetectedPlatform =
+  | MacDownloadPlatform
+  | "mac-unknown"
+  | "ipad"
+  | "unsupported";
+export type Platform = DetectedPlatform | null;
 
 let cached: Platform | undefined;
 
-function detect(): Platform {
-  const ua = navigator.userAgent.toLowerCase();
-  const navPlat = navigator.platform?.toLowerCase() || "";
-  if (!ua.includes("mac") && !navPlat.includes("mac")) return null;
+function getMacArchitecture(): MacDownloadPlatform | "mac-unknown" {
+  const intelRendererMarkers = ["intel", "amd", "ati", "radeon", "nvidia"];
 
   try {
     const canvas = document.createElement("canvas");
@@ -20,10 +24,38 @@ function detect(): Platform {
       const renderer = dbg
         ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)).toLowerCase()
         : "";
-      if (!renderer.includes("apple")) return "mac-intel";
+      if (intelRendererMarkers.some((marker) => renderer.includes(marker))) {
+        return "mac-intel";
+      }
+      if (
+        renderer.includes("apple silicon") ||
+        /\bapple m\d+\b/.test(renderer)
+      ) {
+        return "mac-arm";
+      }
     }
   } catch {}
-  return "mac-arm";
+
+  return "mac-unknown";
+}
+
+function detect(): DetectedPlatform {
+  const userAgent = navigator.userAgent.toLowerCase();
+  const navigatorPlatform = navigator.platform?.toLowerCase() || "";
+  const isIPad =
+    userAgent.includes("ipad") ||
+    (navigatorPlatform.startsWith("mac") && navigator.maxTouchPoints > 1);
+
+  if (isIPad) return "ipad";
+  if (userAgent.includes("iphone") || userAgent.includes("ipod")) {
+    return "unsupported";
+  }
+
+  const isMac =
+    userAgent.includes("macintosh") || navigatorPlatform.startsWith("mac");
+  if (!isMac) return "unsupported";
+
+  return getMacArchitecture();
 }
 
 function subscribe() {
@@ -41,4 +73,10 @@ function getServerSnapshot(): Platform {
 
 export function usePlatform(): Platform {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
+export function isMacDownloadPlatform(
+  platform: Platform,
+): platform is MacDownloadPlatform {
+  return platform === "mac-arm" || platform === "mac-intel";
 }
