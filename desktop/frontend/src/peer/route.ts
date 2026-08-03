@@ -31,8 +31,16 @@ let peers: PeerMeta[] = [];
 // list_projects call fails so a transient hiccup doesn't blank the sidebar.
 const peerListCache = new Map<string, ProjectInfo[]>();
 let registryStarted = false;
+// Whether a peer_state call has ever landed. Until one has, an empty `peers`
+// means "not known yet", NOT "nothing is paired" — see loadRegistry.
+let registryLoaded = false;
+let registryLoading: Promise<void> | null = null;
 // Notified AFTER `peers` is refreshed so tap reconciliation sees fresh state.
 const peerChangeListeners = new Set<() => void>();
+
+// How long list_projects waits for a registry it hasn't loaded yet. Bounded so a
+// stalled peer_state can only delay the remote rows, never the local ones.
+const REGISTRY_WAIT_MS = 2_000;
 
 async function refreshPeers(): Promise<void> {
   try {
@@ -46,8 +54,9 @@ async function refreshPeers(): Promise<void> {
     for (const slug of [...peerListCache.keys()]) {
       if (!present.has(slug)) peerListCache.delete(slug);
     }
+    registryLoaded = true;
   } catch {
-    /* peer server not ready yet; keep last known */
+    /* peer server not ready yet; keep last known and let the next caller retry */
   }
 }
 
@@ -56,10 +65,25 @@ async function refreshPeers(): Promise<void> {
 // after the fresh state is applied — otherwise a just-connected peer (whose
 // state-changed event fires while `peers` still shows it disconnected) is never
 // tapped and its forwarded events never arrive.
-function reloadAndNotify(): void {
-  void refreshPeers().then(() => {
+function reloadAndNotify(): Promise<void> {
+  return refreshPeers().then(() => {
     for (const cb of peerChangeListeners) cb();
   });
+}
+
+// The first successful load, shared by every caller that needs connectivity
+// before it can act on it. Retried on the next call rather than latched: a
+// `peer-state-changed` is emitted only when a connection actually changes, so a
+// peer that is already up — which is every peer after a webview reload — sends
+// nothing that would prompt a second attempt.
+function loadRegistry(): Promise<void> {
+  if (registryLoaded) return Promise.resolve();
+  if (!registryLoading) {
+    registryLoading = reloadAndNotify().finally(() => {
+      registryLoading = null;
+    });
+  }
+  return registryLoading;
 }
 
 // Idempotent, browser-only. Safe to call from any entry point; a no-op under
@@ -67,8 +91,8 @@ function reloadAndNotify(): void {
 function ensureRegistry(): void {
   if (registryStarted || typeof window === "undefined") return;
   registryStarted = true;
-  reloadAndNotify();
-  listen("peer-state-changed", reloadAndNotify).catch(() => {});
+  void loadRegistry();
+  listen("peer-state-changed", () => void reloadAndNotify()).catch(() => {});
 }
 
 function onPeersChanged(cb: () => void): () => void {
@@ -82,8 +106,22 @@ function connectedSlugs(): string[] {
   return peers.filter((p) => p.connected).map((p) => p.slug);
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// list_projects runs off the main thread (it shells out to tmux) while peer_state
+// runs on it, so at page load — a cold start and, far more visibly, every webview
+// reload — the local listing routinely lands before the registry knows a peer
+// exists. Fanning out at that moment returns a local-only list: every remote
+// project drops out of the sidebar, and since the peer never changes state there
+// is no event to put them back. So wait for the registry, with the local listing
+// already in flight.
 async function routedListProjects(): Promise<ProjectInfo[]> {
-  const local = ((await invoke("list_projects")) as ProjectInfo[] | null) ?? [];
+  ensureRegistry();
+  const listing = invoke("list_projects") as Promise<ProjectInfo[] | null>;
+  if (!registryLoaded) await Promise.race([loadRegistry(), delay(REGISTRY_WAIT_MS)]);
+  const local = (await listing) ?? [];
   const slugs = connectedSlugs();
   const peerLists = await Promise.all(
     slugs.map(async (slug) => {

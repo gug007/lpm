@@ -103,28 +103,55 @@ export function peerAliasMap(peers: PeerClient[]): Record<string, string> {
   return Object.fromEntries(peers.map((p) => [p.slug, p.alias || p.host || "another Mac"]));
 }
 
+const RETRY_MIN_MS = 500;
+const RETRY_MAX_MS = 8_000;
+
 // Live peer configuration + connection status for both roles. Refreshes on
 // `peer-state-changed`, emitted whenever a connection or the config changes.
 export function usePeerState(): { state: PeerStateShape; refresh: () => Promise<void> } {
   const [state, setState] = useState<PeerStateShape>(DEFAULT_PEER_STATE);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     try {
       const s = (await PeerState()) as PeerStateShape;
       setState({
         host: { ...DEFAULT_PEER_STATE.host, ...(s?.host ?? {}) },
         peers: s?.peers ?? [],
       });
+      return true;
     } catch {
       /* peer server may be starting; keep last known */
+      return false;
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const refresh = useCallback(async () => {
+    await load();
+  }, [load]);
 
-  useEffect(() => EventsOn("peer-state-changed", () => void refresh()), [refresh]);
+  // Retry until the first load lands. A single shot would be enough only if
+  // something else eventually corrected it, and nothing does: `peer-state-changed`
+  // fires when a connection CHANGES, and after a webview reload every peer is
+  // already up. One failed call would otherwise leave this window believing no Mac
+  // is paired for as long as the page lives — no remote section in the sidebar at
+  // all, since a peer with no section and no connection renders nothing.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const attempt = (wait: number) => {
+      void load().then((ok) => {
+        if (ok || cancelled) return;
+        timer = setTimeout(() => attempt(Math.min(wait * 2, RETRY_MAX_MS)), wait);
+      });
+    };
+    attempt(RETRY_MIN_MS);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [load]);
+
+  useEffect(() => EventsOn("peer-state-changed", () => void load()), [load]);
 
   return { state, refresh };
 }

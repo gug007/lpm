@@ -5,7 +5,7 @@ import { useAppStore } from "../store/app";
 const POLL_INTERVAL_MS = 10_000;
 // Agent hooks fire status-changed on every prompt, tool call and completion,
 // so bursts across parallel CLIs would otherwise run a full ListProjects each.
-const STATUS_DEBOUNCE_MS = 250;
+const DEBOUNCE_MS = 250;
 
 interface ProjectsSyncOptions {
   // Detached windows skip templates (only the main settings UI shows
@@ -33,16 +33,22 @@ export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
       : null;
 
     let statusTimer: ReturnType<typeof setTimeout> | null = null;
-    const onStatusChanged = () => {
+    const refreshSoon = () => {
       if (statusTimer) clearTimeout(statusTimer);
       statusTimer = setTimeout(() => {
         statusTimer = null;
         refreshProjects();
-      }, STATUS_DEBOUNCE_MS);
+      }, DEBOUNCE_MS);
     };
 
     const cancelChanged = EventsOn("projects-changed", refreshProjects);
-    const cancelStatus = EventsOn("status-changed", onStatusChanged);
+    // A paired Mac connecting or dropping adds or removes its whole project
+    // section; without this the sidebar carries the stale set until the next poll
+    // (forever, in a detached window, which has none). Debounced with the status
+    // events: a peer that can't reach its host re-announces the failure on every
+    // reconnect attempt.
+    const cancelPeers = EventsOn("peer-state-changed", refreshSoon);
+    const cancelStatus = EventsOn("status-changed", refreshSoon);
     const cancelDetached = EventsOn("detached-changed", refreshDetached);
     const cancelSidebar = EventsOn("sidebar-changed", rehydrateSidebarLayout);
     const cancelTemplates = isMain
@@ -69,6 +75,7 @@ export function useProjectsSync(options: ProjectsSyncOptions = {}): void {
       if (statusTimer) clearTimeout(statusTimer);
       document.removeEventListener("visibilitychange", onVisibility);
       if (typeof cancelChanged === "function") cancelChanged();
+      if (typeof cancelPeers === "function") cancelPeers();
       if (typeof cancelStatus === "function") cancelStatus();
       if (typeof cancelDetached === "function") cancelDetached();
       if (typeof cancelSidebar === "function") cancelSidebar();
