@@ -352,7 +352,6 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
     // still carries the resolved tab attribution. Keys must not collide in the
     // StatusStore (keyed by project+key), or only one would show as running.
     let set_running = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Running --icon=bolt --color=#4C8DFF --pane=$LPM_PANE_ID");
-    let set_done = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
     let set_error = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Error --icon=warning --color=#ef4444 --pane=$LPM_PANE_ID");
     let set_waiting = send_cmd_with_sid("set_status '$LPM_PROJECT_NAME' claude_code_${sid:-$LPM_PANE_ID} Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID");
     let clear =
@@ -367,7 +366,7 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
         "Notification",
         claude_hook(&set_waiting, "permission_prompt"),
     );
-    append_hook(hooks, "Stop", claude_hook(&set_done, ""));
+    append_hook(hooks, "Stop", claude_hook(&claude_stop_cmd(), ""));
     append_hook(hooks, "StopFailure", claude_hook(&set_error, ""));
     append_hook(hooks, "SessionEnd", claude_hook(&clear, ""));
 
@@ -700,6 +699,39 @@ fn send_cmd_with_sid(cmd: &str) -> String {
     let deliver = crate::sockdeliver::delivery_group();
     format!(
         "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// Claude Stop hook: `Stop` fires at every TURN boundary, not at the end of the
+/// work — a turn that hands off to a workflow, a backgrounded shell command or a
+/// background agent ends right there, and the harness re-prompts the session
+/// itself once that work reports back. Reporting Done on every Stop therefore
+/// dropped the running badge (and rang the done chime, and pushed "agent
+/// finished" to paired phones) mid-task, until some background subagent's next
+/// PreToolUse — which carries the PARENT session id, so it lands on this very
+/// key — happened to re-assert Running. Observed as a 54s dark gap that healed
+/// on its own.
+///
+/// The payload's `background_tasks` is exactly the discriminator: the harness
+/// builds it from the live task registry and documents it as letting hooks tell
+/// "session is done" from "session is paused waiting for background work to wake
+/// it", empty when nothing is in flight. Non-empty -> re-assert Running and let
+/// the real Done land on the turn that ends with nothing pending.
+///
+/// Unlike `send_cmd_with_sid` this needs TWO reads of the payload, so stdin is
+/// slurped once into `$p` instead of streamed through `sed`. Both extractions
+/// lean on a greedy `.*`, which anchors to the LAST occurrence: prose fields
+/// (`last_assistant_message`) serialize before `background_tasks` and so cannot
+/// hijack the branch by quoting it. A payload with no `background_tasks` at all
+/// (Claude older than the field) leaves `$bt` empty and reports Done — the
+/// pre-existing behavior, so the fix degrades to today rather than sticking on
+/// Running.
+fn claude_stop_cmd() -> String {
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    let key = "claude_code_${sid:-$LPM_PANE_ID}";
+    format!(
+        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"Done --icon=checkmark --color=#4ade80\"; [ \"$bt\" = \"{{\" ] && st=\"Running --icon=bolt --color=#4C8DFF\"; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2171,12 +2203,15 @@ mod tests {
                     cmd.contains("claude_code_${sid:-$LPM_PANE_ID}"),
                     "{ev} not per-session: {cmd}"
                 );
-                // The session id is captured synchronously from stdin first.
+                // The session id is captured synchronously from stdin first —
+                // either streamed straight through sed, or (Stop, which needs a
+                // second look at the payload) slurped into a variable.
                 assert!(
-                    cmd.contains("session_id") && cmd.contains("sid=$(sed -n"),
+                    cmd.contains("session_id")
+                        && (cmd.contains("sid=$(sed -n") || cmd.contains("p=$(cat)")),
                     "{ev} must capture session_id from stdin: {cmd}"
                 );
-                let sid = cmd.find("sid=$(sed -n").unwrap();
+                let sid = cmd.find("sid=$(").unwrap();
                 let stage = cmd.find("m=\"").unwrap();
                 assert!(sid < stage, "{ev} must drain stdin before staging: {cmd}");
                 // Tab attribution stays on the resolved pane id (clear_status, on
@@ -2717,6 +2752,54 @@ mod tests {
             child.wait().unwrap();
             assert!(wrote.is_ok(), "hook closed stdin early: {wrote:?}\n{cmd}");
         }
+    }
+
+    /// A Stop whose turn handed off to background work must keep the badge on
+    /// Running — that turn end is a pause, not a finish, and the harness will
+    /// re-prompt the session itself. Reporting Done there is the bug where the
+    /// running indicator vanished mid-workflow.
+    #[test]
+    fn claude_stop_hook_reports_running_while_background_work_is_in_flight() {
+        let cmd = claude_stop_cmd();
+        let base = r#"{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/p","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"MSG","background_tasks":TASKS,"session_crons":[]}"#;
+
+        let pending = base.replace("MSG", "Waiting on the audit stage.").replace(
+            "TASKS",
+            r#"[{"id":"bw1","type":"workflow","status":"running","description":"vtt-uiux-audit","name":"vtt-uiux-audit"}]"#,
+        );
+        let msg = run_codex_hook(&cmd, &pending).unwrap();
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a turn that ends with work still in flight is not Done: {msg}"
+        );
+
+        let settled = base.replace("MSG", "All set.").replace("TASKS", "[]");
+        let msg = run_codex_hook(&cmd, &settled).unwrap();
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "an empty task list is a real finish: {msg}"
+        );
+
+        // Claude older than `background_tasks` must keep reporting Done rather
+        // than sticking on Running.
+        let legacy = r#"{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/p","hook_event_name":"Stop","stop_hook_active":false}"#;
+        let msg = run_codex_hook(&cmd, legacy).unwrap();
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "absent background_tasks falls back to Done: {msg}"
+        );
+
+        // The assistant's own prose is part of the payload; quoting the field
+        // must not fake in-flight work (the real field serializes last, and the
+        // greedy match anchors there).
+        let decoy = base
+            .replace("MSG", r#"I set \"background_tasks\":[{ in the config"#)
+            .replace("TASKS", "[]");
+        let msg = run_codex_hook(&cmd, &decoy).unwrap();
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "quoted background_tasks in prose must not flip the status: {msg}"
+        );
     }
 
     #[test]
