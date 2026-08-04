@@ -18,6 +18,14 @@ PREFIX=/opt/lpm
 UNIT_DIR=/etc/systemd/system
 ENV_FILE=/etc/lpm/host.env
 SKIP_DEPS=0
+# The account lpm runs as, and therefore where its ~/.lpm lives. The unit's HOME
+# is %h, which systemd resolves to /root for the *system* manager — literally,
+# not by looking the account up — so hard-code the same thing rather than asking
+# passwd and risking an answer the unit doesn't share. Not $HOME: under
+# `sudo ./install.sh` that is still the invoking user's home. The container
+# supervisor is told the same value, so both shapes of host keep one data
+# directory and uninstall --purge has one place to look.
+SERVICE_HOME=/root
 
 usage() {
     cat <<EOF
@@ -40,22 +48,40 @@ done
 SRC=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 [ -f "$SRC/lpm-desktop" ] || { echo "lpm-desktop not found next to install.sh" >&2; exit 1; }
 
-# Both checks below run BEFORE apt. Either one failing later means a machine that
-# spent minutes fetching a 300MB desktop runtime for an app that was never going
-# to start on it, and an error that describes a symptom rather than the box.
-
-# The unit files are the whole supervision model here, so a machine with no
-# service manager to install them into cannot be set up this way. Check the
-# manager, not just the binary: a container can carry the systemd package with
-# nothing running, where every unit command fails with "System has not been
-# booted with systemd". /run/systemd/system is the test everything else uses.
-if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
-    echo "This machine isn't running systemd — a container, most likely (PID 1 is $(cat /proc/1/comm 2>/dev/null || echo unknown))." >&2
-    echo "The host install supervises lpm with systemd units, so there is nothing here to install them into." >&2
-    echo "Use a VM or a machine booted with systemd." >&2
-    exit 1
+# What supervises lpm here. Units are the shape on a normal server; a container
+# has no service manager to install them into, so there the same three processes
+# run under hostctl.sh instead. Check the manager, not just the binary: a
+# container can carry the systemd package with nothing running, where every unit
+# command fails with "System has not been booted with systemd".
+# /run/systemd/system is the test everything else uses.
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    SUPERVISOR=systemd
+else
+    SUPERVISOR=container
+    echo "==> No service manager here (PID 1 is $(cat /proc/1/comm 2>/dev/null || echo unknown)) — installing lpm as a supervised process"
+    # `ps` is how the supervisor recognises its own processes, and slim images
+    # ship without it. Nothing else in this install needs it, so it is asked for
+    # only where it might be missing.
+    DEPS="$DEPS procps"
+    # WebKit renders through shared memory, and Docker's default 64MB /dev/shm is
+    # where that shows up as a webview that dies on the first real page rather
+    # than as anything naming the limit. Not fatal — plenty of images raise it,
+    # and the app may well fit — but it is the first thing to check afterwards.
+    SHM_KB=$(df -Pk /dev/shm 2>/dev/null | awk 'NR==2{print $2}')
+    case "$SHM_KB" in
+        [0-9]*)
+            if [ "$SHM_KB" -lt 262144 ]; then
+                echo "    note: /dev/shm is $((SHM_KB / 1024))MB here. If the app starts and its window dies," >&2
+                echo "    re-create this container with --shm-size=1g." >&2
+            fi
+            ;;
+    esac
 fi
 
+# Runs BEFORE apt, deliberately: failing after it means a machine that spent
+# minutes fetching a 300MB desktop runtime for an app that was never going to
+# start on it, and an error that describes a symptom rather than the box.
+#
 # The app is an ordinary dynamically-linked binary, so the Ubuntu it was built on
 # is the floor for the Ubuntu it runs on. Below that it installs perfectly and
 # then dies on missing glibc symbols — which reads as a broken app rather than as
@@ -112,13 +138,16 @@ echo "==> Installing binaries into $PREFIX"
 install -d "$PREFIX"
 install -m755 "$SRC/lpm-desktop" "$PREFIX/lpm-desktop"
 install -m755 "$SRC/lpm" "$PREFIX/lpm"
-install -m755 "$SRC/host-cleanup.sh" "$PREFIX/host-cleanup.sh"
 ln -sf "$PREFIX/lpm" /usr/local/bin/lpm
 
-# systemd hands a service almost no environment: no login shell has run, so $SHELL
-# is simply absent. Terminals are spawned from it, so record the account's real
-# login shell now rather than letting the app guess at spawn time.
-LOGIN_SHELL=$(getent passwd "$(id -un)" | cut -d: -f7)
+# Neither a service manager nor a container entrypoint runs a login shell, so
+# $SHELL is simply absent in both. Terminals are spawned from it, so record the
+# account's real login shell now rather than letting the app guess at spawn time.
+#
+# Tolerant of its own failure: a stripped image can be missing getent, and an
+# installer that aborts over the *default* it was about to compute would refuse a
+# machine that works. Empty falls through to the case below.
+LOGIN_SHELL=$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7 || true)
 # A hardened image can give root `nologin`, which is a real passwd entry that
 # exits immediately — pinning it here would make every terminal on this host a
 # silent no-op rather than an error anyone could read.
@@ -129,24 +158,41 @@ echo "==> Recording SHELL=$LOGIN_SHELL in $ENV_FILE"
 install -d "$(dirname "$ENV_FILE")"
 printf 'SHELL=%s\n' "$LOGIN_SHELL" > "$ENV_FILE"
 
-echo "==> Installing systemd units"
-install -m644 "$SRC/lpm-xvfb.service" "$SRC/lpm-wm.service" "$SRC/lpm.service" "$UNIT_DIR/"
-systemctl daemon-reload
-# lpm.service pulls in the display and window manager through Requires=, so this
-# one enable brings up the whole stack, at boot too.
-systemctl enable lpm.service >/dev/null 2>&1
+if [ "$SUPERVISOR" = "systemd" ]; then
+    echo "==> Installing systemd units"
+    # The sweep the units call on the way down. Only meaningful here: it works
+    # off this cgroup, and the supervisor a container gets instead does the same
+    # job from its own process group.
+    install -m755 "$SRC/host-cleanup.sh" "$PREFIX/host-cleanup.sh"
+    install -m644 "$SRC/lpm-xvfb.service" "$SRC/lpm-wm.service" "$SRC/lpm.service" "$UNIT_DIR/"
+    systemctl daemon-reload
+    # lpm.service pulls in the display and window manager through Requires=, so
+    # this one enable brings up the whole stack, at boot too.
+    systemctl enable lpm.service >/dev/null 2>&1
 
-# `enable --now` would NOT be enough: it starts a stopped service but leaves a
-# running one alone, so re-running this to upgrade would put a new binary on disk
-# while the old process kept serving. Restart unconditionally — we just replaced
-# the executable, and the point of running the installer is to run what it
-# installed.
-if systemctl is-active --quiet lpm.service; then
-    echo "==> Restarting lpm (this ends any agents running on this machine)"
+    # `enable --now` would NOT be enough: it starts a stopped service but leaves
+    # a running one alone, so re-running this to upgrade would put a new binary
+    # on disk while the old process kept serving. Restart unconditionally — we
+    # just replaced the executable, and the point of running the installer is to
+    # run what it installed.
+    if systemctl is-active --quiet lpm.service; then
+        echo "==> Restarting lpm (this ends any agents running on this machine)"
+    else
+        echo "==> Starting lpm"
+    fi
+    systemctl restart lpm.service
 else
+    echo "==> Installing the supervisor"
+    install -m755 "$SRC/hostctl.sh" "$PREFIX/hostctl.sh"
+    ln -sf "$PREFIX/hostctl.sh" /usr/local/bin/lpm-host
+    # Restart, not start, and for the same reason the unit is restarted above:
+    # the executable under the running supervisor is the one we just replaced.
     echo "==> Starting lpm"
+    LPM_HOME="$SERVICE_HOME" "$PREFIX/hostctl.sh" restart || {
+        echo "lpm could not be started on this machine." >&2
+        exit 1
+    }
 fi
-systemctl restart lpm.service
 
 echo "==> Waiting for lpm to come up"
 # Wait for the APP, not for the peer port. Hosting is off until someone runs
@@ -155,12 +201,18 @@ echo "==> Waiting for lpm to come up"
 # the Mac's "add a Linux host" flow turns that exit code into an error before it
 # ever gets as far as asking for an invite. Answering on the control socket is
 # the thing that actually means "the app started and its page is running".
-#
-# The unit's HOME is %h, which systemd resolves to /root for the *system* manager
-# — literally, not by looking the account up — so hard-code the same thing rather
-# than asking passwd and risking an answer the unit doesn't share. Not $HOME:
-# under `sudo ./install.sh` that is still the invoking user's home.
-SERVICE_HOME=/root
+
+# `sudo -H`, not a bare `lpm pair`: the app's socket lives in the service
+# account's home, in a directory only it can traverse, so from a `ubuntu@`-style
+# login the unescalated command reports that the app isn't running on a host that
+# is running perfectly. SUDO_USER is exactly the evidence that this is such a
+# login — and a container, where the login IS root and sudo often isn't even
+# installed, must not be told to run a command that doesn't exist there.
+if [ -n "${SUDO_USER:-}" ]; then
+    PAIR_CMD="sudo -H lpm pair"
+else
+    PAIR_CMD="lpm pair"
+fi
 
 # A small box can take ~30s to get through Xvfb, the window manager and the
 # webview; a slow start is not a failure.
@@ -169,15 +221,22 @@ while [ "$i" -lt 90 ]; do
     if HOME="$SERVICE_HOME" "$PREFIX/lpm" connections >/dev/null 2>&1; then
         echo
         echo "lpm is running on this machine."
-        # `sudo -H`, not a bare `lpm pair`: the app's socket lives in root's home
-        # and this installer was very likely run from a `ubuntu@`-style login, so
-        # the unescalated command reports that the app isn't running.
         if HOME="$SERVICE_HOME" "$PREFIX/lpm" connections --json 2>/dev/null | grep -q '"running":true'; then
-            echo "It is already hosting; run 'sudo -H lpm pair' for an invite to add another Mac."
+            echo "It is already hosting; run '$PAIR_CMD' for an invite to add another Mac."
         else
             echo
-            echo "Next: run 'sudo -H lpm pair' here, then paste the invite into"
+            echo "Next: run '$PAIR_CMD' here, then paste the invite into"
             echo "Settings → Connections on the Mac that will drive it."
+        fi
+        if [ "$SUPERVISOR" != "systemd" ]; then
+            echo
+            # Nothing on this machine will do this for us: there is no service
+            # manager, and a container has no boot for one to hook into. Say so
+            # here rather than letting it be discovered as a host that silently
+            # stopped existing after a restart.
+            echo "This machine has no service manager, so lpm won't come back by itself"
+            echo "if the container restarts. Start it again with:  lpm-host start"
+            echo "To make that automatic, run it from the image's entrypoint."
         fi
         exit 0
     fi
@@ -186,6 +245,11 @@ while [ "$i" -lt 90 ]; do
 done
 
 echo "lpm was installed but never started. Check:" >&2
-echo "  systemctl status lpm-xvfb lpm-wm lpm" >&2
-echo "  journalctl -u lpm -n 50" >&2
+if [ "$SUPERVISOR" = "systemd" ]; then
+    echo "  systemctl status lpm-xvfb lpm-wm lpm" >&2
+    echo "  journalctl -u lpm -n 50" >&2
+else
+    echo "  lpm-host status" >&2
+    echo "  tail -n 50 $SERVICE_HOME/.lpm/logs/host.log" >&2
+fi
 exit 1

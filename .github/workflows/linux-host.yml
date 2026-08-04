@@ -14,11 +14,16 @@ on:
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
+      - "desktop/linux/**"
       - ".github/workflows/linux-host.yml"
   pull_request:
     paths:
       - "desktop/frontend/src-tauri/**"
       - "cli/**"
+      # The install scripts and the supervisor that stands in for systemd on a
+      # container host. Shell is the one part of a host nothing else here
+      # type-checks, and it only reaches a user through this workflow.
+      - "desktop/linux/**"
       # Iterating on CI means commits that touch ONLY this file. Without it
       # listed here, the re-runs stop firing after the first push.
       - ".github/workflows/linux-host.yml"
@@ -29,6 +34,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The host's install and supervision are shell, and they are developed on a Mac
+  # whose /bin/sh is bash pretending — so a bashism sails through locally and
+  # fails on the Debian host it was written for. Here `sh` is dash, which is the
+  # real thing. Seconds to run, so it is its own job rather than a step behind
+  # the build everything else in this file waits on.
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check syntax with a real POSIX shell
+        run: |
+          for f in desktop/linux/*.sh desktop/linux/tests/*.sh; do
+            echo "sh -n $f"
+            sh -n "$f"
+          done
+
+      # Runs against fake binaries, so it needs no display and no lpm: what it
+      # covers is the supervisor's own logic, which is the whole supervision
+      # model for a container host.
+      - name: Test the container supervisor
+        run: sh desktop/linux/tests/hostctl-test.sh
+
   check:
     runs-on: ubuntu-latest
     steps:

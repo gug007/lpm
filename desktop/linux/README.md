@@ -12,13 +12,17 @@ display. That is why there is a window manager in the stack.
 - **Ubuntu 22.04 or newer** (glibc 2.35+). The published binary is dynamically
   linked, so the Ubuntu it was built on is the floor; below it the app installs
   cleanly and then dies on missing symbols.
-- **Booted with systemd.** The app, the virtual display and the window manager are
-  three units — a Docker container whose PID 1 is something else has nothing to
-  install them into.
 - **x86-64.** There is no arm64 host build yet.
 
-The installer checks the first two before it touches apt, so a machine that can't
-run this says so in one line rather than after a 300MB download.
+A machine booted with systemd is the shape this is built around: the app, the
+virtual display and the window manager are three units. A container — a rented
+GPU box, a dev sandbox, anything whose PID 1 is a shell — has nothing to install
+those into, so the installer sets up [the same three processes under a
+supervisor](#hosts-with-no-service-manager) instead. Both are the same install
+command; it works out which it is looking at.
+
+The glibc check runs before apt touches anything, so a machine that can't run
+this says so in one line rather than after a 300MB download.
 
 ## Install
 
@@ -32,8 +36,8 @@ sudo ./install.sh
 ```
 
 It installs the runtime dependencies (`apt`), puts the binaries in `/opt/lpm`,
-links the CLI onto `PATH`, enables the three units, and waits for the app to
-answer. Pass `--no-deps` to skip the apt step on a machine where the runtime is
+links the CLI onto `PATH`, enables the three units — or the supervisor, on a
+machine with no service manager — and waits for the app to answer. Pass `--no-deps` to skip the apt step on a machine where the runtime is
 already present — in which case make sure `tmux` and `git` are installed too.
 They are not conveniences: services on a host are tmux panes, and the app refuses
 to render at all without tmux on `PATH`.
@@ -54,6 +58,51 @@ Building by hand is possible but has a trap worth knowing: the build must go
 through the Tauri CLI (`npx tauri build --no-bundle`). A plain
 `cargo build --release` produces a binary that still points at the dev server and
 shows "Could not connect to 127.0.0.1" on a machine with no dev server running.
+
+## Hosts with no service manager
+
+A container is not a small VM: its PID 1 is whatever the image starts, usually a
+shell, and `systemctl` either isn't there or answers "System has not been booted
+with systemd". There is nothing to install a unit into. On such a machine the
+installer puts `hostctl.sh` in `/opt/lpm`, links it onto `PATH` as `lpm-host`,
+and starts the same three processes under it:
+
+```sh
+lpm-host start     # display, window manager, app — detached
+lpm-host status    # whether lpm is running here, and where its log is
+lpm-host stop      # those three, and nothing else
+lpm-host restart
+```
+
+It keeps the same lifetimes the units do. The app is restarted if it dies and
+left alone if it exits cleanly (`Restart=on-failure`), and a stop takes down only
+the display, the window manager and the app — the tmux server carrying this
+machine's services daemonizes into its own session and scheduled job agents
+`setsid` away, so neither is in the supervisor's process group, which is the same
+split `KillMode=process` gives the unit.
+
+**Nothing here survives the container restarting.** There is no boot to hook
+into, so a restarted container comes back with no lpm on it and the Mac sees a
+host that stopped answering. Start it from the image's entrypoint if you want
+that handled:
+
+```sh
+/opt/lpm/hostctl.sh start && exec sleep infinity   # or whatever the image already runs
+```
+
+Two container-specific things the installer can't fix for you:
+
+- **`/dev/shm`.** Docker's default is 64MB and WebKit renders through shared
+  memory. The installer says so if it sees a small one; `--shm-size=1g` when you
+  create the container is the fix.
+- **No session bus and no GPU.** The supervisor exports
+  `WEBKIT_DISABLE_DMABUF_RENDERER`, `WEBKIT_DISABLE_COMPOSITING_MODE`,
+  `LIBGL_ALWAYS_SOFTWARE` and `NO_AT_BRIDGE` for exactly this, since the
+  accessibility bridge otherwise waits on a D-Bus connection nothing will answer.
+  All of them are defaults: anything you set in `/etc/lpm/host.env` wins.
+
+`hostctl.sh` reads that same `host.env`, so a host set up this way takes its
+`SHELL` and anything else you put there from one file, as the unit does.
 
 ## Pairing
 
@@ -125,9 +174,10 @@ sudo ./uninstall.sh            # remove the install, keep ~/.lpm
 sudo ./uninstall.sh --purge    # also delete the service account's ~/.lpm
 ```
 
-It undoes what the installer did — units, binaries, the `PATH` symlink, the
-environment file — and stops the services and agents that were running, which the
-app deliberately does not own (see below). Your projects and repos are left alone.
+It undoes what the installer did — units (or the supervisor), binaries, the
+`PATH` symlinks, the environment file — and stops the services and agents that
+were running, which the app deliberately does not own (see below). Your projects
+and repos are left alone.
 
 `~/.lpm` is kept by default: project configuration, session memory and this
 machine's pairing identity live there, so a reinstall picks up where you left off.
@@ -136,10 +186,11 @@ machine's pairing identity live there, so a reinstall picks up where you left of
 ## What a restart costs
 
 Agent terminals on the host belong to the app process, so **restarting `lpm.service`
-ends every agent running on this machine** and their conversations cannot be
-resumed from where they were. That is why the unit is `Restart=on-failure` rather
-than `always`. A Mac restarting is fine and reattaches to the live sessions — this
-is only about restarting lpm on the host itself.
+— or `lpm-host restart` — ends every agent running on this machine** and their
+conversations cannot be resumed from where they were. That is why the unit is
+`Restart=on-failure` rather than `always`, and why the container supervisor
+follows the same rule. A Mac restarting is fine and reattaches to the live
+sessions — this is only about restarting lpm on the host itself.
 
 ## When it doesn't come up
 
@@ -148,10 +199,14 @@ created 10x10 and never mapped, so the page never executes. The app looks health
 in `systemctl status` and logs nothing useful. Confirm the display instead:
 
 ```sh
-systemctl status lpm-xvfb lpm-wm lpm
+systemctl status lpm-xvfb lpm-wm lpm      # lpm-host status, on a container
 DISPLAY=:99 xwininfo -root -children      # the app's window should not be 10x10
 sudo -H lpm connections                    # the app answers = its page is running
 ```
+
+On a container the app's own output goes to `~/.lpm/logs/host.log` rather than
+the journal — the supervisor writes its decisions there too, so a crash loop is
+visible as the restarts it is.
 
 Ask the app, not the port: nothing listens on 8766 until you pair, so a missing
 listener on a host you haven't paired yet is the normal state and says nothing

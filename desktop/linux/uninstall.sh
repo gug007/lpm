@@ -1,9 +1,10 @@
 #!/bin/sh
 # Remove the lpm host install from this machine.
 #
-# Undoes exactly what install.sh did — the units, the binaries, the PATH symlink
-# and the environment file — and nothing else. Your projects, repos and anything
-# else on the box are untouched.
+# Undoes exactly what install.sh did — the units (or, on a machine with no
+# service manager, the supervisor), the binaries, the PATH symlinks and the
+# environment file — and nothing else. Your projects, repos and anything else on
+# the box are untouched.
 #
 #     sudo ./uninstall.sh            # remove the install, keep ~/.lpm
 #     sudo ./uninstall.sh --purge    # also delete the service account's ~/.lpm
@@ -61,6 +62,31 @@ if command -v systemctl >/dev/null 2>&1; then
     done
 fi
 
+# A container install has no units: the display, the window manager and the app
+# run under a supervisor instead. Its own stop is the precise way to end them, so
+# try that first.
+if [ -x "$PREFIX/hostctl.sh" ]; then
+    echo "==> Stopping lpm"
+    LPM_HOME="$SERVICE_HOME" "$PREFIX/hostctl.sh" stop >/dev/null 2>&1 || true
+elif command -v ps >/dev/null 2>&1; then
+    # The supervisor without the script that knows how to stop it — someone
+    # deleted /opt/lpm by hand and is now running this to finish the job. Left
+    # alone it holds a webview and an X server open forever, with nothing on the
+    # machine left to find it by. The command line has to still be the
+    # supervisor: a pid file outlives its process and pids are reused.
+    for pid_file in /run/lpm/host.pid "$SERVICE_HOME/.lpm/host.pid"; do
+        [ -r "$pid_file" ] || continue
+        pid=$(sed -n 1p "$pid_file" 2>/dev/null)
+        case "$pid" in
+            '' | *[!0-9]*) continue ;;
+        esac
+        case "$(ps -o args= -p "$pid" 2>/dev/null)" in
+            *hostctl*supervise*) kill -TERM "$pid" 2>/dev/null || true ;;
+        esac
+        rm -f "$pid_file"
+    done
+fi
+
 # The app is deliberately not the parent of the work it starts: services are tmux
 # panes and scheduled job agents `setsid` away, both of which survive the unit
 # stopping (KillMode=process, so a restart doesn't end them). That is right for a
@@ -81,11 +107,16 @@ for unit in $UNITS; do
 done
 command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1 || true
 
-# Only our own symlink: /usr/local/bin/lpm may be someone else's binary on a
+# Only our own symlinks: /usr/local/bin/lpm may be someone else's binary on a
 # machine where the install never finished, and removing that is not ours to do.
-if [ -L /usr/local/bin/lpm ] && [ "$(readlink /usr/local/bin/lpm)" = "$PREFIX/lpm" ]; then
-    rm -f /usr/local/bin/lpm
-fi
+# lpm-host is the container install's half of the same pair.
+for link in lpm:lpm lpm-host:hostctl.sh; do
+    name=${link%%:*}
+    target=$PREFIX/${link#*:}
+    if [ -L "/usr/local/bin/$name" ] && [ "$(readlink "/usr/local/bin/$name")" = "$target" ]; then
+        rm -f "/usr/local/bin/$name"
+    fi
+done
 rm -rf "$PREFIX"
 rm -f "$ENV_DIR/host.env"
 rmdir "$ENV_DIR" 2>/dev/null || true

@@ -115,14 +115,43 @@ fn as_root(command: &str) -> String {
     format!("if [ \"$(id -u)\" = 0 ]; then {command}; else sudo -n -H {command}; fi")
 }
 
+/// How the host pulls its own copy down. curl first because a server has it, wget
+/// second because a container often has that instead — the images this runs on
+/// are not all cloud VMs, and "curl: not found" from a machine that can perfectly
+/// well download things reads as lpm being broken.
+fn fetch_command() -> String {
+    format!(
+        "if command -v curl >/dev/null 2>&1; then curl -fsSL {RELEASE_URL} -o lpm-host.tar.gz; \
+         elif command -v wget >/dev/null 2>&1; then wget -qO lpm-host.tar.gz {RELEASE_URL}; \
+         else echo 'that machine has neither curl nor wget, so it cannot download lpm' >&2; exit 1; fi"
+    )
+}
+
 /// Fetch, unpack, install. The installer needs root.
 fn install_script() -> String {
     format!(
-        "set -e; tmp=$(mktemp -d); cd \"$tmp\"; \
-         curl -fsSL {RELEASE_URL} -o lpm-host.tar.gz; \
+        "set -e; tmp=$(mktemp -d); cd \"$tmp\"; {}; \
          tar xzf lpm-host.tar.gz; cd lpm-host; {}",
+        fetch_command(),
         as_root("./install.sh")
     )
+}
+
+/// A container is the host most likely to have no sudo on it: the login there is
+/// normally root already, and images that hand you another account often ship
+/// neither sudo nor a way for it to matter. The shell's own "not found" says
+/// nothing about which machine, which account, or what to do about it.
+fn explain_install_failure(err: String) -> String {
+    let missing_sudo = err.contains("sudo: command not found")
+        || err.contains("sudo: not found")
+        || err.contains("sudo: exec: not found");
+    if missing_sudo {
+        return format!(
+            "{err}\nlpm has to install as root on that machine, and the login there is not root \
+             and has no sudo — connect as root instead, or install sudo there"
+        );
+    }
+    err
 }
 
 /// Tools the host needs before it can do anything, whether or not lpm itself is
@@ -241,6 +270,7 @@ pub fn install(target: &SshTarget) -> Result<(), String> {
         "the installer failed on the host",
         "the installer timed out on the host",
     )
+    .map_err(explain_install_failure)
 }
 
 /// The uninstaller, shipped in the tarball *and* embedded here so it can run on a
@@ -681,6 +711,25 @@ mod tests {
         );
     }
 
+    // A host with no service manager — a container — runs the display, the
+    // window manager and the app under hostctl.sh rather than three units, so
+    // `systemctl stop` there is a no-op that leaves a webview and an X server
+    // running on a machine with nothing left to find them by. The removal we
+    // pipe in is the only thing that can end them.
+    #[test]
+    fn the_embedded_uninstaller_stops_a_container_host() {
+        assert!(
+            UNINSTALL_SCRIPT.contains("hostctl.sh\" stop"),
+            "asks the supervisor to stop itself"
+        );
+        // And the repair case: /opt/lpm deleted by hand, so the script that
+        // knows how to stop the supervisor is gone while the supervisor isn't.
+        assert!(
+            UNINSTALL_SCRIPT.contains("*hostctl*supervise*"),
+            "can still find a supervisor whose script was deleted"
+        );
+    }
+
     // A cloud VM is normally handed over as a sudo-capable non-root account, so
     // an installer that only ran as root would fail for most people.
     #[test]
@@ -696,6 +745,37 @@ mod tests {
     fn the_installer_never_waits_on_a_sudo_prompt() {
         let script = install_script();
         assert!(!script.contains("sudo ./install.sh"), "{script}");
+    }
+
+    // Plenty of container images ship one of these two and not the other, and a
+    // host that can download perfectly well must not be turned away because it
+    // picked the other one.
+    #[test]
+    fn the_download_takes_curl_or_wget() {
+        let script = install_script();
+        assert!(script.contains("command -v curl"), "{script}");
+        assert!(script.contains("command -v wget"), "{script}");
+        assert!(script.contains("wget -qO lpm-host.tar.gz"), "{script}");
+        // Both write the same file, which is what the next step unpacks.
+        assert_eq!(script.matches("lpm-host.tar.gz").count(), 3, "{script}");
+        // And a machine with neither says so itself, rather than failing on a
+        // tar of a file that was never written.
+        assert!(script.contains("neither curl nor wget"), "{script}");
+    }
+
+    // The failure a container hands back when its login isn't root: the shell's
+    // own "not found", which names no machine, no account and no fix.
+    #[test]
+    fn a_host_without_sudo_is_explained() {
+        let explained = explain_install_failure("sudo: command not found".into());
+        assert!(explained.contains("connect as root instead"), "{explained}");
+        // The host's own words are kept — they are the evidence.
+        assert!(explained.contains("sudo: command not found"), "{explained}");
+        // Anything else passes through untouched.
+        assert_eq!(
+            explain_install_failure("tar: unexpected EOF".into()),
+            "tar: unexpected EOF"
+        );
     }
 
     // The host service runs as root and its socket lives in root's ~/.lpm, which
