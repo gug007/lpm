@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { SectionHeader } from "@/components/section-header";
+import { PROJECT_SIDEBAR_PATH } from "@/lib/links";
 
 type Workflow = {
   title: string;
@@ -32,7 +34,14 @@ const WORKFLOWS: Workflow[] = [
     title: "Juggle three client projects in the same afternoon",
     body: (
       <>
-        Each client project has its own sidebar entry. Pause project A, open
+        Each client project gets{" "}
+        <Link
+          href={PROJECT_SIDEBAR_PATH}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+        >
+          its own row in the project sidebar
+        </Link>
+        . Pause project A, open
         project B, make changes, context-switch to project C for a quick
         hotfix. All three keep their running state, their service logs, and
         their terminal history. No re-cloning, no{" "}

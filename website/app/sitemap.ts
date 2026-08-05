@@ -10,6 +10,7 @@ import {
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
   PRIVACY_PATH,
+  PROJECT_SIDEBAR_PATH,
   REVIEW_CHANGES_PATH,
   SITE_URL,
   SSH_TERMINAL_MAC_PATH,
@@ -33,6 +34,7 @@ const LAST_MODIFIED: Record<string, string> = {
   [MAC_TERMINAL_DEVELOPERS_PATH]: "2026-07-19",
   [GIT_TERMINAL_MAC_PATH]: "2026-07-19",
   [SSH_TERMINAL_MAC_PATH]: "2026-07-31",
+  [PROJECT_SIDEBAR_PATH]: "2026-08-05",
   [REVIEW_CHANGES_PATH]: "2026-07-26",
   [CONNECT_AGENTS_PATH]: "2026-07-31",
   [WORKTREE_ALTERNATIVE_PATH]: "2026-07-23",
@@ -102,6 +104,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE_URL}${GIT_TERMINAL_MAC_PATH}`,
       lastModified: lastModified(GIT_TERMINAL_MAC_PATH),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${PROJECT_SIDEBAR_PATH}`,
+      lastModified: lastModified(PROJECT_SIDEBAR_PATH),
       changeFrequency: "monthly",
       priority: 0.8,
     },

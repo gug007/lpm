@@ -7,8 +7,10 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
+import { PROJECT_SIDEBAR_PATH } from "@/lib/links";
 
 type Feature = {
   icon: LucideIcon;
@@ -44,8 +46,14 @@ const FEATURES: Feature[] = [
     title: "Visual project switcher",
     body: (
       <>
-        Every project sits in a sidebar with live state. Click to jump to a
-        running stack, or start a fresh one. No more{" "}
+        Every project sits in a{" "}
+        <Link
+          href={PROJECT_SIDEBAR_PATH}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+        >
+          sidebar with live state
+        </Link>
+        . Click to jump to a running stack, or start a fresh one. No more{" "}
         <code className="text-xs">cd ~/code/long/path</code>, no more
         &ldquo;which Terminal.app window was that?&rdquo;.
       </>

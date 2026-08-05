@@ -292,6 +292,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-bounce-soft,
+  .animate-caret-blink,
   .animate-cta-breath,
   .animate-icon-glow,
   .start-ring-pulse,

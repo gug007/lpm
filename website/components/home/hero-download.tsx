@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { trackDownload } from "@/lib/analytics";
+import { trackDownload, type DownloadSource } from "@/lib/analytics";
 import { releaseAsset, RELEASES_URL } from "@/lib/links";
 import {
   isMacDownloadPlatform,
@@ -41,7 +41,7 @@ const FALLBACK = {
   label: "Choose your Mac download",
 };
 
-export function HeroDownload() {
+export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
   const platform = usePlatform();
 
   const downloadDetails = (
@@ -98,7 +98,7 @@ export function HeroDownload() {
                 aria-label={entry.ariaLabel}
                 onClick={() =>
                   trackDownload({
-                    source: "hero",
+                    source,
                     platform: downloadPlatform,
                     href: entry.href,
                   })
@@ -133,7 +133,7 @@ export function HeroDownload() {
 
   const handleClick = () => {
     if (!isMacDownloadPlatform(platform)) return;
-    trackDownload({ source: "hero", platform, href });
+    trackDownload({ source, platform, href });
   };
 
   return (

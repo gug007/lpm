@@ -6,6 +6,7 @@ import {
   BEST_TERMINAL_MAC_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
+  PROJECT_SIDEBAR_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
@@ -103,6 +104,12 @@ export default function BestTerminalForMacPage() {
             title: "Git terminal for Mac",
             description:
               "Branch, rebase, and ship while your dev servers stream in the same window.",
+          },
+          {
+            href: PROJECT_SIDEBAR_PATH,
+            title: "Terminal with a project sidebar",
+            description:
+              "What replaces the tab row: one persistent row per project, holding its terminals and running state.",
           },
         ]}
       />

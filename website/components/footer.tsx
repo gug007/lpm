@@ -9,6 +9,7 @@ import {
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
   PRIVACY_PATH,
+  PROJECT_SIDEBAR_PATH,
   REVIEW_CHANGES_PATH,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
@@ -76,6 +77,15 @@ export function Footer() {
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
             Mac terminal for developers
+          </Link>
+          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
+            ·
+          </span>
+          <Link
+            href={PROJECT_SIDEBAR_PATH}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Terminal with a project sidebar
           </Link>
           <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
             ·

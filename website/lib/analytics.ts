@@ -7,7 +7,11 @@ declare global {
 }
 
 export type DownloadPlatform = MacDownloadPlatform;
-export type DownloadSource = "hero" | "downloads";
+export type DownloadSource =
+  | "hero"
+  | "downloads"
+  | "project-sidebar-hero"
+  | "project-sidebar-cta";
 
 type TrackDownloadParams = {
   source: DownloadSource;
@@ -29,4 +33,21 @@ export function trackDownload({
     link_url: href,
     file_name: new URL(href).pathname.split("/").pop(),
   });
+}
+
+// The project-sidebar walkthrough reports which steps a visitor actually
+// reaches. Fixed values only — never a project name, width, or free text.
+export type SidebarWalkthroughAction =
+  | "start"
+  | "organize"
+  | "complete"
+  | "select"
+  | "resize"
+  | "collapse";
+
+export function trackSidebarWalkthrough(
+  action: SidebarWalkthroughAction,
+): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  window.gtag("event", "sidebar_walkthrough", { action });
 }

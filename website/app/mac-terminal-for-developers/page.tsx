@@ -4,6 +4,7 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   BEST_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
+  PROJECT_SIDEBAR_PATH,
   SSH_TERMINAL_MAC_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
@@ -89,6 +90,12 @@ export default function MacTerminalForDevelopersPage() {
             title: "SSH terminal for Mac",
             description:
               "Remote dev boxes, port forwarding, and your local stack in one window.",
+          },
+          {
+            href: PROJECT_SIDEBAR_PATH,
+            title: "Terminal with a project sidebar",
+            description:
+              "How the project list works up close: folders, copies, running dots, and agent attention states.",
           },
         ]}
       />

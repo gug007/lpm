@@ -14,6 +14,7 @@ export const BEST_TERMINAL_MAC_PATH = "/best-terminal-for-mac";
 export const MAC_TERMINAL_DEVELOPERS_PATH = "/mac-terminal-for-developers";
 export const GIT_TERMINAL_MAC_PATH = "/git-terminal-for-mac";
 export const SSH_TERMINAL_MAC_PATH = "/ssh-terminal-for-mac";
+export const PROJECT_SIDEBAR_PATH = "/terminal-with-project-sidebar";
 export const REVIEW_CHANGES_PATH = "/review-changes-in-terminal";
 export const CONNECT_AGENTS_PATH = "/connect-ai-agents";
 export const WORKTREE_ALTERNATIVE_PATH = "/git-worktree-alternative";
