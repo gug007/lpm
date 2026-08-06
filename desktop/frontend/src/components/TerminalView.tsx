@@ -19,6 +19,7 @@ import {
   isTerminalTab,
   terminalDisplayLabel,
 } from "../paneTree";
+import { agentSessionOf } from "../agentSession";
 import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
@@ -94,6 +95,8 @@ export interface TerminalViewHandle {
   remoteReorderTerminals(order: string[]): void;
   // Bring one of this project's terminals on screen, addressed by terminal id.
   focusTerminalById(id: string): void;
+  // Agent conversations live in this project's tabs, as session id → terminal id.
+  liveAgentSessions(): Map<string, string>;
   // Open (or focus) the session-memory tab, from the sidebar context menu.
   openMemory(): void;
 }
@@ -465,6 +468,17 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // The layout restore is async, so a request that lands on a freshly mounted
   // view waits for a tree to search before it resolves (or is dropped).
   const focusTerminalById = useCallback((id: string) => setFocusRequest(id), []);
+
+  // What the resume picker checks before relaunching: a conversation already on
+  // screen is a tab to focus, not a second agent to point at the same transcript.
+  const liveAgentSessions = useCallback(() => {
+    const live = new Map<string, string>();
+    for (const tab of tree ? collectTerminals(tree) : []) {
+      const session = agentSessionOf(tab);
+      if (session && !live.has(session.sessionId)) live.set(session.sessionId, tab.id);
+    }
+    return live;
+  }, [tree]);
 
   useEffect(() => {
     if (!focusRequest || !tree) return;
@@ -884,6 +898,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteTogglePin,
       remoteReorderTerminals,
       focusTerminalById,
+      liveAgentSessions,
       openMemory,
     }),
     [
@@ -898,6 +913,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       remoteTogglePin,
       remoteReorderTerminals,
       focusTerminalById,
+      liveAgentSessions,
       openMemory,
     ],
   );

@@ -1,12 +1,13 @@
-import { PencilIcon, TerminalIcon } from "../icons";
+import { HistoryIcon, PencilIcon, TerminalIcon } from "../icons";
 
 interface EmptyTerminalStateProps {
   projectName: string;
   onNewTerminal: () => void;
   onEditConfig: () => void;
+  onResumeSession?: () => void;
 }
 
-export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig }: EmptyTerminalStateProps) {
+export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, onResumeSession }: EmptyTerminalStateProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
       <div className="flex max-w-sm flex-col items-center gap-5 text-center">
@@ -40,6 +41,15 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig }:
             <kbd className="ml-1 text-[10px] opacity-70">⌘E</kbd>
           </button>
         </div>
+        {onResumeSession && (
+          <button
+            onClick={onResumeSession}
+            className="-mt-1 flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)] [&>svg]:h-3 [&>svg]:w-3"
+          >
+            <HistoryIcon />
+            Resume a past session
+          </button>
+        )}
       </div>
     </div>
   );

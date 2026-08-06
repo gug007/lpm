@@ -84,6 +84,11 @@ fn start(out: SyncSender<String>, wanted: &HashSet<String>) -> Option<ConnWatch>
         let Ok(event) = res else {
             return;
         };
+        // fingerprint() re-reads the whole working tree; on Linux those opens
+        // would land right back here and re-arm it forever.
+        if crate::watchfilter::is_read_only(&event) {
+            return;
+        }
         for path in event.paths {
             if let Some(root) = owning_root(&roots, &path) {
                 let _ = sink.send(root.clone());

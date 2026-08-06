@@ -183,13 +183,17 @@ fn start_watcher(app: &AppHandle, project: &str, entry: &Arc<ProjectSync>) {
     if watchers.contains_key(project) {
         return;
     }
-    let (tx, rx) = channel::<notify::Result<notify::Event>>();
-    let mut watcher = match notify::recommended_watcher(move |res| {
-        let _ = tx.send(res);
-    }) {
-        Ok(w) => w,
-        Err(_) => return, // matches Go: watch error is non-fatal, just no live sync
-    };
+    let (tx, rx) = channel::<()>();
+    let watch_root = entry.path.clone();
+    let mut watcher =
+        match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+            if res.is_ok_and(|ev| should_push(&watch_root, &ev)) {
+                let _ = tx.send(());
+            }
+        }) {
+            Ok(w) => w,
+            Err(_) => return, // matches Go: watch error is non-fatal, just no live sync
+        };
     if watcher
         .watch(Path::new(&entry.path), RecursiveMode::Recursive)
         .is_err()
@@ -207,7 +211,7 @@ fn start_watcher(app: &AppHandle, project: &str, entry: &Arc<ProjectSync>) {
 /// Debounce loop: push SYNC_DEBOUNCE after the last relevant fs event. Exits
 /// when the channel disconnects (watcher dropped on remove/stop).
 fn run_watcher(
-    rx: std::sync::mpsc::Receiver<notify::Result<notify::Event>>,
+    rx: std::sync::mpsc::Receiver<()>,
     app: AppHandle,
     project: String,
     entry: Arc<ProjectSync>,
@@ -217,12 +221,7 @@ fn run_watcher(
     loop {
         let timeout = if pending { SYNC_DEBOUNCE } else { idle };
         match rx.recv_timeout(timeout) {
-            Ok(Ok(event)) => {
-                if !ignore_sync_event(&entry.path, &event) {
-                    pending = true; // (re)arm debounce; recv_timeout restarts the wait
-                }
-            }
-            Ok(Err(_)) => {} // watch error — ignore, keep going
+            Ok(()) => pending = true, // (re)arm debounce; recv_timeout restarts the wait
             Err(RecvTimeoutError::Timeout) => {
                 if pending {
                     pending = false;
@@ -236,6 +235,13 @@ fn run_watcher(
             Err(RecvTimeoutError::Disconnected) => return,
         }
     }
+}
+
+/// Whether an event should arm a push. Applied in the watcher callback, not the
+/// worker: rsync's sender opens every file under the cache root, and on Linux
+/// those opens come straight back as events.
+fn should_push(root: &str, ev: &notify::Event) -> bool {
+    !crate::watchfilter::is_read_only(ev) && !ignore_sync_event(root, ev)
 }
 
 /// True when none of the event's paths are worth syncing (all in ignored dirs,
@@ -295,5 +301,45 @@ pub fn prune_orphan_sync_dirs(existing: &std::collections::HashSet<String>) {
                 let _ = std::fs::remove_dir_all(e.path());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use notify::event::{AccessKind, AccessMode, CreateKind};
+    use notify::EventKind;
+
+    fn ev(kind: EventKind, path: &str) -> notify::Event {
+        notify::Event::new(kind).add_path(PathBuf::from(path))
+    }
+
+    /// rsync's sender opens every file it pushes; those opens arrive as events on
+    /// the very tree the push was triggered by.
+    #[test]
+    fn rsync_reading_the_cache_does_not_arm_another_push() {
+        let e = ev(
+            EventKind::Access(AccessKind::Open(AccessMode::Any)),
+            "/home/x/.lpm/sync/web/src/main.rs",
+        );
+        assert!(!should_push("/home/x/.lpm/sync/web", &e));
+    }
+
+    #[test]
+    fn a_real_edit_arms_a_push() {
+        let e = ev(
+            EventKind::Create(CreateKind::File),
+            "/home/x/.lpm/sync/web/src/main.rs",
+        );
+        assert!(should_push("/home/x/.lpm/sync/web", &e));
+    }
+
+    #[test]
+    fn build_output_never_arms_a_push() {
+        let e = ev(
+            EventKind::Create(CreateKind::File),
+            "/home/x/.lpm/sync/web/node_modules/x/y.js",
+        );
+        assert!(!should_push("/home/x/.lpm/sync/web", &e));
     }
 }

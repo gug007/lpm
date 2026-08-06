@@ -1,6 +1,9 @@
 mod actions;
 mod agent_limits;
 mod agent_session_titles;
+mod agent_sessions;
+mod agent_sessions_claude;
+mod agent_sessions_codex;
 mod agent_usage;
 mod aigen;
 mod autosync;
@@ -13,6 +16,7 @@ mod commands_real;
 mod config;
 mod config_cmds;
 mod config_edit;
+mod configclassify;
 mod configwatch;
 mod control;
 mod detached;
@@ -92,6 +96,7 @@ mod vaultkeychain;
 #[cfg(not(target_os = "macos"))]
 mod vaultkeyfile;
 mod voicetotext;
+mod watchfilter;
 
 // Bring every command fn into scope so the generated `all_command_handlers!`
 // macro (which lists them unqualified) resolves the hand-written real
@@ -99,6 +104,7 @@ mod voicetotext;
 use actions::*;
 use agent_limits::*;
 use agent_session_titles::*;
+use agent_sessions::*;
 use agent_usage::*;
 use aigen::*;
 use browser::*;

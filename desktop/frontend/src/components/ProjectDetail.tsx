@@ -18,7 +18,7 @@ import { ProfileContextMenu } from "./project-detail/ProfileContextMenu";
 import { ProfileForm } from "./project-detail/ProfileForm";
 import { ServiceContextMenu } from "./project-detail/ServiceContextMenu";
 import { ServiceForm } from "./project-detail/ServiceForm";
-import { TerminalHistoryModal } from "./project-detail/TerminalHistoryModal";
+import { ResumeSessionModal } from "./project-detail/ResumeSessionModal";
 import { TerminalPane } from "./project-detail/TerminalPane";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { deleteAction } from "../actionConfig";
@@ -45,6 +45,7 @@ import {
   subscribeTerminalsChanged,
   type PersistedHistoryEntry,
 } from "../terminals";
+import { type SessionRow } from "../agentSessions";
 import { useAppStore } from "../store/app";
 import { CopyClaudeSessionForFork } from "../../bridge/commands";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
@@ -106,6 +107,7 @@ export function ProjectDetail({
     () => getProjectTerminals(project.name).history ?? [],
   );
   const [showHistory, setShowHistory] = useState(false);
+  const [openSessions, setOpenSessions] = useState<Map<string, string>>(new Map());
   const profileMenuRef = useOutsideClick<HTMLDivElement>(
     () => setShowProfileMenu(false),
     showProfileMenu,
@@ -499,24 +501,44 @@ export function ProjectDetail({
     runAndShowTerminal(() => onStart(project.name, profile));
   };
 
+  // Snapshotted when the picker opens: which conversations are already on
+  // screen, so it can offer their tab instead of a duplicate agent.
   const handleOpenHistory = useCallback(() => {
+    setOpenSessions(terminalRef.current?.liveAgentSessions() ?? new Map());
     setShowHistory(true);
   }, []);
 
-  const handleResumeFromHistory = useCallback(
-    (entry: PersistedHistoryEntry) => {
+  const handleResumeSession = useCallback(
+    (row: SessionRow) => {
       setShowHistory(false);
       switchDetailView("terminal");
-      terminalRef.current?.resumeFromHistory(entry);
+      terminalRef.current?.resumeFromHistory({
+        label: row.label,
+        sessionTitle: row.title,
+        sessionTitleId: row.sessionTitleId,
+        sessionTitleSource: row.sessionTitleSource,
+        resumeCmd: row.resumeCmd,
+        actionName: row.actionName,
+        closedAt: row.updatedAt,
+      });
+    },
+    [switchDetailView],
+  );
+
+  const handleFocusTerminal = useCallback(
+    (terminalId: string) => {
+      setShowHistory(false);
+      switchDetailView("terminal");
+      terminalRef.current?.focusTerminalById(terminalId);
     },
     [switchDetailView],
   );
 
   const handleForgetHistory = useCallback(
-    async (entry: PersistedHistoryEntry) => {
+    async (row: SessionRow) => {
       const next = removeHistoryEntry(
         getProjectTerminals(project.name),
-        entry.resumeCmd,
+        row.resumeCmd,
       );
       await saveProjectTerminals(project.name, next);
       setHistoryEntries(next.history ?? []);
@@ -717,7 +739,7 @@ export function ProjectDetail({
           onZoomOut={zoomOut}
           onRunAction={handleRunAction}
           onActionContextMenu={handleActionContextMenu}
-          onResumeSession={historyEntries.length > 0 ? handleOpenHistory : undefined}
+          onResumeSession={handleOpenHistory}
         />
 
         {detailView === "config" && (
@@ -764,9 +786,12 @@ export function ProjectDetail({
         />
 
         {showHistory && (
-          <TerminalHistoryModal
-            entries={historyEntries}
-            onResume={handleResumeFromHistory}
+          <ResumeSessionModal
+            projectName={project.name}
+            history={historyEntries}
+            openSessions={openSessions}
+            onResume={handleResumeSession}
+            onFocusTerminal={handleFocusTerminal}
             onForget={handleForgetHistory}
             onClose={() => setShowHistory(false)}
           />

@@ -15,6 +15,7 @@ macro_rules! all_command_handlers {
             ack_terminal_data,
             agent_limits,
             agent_session_title,
+            list_agent_sessions,
             agent_usage_stats,
             apply_claude_limits,
             get_claude_statusline_state,

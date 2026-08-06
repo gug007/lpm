@@ -1374,6 +1374,11 @@ pub(crate) const DEBOUNCE: Duration = Duration::from_millis(400);
 // tell consumers to refetch everything — tracking each path stops paying off.
 const CHANGE_CAP: usize = 100;
 
+// A burst that never goes quiet (a build, a dependency install) would otherwise
+// re-arm DEBOUNCE forever and never emit at all — recv_timeout takes a fresh
+// deadline every call. Close the window regardless once this much has elapsed.
+const MAX_COALESCE: Duration = Duration::from_secs(2);
+
 // One coalesced filesystem change: a specific working-tree file, or a `.git`
 // metadata change (commit/checkout/…) where any file's HEAD-side blob may differ.
 enum Change {
@@ -1426,6 +1431,39 @@ pub(crate) fn should_ignore(root: &str, full: &str) -> bool {
     }
     segs.iter()
         .any(|s| crate::config::IGNORED_WATCH_DIRS.contains(s))
+}
+
+/// Coalesce a burst into one window: quiet for DEBOUNCE, or MAX_COALESCE elapsed,
+/// whichever comes first. `None` means the channel closed. The bool is "unknown" —
+/// refetch everything.
+fn coalesce(
+    rx: &std::sync::mpsc::Receiver<Change>,
+    first: Change,
+) -> Option<(HashSet<String>, bool)> {
+    let deadline = Instant::now() + MAX_COALESCE;
+    let mut files: HashSet<String> = HashSet::new();
+    let mut unknown = matches!(first, Change::Unknown);
+    if let Change::File(p) = first {
+        files.insert(p);
+    }
+    while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+        match rx.recv_timeout(DEBOUNCE.min(left)) {
+            Ok(Change::Unknown) => unknown = true,
+            // Past the cap the per-path list is thrown away anyway, so stop
+            // allocating paths into a set nobody will read.
+            Ok(Change::File(_)) if unknown => {}
+            Ok(Change::File(p)) => {
+                files.insert(p);
+                if files.len() > CHANGE_CAP {
+                    unknown = true;
+                    files.clear();
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => break,
+            Err(RecvTimeoutError::Disconnected) => return None,
+        }
+    }
+    Some((files, unknown))
 }
 
 struct ActiveWatch {
@@ -1499,6 +1537,9 @@ pub fn start_watching_project(
 
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(ev) = res {
+            if crate::watchfilter::is_read_only(&ev) {
+                return;
+            }
             for p in &ev.paths {
                 let full = p.to_string_lossy();
                 if should_ignore(&root, &full) {
@@ -1537,28 +1578,11 @@ pub fn start_watching_project(
         if emit_stop.load(Ordering::SeqCst) {
             return;
         }
-        // coalesce a burst into one emit after 400ms of quiet, accumulating the
-        // set of changed paths so consumers can reconcile only what moved
-        let mut files: HashSet<String> = HashSet::new();
-        let mut unknown = matches!(first, Change::Unknown);
-        if let Change::File(p) = first {
-            files.insert(p);
-        }
-        loop {
-            match rx.recv_timeout(DEBOUNCE) {
-                Ok(Change::Unknown) => unknown = true,
-                Ok(Change::File(p)) => {
-                    files.insert(p);
-                }
-                Err(RecvTimeoutError::Timeout) => break,
-                Err(RecvTimeoutError::Disconnected) => return,
-            }
-        }
+        let Some((files, unknown)) = coalesce(&rx, first) else {
+            return;
+        };
         if emit_stop.load(Ordering::SeqCst) {
             return;
-        }
-        if files.len() > CHANGE_CAP {
-            unknown = true;
         }
         let payload = GitChangedPayload {
             path: emit_path.clone(),
@@ -1656,7 +1680,53 @@ pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String>
 
 #[cfg(test)]
 mod tests {
-    use super::{cat_file_size, cat_file_spec_ok, parse_status_and_files, split_diff_by_file};
+    use super::{
+        cat_file_size, cat_file_spec_ok, coalesce, parse_status_and_files, split_diff_by_file,
+        Change, CHANGE_CAP, MAX_COALESCE,
+    };
+    use std::time::Instant;
+
+    #[test]
+    fn a_flood_that_never_goes_quiet_still_closes_its_window() {
+        let (tx, rx) = std::sync::mpsc::channel::<Change>();
+        std::thread::spawn(move || {
+            for i in 0.. {
+                if tx.send(Change::File(format!("src/f{i}.rs"))).is_err() {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+        let start = Instant::now();
+        let (files, unknown) = coalesce(&rx, Change::File("src/a.rs".into())).unwrap();
+        // It must return at all — the old loop re-armed a fresh DEBOUNCE on every
+        // message and never emitted.
+        assert!(start.elapsed() < MAX_COALESCE * 2);
+        assert!(unknown);
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn past_the_cap_the_path_list_is_dropped_not_grown() {
+        let (tx, rx) = std::sync::mpsc::channel::<Change>();
+        for i in 0..(CHANGE_CAP * 10) {
+            tx.send(Change::File(format!("src/f{i}.rs"))).unwrap();
+        }
+        // tx stays alive: a disconnect is a teardown, which coalesce reports as
+        // None rather than as a window worth emitting.
+        let (files, unknown) = coalesce(&rx, Change::File("src/a.rs".into())).unwrap();
+        assert!(unknown);
+        assert!(files.is_empty(), "capped windows must not retain paths");
+    }
+
+    #[test]
+    fn a_small_burst_still_reports_exactly_what_moved() {
+        let (tx, rx) = std::sync::mpsc::channel::<Change>();
+        tx.send(Change::File("src/b.rs".into())).unwrap();
+        let (files, unknown) = coalesce(&rx, Change::File("src/a.rs".into())).unwrap();
+        assert!(!unknown);
+        assert_eq!(files.len(), 2);
+    }
 
     #[test]
     fn split_diff_by_file_keys_by_current_path() {

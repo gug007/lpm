@@ -191,7 +191,7 @@ fn claude_transcript_title(path: &Path, mut scan: TranscriptScan) -> io::Result<
     Ok(scan)
 }
 
-fn codex_home() -> PathBuf {
+pub(crate) fn codex_home() -> PathBuf {
     std::env::var_os(CODEX_HOME_ENV)
         .map(PathBuf::from)
         .unwrap_or_else(|| dirs::home_dir().unwrap_or_default().join(".codex"))
@@ -249,7 +249,7 @@ fn codex_database_cache() -> &'static Mutex<HashMap<PathBuf, CodexDatabases>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn codex_state_databases(home: &Path) -> Vec<PathBuf> {
+pub(crate) fn codex_state_databases(home: &Path) -> Vec<PathBuf> {
     if let Some(entry) = codex_database_cache().lock().unwrap().get(home) {
         if entry.scanned_at.elapsed() < CODEX_DB_SCAN_TTL {
             return entry.paths.clone();
@@ -287,7 +287,7 @@ fn scan_codex_state_databases(home: &Path) -> Vec<PathBuf> {
     candidates.into_iter().map(|(_, _, path)| path).collect()
 }
 
-fn threads_columns(
+pub(crate) fn threads_columns(
     home: &Path,
     path: &Path,
     connection: &Connection,
@@ -392,11 +392,11 @@ fn session_index_title(path: &Path, session_id: &str) -> io::Result<Option<Strin
     Ok(title)
 }
 
-fn compact_title(value: &str) -> Option<String> {
+pub(crate) fn compact_title(value: &str) -> Option<String> {
     compact(value, false)
 }
 
-fn compact_fallback(value: &str) -> Option<String> {
+pub(crate) fn compact_fallback(value: &str) -> Option<String> {
     compact(strip_leading_image_path(value), true)
 }
 

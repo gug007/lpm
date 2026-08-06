@@ -1550,6 +1550,9 @@ fn start_git_watch(
     let root = path.clone();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(ev) = res {
+            if crate::watchfilter::is_read_only(&ev) {
+                return;
+            }
             for p in &ev.paths {
                 let full = p.to_string_lossy();
                 if !crate::git::should_ignore(&root, &full) {

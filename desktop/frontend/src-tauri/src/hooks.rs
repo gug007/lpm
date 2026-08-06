@@ -190,6 +190,14 @@ fn claude_sessions_root(project: &str) -> PathBuf {
     claude_sessions_root_of(crate::config::claude_env_for_project(project))
 }
 
+/// Where claude keeps a project's transcripts — one `<session id>.jsonl` per
+/// conversation.
+pub(crate) fn claude_sessions_dir(env: crate::config::ClaudeEnv, project_root: &str) -> PathBuf {
+    claude_sessions_root_of(env)
+        .join("projects")
+        .join(claude_project_slug(project_root))
+}
+
 /// Where claude keeps one session's transcript. The single builder for this
 /// layout — session titles read the same file the fork copy writes.
 pub(crate) fn claude_transcript_path(
@@ -197,10 +205,7 @@ pub(crate) fn claude_transcript_path(
     project_root: &str,
     session_id: &str,
 ) -> PathBuf {
-    claude_sessions_root_of(env)
-        .join("projects")
-        .join(claude_project_slug(project_root))
-        .join(format!("{session_id}.jsonl"))
+    claude_sessions_dir(env, project_root).join(format!("{session_id}.jsonl"))
 }
 
 #[tauri::command(async)]

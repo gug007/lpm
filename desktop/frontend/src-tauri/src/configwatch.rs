@@ -6,80 +6,16 @@
 // otherwise go unseen. This bridges those filesystem edits back onto the same
 // events; listeners are read-only refreshers, so self-echo from our own writes is
 // harmless.
-use crate::syncsurface::{is_sync_global_dir, is_sync_global_file, sync_global_dirs};
-use crate::{config, peersync};
-use std::collections::BTreeSet;
-use std::path::{Component, Path, PathBuf};
+use crate::config;
+use crate::configclassify::{fold_event, portable_settings_digest, settings_changed, Dirty};
+use crate::syncsurface::sync_global_dirs;
+use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const SETTLE: Duration = Duration::from_millis(500);
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-enum Category {
-    Projects,
-    Templates,
-    // settings.json under ~/.lpm: a projects-category file, but its writes are
-    // gated on a real portable-digest change (window drags rewrite it constantly).
-    Settings,
-    // groups.json (sidebar folders): per-machine and off the sync surface, but a
-    // second local instance's write must re-hydrate this instance's layout —
-    // every persist is a full overwrite from memory, so a stale layout would
-    // otherwise clobber it right back.
-    Sidebar,
-    // memory/<project>/*.md: session memory, written by agent CLIs in a terminal
-    // rather than by lpm, so the pane only learns about a save from here. Carries
-    // the project segment so the emit names which project changed.
-    Memory(String),
-}
-
-#[derive(Default)]
-struct Dirty {
-    projects: bool,
-    templates: bool,
-    sidebar: bool,
-    memory: BTreeSet<String>,
-}
-
-/// Map a filesystem event path to the config category it affects, or `None` when
-/// the path is outside the watched surface. The global file/dir lists come from
-/// syncsurface so this can't drift from what config sync actually mirrors. Pure
-/// over `lpm` and the event path so it can be unit-tested without the filesystem.
-fn classify(lpm: &Path, path: &Path) -> Option<Category> {
-    let rel = path.strip_prefix(lpm).ok()?;
-    let segs: Vec<&str> = rel
-        .components()
-        .filter_map(|c| match c {
-            Component::Normal(s) => s.to_str(),
-            _ => None,
-        })
-        .collect();
-    match segs.as_slice() {
-        [name] if *name == "settings.json" => Some(Category::Settings),
-        [name] if *name == "groups.json" => Some(Category::Sidebar),
-        [name] => is_sync_global_file(name).then_some(Category::Projects),
-        ["projects", file] => file.ends_with(".yml").then_some(Category::Projects),
-        ["templates", ..] => Some(Category::Templates),
-        ["memory", project, ..] => Some(Category::Memory((*project).to_string())),
-        [dir, ..] if is_sync_global_dir(dir) => Some(Category::Projects),
-        _ => None,
-    }
-}
-
-/// Whether a settings.json event changed portable content. `prev`/`new` are the
-/// cached and freshly computed portable digests (`None` = file unreadable/absent
-/// or un-parseable), so a repeated read failure (`None`→`None`) is correctly no
-/// change while a real `Some`→`None` transition is. The caller updates the cache
-/// to `new` regardless of the result.
-fn settings_changed(prev: Option<&str>, new: Option<&str>) -> bool {
-    prev != new
-}
-
-fn portable_settings_digest(path: &Path) -> Option<String> {
-    peersync::settings_digest(&std::fs::read(path).ok()?).ok()
-}
 
 /// Start the watcher on a background thread. Non-fatal on failure (logged), like
 /// socketsrv::start — the app still runs, external edits just won't propagate.
@@ -105,38 +41,18 @@ pub fn start(app: AppHandle) {
     let dirty = Arc::new(Mutex::new(Dirty::default()));
     let (tx, rx) = sync_channel::<()>(1);
 
-    // The callback is the sole owner of the settings-digest cache, so a captured
-    // mutable local (recommended_watcher takes an FnMut) suffices — no Arc/Mutex.
     let cb_root = root.clone();
     let cb_dirty = dirty.clone();
-    let mut settings_cache = portable_settings_digest(&root.join("settings.json"));
+    // Seeded before any watch is armed, so this read cannot produce an event. From
+    // here on the digest belongs to the debounce thread alone.
+    let settings_path = root.join("settings.json");
+    let mut settings_cache = portable_settings_digest(&settings_path);
     let mut watcher =
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
-            let (mut projects, mut templates, mut sidebar) = (false, false, false);
-            let mut memory: Vec<String> = Vec::new();
-            for p in &ev.paths {
-                match classify(&cb_root, p) {
-                    Some(Category::Projects) => projects = true,
-                    Some(Category::Templates) => templates = true,
-                    Some(Category::Settings) => {
-                        let new = portable_settings_digest(p);
-                        if settings_changed(settings_cache.as_deref(), new.as_deref()) {
-                            projects = true;
-                        }
-                        settings_cache = new;
-                    }
-                    Some(Category::Sidebar) => sidebar = true,
-                    Some(Category::Memory(project)) => memory.push(project),
-                    None => {}
-                }
-            }
-            if projects || templates || sidebar || !memory.is_empty() {
-                let mut d = cb_dirty.lock().unwrap();
-                d.projects |= projects;
-                d.templates |= templates;
-                d.sidebar |= sidebar;
-                d.memory.extend(memory);
+            let d = fold_event(&cb_root, &ev);
+            if d.any() {
+                cb_dirty.lock().unwrap().merge(d);
                 let _ = tx.try_send(());
             }
         }) {
@@ -181,7 +97,18 @@ pub fn start(app: AppHandle) {
                 }
             };
             let d = std::mem::take(&mut *dirty.lock().unwrap());
-            if d.projects {
+            // One read per quiet window at most, off the event thread, and still
+            // gated so the constant window-bounds rewrites don't emit. Any event
+            // this read generates is an open, which fold_event drops.
+            let mut projects = d.projects;
+            if d.settings {
+                let new = portable_settings_digest(&settings_path);
+                if settings_changed(settings_cache.as_deref(), new.as_deref()) {
+                    projects = true;
+                }
+                settings_cache = new;
+            }
+            if projects {
                 let _ = app.emit("projects-changed", ());
             }
             if d.templates {
@@ -204,7 +131,7 @@ pub fn start(app: AppHandle) {
             // Memory does: its own category classifies before the synced-dir arm,
             // so without this a session save would only sync when some unrelated
             // config edit happened to trigger a run.
-            if d.projects || d.templates || memory_changed {
+            if projects || d.templates || memory_changed {
                 if let Some(engine) = app.try_state::<crate::autosync::Engine>() {
                     engine.notify_local_change();
                 }
@@ -214,142 +141,4 @@ pub fn start(app: AppHandle) {
             }
         }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn lpm() -> PathBuf {
-        PathBuf::from("/Users/x/.lpm")
-    }
-
-    fn at(rel: &str) -> PathBuf {
-        lpm().join(rel)
-    }
-
-    #[test]
-    fn top_level_allowlist_honored() {
-        assert_eq!(
-            classify(&lpm(), &at("global.yml")),
-            Some(Category::Projects)
-        );
-        // groups.json (sidebar folders) is per-machine and off the sync surface;
-        // it classifies as Sidebar so another local instance's write re-hydrates
-        // this instance's layout instead of being clobbered by it.
-        assert_eq!(
-            classify(&lpm(), &at("groups.json")),
-            Some(Category::Sidebar)
-        );
-        assert_eq!(
-            classify(&lpm(), &at("commit-instructions.txt")),
-            Some(Category::Projects)
-        );
-        // branch-name-instructions.txt joined the sync surface (delta 1), so the
-        // watcher now classifies it and emits a refresh when it changes.
-        assert_eq!(
-            classify(&lpm(), &at("branch-name-instructions.txt")),
-            Some(Category::Projects)
-        );
-    }
-
-    #[test]
-    fn top_level_settings_is_its_own_category() {
-        // settings.json is gated on a portable-digest change, so it classifies
-        // distinctly from the byte-replace global files; a nested settings.json
-        // (e.g. under a synced dir) is not the gated top-level one.
-        assert_eq!(
-            classify(&lpm(), &at("settings.json")),
-            Some(Category::Settings)
-        );
-        assert_eq!(
-            classify(&lpm(), &at("generator-icons/settings.json")),
-            Some(Category::Projects)
-        );
-    }
-
-    #[test]
-    fn top_level_non_allowlisted_ignored() {
-        assert_eq!(classify(&lpm(), &at("message-history.db")), None);
-        assert_eq!(classify(&lpm(), &at("peer.json")), None);
-        assert_eq!(classify(&lpm(), &at("lpm.sock")), None);
-        assert_eq!(classify(&lpm(), &at("settings.json.tmp")), None);
-    }
-
-    #[test]
-    fn projects_only_yml() {
-        assert_eq!(
-            classify(&lpm(), &at("projects/web.yml")),
-            Some(Category::Projects)
-        );
-        assert_eq!(classify(&lpm(), &at("projects/web.yaml")), None);
-        assert_eq!(classify(&lpm(), &at("projects/notes.txt")), None);
-    }
-
-    #[test]
-    fn templates_recursive_is_templates() {
-        assert_eq!(
-            classify(&lpm(), &at("templates/base.yml")),
-            Some(Category::Templates)
-        );
-        assert_eq!(
-            classify(&lpm(), &at("templates/nested/x.yml")),
-            Some(Category::Templates)
-        );
-    }
-
-    #[test]
-    fn memory_files_carry_their_project() {
-        assert_eq!(
-            classify(&lpm(), &at("memory/web/auth-refactor.md")),
-            Some(Category::Memory("web".into()))
-        );
-        // The project directory appearing at all is a change worth emitting.
-        assert_eq!(
-            classify(&lpm(), &at("memory/web")),
-            Some(Category::Memory("web".into()))
-        );
-        // The memory root itself is not attributable to any project.
-        assert_eq!(classify(&lpm(), &at("memory")), None);
-    }
-
-    #[test]
-    fn synced_dirs_map_to_projects() {
-        assert_eq!(
-            classify(&lpm(), &at("generator-icons/a.png")),
-            Some(Category::Projects)
-        );
-        assert_eq!(
-            classify(&lpm(), &at("zdotdir/.zshrc")),
-            Some(Category::Projects)
-        );
-        assert_eq!(
-            classify(&lpm(), &at("zdotdir/nested/f")),
-            Some(Category::Projects)
-        );
-    }
-
-    #[test]
-    fn outside_root_is_none() {
-        assert_eq!(classify(&lpm(), Path::new("/etc/passwd")), None);
-        assert_eq!(classify(&lpm(), &lpm()), None);
-    }
-
-    #[test]
-    fn settings_gate_transitions() {
-        // First observation with a computable digest counts as changed.
-        assert!(settings_changed(None, Some("a")));
-        // Same digest -> no emit (window drag rewrites bounds only).
-        assert!(!settings_changed(Some("a"), Some("a")));
-        // Real portable change -> emit.
-        assert!(settings_changed(Some("a"), Some("b")));
-    }
-
-    #[test]
-    fn settings_gate_read_failures_dont_storm() {
-        // File became unreadable after having a digest -> one change.
-        assert!(settings_changed(Some("a"), None));
-        // Repeated failures with no prior digest -> silent.
-        assert!(!settings_changed(None, None));
-    }
 }

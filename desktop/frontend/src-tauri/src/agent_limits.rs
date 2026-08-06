@@ -335,7 +335,10 @@ pub fn start(app: AppHandle) {
     let (tx, rx) = sync_channel::<()>(1);
     let mut watcher =
         match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-            if res.is_ok() {
+            // refresh_codex read_dir's every directory in this watched tree and
+            // opens the newest rollout — all opens, all of which would land back
+            // here and refresh again.
+            if res.is_ok_and(|ev| !crate::watchfilter::is_read_only(&ev)) {
                 let _ = tx.try_send(());
             }
         }) {

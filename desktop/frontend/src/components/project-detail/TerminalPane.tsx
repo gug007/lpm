@@ -91,6 +91,7 @@ export function TerminalPane({
           projectName={projectName}
           onNewTerminal={onNewTerminal}
           onEditConfig={onEditConfig}
+          onResumeSession={onResumeSession}
         />
       )}
       <TerminalFooter
