@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal } from "../ui/Modal";
-import { HistoryIcon, SearchIcon } from "../icons";
+import { SegmentedControl } from "../ui/SegmentedControl";
+import { SearchIcon } from "../icons";
 import { ResumeSessionRow } from "./ResumeSessionRow";
+import { ResumeSessionEmpty } from "./ResumeSessionEmpty";
+import { ResumeSessionFooter } from "./ResumeSessionFooter";
+import { ResumeSessionSkeleton } from "./ResumeSessionSkeleton";
 import {
   SESSION_PAGE_SIZE,
   filterByProvider,
@@ -20,73 +24,110 @@ interface ResumeSessionModalProps {
   // Session id → the terminal id it's live in, so an open conversation is
   // offered as "go to tab" instead of a second agent on the same transcript.
   openSessions: Map<string, string>;
+  hidden: ReadonlySet<string>;
   onResume: (row: Row) => void;
   onFocusTerminal: (terminalId: string) => void;
   onForget: (row: Row) => void;
+  onRestoreHidden: () => void;
   onClose: () => void;
 }
 
-const FILTERS: { id: SessionFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "claude", label: "Claude" },
-  { id: "codex", label: "Codex" },
-];
+const LIST_ID = "resume-session-list";
+const PAGE_ROWS = 10;
+const STEP: Record<string, number | undefined> = {
+  ArrowDown: 1,
+  ArrowUp: -1,
+  PageDown: PAGE_ROWS,
+  PageUp: -PAGE_ROWS,
+};
+
+/** A row key is a DOM id too (aria-activedescendant), so it has to be tame. */
+export const resumeRowDomId = (key: string) =>
+  `resume-row-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
 export function ResumeSessionModal({
   projectName,
   history,
   openSessions,
+  hidden,
   onResume,
   onFocusTerminal,
   onForget,
+  onRestoreHidden,
   onClose,
 }: ResumeSessionModalProps) {
   const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  // Both halves of the round trip in one state: a search that also reset the
+  // limit separately fired a full-limit scan whose result was thrown away.
+  const [query, setQuery] = useState({ search: "", limit: SESSION_PAGE_SIZE });
   const [filter, setFilter] = useState<SessionFilter>("all");
-  const [limit, setLimit] = useState(SESSION_PAGE_SIZE);
   const [sessions, setSessions] = useState<AgentSessionSummary[] | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Typing narrows the on-disk scan too, so debounce the round trip rather than
   // firing one per keystroke.
   useEffect(() => {
-    const timer = setTimeout(() => setSearch(searchInput), 180);
+    const timer = setTimeout(
+      () =>
+        setQuery((q) =>
+          q.search === searchInput ? q : { search: searchInput, limit: SESSION_PAGE_SIZE },
+        ),
+      180,
+    );
     return () => clearTimeout(timer);
   }, [searchInput]);
-
-  // A new search starts from the first page again.
-  useEffect(() => setLimit(SESSION_PAGE_SIZE), [search]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    listAgentSessions(projectName, limit, search)
+    listAgentSessions(projectName, query.limit, query.search)
       .then((page) => {
         if (cancelled) return;
         setSessions(page.sessions);
         setHasMore(page.hasMore);
+        setFailed(false);
       })
       // A project whose agents run on another machine has no transcripts to
-      // read here; its closed tabs still list.
-      .catch(() => !cancelled && setSessions([]))
+      // read here; its closed tabs still list, and there is no more to load.
+      .catch(() => {
+        if (cancelled) return;
+        setSessions([]);
+        setHasMore(false);
+        setFailed(true);
+      })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [projectName, limit, search]);
+  }, [projectName, query]);
 
-  const rows = useMemo(
+  // Counts come from the unfiltered merge, so picking a provider can't change
+  // the numbers on the control that picked it.
+  const merged = useMemo(
     () =>
-      filterByProvider(
-        mergeSessionRows({ history, sessions: sessions ?? [], open: openSessions, search }),
-        filter,
-      ),
-    [history, sessions, openSessions, search, filter],
+      mergeSessionRows({
+        history,
+        sessions: sessions ?? [],
+        open: openSessions,
+        search: query.search,
+        hidden,
+      }),
+    [history, sessions, openSessions, query.search, hidden],
   );
+  const counts = useMemo(
+    () => ({
+      all: merged.length,
+      claude: merged.filter((row) => row.provider === "claude").length,
+      codex: merged.filter((row) => row.provider === "codex").length,
+    }),
+    [merged],
+  );
+  const rows = useMemo(() => filterByProvider(merged, filter), [merged, filter]);
   const groups = useMemo(() => groupByDay(rows), [rows]);
 
   // Keep a selection on the list at all times so ↑/↓/↵ always have a target.
@@ -96,6 +137,19 @@ export function ResumeSessionModal({
     );
   }, [rows]);
 
+  const activeRow = useMemo(
+    () => rows.find((row) => row.key === activeKey) ?? null,
+    [rows, activeKey],
+  );
+
+  // WebKit re-runs hover hit-testing while the list scrolls, so arrowing past
+  // the fold drags a new row under a resting cursor and its mouseenter would
+  // take the selection back. Hover only counts after the pointer really moves.
+  const pointerMoved = useRef(true);
+  const handleHover = useCallback((key: string) => {
+    if (pointerMoved.current) setActiveKey(key);
+  }, []);
+
   const pick = useCallback(
     (row: Row) => {
       if (row.openInTerminalId) onFocusTerminal(row.openInTerminalId);
@@ -104,43 +158,107 @@ export function ResumeSessionModal({
     [onFocusTerminal, onResume],
   );
 
+  const hide = useCallback(
+    (row: Row) => {
+      // Land on the neighbour: the row under the cursor is gone, and jumping to
+      // the top of the list loses the user's place.
+      const index = rows.findIndex((r) => r.key === row.key);
+      setActiveKey((rows[index + 1] ?? rows[index - 1])?.key ?? null);
+      onForget(row);
+    },
+    [rows, onForget],
+  );
+
   const move = useCallback(
     (delta: number) => {
       if (rows.length === 0) return;
+      pointerMoved.current = false;
       const current = rows.findIndex((row) => row.key === activeKey);
       const next = Math.max(0, Math.min(rows.length - 1, (current < 0 ? 0 : current) + delta));
       setActiveKey(rows[next].key);
-      listRef.current
-        ?.querySelector(`[data-row-key="${CSS.escape(rows[next].key)}"]`)
-        ?.scrollIntoView({ block: "nearest" });
+      document.getElementById(resumeRowDomId(rows[next].key))?.scrollIntoView({ block: "nearest" });
     },
     [rows, activeKey],
   );
 
+  const loadMore = useCallback(
+    () => setQuery((q) => ({ ...q, limit: q.limit + SESSION_PAGE_SIZE * 2 })),
+    [],
+  );
+
+  const pending = searchInput !== query.search;
+  const canHide = activeRow !== null && activeRow.openInTerminalId === undefined;
+
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowDown") {
+    if (e.nativeEvent.isComposing) return;
+    const step = STEP[e.key];
+    if (step !== undefined) {
       e.preventDefault();
-      move(1);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      move(-1);
-    } else if (e.key === "Enter") {
-      const row = rows.find((r) => r.key === activeKey);
-      if (row) {
-        e.preventDefault();
-        pick(row);
-      }
+      move(step);
+      return;
     }
+    if (e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      move(e.key === "Home" ? -Infinity : Infinity);
+      return;
+    }
+    // The search field holds focus throughout, so hiding can only claim a chord
+    // that isn't already text editing: bare ⌫ types, ⌥⌫ deletes a word.
+    if ((e.key === "Backspace" || e.key === "Delete") && e.metaKey) {
+      if (activeRow && canHide) {
+        e.preventDefault();
+        hide(activeRow);
+      }
+      return;
+    }
+    // Enter only means "resume" while typing a search; on a focused Close
+    // button it has to close the modal.
+    if (e.key !== "Enter" || e.target !== inputRef.current) return;
+    e.preventDefault();
+    // The visible rows still answer the previous query — resolve it first so a
+    // fast typist can't launch whatever the stale list had selected.
+    if (pending) setQuery({ search: searchInput, limit: SESSION_PAGE_SIZE });
+    else if (activeRow) pick(activeRow);
   };
 
-  const empty = !loading && rows.length === 0;
+  // Escape clears a live search before it closes the modal. Modal binds Escape
+  // on document in the bubble phase, so this has to run in capture.
+  useEffect(() => {
+    if (!searchInput) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setSearchInput("");
+      setQuery({ search: "", limit: SESSION_PAGE_SIZE });
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [searchInput]);
+
+  const filterOptions = useMemo(
+    () => [
+      { value: "all" as SessionFilter, label: "All", count: counts.all },
+      { value: "claude" as SessionFilter, label: "Claude", count: counts.claude },
+      { value: "codex" as SessionFilter, label: "Codex", count: counts.codex },
+    ],
+    [counts],
+  );
+
+  const searching = query.search.trim().length > 0;
+  const stale = loading && sessions !== null;
+  const empty = rows.length === 0 && !loading;
+  const skeleton = sessions === null || (stale && rows.length === 0);
+  // Raising the limit widens the scan; it doesn't page through a fixed list.
+  const moreLabel = loading ? "Loading…" : searching ? "Search further back" : "Show older sessions";
+  const showFilter = (counts.claude > 0 && counts.codex > 0) || filter !== "all";
+  const hiddenCount = hidden.size;
 
   return (
     <Modal
       open
       onClose={onClose}
       zIndexClassName="z-[60]"
-      contentClassName="flex h-[70vh] w-[40rem] max-w-[92vw] flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
+      contentClassName="flex h-[min(70vh,42rem)] w-[46rem] max-w-[92vw] flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
     >
       <div onKeyDown={onKeyDown} className="flex min-h-0 flex-1 flex-col">
         <div className="px-5 pt-5">
@@ -156,131 +274,108 @@ export function ResumeSessionModal({
               <SearchIcon />
             </span>
             <input
+              ref={inputRef}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by title, prompt or branch"
+              placeholder="Search sessions"
+              aria-label="Search sessions"
+              role="combobox"
+              aria-expanded
+              aria-controls={LIST_ID}
+              aria-activedescendant={activeKey ? resumeRowDomId(activeKey) : undefined}
+              data-text-scope=""
               spellCheck={false}
               autoFocus
               className="w-full bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
             />
           </div>
-          <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-[var(--border)] p-0.5">
-            {FILTERS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilter(tab.id)}
-                className={`h-6 rounded-md px-2.5 text-[11px] font-medium transition-colors ${
-                  filter === tab.id
-                    ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div
-          ref={listRef}
-          className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] p-1.5"
-        >
-          {sessions === null && loading ? (
-            <ListSkeleton />
-          ) : empty ? (
-            <EmptyMessage searching={search.trim().length > 0} />
-          ) : (
-            <>
-              {groups.map((group) => (
-                <div key={group.label}>
-                  <div className="sticky top-0 z-10 bg-[var(--bg-primary)] px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                    {group.label}
-                  </div>
-                  {group.rows.map((row) => (
-                    <div key={row.key} data-row-key={row.key}>
-                      <ResumeSessionRow
-                        row={row}
-                        active={row.key === activeKey}
-                        onHover={() => setActiveKey(row.key)}
-                        onPick={() => pick(row)}
-                        onForget={row.remembered ? () => onForget(row) : undefined}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {hasMore && (
-                <div className="px-2.5 py-3 text-center">
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => setLimit((n) => n + SESSION_PAGE_SIZE * 2)}
-                    className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-50"
-                  >
-                    {loading ? "Loading…" : "Show older sessions"}
-                  </button>
-                </div>
-              )}
-            </>
+          {showFilter && (
+            <SegmentedControl
+              value={filter}
+              options={filterOptions}
+              onChange={setFilter}
+              ariaLabel="Filter by agent"
+              className="shrink-0"
+            />
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3">
-          <span className="text-[11px] text-[var(--text-muted)]">
-            <Kbd>↑</Kbd> <Kbd>↓</Kbd> to browse · <Kbd>↵</Kbd> to resume
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]"
-          >
-            Close
-          </button>
+        <span className="sr-only" role="status" aria-live="polite">
+          {loading ? "Searching" : `${rows.length} sessions`}
+        </span>
+
+        <div
+          ref={listRef}
+          id={LIST_ID}
+          role="listbox"
+          aria-label="Past sessions"
+          aria-busy={loading}
+          onMouseDown={(e) => e.preventDefault()}
+          onMouseMove={() => {
+            pointerMoved.current = true;
+          }}
+          className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] px-2 py-1.5"
+        >
+          {skeleton ? (
+            <ResumeSessionSkeleton />
+          ) : empty ? (
+            <ResumeSessionEmpty
+              searching={searching}
+              term={query.search.trim()}
+              provider={filter}
+              failed={failed}
+              hiddenCount={hiddenCount}
+              onShowAll={() => setFilter("all")}
+              onMore={hasMore ? loadMore : undefined}
+              moreLabel={moreLabel}
+            />
+          ) : (
+            // Dimmed, not replaced: the rows on screen still answer the last
+            // query, and blanking them for one round trip is worse. A listbox
+            // owns options through groups only, so the day wrappers say so.
+            <div role="presentation" className={`transition-opacity ${stale ? "opacity-50" : ""}`}>
+              {groups.map((group) => (
+                <div key={group.label} role="group" aria-label={group.label}>
+                  <div aria-hidden className="sticky top-0 z-10 flex h-8 items-end bg-[var(--bg-primary)] px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                    {group.label}
+                  </div>
+                  {group.rows.map((row) => (
+                    <ResumeSessionRow
+                      key={row.key}
+                      row={row}
+                      active={row.key === activeKey}
+                      domId={resumeRowDomId(row.key)}
+                      onHover={handleHover}
+                      onPick={pick}
+                      onForget={row.openInTerminalId === undefined ? hide : undefined}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {hasMore && !skeleton && !empty && (
+            <div className="px-2.5 py-3 text-center">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={loadMore}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-50"
+              >
+                {moreLabel}
+              </button>
+            </div>
+          )}
         </div>
+
+        <ResumeSessionFooter
+          picksOpenTab={activeRow?.openInTerminalId !== undefined}
+          canHide={canHide}
+          hiddenCount={hiddenCount}
+          onRestoreHidden={onRestoreHidden}
+          onClose={onClose}
+        />
       </div>
     </Modal>
-  );
-}
-
-function Kbd({ children }: { children: string }) {
-  return (
-    <kbd className="rounded border border-[var(--border)] bg-[var(--bg-secondary)] px-1 py-px font-mono text-[10px] text-[var(--text-secondary)]">
-      {children}
-    </kbd>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <div className="animate-pulse p-1">
-      {Array.from({ length: 7 }, (_, i) => (
-        <div key={i} className="flex items-center gap-3 px-1.5 py-2.5">
-          <div className="h-7 w-7 shrink-0 rounded-md bg-[var(--bg-active)]" />
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div className="h-2.5 rounded bg-[var(--bg-active)]" style={{ width: `${55 - i * 4}%` }} />
-            <div className="h-2 rounded bg-[var(--bg-active)]" style={{ width: `${80 - i * 6}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function EmptyMessage({ searching }: { searching: boolean }) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--bg-secondary)] text-[var(--text-muted)] [&>svg]:h-4 [&>svg]:w-4">
-        <HistoryIcon />
-      </span>
-      <span className="text-xs font-medium text-[var(--text-secondary)]">
-        {searching ? "No matching sessions" : "No sessions yet"}
-      </span>
-      <span className="max-w-[320px] text-[11px] leading-relaxed text-[var(--text-muted)]">
-        {searching
-          ? "Try a different search, or show older sessions first."
-          : "Conversations you have with Claude Code or Codex in this project show up here, ready to pick up again."}
-      </span>
-    </div>
   );
 }

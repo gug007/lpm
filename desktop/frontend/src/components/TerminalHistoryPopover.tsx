@@ -39,6 +39,7 @@ import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
 import { NewFolderInput } from "./NewFolderInput";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { Kbd } from "./ui/Kbd";
 
 interface TerminalHistoryPopoverProps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -336,14 +337,6 @@ function EmptyState({ icon, title, hint }: EmptyStateProps) {
       <span className="text-xs font-medium text-[var(--text-secondary)]">{title}</span>
       <span className="max-w-[300px] text-[11px] leading-relaxed text-[var(--text-muted)]">{hint}</span>
     </div>
-  );
-}
-
-function Kbd({ children }: { children: string }) {
-  return (
-    <kbd className="rounded border border-[var(--border)] bg-[var(--bg-secondary)] px-1 py-px font-mono text-[10px] text-[var(--text-secondary)]">
-      {children}
-    </kbd>
   );
 }
 

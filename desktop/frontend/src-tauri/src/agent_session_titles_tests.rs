@@ -412,3 +412,50 @@ fn fallback_titles_are_sanitized_and_compacted() {
     assert!(title.ends_with('…'));
     assert!(!title.contains('\n'));
 }
+
+#[test]
+fn attached_images_are_stripped_from_the_words_that_follow_them() {
+    assert_eq!(
+        strip_image_placeholders("[Image #1] why is this red?"),
+        "why is this red?"
+    );
+    assert_eq!(
+        strip_image_placeholders("  [Image #1][Image #22]  compare these"),
+        "compare these"
+    );
+    // Only the real token leads; anything shaped like it is the prompt itself.
+    assert_eq!(
+        strip_image_placeholders("[Image #x] make it pop"),
+        "[Image #x] make it pop"
+    );
+    assert_eq!(
+        strip_image_placeholders("[Image #] make it pop"),
+        "[Image #] make it pop"
+    );
+    assert_eq!(
+        strip_image_placeholders("[Image #1 make it pop"),
+        "[Image #1 make it pop"
+    );
+    assert_eq!(
+        strip_image_placeholders("see [Image #1] here"),
+        "see [Image #1] here"
+    );
+
+    assert_eq!(
+        compact_fallback("[Image #1] /tmp/shot.png  what changed?").as_deref(),
+        Some("what changed?")
+    );
+}
+
+#[test]
+fn a_prompt_that_was_only_an_image_keeps_its_text() {
+    assert_eq!(
+        compact_fallback("[Image #1]").as_deref(),
+        Some("[Image #1]")
+    );
+    assert_eq!(
+        compact_fallback(" /tmp/shot.png ").as_deref(),
+        Some("/tmp/shot.png")
+    );
+    assert_eq!(compact_fallback("  \n ").as_deref(), None);
+}

@@ -38,8 +38,10 @@ import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { getSettings } from "../store/settings";
 import {
+  clearHiddenSessions,
   countPersistedTabs,
   getProjectTerminals,
+  hideSession,
   removeHistoryEntry,
   saveProjectTerminals,
   subscribeTerminalsChanged,
@@ -108,6 +110,9 @@ export function ProjectDetail({
   );
   const [showHistory, setShowHistory] = useState(false);
   const [openSessions, setOpenSessions] = useState<Map<string, string>>(new Map());
+  const [hiddenSessions, setHiddenSessions] = useState<ReadonlySet<string>>(
+    () => new Set(getProjectTerminals(project.name).hiddenSessions ?? []),
+  );
   const profileMenuRef = useOutsideClick<HTMLDivElement>(
     () => setShowProfileMenu(false),
     showProfileMenu,
@@ -502,11 +507,13 @@ export function ProjectDetail({
   };
 
   // Snapshotted when the picker opens: which conversations are already on
-  // screen, so it can offer their tab instead of a duplicate agent.
+  // screen, so it can offer their tab instead of a duplicate agent, and which
+  // rows the user has hidden.
   const handleOpenHistory = useCallback(() => {
     setOpenSessions(terminalRef.current?.liveAgentSessions() ?? new Map());
+    setHiddenSessions(new Set(getProjectTerminals(project.name).hiddenSessions ?? []));
     setShowHistory(true);
-  }, []);
+  }, [project.name]);
 
   const handleResumeSession = useCallback(
     (row: SessionRow) => {
@@ -534,17 +541,27 @@ export function ProjectDetail({
     [switchDetailView],
   );
 
+  // The transcript stays on disk and would be listed again, so the row key is
+  // what gets remembered; dropping the history entry too keeps a stale one from
+  // resurrecting the row under a different key.
   const handleForgetHistory = useCallback(
     async (row: SessionRow) => {
       const next = removeHistoryEntry(
-        getProjectTerminals(project.name),
+        hideSession(getProjectTerminals(project.name), row.key),
         row.resumeCmd,
       );
       await saveProjectTerminals(project.name, next);
+      setHiddenSessions(new Set(next.hiddenSessions ?? []));
       setHistoryEntries(next.history ?? []);
     },
     [project.name],
   );
+
+  const handleRestoreHidden = useCallback(async () => {
+    const next = clearHiddenSessions(getProjectTerminals(project.name));
+    await saveProjectTerminals(project.name, next);
+    setHiddenSessions(new Set(next.hiddenSessions ?? []));
+  }, [project.name]);
 
   const runningServiceNames = useMemo(
     () => (project.running ? new Set(project.services.map((s) => s.name)) : null),
@@ -790,9 +807,11 @@ export function ProjectDetail({
             projectName={project.name}
             history={historyEntries}
             openSessions={openSessions}
+            hidden={hiddenSessions}
             onResume={handleResumeSession}
             onFocusTerminal={handleFocusTerminal}
             onForget={handleForgetHistory}
+            onRestoreHidden={handleRestoreHidden}
             onClose={() => setShowHistory(false)}
           />
         )}

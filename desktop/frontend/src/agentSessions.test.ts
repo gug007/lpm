@@ -122,10 +122,87 @@ describe("mergeSessionRows", () => {
       session({ sessionId: CODEX_ID, provider: "codex", title: "Website copy", preview: "two", gitBranch: "feat/seo" }),
     ];
 
-    expect(merge({ sessions, search: "picker" })).toHaveLength(1);
+    expect(merge({ sessions, search: "picker" }).map((row) => row.title)).toEqual(["Resume picker"]);
+    expect(merge({ sessions, search: "two" }).map((row) => row.provider)).toEqual(["codex"]);
     expect(merge({ sessions, search: "feat/" })[0].provider).toBe("codex");
     expect(merge({ sessions, search: "  RESUME  " })).toHaveLength(1);
     expect(merge({ sessions, search: "nothing" })).toHaveLength(0);
+  });
+
+  it("never matches a search through text the row does not show", () => {
+    // `label` is the agent's own name for a stored session — typing it used to
+    // match every row while looking like a title hit.
+    const rows = merge({
+      history: [historyEntry({ label: "Claude" })],
+      sessions: [session({ title: "Resume picker", preview: "one" })],
+      search: "claude",
+    });
+
+    expect(rows).toHaveLength(0);
+    expect(merge({ sessions: [session({ title: "Claude prompt fix" })], search: "claude" })).toHaveLength(1);
+  });
+
+  it("drops rows the user hid", () => {
+    const sessions = [session(), session({ sessionId: CODEX_ID, provider: "codex" })];
+    const rows = merge({ sessions, hidden: new Set([`claude:${CLAUDE_ID}`]) });
+
+    expect(rows.map((row) => row.provider)).toEqual(["codex"]);
+  });
+
+  it("strips the placeholder a pasted image leaves in the prompt", () => {
+    const rows = merge({
+      sessions: [session({ title: "[Image #1]review this", preview: "[Image #1]review this screen" })],
+    });
+
+    expect(rows[0].title).toBe("review this");
+    expect(rows[0].preview).toBe("review this screen");
+  });
+
+  it("names a prompt that was nothing but an image", () => {
+    const rows = merge({ sessions: [session({ title: null, preview: "[Image #1]" })] });
+
+    expect(rows[0].title).toBe("Image prompt");
+  });
+
+  it("never shows the command a closed tab was launched with", () => {
+    const bare = merge({ history: [historyEntry({ resumeCmd: "aider --restore", startCmd: "aider" })] });
+    expect(bare[0].preview).toBe("");
+
+    const ran = merge({
+      history: [historyEntry({ resumeCmd: "aider --restore", startCmd: "aider", actionName: "agent" })],
+    });
+    expect(ran[0].preview).toBe("Ran agent");
+  });
+
+  it("records where each title came from", () => {
+    const named = merge({
+      history: [historyEntry({ sessionTitle: "Ship the picker", sessionTitleSource: "manual" })],
+      sessions: [session()],
+    });
+    expect(named[0].titleOrigin).toBe("named");
+
+    expect(merge({ sessions: [session()] })[0].titleOrigin).toBe("named");
+    expect(merge({ sessions: [session({ title: null })] })[0].titleOrigin).toBe("prompt");
+
+    const fallback = merge({
+      history: [historyEntry({ label: "Tab 3" })],
+      sessions: [session({ title: null, preview: null })],
+    });
+    expect(fallback[0].titleOrigin).toBe("tab");
+    expect(merge({ history: [historyEntry({ resumeCmd: "aider --restore" })] })[0].titleOrigin).toBe("tab");
+  });
+
+  it("marks which rows a transcript backs", () => {
+    expect(merge({ sessions: [session()] })[0].storeBacked).toBe(true);
+    expect(merge({ history: [historyEntry({ resumeCmd: "aider --restore" })] })[0].storeBacked).toBe(
+      false,
+    );
+  });
+
+  it("falls back to the close time when the store reports no timestamp", () => {
+    const rows = merge({ history: [historyEntry()], sessions: [session({ updatedAt: 0 })] });
+
+    expect(rows[0].updatedAt).toBe(1_000);
   });
 
   it("does not let one closed tab claim two stored sessions", () => {
@@ -185,6 +262,12 @@ describe("groupByDay", () => {
       "Earlier this month",
       "November 2025",
     ]);
+  });
+
+  it("buckets a session with no timestamp instead of dating it to 1970", () => {
+    const groups = groupByDay([at(0)], now);
+
+    expect(groups.map((group) => group.label)).toEqual(["Older"]);
   });
 
   it("keeps consecutive rows of the same day together", () => {

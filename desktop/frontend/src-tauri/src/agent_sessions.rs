@@ -60,14 +60,91 @@ pub fn list_agent_sessions(
     );
 
     let candidates = claude::candidates(&transcripts);
-    let (mut sessions, scanned) = claude::summaries(&candidates, &needle, limit);
+    let (sessions, scanned) = claude::summaries(&candidates, &needle, limit);
     let codex = codex::summaries(&codex_home(), &project.root, &needle, limit);
-    // Either store may have stopped at the page size, and a search stops at its
-    // scan cap — any of those means "there is more behind this".
-    let has_more = sessions.len() >= limit || codex.len() >= limit || scanned < candidates.len();
-    sessions.extend(codex);
+    Ok(merge_page(
+        sessions,
+        codex,
+        scanned < candidates.len(),
+        limit,
+    ))
+}
 
+/// One page out of the two stores, newest first. Both were filled to the page
+/// size independently, so the merge itself drops rows — and the flag has to be
+/// read off the merged page, not off either half.
+fn merge_page(
+    mut sessions: Vec<AgentSessionSummary>,
+    codex: Vec<AgentSessionSummary>,
+    claude_stopped_early: bool,
+    limit: usize,
+) -> AgentSessionPage {
+    // Codex stops at the page size with no way to tell a full page from an
+    // exhausted store; claude never returns more than the page size, so its
+    // own overflow shows up as candidates it never opened.
+    let codex_full = codex.len() >= limit;
+    sessions.extend(codex);
     sessions.sort_by_key(|s| std::cmp::Reverse(s.updated_at));
+    let has_more = sessions.len() > limit || codex_full || claude_stopped_early;
     sessions.truncate(limit);
-    Ok(AgentSessionPage { sessions, has_more })
+    AgentSessionPage { sessions, has_more }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn summary(provider: &'static str, updated_at: i64) -> AgentSessionSummary {
+        AgentSessionSummary {
+            provider,
+            session_id: format!("{provider}-{updated_at}"),
+            title: None,
+            preview: Some("prompt".into()),
+            updated_at,
+            git_branch: None,
+        }
+    }
+
+    /// Interleaved timestamps, so truncating the merged page can only keep the
+    /// newest rows by taking some of each store.
+    fn merged(claude: usize, codex: usize, limit: usize) -> AgentSessionPage {
+        let claude = (0..claude)
+            .map(|i| summary("claude", 2 * i as i64))
+            .collect();
+        let codex = (0..codex)
+            .map(|i| summary("codex", 2 * i as i64 + 1))
+            .collect();
+        merge_page(claude, codex, false, limit)
+    }
+
+    #[test]
+    fn rows_the_merge_drops_still_count_as_older_sessions() {
+        let page = merged(25, 30, 40);
+        assert_eq!(page.sessions.len(), 40);
+        assert!(page.has_more);
+    }
+
+    #[test]
+    fn a_page_holding_both_stores_whole_is_the_end() {
+        let page = merged(5, 5, 40);
+        assert_eq!(page.sessions.len(), 10);
+        assert!(!page.has_more);
+    }
+
+    #[test]
+    fn a_full_codex_page_or_an_early_claude_stop_means_more() {
+        assert!(merged(0, 4, 4).has_more);
+        assert!(merge_page(vec![summary("claude", 1)], Vec::new(), true, 40).has_more);
+    }
+
+    #[test]
+    fn the_page_is_newest_first_across_both_stores() {
+        let page = merged(3, 3, 40);
+        let order = page
+            .sessions
+            .iter()
+            .map(|s| s.updated_at)
+            .collect::<Vec<_>>();
+        assert_eq!(order, vec![5, 4, 3, 2, 1, 0]);
+    }
 }

@@ -397,7 +397,28 @@ pub(crate) fn compact_title(value: &str) -> Option<String> {
 }
 
 pub(crate) fn compact_fallback(value: &str) -> Option<String> {
-    compact(strip_leading_image_path(value), true)
+    // A prompt that was only an image strips to nothing, and a session with
+    // neither title nor preview is dropped from the picker entirely — so the
+    // raw text stands in rather than losing the row.
+    compact(
+        strip_leading_image_path(strip_image_placeholders(value)),
+        true,
+    )
+    .or_else(|| compact(value, true))
+}
+
+/// An attached image is serialized as `[Image #N]` and lands verbatim at the
+/// head of the prompt the agent recorded; several can stack before the words.
+fn strip_image_placeholders(value: &str) -> &str {
+    let mut rest = value.trim_start();
+    while let Some(inner) = rest.strip_prefix("[Image #") {
+        let Some(end) = inner.find(']') else { break };
+        if inner[..end].is_empty() || !inner[..end].bytes().all(|b| b.is_ascii_digit()) {
+            break;
+        }
+        rest = inner[end + 1..].trim_start();
+    }
+    rest
 }
 
 fn strip_leading_image_path(value: &str) -> &str {

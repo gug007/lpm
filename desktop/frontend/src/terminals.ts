@@ -67,9 +67,13 @@ export interface ProjectTerminalState {
   // Legacy field — read on load for migration, never written back.
   terminals?: PersistedTerminalEntry[];
   history?: PersistedHistoryEntry[];
+  // Row keys the user removed from the resume list. The transcripts stay on
+  // disk and keep being listed, so hiding has to be remembered here.
+  hiddenSessions?: string[];
 }
 
 export const TERMINAL_HISTORY_CAP = 20;
+export const HIDDEN_SESSIONS_CAP = 500;
 
 // Reserved projectName for the global terminals pane tree. Mirrors
 // GlobalProjectName in internal/config — both must stay in sync.
@@ -271,4 +275,16 @@ export function removeHistoryEntry(
   const next = existing.filter((h) => h.resumeCmd !== resumeCmd);
   if (next.length === existing.length) return state;
   return { ...state, history: next };
+}
+
+export function hideSession(state: ProjectTerminalState, key: string): ProjectTerminalState {
+  const existing = state.hiddenSessions ?? [];
+  const filtered = existing.filter((k) => k !== key);
+  const next = [key, ...filtered].slice(0, HIDDEN_SESSIONS_CAP);
+  return { ...state, hiddenSessions: next };
+}
+
+export function clearHiddenSessions(state: ProjectTerminalState): ProjectTerminalState {
+  if ((state.hiddenSessions ?? []).length === 0) return state;
+  return { ...state, hiddenSessions: [] };
 }

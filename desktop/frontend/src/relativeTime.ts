@@ -9,3 +9,14 @@ export function relativeTime(unix: number): string {
   if (s < 31536000) return `${Math.floor(s / 2592000)}mo`;
   return `${Math.floor(s / 31536000)}y`;
 }
+
+const STAMP = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+export function shortStamp(ms: number): string {
+  return ms > 0 ? STAMP.format(new Date(ms)) : "";
+}
