@@ -7,6 +7,7 @@ import {
   findTerminalLocation,
   paneHeaderItems,
   terminalDisplayLabel,
+  terminalOriginLabel,
   type PaneLeaf,
   type PaneNode,
   type PaneHeaderItem,
@@ -158,6 +159,46 @@ describe("applyManualTerminalRename", () => {
     expect(renamed.sessionTitle).toBeUndefined();
     expect(renamed.sessionTitleId).toBeUndefined();
     expect(renamed.sessionTitleSource).toBe("manual");
+  });
+});
+
+describe("terminalOriginLabel", () => {
+  const launched = {
+    id: "t0",
+    label: "Ultracode",
+    actionName: "ultracode",
+  };
+
+  it("names the action once a conversation title replaces its label", () => {
+    expect(
+      terminalOriginLabel({ ...launched, sessionTitle: "Investigate flaky test" }),
+    ).toBe("Ultracode");
+  });
+
+  it("stays quiet while the tab still shows the name it launched under", () => {
+    expect(terminalOriginLabel(launched)).toBeUndefined();
+  });
+
+  it("falls back to the action once a rename overwrites the launch label", () => {
+    const renamed = applyManualTerminalRename(
+      { ...launched, sessionTitle: "Investigate flaky test", sessionTitleSource: "vendor" },
+      "Mine",
+    );
+    expect(terminalOriginLabel(renamed)).toBe("ultracode");
+  });
+
+  it("stays quiet when a rename reuses the action's own name", () => {
+    const renamed = applyManualTerminalRename(
+      { ...launched, sessionTitle: "Investigate flaky test", sessionTitleSource: "vendor" },
+      "ultracode",
+    );
+    expect(terminalOriginLabel(renamed)).toBeUndefined();
+  });
+
+  it("stays quiet for a plain terminal, whose original name says nothing", () => {
+    expect(
+      terminalOriginLabel({ id: "t1", label: "Terminal 3", sessionTitle: "Ship it" }),
+    ).toBeUndefined();
   });
 });
 

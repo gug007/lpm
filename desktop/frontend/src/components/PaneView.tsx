@@ -39,6 +39,7 @@ import {
   followsAgentTitle,
   isTerminalTab,
   terminalDisplayLabel,
+  terminalOriginLabel,
   type PaneLeaf,
   type SplitDirection,
   type TerminalInstance,
@@ -403,6 +404,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
                     label={terminalDisplayLabel(t)}
+                    origin={terminalOriginLabel(t)}
                     icon={<TabIcon tab={t} />}
                     active={isActive}
                     pinned={t.pinned}

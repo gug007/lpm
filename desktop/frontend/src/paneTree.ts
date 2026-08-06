@@ -118,6 +118,17 @@ export function followsAgentTitle(t: TerminalInstance): boolean {
   return t.sessionTitleSource !== "manual";
 }
 
+// The name a tab launched under, once a conversation title or a rename has
+// taken its place on the strip. Only action tabs qualify: that a tab started as
+// "Terminal 3" says nothing, that it started as "Review PR" says where it came
+// from. A rename overwrites the launch label, so those fall back to the action
+// itself — the one piece of the origin a rename can't erase.
+export function terminalOriginLabel(t: TerminalInstance): string | undefined {
+  if (!t.actionName) return undefined;
+  const original = (followsAgentTitle(t) ? t.label.trim() : "") || t.actionName;
+  return original !== terminalDisplayLabel(t) ? original : undefined;
+}
+
 export function applyManualTerminalRename(
   terminal: TerminalInstance,
   label: string,

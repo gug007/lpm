@@ -3,11 +3,12 @@ import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
-import { actionAccentColor, actionTextColor } from "../../actionColors";
+import { actionAccentColor, actionButtonStyle, actionTextColor } from "../../actionColors";
 
 export function HeaderTab({
   label,
   icon,
+  origin,
   active,
   onClick,
   onClose,
@@ -22,6 +23,10 @@ export function HeaderTab({
 }: {
   label: string;
   icon?: ReactNode;
+  // The name the tab launched under, when the label on screen is no longer it
+  // (an agent renamed the tab after its conversation). Shown in the tooltip so
+  // the action behind a renamed tab stays findable.
+  origin?: string;
   active: boolean;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   onClose?: () => void;
@@ -80,6 +85,26 @@ export function HeaderTab({
     </span>
   );
 
+  // Renamed tabs get a two-part card: the full title, then the action it came
+  // from as a chip carrying that action's own tint. Everything else keeps the
+  // plain one-line tooltip, shown only when the strip clips the label.
+  const tooltip = origin ? (
+    <span className="flex flex-col gap-2">
+      <span className="line-clamp-3 font-medium">{label}</span>
+      <span className="flex min-w-0 items-center gap-1.5 border-t border-[var(--border)] pt-2 text-[11px] text-[var(--text-muted)]">
+        from
+        <span
+          style={actionButtonStyle(color)}
+          className="min-w-0 truncate rounded-md border border-[var(--border)] bg-[var(--action-tint,var(--bg-primary))] px-1.5 py-0.5 font-medium text-[var(--action-text,var(--text-secondary))]"
+        >
+          {origin}
+        </span>
+      </span>
+    </span>
+  ) : (
+    label
+  );
+
   return (
     <button
       onClick={onClick}
@@ -127,8 +152,14 @@ export function HeaderTab({
           ) : null}
         </span>
       )}
-      {truncated ? (
-        <Tooltip content={label} side="bottom" maxLines={3} triggerClassName="flex min-w-0">
+      {truncated || origin ? (
+        <Tooltip
+          content={tooltip}
+          side="bottom"
+          wide={!!origin}
+          maxLines={3}
+          triggerClassName="flex min-w-0"
+        >
           {labelNode}
         </Tooltip>
       ) : (
