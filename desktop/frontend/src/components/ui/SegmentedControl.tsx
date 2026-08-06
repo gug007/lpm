@@ -4,7 +4,6 @@ import { Tooltip } from "./Tooltip";
 interface SegmentedOption<T extends string> {
   value: T;
   label: string;
-  count?: number;
   tooltip?: ReactNode;
   disabled?: boolean;
 }
@@ -55,9 +54,6 @@ export function SegmentedControl<T extends string>({
             }`}
           >
             {opt.label}
-            {opt.count !== undefined && (
-              <span className="ml-1 text-[10px] tabular-nums opacity-60">{opt.count}</span>
-            )}
           </button>
         );
         return (

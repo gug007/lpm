@@ -14,13 +14,10 @@ interface ResumeSessionRowProps {
   onForget?: (row: SessionRow) => void;
 }
 
-// The opening prompt, unless it only restates the title — agents name a session
-// after its first prompt, so the two are often the same words. Then the exact
-// time takes the slot: it's what tells two runs of one prompt apart.
+// The opening prompt, dropped when it only restates the title — agents name a
+// session after its first prompt, so the two are often the same words.
 function detailOf(row: SessionRow): string {
-  return row.titleOrigin === "named" && !echoesTitle(row.title, row.preview)
-    ? row.preview
-    : shortStamp(row.updatedAt);
+  return echoesTitle(row.title, row.preview) ? "" : row.preview;
 }
 
 // One conversation. The whole row is the button; the age gives up its slot to
@@ -77,7 +74,7 @@ export const ResumeSessionRow = memo(function ResumeSessionRow({
           />
           <span className="shrink-0 text-[var(--text-secondary)]">{meta.short}</span>
           {row.gitBranch && (
-            <span className="flex min-w-0 max-w-[45%] items-center gap-1">
+            <span className="flex min-w-0 max-w-[35%] items-center gap-1">
               <span aria-hidden>·</span>
               <span className="shrink-0">
                 <BranchIcon size={10} />
@@ -85,6 +82,9 @@ export const ResumeSessionRow = memo(function ResumeSessionRow({
               <span className="truncate">{row.gitBranch}</span>
             </span>
           )}
+          {/* Ahead of the prompt, and never truncated: when it lands after text
+              that runs long it's the first thing the ellipsis eats. */}
+          {dated && <span className="shrink-0">· {shortStamp(row.updatedAt)}</span>}
           {detail && (
             <span title={detail} className="min-w-0 truncate">
               · {detail}
