@@ -302,6 +302,9 @@ fn start_internal(
         let argv = config::ssh_command_argv(ssh, raw_cwd, &remote_env, &inner);
         crate::statusfwd::ensure_status_forward(app, ssh);
         crate::hooks::install_remote_agent_hooks_once(ssh);
+        // Same terms as the hooks above: the agent about to start here reads the
+        // REMOTE skill dirs, which nothing else in lpm ever writes to.
+        crate::skill_install_remote::install_remote_agent_skills_once(ssh);
         builder = CommandBuilder::new(&argv[0]);
         for a in &argv[1..] {
             builder.arg(a);

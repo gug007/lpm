@@ -70,6 +70,7 @@ mod session_memory;
 mod session_memory_files;
 mod session_memory_scope;
 mod skill_install;
+mod skill_install_remote;
 mod sockdeliver;
 mod socketsrv;
 mod sound;

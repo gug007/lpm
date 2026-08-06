@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hostSkillDone,
   hostSkillError,
   hostSkillLabel,
   hostSkillNote,
@@ -42,6 +43,24 @@ describe("hostSkillNote", () => {
   it("flags the two states worth acting on", () => {
     expect(hostSkillNote("outdated")).toBe(" · skills out of date");
     expect(hostSkillNote("not-installed")).toBe(" · skills not installed");
+  });
+});
+
+describe("hostSkillDone", () => {
+  it("confirms the install and says why nothing changed yet", () => {
+    const done = hostSkillDone("installed");
+    expect(done).toContain("Skills installed");
+    expect(done).toContain("restart agents");
+  });
+
+  it("does not claim success the host itself is not reporting", () => {
+    for (const state of ["outdated", "not-installed", "unknown"] as const) {
+      expect(hostSkillDone(state)).toContain("out of date");
+    }
+  });
+
+  it("keeps the how out of it", () => {
+    expect(hostSkillDone("installed")).not.toMatch(/\.claude|SKILL\.md|ssh/i);
   });
 });
 

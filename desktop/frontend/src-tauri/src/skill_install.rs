@@ -19,12 +19,12 @@ const LPM_MEMORY_OPENAI: &str = include_str!("../../../../lpm-memory/agents/open
 const LPM_SHORTCUT_SKILL: &str = include_str!("../../../../lpm/SKILL.md");
 const LPM_SHORTCUT_OPENAI: &str = include_str!("../../../../lpm/agents/openai.yaml");
 
-struct SkillFile {
-    rel_path: &'static str,
-    content: &'static str,
+pub struct SkillFile {
+    pub rel_path: &'static str,
+    pub content: &'static str,
 }
 
-const SKILL_FILES: &[SkillFile] = &[
+pub const SKILL_FILES: &[SkillFile] = &[
     SkillFile {
         rel_path: "lpm-config/SKILL.md",
         content: LPM_CONFIG_SKILL,
@@ -80,7 +80,7 @@ const SKILL_FILES: &[SkillFile] = &[
 ];
 
 const ENTRY_SKILLS: &[&str] = &["lpm-config/SKILL.md", "lpm-cli/SKILL.md"];
-const REMOVED_SKILL_FILES: &[&str] = &["lpm-config/references/yaml-schema.md"];
+pub const REMOVED_SKILL_FILES: &[&str] = &["lpm-config/references/yaml-schema.md"];
 
 /// Parse the `version:` field from a SKILL.md YAML frontmatter block, or None.
 /// Scans only the leading `---`…`---` block; no YAML dependency needed.
@@ -104,11 +104,17 @@ fn parse_skill_version(content: &str) -> Option<String> {
     None
 }
 
+/// The two skill dirs, relative to a home directory: Claude Code's, and the
+/// open-standard one Codex, Gemini CLI and OpenCode read. Shared with the remote
+/// installer so a machine lpm only reaches over ssh gets the same layout as one
+/// it runs on.
+pub const SKILL_TARGET_DIRS: &[&str] = &[".claude/skills", ".agents/skills"];
+
 fn targets() -> [PathBuf; 2] {
     let home = dirs::home_dir().unwrap_or_default();
     [
-        home.join(".claude").join("skills"),
-        home.join(".agents").join("skills"),
+        home.join(SKILL_TARGET_DIRS[0]),
+        home.join(SKILL_TARGET_DIRS[1]),
     ]
 }
 
@@ -218,8 +224,10 @@ fn ensure_all(dirs: &[PathBuf]) {
 
 /// A host operator's only way to say "no lpm skills on this machine". The opt-in
 /// gate is a button in a pane nobody is in front of here, so deleting the files
-/// can't carry that meaning — the next start would just write them back.
-const HOST_OPT_OUT: &str = "no-agent-skills";
+/// can't carry that meaning — the next start would just write them back. Named
+/// relative to `~/.lpm`, so the remote installer can honour the same marker on a
+/// machine that has no lpm of its own.
+pub const HOST_OPT_OUT: &str = "no-agent-skills";
 
 fn opted_out_at(lpm_dir: &std::path::Path) -> bool {
     lpm_dir.join(HOST_OPT_OUT).exists()

@@ -31,6 +31,18 @@ export function hostSkillNote(state: HostSkillState): string {
   return "";
 }
 
+// Said after a successful install, because without it the action is invisible:
+// it writes a dozen small files in well under a second and restarts nothing, so
+// the pending line flashes and the row returns to exactly what it said before —
+// success and a no-op look identical. The second half is the part that saves a
+// second report: the agents already running there read their skills once, at
+// start, so the files landing changes nothing until they are started again.
+export function hostSkillDone(state: HostSkillState): string {
+  return state === "installed"
+    ? "Skills installed — restart agents there to pick them up"
+    : "Skills installed, but that host still reports them as out of date";
+}
+
 // A host old enough to predate this refusing the command is the one failure
 // worth rewriting: the message names a transport nobody chose, and the fix is
 // the update the row is already offering.

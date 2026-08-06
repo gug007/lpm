@@ -2,6 +2,7 @@ import { memo } from "react";
 import { BranchIcon, TrashIcon } from "../icons";
 import { providerMeta } from "../../agentStatus";
 import { relativeTime, shortStamp } from "../../relativeTime";
+import { echoesTitle } from "../../sessionText";
 import type { SessionRow } from "../../agentSessions";
 
 interface ResumeSessionRowProps {
@@ -13,10 +14,11 @@ interface ResumeSessionRowProps {
   onForget?: (row: SessionRow) => void;
 }
 
-// When the title is already the opening prompt, echoing it below says nothing —
-// the exact time is the only thing that tells two runs of one prompt apart.
+// The opening prompt, unless it only restates the title — agents name a session
+// after its first prompt, so the two are often the same words. Then the exact
+// time takes the slot: it's what tells two runs of one prompt apart.
 function detailOf(row: SessionRow): string {
-  return row.titleOrigin === "named" && row.preview && row.preview !== row.title
+  return row.titleOrigin === "named" && !echoesTitle(row.title, row.preview)
     ? row.preview
     : shortStamp(row.updatedAt);
 }

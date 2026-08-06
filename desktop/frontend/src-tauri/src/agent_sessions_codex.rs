@@ -2,7 +2,9 @@
 //! project's page is a single query — scoped to its directory, ordered by
 //! recency, searched in SQL. Column sets differ across codex versions, so every
 //! optional column is probed before it appears in a statement.
-use crate::agent_session_titles::{codex_state_databases, compact_fallback, compact_title, threads_columns};
+use crate::agent_session_titles::{
+    codex_state_databases, compact_fallback, compact_title, threads_columns,
+};
 use crate::agent_sessions::AgentSessionSummary;
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
@@ -69,11 +71,17 @@ pub(crate) fn summaries(
         }
         let base = filters.join(" AND ");
 
-        let searchable = ["name", "title", "preview", "first_user_message", "git_branch"]
-            .iter()
-            .filter(|name| has(name))
-            .map(|name| format!("LOWER(COALESCE({name},'')) LIKE ?2 ESCAPE '\\'"))
-            .collect::<Vec<_>>();
+        let searchable = [
+            "name",
+            "title",
+            "preview",
+            "first_user_message",
+            "git_branch",
+        ]
+        .iter()
+        .filter(|name| has(name))
+        .map(|name| format!("LOWER(COALESCE({name},'')) LIKE ?2 ESCAPE '\\'"))
+        .collect::<Vec<_>>();
         let where_clause = if needle.is_empty() || searchable.is_empty() {
             base.clone()
         } else {
@@ -137,9 +145,11 @@ pub(crate) fn summaries(
 }
 
 fn escape_like(needle: &str) -> String {
-    needle.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    needle
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
 }
-
 
 #[cfg(test)]
 #[path = "agent_sessions_codex_tests.rs"]

@@ -474,7 +474,7 @@ pub fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) -> bool {
 /// `"$HOME/.claude/settings.json"`. The byte-count check keeps a connection
 /// dropped mid-pipe from renaming a truncated temp file over the real one.
 /// Returns whether the remote write succeeded.
-fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, bytes: &[u8]) -> bool {
+pub fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, bytes: &[u8]) -> bool {
     let script = format!(
         "mkdir -p \"$(dirname {path_expr})\" && t={path_expr}.lpmtmp && cat > \"$t\" && [ \"$(wc -c < \"$t\")\" -eq {} ] && mv -f \"$t\" {path_expr}",
         bytes.len()

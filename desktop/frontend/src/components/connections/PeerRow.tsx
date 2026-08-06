@@ -18,6 +18,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { isLinuxHost } from "../../peer/platform";
 import { isHostBehind } from "../../peer/hostVersion";
 import {
+  hostSkillDone,
   hostSkillError,
   hostSkillLabel,
   hostSkillNote,
@@ -56,6 +57,9 @@ export function PeerRow({
   const [purgeData, setPurgeData] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [installingSkills, setInstallingSkills] = useState(false);
+  // An install that worked, until something else has more to say. See
+  // hostSkillDone: without this the row cannot tell the user it did anything.
+  const [skillsDone, setSkillsDone] = useState(false);
   const [skills, setSkills] = useState<HostSkillState>("unknown");
   // Installing is only possible on a machine we can reach ourselves, which is
   // what sshHost means. A Mac we merely dial has no such action.
@@ -98,15 +102,26 @@ export function PeerRow({
     void loadSkills();
   }, [loadSkills]);
 
+  // Long enough to read at a glance without leaving a stale claim on a row whose
+  // whole job is saying what a machine is doing right now.
+  useEffect(() => {
+    if (!skillsDone) return;
+    const timer = setTimeout(() => setSkillsDone(false), 10000);
+    return () => clearTimeout(timer);
+  }, [skillsDone]);
+
   // No confirmation and no dialog, deliberately: this writes a dozen files and
   // restarts nothing, which is the entire reason it is separate from the update
-  // above. Re-reads the host's own answer afterwards rather than assuming.
+  // above. Re-reads the host's own answer afterwards rather than assuming — and
+  // says so, because the write is far too fast to be visible on its own.
   const installSkills = async () => {
     setInstallingSkills(true);
     setActionError(null);
+    setSkillsDone(false);
     try {
       await PeerInvoke(peer.slug, "install_agent_skill", {});
       await loadSkills();
+      setSkillsDone(true);
     } catch (err) {
       setActionError(hostSkillError(String(err)));
     } finally {
@@ -117,6 +132,7 @@ export function PeerRow({
   const update = async () => {
     setUpdating(true);
     setActionError(null);
+    setSkillsDone(false);
     try {
       await PeerUpdateHost(peer.slug);
       await refresh();
@@ -132,6 +148,7 @@ export function PeerRow({
   const uninstall = async (purge: boolean) => {
     setRemoving(true);
     setActionError(null);
+    setSkillsDone(false);
     try {
       await PeerUninstallHost(peer.slug, purge);
       await refresh();
@@ -146,6 +163,7 @@ export function PeerRow({
   const reconnect = async () => {
     setRetrying(true);
     setActionError(null);
+    setSkillsDone(false);
     await PeerReconnect(peer.slug);
     await refresh();
   };
@@ -184,6 +202,8 @@ export function PeerRow({
             <StatusLine tone="pending" text="Reconnecting…" />
           ) : actionError ? (
             <StatusLine tone="error" text={actionError} />
+          ) : skillsDone ? (
+            <StatusLine tone="live" text={hostSkillDone(skills)} />
           ) : (
             <StatusLine
               tone={status.tone}

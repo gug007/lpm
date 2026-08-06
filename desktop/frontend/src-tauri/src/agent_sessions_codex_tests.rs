@@ -47,8 +47,22 @@ fn codex_rows_are_scoped_to_the_project_and_ordered_by_recency() {
     write_threads(
         home.path(),
         &[
-            (SESSION_A, "Older here", "/work/lpm", 1_700_000_000, 0, "cli"),
-            (SESSION_B, "Newer here", "/work/lpm", 1_700_000_100, 0, "cli"),
+            (
+                SESSION_A,
+                "Older here",
+                "/work/lpm",
+                1_700_000_000,
+                0,
+                "cli",
+            ),
+            (
+                SESSION_B,
+                "Newer here",
+                "/work/lpm",
+                1_700_000_100,
+                0,
+                "cli",
+            ),
             (
                 "019fac59-0da4-7160-b104-5b8429ba1056",
                 "Elsewhere",
@@ -84,8 +98,22 @@ fn codex_search_filters_in_sql() {
     write_threads(
         home.path(),
         &[
-            (SESSION_A, "Resume picker", "/work/lpm", 1_700_000_000, 0, "cli"),
-            (SESSION_B, "Something else", "/work/lpm", 1_700_000_100, 0, "cli"),
+            (
+                SESSION_A,
+                "Resume picker",
+                "/work/lpm",
+                1_700_000_000,
+                0,
+                "cli",
+            ),
+            (
+                SESSION_B,
+                "Something else",
+                "/work/lpm",
+                1_700_000_100,
+                0,
+                "cli",
+            ),
         ],
     );
 
@@ -102,7 +130,14 @@ fn codex_search_escapes_like_wildcards() {
         home.path(),
         &[
             (SESSION_A, "100% done", "/work/lpm", 1_700_000_000, 0, "cli"),
-            (SESSION_B, "nothing alike", "/work/lpm", 1_700_000_100, 0, "cli"),
+            (
+                SESSION_B,
+                "nothing alike",
+                "/work/lpm",
+                1_700_000_100,
+                0,
+                "cli",
+            ),
         ],
     );
 
@@ -119,8 +154,22 @@ fn codex_rows_skip_exec_and_subagent_threads() {
     write_threads(
         home.path(),
         &[
-            (SESSION_A, "Interactive", "/work/lpm", 1_700_000_000, 0, "cli"),
-            (SESSION_B, "Commit message", "/work/lpm", 1_700_000_100, 0, "exec"),
+            (
+                SESSION_A,
+                "Interactive",
+                "/work/lpm",
+                1_700_000_000,
+                0,
+                "cli",
+            ),
+            (
+                SESSION_B,
+                "Commit message",
+                "/work/lpm",
+                1_700_000_100,
+                0,
+                "exec",
+            ),
             (
                 "019fac59-0da4-7160-b104-5b8429ba1056",
                 "Spawned",
@@ -142,5 +191,3 @@ fn codex_missing_database_is_empty_not_an_error() {
     let home = TempDir::new().unwrap();
     assert!(summaries(home.path(), "/work/lpm", "", 10).is_empty());
 }
-
-

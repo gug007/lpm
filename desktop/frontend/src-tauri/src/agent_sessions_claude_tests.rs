@@ -76,10 +76,7 @@ fn head_skips_sidechain_records() {
         &[sidechain, user_line("the real prompt", "main")],
     );
 
-    assert_eq!(
-        head(&path).preview.as_deref(),
-        Some("the real prompt")
-    );
+    assert_eq!(head(&path).preview.as_deref(), Some("the real prompt"));
 }
 
 #[test]
@@ -114,10 +111,7 @@ fn tail_title_prefers_a_custom_title_and_falls_back_when_cleared() {
         ],
     );
     let len = fs::metadata(&renamed).unwrap().len();
-    assert_eq!(
-        tail_title(&renamed, len).as_deref(),
-        Some("My name for it")
-    );
+    assert_eq!(tail_title(&renamed, len).as_deref(), Some("My name for it"));
 
     let cleared = transcript(
         dir.path(),
@@ -192,7 +186,11 @@ fn summaries_stop_at_the_page_size_without_a_search() {
 fn summaries_keep_scanning_for_a_search_match() {
     let dir = TempDir::new().unwrap();
     let a = candidate(
-        transcript(dir.path(), SESSION_A, &[user_line("unrelated work", "main")]),
+        transcript(
+            dir.path(),
+            SESSION_A,
+            &[user_line("unrelated work", "main")],
+        ),
         SESSION_A,
     );
     let b = candidate(
