@@ -128,7 +128,7 @@ export function HeaderTab({
         </span>
       )}
       {truncated ? (
-        <Tooltip content={label} side="bottom" triggerClassName="flex min-w-0">
+        <Tooltip content={label} side="bottom" maxLines={3} triggerClassName="flex min-w-0">
           {labelNode}
         </Tooltip>
       ) : (
