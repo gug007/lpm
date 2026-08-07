@@ -7,15 +7,20 @@ import SwiftUI
 /// the rest of the platform.
 struct MarkdownText: View {
     private let blocks: [MarkdownBlock]
+    /// The block being read aloud, if any. Block ids come from the shared parse, so
+    /// the reader and the renderer agree on what "this block" means.
+    private let speakingBlock: Int?
 
-    init(_ text: String) {
+    init(_ text: String, speakingBlock: Int? = nil) {
         blocks = MarkdownBlock.parse(text)
+        self.speakingBlock = speakingBlock
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(blocks) { block in
                 row(block)
+                    .background(highlight(block), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,6 +67,13 @@ struct MarkdownText: View {
                     in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
+    /// Code blocks paint their own background and are never spoken, so they stay
+    /// out of the highlight.
+    private func highlight(_ block: MarkdownBlock) -> Color {
+        guard block.id == speakingBlock, !block.isCode else { return .clear }
+        return Color.accentColor.opacity(0.14)
+    }
+
     private static func headingFont(_ level: Int) -> Font {
         switch level {
         case 1: return .title3.weight(.bold)
@@ -74,7 +86,9 @@ struct MarkdownText: View {
 
 // MARK: - Blocks
 
-private struct MarkdownBlock: Identifiable {
+/// Shared by the renderer and by SpeechText, so a block has one identity whether
+/// it is being drawn or spoken.
+struct MarkdownBlock: Identifiable {
     enum Kind {
         case heading(Int)
         case paragraph
@@ -86,9 +100,11 @@ private struct MarkdownBlock: Identifiable {
     let id: Int
     let kind: Kind
     let text: String
+
+    var isCode: Bool { if case .code = kind { return true }; return false }
 }
 
-private extension MarkdownBlock {
+extension MarkdownBlock {
     /// Single pass over the lines: a fence swallows everything up to its closing
     /// fence, a blank line ends a paragraph, and anything unrecognized is
     /// paragraph text. Soft line breaks inside a paragraph are kept, because

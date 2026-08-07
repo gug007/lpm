@@ -24,6 +24,16 @@ struct SettingsSheet: View {
                 }
 
                 Section {
+                    SpeechSettingsControls()
+                } header: {
+                    Text("Read aloud")
+                } footer: {
+                    Text("Voice and speed for reading automation replies out loud. "
+                         + "More natural voices download in Settings → Accessibility → "
+                         + "Spoken Content → Voices.")
+                }
+
+                Section {
                     NavigationLink {
                         NotificationSettingsView()
                     } label: {

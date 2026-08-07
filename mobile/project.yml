@@ -64,9 +64,11 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDisplayName: lpm
         # Wake the app for silent background pushes that withdraw delivered
-        # notifications (agent status cleared on the Mac).
+        # notifications (agent status cleared on the Mac). `audio` keeps read-aloud
+        # speaking with the screen locked — the point of reading a result out loud.
         UIBackgroundModes:
           - remote-notification
+          - audio
         # Export compliance: all crypto here is exempt — standard TLS (wss://) for
         # transport, plus OS-provided primitives (the Keychain and CryptoKit: SHA-256
         # cert pinning and AES-GCM push-payload decryption). Standard/exempt

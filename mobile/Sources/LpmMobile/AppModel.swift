@@ -187,6 +187,9 @@ final class AppModel {
     // so composer drafts survive leaving/re-entering a terminal. Not observed here:
     // each store is observed individually by its composer.
     @ObservationIgnored private var composerStores: [String: ComposerStore] = [:]
+    // Read-aloud playback. Held here rather than in a view so speech keeps going
+    // after leaving the screen that started it.
+    @ObservationIgnored let speech = SpeechStore()
     // reqId -> terminal id, routing streamed transform replies to the right store.
     @ObservationIgnored private var transformRoutes: [String: String] = [:]
     // terminal id -> a closure that captures the phone's own xterm scrollback,
@@ -1344,22 +1347,29 @@ final class AppModel {
         client?.requestJobLiveOutput(project: project, jobId: jobId)
     }
 
-    func runAutomation(project: String, jobId: String) {
-        let key = automationKey(project, jobId)
-        automationPending.insert(key)
-        client?.runJob(project: project, jobId: jobId)
+    /// Run, stop and pause reach every folder the job runs in: a shared job is one
+    /// row on screen but keeps its state — and its runs — per project.
+    func runAutomation(_ job: AutomationJob) {
+        forEachAutomationTarget(job) { $0.runJob(project: $1, jobId: job.id) }
     }
 
-    func stopAutomation(project: String, jobId: String) {
-        let key = automationKey(project, jobId)
-        automationPending.insert(key)
-        client?.stopJob(project: project, jobId: jobId)
+    func stopAutomation(_ job: AutomationJob) {
+        forEachAutomationTarget(job) { $0.stopJob(project: $1, jobId: job.id) }
     }
 
-    func setAutomationEnabled(project: String, jobId: String, enabled: Bool) {
-        let key = automationKey(project, jobId)
-        automationPending.insert(key)
-        client?.setJobEnabled(project: project, jobId: jobId, enabled: enabled)
+    func setAutomationEnabled(_ job: AutomationJob, enabled: Bool) {
+        forEachAutomationTarget(job) {
+            $0.setJobEnabled(project: $1, jobId: job.id, enabled: enabled)
+        }
+    }
+
+    private func forEachAutomationTarget(_ job: AutomationJob,
+                                         _ send: (LpmClient, String) -> Void) {
+        guard let client else { return }
+        for target in job.runTargets {
+            automationPending.insert(automationKey(target, job.id))
+            send(client, target)
+        }
     }
 
     func sendAutomationFollowup(project: String, jobId: String, at: Int, message: String,
@@ -2246,7 +2256,10 @@ final class AppModel {
             guard let self else { return }
             c.requestJobs()
             for key in self.automationHistory.keys {
-                let parts = key.split(separator: "\n", maxSplits: 1).map(String.init)
+                // A standalone job's project is the empty sentinel, so the split
+                // has to keep the empty leading component.
+                let parts = key.split(separator: "\n", maxSplits: 1,
+                                      omittingEmptySubsequences: false).map(String.init)
                 if parts.count == 2 { c.requestJobHistory(project: parts[0], jobId: parts[1]) }
             }
         }

@@ -31,23 +31,51 @@ private func automationThreads(_ entries: [AutomationHistoryEntry]) -> [Automati
     return threads
 }
 
+/// One section of the list: a project's jobs, or the two catch-alls for jobs
+/// that don't belong to exactly one project.
+private struct AutomationGroup: Identifiable {
+    let id: String
+    let title: String
+    let jobs: [AutomationJob]
+}
+
 struct AutomationsView: View {
     @Environment(AppModel.self) private var model
     @State private var editor: AutomationEditorContext?
 
-    private var groups: [(String, [AutomationJob])] {
-        Dictionary(grouping: model.automations, by: \.project)
-            .map { ($0.key, $0.value.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }) }
-            .sorted { $0.0.localizedCaseInsensitiveCompare($1.0) == .orderedAscending }
+    /// Jobs grouped by where they run: one project → that project's section;
+    /// more than one → "Multiple projects"; none → "No project".
+    private var groups: [AutomationGroup] {
+        var byProject: [String: [AutomationJob]] = [:]
+        var multiple: [AutomationJob] = []
+        var standalone: [AutomationJob] = []
+        for job in model.automations {
+            if job.standalone { standalone.append(job) }
+            else if job.runsIn.count == 1 { byProject[job.runsIn[0], default: []].append(job) }
+            else { multiple.append(job) }
+        }
+        let byName = { (a: AutomationJob, b: AutomationJob) in
+            a.displayName.localizedCaseInsensitiveCompare(b.displayName) == .orderedAscending
+        }
+        var out = byProject
+            .map { AutomationGroup(id: "project/\($0.key)", title: $0.key, jobs: $0.value.sorted(by: byName)) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        if !multiple.isEmpty {
+            out.append(AutomationGroup(id: "multi", title: "Multiple projects", jobs: multiple.sorted(by: byName)))
+        }
+        if !standalone.isEmpty {
+            out.append(AutomationGroup(id: "none", title: "No project", jobs: standalone.sorted(by: byName)))
+        }
+        return out
     }
 
     var body: some View {
         List {
-            ForEach(groups, id: \.0) { project, jobs in
-                Section(project) {
-                    ForEach(jobs, id: \.key) { job in
+            ForEach(groups) { group in
+                Section(group.title) {
+                    ForEach(group.jobs, id: \.key) { job in
                         NavigationLink {
-                            AutomationDetailView(project: job.project, jobId: job.id)
+                            AutomationDetailView(project: job.runProject, jobId: job.id)
                         } label: {
                             AutomationRow(job: job)
                         }
@@ -61,13 +89,13 @@ struct AutomationsView: View {
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             if job.running {
                                 Button(role: .destructive) {
-                                    model.stopAutomation(project: job.project, jobId: job.id)
+                                    model.stopAutomation(job)
                                 } label: {
                                     Label("Stop", systemImage: "stop.fill")
                                 }
                             } else {
                                 Button {
-                                    model.runAutomation(project: job.project, jobId: job.id)
+                                    model.runAutomation(job)
                                 } label: {
                                     Label("Run", systemImage: "play.fill")
                                 }
@@ -76,7 +104,7 @@ struct AutomationsView: View {
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
-                                model.setAutomationEnabled(project: job.project, jobId: job.id, enabled: !job.enabled)
+                                model.setAutomationEnabled(job, enabled: !job.enabled)
                             } label: {
                                 Label(job.enabled ? "Pause" : "Resume",
                                       systemImage: job.enabled ? "pause.fill" : "clock.arrow.circlepath")
@@ -147,8 +175,8 @@ private struct AutomationRow: View {
                     Text(job.displayName)
                         .font(.body.weight(.medium))
                         .lineLimit(1)
-                    if job.source == "global" {
-                        Text("ALL PROJECTS")
+                    if let tag = automationScopeTag(job) {
+                        Text(tag)
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
@@ -176,6 +204,32 @@ private struct AutomationRow: View {
     }
 }
 
+/// What a row says about its job's reach, when that isn't already its section:
+/// no project, or the several it spans. A shared job that runs in one project
+/// says nothing extra — the section it sits in already names that project.
+private func automationScopeTag(_ job: AutomationJob) -> String? {
+    if job.standalone { return "NO PROJECT" }
+    if job.runsIn.count > 1 { return "\(job.runsIn.count) PROJECTS" }
+    return job.source == "repo" ? "IN REPO" : nil
+}
+
+/// Where a job runs, for its own page: the project, the count when it spans
+/// several, or the home folder when it belongs to none.
+private func automationScopeText(_ job: AutomationJob) -> String {
+    if job.standalone { return "No project" }
+    if job.runsIn.count > 1 { return "\(job.runsIn.count) projects" }
+    return job.runsIn.first ?? ""
+}
+
+/// The job a page opened for `project` is about. A shared job is one row over
+/// several projects, so it answers to any of them — a page reached from a
+/// notification or the Activity feed carries the project that ran, which need
+/// not be the one the list addresses it by.
+private func automationMatching(_ jobs: [AutomationJob],
+                                _ project: String, _ jobId: String) -> AutomationJob? {
+    jobs.first { $0.id == jobId && ($0.runTargets.contains(project) || $0.runProject == project) }
+}
+
 struct AutomationDetailView: View {
     @Environment(AppModel.self) private var model
     let project: String
@@ -184,7 +238,7 @@ struct AutomationDetailView: View {
     @State private var editor: AutomationEditorContext?
 
     private var key: String { model.automationKey(project, jobId) }
-    private var job: AutomationJob? { model.automations.first { $0.project == project && $0.id == jobId } }
+    private var job: AutomationJob? { automationMatching(model.automations, project, jobId) }
     private var threads: [AutomationThread] {
         automationThreads(model.automationHistory[key] ?? []).sorted { $0.tail.at > $1.tail.at }
     }
@@ -199,7 +253,7 @@ struct AutomationDetailView: View {
                             .frame(width: 44)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(job.displayName).font(.title3.weight(.semibold))
-                            Text(project).font(.subheadline).foregroundStyle(.secondary)
+                            Text(automationScopeText(job)).font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -213,8 +267,8 @@ struct AutomationDetailView: View {
 
                 Section("Controls") {
                     Button {
-                        if job.running { model.stopAutomation(project: project, jobId: jobId) }
-                        else { model.runAutomation(project: project, jobId: jobId) }
+                        if job.running { model.stopAutomation(job) }
+                        else { model.runAutomation(job) }
                     } label: {
                         HStack {
                             Label(job.running ? "Stop run" : "Run now",
@@ -228,7 +282,7 @@ struct AutomationDetailView: View {
 
                     Toggle("Enabled", isOn: Binding(
                         get: { job.enabled },
-                        set: { model.setAutomationEnabled(project: project, jobId: jobId, enabled: $0) }
+                        set: { model.setAutomationEnabled(job, enabled: $0) }
                     ))
                     .disabled(!job.valid || model.automationPending.contains(key))
 
@@ -364,7 +418,7 @@ private struct AutomationConversationView: View {
     @State private var pendingBaseCount = 0
 
     private var key: String { model.automationKey(project, jobId) }
-    private var job: AutomationJob? { model.automations.first { $0.project == project && $0.id == jobId } }
+    private var job: AutomationJob? { automationMatching(model.automations, project, jobId) }
     private var thread: AutomationThread? {
         automationThreads(model.automationHistory[key] ?? []).first { $0.root.at == rootAt }
     }
@@ -379,7 +433,10 @@ private struct AutomationConversationView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 24) {
                     ForEach(entries) { entry in
-                        AutomationMessage(entry: entry, isRoot: entry.at == rootAt)
+                        AutomationMessage(entry: entry, isRoot: entry.at == rootAt,
+                                          sourceID: "\(key):\(entry.at)",
+                                          title: job?.displayName ?? "Automation",
+                                          subtitle: project)
                     }
                     if let pendingMessage {
                         AutomationPendingMessage(message: pendingMessage,
@@ -399,16 +456,25 @@ private struct AutomationConversationView: View {
             .onChange(of: model.automationLiveOutput[key]?.text) { _, _ in scrollToBottom(proxy, animated: false) }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if job?.runKind == "prompt" {
-                TerminalComposer(
-                    store: model.composerStore(for: composerId, project: project,
-                                               label: job?.displayName ?? jobId),
-                    onSend: sendFollowup,
-                    terminalTools: false,
-                    disabled: isSending,
-                    placeholder: isSending ? "Automation is running…" : "Reply to this run"
-                )
+            VStack(spacing: 0) {
+                if model.speech.isActive {
+                    SpeechBar(store: model.speech)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                if job?.runKind == "prompt" {
+                    TerminalComposer(
+                        store: model.composerStore(for: composerId, project: project,
+                                                   label: job?.displayName ?? jobId),
+                        onSend: sendFollowup,
+                        terminalTools: false,
+                        disabled: isSending,
+                        placeholder: isSending ? "Automation is running…" : "Reply to this run"
+                    )
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: model.speech.isActive)
         }
         .navigationTitle(job?.displayName ?? "Automation chat")
         .navigationBarTitleDisplayMode(.inline)
@@ -459,10 +525,17 @@ private struct AutomationConversationView: View {
 }
 
 private struct AutomationMessage: View {
+    @Environment(AppModel.self) private var model
     let entry: AutomationHistoryEntry
     let isRoot: Bool
+    /// Identifies this message to the reader, so its button knows whether the voice
+    /// currently playing is its own.
+    let sourceID: String
+    let title: String
+    let subtitle: String
 
     private var quiet: Bool { !isRoot && entry.result == "completed" }
+    private var isReading: Bool { model.speech.isActive && model.speech.sourceID == sourceID }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -479,7 +552,19 @@ private struct AutomationMessage: View {
             }
             if !quiet { AutomationMessageMeta(entry: entry) }
             if !entry.output.isEmpty {
-                MarkdownText(entry.output)
+                MarkdownText(entry.output, speakingBlock: isReading ? model.speech.speakingBlock : nil)
+                Button {
+                    model.speech.toggle(id: sourceID, title: title, subtitle: subtitle,
+                                        markdown: entry.output)
+                } label: {
+                    Image(systemName: isReading ? "stop.circle" : "speaker.wave.2")
+                        .font(.system(size: 14))
+                        .foregroundStyle(isReading ? Color.accentColor : Color.secondary)
+                        .frame(width: 30, height: 28, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isReading ? "Stop reading" : "Read aloud")
             }
             if quiet { AutomationMessageMeta(entry: entry) }
         }

@@ -1079,7 +1079,7 @@ struct AutomationJob: Identifiable {
         standalone = o["standalone"] as? Bool ?? false
     }
 
-    var key: String { project + "\n" + id }
+    var key: String { runProject + "\n" + id }
     var displayName: String { label.isEmpty ? id : label }
 
     /// The projects this job runs in — none when it is standalone. Older servers
@@ -1089,6 +1089,15 @@ struct AutomationJob: Identifiable {
         if !targets.isEmpty { return targets }
         return project.isEmpty ? [] : [project]
     }
+
+    /// Every folder the job runs in, keyed the way the Mac keys run state: a
+    /// standalone job's is the sentinel "" (the home folder).
+    var runTargets: [String] { standalone ? [""] : runsIn }
+
+    /// The one project to address this job by — history, live output and the
+    /// editor all resolve per project, and a global-layer row carries only its
+    /// `targets`, never a `project` of its own.
+    var runProject: String { runTargets.first ?? "" }
 }
 
 struct AutomationHistoryEntry: Identifiable {
