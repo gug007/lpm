@@ -1,107 +1,227 @@
 import SwiftUI
 
-/// The floating transport for read-aloud: play/pause, elapsed time, progress, and
-/// sentence skips. There is no time scrubber — a speech synthesizer has no
-/// timeline to seek within — so the skips move between sentences instead.
+/// The floating transport for read-aloud: a timeline over a centred transport,
+/// laid out like the player people already know from every podcast app.
+///
+/// Two engines share this bar and differ in the one way that matters: a rendered
+/// clip has a real timeline, so it can be scrubbed and skipped by seconds, while
+/// the on-device synthesizer has no position to seek to — its track shows how far
+/// through the text the voice is and the skips move by sentence. The layout is
+/// identical either way, so nothing moves under the thumb when the engine changes.
 struct SpeechBar: View {
     let store: SpeechStore
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button(action: store.togglePause) {
-                Group {
-                    if store.isLoading {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: store.mode == .paused ? "play.fill" : "pause.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                }
-                .frame(width: 30, height: 30)
-                .background(Color.primary.opacity(0.08), in: Circle())
-            }
-            .disabled(store.isLoading)
-
-            Text(timeText)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-
-            // A rendered clip has a real timeline, so the track becomes a
-            // scrubber. The on-device synthesizer has no such thing, and stays
-            // a plain progress bar.
-            GeometryReader { geo in
-                ProgressView(value: store.progress)
-                    .progressViewStyle(.linear)
-                    .frame(maxHeight: .infinity, alignment: .center)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        store.canSeek
-                            ? DragGesture(minimumDistance: 0).onEnded { value in
-                                let ratio = min(max(0, value.location.x / max(1, geo.size.width)), 1)
-                                store.seek(to: ratio * store.duration)
-                            }
-                            : nil
-                    )
-            }
-            .frame(minWidth: 40, maxWidth: .infinity)
-            .frame(height: 20)
-
-            SkipButton(systemImage: "backward.fill") { store.skip(-1) }
-            SkipButton(systemImage: "forward.fill") { store.skip(1) }
-
-            Menu {
-                ForEach(SpeechPrefs.rates, id: \.self) { rate in
-                    Button {
-                        store.setRate(rate)
-                    } label: {
-                        if rate == SpeechPrefs.rate {
-                            Label(SpeechPrefs.rateLabel(rate), systemImage: "checkmark")
-                        } else {
-                            Text(SpeechPrefs.rateLabel(rate))
-                        }
-                    }
-                }
-            } label: {
-                Text(SpeechPrefs.rateLabel(SpeechPrefs.rate))
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 32, height: 26)
-            }
-
-            Button(action: store.stop) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
-                    .frame(width: 26, height: 26)
-            }
+        VStack(spacing: 8) {
+            timeline
+            transport
         }
-        .foregroundStyle(.primary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: shape)
+        .overlay(shape.strokeBorder(Color.primary.opacity(0.08)))
         .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
     }
 
-    private var timeText: String {
-        guard store.duration > 0 else { return clock(store.elapsed) }
-        return "\(clock(store.elapsed)) / \(clock(store.duration))"
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 24, style: .continuous) }
+
+    // MARK: timeline
+
+    /// While the Mac renders, there is no position to show and no time to count —
+    /// so the row says what is happening instead of animating a dead track.
+    @ViewBuilder private var timeline: some View {
+        if store.isLoading {
+            HStack(spacing: 8) {
+                Text("Preparing audio…")
+                Spacer(minLength: 0)
+            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .frame(height: 22)
+        } else {
+            HStack(spacing: 10) {
+                Text(clock(store.elapsed))
+                    .frame(width: 34, alignment: .leading)
+                SpeechScrubber(progress: store.progress, seekable: store.canSeek) { ratio in
+                    store.seek(to: ratio * store.duration)
+                }
+                Text(trailingText)
+                    .frame(width: 40, alignment: .trailing)
+            }
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .frame(height: 22)
+        }
+    }
+
+    /// Time left when there is a clip to measure it against; otherwise how far
+    /// through the text the voice is, which is the only honest number the
+    /// synthesizer can give.
+    private var trailingText: String {
+        store.duration > 0
+            ? "-" + clock(max(0, store.duration - store.elapsed))
+            : "\(Int((store.progress * 100).rounded()))%"
     }
 
     private func clock(_ seconds: TimeInterval) -> String {
-        let total = Int(seconds)
+        let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    // MARK: transport
+
+    /// Speed and stop sit on the edges in equal-width slots so the three controls
+    /// you actually reach for stay centred under the thumb.
+    private var transport: some View {
+        HStack(spacing: 0) {
+            rateMenu.frame(width: 56, alignment: .leading)
+            Spacer(minLength: 4)
+            HStack(spacing: 16) {
+                TransportButton(systemImage: store.canSeek ? "gobackward.15" : "backward.fill",
+                                size: 20,
+                                label: store.canSeek ? "Back 15 seconds" : "Previous sentence",
+                                tint: .primary) { store.skip(-1) }
+                    .disabled(store.isLoading)
+                playPause
+                TransportButton(systemImage: store.canSeek ? "goforward.15" : "forward.fill",
+                                size: 20,
+                                label: store.canSeek ? "Forward 15 seconds" : "Next sentence",
+                                tint: .primary) { store.skip(1) }
+                    .disabled(store.isLoading)
+            }
+            Spacer(minLength: 4)
+            TransportButton(systemImage: "xmark", size: 15, label: "Stop reading", tint: .secondary) {
+                store.stop()
+            }
+            .frame(width: 56, alignment: .trailing)
+        }
+    }
+
+    private var playPause: some View {
+        Button {
+            Haptics.tap()
+            store.togglePause()
+        } label: {
+            ZStack {
+                Circle().fill(Color.accentColor)
+                if store.isLoading {
+                    ProgressView().controlSize(.small).tint(.white)
+                } else {
+                    Image(systemName: store.mode == .paused ? "play.fill" : "pause.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.white)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+            }
+            .frame(width: 46, height: 46)
+        }
+        .buttonStyle(.plain)
+        .disabled(store.isLoading)
+        .accessibilityLabel(store.mode == .paused ? "Play" : "Pause")
+    }
+
+    private var rateMenu: some View {
+        Menu {
+            Picker("Speed", selection: rateBinding) {
+                ForEach(SpeechPrefs.rates, id: \.self) { rate in
+                    Text(SpeechPrefs.rateLabel(rate)).tag(rate)
+                }
+            }
+        } label: {
+            Text(SpeechPrefs.rateLabel(store.rate))
+                .font(.footnote.weight(.semibold).monospacedDigit())
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 30)
+                .background(Color.primary.opacity(0.07), in: Capsule())
+        }
+        .accessibilityLabel("Speed")
+        .accessibilityValue(SpeechPrefs.rateLabel(store.rate))
+    }
+
+    private var rateBinding: Binding<Double> {
+        Binding(get: { store.rate }, set: { store.setRate($0) })
     }
 }
 
-private struct SkipButton: View {
+/// The timeline. A rendered clip can be scrubbed, so it carries a knob and a track
+/// that thickens under the finger; the synthesizer's version is the same shape
+/// without them, because there is nothing to grab.
+private struct SpeechScrubber: View {
+    let progress: Double
+    let seekable: Bool
+    let onSeek: (Double) -> Void
+
+    @State private var dragRatio: Double?
+
+    private let knob: CGFloat = 12
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = max(1, geo.size.width)
+            let ratio = min(max(dragRatio ?? progress, 0), 1)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.12))
+                Capsule().fill(Color.accentColor).frame(width: width * ratio)
+            }
+            .frame(height: dragRatio == nil ? 5 : 8)
+            .frame(maxHeight: .infinity)
+            .overlay(alignment: .leading) {
+                if seekable {
+                    Circle()
+                        .fill(.white)
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .frame(width: knob, height: knob)
+                        .offset(x: min(max(0, width * ratio - knob / 2), width - knob))
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(seekable ? scrub(width: width) : nil)
+            .animation(.easeOut(duration: 0.15), value: dragRatio == nil)
+        }
+        .frame(height: 22)
+        .accessibilityElement()
+        .accessibilityLabel("Playback position")
+        .accessibilityValue("\(Int((progress * 100).rounded()))%")
+    }
+
+    /// Tracks the finger live rather than jumping on release, so a scrub can be
+    /// aimed. `minimumDistance: 0` makes a plain tap a seek too.
+    private func scrub(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if dragRatio == nil { Haptics.tap() }
+                dragRatio = ratio(value.location.x, width)
+            }
+            .onEnded { value in
+                onSeek(ratio(value.location.x, width))
+                dragRatio = nil
+            }
+    }
+
+    private func ratio(_ x: CGFloat, _ width: CGFloat) -> Double {
+        min(max(0, Double(x / width)), 1)
+    }
+}
+
+private struct TransportButton: View {
     let systemImage: String
+    let size: CGFloat
+    let label: String
+    let tint: Color
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
             Image(systemName: systemImage)
-                .font(.system(size: 11))
-                .frame(width: 26, height: 26)
-                .foregroundStyle(.secondary)
+                .font(.system(size: size, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }

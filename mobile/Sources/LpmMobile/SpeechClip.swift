@@ -18,11 +18,27 @@ final class SpeechClip {
     var currentTime: TimeInterval { player?.currentTime ?? 0 }
     var isPlaying: Bool { player?.isPlaying ?? false }
 
-    func load(_ data: Data) throws {
+    /// `enableRate` has to be set before `prepareToPlay`, so the speed preference
+    /// is applied here rather than the first time the user opens the speed menu.
+    func load(_ data: Data, rate: Double) throws {
         let p = try AVAudioPlayer(data: data)
         p.delegate = delegate
+        p.enableRate = true
         p.prepareToPlay()
+        p.rate = Self.clamped(rate)
         player = p
+    }
+
+    /// The phone's speed preference. The Mac renders at its own configured speed,
+    /// so this is what makes the bar's control mean anything on that engine — and
+    /// it changes speed without a re-render round trip.
+    func setRate(_ rate: Double) {
+        player?.rate = Self.clamped(rate)
+    }
+
+    /// AVAudioPlayer only guarantees 0.5x–2x.
+    private static func clamped(_ rate: Double) -> Float {
+        Float(min(2, max(0.5, rate)))
     }
 
     func play() { player?.play() }

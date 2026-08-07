@@ -192,11 +192,11 @@ func automationEntryLabel(_ entry: AutomationHistoryEntry) -> String {
     return verified ? "\(base) — checks passed" : "\(base) — checks failed"
 }
 
-/// The first line the run actually said, so history reads without opening every
-/// row. Markdown bullets and headings lose their markers — the marker is layout,
-/// not words.
-func automationOutputSnippet(_ output: String) -> String? {
-    for raw in output.split(separator: "\n", omittingEmptySubsequences: true) {
+/// The opening line of a run's answer or a job's prompt, for the rows that stand
+/// in for them. Markdown bullets and headings lose their markers — the marker is
+/// layout, not words.
+func automationFirstLine(_ text: String) -> String? {
+    for raw in text.split(separator: "\n", omittingEmptySubsequences: true) {
         var line = raw.trimmingCharacters(in: .whitespaces)
         while let first = line.first, "#>-*•".contains(first) {
             line = String(line.dropFirst()).trimmingCharacters(in: .whitespaces)

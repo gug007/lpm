@@ -49,6 +49,24 @@ struct AutomationStatusPill: View {
     }
 }
 
+/// The row a folded group leaves behind: what it holds, and the one fact you'd
+/// have opened it for. Nothing here is worth a tap on its own.
+struct AutomationGroupLabel: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(title)
+            Spacer(minLength: 8)
+            Text(value)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+}
+
 /// A moment on the right of a row: the clock time it happened, and underneath
 /// how long ago that was — one is precise, the other is the one you feel.
 struct AutomationTimeRow: View {
@@ -100,7 +118,7 @@ struct AutomationHistoryRow: View {
                 Text(automationEntryLabel(entry))
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
-                if previews, let snippet = automationOutputSnippet(entry.output) {
+                if previews, let snippet = automationFirstLine(entry.output) {
                     Text(snippet)
                         .font(.footnote)
                         .foregroundStyle(.secondary)

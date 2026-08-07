@@ -32,7 +32,10 @@ final class SpeechStore {
     /// Set when the Mac engine is playing: a real clip has a duration, so the
     /// bar can show a timeline and seek to a position instead of a sentence.
     private(set) var duration: TimeInterval = 0
-    var canSeek: Bool { clip != nil }
+    var canSeek: Bool { duration > 0 }
+    /// Mirrors the stored speed so the bar redraws when it changes; the
+    /// preference itself is plain UserDefaults and observes nothing.
+    private(set) var rate = SpeechPrefs.rate
 
     /// Sends a synthesis request to the Mac. Wired by AppModel so the store
     /// stays unaware of the client.
@@ -146,7 +149,7 @@ final class SpeechStore {
         }
         let clip = SpeechClip { [weak self] in self?.stop() }
         do {
-            try clip.load(data)
+            try clip.load(data, rate: SpeechPrefs.rate)
         } catch {
             speechError = "Couldn't play the audio the Mac sent back."
             stop()
@@ -246,7 +249,14 @@ final class SpeechStore {
 
     func setRate(_ rate: Double) {
         SpeechPrefs.rate = rate
+        self.rate = rate
         guard isActive else { return }
+        // A clip changes speed in place. Re-queueing utterances here instead would
+        // start the on-device voice over the top of the audio already playing.
+        if let clip {
+            clip.setRate(rate)
+            return
+        }
         speak(from: index) // rate is fixed per utterance, so re-queue from here
         if mode == .paused { mode = .speaking; startTicker() }
     }

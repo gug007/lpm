@@ -13,6 +13,11 @@ struct AutomationDetailView: View {
 
     @State private var editor: AutomationEditorContext?
     @State private var showAllRuns = false
+    // Settings stay folded away so the runs — the reason you opened the page —
+    // start near the top. Collapsed, each group still shows the one fact you'd
+    // open it for. The choice is the reader's, and it sticks across automations.
+    @AppStorage("automation.scheduleOpen") private var scheduleOpen = false
+    @AppStorage("automation.setupOpen") private var setupOpen = false
 
     private var key: String { model.automationKey(project, jobId) }
     private var job: AutomationJob? { automationMatching(model.automations, project, jobId) }
@@ -25,9 +30,10 @@ struct AutomationDetailView: View {
         List {
             if let job {
                 header(job)
-                controls(job)
-                schedule(job)
-                details(job)
+                Section {
+                    schedule(job)
+                    setup(job)
+                }
                 if job.running { liveOutput }
             } else if model.automationsLoaded {
                 Section {
@@ -119,8 +125,8 @@ struct AutomationDetailView: View {
         }
     }
 
-    private func controls(_ job: AutomationJob) -> some View {
-        Section {
+    private func schedule(_ job: AutomationJob) -> some View {
+        DisclosureGroup(isExpanded: $scheduleOpen) {
             Toggle("Run on schedule", isOn: Binding(
                 get: { job.enabled },
                 set: { enabled in
@@ -129,14 +135,6 @@ struct AutomationDetailView: View {
                 }
             ))
             .disabled(!job.valid || pending)
-        } footer: {
-            Text("When this is off the automation only runs when you start it.")
-        }
-    }
-
-    private func schedule(_ job: AutomationJob) -> some View {
-        Section("Schedule") {
-            LabeledContent("Repeats", value: automationScheduleText(job))
             if job.valid, job.enabled, let next = job.nextFireAt {
                 LabeledContent("Next run", value: automationClockText(next))
             }
@@ -146,6 +144,8 @@ struct AutomationDetailView: View {
                                   detail: lastRunDetail(job, at: last),
                                   tint: automationResultColor(job.lastResult))
             }
+        } label: {
+            AutomationGroupLabel(title: "Schedule", value: automationScheduleText(job))
         }
     }
 
@@ -156,15 +156,15 @@ struct AutomationDetailView: View {
     }
 
     @ViewBuilder
-    private func details(_ job: AutomationJob) -> some View {
+    private func setup(_ job: AutomationJob) -> some View {
         let showsAgent = job.runKind == "prompt"
         let showsTargets = job.runsIn.count > 1
         if !job.summary.isEmpty || showsAgent || job.duplicate || showsTargets {
-            Section("Does") {
+            DisclosureGroup(isExpanded: $setupOpen) {
                 if !job.summary.isEmpty {
                     Text(job.summary)
-                        .font(job.runKind == "cmd" ? .system(.subheadline, design: .monospaced) : .subheadline)
-                        .lineLimit(6)
+                        .font(job.runKind == "cmd"
+                              ? .system(.subheadline, design: .monospaced) : .subheadline)
                         .textSelection(.enabled)
                 }
                 if showsAgent {
@@ -175,12 +175,13 @@ struct AutomationDetailView: View {
                         .font(.subheadline)
                 }
                 if showsTargets {
-                    DisclosureGroup("Runs in \(job.runsIn.count) projects") {
-                        ForEach(job.runsIn, id: \.self) { name in
-                            Text(name).font(.subheadline).foregroundStyle(.secondary)
-                        }
-                    }
+                    LabeledContent("Runs in", value: job.runsIn.joined(separator: ", "))
                 }
+            } label: {
+                // Open, the full prompt sits right below — the stand-in would only
+                // repeat its first line. The schedule's label has no such twin.
+                AutomationGroupLabel(title: "Does",
+                                     value: setupOpen ? "" : automationFirstLine(job.summary) ?? "")
             }
         }
     }
