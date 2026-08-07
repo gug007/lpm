@@ -26,7 +26,7 @@ export function TableOfContents() {
 
   return (
     <nav aria-label="Table of contents" className="text-xs">
-      <p className="mb-3 text-[10px] font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500">
+      <p className="mb-3 text-[10px] font-semibold tracking-widest uppercase text-gray-500 dark:text-gray-400">
         On this page
       </p>
       <ul className="space-y-1.5 border-l border-gray-200 dark:border-gray-800">

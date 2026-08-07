@@ -1,3 +1,4 @@
+import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
 
 type Step = {
@@ -96,7 +97,7 @@ const STEPS: Step[] = [
 
 export function HowItWorks() {
   return (
-    <section className="py-16 sm:py-20">
+    <section className="py-20 sm:py-24 border-y border-gray-200 dark:border-gray-800/60 bg-gray-50/60 dark:bg-white/[0.015]">
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader eyebrow="How it works" title="See it in action" />
 
@@ -112,17 +113,10 @@ export function HowItWorks() {
                   {step.body}
                 </p>
               </div>
-              <video
+              <AutoVideo
                 src={`${step.media}.mp4`}
                 poster={`${step.media}-poster.jpg`}
-                width={1224}
-                height={804}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="none"
-                aria-label={step.label}
+                label={step.label}
                 className="w-full h-auto rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
               />
             </div>

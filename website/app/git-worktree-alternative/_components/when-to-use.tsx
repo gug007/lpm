@@ -33,7 +33,7 @@ export default function WhenToUse() {
                 <GitBranch className="h-4.5 w-4.5" aria-hidden />
               </span>
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                <p className="text-xs font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
                   Choose Git worktree
                 </p>
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">

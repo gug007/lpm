@@ -11,7 +11,7 @@ export default function Cta() {
           <br className="hidden sm:block" />{" "}
           Hand your agents the keys.
         </h2>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           One click installs the skill and the CLI. Claude Code, Codex, Gemini
           CLI, and OpenCode can run your dev environment from there.
         </p>

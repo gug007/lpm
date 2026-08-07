@@ -28,7 +28,7 @@ export default function StatsPreview() {
               />
             </div>
           </div>
-          <figcaption className="mt-4 px-3 text-center text-xs leading-relaxed text-gray-400 dark:text-gray-500 sm:px-0">
+          <figcaption className="mt-4 px-3 text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-0">
             Real local usage data shown in lpm. Cost is an estimate; Codex pricing
             is approximate.
           </figcaption>

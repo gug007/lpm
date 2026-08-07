@@ -11,7 +11,7 @@ export default function Cta() {
           <br className="hidden sm:block" />{" "}
           Run your agents side by side.
         </h2>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Native desktop workspace for Claude Code, Codex, and every other
           agent that lives in a terminal.
         </p>

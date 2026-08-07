@@ -801,7 +801,7 @@ export default function ConfigPage() {
                   filename="profiles.yml"
                   initial={PROFILES_EXAMPLE}
                 />
-                <p className="mt-3 text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+                <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                   Every name in a profile list must match a service defined
                   above in <code className="font-mono">services</code>. Services
                   can appear in as many profiles as you like — overlap is fine

@@ -13,7 +13,7 @@ export default function Hero() {
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Multiple Claude Code accounts on one Mac — no logging out.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           lpm pins a Claude Code account to each project. Work repos run on the
           company seat, side projects stay personal — at the same time, in one
           window. Sign in to each account once; after that, opening a project

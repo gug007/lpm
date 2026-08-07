@@ -54,9 +54,9 @@ export function Downloads({ children }: { children?: ReactNode }) {
       id="download"
       className="scroll-mt-20 py-20 sm:py-24 border-t border-gray-200 dark:border-gray-800 text-center"
     >
-      <div className="max-w-4xl mx-auto px-6">
+      <div className="max-w-3xl mx-auto px-6">
         <div className="flex flex-col items-center gap-3 mb-12">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 tracking-wide uppercase">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 tracking-wide uppercase">
             <Package className="w-3 h-3" />
             Latest Release
           </span>
@@ -73,7 +73,7 @@ export function Downloads({ children }: { children?: ReactNode }) {
           <div
             className="mx-auto max-w-xl rounded-2xl border border-gray-200 bg-gray-50 px-6 py-6 dark:border-gray-800 dark:bg-white/[0.025]"
           >
-            <Monitor className="mx-auto h-8 w-8 text-gray-400" aria-hidden />
+            <Monitor className="mx-auto h-8 w-8 text-gray-500 dark:text-gray-400" aria-hidden />
             <p className="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-200">
               The lpm desktop app requires macOS
             </p>
@@ -99,7 +99,7 @@ export function Downloads({ children }: { children?: ReactNode }) {
                     <Icon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                   </div>
                   <span className="text-sm font-semibold">{label}</span>
-                  <span className="text-xs text-gray-400">{sub}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>
                 </a>
               ))}
             </div>
@@ -108,7 +108,7 @@ export function Downloads({ children }: { children?: ReactNode }) {
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
           <a
             href={RELEASES_URL}
-            className="inline-flex items-center gap-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             View all downloads
             <ArrowRight className="w-3.5 h-3.5" />

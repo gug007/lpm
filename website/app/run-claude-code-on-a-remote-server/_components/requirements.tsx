@@ -65,7 +65,7 @@ export default function Requirements() {
             sudo ./install.sh{"\n"}
             lpm pair
           </CodeBlock>
-          <p className="text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+          <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             That last command prints an invite to paste into Settings →
             Connections on your Mac. It is the same handshake the one-field flow
             performs for you.

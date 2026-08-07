@@ -11,18 +11,18 @@ export function Hero() {
         className="pointer-events-none absolute inset-0 bg-grid"
       />
       <div className="relative max-w-4xl mx-auto px-6">
-        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.25em] text-gray-400 dark:text-gray-500 mb-6">
+        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400 mb-6">
           <span
             aria-hidden="true"
             className="h-1.5 w-1.5 rounded-full bg-emerald-500/90 dark:bg-emerald-400/90"
           />
           Built for Mac developers
         </p>
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
+        <h1 className="text-balance text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-b from-gray-950 via-gray-900 to-gray-700 dark:from-white dark:via-white dark:to-gray-300 bg-clip-text text-transparent">
           Switch projects in one click, duplicate in seconds, run coding agents
           in parallel.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-pretty text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
           lpm is the free, open-source local dev process manager for Mac. Start,
           stop, and switch whole projects with live output per service, next to
           one-click terminals for Claude Code and Codex — every duplicate keeps

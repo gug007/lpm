@@ -3,6 +3,7 @@ import {
   AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
   CLAUDE_ACCOUNTS_PATH,
+  CONFIG_PATH,
   CONNECT_AGENTS_PATH,
   GIT_TERMINAL_MAC_PATH,
   LINUX_HOST_PATH,
@@ -10,6 +11,7 @@ import {
   MOBILE_PATH,
   PRIVACY_PATH,
   PROJECT_SIDEBAR_PATH,
+  REPO_URL,
   REVIEW_CHANGES_PATH,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
@@ -33,223 +35,127 @@ const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
   cmux: "cmux",
 };
 
+type Group = {
+  heading: string;
+  links: { href: string; label: string }[];
+};
+
+const GROUPS: Group[] = [
+  {
+    heading: "Terminal",
+    links: [
+      { href: BEST_TERMINAL_MAC_PATH, label: "Best terminal for Mac" },
+      {
+        href: MAC_TERMINAL_DEVELOPERS_PATH,
+        label: "Mac terminal for developers",
+      },
+      { href: PROJECT_SIDEBAR_PATH, label: "Terminal with a project sidebar" },
+      { href: GIT_TERMINAL_MAC_PATH, label: "Git terminal for Mac" },
+      { href: SSH_TERMINAL_MAC_PATH, label: "SSH terminal for Mac" },
+      { href: REVIEW_CHANGES_PATH, label: "Review changes in terminal" },
+    ],
+  },
+  {
+    heading: "AI agents",
+    links: [
+      { href: AI_AGENTS_PATH, label: "Claude Code & Codex" },
+      { href: CONNECT_AGENTS_PATH, label: "Connect AI agents" },
+      { href: CLAUDE_ACCOUNTS_PATH, label: "Multiple Claude accounts" },
+      { href: TOKEN_USAGE_PATH, label: "Token usage" },
+      { href: STATUSLINE_PATH, label: "Statusline customization" },
+      { href: LINUX_HOST_PATH, label: "Claude Code on a remote server" },
+    ],
+  },
+  {
+    heading: "Git worktrees",
+    links: [
+      { href: WORKTREE_ALTERNATIVE_PATH, label: "Git worktree alternative" },
+      { href: WORKTREE_AGENTS_PATH, label: "Worktrees for AI agents" },
+    ],
+  },
+  {
+    heading: "lpm",
+    links: [
+      { href: CONFIG_PATH, label: "Docs" },
+      { href: MOBILE_PATH, label: "iPhone companion" },
+      { href: STATS_PATH, label: "Download stats" },
+      { href: PRIVACY_PATH, label: "Privacy" },
+      { href: TERMS_PATH, label: "Terms" },
+    ],
+  },
+];
+
+const headingClass =
+  "text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400";
+const linkClass =
+  "text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
+
 export function Footer() {
   return (
-    <footer className="py-10 border-t border-gray-100 dark:border-gray-800/60 text-center">
-      <div
-        data-nosnippet
-        className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-4"
-      >
-        <p className="text-xs text-gray-300 dark:text-gray-600 tracking-wide">
-          Built for developers
-        </p>
-        <a
-          href={TELEGRAM_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors inline-flex items-center gap-1.5"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className="w-3.5 h-3.5"
-            aria-hidden="true"
-          >
-            <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
-          </svg>
-          Ask questions on Telegram
-        </a>
-        <nav
-          aria-label="Guides"
-          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
-        >
-          <Link
-            href={BEST_TERMINAL_MAC_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Best terminal for Mac
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={MAC_TERMINAL_DEVELOPERS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Mac terminal for developers
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={PROJECT_SIDEBAR_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Terminal with a project sidebar
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={GIT_TERMINAL_MAC_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Git terminal for Mac
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={WORKTREE_ALTERNATIVE_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Git worktree alternative
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={WORKTREE_AGENTS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Git worktrees for AI agents
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={REVIEW_CHANGES_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Review changes in terminal
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={SSH_TERMINAL_MAC_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            SSH terminal for Mac
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={AI_AGENTS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Best terminal for Claude Code &amp; Codex
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={CLAUDE_ACCOUNTS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Multiple Claude Code accounts
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={CONNECT_AGENTS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Connect AI agents
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={TOKEN_USAGE_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Claude Code &amp; Codex token usage
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={STATUSLINE_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            LPM statusline customization
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={MOBILE_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            iPhone companion
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={LINUX_HOST_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Claude Code on a remote server
-          </Link>
-        </nav>
-        <nav
-          aria-label="Comparisons"
-          className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
-        >
-          <span className="text-gray-300 dark:text-gray-600">Compare</span>
-          {VS_SLUGS.map((slug, i) => (
-            <span key={slug} className="flex items-center gap-2">
-              {i > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="text-gray-200 dark:text-gray-700"
-                >
-                  ·
-                </span>
-              )}
-              <Link
-                href={vsPath(slug)}
-                className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-              >
-                {COMPARE_LABELS[slug]}
-              </Link>
-            </span>
+    <footer className="border-t border-gray-200 dark:border-gray-800 py-14">
+      <div data-nosnippet className="max-w-5xl mx-auto px-6">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-4">
+          {GROUPS.map((group) => (
+            <nav key={group.heading} aria-label={group.heading}>
+              <h2 className={headingClass}>{group.heading}</h2>
+              <ul className="mt-4 space-y-2.5">
+                {group.links.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className={linkClass}>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           ))}
+        </div>
+
+        <nav aria-label="Comparisons" className="mt-10">
+          <h2 className={headingClass}>Compare lpm with</h2>
+          <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2.5">
+            {VS_SLUGS.map((slug) => (
+              <li key={slug}>
+                <Link href={vsPath(slug)} className={linkClass}>
+                  {COMPARE_LABELS[slug]}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </nav>
-        <nav
-          aria-label="Legal"
-          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
-        >
-          <Link
-            href={STATS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Download stats
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={PRIVACY_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Privacy
-          </Link>
-          <span aria-hidden="true" className="text-gray-200 dark:text-gray-700">
-            ·
-          </span>
-          <Link
-            href={TERMS_PATH}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Terms
-          </Link>
-        </nav>
-        <GitHubStarButton />
+
+        <div className="mt-12 flex flex-col items-start gap-5 border-t border-gray-200 dark:border-gray-800 pt-8 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <GitHubStarButton />
+            <a
+              href={TELEGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-1.5 ${linkClass}`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-3.5 h-3.5"
+                aria-hidden="true"
+              >
+                <path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z" />
+              </svg>
+              Ask questions on Telegram
+            </a>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={linkClass}
+            >
+              Source on GitHub
+            </a>
+          </div>
+          <p className="text-[13px] text-gray-500 dark:text-gray-400">
+            Free and open source, built for Mac developers.
+          </p>
+        </div>
       </div>
     </footer>
   );

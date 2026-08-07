@@ -27,7 +27,7 @@ export default function Hero() {
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Run Claude Code and Codex on a Linux server, from your Mac.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
           A long agent run and a laptop lid are a bad match. Add a Linux server
           to lpm by typing{" "}
           <code className="font-mono text-[0.9em]">user@build-server</code>

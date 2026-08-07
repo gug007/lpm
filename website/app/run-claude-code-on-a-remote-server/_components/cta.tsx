@@ -10,7 +10,7 @@ export default function Cta() {
           Your Mac is the cockpit.
           <br className="hidden sm:block" /> The server does the hours.
         </h2>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Download lpm for macOS, type{" "}
           <code className="font-mono text-[0.9em]">user@your-server</code> in
           Settings → Connections, and let Claude Code and Codex work on a

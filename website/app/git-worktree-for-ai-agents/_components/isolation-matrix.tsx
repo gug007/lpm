@@ -73,7 +73,7 @@ function CellValue({ value }: { value: Cell }) {
       <>
         <Minus
           aria-hidden
-          className="mx-auto h-4 w-4 text-gray-400 dark:text-gray-500"
+          className="mx-auto h-4 w-4 text-gray-500 dark:text-gray-400"
         />
         <span className="sr-only">Partial</span>
       </>
@@ -123,14 +123,14 @@ function MobileCellValue({ value }: { value: Cell }) {
   }
   if (value === false) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+      <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
         <X aria-hidden className="h-3.5 w-3.5" />
         No
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+    <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
       <Minus aria-hidden className="h-3.5 w-3.5" />
       Partial
     </span>
@@ -179,7 +179,7 @@ export default function IsolationMatrix() {
                     >
                       {column.name}
                     </span>
-                    <span className="mt-1 block text-[11px] font-medium uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                    <span className="mt-1 block text-[11px] font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
                       {column.sub}
                     </span>
                   </th>

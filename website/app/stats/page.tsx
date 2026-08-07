@@ -126,7 +126,7 @@ export default async function StatsPage() {
                       {r.tag}
                     </a>
                     {r.publishedAt && (
-                      <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">
+                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
                         {dateFmt.format(new Date(r.publishedAt))}
                       </span>
                     )}
@@ -156,7 +156,7 @@ export default async function StatsPage() {
         )}
       </section>
 
-      <div className="mt-12 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-12 text-xs text-gray-500 dark:text-gray-400">
         <Link
           href="/"
           className="underline hover:text-gray-700 dark:hover:text-gray-300"
@@ -179,7 +179,7 @@ function StatCard({
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-800 px-5 py-6 bg-white dark:bg-[#111]">
-      <div className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+      <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
         {label}
       </div>
       <div

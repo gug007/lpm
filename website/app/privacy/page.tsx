@@ -31,7 +31,7 @@ export default function PrivacyPage() {
       <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
         Privacy Policy
       </h1>
-      <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
         Last updated: July 8, 2026
       </p>
 
@@ -179,7 +179,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <div className="mt-12 text-xs text-gray-400 dark:text-gray-500">
+      <div className="mt-12 text-xs text-gray-500 dark:text-gray-400">
         <Link href="/" className="underline hover:text-gray-700 dark:hover:text-gray-300">
           ← Back to home
         </Link>

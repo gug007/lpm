@@ -160,7 +160,7 @@ export default function LpmStatuslineDemo() {
         <div className="border-b border-gray-200 p-4 dark:border-gray-800 sm:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+              <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden />
                 Interactive LPM preview
               </p>
@@ -280,7 +280,7 @@ export default function LpmStatuslineDemo() {
                     Move, edit, or remove each signal.
                   </p>
                 </div>
-                <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
                   {selectedIds.length}{" "}
                   {selectedIds.length === 1 ? "item" : "items"}
                 </span>
@@ -303,7 +303,7 @@ export default function LpmStatuslineDemo() {
                             : "border-gray-200 bg-gray-50/70 dark:border-gray-700/60 dark:bg-white/[0.04]"
                         }`}
                       >
-                        <span className="w-5 text-center font-mono text-[11px] text-gray-400 dark:text-gray-500">
+                        <span className="w-5 text-center font-mono text-[11px] text-gray-500 dark:text-gray-400">
                           {index + 1}
                         </span>
                         <button
@@ -605,7 +605,7 @@ export default function LpmStatuslineDemo() {
                             className={`block truncate font-mono text-[10px] ${
                               meterStyle === id
                                 ? "text-[#B75F40] dark:text-[#F09978]"
-                                : "text-gray-400 dark:text-gray-500"
+                                : "text-gray-500 dark:text-gray-400"
                             }`}
                           >
                             {style.sample}

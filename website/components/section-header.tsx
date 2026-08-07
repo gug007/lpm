@@ -18,21 +18,21 @@ export function SectionHeader({
   return (
     <div className={`text-center ${className}`}>
       {eyebrow && (
-        <span className="inline-block text-xs font-semibold tracking-widest uppercase text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4">
+        <span className="inline-block text-xs font-semibold tracking-widest uppercase text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full mb-4">
           {eyebrow}
         </span>
       )}
       <As
         className={
           As === "h1"
-            ? "text-3xl sm:text-4xl font-bold tracking-tight"
-            : "text-2xl sm:text-3xl font-bold tracking-tight"
+            ? "text-balance text-3xl sm:text-4xl font-bold tracking-tight"
+            : "text-balance text-2xl sm:text-3xl font-bold tracking-tight"
         }
       >
         {title}
       </As>
       {description && (
-        <p className="mt-3 text-sm sm:text-base text-gray-500 dark:text-gray-400 max-w-lg mx-auto leading-relaxed">
+        <p className="mt-3 text-pretty text-sm sm:text-base text-gray-500 dark:text-gray-400 max-w-lg mx-auto leading-relaxed">
           {description}
         </p>
       )}

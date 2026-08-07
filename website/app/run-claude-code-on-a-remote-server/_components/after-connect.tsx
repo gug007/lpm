@@ -57,7 +57,7 @@ export default function AfterConnect() {
               className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-transparent"
             >
               <Icon
-                className="h-5 w-5 text-gray-400 dark:text-gray-500"
+                className="h-5 w-5 text-gray-500 dark:text-gray-400"
                 aria-hidden
               />
               <h3 className="mt-4 text-base font-semibold text-gray-900 dark:text-gray-100">

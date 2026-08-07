@@ -11,7 +11,7 @@ export default function Cta() {
           <br className="hidden sm:block" />{" "}
           Free, native, and ready in two minutes.
         </h2>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Download a native macOS binary, drag to Applications, open the picker,
           and choose a host from your{" "}
           <code className="text-sm">~/.ssh/config</code>. lpm auto-forwards

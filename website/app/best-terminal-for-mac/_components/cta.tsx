@@ -11,7 +11,7 @@ export default function Cta() {
           <br className="hidden sm:block" />{" "}
           Free, native, Apple Silicon ready.
         </h2>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Native builds for Apple Silicon and Intel Macs. Drag to Applications
           and you&apos;re in. Works on every Mac running macOS 12 or later.
         </p>

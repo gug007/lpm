@@ -100,7 +100,7 @@ export default function HowItWorks() {
             </li>
           ))}
         </ol>
-        <p className="mt-6 text-center text-xs text-gray-400 dark:text-gray-500">
+        <p className="mt-6 text-center text-xs text-gray-500 dark:text-gray-400">
           Already have lpm on the server? Untick the install box and lpm just
           pairs with it.
         </p>

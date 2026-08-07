@@ -31,7 +31,7 @@ export function WalkthroughSteps({ stage }: { stage: WalkthroughStage }) {
                   ? "border-gray-900 bg-gray-900 font-medium text-white dark:border-white dark:bg-white dark:text-gray-900"
                   : state === "done"
                     ? "border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
-                    : "border-gray-200 text-gray-400 dark:border-gray-800 dark:text-gray-500"
+                    : "border-gray-200 text-gray-500 dark:border-gray-800 dark:text-gray-400"
               }`}
             >
               {state === "done" ? (

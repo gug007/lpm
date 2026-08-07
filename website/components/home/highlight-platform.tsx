@@ -31,7 +31,7 @@ export function HighlightPlatform() {
         : "";
 
   return (
-    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-6 min-h-[1em]">
+    <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mb-6 min-h-[1em]">
       {label}
     </p>
   );

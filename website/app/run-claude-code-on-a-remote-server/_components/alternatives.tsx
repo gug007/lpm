@@ -46,7 +46,7 @@ export default function Alternatives() {
               </h3>
               <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                     What it gets right
                   </dt>
                   <dd className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
@@ -54,7 +54,7 @@ export default function Alternatives() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                     Where it stops
                   </dt>
                   <dd className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">

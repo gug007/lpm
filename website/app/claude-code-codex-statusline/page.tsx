@@ -249,7 +249,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
       <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-28">
         <div className="mx-auto max-w-5xl px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
               One LPM setting, two agent formats
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
@@ -359,7 +359,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
       <section className="py-20 sm:py-28">
         <div className="mx-auto max-w-5xl px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
               Made for daily agent work
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
@@ -390,7 +390,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
       <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-28">
         <div className="mx-auto max-w-5xl px-6">
           <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
               Three steps in LPM Desktop
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
@@ -424,7 +424,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
       <section className="py-20 sm:py-28">
         <div className="mx-auto max-w-3xl px-6">
           <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
               LPM statusline customization FAQ
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
@@ -436,7 +436,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
               <details key={item.question} className="group py-1">
                 <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-6 py-4 text-left text-base font-semibold text-gray-900 marker:content-none dark:text-gray-100">
                   {item.question}
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 text-lg font-normal text-gray-400 transition group-open:rotate-45 dark:border-gray-700 dark:text-gray-500">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 text-lg font-normal text-gray-500 transition group-open:rotate-45 dark:border-gray-700 dark:text-gray-400">
                     +
                   </span>
                 </summary>

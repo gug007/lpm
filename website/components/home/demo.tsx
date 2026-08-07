@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
 import { useInView } from "@/components/config/playground/hooks";
 
@@ -42,17 +43,10 @@ function DemoPlaceholder() {
 function DesktopOnlyPrompt() {
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] bg-[#1a1a1a] shadow-2xl shadow-gray-200/60 dark:shadow-black/60">
-      <video
+      <AutoVideo
         src="/screenrecording/start-project-claude.mp4"
         poster="/screenrecording/start-project-claude-poster.jpg"
-        width={1224}
-        height={804}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="none"
-        aria-label="lpm starting a project's services, then handing the project to Claude Code in a terminal tab"
+        label="lpm starting a project's services, then handing the project to Claude Code in a terminal tab"
         className="h-auto w-full"
       />
       <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">

@@ -329,7 +329,7 @@ export function Walkthrough() {
         )}
       </div>
 
-      <p className="mx-auto mt-6 max-w-2xl text-center text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+      <p className="mx-auto mt-6 max-w-2xl text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         lpm itself is a macOS app; this is a web illustration of its sidebar. On
         a phone the walkthrough runs as a staged project list and terminal
         detail — the resizable side-by-side layout, and ⌘B, belong to the

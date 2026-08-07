@@ -24,7 +24,7 @@ export default function Hero() {
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           A Git worktree alternative that duplicates the whole dev environment.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
           Git worktrees isolate tracked files. lpm Duplicate creates fast,
           standalone copies of the project you are actually working in —
           including its current state and local setup — then runs Claude Code,
@@ -50,7 +50,7 @@ export default function Hero() {
                 <GitBranch className="h-4.5 w-4.5" aria-hidden />
               </span>
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                <p className="text-xs font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
                   Git primitive
                 </p>
                 <h2 className="font-semibold text-gray-900 dark:text-gray-100">
@@ -80,7 +80,7 @@ export default function Hero() {
                 <CopyPlus className="h-4.5 w-4.5" aria-hidden />
               </span>
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                <p className="text-xs font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
                   lpm primitive
                 </p>
                 <h2 className="font-semibold text-gray-900 dark:text-gray-100">

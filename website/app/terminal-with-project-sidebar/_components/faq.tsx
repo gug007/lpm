@@ -54,7 +54,7 @@ export default function Faq() {
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-2xl px-5 py-4 text-sm font-semibold text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-inset focus-visible:outline-none [&::-webkit-details-marker]:hidden dark:text-gray-100 dark:focus-visible:ring-white">
                   <span>{question}</span>
                   <ChevronDown
-                    className="h-4 w-4 shrink-0 text-gray-400 transition-transform duration-200 group-open:rotate-180 dark:text-gray-500"
+                    className="h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 group-open:rotate-180 dark:text-gray-400"
                     aria-hidden
                   />
                 </summary>

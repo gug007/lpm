@@ -152,7 +152,7 @@ export default function Comparison() {
           </table>
         </div>
 
-        <p className="hidden sm:block mt-4 text-xs text-gray-400 dark:text-gray-500 text-right">
+        <p className="hidden sm:block mt-4 text-xs text-gray-500 dark:text-gray-400 text-right">
           <Link
             href={vsPath("cmux")}
             className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"

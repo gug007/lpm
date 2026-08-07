@@ -42,7 +42,7 @@ export function FieldTable({ fields }: { fields: Field[] }) {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 font-mono text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                <td className="px-4 py-3 font-mono text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
                   {f.type}
                 </td>
                 <td className="px-4 py-3 text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -54,7 +54,7 @@ export function FieldTable({ fields }: { fields: Field[] }) {
         </table>
       </div>
       {hasRequired && (
-        <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500">
+        <p className="mt-2 text-[10px] text-gray-500 dark:text-gray-400">
           <span className="text-rose-500">*</span> required
         </p>
       )}

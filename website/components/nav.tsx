@@ -6,22 +6,22 @@ import { NavMobileMenu } from "./nav-mobile-menu";
 import { ThemeToggle } from "./theme-toggle";
 
 const linkClass =
-  "text-[13px] text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
+  "inline-flex items-center h-9 px-1 text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
 
 export function Nav() {
   return (
     <nav
       aria-label="Main navigation"
-      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/70 dark:bg-[#111]/70"
+      className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/80 dark:bg-[#111]/80 border-b border-gray-200/70 dark:border-gray-800/70"
     >
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
         <Link
           href="/"
           className="flex items-center gap-2 text-base font-bold tracking-tight text-gray-900 dark:text-white"
         >
           <Image
             src="/icon.png"
-            alt="lpm icon"
+            alt=""
             width={20}
             height={20}
             priority
@@ -36,14 +36,11 @@ export function Nav() {
           </Link>
           <Link
             href={AI_AGENTS_PATH}
-            className={`hidden md:inline whitespace-nowrap ${linkClass}`}
+            className={`hidden md:inline-flex whitespace-nowrap ${linkClass}`}
           >
             For AI agents
           </Link>
-          <Link
-            href={VS_BASE_PATH}
-            className={`hidden md:inline ${linkClass}`}
-          >
+          <Link href={VS_BASE_PATH} className={`hidden md:inline-flex ${linkClass}`}>
             Compare
           </Link>
           <Link

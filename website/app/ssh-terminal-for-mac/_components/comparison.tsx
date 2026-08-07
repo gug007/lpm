@@ -148,7 +148,7 @@ export default function Comparison() {
                     className="text-left font-normal text-gray-700 dark:text-gray-300 px-5 py-4"
                   >
                     <span>{cap.label}</span>
-                    <span className="mt-1 block text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+                    <span className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                       {cap.note}
                     </span>
                   </th>

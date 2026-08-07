@@ -152,7 +152,7 @@ export default function Comparison() {
                 {row.topic}
               </h3>
               <div className="p-5">
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                   Git worktree
                 </p>
                 <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">

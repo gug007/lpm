@@ -6,7 +6,7 @@ export default function QuickAnswer() {
     <section className="py-16 sm:py-20">
       <div className="max-w-3xl mx-auto px-6">
         <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-6 sm:p-8 dark:border-gray-800 dark:bg-white/[0.025]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
             The short answer
           </p>
           <h2 className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">

@@ -11,7 +11,7 @@ export default function Cta() {
           <br className="hidden sm:block" />{" "}
           Start pinning them.
         </h2>
-        <p className="mt-6 text-base sm:text-lg text-gray-400 dark:text-gray-500 max-w-xl mx-auto leading-relaxed tracking-wide">
+        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Download a native macOS app, add your Claude accounts in Settings,
           and pick one per project. Works on Intel and Apple Silicon Macs
           running macOS 12 or later.

@@ -79,7 +79,7 @@ export default function WhatBreaks() {
               </div>
               <dl className="divide-y divide-gray-100 text-sm dark:divide-gray-800">
                 <div className="px-5 py-4">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                     What you see
                   </dt>
                   <dd className="mt-1.5 leading-relaxed text-gray-600 dark:text-gray-400">
@@ -93,7 +93,7 @@ export default function WhatBreaks() {
                   </dd>
                 </div>
                 <div className="px-5 py-4">
-                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  <dt className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                     Why
                   </dt>
                   <dd className="mt-1.5 leading-relaxed text-gray-600 dark:text-gray-400">
@@ -111,7 +111,7 @@ export default function WhatBreaks() {
                     className={`text-xs font-semibold uppercase tracking-widest ${
                       gap.fixed
                         ? "text-emerald-700 dark:text-emerald-300"
-                        : "text-gray-400 dark:text-gray-500"
+                        : "text-gray-500 dark:text-gray-400"
                     }`}
                   >
                     {gap.fixed ? "What fixes it" : "Where this stands"}

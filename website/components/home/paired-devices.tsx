@@ -329,7 +329,7 @@ export function PairedDevices({
 
   return (
     <section
-      className={`${flush ? "pb-16 sm:pb-20" : "py-16 sm:py-20"} overflow-x-clip`}
+      className={`${flush ? "pb-16 sm:pb-20" : "py-20 sm:py-24"} overflow-x-clip`}
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <SectionHeader

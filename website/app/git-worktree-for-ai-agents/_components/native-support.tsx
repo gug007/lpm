@@ -72,7 +72,7 @@ export default function NativeSupport() {
                   <CodeBlock>{agent.code}</CodeBlock>
                 </div>
               )}
-              <p className="mt-4 border-t border-gray-100 pt-4 text-sm leading-relaxed text-gray-500 dark:border-gray-800 dark:text-gray-500">
+              <p className="mt-4 border-t border-gray-100 pt-4 text-sm leading-relaxed text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 {agent.note}
                 {agent.href && (
                   <>

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { AI_AGENTS_PATH, VS_BASE_PATH } from "@/lib/links";
 
 const linkClass =
-  "text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
+  "inline-flex w-fit items-center min-h-11 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
 
 export function NavMobileMenu() {
   const [open, setOpen] = useState(false);
@@ -19,7 +19,7 @@ export function NavMobileMenu() {
         aria-label={open ? "Close menu" : "Open menu"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="md:hidden text-gray-500 hover:text-gray-900 dark:hover:text-white cursor-pointer transition-colors duration-200"
+        className="md:hidden -mr-2 inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors duration-200"
       >
         {open ? (
           <X className="w-[18px] h-[18px]" />
@@ -28,7 +28,7 @@ export function NavMobileMenu() {
         )}
       </button>
       {open && (
-        <div className="md:hidden absolute top-14 left-0 right-0 border-t border-gray-100 dark:border-gray-800/60 bg-white/70 dark:bg-[#111]/70 backdrop-blur-lg px-4 py-4 flex flex-col gap-4">
+        <div className="md:hidden absolute top-14 left-0 right-0 border-t border-gray-200/70 dark:border-gray-800/70 bg-white/90 dark:bg-[#111]/90 backdrop-blur-lg px-6 py-2 flex flex-col">
           <Link href={AI_AGENTS_PATH} onClick={close} className={linkClass}>
             For AI agents
           </Link>
@@ -38,7 +38,7 @@ export function NavMobileMenu() {
           <Link
             href="/#download"
             onClick={close}
-            className="inline-flex w-fit items-center rounded-full bg-gray-900 dark:bg-white px-4 py-2 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
+            className="my-3 inline-flex w-fit items-center rounded-full bg-gray-900 dark:bg-white px-5 py-2.5 text-sm font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
           >
             Download
           </Link>

@@ -5,16 +5,27 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  --surface: #fafafa;
+  --hairline: rgb(229 231 235);
+  --focus-ring: #111111;
+  --focus-offset: var(--background);
 }
 
 .dark {
   --background: #111111;
   --foreground: #e5e7eb;
+
+  --surface: rgba(255, 255, 255, 0.028);
+  --hairline: rgb(38 38 38);
+  --focus-ring: #ffffff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-hairline: var(--hairline);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -23,6 +34,24 @@ html,
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/* Anchor targets clear the fixed 56px nav instead of hiding beneath it. */
+html {
+  scroll-padding-top: 5rem;
+  scroll-behavior: smooth;
+}
+
+/*
+ * Site-wide keyboard focus. Zero-specificity so the components that already
+ * define their own focus-visible ring keep it.
+ */
+:where(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+:where(summary):focus-visible {
+  outline-offset: -2px;
 }
 
 .scrollbar-none::-webkit-scrollbar {
@@ -62,9 +91,9 @@ body {
 }
 .dl-card.recommended {
   box-shadow:
-    0 0 0 2px rgba(16, 185, 129, 0.45),
-    0 0 16px -2px rgba(16, 185, 129, 0.15);
-  border-color: rgb(16, 185, 129) !important;
+    0 0 0 2px color-mix(in oklab, var(--color-emerald-500) 45%, transparent),
+    0 0 16px -2px color-mix(in oklab, var(--color-emerald-500) 15%, transparent);
+  border-color: var(--color-emerald-500) !important;
   position: relative;
 }
 .dl-card.recommended::before {
@@ -77,15 +106,19 @@ body {
   font-weight: 600;
   letter-spacing: 0.04em;
   color: white;
-  background: linear-gradient(135deg, #059669, #047857);
+  background: linear-gradient(
+    135deg,
+    var(--color-emerald-600),
+    var(--color-emerald-700)
+  );
   padding: 1px 10px;
   border-radius: 9999px;
   white-space: nowrap;
 }
 .dl-card.recommended:hover {
   box-shadow:
-    0 0 0 2px rgba(16, 185, 129, 0.55),
-    0 0 24px -2px rgba(16, 185, 129, 0.25),
+    0 0 0 2px color-mix(in oklab, var(--color-emerald-500) 55%, transparent),
+    0 0 24px -2px color-mix(in oklab, var(--color-emerald-500) 25%, transparent),
     0 10px 25px -5px rgba(0, 0, 0, 0.08);
 }
 
@@ -291,10 +324,15 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
   .animate-bounce-soft,
   .animate-caret-blink,
   .animate-cta-breath,
   .animate-icon-glow,
+  .animate-auto-cursor-tap,
+  .auto-cursor-tap,
   .start-ring-pulse,
   .sidebar-shimmer,
   [class*="pd-spine"],
@@ -303,5 +341,12 @@ body {
   }
   .dl-card:hover {
     transform: none;
+  }
+  /* Hover/press lifts read as motion too. */
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

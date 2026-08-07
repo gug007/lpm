@@ -38,7 +38,7 @@ export default function Situations() {
               className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-white/[0.02]"
             >
               <Icon
-                className="h-5 w-5 text-gray-400 dark:text-gray-500"
+                className="h-5 w-5 text-gray-500 dark:text-gray-400"
                 aria-hidden
               />
               <h3 className="mt-4 font-semibold text-gray-900 dark:text-gray-100">

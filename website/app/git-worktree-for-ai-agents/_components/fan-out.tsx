@@ -44,7 +44,7 @@ export default function FanOut() {
               key={mode.name}
               className="rounded-2xl border border-gray-200 p-6 dark:border-gray-800"
             >
-              <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                 {mode.name}
               </p>
               <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">

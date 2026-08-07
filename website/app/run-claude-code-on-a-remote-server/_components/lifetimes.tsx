@@ -74,14 +74,14 @@ export default function Lifetimes() {
           </div>
 
           <div className="rounded-2xl border border-gray-200 p-6 sm:p-7 dark:border-gray-800">
-            <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+            <h3 className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
               Doesn&rsquo;t
             </h3>
             <ul className="mt-5 space-y-5">
               {DOES_NOT.map(({ title, body }) => (
                 <li key={title} className="flex gap-3">
                   <X
-                    className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500"
+                    className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-500 dark:text-gray-400"
                     aria-hidden
                   />
                   <div>

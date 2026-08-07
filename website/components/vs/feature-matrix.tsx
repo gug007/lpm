@@ -24,7 +24,7 @@ function Cell({ value }: { value: MatrixCell }) {
       <>
         <Minus
           aria-hidden="true"
-          className="mx-auto w-4 h-4 text-gray-400 dark:text-gray-500"
+          className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
         />
         <span className="sr-only">Partial</span>
       </>

@@ -67,7 +67,7 @@ export default function Choose() {
                   className={`mt-1 h-4 w-4 shrink-0 ${
                     branch.highlight
                       ? "text-emerald-600 dark:text-emerald-300"
-                      : "text-gray-400 dark:text-gray-500"
+                      : "text-gray-500 dark:text-gray-400"
                   }`}
                   aria-hidden
                 />
