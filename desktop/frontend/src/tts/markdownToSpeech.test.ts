@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markdownToSpeech } from "./markdownToSpeech";
+import { markdownToSpeech, speakingLineAt, speechBlocks } from "./markdownToSpeech";
 
 describe("markdownToSpeech", () => {
   it("strips headings, emphasis and link targets", () => {
@@ -39,5 +39,38 @@ describe("markdownToSpeech", () => {
     expect(out).toContain("verified.");
     expect(out).toContain("50%");
     expect(out).not.toMatch(/[🚀✅█░]/u);
+  });
+});
+
+describe("speakingLineAt", () => {
+  const md = "# Title\n\nFirst paragraph here.\n\nSecond paragraph here.\n\nThird one.";
+
+  it("tracks forward through the document", () => {
+    const blocks = speechBlocks(md);
+    const start = speakingLineAt(blocks, 0);
+    const end = speakingLineAt(blocks, 1);
+    expect(start).toBe(blocks[0].line);
+    expect(end).toBe(blocks[blocks.length - 1].line);
+    expect(end).toBeGreaterThan(start!);
+  });
+
+  it("is monotonic as progress grows", () => {
+    const blocks = speechBlocks(md);
+    let previous = 0;
+    for (let p = 0; p <= 1; p += 0.05) {
+      const line = speakingLineAt(blocks, p)!;
+      expect(line).toBeGreaterThanOrEqual(previous);
+      previous = line;
+    }
+  });
+
+  it("returns null for text with nothing speakable", () => {
+    expect(speakingLineAt(speechBlocks("```\ncode\n```"), 0.5)).toBeNull();
+  });
+
+  it("maps blocks back to their source lines", () => {
+    const blocks = speechBlocks(md);
+    expect(blocks[0]).toEqual({ line: 1, text: "Title" });
+    expect(blocks[1].line).toBe(3);
   });
 });

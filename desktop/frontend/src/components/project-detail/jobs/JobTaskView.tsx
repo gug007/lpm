@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo} from "react";
 import { toast } from "sonner";
 import {
   DeleteJobHistory,
@@ -8,7 +8,11 @@ import {
 import { MessageMarkdown } from "../../MessageMarkdown";
 import { useTTSStore } from "../../../store/tts";
 import { useSettingsStore } from "../../../store/settings";
-import { markdownToSpeech } from "../../../tts/markdownToSpeech";
+import {
+  markdownToSpeech,
+  speakingLineAt,
+  speechBlocks,
+} from "../../../tts/markdownToSpeech";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { JobLiveOutput } from "./JobLiveOutput";
 import {
@@ -581,19 +585,43 @@ function EntryHeader({
   );
 }
 
+/// The message body plus its read control. The block being spoken is tinted —
+/// see `speakingLineAt` for why that is approximate rather than word-exact.
+function EntryOutput({ text }: { text: string }) {
+  const startReading = useTTSStore((s) => s.startReading);
+  const readingText = useTTSStore((s) => s.text);
+  const status = useTTSStore((s) => s.status);
+  const progress = useTTSStore((s) => s.progress);
+
+  const spoken = useMemo(() => markdownToSpeech(text), [text]);
+  const blocks = useMemo(() => speechBlocks(text), [text]);
+  const reading = status !== "idle" && readingText === spoken;
+  const speakingLine = reading ? speakingLineAt(blocks, progress / 100) : null;
+
+  return (
+    <div className="mt-2">
+      <MessageMarkdown text={text} speakingLine={speakingLine} />
+      <ReadAloudButton text={text} spoken={spoken} reading={reading} onStart={startReading} />
+    </div>
+  );
+}
+
 /// Read-aloud control for one message, in its own row under the body rather
 /// than in the hover meta row — this is a primary action on the content, not
 /// metadata about the run. Doubles as stop while this message is the one being
 /// read; hidden entirely until reading is turned on in Settings.
-function ReadAloudButton({ text }: { text: string }) {
+function ReadAloudButton({
+  spoken,
+  reading,
+  onStart,
+}: {
+  text: string;
+  spoken: string;
+  reading: boolean;
+  onStart: (text: string) => Promise<void>;
+}) {
   const enabled = useSettingsStore((s) => Boolean(s.ttsEnabled));
-  const startReading = useTTSStore((s) => s.startReading);
   const stopReading = useTTSStore((s) => s.stopReading);
-  const readingText = useTTSStore((s) => s.text);
-  const status = useTTSStore((s) => s.status);
-
-  const spoken = markdownToSpeech(text);
-  const reading = status !== "idle" && readingText === spoken;
 
   if (!enabled) return null;
 
@@ -601,7 +629,7 @@ function ReadAloudButton({ text }: { text: string }) {
     <div className="mt-1.5 flex items-center">
       <button
         type="button"
-        onClick={() => (reading ? stopReading() : void startReading(spoken))}
+        onClick={() => (reading ? stopReading() : void onStart(spoken))}
         title={reading ? "Stop reading" : "Read aloud"}
         aria-label={reading ? "Stop reading" : "Read aloud"}
         className={`-ml-1 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-secondary)] ${
@@ -669,12 +697,7 @@ function EntryBody({
           onRemove={onRemove}
         />
       )}
-      {entry.output && (
-        <div className="mt-2">
-          <MessageMarkdown text={entry.output} />
-          <ReadAloudButton text={entry.output} />
-        </div>
-      )}
+      {entry.output && <EntryOutput text={entry.output} />}
       {quiet && (
         <EntryHeader
           entry={entry}

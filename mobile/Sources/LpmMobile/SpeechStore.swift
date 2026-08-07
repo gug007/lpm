@@ -81,8 +81,13 @@ final class SpeechStore {
         stop()
 
         if SpeechPrefs.engine == "mac" {
-            // The Mac renders the whole document; the normalized segments still
-            // do the markdown cleanup, they just get joined instead of queued.
+            // The Mac renders the whole document in one clip, so nothing reports
+            // per-word timing. Keeping the segments anyway lets playback position
+            // map back to a block by character offset — approximate, but at block
+            // granularity a second of drift rarely crosses a paragraph.
+            segments = segs
+            prefixChars = segs.reduce(into: [0]) { acc, s in acc.append(acc[acc.count - 1] + s.text.count) }
+            totalChars = max(1, prefixChars[prefixChars.count - 1])
             let text = segs.map(\.text).joined(separator: " ")
             let reqId = UUID().uuidString
             pendingReqId = reqId
@@ -222,6 +227,21 @@ final class SpeechStore {
         elapsed = clip.currentTime
         duration = clip.duration
         progress = clip.duration > 0 ? min(1, clip.currentTime / clip.duration) : 0
+        speakingBlock = blockAt(progress)
+    }
+
+    /// Which block a fraction through the clip lands in, by character offset.
+    /// Assumes a roughly uniform speaking rate — the only option when the engine
+    /// reports no timings.
+    private func blockAt(_ fraction: Double) -> Int? {
+        guard !segments.isEmpty, totalChars > 0 else { return nil }
+        let target = Double(totalChars) * min(max(0, fraction), 1)
+        var seen = 0
+        for segment in segments {
+            seen += segment.text.count
+            if Double(seen) >= target { return segment.blockID }
+        }
+        return segments.last?.blockID
     }
 
     func setRate(_ rate: Double) {
