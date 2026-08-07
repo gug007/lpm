@@ -41,6 +41,8 @@ final class SpeechStore {
     /// it.
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var utterances: [ObjectIdentifier: (generation: Int, index: Int)] = [:]
+    /// The in-flight Settings voice sample, which belongs to no reading session.
+    @ObservationIgnored private var previewUtterance: ObjectIdentifier?
 
     init() {
         forwarder.store = self
@@ -77,9 +79,26 @@ final class SpeechStore {
         startTicker()
     }
 
+    /// Speak a short sample in `voiceId` so a voice can be auditioned before it is
+    /// chosen. Deliberately outside the reading state machine: no segments, no
+    /// source, so `isActive` stays false and the reader bar doesn't flash up for a
+    /// two-second sample.
+    func preview(voiceId: String) {
+        stop()
+        let utterance = AVSpeechUtterance(string: Self.previewText)
+        utterance.voice = AVSpeechSynthesisVoice(identifier: voiceId) ?? SpeechPrefs.voice()
+        utterance.rate = SpeechPrefs.utteranceRate(SpeechPrefs.rate)
+        previewUtterance = ObjectIdentifier(utterance)
+        activateSession()
+        synthesizer.speak(utterance)
+    }
+
+    private static let previewText = "This is how your automation replies will sound."
+
     func stop() {
         generation += 1
         utterances = [:]
+        previewUtterance = nil
         ticker?.cancel()
         ticker = nil
         if synthesizer.isSpeaking || synthesizer.isPaused {
@@ -201,6 +220,11 @@ final class SpeechStore {
     }
 
     fileprivate func didFinish(_ utterance: AVSpeechUtterance) {
+        if previewUtterance == ObjectIdentifier(utterance) {
+            previewUtterance = nil
+            if mode == .idle { deactivateSession() } // hand audio back to whatever was playing
+            return
+        }
         guard let info = utterances[ObjectIdentifier(utterance)], info.generation == generation else { return }
         guard info.index == segments.count - 1 else { return }
         stop()

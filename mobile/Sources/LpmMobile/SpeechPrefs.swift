@@ -75,29 +75,3 @@ enum SpeechPrefs {
         return Float(clamped)
     }
 }
-
-/// Voice + speed rows for the app Settings sheet.
-struct SpeechSettingsControls: View {
-    @AppStorage(SpeechPrefs.voiceKey) private var voiceId = ""
-    @AppStorage(SpeechPrefs.rateKey) private var rate = SpeechPrefs.defaultRate
-
-    private var voices: [AVSpeechSynthesisVoice] { SpeechPrefs.installedVoices() }
-
-    var body: some View {
-        Picker("Voice", selection: $voiceId) {
-            Text("Best available").tag("")
-            ForEach(voices, id: \.identifier) { voice in
-                if let quality = SpeechPrefs.qualityLabel(voice) {
-                    Text("\(voice.name) · \(quality)").tag(voice.identifier)
-                } else {
-                    Text(voice.name).tag(voice.identifier)
-                }
-            }
-        }
-        Picker("Speed", selection: $rate) {
-            ForEach(SpeechPrefs.rates, id: \.self) { r in
-                Text(SpeechPrefs.rateLabel(r)).tag(r)
-            }
-        }
-    }
-}
