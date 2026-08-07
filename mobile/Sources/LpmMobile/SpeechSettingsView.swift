@@ -6,6 +6,7 @@ import SwiftUI
 /// says nothing about how any of them sound.
 struct SpeechSettingsView: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(SpeechPrefs.engineKey) private var engine = "device"
     @AppStorage(SpeechPrefs.voiceKey) private var voiceId = ""
     @AppStorage(SpeechPrefs.rateKey) private var rate = SpeechPrefs.defaultRate
 
@@ -21,6 +22,17 @@ struct SpeechSettingsView: View {
     var body: some View {
         Form {
             Section {
+                Picker("Engine", selection: $engine) {
+                    Text("This iPhone").tag("device")
+                    Text("Mac").tag("mac")
+                }
+            } footer: {
+                Text(engine == "mac"
+                     ? "Your Mac synthesizes the speech with OpenAI and sends the audio over. Better voice, and you can scrub through it — but it needs your Mac, and the text is sent to OpenAI."
+                     : "Speech is generated on this iPhone. Works offline and nothing leaves the device.")
+            }
+
+            Section {
                 Picker("Speed", selection: $rate) {
                     ForEach(SpeechPrefs.rates, id: \.self) { r in
                         Text(SpeechPrefs.rateLabel(r)).tag(r)
@@ -35,6 +47,7 @@ struct SpeechSettingsView: View {
                 Text("Voice and speed for reading automation replies out loud.")
             }
 
+            if engine == "device" {
             Section {
                 Picker("Voice", selection: $voiceId) {
                     Text("Best available").tag("")
@@ -55,8 +68,9 @@ struct SpeechSettingsView: View {
             } header: {
                 Text("Voice")
             }
+            }
 
-            if onlyBasicVoices {
+            if engine == "device", onlyBasicVoices {
                 Section {
                     Label {
                         Text("Your installed voices are all basic ones. Download a "

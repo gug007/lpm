@@ -9,19 +9,42 @@ struct SpeechBar: View {
     var body: some View {
         HStack(spacing: 8) {
             Button(action: store.togglePause) {
-                Image(systemName: store.mode == .paused ? "play.fill" : "pause.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .frame(width: 30, height: 30)
-                    .background(Color.primary.opacity(0.08), in: Circle())
+                Group {
+                    if store.isLoading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: store.mode == .paused ? "play.fill" : "pause.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                }
+                .frame(width: 30, height: 30)
+                .background(Color.primary.opacity(0.08), in: Circle())
             }
+            .disabled(store.isLoading)
 
             Text(timeText)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
 
-            ProgressView(value: store.progress)
-                .progressViewStyle(.linear)
-                .frame(minWidth: 40)
+            // A rendered clip has a real timeline, so the track becomes a
+            // scrubber. The on-device synthesizer has no such thing, and stays
+            // a plain progress bar.
+            GeometryReader { geo in
+                ProgressView(value: store.progress)
+                    .progressViewStyle(.linear)
+                    .frame(maxHeight: .infinity, alignment: .center)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        store.canSeek
+                            ? DragGesture(minimumDistance: 0).onEnded { value in
+                                let ratio = min(max(0, value.location.x / max(1, geo.size.width)), 1)
+                                store.seek(to: ratio * store.duration)
+                            }
+                            : nil
+                    )
+            }
+            .frame(minWidth: 40, maxWidth: .infinity)
+            .frame(height: 20)
 
             SkipButton(systemImage: "backward.fill") { store.skip(-1) }
             SkipButton(systemImage: "forward.fill") { store.skip(1) }
@@ -59,7 +82,12 @@ struct SpeechBar: View {
     }
 
     private var timeText: String {
-        let total = Int(store.elapsed)
+        guard store.duration > 0 else { return clock(store.elapsed) }
+        return "\(clock(store.elapsed)) / \(clock(store.duration))"
+    }
+
+    private func clock(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 }

@@ -267,3 +267,68 @@ pub fn stop_on_exit(app: &AppHandle) {
     let state = app.state::<TtsState>();
     stop_internal(app, &state.inner);
 }
+
+// ---- OpenAI engine ---------------------------------------------------------
+//
+// The Kokoro path above streams chunked WAV to the desktop's Web Audio player.
+// OpenAI returns one encoded buffer instead, so it needs no session state: the
+// command synthesizes and hands the whole clip back, and the caller plays it.
+// That difference is why the phone gets real scrubbing on this engine and not
+// on Kokoro.
+
+#[tauri::command(async)]
+pub fn set_openai_key(key: String) -> Result<(), String> {
+    crate::secrets::set(crate::secrets::OPENAI_API_KEY, &key)
+}
+
+#[tauri::command(async)]
+pub fn has_openai_key() -> bool {
+    crate::secrets::has(crate::secrets::OPENAI_API_KEY)
+}
+
+#[tauri::command(async)]
+pub fn clear_openai_key() -> Result<(), String> {
+    crate::secrets::delete(crate::secrets::OPENAI_API_KEY)
+}
+
+#[tauri::command(async)]
+pub fn openai_voices() -> Vec<String> {
+    crate::openaitts::VOICES.iter().map(|v| (*v).to_string()).collect()
+}
+
+/// Synthesize `text` with the saved key and return base64 AAC. Used by the
+/// desktop player and, via remote.rs, by the phone.
+#[tauri::command(async)]
+pub fn openai_tts_speak(text: String) -> Result<String, String> {
+    let audio = crate::openaitts::synthesize_off_worker(
+        text,
+        openai_voice(),
+        openai_speed(),
+    )?;
+    use base64::Engine as _;
+    Ok(base64::engine::general_purpose::STANDARD.encode(audio))
+}
+
+pub fn openai_voice() -> String {
+    let s = config::load_settings();
+    let v = s
+        .get("ttsOpenAiVoice")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if v.is_empty() {
+        crate::openaitts::DEFAULT_VOICE.to_string()
+    } else {
+        v
+    }
+}
+
+pub fn openai_speed() -> f64 {
+    let s = config::load_settings();
+    let speed = s.get("ttsSpeed").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    if speed <= 0.0 {
+        1.0
+    } else {
+        speed
+    }
+}

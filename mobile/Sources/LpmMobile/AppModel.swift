@@ -2138,6 +2138,13 @@ final class AppModel {
     }
 
     private func wireStats(_ c: LpmClient) {
+        // Read-aloud on the Mac engine: the store asks, the client sends, the
+        // reply lands back on the store.
+        speech.requestSpeech = { [weak c] reqId, text in c?.requestSpeech(reqId: reqId, text: text) }
+        c.onSpeech = { [weak self] reqId, audio, error in
+            self?.speech.receiveSpeech(reqId: reqId, audio: audio, error: error)
+        }
+
         c.onStats = { [weak self] stats, error in
             guard let self else { return }
             if let stats {

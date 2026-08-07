@@ -6,6 +6,17 @@ extension DemoServer {
     func registerStatsHandlers() {
         seedHistoryFixtures()
 
+        // Demo Mode has no Mac to synthesize on. Answer with a clear error
+        // rather than leaving the reader spinning forever.
+        register("ttsSpeak") { [weak self] o in
+            guard let self else { return }
+            let reqId = o["reqId"] as? String ?? ""
+            self.pushAfter(0.4) {
+                ["t": "ttsSpeak", "reqId": reqId, "ok": false,
+                 "error": "Reading aloud on the Mac isn't available in the demo. Switch the engine to This iPhone."]
+            }
+        }
+
         register("stats") { [weak self] o in
             guard let self else { return }
             let days = (o["days"] as? NSNumber)?.intValue ?? 30

@@ -55,6 +55,8 @@ export interface Settings {
   gitFetch?: GitFetchConfig;
   experimentalTTS?: boolean;
   ttsEnabled?: boolean;
+  ttsEngine?: string;
+  ttsOpenAiVoice?: string;
   ttsVoice?: string;
   ttsSpeed?: number;
   preferredEditor?: string;
@@ -130,6 +132,8 @@ function normalize(s: main.Settings): Settings {
     gitFetch: normalizeGitFetch(s.gitFetch),
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,
+    ttsEngine: s.ttsEngine || undefined,
+    ttsOpenAiVoice: s.ttsOpenAiVoice || undefined,
     ttsVoice: s.ttsVoice || undefined,
     ttsSpeed: s.ttsSpeed,
     preferredEditor: s.preferredEditor || undefined,

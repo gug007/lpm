@@ -25,6 +25,20 @@ final class SpeechStore {
     private(set) var speakingBlock: Int?
 
     var isActive: Bool { mode != .idle }
+    /// Surfaced by the reader bar when the Mac couldn't produce audio.
+    var speechError: String?
+    /// True while the Mac is rendering audio and nothing is audible yet.
+    private(set) var isLoading = false
+    /// Set when the Mac engine is playing: a real clip has a duration, so the
+    /// bar can show a timeline and seek to a position instead of a sentence.
+    private(set) var duration: TimeInterval = 0
+    var canSeek: Bool { clip != nil }
+
+    /// Sends a synthesis request to the Mac. Wired by AppModel so the store
+    /// stays unaware of the client.
+    @ObservationIgnored var requestSpeech: ((_ reqId: String, _ text: String) -> Void)?
+    @ObservationIgnored private var clip: SpeechClip?
+    @ObservationIgnored private var pendingReqId: String?
 
     @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
     @ObservationIgnored private let forwarder = SpeechDelegate()
@@ -66,6 +80,25 @@ final class SpeechStore {
         }
         stop()
 
+        if SpeechPrefs.engine == "mac" {
+            // The Mac renders the whole document; the normalized segments still
+            // do the markdown cleanup, they just get joined instead of queued.
+            let text = segs.map(\.text).joined(separator: " ")
+            let reqId = UUID().uuidString
+            pendingReqId = reqId
+            self.title = title
+            self.subtitle = subtitle
+            sourceID = id
+            elapsed = 0
+            progress = 0
+            isLoading = true
+            mode = .speaking
+            Haptics.tap()
+            updateNowPlaying()
+            requestSpeech?(reqId, text)
+            return
+        }
+
         segments = segs
         prefixChars = segs.reduce(into: [0]) { acc, s in acc.append(acc[acc.count - 1] + s.text.count) }
         totalChars = max(1, prefixChars[prefixChars.count - 1])
@@ -95,6 +128,34 @@ final class SpeechStore {
 
     private static let previewText = "This is how your automation replies will sound."
 
+    /// The Mac's answer to a `requestSpeech`. Replies for a superseded request
+    /// are dropped — the user may have started reading something else.
+    func receiveSpeech(reqId: String, audio: String?, error: String?) {
+        guard reqId == pendingReqId else { return }
+        pendingReqId = nil
+        isLoading = false
+        guard let audio, let data = Data(base64Encoded: audio) else {
+            speechError = error ?? "Couldn't synthesize speech."
+            stop()
+            return
+        }
+        let clip = SpeechClip { [weak self] in self?.stop() }
+        do {
+            try clip.load(data)
+        } catch {
+            speechError = "Couldn't play the audio the Mac sent back."
+            stop()
+            return
+        }
+        activateSession()
+        self.clip = clip
+        duration = clip.duration
+        clip.play()
+        mode = .speaking
+        startTicker()
+        updateNowPlaying()
+    }
+
     func stop() {
         generation += 1
         utterances = [:]
@@ -104,6 +165,11 @@ final class SpeechStore {
         if synthesizer.isSpeaking || synthesizer.isPaused {
             synthesizer.stopSpeaking(at: .immediate)
         }
+        clip?.stop()
+        clip = nil
+        pendingReqId = nil
+        isLoading = false
+        duration = 0
         segments = []
         prefixChars = []
         index = 0
@@ -130,12 +196,32 @@ final class SpeechStore {
     /// Move by whole segments. Going back mid-sentence restarts the current one
     /// first, which is what "previous" means everywhere else.
     func skip(_ delta: Int) {
+        // A rendered clip has a timeline, so skip means seconds, not sentences.
+        if let clip {
+            clip.seek(by: TimeInterval(delta) * 15)
+            refreshClipProgress()
+            return
+        }
         guard isActive, !segments.isEmpty else { return }
         var target = index + delta
         if delta < 0, elapsed - elapsedAtSegmentStart > 3 { target = index }
         speak(from: max(0, min(segments.count - 1, target)))
         if mode == .paused { mode = .speaking; startTicker() }
         updateNowPlaying()
+    }
+
+    /// Scrub to a position. Only meaningful on the Mac engine.
+    func seek(to time: TimeInterval) {
+        guard let clip else { return }
+        clip.seek(to: time)
+        refreshClipProgress()
+    }
+
+    private func refreshClipProgress() {
+        guard let clip else { return }
+        elapsed = clip.currentTime
+        duration = clip.duration
+        progress = clip.duration > 0 ? min(1, clip.currentTime / clip.duration) : 0
     }
 
     func setRate(_ rate: Double) {
@@ -147,6 +233,14 @@ final class SpeechStore {
 
     private func pause() {
         guard mode == .speaking else { return }
+        if let clip {
+            clip.pause()
+            mode = .paused
+            ticker?.cancel()
+            ticker = nil
+            updateNowPlaying()
+            return
+        }
         synthesizer.pauseSpeaking(at: .word)
         mode = .paused
         ticker?.cancel()
@@ -157,6 +251,13 @@ final class SpeechStore {
     private func resume() {
         guard mode == .paused else { return }
         activateSession()
+        if let clip {
+            clip.play()
+            mode = .speaking
+            startTicker()
+            updateNowPlaying()
+            return
+        }
         synthesizer.continueSpeaking()
         mode = .speaking
         startTicker()
@@ -197,7 +298,9 @@ final class SpeechStore {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 guard let self, !Task.isCancelled else { return }
-                if self.mode == .speaking { self.elapsed += 0.5 }
+                if self.mode == .speaking {
+                    if self.clip != nil { self.refreshClipProgress() } else { self.elapsed += 0.5 }
+                }
             }
         }
     }

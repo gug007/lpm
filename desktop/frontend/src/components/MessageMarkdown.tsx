@@ -1,10 +1,20 @@
-import { memo, useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  createContext,
+  memo,
+  useContext,
+  useEffect,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { ensureLang, tokenizeLines, type Token } from "../highlight";
 
 interface MessageMarkdownProps {
+  /** 1-based source line being read aloud, tinted while it plays. */
+  speakingLine?: number | null;
   text: string;
 }
 
@@ -36,12 +46,46 @@ function renderWithLinks(text: string): ReactNode {
   );
 }
 
-export const MessageMarkdown = memo(function MessageMarkdown({ text }: MessageMarkdownProps) {
+/// The source line currently being read aloud, or null. Passed by context
+/// rather than prop because `components` is a module-level map that
+/// react-markdown owns — it never sees this component's props.
+const SpeakingLineContext = createContext<number | null>(null);
+
+/// Blocks carry their source position, so the one being spoken can be tinted
+/// without changing how the markdown is parsed or rendered.
+function useIsSpeaking(node: unknown): boolean {
+  const speaking = useContext(SpeakingLineContext);
+  return coversLine(node, speaking);
+}
+
+function coversLine(node: unknown, speaking: number | null): boolean {
+  if (speaking == null) return false;
+  const start = (node as { position?: { start?: { line?: number }; end?: { line?: number } } })
+    ?.position;
+  const from = start?.start?.line;
+  const to = start?.end?.line ?? from;
+  return from != null && to != null && speaking >= from && speaking <= to;
+}
+
+const SPEAKING_CLASS = " rounded bg-[var(--accent-blue)]/15 transition-colors";
+
+/// Called from inside the `components` map, which react-markdown invokes as
+/// React components — so the context read is a legal hook call.
+function speakingClass(node: unknown): string {
+  return useIsSpeaking(node) ? SPEAKING_CLASS : "";
+}
+
+export const MessageMarkdown = memo(function MessageMarkdown({
+  text,
+  speakingLine = null,
+}: MessageMarkdownProps) {
   return (
     <div className="markdown-body select-text text-sm text-[var(--text-primary)]">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {text}
-      </ReactMarkdown>
+      <SpeakingLineContext.Provider value={speakingLine}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          {text}
+        </ReactMarkdown>
+      </SpeakingLineContext.Provider>
     </div>
   );
 });
@@ -78,8 +122,10 @@ const components: Components = {
       </a>
     );
   },
-  p({ children }) {
-    return <p className="my-1 whitespace-pre-wrap break-words">{children}</p>;
+  p({ children, node }) {
+    return (
+      <p className={`my-1 whitespace-pre-wrap break-words${speakingClass(node)}`}>{children}</p>
+    );
   },
   ul({ children }) {
     return <ul className="my-1 list-disc pl-5">{children}</ul>;
@@ -87,17 +133,17 @@ const components: Components = {
   ol({ children }) {
     return <ol className="my-1 list-decimal pl-5">{children}</ol>;
   },
-  li({ children }) {
-    return <li className="my-0.5">{children}</li>;
+  li({ children, node }) {
+    return <li className={`my-0.5${speakingClass(node)}`}>{children}</li>;
   },
-  h1({ children }) {
-    return <h1 className="my-2 text-base font-semibold">{children}</h1>;
+  h1({ children, node }) {
+    return <h1 className={`my-2 text-base font-semibold${speakingClass(node)}`}>{children}</h1>;
   },
-  h2({ children }) {
-    return <h2 className="my-2 text-[15px] font-semibold">{children}</h2>;
+  h2({ children, node }) {
+    return <h2 className={`my-2 text-[15px] font-semibold${speakingClass(node)}`}>{children}</h2>;
   },
-  h3({ children }) {
-    return <h3 className="my-1 text-sm font-semibold">{children}</h3>;
+  h3({ children, node }) {
+    return <h3 className={`my-1 text-sm font-semibold${speakingClass(node)}`}>{children}</h3>;
   },
   blockquote({ children }) {
     return (

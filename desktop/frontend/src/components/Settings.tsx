@@ -76,6 +76,7 @@ import { InlineNameEditor } from "./InlineNameEditor";
 import { modalInputDefaults } from "../forms/styles";
 import { SettingsSearch } from "./SettingsSearch";
 import { SettingsSelect } from "./SettingsSelect";
+import { OpenAIKeyRow, OpenAIVoiceRow } from "./OpenAITTSRows";
 import {
   buildSearchEntries,
   matchSettings,
@@ -161,6 +162,8 @@ export function Settings({
   const errorSound = useSettingsStore((s) => s.errorSound ?? "chime");
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled ?? false);
   const ttsVoice = useSettingsStore((s) => s.ttsVoice ?? "af_heart");
+  const ttsEngine = useSettingsStore((s) => s.ttsEngine ?? "kokoro");
+  const ttsOpenAiVoice = useSettingsStore((s) => s.ttsOpenAiVoice ?? "alloy");
   const ttsSpeed = useSettingsStore((s) => s.ttsSpeed ?? 1.0);
   const openFilesInDefaultApp = useSettingsStore(
     (s) => s.terminalOpenInDefaultApp ?? false,
@@ -800,6 +803,26 @@ export function Settings({
               </SettingsRow>
               {ttsEnabled && (
                 <>
+                  <SettingsRow {...rowProps("tts.engine")}>
+                    <SettingsSelect
+                      value={ttsEngine}
+                      onChange={(e) => updateSettings({ ttsEngine: e.target.value })}
+                      aria-label="Engine"
+                    >
+                      <option value="kokoro">Kokoro (on this Mac)</option>
+                      <option value="openai">OpenAI</option>
+                    </SettingsSelect>
+                  </SettingsRow>
+                  {ttsEngine === "openai" && (
+                    <>
+                      <OpenAIKeyRow />
+                      <OpenAIVoiceRow
+                        value={ttsOpenAiVoice}
+                        onChange={(v) => updateSettings({ ttsOpenAiVoice: v })}
+                      />
+                    </>
+                  )}
+                  {ttsEngine !== "openai" && (
                   <SettingsRow {...rowProps("tts.voice")}>
                     <SettingsSelect
                       value={ttsVoice}
@@ -813,6 +836,7 @@ export function Settings({
                       <option value="am_michael">am_michael</option>
                     </SettingsSelect>
                   </SettingsRow>
+                  )}
                   <SettingsRow {...rowProps("tts.speed")}>
                     <SettingsSelect
                       value={ttsSpeed}
@@ -827,7 +851,9 @@ export function Settings({
                       <option value={2.0}>2.0x</option>
                     </SettingsSelect>
                   </SettingsRow>
-                  <KokoroEngineRow status={kokoroStatus} onStatusChange={setKokoroStatus} />
+                  {ttsEngine !== "openai" && (
+                    <KokoroEngineRow status={kokoroStatus} onStatusChange={setKokoroStatus} />
+                  )}
                 </>
               )}
             </SettingsSection>
@@ -1315,7 +1341,7 @@ function SettingsSection({
   );
 }
 
-function SettingsRow({
+export function SettingsRow({
   id,
   label,
   description,

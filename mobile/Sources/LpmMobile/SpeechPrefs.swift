@@ -5,8 +5,16 @@ import SwiftUI
 /// to talk. Nothing here syncs to the Mac — the voices are whatever this device
 /// has downloaded, so the choice only makes sense locally.
 enum SpeechPrefs {
+    static let engineKey = "speech.engine"
     static let voiceKey = "speech.voiceId"
     static let rateKey = "speech.rate"
+
+    /// "device" synthesizes on the phone; "mac" asks the paired Mac for
+    /// rendered audio (its configured OpenAI voice).
+    static var engine: String {
+        get { UserDefaults.standard.string(forKey: engineKey) ?? "device" }
+        set { UserDefaults.standard.set(newValue, forKey: engineKey) }
+    }
 
     static let defaultRate = 1.0
     static let rates: [Double] = [0.75, 1.0, 1.25, 1.5, 2.0]

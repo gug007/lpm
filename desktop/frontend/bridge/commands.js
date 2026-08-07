@@ -712,6 +712,21 @@ export function StartTerminalForRestore(projectName, terminalName) {
 export function StartTerminalWithCwdEnv(projectName, cwd, env) {
   return invoke("start_terminal_with_cwd_env", { projectName, cwd, env });
 }
+export function SetOpenAIKey(key) {
+  return invoke("set_openai_key", { key });
+}
+export function HasOpenAIKey() {
+  return invoke("has_openai_key", {});
+}
+export function ClearOpenAIKey() {
+  return invoke("clear_openai_key", {});
+}
+export function OpenAIVoices() {
+  return invoke("openai_voices", {});
+}
+export function OpenAITTSSpeak(text) {
+  return invoke("openai_tts_speak", { text });
+}
 export function StartTTS(text) {
   return invoke("start_tts", { text });
 }

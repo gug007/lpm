@@ -1761,6 +1761,29 @@ fn handle_msg(
                 let _ = out.try_send(reply.to_string());
             });
         }
+        "ttsSpeak" => {
+            // Synthesize an automation result for the phone's read-aloud. Slow
+            // (a network round trip per chunk), so it runs off the read loop and
+            // replies through the out-queue. `reqId` lets the phone drop the
+            // answer to a request it has already moved on from.
+            let req_id = str_field("reqId").unwrap_or_default();
+            let text = str_field("text").unwrap_or_default();
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let reply = match crate::openaitts::synthesize(
+                    &text,
+                    &crate::tts::openai_voice(),
+                    crate::tts::openai_speed(),
+                ) {
+                    Ok(audio) => json!({
+                        "t": "ttsSpeak", "reqId": req_id, "ok": true, "format": "aac",
+                        "audio": base64::engine::general_purpose::STANDARD.encode(audio),
+                    }),
+                    Err(e) => json!({ "t": "ttsSpeak", "reqId": req_id, "ok": false, "error": e }),
+                };
+                let _ = out.try_send(reply.to_string());
+            });
+        }
         "jobs" => match crate::jobs::list_all_jobs() {
             Ok(jobs) => send(ws, json!({ "t": "jobs", "ok": true, "jobs": jobs }))?,
             Err(e) => send(ws, json!({ "t": "jobs", "ok": false, "error": e }))?,

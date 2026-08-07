@@ -501,11 +501,23 @@ private struct AutomationConversationView: View {
         .onChange(of: model.automationFollowupError[key]) { _, error in
             if error != nil { pendingMessage = nil }
         }
+        .alert("Couldn't read aloud", isPresented: speechErrorPresented) {
+            Button("OK", role: .cancel) { model.speech.speechError = nil }
+        } message: {
+            Text(model.speech.speechError ?? "")
+        }
         .alert("Couldn't send message", isPresented: followupErrorPresented) {
             Button("OK", role: .cancel) { model.automationFollowupError[key] = nil }
         } message: {
             Text(model.automationFollowupError[key] ?? "")
         }
+    }
+
+    private var speechErrorPresented: Binding<Bool> {
+        Binding(
+            get: { model.speech.speechError != nil },
+            set: { if !$0 { model.speech.speechError = nil } }
+        )
     }
 
     private var followupErrorPresented: Binding<Bool> {

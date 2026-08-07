@@ -26,6 +26,7 @@ final class LpmClient: NSObject {
     var onProjects: (([Project]) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
+    var onSpeech: ((_ reqId: String, _ audio: String?, _ error: String?) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
     var onUpload: ((_ id: String, _ reqId: String, _ path: String) -> Void)?
@@ -634,6 +635,7 @@ final class LpmClient: NSObject {
     func requestProjects() { send(Wire.projects()) }
     func requestSidebar() { send(Wire.sidebar()) }
     func requestStats(days: Int) { send(Wire.stats(days: days)) }
+    func requestSpeech(reqId: String, text: String) { send(Wire.ttsSpeak(reqId: reqId, text: text)) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
     func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
     func uploadBlob(_ id: String, _ b64: String, mime: String, name: String?, reqId: String) {
@@ -1035,6 +1037,7 @@ final class LpmClient: NSObject {
             case .projects(let p): self.onProjects?(p)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
+            case .ttsSpeak(let reqId, let audio, let error): self.onSpeech?(reqId, audio, error)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .slash(let id, let cmds): self.onSlash?(id, cmds)
             case .upload(let id, let reqId, let path): self.onUpload?(id, reqId, path)

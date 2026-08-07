@@ -87,6 +87,8 @@ mod templates;
 mod textinput;
 mod tmux;
 mod transfer;
+mod openaitts;
+mod secrets;
 mod tts;
 mod uninstall;
 mod updates;

@@ -35,6 +35,9 @@ enum Wire {
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
     static func stats(days: Int) -> String { json(["t": "stats", "days": days]) }
+    static func ttsSpeak(reqId: String, text: String) -> String {
+        json(["t": "ttsSpeak", "reqId": reqId, "text": text])
+    }
     static func terminals(project: String) -> String { json(["t": "terminals", "project": project]) }
     static func slash(id: String, project: String) -> String {
         json(["t": "slash", "id": id, "project": project])
@@ -412,6 +415,8 @@ enum Wire {
         // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
         // a hard failure; the scan runs on the Mac and replies asynchronously.
         case stats(AgentStats?, error: String?)
+        /// Synthesized speech for a read-aloud request. `audio` is base64 AAC.
+        case ttsSpeak(reqId: String, audio: String?, error: String?)
         case terminals(project: String, [TerminalInfo])
         case slash(id: String, [SlashCommand])
         case mentions(project: String, [MentionEntry])
@@ -587,6 +592,11 @@ enum Wire {
                     order: obj["order"] as? [String] ?? [],
                     groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init)
                 )
+            case "ttsSpeak":
+                let ok = obj["ok"] as? Bool ?? false
+                return .ttsSpeak(reqId: obj["reqId"] as? String ?? "",
+                                 audio: ok ? obj["audio"] as? String : nil,
+                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't synthesize speech."))
             case "stats":
                 let ok = obj["ok"] as? Bool ?? false
                 return .stats(ok ? AgentStats(obj["stats"] as? [String: Any] ?? [:]) : nil,

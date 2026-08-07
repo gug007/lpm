@@ -6,7 +6,9 @@ import {
   StopTTS,
   PauseTTS,
   ResumeTTS,
+  OpenAITTSSpeak,
 } from "../../bridge/commands";
+import { getSettings } from "./settings";
 import { preprocessForTTS } from "../tts/textProcessor";
 import { createTTSPlayer, type TTSPlayer } from "../tts/audioPlayer";
 import { base64ToBytes } from "../download";
@@ -54,6 +56,21 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       return;
     }
     set({ status: "loading", text: cleaned, progress: 0 });
+    // Kokoro streams chunked WAV back through "tts-audio" events; OpenAI
+    // returns one encoded clip from a single call. Both end up in the same
+    // player, so seeking and progress work identically either way.
+    if (getSettings().ttsEngine === "openai") {
+      try {
+        const b64 = await OpenAITTSSpeak(cleaned);
+        const bytes = base64ToBytes(b64);
+        await getPlayer().play(bytes.buffer as ArrayBuffer);
+        set({ status: "playing" });
+      } catch (err) {
+        set({ status: "idle", text: "" });
+        toast.error(`TTS failed: ${String(err)}`);
+      }
+      return;
+    }
     try {
       await StartTTS(cleaned);
     } catch (err) {
@@ -63,6 +80,7 @@ export const useTTSStore = create<TTSState>((set, get) => ({
   },
 
   stopReading: () => {
+    // Harmless on the OpenAI path — there is no Rust-side session to tear down.
     StopTTS();
     getPlayer().stop();
     set({ status: "idle", text: "", progress: 0 });
@@ -78,12 +96,15 @@ export const useTTSStore = create<TTSState>((set, get) => ({
 
   togglePause: () => {
     const { status } = get();
+    const openai = getSettings().ttsEngine === "openai";
     if (status === "playing") {
-      PauseTTS();
+      if (!openai) PauseTTS(); // SIGSTOP only means something to the Kokoro child
       getPlayer().pause();
+      set({ status: "paused" });
     } else if (status === "paused") {
-      ResumeTTS();
+      if (!openai) ResumeTTS();
       getPlayer().resume();
+      set({ status: "playing" });
     }
   },
 

@@ -6,6 +6,9 @@ import {
   SendJobFollowup,
 } from "../../../../bridge/commands";
 import { MessageMarkdown } from "../../MessageMarkdown";
+import { useTTSStore } from "../../../store/tts";
+import { useSettingsStore } from "../../../store/settings";
+import { markdownToSpeech } from "../../../tts/markdownToSpeech";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { JobLiveOutput } from "./JobLiveOutput";
 import {
@@ -578,6 +581,57 @@ function EntryHeader({
   );
 }
 
+/// Read-aloud control for one message, in its own row under the body rather
+/// than in the hover meta row — this is a primary action on the content, not
+/// metadata about the run. Doubles as stop while this message is the one being
+/// read; hidden entirely until reading is turned on in Settings.
+function ReadAloudButton({ text }: { text: string }) {
+  const enabled = useSettingsStore((s) => Boolean(s.ttsEnabled));
+  const startReading = useTTSStore((s) => s.startReading);
+  const stopReading = useTTSStore((s) => s.stopReading);
+  const readingText = useTTSStore((s) => s.text);
+  const status = useTTSStore((s) => s.status);
+
+  const spoken = markdownToSpeech(text);
+  const reading = status !== "idle" && readingText === spoken;
+
+  if (!enabled) return null;
+
+  return (
+    <div className="mt-1.5 flex items-center">
+      <button
+        type="button"
+        onClick={() => (reading ? stopReading() : void startReading(spoken))}
+        title={reading ? "Stop reading" : "Read aloud"}
+        aria-label={reading ? "Stop reading" : "Read aloud"}
+        className={`-ml-1 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-secondary)] ${
+          reading ? "text-[var(--accent-blue)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+        }`}
+      >
+        {reading ? <StopGlyph /> : <SpeakerGlyph />}
+      </button>
+    </div>
+  );
+}
+
+function SpeakerGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+    </svg>
+  );
+}
+
+function StopGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  );
+}
+
 // One message in the conversation: the user's question (for replies), the
 // status line, and the agent's full markdown output — this is the message's
 // own page, so nothing is folded away.
@@ -618,6 +672,7 @@ function EntryBody({
       {entry.output && (
         <div className="mt-2">
           <MessageMarkdown text={entry.output} />
+          <ReadAloudButton text={entry.output} />
         </div>
       )}
       {quiet && (
