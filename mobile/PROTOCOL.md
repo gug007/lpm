@@ -603,6 +603,7 @@ emoji: string
 enabled: bool
 duplicate: bool
 runKind: "action" | "cmd" | "prompt"
+description: string       // what it runs: the prompt, the command, or the action name
 schedule: { mode: "interval", everySecs: N } | { mode: "calendar", atMinutes: N, days: ["mon"…] }
 lastRunAt: unix seconds | null
 lastResult: string | null

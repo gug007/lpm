@@ -185,6 +185,7 @@ struct DemoWorld {
         var source: String = "project"
         var duplicate: Bool = false
         var runKind: String = "cmd"        // action | cmd | prompt
+        var summary: String = ""           // the prompt, command, or action name
         var scheduleMode: String = "calendar" // interval | calendar
         var everySecs: Int = 0
         var everyMaxSecs: Int = 0
@@ -431,7 +432,8 @@ struct DemoWorld {
 
         jobs = [
             Job(id: "nightly-tests", project: "storefront", label: "Nightly tests", emoji: "🌙",
-                enabled: true, runKind: "cmd", scheduleMode: "calendar", atMinutes: 180,
+                enabled: true, runKind: "cmd", summary: "npm test",
+                scheduleMode: "calendar", atMinutes: 180,
                 lastRunAt: t0, lastResult: "completed", nextFireAt: t0 + 86400,
                 history: [
                     JobRun(at: t0 - 2 * 86400, result: "error", output: failOutput, durationSecs: 61),
@@ -447,7 +449,9 @@ struct DemoWorld {
                     "run": ["cmd": "npm test"],
                 ]),
             Job(id: "weekly-deps", project: "blog", label: "Weekly dependency check", emoji: "📦",
-                enabled: false, runKind: "prompt", scheduleMode: "calendar", atMinutes: 360,
+                enabled: false, runKind: "prompt",
+                summary: "Check the project's dependencies for outdated packages and summarize which updates are safe to apply.",
+                scheduleMode: "calendar", atMinutes: 360,
                 days: ["mon"], lastResult: "", agent: "claude",
                 body: [
                     "label": "Weekly dependency check",
@@ -595,7 +599,8 @@ extension DemoWorld {
         var o: [String: Any] = [
             "id": j.id, "project": j.project, "valid": true, "source": j.source,
             "error": "", "label": j.label, "emoji": j.emoji, "enabled": j.enabled,
-            "duplicate": j.duplicate, "runKind": j.runKind, "schedule": schedule,
+            "duplicate": j.duplicate, "runKind": j.runKind, "description": j.summary,
+            "schedule": schedule,
             "lastResult": j.lastResult, "running": j.running,
             "agent": j.agent, "model": j.model, "effort": j.effort,
         ]

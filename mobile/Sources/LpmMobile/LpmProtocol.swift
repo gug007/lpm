@@ -1027,6 +1027,9 @@ struct AutomationJob: Identifiable {
     let enabled: Bool
     let duplicate: Bool
     let runKind: String
+    /// What the job runs, in one piece: the prompt, the command, or the action's
+    /// name. Older servers omit it.
+    let summary: String
     let scheduleMode: String
     let everySecs: Int
     let atMinutes: Int
@@ -1066,6 +1069,7 @@ struct AutomationJob: Identifiable {
         enabled = o["enabled"] as? Bool ?? false
         duplicate = o["duplicate"] as? Bool ?? false
         runKind = o["runKind"] as? String ?? ""
+        summary = o["description"] as? String ?? ""
         let schedule = o["schedule"] as? [String: Any] ?? [:]
         scheduleMode = schedule["mode"] as? String ?? ""
         everySecs = schedule["everySecs"] as? Int ?? 0
