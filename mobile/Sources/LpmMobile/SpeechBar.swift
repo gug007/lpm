@@ -77,14 +77,14 @@ struct SpeechBar: View {
             rateMenu.frame(width: 56, alignment: .leading)
             Spacer(minLength: 4)
             HStack(spacing: 16) {
-                TransportButton(systemImage: store.canSeek ? "gobackward.15" : "backward.fill",
-                                size: 20,
+                TransportButton(systemImage: store.canSeek ? "gobackward.15" : "backward.end.fill",
+                                size: store.canSeek ? 20 : 17,
                                 label: store.canSeek ? "Back 15 seconds" : "Previous sentence",
                                 tint: .primary) { store.skip(-1) }
                     .disabled(store.isLoading)
                 playPause
-                TransportButton(systemImage: store.canSeek ? "goforward.15" : "forward.fill",
-                                size: 20,
+                TransportButton(systemImage: store.canSeek ? "goforward.15" : "forward.end.fill",
+                                size: store.canSeek ? 20 : 17,
                                 label: store.canSeek ? "Forward 15 seconds" : "Next sentence",
                                 tint: .primary) { store.skip(1) }
                     .disabled(store.isLoading)

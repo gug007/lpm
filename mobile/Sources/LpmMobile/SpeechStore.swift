@@ -82,6 +82,7 @@ final class SpeechStore {
             return
         }
         stop()
+        rate = SpeechPrefs.rate // Settings can have moved it since the last reading
 
         if SpeechPrefs.engine == "mac" {
             // The Mac renders the whole document in one clip, so nothing reports

@@ -95,26 +95,23 @@ struct AutomationDetailView: View {
 
     // MARK: Sections
 
+    /// The name is already in the nav bar and stays there while the page scrolls,
+    /// so the header spends its one row on what the bar can't say: where the job
+    /// runs, and what it is doing right now.
     private func header(_ job: AutomationJob) -> some View {
         Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 14) {
-                    Text(job.emoji.isEmpty ? "⏱️" : job.emoji)
-                        .font(.system(size: 32))
-                        .frame(width: 42)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(job.displayName)
-                            .font(.title3.weight(.semibold))
-                            .lineLimit(2)
-                        Text(automationScopeText(job))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
+            HStack(spacing: 10) {
+                Text(job.emoji.isEmpty ? "⏱️" : job.emoji)
+                    .font(.title3)
+                Text(automationScopeText(job))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 8)
                 AutomationStatusPill(job: job)
+                    .layoutPriority(1)
             }
-            .padding(.vertical, 6)
 
             if !job.valid {
                 Label(job.error.isEmpty ? "This automation can't run." : job.error,
