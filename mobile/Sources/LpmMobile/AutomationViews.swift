@@ -455,26 +455,32 @@ private struct AutomationConversationView: View {
             .onChange(of: entries.count) { _, _ in scrollToBottom(proxy, animated: true) }
             .onChange(of: model.automationLiveOutput[key]?.text) { _, _ in scrollToBottom(proxy, animated: false) }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                if model.speech.isActive {
-                    SpeechBar(store: model.speech)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                if job?.runKind == "prompt" {
-                    TerminalComposer(
-                        store: model.composerStore(for: composerId, project: project,
-                                                   label: job?.displayName ?? jobId),
-                        onSend: sendFollowup,
-                        terminalTools: false,
-                        disabled: isSending,
-                        placeholder: isSending ? "Automation is running…" : "Reply to this run"
-                    )
-                }
+        // The reader sits under the nav bar, not over the composer: it stays put
+        // while the conversation scrolls, and the reply field keeps the thumb zone.
+        // The band takes the chat's own background so scrolled text doesn't show
+        // through around the capsule.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if model.speech.isActive {
+                SpeechBar(store: model.speech)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                    .padding(.bottom, 8)
+                    .background(Color(.systemGroupedBackground))
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .animation(.easeOut(duration: 0.2), value: model.speech.isActive)
+        }
+        .animation(.easeOut(duration: 0.2), value: model.speech.isActive)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if job?.runKind == "prompt" {
+                TerminalComposer(
+                    store: model.composerStore(for: composerId, project: project,
+                                               label: job?.displayName ?? jobId),
+                    onSend: sendFollowup,
+                    terminalTools: false,
+                    disabled: isSending,
+                    placeholder: isSending ? "Automation is running…" : "Reply to this run"
+                )
+            }
         }
         .navigationTitle(job?.displayName ?? "Automation chat")
         .navigationBarTitleDisplayMode(.inline)
