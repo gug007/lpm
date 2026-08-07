@@ -479,9 +479,7 @@ private struct AutomationMessage: View {
             }
             if !quiet { AutomationMessageMeta(entry: entry) }
             if !entry.output.isEmpty {
-                Text(entry.output)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
+                MarkdownText(entry.output)
             }
             if quiet { AutomationMessageMeta(entry: entry) }
         }
