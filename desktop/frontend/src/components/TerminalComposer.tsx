@@ -2127,7 +2127,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               />
             )}
             {agentStatus && (
-              <AgentStatusChip status={agentStatus} className="pl-1.5 pr-0.5" compact />
+              <AgentStatusChip
+                status={agentStatus}
+                className="pl-1.5 pr-0.5"
+                fontSize={inputFontSize}
+                compact
+              />
             )}
           </div>
           <SendSplitButton
