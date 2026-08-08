@@ -90,7 +90,7 @@ export function HeaderTab({
   // plain one-line tooltip, shown only when the strip clips the label.
   const tooltip = origin ? (
     <span className="flex flex-col gap-2">
-      <span className="line-clamp-3 font-medium">{label}</span>
+      <span className="line-clamp-5 font-medium">{label}</span>
       <span className="flex min-w-0 items-center gap-1.5 border-t border-[var(--border)] pt-2 text-[11px] text-[var(--text-muted)]">
         from
         <span

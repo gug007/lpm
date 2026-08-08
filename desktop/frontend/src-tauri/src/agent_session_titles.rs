@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime};
 
-const MAX_TITLE_CHARS: usize = 60;
+const MAX_TITLE_CHARS: usize = 200;
 const TRANSCRIPT_CACHE_MAX: usize = 64;
 const CODEX_DB_SCAN_TTL: Duration = Duration::from_secs(60);
 const CODEX_HOME_ENV: &str = "CODEX_HOME";

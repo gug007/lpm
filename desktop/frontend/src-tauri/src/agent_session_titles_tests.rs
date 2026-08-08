@@ -404,10 +404,7 @@ fn fallback_titles_are_sanitized_and_compacted() {
         compact_fallback(screenshot_prompt).as_deref(),
         Some("can we get title of running codex and claude?")
     );
-    let title = compact_fallback(
-        "Investigate how a very long running Codex session can expose a stable and useful title for a terminal tab",
-    )
-    .unwrap();
+    let title = compact_fallback(&"Investigate how a very long running Codex session can expose a stable and useful title for a terminal tab. ".repeat(4)).unwrap();
     assert!(title.chars().count() <= MAX_TITLE_CHARS);
     assert!(title.ends_with('…'));
     assert!(!title.contains('\n'));
