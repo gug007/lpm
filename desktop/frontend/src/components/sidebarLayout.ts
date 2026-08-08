@@ -4,7 +4,8 @@ import { arrayEq } from "./actionsDndLayout";
 // Pure model + move math for the sidebar's interleaved folders/projects list.
 // Analogous to actionsDndLayout.ts. A SidebarLayout is the full top-level
 // order plus the folder definitions:
-//   - `order` holds top-level tokens: a loose project name, or a "group:<id>".
+//   - `order` holds top-level tokens: a loose project name, a "group:<id>", or
+//     a "peer:<slug>" (a paired Mac's section).
 //   - each group's `members` holds its project names in within-folder order.
 // A loose `order` slot is always a top-level (non-duplicate) project; a
 // duplicate never sits loose, but it may be an explicit folder member —
@@ -15,6 +16,7 @@ export interface SidebarLayout {
 }
 
 const GROUP_PREFIX = "group:";
+const PEER_PREFIX = "peer:";
 const FOLDER_NEST_PREFIX = "folder-nest:";
 const FOLDER_BODY_PREFIX = "folder-body:";
 
@@ -24,6 +26,38 @@ export function groupToken(id: string): string {
 
 export function groupIdOf(token: string): string | null {
   return token.startsWith(GROUP_PREFIX) ? token.slice(GROUP_PREFIX.length) : null;
+}
+
+// A paired Mac's section takes a top-level slot of its own so it can be dragged
+// above the local projects instead of being pinned below them. The token holds
+// nothing but the slot — the section builds its rows from that Mac's projects,
+// which are never part of this layout.
+export function peerToken(slug: string): string {
+  return `${PEER_PREFIX}${slug}`;
+}
+
+export function peerSlugOfToken(token: string): string | null {
+  return token.startsWith(PEER_PREFIX) ? token.slice(PEER_PREFIX.length) : null;
+}
+
+export function isPeerToken(token: string): boolean {
+  return token.startsWith(PEER_PREFIX);
+}
+
+// Give every paired Mac a slot, and drop the slots of Macs that are no longer
+// paired. A Mac with no slot yet takes one at the end — where remote sections
+// sat before they became reorderable — so a fresh pairing appears where it
+// always did. Slots are keyed on the pairing, not on whether the Mac is
+// reachable: an away Mac keeps its place and comes back to it.
+export function syncPeerTokens(order: string[], slugs: string[]): string[] {
+  const live = new Set(slugs);
+  const kept = order.filter((t) => {
+    const slug = peerSlugOfToken(t);
+    return slug === null || live.has(slug);
+  });
+  const missing = slugs.map(peerToken).filter((t) => !kept.includes(t));
+  if (missing.length === 0) return kept.length === order.length ? order : kept;
+  return [...kept, ...missing];
 }
 
 // Droppable id for a folder header — dropping a project here moves it into the
@@ -241,9 +275,10 @@ export function setGroupCollapsed(
 }
 
 // The flat all-projects order written to settings.projectOrder for the backend.
-// Walk top-level order, expanding each folder into its members. A folder member
-// may be a duplicate; the backend re-groups every duplicate after its parent on
-// its own, so a duplicate's position here is only advisory.
+// Walk top-level order, expanding each folder into its members and skipping peer
+// slots (a Mac's projects are listed by that Mac, not here). A folder member may
+// be a duplicate; the backend re-groups every duplicate after its parent on its
+// own, so a duplicate's position here is only advisory.
 export function flattenForProjectOrder(layout: SidebarLayout): string[] {
   const byId = new Map(layout.groups.map((g) => [g.id, g]));
   const out: string[] = [];
@@ -252,7 +287,7 @@ export function flattenForProjectOrder(layout: SidebarLayout): string[] {
     if (gid) {
       const g = byId.get(gid);
       if (g) out.push(...g.members);
-    } else {
+    } else if (!isPeerToken(token)) {
       out.push(token);
     }
   }
@@ -302,6 +337,12 @@ export function reconcile(
         order.push(token);
         seen.add(token);
       }
+    } else if (isPeerToken(token)) {
+      // A peer slot answers to the pairing list, which this pass can't see.
+      if (!seen.has(token)) {
+        order.push(token);
+        seen.add(token);
+      }
     } else if (looseOk(token) && !claimed.has(token) && !seen.has(token)) {
       order.push(token);
       seen.add(token);
@@ -344,12 +385,23 @@ export function forgetProjects(layout: SidebarLayout, names: Iterable<string>): 
 // What a sortable id represents in the current layout.
 export type SidebarNode =
   | { kind: "group"; id: string }
+  | { kind: "peer"; slug: string }
   | { kind: "loose"; name: string }
   | { kind: "member"; name: string; groupId: string };
+
+// A folder and a peer section are both containers the drag math treats alike:
+// they reorder at the top level and never nest into anything.
+type SectionNode = Extract<SidebarNode, { kind: "group" | "peer" }>;
+
+function isSection(node: SidebarNode): node is SectionNode {
+  return node.kind === "group" || node.kind === "peer";
+}
 
 export function classify(layout: SidebarLayout, id: string): SidebarNode | null {
   const gid = groupIdOf(id);
   if (gid) return groupById(layout.groups, gid) ? { kind: "group", id: gid } : null;
+  const slug = peerSlugOfToken(id);
+  if (slug) return layout.order.includes(id) ? { kind: "peer", slug } : null;
   const owner = layout.groups.find((g) => g.members.includes(id));
   if (owner) return { kind: "member", name: id, groupId: owner.id };
   if (layout.order.includes(id)) return { kind: "loose", name: id };
@@ -358,8 +410,9 @@ export function classify(layout: SidebarLayout, id: string): SidebarNode | null 
 
 // Translate a drag (active id) dropped on a target (over id) into the next
 // layout, or null for a no-op / disallowed move. `overId` may be a sortable
-// row id (loose name, "group:<id>", or a member name) or a folder drop-zone id
-// (folderNestId / folderBodyId). Folders never nest into folders.
+// row id (loose name, "group:<id>", "peer:<slug>", or a member name) or a
+// folder drop-zone id (folderNestId / folderBodyId). Folders and peer sections
+// only ever reorder — neither nests, and neither takes members by drag.
 export function resolveSidebarDrop(
   layout: SidebarLayout,
   activeId: string,
@@ -371,7 +424,7 @@ export function resolveSidebarDrop(
 
   const folderTarget = dropFolderTarget(overId);
   if (folderTarget !== null) {
-    if (a.kind === "group") return null;
+    if (isSection(a)) return null;
     if (a.kind === "member" && a.groupId === folderTarget) return null;
     return moveIntoGroup(layout, a.name, folderTarget);
   }
@@ -379,7 +432,7 @@ export function resolveSidebarDrop(
   const o = classify(layout, overId);
   if (!o) return null;
 
-  if (a.kind === "group") {
+  if (isSection(a)) {
     if (o.kind === "member") return null;
     return moveTopLevel(layout, activeId, layout.order.indexOf(overId));
   }

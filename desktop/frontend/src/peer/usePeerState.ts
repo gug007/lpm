@@ -108,8 +108,16 @@ const RETRY_MAX_MS = 8_000;
 
 // Live peer configuration + connection status for both roles. Refreshes on
 // `peer-state-changed`, emitted whenever a connection or the config changes.
-export function usePeerState(): { state: PeerStateShape; refresh: () => Promise<void> } {
+// `loaded` turns true on the first successful read and stays true: until then
+// the empty peer list is "not known yet", not "no Mac is paired", and a caller
+// that prunes per-peer state must wait for it.
+export function usePeerState(): {
+  state: PeerStateShape;
+  loaded: boolean;
+  refresh: () => Promise<void>;
+} {
   const [state, setState] = useState<PeerStateShape>(DEFAULT_PEER_STATE);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async (): Promise<boolean> => {
     try {
@@ -118,6 +126,7 @@ export function usePeerState(): { state: PeerStateShape; refresh: () => Promise<
         host: { ...DEFAULT_PEER_STATE.host, ...(s?.host ?? {}) },
         peers: s?.peers ?? [],
       });
+      setLoaded(true);
       return true;
     } catch {
       /* peer server may be starting; keep last known */
@@ -153,5 +162,5 @@ export function usePeerState(): { state: PeerStateShape; refresh: () => Promise<
 
   useEffect(() => EventsOn("peer-state-changed", () => void load()), [load]);
 
-  return { state, refresh };
+  return { state, loaded, refresh };
 }

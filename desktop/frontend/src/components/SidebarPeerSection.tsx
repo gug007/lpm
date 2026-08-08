@@ -3,6 +3,7 @@ import { ChevronRightIcon, PlusIcon, XIcon } from "./icons";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { SidebarPeerRow } from "./SidebarPeerRow";
+import { SortableItem } from "./ui/SortableList";
 import { FollowIndicator } from "./FollowIndicator";
 import type { MirrorRow } from "./peerSections";
 import type { FollowState } from "../followApi";
@@ -11,14 +12,16 @@ import { PeerRemove } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { ProjectInfo } from "../types";
 
-// A paired Mac's projects, rendered below the local projects as a flat,
-// non-reorderable section headed by the Mac's name. The header collapses the
-// section and offers a hover-revealed disconnect. Selecting a row opens the exact
-// same ProjectDetail a local project uses.
+// A paired Mac's projects, rendered as a flat section headed by the Mac's name.
+// The header collapses the section, offers a hover-revealed disconnect, and — as
+// the section's drag handle — carries it to wherever the user wants it among the
+// local projects and folders. Its rows are not themselves reorderable. Selecting
+// a row opens the exact same ProjectDetail a local project uses.
 //
 // A Mac that is away keeps its section only for the copies synced here, so those
 // stay runnable while it sleeps.
 export function SidebarPeerSection({
+  sortableId,
   slug,
   alias,
   connected,
@@ -31,6 +34,9 @@ export function SidebarPeerSection({
   onSelect,
   onContextMenu,
 }: {
+  /// The section's slot in the sidebar order, making its header draggable.
+  /// Omitted where there is no drag context (select mode).
+  sortableId?: string;
   slug: string;
   alias: string;
   connected: boolean;
@@ -68,53 +74,60 @@ export function SidebarPeerSection({
 
   const rowCount = projects.length + strays.length;
 
-  return (
-    <div className="mt-3">
-      <div className="group/peer relative">
-        <button
-          onClick={toggle}
-          className="flex w-full select-none items-center gap-1 rounded-md px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] group-hover/peer:pr-16"
+  const header = (
+    <div className="group/peer relative">
+      <button
+        onClick={toggle}
+        className="flex w-full select-none items-center gap-1 rounded-md px-2 py-1 text-left text-[10px] font-medium uppercase tracking-wider text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)] group-hover/peer:pr-16"
+      >
+        <span
+          className={`shrink-0 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
         >
-          <span
-            className={`shrink-0 transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
-          >
-            <ChevronRightIcon />
+          <ChevronRightIcon />
+        </span>
+        <span className="truncate">{alias}</span>
+        <span className="shrink-0 opacity-70">{connected ? "— remote" : "— away"}</span>
+        {collapsed && rowCount > 0 && (
+          <span className="ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)] transition-opacity group-hover/peer:opacity-0">
+            {rowCount}
           </span>
-          <span className="truncate">{alias}</span>
-          <span className="shrink-0 opacity-70">{connected ? "— remote" : "— away"}</span>
-          {collapsed && rowCount > 0 && (
-            <span className="ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)] transition-opacity group-hover/peer:opacity-0">
-              {rowCount}
-            </span>
-          )}
-        </button>
-        {connected && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              addProjectForPeer(slug, alias);
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
-            title={`Add project on ${alias}`}
-            aria-label={`Add project on ${alias}`}
-          >
-            <PlusIcon />
-          </button>
         )}
+      </button>
+      {connected && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setConfirmOpen(true);
+            addProjectForPeer(slug, alias);
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100"
-          title={`Disconnect ${alias}`}
-          aria-label={`Disconnect ${alias}`}
+          className="absolute right-8 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100 [&_svg]:h-3.5 [&_svg]:w-3.5"
+          title={`Add project on ${alias}`}
+          aria-label={`Add project on ${alias}`}
         >
-          <XIcon />
+          <PlusIcon />
         </button>
-      </div>
+      )}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setConfirmOpen(true);
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)] pointer-events-none opacity-0 group-hover/peer:pointer-events-auto group-hover/peer:opacity-100"
+        title={`Disconnect ${alias}`}
+        aria-label={`Disconnect ${alias}`}
+      >
+        <XIcon />
+      </button>
+    </div>
+  );
+
+  // Spacing on both sides: a section can now sit between local rows, and its
+  // last row would otherwise butt flush against the one below. Sibling margins
+  // collapse, so stacked sections still show a single gap.
+  return (
+    <div className="my-3 first:mt-0">
+      {sortableId ? <SortableItem id={sortableId}>{header}</SortableItem> : header}
       {!collapsed &&
         projects.map((project) => {
           const mirror = mirrors.get(stripMarker(project.root));

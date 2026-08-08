@@ -1,5 +1,5 @@
 import type { ProjectGroup } from "../types";
-import { groupIdOf, groupToken, type SidebarLayout } from "./sidebarLayout";
+import { groupIdOf, groupToken, isPeerToken, type SidebarLayout } from "./sidebarLayout";
 
 // Every sidebar save is a full overwrite of groups.json + settings.sidebarOrder
 // from memory, and several lpm instances share one ~/.lpm (a dev build next to
@@ -28,7 +28,9 @@ type Placement = string | null;
 
 function placements(layout: SidebarLayout): Map<string, Placement> {
   const m = new Map<string, Placement>();
-  for (const token of layout.order) if (groupIdOf(token) === null) m.set(token, null);
+  for (const token of layout.order) {
+    if (groupIdOf(token) === null && !isPeerToken(token)) m.set(token, null);
+  }
   for (const g of layout.groups) for (const name of g.members) m.set(name, g.id);
   return m;
 }
@@ -83,7 +85,9 @@ export function mergeWithDisk(
   ];
 
   // Order: our tokens (minus names that ended up in a folder), then disk's
-  // tokens we don't have yet, then any leftover.
+  // tokens we don't have yet, then any leftover. A peer slot carries no
+  // placement to reconcile — it is only a position — so it rides along from
+  // whichever side has it, ours winning the spot.
   const order: string[] = [];
   const seen = new Set<string>();
   const push = (token: string) => {
@@ -92,16 +96,25 @@ export function mergeWithDisk(
     seen.add(token);
   };
   const looseToken = (token: string) => final.get(token) === null;
+  // Dropping a peer slot follows the same base-vs-ours rule as deleting a
+  // folder: a slot `base` held and we don't is a Mac we unpaired, so disk
+  // doesn't get to put it back. A slot only disk has is still adopted.
+  const unpaired = new Set(
+    base.order.filter((t) => isPeerToken(t) && !ours.order.includes(t)),
+  );
   for (const token of ours.order) {
-    if (groupIdOf(token) === null) {
-      if (looseToken(token)) push(token);
-    } else if (live.has(groupIdOf(token)!)) push(token);
+    const gid = groupIdOf(token);
+    if (gid !== null) {
+      if (live.has(gid)) push(token);
+    } else if (isPeerToken(token) || looseToken(token)) push(token);
   }
   for (const token of disk.order) {
     const gid = groupIdOf(token);
-    if (gid === null) {
-      if (looseToken(token)) push(token);
-    } else if (adopted.some((g) => g.id === gid)) push(token);
+    if (gid !== null) {
+      if (adopted.some((g) => g.id === gid)) push(token);
+    } else if (isPeerToken(token)) {
+      if (!unpaired.has(token)) push(token);
+    } else if (looseToken(token)) push(token);
   }
   for (const g of groups) push(groupToken(g.id));
   for (const [name, placement] of final) if (placement === null) push(name);

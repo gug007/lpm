@@ -3952,11 +3952,16 @@ fn top_level_index_of(order: &[Value], groups: &[Value], name: &str) -> usize {
 }
 
 /// Flatten the token order into a flat project name list, expanding each
-/// "group:<id>" token into its members. Mirrors sidebarLayout.ts flattenForProjectOrder.
+/// "group:<id>" token into its members and skipping each "peer:<slug>" slot (a
+/// paired Mac's section holds no local projects). Mirrors sidebarLayout.ts
+/// flattenForProjectOrder.
 fn flatten_order(order: &[Value], groups: &[Value]) -> Vec<String> {
     let mut out = Vec::new();
     for token in order {
         let Some(s) = token.as_str() else { continue };
+        if s.starts_with("peer:") {
+            continue;
+        }
         if let Some(id) = s.strip_prefix("group:") {
             if let Some(g) = groups
                 .iter()

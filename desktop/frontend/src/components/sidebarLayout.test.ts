@@ -23,6 +23,10 @@ import {
   classify,
   rangeBetween,
   resolveSidebarDrop,
+  isPeerToken,
+  peerSlugOfToken,
+  peerToken,
+  syncPeerTokens,
 } from "./sidebarLayout";
 
 function g(id: string, members: string[], extra: Partial<ProjectGroup> = {}): ProjectGroup {
@@ -55,6 +59,49 @@ describe("token helpers", () => {
     expect(m.get("web")).toBe("Front");
     expect(m.get("e2")).toBe("Exp");
     expect(m.get("api")).toBeUndefined();
+  });
+
+  it("encodes and decodes peer tokens", () => {
+    expect(peerToken("a1b2c3d4")).toBe("peer:a1b2c3d4");
+    expect(peerSlugOfToken("peer:a1b2c3d4")).toBe("a1b2c3d4");
+    expect(peerSlugOfToken("group:Front")).toBeNull();
+    expect(peerSlugOfToken("api")).toBeNull();
+    expect(isPeerToken("peer:a1b2c3d4")).toBe(true);
+    expect(isPeerToken("api")).toBe(false);
+  });
+});
+
+describe("syncPeerTokens", () => {
+  it("appends a slot for a newly paired Mac at the end", () => {
+    expect(syncPeerTokens(["api", groupToken("Front")], ["m1"])).toEqual([
+      "api",
+      groupToken("Front"),
+      peerToken("m1"),
+    ]);
+  });
+
+  it("leaves a placed slot where the user put it", () => {
+    const order = [peerToken("m1"), "api", groupToken("Front")];
+    expect(syncPeerTokens(order, ["m1"])).toBe(order);
+  });
+
+  it("drops the slot of a Mac that is no longer paired", () => {
+    expect(syncPeerTokens([peerToken("m1"), "api", peerToken("m2")], ["m2"])).toEqual([
+      "api",
+      peerToken("m2"),
+    ]);
+  });
+
+  it("keeps placed slots and appends only the missing ones", () => {
+    expect(syncPeerTokens([peerToken("m1"), "api"], ["m1", "m2"])).toEqual([
+      peerToken("m1"),
+      "api",
+      peerToken("m2"),
+    ]);
+  });
+
+  it("drops every slot when nothing is paired", () => {
+    expect(syncPeerTokens([peerToken("m1"), "api"], [])).toEqual(["api"]);
   });
 });
 
@@ -247,6 +294,27 @@ describe("reconcile", () => {
   });
 });
 
+describe("peer slots in the layout", () => {
+  const layout = (): SidebarLayout => ({
+    order: [peerToken("m1"), "api", groupToken("Front"), "scripts"],
+    groups: [g("Front", ["web", "admin"])],
+  });
+
+  it("stays out of the flattened project order", () => {
+    expect(flattenForProjectOrder(layout())).toEqual(["api", "web", "admin", "scripts"]);
+  });
+
+  it("survives reconcile, which can't see the pairing list", () => {
+    const r = reconcile(layout(), ["api", "scripts"], ["api", "scripts", "web", "admin"]);
+    expect(r.order).toEqual([peerToken("m1"), "api", groupToken("Front"), "scripts"]);
+  });
+
+  it("is never mistaken for a removed project", () => {
+    const r = forgetProjects(layout(), ["api"]);
+    expect(r.order).toEqual([peerToken("m1"), groupToken("Front"), "scripts"]);
+  });
+});
+
 describe("forgetProjects", () => {
   it("drops removed names from members and the loose order", () => {
     const r = forgetProjects(sample(), ["admin", "landing"]);
@@ -276,9 +344,14 @@ describe("classify", () => {
   it("identifies a loose project", () => {
     expect(classify(l, "api")).toEqual({ kind: "loose", name: "api" });
   });
+  it("identifies a peer section slot", () => {
+    const withPeer: SidebarLayout = { ...l, order: [peerToken("m1"), ...l.order] };
+    expect(classify(withPeer, peerToken("m1"))).toEqual({ kind: "peer", slug: "m1" });
+  });
   it("returns null for unknown ids", () => {
     expect(classify(l, "nope")).toBeNull();
     expect(classify(l, "group:Gone")).toBeNull();
+    expect(classify(l, peerToken("m1"))).toBeNull();
   });
 });
 
@@ -329,6 +402,44 @@ describe("resolveSidebarDrop", () => {
 
   it("ignores no-op self drops", () => {
     expect(resolveSidebarDrop(sample(), "api", "api")).toBeNull();
+  });
+});
+
+// api, [Front: web, admin], scripts, peer m1
+function withPeer(): SidebarLayout {
+  return {
+    order: ["api", groupToken("Front"), "scripts", peerToken("m1")],
+    groups: [g("Front", ["web", "admin"])],
+  };
+}
+
+describe("resolveSidebarDrop with peer sections", () => {
+  it("lifts a peer section above the local projects", () => {
+    const r = resolveSidebarDrop(withPeer(), peerToken("m1"), "api");
+    expect(r?.order).toEqual([peerToken("m1"), "api", groupToken("Front"), "scripts"]);
+  });
+
+  it("reorders a peer section against a folder", () => {
+    const r = resolveSidebarDrop(withPeer(), peerToken("m1"), groupToken("Front"));
+    expect(r?.order).toEqual(["api", peerToken("m1"), groupToken("Front"), "scripts"]);
+  });
+
+  it("never nests a peer section into a folder", () => {
+    expect(resolveSidebarDrop(withPeer(), peerToken("m1"), folderNestId("Front"))).toBeNull();
+    expect(resolveSidebarDrop(withPeer(), peerToken("m1"), folderBodyId("Front"))).toBeNull();
+    expect(resolveSidebarDrop(withPeer(), peerToken("m1"), "web")).toBeNull();
+  });
+
+  it("takes no members: a project dropped on a section only reorders", () => {
+    const r = resolveSidebarDrop(withPeer(), "api", peerToken("m1"));
+    expect(r?.order).toEqual([groupToken("Front"), "scripts", peerToken("m1"), "api"]);
+    expect(r?.groups[0].members).toEqual(["web", "admin"]);
+  });
+
+  it("extracts a folder member dropped on a section", () => {
+    const r = resolveSidebarDrop(withPeer(), "web", peerToken("m1"));
+    expect(r?.groups[0].members).toEqual(["admin"]);
+    expect(r?.order).toEqual(["api", groupToken("Front"), "scripts", "web", peerToken("m1")]);
   });
 });
 

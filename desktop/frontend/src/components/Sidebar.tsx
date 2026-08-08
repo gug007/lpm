@@ -36,8 +36,11 @@ import {
   groupIdOf,
   groupToken,
   membershipMap,
+  peerSlugOfToken,
+  peerToken,
   rangeBetween,
   resolveSidebarDrop,
+  syncPeerTokens,
 } from "./sidebarLayout";
 import { SidebarGroupRow } from "./SidebarGroupRow";
 import { GroupContextMenu } from "./GroupContextMenu";
@@ -49,7 +52,7 @@ import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
 import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
-import { buildPeerSections, followForRow } from "./peerSections";
+import { buildPeerSections, followForRow, type PeerSection } from "./peerSections";
 import { RemoveSyncedCopyDialog } from "./RemoveSyncedCopyDialog";
 import { syncSupported } from "../syncApi";
 import { FollowIndicator } from "./FollowIndicator";
@@ -123,14 +126,15 @@ interface SidebarProps {
 }
 
 // One rendered sidebar row: a folder header, a project (loose, member, or
-// duplicate), or the empty-folder drop target.
+// duplicate), the empty-folder drop target, or a paired Mac's whole section.
 type TreeItem =
   // `count` is the members that resolve to a live project, not members.length:
   // a folder can hold a name whose project isn't in the current list, and the
   // header must count what the folder actually shows.
   | { kind: "group"; group: ProjectGroup; count: number }
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
-  | { kind: "empty"; group: ProjectGroup };
+  | { kind: "empty"; group: ProjectGroup }
+  | { kind: "peer"; section: PeerSection };
 
 export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
@@ -168,12 +172,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const { width, handleResizeStart } = useSidebarResize();
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const layoutRef = useRef<SidebarLayout>({ order: sidebarOrder, groups });
-  layoutRef.current = { order: sidebarOrder, groups };
 
-  // Remote (peer) projects render in their own sections below the local ones;
-  // they never take part in folders, drag-reorder, or select-mode.
-  const { state: peerState } = usePeerState();
+  // Remote (peer) projects render in their Mac's own section, never as folder
+  // members or select-mode rows — but the section itself is a top-level slot the
+  // user can drag, so a remote host can sit above the local projects.
+  const { state: peerState, loaded: peersLoaded } = usePeerState();
   // Followed projects, keyed by the local project the other Mac's work lands in.
   const { follows } = useFollowState();
   // Each Mac's section, and the synced copies those sections render instead of the
@@ -186,6 +189,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     () => projects.filter((p) => !isPeerName(p.name) && !hostedRemotely.has(p.name)),
     [projects, hostedRemotely],
   );
+
+  // The persisted order plus a slot for every paired Mac. Slots are only synced
+  // once the pairing list is known — before that an empty list would read as
+  // "nothing is paired" and drop every remote host's place.
+  const order = useMemo(
+    () =>
+      peersLoaded
+        ? syncPeerTokens(sidebarOrder, peerState.peers.map((p) => p.slug))
+        : sidebarOrder,
+    [sidebarOrder, peerState.peers, peersLoaded],
+  );
+  const layoutRef = useRef<SidebarLayout>({ order, groups });
+  layoutRef.current = { order, groups };
 
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
@@ -237,12 +253,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }
   };
 
-  // Build the rendered tree from projects + folders + the interleaved order.
-  // Duplicates ride immediately after their parent; brand-new projects not yet
-  // in the persisted order are appended loose so they never vanish.
+  // Build the rendered tree from projects + folders + peer sections + the
+  // interleaved order. Duplicates ride immediately after their parent;
+  // brand-new projects not yet in the persisted order are appended loose so
+  // they never vanish.
   const { items, sortableIds, projectByName, memberOf } = useMemo(() => {
     const byName = new Map<string, ProjectInfo>();
     for (const p of localProjects) byName.set(p.name, p);
+    const sectionBySlug = new Map(peerSections.map((s) => [s.slug, s]));
     const membership = membershipMap(groups);
     // Duplicates nest under their parent — unless one was explicitly placed in a
     // folder, in which case it renders there as a standalone member instead.
@@ -284,18 +302,30 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         members.forEach((mp) => rendered.add(mp.name));
       }
     };
-    for (const token of sidebarOrder) {
+    const seenPeers = new Set<string>();
+    for (const token of order) {
       const id = groupIdOf(token);
       if (id !== null) {
         const g = groupsById.get(id);
         if (g && !seenGroups.has(id)) emitGroup(g);
-      } else {
-        const p = byName.get(token);
-        if (!p || rendered.has(token)) continue;
-        if (isDuplicate(p, byName)) continue;
-        if (membership.has(token)) continue;
-        pushProject(p);
+        continue;
       }
+      const slug = peerSlugOfToken(token);
+      if (slug !== null) {
+        // A Mac with nothing to show (away, and nothing synced from it) keeps
+        // its slot in the order but renders no section.
+        const section = sectionBySlug.get(slug);
+        if (!section || seenPeers.has(slug)) continue;
+        seenPeers.add(slug);
+        out.push({ kind: "peer", section });
+        ids.push(token);
+        continue;
+      }
+      const p = byName.get(token);
+      if (!p || rendered.has(token)) continue;
+      if (isDuplicate(p, byName)) continue;
+      if (membership.has(token)) continue;
+      pushProject(p);
     }
     // Folders missing from the order (defensive — reconcile normally adds them).
     for (const g of groups) {
@@ -309,7 +339,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       pushProject(p);
     }
     return { items: out, sortableIds: ids, projectByName: byName, memberOf: membership };
-  }, [localProjects, groups, sidebarOrder]);
+  }, [localProjects, groups, order, peerSections]);
 
   // Project names in rendered top-to-bottom order — the axis a shift-click
   // range is measured along. Collapsed-folder members aren't rendered, so they
@@ -545,7 +575,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const dismissError = () => setUpdateError("");
 
   // Folder drop zones win over reorder only when a PROJECT is dragged onto a
-  // folder it doesn't already belong to; folders themselves only reorder.
+  // folder it doesn't already belong to; folders and peer sections only reorder.
   const collisionDetection = useMemo<CollisionDetection>(
     () => (args) => {
       const active = String(args.active.id);
@@ -564,7 +594,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       if (pointer.length === 0) return reorderFallback();
 
       const node = classify(layoutRef.current, active);
-      if (node && node.kind !== "group") {
+      if (node && (node.kind === "loose" || node.kind === "member")) {
         for (const c of pointer) {
           const target = dropFolderTarget(String(c.id));
           if (target === null) continue;
@@ -733,6 +763,27 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       );
     }
 
+    if (item.kind === "peer") {
+      const { section } = item;
+      return (
+        <SidebarPeerSection
+          key={peerToken(section.slug)}
+          sortableId={selectMode ? undefined : peerToken(section.slug)}
+          slug={section.slug}
+          alias={section.alias}
+          connected={section.connected}
+          projects={section.projects}
+          mirrors={section.mirrors}
+          strays={section.strays}
+          follows={follows}
+          selected={selected}
+          contextTargetName={contextMenu?.name ?? null}
+          onSelect={onSelect}
+          onContextMenu={(name, x, y) => setContextMenu({ name, x, y })}
+        />
+      );
+    }
+
     if (item.kind === "empty") {
       const emptyClass = "mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)]";
       if (selectMode) {
@@ -763,6 +814,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (gid !== null) {
       const g = groupById(groups, gid);
       return g ? <span className="truncate font-medium">{g.name}</span> : null;
+    }
+    const slug = peerSlugOfToken(activeId);
+    if (slug !== null) {
+      const section = peerSections.find((s) => s.slug === slug);
+      return section ? <span className="truncate font-medium">{section.alias}</span> : null;
     }
     const p = projectByName.get(activeId);
     return p ? (
@@ -929,22 +985,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             </DragOverlay>
           </DndContext>
         )}
-        {peerSections.map((section) => (
-          <SidebarPeerSection
-            key={section.slug}
-            slug={section.slug}
-            alias={section.alias}
-            connected={section.connected}
-            projects={section.projects}
-            mirrors={section.mirrors}
-            strays={section.strays}
-            follows={follows}
-            selected={selected}
-            contextTargetName={contextMenu?.name ?? null}
-            onSelect={onSelect}
-            onContextMenu={(name, x, y) => setContextMenu({ name, x, y })}
-          />
-        ))}
       </nav>
       {contextMenu &&
         (selectMode ? (

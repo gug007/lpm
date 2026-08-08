@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ProjectGroup } from "../types";
-import { type SidebarLayout, groupToken, layoutsEqual } from "./sidebarLayout";
+import { type SidebarLayout, groupToken, layoutsEqual, peerToken } from "./sidebarLayout";
 import { mergeWithDisk } from "./sidebarMerge";
 
 function g(id: string, members: string[], extra: Partial<ProjectGroup> = {}): ProjectGroup {
@@ -123,6 +123,26 @@ describe("mergeWithDisk", () => {
     const ours: SidebarLayout = { order: ["api"], groups: [] };
     const r = mergeWithDisk(ours, ours, { order: ["api", "scripts"], groups: [] }, all);
     expect(r.order).toEqual(["api", "scripts"]);
+  });
+
+  it("keeps our position for a peer section slot both sides hold", () => {
+    const ours: SidebarLayout = { ...base(), order: [peerToken("m1"), ...base().order] };
+    const disk: SidebarLayout = { ...base(), order: [...base().order, peerToken("m1")] };
+    const r = mergeWithDisk(ours, disk, disk, all);
+    expect(r.order).toEqual([peerToken("m1"), "api", groupToken("Front"), "scripts"]);
+  });
+
+  it("keeps an unpaired Mac's slot dropped rather than re-adopting it from disk", () => {
+    const withPeer: SidebarLayout = { ...base(), order: [peerToken("m1"), ...base().order] };
+    const r = mergeWithDisk(base(), withPeer, withPeer, all);
+    expect(r.order).toEqual(["api", groupToken("Front"), "scripts"]);
+  });
+
+  it("adopts a peer section slot only disk has, without treating it as a project", () => {
+    const disk: SidebarLayout = { ...base(), order: [peerToken("m1"), ...base().order] };
+    const r = mergeWithDisk(base(), base(), disk, all);
+    expect(r.order).toEqual(["api", groupToken("Front"), "scripts", peerToken("m1")]);
+    expect(r.groups[0].members).toEqual(["web", "admin"]);
   });
 
   it("places an adopted name once when disk lists it loose and in a folder", () => {
