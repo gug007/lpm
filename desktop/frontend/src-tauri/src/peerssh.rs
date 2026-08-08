@@ -56,8 +56,19 @@ const FATAL_TOOL: &str = "tmux";
 /// prints the word "git" would otherwise be read back as a missing program.
 const MISSING_MARK: &str = "LPM_MISSING:";
 
+/// `LogLevel=ERROR` because everything built on this hands ssh's stderr to the
+/// user as the reason a host failed. At the default level a host whose key is
+/// merely new prepends "Permanently added ... to the list of known hosts", and
+/// that notice becomes the error while the real one is pushed out of sight.
+/// ERROR still carries refused keys, host-key mismatches, names that don't
+/// resolve and refused connections — unlike `-q`, which would blank stderr and
+/// leave the callers below with no cause to report at all. Set here rather than
+/// in `ssh_common_args` so the forward keeps ssh's chattier account of why a
+/// tunnel died, which nobody shows a user.
 fn ssh_base_args(target: &SshTarget) -> Vec<String> {
     let mut args = ssh_common_args();
+    args.push("-o".into());
+    args.push("LogLevel=ERROR".into());
     push_target_args(&mut args, target);
     args
 }
@@ -906,5 +917,13 @@ mod tests {
         assert!(args.contains(&"BatchMode=yes".to_string()));
         assert!(args.contains(&"ControlPath=none".to_string()));
         assert_eq!(args.last().unwrap(), "root@example.test");
+    }
+
+    // ERROR and not QUIET: quiet blanks ssh's stderr, and stderr is what the
+    // callers report as the failure — the reason would go with it.
+    #[test]
+    fn remote_commands_report_failures_but_not_notices() {
+        let args = ssh_base_args(&target());
+        assert!(args.contains(&"LogLevel=ERROR".to_string()), "{args:?}");
     }
 }

@@ -200,8 +200,6 @@ export function PeerRow({
             <StatusLine tone="pending" text="Installing skills…" />
           ) : retrying ? (
             <StatusLine tone="pending" text="Reconnecting…" />
-          ) : actionError ? (
-            <StatusLine tone="error" text={actionError} />
           ) : skillsDone ? (
             <StatusLine tone="live" text={hostSkillDone(skills)} />
           ) : (
@@ -211,6 +209,17 @@ export function PeerRow({
               detail={status.detail}
               note={versionNote(peer, behind, skills)}
             />
+          )}
+          {actionError && (
+            // The host's own words, whole. What comes back is often several
+            // lines whose useful one is rarely the first, so this wraps instead
+            // of truncating, scrolls when an installer was involved, and can be
+            // selected to paste somewhere. It sits below the status line rather
+            // than replacing it: what the machine is doing is still true while
+            // something we asked of it failed.
+            <p className="mt-0.5 max-h-24 select-text overflow-y-auto whitespace-pre-line break-words text-[11px] text-[var(--accent-red)]">
+              {actionError}
+            </p>
           )}
         </div>
 

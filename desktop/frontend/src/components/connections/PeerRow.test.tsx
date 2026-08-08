@@ -31,9 +31,16 @@ const peer = (over: Partial<PeerClient> = {}): PeerClient => ({
 let container: HTMLDivElement;
 let root: Root;
 
-const render = (p: PeerClient) =>
+const render = (p: PeerClient, appVersion = "") =>
   act(() => {
-    root.render(<PeerRow peer={p} onRemove={vi.fn()} refresh={() => Promise.resolve()} />);
+    root.render(
+      <PeerRow
+        peer={p}
+        onRemove={vi.fn()}
+        refresh={() => Promise.resolve()}
+        appVersion={appVersion}
+      />,
+    );
   });
 
 const button = (label: string) =>
@@ -70,6 +77,34 @@ describe("PeerRow", () => {
     render(peer());
     expect(container.textContent).toContain("Connecting…");
     expect(button("Reconnect")).toBeUndefined();
+  });
+
+  // A host answers a failed action with several lines whose useful one is rarely
+  // the first — a known-hosts notice or a login banner comes ahead of the reason.
+  it("shows all of a failed action's output, and keeps reporting the machine", async () => {
+    const refused = Promise.reject(
+      "Warning: Permanently added '[localhost]:34275' to the list of known hosts.\nPermission denied (publickey).",
+    );
+    refused.catch(() => {});
+    mocks.updateHost.mockReturnValueOnce(refused);
+    render(
+      peer({ platform: "linux", sshHost: "localhost", version: "1.0.0", connected: true }),
+      "1.2.0",
+    );
+
+    act(() => button("Update")?.click());
+    await act(async () => {
+      [...document.querySelectorAll("button")]
+        .find((b) => b.textContent?.trim() === "Update" && !container.contains(b))
+        ?.click();
+    });
+
+    const shown = [...container.querySelectorAll("p")].find((p) =>
+      p.textContent?.includes("Permission denied (publickey)."),
+    );
+    // Clipping is what hid the reason behind the notice, so it is the thing to pin.
+    expect(shown?.className).not.toContain("truncate");
+    expect(container.textContent).toContain("Connected");
   });
 
   it("has nothing to retry on a peer that is switched off", () => {
