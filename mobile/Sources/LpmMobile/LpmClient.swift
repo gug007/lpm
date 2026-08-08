@@ -438,6 +438,15 @@ final class LpmClient: NSObject {
         set(.idle)
     }
 
+    /// Retire this client for good: disconnect, then invalidate the URLSession so
+    /// it releases its strong reference to the pinning delegate. For throwaway
+    /// clients only (the push registrar's per-Mac connections) — the app's live
+    /// client is reconnected, never retired.
+    func shutdown() {
+        disconnect()
+        session?.invalidateAndCancel()
+    }
+
     // MARK: connection lifecycle
 
     private func startAttempt() {

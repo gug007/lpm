@@ -199,28 +199,28 @@ final class AppModel {
     // Notification preferences. The per-type toggles keep their stored values even
     // when the master is off; the effective values sent to the desktop are
     // `notifyEnabled && notifyX`. Any change re-sends the (idempotent) apnsToken
-    // frame so the desktop's per-device prefs stay in sync.
+    // frame so every paired Mac's per-device prefs stay in sync.
     var notifyEnabled: Bool = AppModel.loadBoolPref(AppModel.notifyEnabledKey) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
     var notifyWaiting: Bool = AppModel.loadBoolPref(AppModel.notifyWaitingKey) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
     var notifyDone: Bool = AppModel.loadBoolPref(AppModel.notifyDoneKey) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
     var notifyError: Bool = AppModel.loadBoolPref(AppModel.notifyErrorKey) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
     var notifyAutomationStarted: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationStartedKey,
                                                               default: false) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
     var notifyAutomationDone: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationDoneKey) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
     var notifyAutomationError: Bool = AppModel.loadBoolPref(AppModel.notifyAutomationErrorKey) {
-        didSet { persistNotifyPrefs(); sendApnsTokenIfPossible() }
+        didSet { persistNotifyPrefs(); syncPushRegistration() }
     }
 
     // Sidebar folders, matching the desktop: `order` interleaves project names and
@@ -310,6 +310,12 @@ final class AppModel {
     @ObservationIgnored private var apnsTokenHex: String?
     // Ask for notification permission only once; iOS no-ops a repeat prompt.
     @ObservationIgnored private var didRequestPushAuthorization = false
+    // Registers the same push identity with the saved Macs the live socket doesn't
+    // reach, so notifications arrive from all of them and not just the active one.
+    @ObservationIgnored private let pushRegistrar = PushRegistrar(deviceName: UIDevice.current.name)
+    // The payload of the last registration sent over the live socket, recorded as
+    // registered once that Mac acknowledges it.
+    @ObservationIgnored private var lastSentPushPayload: PushRegistrar.Payload?
     // The addresses the current attempt is racing, so a failure can name exactly
     // what it tried (LAN vs Tailscale) instead of a generic "can't reach".
     @ObservationIgnored private var attemptHosts: [String] = []
@@ -358,6 +364,9 @@ final class AppModel {
         git.model = self
         memory.model = self
         notes.model = self
+        pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName in
+            self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName)
+        }
     }
 
     func bootstrap() {
@@ -839,6 +848,7 @@ final class AppModel {
         let next = nextMacAfterRemoval
         resetSessionState()
         Keychain.delete(for: id)
+        PushRegistrar.forget(id)
         macs.removeAll { $0.localId == id }
         activeMacId = next?.localId
         persistMacs()
@@ -875,6 +885,9 @@ final class AppModel {
             localId = record.localId
         }
         Keychain.save(deviceId: deviceId, token: token, for: localId)
+        // The Mac minted a new device record for this phone, which holds no push
+        // identity yet — forget what the old one was told so the sweep re-registers.
+        PushRegistrar.forget(localId)
         // Pairing (re)establishes trust — pin the cert the handshake just accepted
         // (it already matched the QR's `f` when one was advertised). Overwrites any
         // prior pin so re-pairing a Mac whose cert changed adopts the new identity.
@@ -1040,11 +1053,23 @@ final class AppModel {
 
     // MARK: push notifications
 
-    /// The APNs device token arrived (from the app delegate). Store it and send the
-    /// registration frame if the connection is already live.
+    /// The APNs device token arrived (from the app delegate). Store it, then push it
+    /// out to the live Mac and every other saved one.
     func setApnsDeviceToken(_ hex: String) {
         apnsTokenHex = hex
+        syncPushRegistration()
+    }
+
+    /// This phone's push identity changed — a token arrived, a pref was toggled, or
+    /// a connection came up. Register it with the live Mac and sweep the rest.
+    ///
+    /// Both halves are needed: a Mac notifies only devices whose APNs token it
+    /// holds, and the live socket reaches one Mac at a time, so without the sweep
+    /// notifications would only ever arrive from the Mac last opened — and a pref
+    /// change would only ever reach that one.
+    private func syncPushRegistration() {
         sendApnsTokenIfPossible()
+        schedulePushSweep()
     }
 
     /// After the first `ready`: ask for notification permission once, then register
@@ -1062,25 +1087,80 @@ final class AppModel {
         }
     }
 
-    /// Register (or refresh) this device's push identity: the APNs token, the build's
-    /// APNs environment, and the shared push key. Sent whenever both a token and a
-    /// live authed connection exist — re-sent after every reconnect since the token
-    /// can rotate and the frame is idempotent.
+    /// Register (or refresh) this device's push identity over the live connection.
+    /// Sent whenever both a token and a live authed connection exist — re-sent after
+    /// every reconnect since the token can rotate and the frame is idempotent.
     private func sendApnsTokenIfPossible() {
-        guard let hex = apnsTokenHex, case .ready = connection, let client else { return }
+        guard case .ready = connection, let client, let payload = pushPayload() else { return }
+        lastSentPushPayload = payload
+        client.sendApnsToken(token: payload.token, env: payload.env, key: payload.key,
+                             notifyWaiting: payload.waiting,
+                             notifyDone: payload.done,
+                             notifyError: payload.error,
+                             notifyAutomationStarted: payload.automationStarted,
+                             notifyAutomationDone: payload.automationDone,
+                             notifyAutomationError: payload.automationError)
+    }
+
+    /// What every Mac is told: the APNs token, this build's APNs environment, the
+    /// shared push key, and the effective prefs. Nil until the token has arrived.
+    /// One source for the live frame and the sweep, so the two can't drift.
+    private func pushPayload() -> PushRegistrar.Payload? {
+        guard let hex = apnsTokenHex else { return nil }
         #if DEBUG
         let env = "sandbox"
         #else
         let env = "production"
         #endif
-        let key = PushKey.loadOrCreate().base64EncodedString()
-        client.sendApnsToken(token: hex, env: env, key: key,
-                             notifyWaiting: notifyEnabled && notifyWaiting,
-                             notifyDone: notifyEnabled && notifyDone,
-                             notifyError: notifyEnabled && notifyError,
-                             notifyAutomationStarted: notifyEnabled && notifyAutomationStarted,
-                             notifyAutomationDone: notifyEnabled && notifyAutomationDone,
-                             notifyAutomationError: notifyEnabled && notifyAutomationError)
+        return PushRegistrar.Payload(
+            token: hex,
+            env: env,
+            key: PushKey.loadOrCreate().base64EncodedString(),
+            waiting: notifyEnabled && notifyWaiting,
+            done: notifyEnabled && notifyDone,
+            error: notifyEnabled && notifyError,
+            automationStarted: notifyEnabled && notifyAutomationStarted,
+            automationDone: notifyEnabled && notifyAutomationDone,
+            automationError: notifyEnabled && notifyAutomationError)
+    }
+
+    /// Register with every saved Mac the live session doesn't cover. Skipped in Demo
+    /// Mode, which has no APNs identity and no relay. The active Mac is always left
+    /// out: it's registered over the live socket the moment that connection is
+    /// ready, so dialing it here would only open a redundant second connection.
+    private func schedulePushSweep() {
+        guard !demoMode else { return }
+        pushRegistrar.schedule { [weak self] in
+            guard let self, !self.demoMode, let payload = self.pushPayload() else { return nil }
+            return PushRegistrar.Context(macs: self.macs,
+                                         liveMacId: self.activeMacId,
+                                         payload: payload)
+        }
+    }
+
+    /// A Mac acknowledged the registration sent over the live socket. Record it as
+    /// registered so switching away doesn't make the sweep immediately re-dial the
+    /// Mac that was just brought up to date.
+    private func notePushRegistered(for macId: UUID?) {
+        guard !demoMode, let macId, let payload = lastSentPushPayload else { return }
+        PushRegistrar.remember(payload, for: macId)
+    }
+
+    /// A sweep connection learned a Mac's identity. Same effect as `learnIdentity`
+    /// for the live session, but for any saved record — a Mac whose `serverId` the
+    /// phone has never learned can't be resolved when its notification is tapped.
+    private func learnIdentity(of localId: UUID, serverId: String?, serverName: String?) {
+        guard let idx = macs.firstIndex(where: { $0.localId == localId }) else { return }
+        var changed = false
+        if let sid = serverId, !sid.isEmpty, macs[idx].serverId != sid {
+            macs[idx].serverId = sid
+            changed = true
+        }
+        if let name = serverName?.trimmedNonEmpty, macs[idx].name != name {
+            macs[idx].name = name
+            changed = true
+        }
+        if changed { persistMacs() }
     }
 
     static let notifyEnabledKey = "lpm.notify.enabled"
@@ -2089,7 +2169,7 @@ final class AppModel {
                 // Demo Mode has no APNs identity and no relay — skip push registration.
                 if !self.demoMode {
                     self.requestPushRegistration()
-                    self.sendApnsTokenIfPossible()
+                    self.syncPushRegistration()
                 }
             }
         }
@@ -2110,8 +2190,18 @@ final class AppModel {
         c.onIdentity = { [weak self] serverId, serverName in
             self?.learnIdentity(serverId: serverId, serverName: serverName)
         }
-        c.onApnsToken = { ok in
-            if !ok { print("apns: server rejected token registration") }
+        c.onApnsToken = { [weak self, weak c] ok in
+            guard let self else { return }
+            guard ok else {
+                print("apns: server rejected token registration")
+                return
+            }
+            // Credit the ack to the Mac that is active *now*, and only while this is
+            // still the live client. Both matter: a pairing connection reaches
+            // `ready` before `handlePaired` names its Mac, and a late ack from a
+            // replaced connection must not be credited to the Mac that took over.
+            guard let c, c === self.client else { return }
+            self.notePushRegistered(for: self.activeMacId)
         }
     }
 
