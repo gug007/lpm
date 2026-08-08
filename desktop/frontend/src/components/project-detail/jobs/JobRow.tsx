@@ -14,13 +14,11 @@ import {
   type JobInfo,
 } from "../../../jobsFormat";
 
-const SOURCE_TAG: Record<string, string> = {
-  global: "All projects",
-  repo: "In repo",
-};
-
 interface JobRowProps {
   job: JobInfo;
+  // Which projects the job runs in, shown on the row itself so the list can
+  // stay flat instead of grouping by project.
+  scopeLabel?: string;
   onRunNow: (id: string) => void;
   onStop: (id: string) => void;
   onToggleEnabled: (id: string, enabled: boolean) => void;
@@ -29,15 +27,9 @@ interface JobRowProps {
   onRemove: (job: JobInfo) => void;
 }
 
-export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
-  // A shared job shows what it targets instead of a bare "All projects" tag.
-  const targetTag = job.standalone
-    ? "No project"
-    : job.targets && job.targets.length > 1
-      ? `${job.targets.length} projects`
-      : undefined;
-  const sourceTag = targetTag ?? (job.source ? SOURCE_TAG[job.source] : undefined);
+export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onOpen, onEdit, onRemove }: JobRowProps) {
   const now = useNow(job.running === true);
+  const unread = job.unread ?? 0;
   // A repo-declared job lives in the repo's own config file, which stays the
   // user's to edit — no delete from here.
   const removable = job.source !== "repo";
@@ -55,15 +47,22 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
 
   if (!job.valid) {
     return (
-      <div className="group flex items-center gap-3 px-1 py-3">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-red)]" />
+      <div className="group relative flex items-center gap-3 rounded-lg py-3 pl-4 pr-1">
+        <span className="absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-[var(--accent-red)]" />
         <button
           type="button"
           onClick={() => onEdit(job)}
           className="min-w-0 flex-1 text-left"
         >
-          <span className="block truncate text-[13px] font-medium text-[var(--text-primary)]">
-            {job.label || job.id}
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">
+              {job.label || job.id}
+            </span>
+            {scopeLabel && (
+              <span className="shrink-0 truncate rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                {scopeLabel}
+              </span>
+            )}
           </span>
           <span className="block truncate text-[12px] text-[var(--accent-red)]">
             {job.error || "This job can't run — open it to fix its settings."}
@@ -109,7 +108,17 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
       : runningFor;
 
   return (
-    <div className={`group flex items-start gap-3 px-1 py-3 ${enabled ? "" : "opacity-60"}`}>
+    <div
+      className={`group relative flex items-start gap-3 rounded-lg py-3 pl-4 pr-1 transition-colors hover:bg-[var(--bg-hover)] ${
+        unread > 0 ? "bg-[var(--accent-blue)]/8" : ""
+      } ${enabled ? "" : "opacity-60"}`}
+    >
+      {unread > 0 && (
+        <span
+          aria-hidden
+          className="absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-[var(--accent-blue)]"
+        />
+      )}
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--bg-hover)] text-[15px] text-[var(--text-muted)]">
         {job.emoji || <ClockIcon size={15} />}
       </span>
@@ -120,12 +129,26 @@ export function JobRow({ job, onRunNow, onStop, onToggleEnabled, onOpen, onEdit,
         className="min-w-0 flex-1 text-left"
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">
+          <span
+            className={`min-w-0 truncate text-[13px] text-[var(--text-primary)] ${
+              unread > 0 ? "font-semibold" : "font-medium"
+            }`}
+          >
             {job.label || job.id}
           </span>
-          {sourceTag && (
+          {unread > 0 && (
+            <span className="shrink-0 rounded-full bg-[var(--accent-blue)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-white">
+              {unread === 1 ? "New" : `${unread > 9 ? "9+" : unread} new`}
+            </span>
+          )}
+          {scopeLabel && (
+            <span className="shrink-0 truncate rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
+              {scopeLabel}
+            </span>
+          )}
+          {job.source === "repo" && (
             <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              {sourceTag}
+              In repo
             </span>
           )}
         </span>

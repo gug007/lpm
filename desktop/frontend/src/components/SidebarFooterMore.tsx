@@ -29,42 +29,35 @@ interface SidebarFooterMoreProps {
 }
 
 // Ambient scheduled-job state for the footer: how many jobs are running, and
-// whether a run failed since the user last looked at the Scheduled view. A
-// headless run is otherwise invisible outside a transient toast.
-function useJobsAmbient(showScheduled: boolean): {
-  running: number;
-  attention: boolean;
-} {
+// how many have results the user hasn't read. A headless run is otherwise
+// invisible outside a transient toast.
+function useJobsAmbient(): { running: number; unread: number } {
   const [running, setRunning] = useState(0);
-  const [attention, setAttention] = useState(false);
+  const [unread, setUnread] = useState(0);
   useEffect(() => {
     let alive = true;
     const refresh = () => {
       ListAllJobs()
         .then((rows) => {
           if (!alive) return;
-          const list = Array.isArray(rows) ? (rows as { running?: boolean }[]) : [];
+          const list = Array.isArray(rows)
+            ? (rows as { running?: boolean; unread?: number }[])
+            : [];
           setRunning(list.filter((r) => r.running === true).length);
+          setUnread(list.filter((r) => (r.unread ?? 0) > 0).length);
         })
         .catch(() => {});
     };
     refresh();
-    const cancel = EventsOn("job-status", (payload: { result?: string }) => {
-      refresh();
-      if (payload?.result === "error" || payload?.result === "timed-out") {
-        setAttention(true);
-      }
-    });
+    const cancelStatus = EventsOn("job-status", refresh);
+    const cancelSeen = EventsOn("job-seen", refresh);
     return () => {
       alive = false;
-      if (typeof cancel === "function") cancel();
+      if (typeof cancelStatus === "function") cancelStatus();
+      if (typeof cancelSeen === "function") cancelSeen();
     };
   }, []);
-  // Looking at the Scheduled view is the acknowledgement.
-  useEffect(() => {
-    if (showScheduled) setAttention(false);
-  }, [showScheduled]);
-  return { running, attention };
+  return { running, unread };
 }
 
 export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsage, showStats, onStats, showMobile, onMobile, showSettings, onSettings, onFeedback }: SidebarFooterMoreProps) {
@@ -73,7 +66,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
   useEventListener("keydown", (e) => {
     if (e.key === "Escape") setOpen(false);
   }, document, open);
-  const { running, attention } = useJobsAmbient(showScheduled);
+  const { running, unread } = useJobsAmbient();
 
   const itemClass = (active: boolean) =>
     `flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
@@ -97,10 +90,10 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`}
         title={
-          attention
-            ? "More — a scheduled job hit a problem"
-            : running > 0
-              ? "More — a scheduled job is running"
+          running > 0
+            ? "More — a scheduled job is running"
+            : unread > 0
+              ? `More — ${unread} automation${unread === 1 ? "" : "s"} with new results`
               : "Settings and more views"
         }
         aria-label="More"
@@ -108,11 +101,13 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
       >
         <MoreHorizontalIcon />
         More
-        {attention ? (
-          <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
+        {running > 0 ? (
+          <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
         ) : (
-          running > 0 && (
-            <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
+          unread > 0 && (
+            <span className="ml-auto rounded-full bg-[var(--accent-blue)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              {unread}
+            </span>
           )
         )}
       </button>
@@ -127,6 +122,10 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
               <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-[var(--accent-cyan)]">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
                 Running
+              </span>
+            ) : unread > 0 ? (
+              <span className="ml-auto rounded-full bg-[var(--accent-blue)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                {unread}
               </span>
             ) : (
               <span className="ml-auto rounded-full bg-[var(--accent-cyan)]/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-[var(--accent-cyan)]">

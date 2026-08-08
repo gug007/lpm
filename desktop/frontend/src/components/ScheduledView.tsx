@@ -5,23 +5,25 @@ import {
   ClearJobState,
   ClearJobStateGlobal,
   ListAllJobs,
+  MarkAllJobsSeen,
+  MarkJobSeen,
   RunJobNow,
   SetJobEnabled,
   StopJobRun,
 } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { ClockIcon, PlusIcon } from "./icons";
-import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { EmptyState } from "./ui/EmptyState";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
-import { jobScopePhrase, type JobInfo } from "../jobsFormat";
+import type { JobInfo } from "../jobsFormat";
+import { isUnread, jobScopeLabel, sortJobsForList } from "../jobsList";
 import type { ScheduledJob } from "../hooks/useJobs";
-import type { ProjectInfo } from "../types";
 import { displayNameForProjectName } from "./ProjectNameDisplay";
 import { JobRow } from "./project-detail/jobs/JobRow";
 import { JobMessages } from "./project-detail/jobs/JobMessages";
 import { JobTaskView } from "./project-detail/jobs/JobTaskView";
 import { JobEditorModal } from "./project-detail/jobs/JobEditorModal";
+import { RemoveJobDialog } from "./project-detail/jobs/RemoveJobDialog";
 import { RunProjectsDialog } from "./project-detail/jobs/RunProjectsDialog";
 
 
@@ -120,25 +122,35 @@ export function ScheduledView() {
   const toggleEnabledJob = (job: JobInfo, enabled: boolean) =>
     targetsOfRow(job).forEach((p) => toggleEnabled(p, job.id, enabled));
 
-  // Rows grouped by target: one project → that project's section; more than one
-  // (or a legacy every-project job) → "Multiple projects"; none → "No project".
-  const projectGroups = new Map<string, ScheduledJob[]>();
-  const multiJobs: ScheduledJob[] = [];
-  const standaloneJobs: ScheduledJob[] = [];
-  for (const row of rows ?? []) {
-    if (row.standalone) {
-      standaloneJobs.push(row);
-      continue;
+  // Opening a job is reading it — in every folder it runs in, since the row
+  // folds them into one unread count.
+  const markSeenJob = async (job: ScheduledJob) => {
+    await Promise.all(
+      targetsOfRow(job).map((p) => MarkJobSeen(p, job.id).catch(() => {})),
+    );
+    void refetch();
+  };
+
+  // One flat feed: everything unread first, newest activity first inside each
+  // half — the project each job runs in rides on the row itself.
+  const sorted = sortJobsForList(rows ?? []);
+  const unreadRows = sorted.filter(isUnread);
+  const readRows = sorted.filter((row) => !isUnread(row));
+  const unreadCount = unreadRows.length;
+  const scopeLabelFor = (job: ScheduledJob) =>
+    jobScopeLabel(job, projects.length, (name) =>
+      displayNameForProjectName(name, projects),
+    );
+
+  const markAllSeen = async () => {
+    try {
+      await MarkAllJobsSeen();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      void refetch();
     }
-    const targets = row.targets ?? (row.project ? [row.project] : []);
-    if (targets.length === 1) {
-      const list = projectGroups.get(targets[0]) ?? [];
-      list.push(row);
-      projectGroups.set(targets[0], list);
-    } else {
-      multiJobs.push(row);
-    }
-  }
+  };
 
   const actionsFor = (project: string) =>
     projects.find((p) => p.name === project)?.actions ?? [];
@@ -168,15 +180,19 @@ export function ScheduledView() {
   );
 
   const renderRows = (jobs: ScheduledJob[], sectionKey: string) => (
-    <div className="mt-1 divide-y divide-[var(--border)]">
+    <div className="space-y-0.5">
       {jobs.map((job) => (
         <JobRow
-          key={`${sectionKey}/${job.id}`}
+          key={`${sectionKey}/${rowProject(job)}/${job.id}`}
           job={job}
+          scopeLabel={scopeLabelFor(job)}
           onRunNow={() => runNowJob(job)}
           onStop={() => stopRunJob(job)}
           onToggleEnabled={(_id, enabled) => toggleEnabledJob(job, enabled)}
-          onOpen={(j) => setOpen({ project: rowProject(j), id: j.id })}
+          onOpen={(j) => {
+            setOpen({ project: rowProject(j), id: j.id });
+            void markSeenJob(job);
+          }}
           onEdit={(j) =>
             setEditing({ mode: "edit", project: rowProject(j), job: j })
           }
@@ -291,9 +307,24 @@ export function ScheduledView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex items-center gap-3 pt-6">
-        <h1 className="flex-1 text-lg font-semibold tracking-tight">
+        <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           Automations
+          {unreadCount > 0 && (
+            <span className="rounded-full bg-[var(--accent-blue)] px-2 py-0.5 text-[11px] font-semibold text-white">
+              {unreadCount}
+            </span>
+          )}
         </h1>
+        <div className="flex-1" />
+        {unreadCount > 0 && (
+          <button
+            type="button"
+            onClick={() => void markAllSeen()}
+            className="rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            Mark all read
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setEditing({ mode: "new" })}
@@ -304,7 +335,9 @@ export function ScheduledView() {
         </button>
       </div>
       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
-        Every scheduled job across your projects, in one place.
+        {unreadCount > 0
+          ? `${unreadCount} ${unreadCount === 1 ? "job has" : "jobs have"} new results since you last looked.`
+          : "Every scheduled job across your projects, in one place."}
       </p>
 
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4">
@@ -330,35 +363,25 @@ export function ScheduledView() {
             </button>
           </EmptyState>
         ) : (
-          <div className="space-y-6">
-            {[...projectGroups.entries()]
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([project, jobs]) => (
-                <section key={`project/${project}`}>
-                  <button
-                    type="button"
-                    onClick={() => selectProject(project)}
-                    className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-                  >
-                    {displayNameForProjectName(project, projects)}
-                  </button>
-                  {renderRows(jobs, `project/${project}`)}
-                </section>
-              ))}
-            {multiJobs.length > 0 && (
-              <section key="multi">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                  Multiple projects
+          <div className="-mx-1 space-y-4">
+            {unreadRows.length > 0 && (
+              <section key="unread">
+                <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue)]">
+                  New
                 </span>
-                {renderRows(multiJobs, "multi")}
+                <div className="mt-1">{renderRows(unreadRows, "unread")}</div>
               </section>
             )}
-            {standaloneJobs.length > 0 && (
-              <section key="none">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                  No project
-                </span>
-                {renderRows(standaloneJobs, "none")}
+            {readRows.length > 0 && (
+              <section key="read">
+                {unreadRows.length > 0 && (
+                  <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    Earlier
+                  </span>
+                )}
+                <div className={unreadRows.length > 0 ? "mt-1" : ""}>
+                  {renderRows(readRows, "read")}
+                </div>
               </section>
             )}
           </div>
@@ -389,69 +412,3 @@ export function ScheduledView() {
     </div>
   );
 }
-
-function RemoveJobDialog({
-  removing,
-  projects,
-  running,
-  onCancel,
-  onConfirm,
-}: {
-  removing: { project: string; job: JobInfo } | null;
-  projects: ProjectInfo[];
-  // The job has a run alive (in any project, for a global job) — its copies
-  // can't be removed out from under it.
-  running: boolean;
-  onCancel: () => void;
-  onConfirm: (deleteCopies: boolean) => void;
-}) {
-  const [deleteCopies, setDeleteCopies] = useState(false);
-  useEffect(() => setDeleteCopies(false), [removing]);
-  const removeScope = removing
-    ? jobScopePhrase(removing.job, (name) =>
-        displayNameForProjectName(name, projects),
-      )
-    : "";
-  return (
-    <ConfirmDialog
-      open={removing !== null}
-      title="Remove job?"
-      body={
-        <>
-          Remove{" "}
-          <span className="font-medium text-[var(--text-primary)]">
-            {removing?.job.label || removing?.job.id}
-          </span>
-          {removeScope ? ` ${removeScope}` : ""}, along with its run history.
-          This cannot be undone.
-          {removing?.job.duplicate && (
-            <label
-              title={
-                running ? "A run is in progress — stop it first" : undefined
-              }
-              className={`mt-3 flex items-center gap-1.5 text-[12px] text-[var(--text-secondary)] ${
-                running
-                  ? "opacity-50"
-                  : "cursor-pointer transition-colors hover:text-[var(--text-primary)]"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={deleteCopies && !running}
-                disabled={running}
-                onChange={(e) => setDeleteCopies(e.target.checked)}
-                className="accent-[var(--accent-blue)] h-3 w-3"
-              />
-              Also remove the copies its runs created
-            </label>
-          )}
-        </>
-      }
-      confirmLabel="Remove"
-      variant="destructive"
-      onCancel={onCancel}
-      onConfirm={() => onConfirm(deleteCopies && !running)}
-    />
-  );
-}
-

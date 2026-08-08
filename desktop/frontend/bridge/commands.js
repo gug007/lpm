@@ -370,6 +370,12 @@ export function DrainPendingJobTasks() {
 export function ListAllJobs() {
   return invoke("list_all_jobs");
 }
+export function MarkJobSeen(project, jobId) {
+  return invoke("mark_job_seen", { project, jobId });
+}
+export function MarkAllJobsSeen() {
+  return invoke("mark_all_jobs_seen");
+}
 export function ListSSHHosts() {
   return invoke("list_ssh_hosts");
 }

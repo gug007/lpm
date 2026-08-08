@@ -129,6 +129,8 @@ macro_rules! all_command_handlers {
             job_live_output,
             list_all_jobs,
             list_jobs,
+            mark_job_seen,
+            mark_all_jobs_seen,
             run_job_now,
             send_job_followup,
             set_job_enabled,

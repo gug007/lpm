@@ -889,6 +889,10 @@ struct JobState {
         skip_serializing_if = "Option::is_none"
     )]
     enabled_override: Option<bool>,
+    /// When the user last opened this job — runs that landed after it are the
+    /// ones still unread. Absent means nothing has been read yet.
+    #[serde(default, rename = "seenAt", skip_serializing_if = "Option::is_none")]
+    seen_at: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -1045,6 +1049,25 @@ fn is_collapsible(result: &str) -> bool {
         result,
         SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | SKIPPED_CAPACITY | NOTHING_TO_DO
     )
+}
+
+/// Outcomes that left something to read. A quiet check, a skip and a stop the
+/// user asked for say nothing they haven't already seen, so they never make a
+/// job unread.
+fn is_readable_outcome(result: &str) -> bool {
+    matches!(
+        result,
+        COMPLETED | FOUND_WORK | ERROR | TIMED_OUT | CONTEXT_FULL
+    )
+}
+
+/// How many runs landed since the user last opened the job.
+fn unread_count(st: &JobState) -> u32 {
+    let seen = st.seen_at.unwrap_or(0);
+    st.history
+        .iter()
+        .filter(|h| h.at > seen && is_readable_outcome(&h.result))
+        .count() as u32
 }
 
 /// Append a history entry, capped at the newest `HISTORY_CAP`.
@@ -3046,9 +3069,11 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
     let mut max_last: Option<u64> = None;
     let mut last_result: Option<String> = None;
     let mut next: Option<i64> = None;
+    let mut unread: u32 = 0;
     for t in &run_targets {
         let key = state_key(t, id);
         let st = load_job_state(&key);
+        unread += unread_count(&st);
         let job_enabled = match &resolved {
             Ok(job) => st.enabled_override.unwrap_or(job.enabled),
             Err(_) => st.enabled_override.unwrap_or(false),
@@ -3100,6 +3125,7 @@ fn global_job_row(id: &str, def: &JobDef, projects: &[String], now: u64) -> Valu
                 "targetCount": targets.len(),
                 "targets": targets,
                 "standalone": standalone,
+                "unread": unread,
             });
             if let RunTarget::Prompt {
                 agent,
@@ -3203,6 +3229,7 @@ pub fn list_jobs(project: String) -> Result<Vec<Value>, String> {
                         "nextFireAt": next,
                         "running": since.is_some(),
                         "runningSince": since,
+                        "unread": unread_count(&st),
                     });
                     if let RunTarget::Prompt {
                         agent,
@@ -3743,6 +3770,34 @@ pub fn set_job_enabled(project: String, job_id: String, enabled: bool) -> Result
             st.last_run_at = Some(now_secs());
         }
     })
+}
+
+/// Mark everything a job has run so far as read — the user opened it. A job
+/// that runs in several folders is marked per folder, the same way its other
+/// row actions reach each one.
+#[tauri::command(async)]
+pub fn mark_job_seen(app: AppHandle, project: String, job_id: String) -> Result<(), String> {
+    with_state(|f| {
+        f.jobs
+            .entry(state_key(&project, &job_id))
+            .or_default()
+            .seen_at = Some(now_secs());
+    })?;
+    let _ = app.emit("job-seen", json!({ "project": project, "jobId": job_id }));
+    Ok(())
+}
+
+/// Mark every job read at once.
+#[tauri::command(async)]
+pub fn mark_all_jobs_seen(app: AppHandle) -> Result<(), String> {
+    let now = now_secs();
+    with_state(|f| {
+        for st in f.jobs.values_mut() {
+            st.seen_at = Some(now);
+        }
+    })?;
+    let _ = app.emit("job-seen", json!({}));
+    Ok(())
 }
 
 /// Take every parked `pendingTask` payload out of the state, clearing each in

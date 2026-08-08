@@ -86,6 +86,9 @@ export interface JobInfo {
   standalone?: boolean;
   targetCount?: number;
   runningCount?: number;
+  // Runs that landed since the user last opened the job, folded across its
+  // projects for a shared job.
+  unread?: number;
 }
 
 export const STANDALONE_PROJECT_LABEL = "No project";

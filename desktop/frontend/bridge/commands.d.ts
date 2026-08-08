@@ -108,6 +108,8 @@ export function ListOpenInTargets(...args: any[]): Promise<any>;
 export function ListPortForwards(...args: any[]): Promise<any>;
 export function ListProjects(...args: any[]): Promise<any>;
 export function ListAllJobs(...args: any[]): Promise<any>;
+export function MarkJobSeen(...args: any[]): Promise<any>;
+export function MarkAllJobsSeen(...args: any[]): Promise<any>;
 export function ListJobs(...args: any[]): Promise<any>;
 export function RunJobNow(...args: any[]): Promise<any>;
 export function SetJobEnabled(...args: any[]): Promise<any>;
