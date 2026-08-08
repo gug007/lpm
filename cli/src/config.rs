@@ -320,7 +320,7 @@ struct NameOnly {
 // ---- parse helpers ----------------------------------------------------------
 
 fn read_yaml<T: for<'de> Deserialize<'de>>(path: &Path) -> Option<T> {
-    serde_yaml::from_slice(&std::fs::read(path).ok()?).ok()
+    serde_norway::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
 struct SourceOverride<'a> {
@@ -333,7 +333,7 @@ fn read_yaml_with<T: for<'de> Deserialize<'de>>(
     source_override: Option<&SourceOverride<'_>>,
 ) -> Option<T> {
     match source_override.filter(|candidate| candidate.path == path) {
-        Some(candidate) => serde_yaml::from_str(candidate.source).ok(),
+        Some(candidate) => serde_norway::from_str(candidate.source).ok(),
         None => read_yaml(path),
     }
 }
@@ -345,10 +345,10 @@ fn parse_project_yaml_with(
 ) -> Result<ProjectYaml, String> {
     let path = ctx.project_path(name);
     if let Some(candidate) = source_override.filter(|candidate| candidate.path == path) {
-        return serde_yaml::from_str(candidate.source).map_err(|e| e.to_string());
+        return serde_norway::from_str(candidate.source).map_err(|e| e.to_string());
     }
     let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_yaml::from_slice(&bytes).map_err(|e| e.to_string())
+    serde_norway::from_slice(&bytes).map_err(|e| e.to_string())
 }
 
 /// `config.PeekParent`: a project's non-empty `parent_name`, or None.
@@ -1180,7 +1180,7 @@ mod tests {
     #[test]
     fn terminals_block_becomes_terminal_kind_and_origin() {
         let ay: ActionsYaml =
-            serde_yaml::from_str("terminals:\n  codex:\n    position: 2\n").unwrap();
+            serde_norway::from_str("terminals:\n  codex:\n    position: 2\n").unwrap();
         let layer = build_base_layer(&ay);
         let codex = layer.get("codex").unwrap();
         assert_eq!(codex.kind, "terminal");

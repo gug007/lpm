@@ -6,7 +6,7 @@ use crate::util::print_json;
 use clap::{Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
-use serde_yaml::{Mapping, Value};
+use serde_norway::{Mapping, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::io::Read;
@@ -492,7 +492,7 @@ impl Report {
 }
 
 fn validate_candidate(ctx: &Ctx, target: &ConfigTarget, path: &Path, source: &str) -> Report {
-    let value: Value = match serde_yaml::from_str(source) {
+    let value: Value = match serde_norway::from_str(source) {
         Ok(value) => value,
         Err(error) => {
             let mut report = Report::new();
@@ -555,7 +555,7 @@ fn validate(ctx: &Ctx, path: &Path, as_json: bool) -> Result<(), RunError> {
     let path = absolute_path(path)?;
     let source = std::fs::read_to_string(&path)
         .map_err(|e| RunError::NotFound(format!("{}: {e}", path.display())))?;
-    let value: Value = serde_yaml::from_str(&source)
+    let value: Value = serde_norway::from_str(&source)
         .map_err(|e| RunError::Internal(format!("{}: invalid YAML: {e}", path.display())))?;
     let kind = config_kind(ctx, &path);
     let mut report = validate_value(ctx, &path, kind, &value);
@@ -1494,14 +1494,14 @@ mod tests {
     fn validator_accepts_input_position_and_rejects_a_non_number() {
         let (_dir, ctx) = context();
         let path = ctx.project_path("web");
-        let ok: Value = serde_yaml::from_str(
+        let ok: Value = serde_norway::from_str(
             "root: /tmp\nactions:\n  deploy:\n    cmd: ./deploy.sh {{env}}\n    inputs:\n      env:\n        position: 1\n",
         )
         .unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &ok);
         assert!(report.errors.is_empty(), "{:?}", report.errors);
 
-        let bad: Value = serde_yaml::from_str(
+        let bad: Value = serde_norway::from_str(
             "root: /tmp\nactions:\n  deploy:\n    cmd: ./deploy.sh {{env}}\n    inputs:\n      env:\n        position: first\n",
         )
         .unwrap();
@@ -1516,7 +1516,7 @@ mod tests {
     fn validator_rejects_unknown_action_fields() {
         let (_dir, ctx) = context();
         let path = ctx.project_path("web");
-        let value: Value = serde_yaml::from_str("root: /tmp\nservices:\n  dev: npm run dev\nactions:\n  test:\n    cmd: npm test\n    madeUp: true\n").unwrap();
+        let value: Value = serde_norway::from_str("root: /tmp\nservices:\n  dev: npm run dev\nactions:\n  test:\n    cmd: npm test\n    madeUp: true\n").unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &value);
         assert!(report.errors.iter().any(|error| error.contains("madeUp")));
     }
@@ -1532,7 +1532,7 @@ mod tests {
             root.display()
         );
         std::fs::write(&path, &source).unwrap();
-        let value: Value = serde_yaml::from_str(&source).unwrap();
+        let value: Value = serde_norway::from_str(&source).unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &value);
         assert!(report.errors.is_empty(), "{:?}", report.errors);
         assert!(
@@ -1550,7 +1550,7 @@ mod tests {
         let path = ctx.project_path("web");
         let source = format!("root: {}\nservices:\n  db: run-db\n  web:\n    cmd: npm run dev\n    dependsOn: [db]\nactions:\n  test:\n    cmd: npm test\n    type: command\n", root.display());
         std::fs::write(&path, &source).unwrap();
-        let value: Value = serde_yaml::from_str(&source).unwrap();
+        let value: Value = serde_norway::from_str(&source).unwrap();
         let mut report = validate_value(&ctx, &path, ConfigKind::Project, &value);
         validate_effective_project(&ctx, &path, &mut report);
         assert!(report.errors.is_empty(), "{:?}", report.errors);
@@ -1568,7 +1568,7 @@ mod tests {
             root.display()
         );
         std::fs::write(&path, &source).unwrap();
-        let value: Value = serde_yaml::from_str(&source).unwrap();
+        let value: Value = serde_norway::from_str(&source).unwrap();
         let mut report = validate_value(&ctx, &path, ConfigKind::Project, &value);
         validate_effective_project(&ctx, &path, &mut report);
         assert!(report.errors.is_empty(), "{:?}", report.errors);
@@ -1578,7 +1578,7 @@ mod tests {
     fn validator_allows_sync_in_context_dependent_layers() {
         let (_dir, ctx) = context();
         let value: Value =
-            serde_yaml::from_str("actions:\n  agent:\n    cmd: claude\n    mode: sync\n").unwrap();
+            serde_norway::from_str("actions:\n  agent:\n    cmd: claude\n    mode: sync\n").unwrap();
         for kind in [ConfigKind::Global, ConfigKind::Template] {
             let report = validate_value(&ctx, &ctx.global_path(), kind, &value);
             assert!(report.errors.is_empty(), "{:?}", report.errors);
@@ -1589,7 +1589,7 @@ mod tests {
     fn validator_rejects_sync_in_local_project() {
         let (_dir, ctx) = context();
         let path = ctx.project_path("web");
-        let value: Value = serde_yaml::from_str(
+        let value: Value = serde_norway::from_str(
             "root: /tmp\nservices:\n  web: run-web\nactions:\n  agent:\n    cmd: claude\n    mode: sync\n",
         )
         .unwrap();
@@ -1612,7 +1612,7 @@ mod tests {
     fn validator_rejects_dependency_cycles() {
         let (_dir, ctx) = context();
         let path = ctx.project_path("web");
-        let value: Value = serde_yaml::from_str("root: /tmp\nservices:\n  api:\n    cmd: api\n    dependsOn: [web]\n  web:\n    cmd: web\n    dependsOn: [api]\n").unwrap();
+        let value: Value = serde_norway::from_str("root: /tmp\nservices:\n  api:\n    cmd: api\n    dependsOn: [web]\n  web:\n    cmd: web\n    dependsOn: [api]\n").unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &value);
         assert!(report
             .errors
@@ -1626,11 +1626,11 @@ mod tests {
         std::fs::write(ctx.project_path("base"), "root: /tmp/base\n").unwrap();
         let path = ctx.project_path("copy");
         let valid: Value =
-            serde_yaml::from_str("root: /tmp/copy\nparent_name: base\nworktree: true\n").unwrap();
+            serde_norway::from_str("root: /tmp/copy\nparent_name: base\nworktree: true\n").unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &valid);
         assert!(report.errors.is_empty(), "{:?}", report.errors);
 
-        let invalid: Value = serde_yaml::from_str("root: /tmp/copy\nworktree: true\n").unwrap();
+        let invalid: Value = serde_norway::from_str("root: /tmp/copy\nworktree: true\n").unwrap();
         let report = validate_value(&ctx, &path, ConfigKind::Project, &invalid);
         assert!(report
             .errors

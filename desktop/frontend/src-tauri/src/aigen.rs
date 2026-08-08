@@ -187,7 +187,7 @@ fn builtins(cli: &str) -> Vec<AgentCommand> {
         .collect()
 }
 
-fn yaml_str(v: &serde_yaml::Value, k: &str) -> String {
+fn yaml_str(v: &serde_norway::Value, k: &str) -> String {
     v.get(k)
         .and_then(|x| x.as_str())
         .unwrap_or("")
@@ -227,7 +227,7 @@ fn parse_frontmatter(content: &str) -> (String, String, bool) {
     let mut argument_hint = String::new();
     let mut user_invocable = true;
     if let Some(head) = head {
-        if let Ok(val) = serde_yaml::from_str::<serde_yaml::Value>(head) {
+        if let Ok(val) = serde_norway::from_str::<serde_norway::Value>(head) {
             description = yaml_str(&val, "description");
             argument_hint = yaml_str(&val, "argument-hint");
             if let Some(b) = val.get("user-invocable").and_then(|v| v.as_bool()) {

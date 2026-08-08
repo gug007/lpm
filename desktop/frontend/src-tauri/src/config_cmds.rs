@@ -27,7 +27,7 @@ fn read_to_string(path: &std::path::Path) -> Result<String, String> {
 }
 
 fn validate_yaml(content: &str) -> Result<(), String> {
-    serde_yaml::from_str::<serde_yaml::Value>(content).map_err(|e| format!("invalid YAML: {e}"))?;
+    serde_norway::from_str::<serde_norway::Value>(content).map_err(|e| format!("invalid YAML: {e}"))?;
     Ok(())
 }
 
@@ -48,7 +48,7 @@ pub fn write_project_config(
     content: String,
 ) -> Result<String, String> {
     let parsed: config::NameOnly =
-        serde_yaml::from_str(&content).map_err(|e| format!("invalid YAML: {e}"))?;
+        serde_norway::from_str(&content).map_err(|e| format!("invalid YAML: {e}"))?;
 
     // Duplicate -> write to the parent's file, keep the duplicate's name.
     if let Some(parent) = config::peek_parent(&name) {

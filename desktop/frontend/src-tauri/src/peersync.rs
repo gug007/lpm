@@ -358,7 +358,7 @@ fn global_digest(relpath: &str, bytes: &[u8]) -> Result<String, String> {
 /// Portable project digest: parse the YAML, drop the machine-local keys, hash a
 /// canonical (key-sorted) form so ordering/formatting differences don't matter.
 fn project_digest(bytes: &[u8]) -> Result<String, String> {
-    let y: serde_yaml::Value = serde_yaml::from_slice(bytes).map_err(|e| e.to_string())?;
+    let y: serde_norway::Value = serde_norway::from_slice(bytes).map_err(|e| e.to_string())?;
     let mut j = yaml_to_json(&y);
     if let Json::Object(map) = &mut j {
         for k in PROJECT_LOCAL_KEYS {
@@ -387,7 +387,7 @@ struct ExtendsOnly {
 }
 
 fn extends_of(bytes: &[u8]) -> Vec<String> {
-    serde_yaml::from_slice::<ExtendsOnly>(bytes)
+    serde_norway::from_slice::<ExtendsOnly>(bytes)
         .map(|e| e.extends)
         .unwrap_or_default()
 }
@@ -819,14 +819,14 @@ fn apply_project(name: &str, incoming: &[u8]) -> Result<String, String> {
     if !path.exists() {
         return Err(format!("project not present locally: {name}"));
     }
-    let mut incoming_v: serde_yaml::Value =
-        serde_yaml::from_slice(incoming).map_err(|e| e.to_string())?;
-    let local_v: serde_yaml::Value =
-        serde_yaml::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
+    let mut incoming_v: serde_norway::Value =
+        serde_norway::from_slice(incoming).map_err(|e| e.to_string())?;
+    let local_v: serde_norway::Value =
+        serde_norway::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
-    if let serde_yaml::Value::Mapping(map) = &mut incoming_v {
+    if let serde_norway::Value::Mapping(map) = &mut incoming_v {
         for k in PROJECT_LOCAL_KEYS {
-            let key = serde_yaml::Value::String(k.to_string());
+            let key = serde_norway::Value::String(k.to_string());
             match local_v.get(k) {
                 Some(v) => {
                     map.insert(key, v.clone());
@@ -837,7 +837,7 @@ fn apply_project(name: &str, incoming: &[u8]) -> Result<String, String> {
             }
         }
     }
-    let out = serde_yaml::to_string(&incoming_v).map_err(|e| e.to_string())?;
+    let out = serde_norway::to_string(&incoming_v).map_err(|e| e.to_string())?;
     config::write_config_file(&path, &out)?;
     project_digest(incoming)
 }
@@ -953,11 +953,11 @@ fn canonical(v: &Json, out: &mut String) {
     }
 }
 
-fn yaml_to_json(y: &serde_yaml::Value) -> Json {
+fn yaml_to_json(y: &serde_norway::Value) -> Json {
     match y {
-        serde_yaml::Value::Null => Json::Null,
-        serde_yaml::Value::Bool(b) => Json::Bool(*b),
-        serde_yaml::Value::Number(n) => {
+        serde_norway::Value::Null => Json::Null,
+        serde_norway::Value::Bool(b) => Json::Bool(*b),
+        serde_norway::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
                 Json::from(i)
             } else if let Some(u) = n.as_u64() {
@@ -970,14 +970,14 @@ fn yaml_to_json(y: &serde_yaml::Value) -> Json {
                 Json::Null
             }
         }
-        serde_yaml::Value::String(s) => Json::String(s.clone()),
-        serde_yaml::Value::Sequence(seq) => Json::Array(seq.iter().map(yaml_to_json).collect()),
-        serde_yaml::Value::Mapping(m) => {
+        serde_norway::Value::String(s) => Json::String(s.clone()),
+        serde_norway::Value::Sequence(seq) => Json::Array(seq.iter().map(yaml_to_json).collect()),
+        serde_norway::Value::Mapping(m) => {
             let mut obj = serde_json::Map::new();
             for (k, val) in m {
                 let key = match k {
-                    serde_yaml::Value::String(s) => s.clone(),
-                    other => serde_yaml::to_string(other)
+                    serde_norway::Value::String(s) => s.clone(),
+                    other => serde_norway::to_string(other)
                         .unwrap_or_default()
                         .trim()
                         .to_string(),
@@ -986,7 +986,7 @@ fn yaml_to_json(y: &serde_yaml::Value) -> Json {
             }
             Json::Object(obj)
         }
-        serde_yaml::Value::Tagged(t) => yaml_to_json(&t.value),
+        serde_norway::Value::Tagged(t) => yaml_to_json(&t.value),
     }
 }
 
@@ -1088,12 +1088,12 @@ mod tests {
         // Incoming carries a different root/account (the source Mac's) plus the new
         // portable content we want.
         let incoming = "name: web\nroot: /Users/remote/web\nclaudeAccount: work\nservices:\n  api:\n    cmd: new\n";
-        let mut inc: serde_yaml::Value = serde_yaml::from_slice(incoming.as_bytes()).unwrap();
-        let local: serde_yaml::Value =
-            serde_yaml::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-        if let serde_yaml::Value::Mapping(map) = &mut inc {
+        let mut inc: serde_norway::Value = serde_norway::from_slice(incoming.as_bytes()).unwrap();
+        let local: serde_norway::Value =
+            serde_norway::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        if let serde_norway::Value::Mapping(map) = &mut inc {
             for k in PROJECT_LOCAL_KEYS {
-                let key = serde_yaml::Value::String(k.to_string());
+                let key = serde_norway::Value::String(k.to_string());
                 match local.get(k) {
                     Some(v) => {
                         map.insert(key, v.clone());
@@ -1104,8 +1104,8 @@ mod tests {
                 }
             }
         }
-        let out: serde_yaml::Value =
-            serde_yaml::from_str(&serde_yaml::to_string(&inc).unwrap()).unwrap();
+        let out: serde_norway::Value =
+            serde_norway::from_str(&serde_norway::to_string(&inc).unwrap()).unwrap();
         assert_eq!(
             out.get("root").and_then(|v| v.as_str()),
             Some("/Users/local/web")

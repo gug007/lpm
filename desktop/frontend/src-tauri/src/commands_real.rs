@@ -263,8 +263,8 @@ pub fn set_project_label(app: AppHandle, name: String, label: String) -> Result<
     // Write to the project's own file: list_projects reads each label per-file,
     // so routing a duplicate's label to its parent would rename the parent.
     let path = config::project_path(&name);
-    let mut doc: serde_yaml::Value =
-        serde_yaml::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
+    let mut doc: serde_norway::Value =
+        serde_norway::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
     let trimmed = label.trim();
     let current = doc.get("label").and_then(|v| v.as_str()).unwrap_or("");
@@ -278,7 +278,7 @@ pub fn set_project_label(app: AppHandle, name: String, label: String) -> Result<
             map.insert("label".into(), trimmed.into());
         }
     }
-    let out = serde_yaml::to_string(&doc).map_err(|e| e.to_string())?;
+    let out = serde_norway::to_string(&doc).map_err(|e| e.to_string())?;
     config::write_config_file(&path, &out)?;
     let _ = app.emit("projects-changed", ());
     Ok(())

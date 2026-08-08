@@ -50,7 +50,7 @@ const DAY_NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 #[derive(Deserialize, Default)]
 struct JobsYaml {
     #[serde(default)]
-    jobs: BTreeMap<String, serde_yaml::Value>,
+    jobs: BTreeMap<String, serde_norway::Value>,
 }
 
 /// A layer's jobs, each parsed on its own so one unreadable job stays one
@@ -533,12 +533,12 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
 fn load_jobs_yaml(path: &Path) -> JobEntries {
     std::fs::read(path)
         .ok()
-        .and_then(|b| serde_yaml::from_slice::<JobsYaml>(&b).ok())
+        .and_then(|b| serde_norway::from_slice::<JobsYaml>(&b).ok())
         .map(|y| y.jobs)
         .unwrap_or_default()
         .into_iter()
         .map(|(id, body)| {
-            let def = serde_yaml::from_value::<JobDef>(body)
+            let def = serde_norway::from_value::<JobDef>(body)
                 .map_err(|e| format!("This job's settings can't be read: {e}"));
             (id, def)
         })
@@ -3594,7 +3594,7 @@ pub fn clear_job_state_global(
 // bridge, so these mirror that read/modify/write against the same files the
 // scheduler reads fresh every tick — a phone edit lands in the same file a
 // desktop edit would, and is picked up on the next tick with no reschedule.
-// serde_yaml doesn't preserve comments the way the frontend's `yaml` lib does,
+// serde_norway doesn't preserve comments the way the frontend's `yaml` lib does,
 // so a phone-authored write reflows the file; the data (every other key, nested
 // order) is preserved.
 
@@ -3610,28 +3610,28 @@ fn job_config_path(source: &str, project: &str) -> Result<PathBuf, String> {
 
 /// The layer file parsed as a YAML mapping, or an empty mapping when it is
 /// missing / unreadable / not a mapping (a fresh registry, say).
-fn read_yaml_doc(path: &Path) -> serde_yaml::Value {
+fn read_yaml_doc(path: &Path) -> serde_norway::Value {
     std::fs::read(path)
         .ok()
-        .and_then(|b| serde_yaml::from_slice::<serde_yaml::Value>(&b).ok())
-        .filter(serde_yaml::Value::is_mapping)
-        .unwrap_or_else(|| serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+        .and_then(|b| serde_norway::from_slice::<serde_norway::Value>(&b).ok())
+        .filter(serde_norway::Value::is_mapping)
+        .unwrap_or_else(|| serde_norway::Value::Mapping(serde_norway::Mapping::new()))
 }
 
 /// Strict variant for read-modify-write: a missing file is a fresh mapping, but
 /// an existing file that fails to read or parse aborts, so a transiently
 /// malformed config is never silently replaced by just the jobs block.
-fn read_yaml_doc_strict(path: &Path) -> Result<serde_yaml::Value, String> {
+fn read_yaml_doc_strict(path: &Path) -> Result<serde_norway::Value, String> {
     match std::fs::read(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+            Ok(serde_norway::Value::Mapping(serde_norway::Mapping::new()))
         }
         Err(e) => Err(e.to_string()),
         Ok(b) => {
-            let doc: serde_yaml::Value = serde_yaml::from_slice(&b)
+            let doc: serde_norway::Value = serde_norway::from_slice(&b)
                 .map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
             if doc.is_null() {
-                Ok(serde_yaml::Value::Mapping(serde_yaml::Mapping::new()))
+                Ok(serde_norway::Value::Mapping(serde_norway::Mapping::new()))
             } else if doc.is_mapping() {
                 Ok(doc)
             } else {
@@ -3641,11 +3641,11 @@ fn read_yaml_doc_strict(path: &Path) -> Result<serde_yaml::Value, String> {
     }
 }
 
-fn write_yaml_doc(path: &Path, doc: &serde_yaml::Value) -> Result<(), String> {
+fn write_yaml_doc(path: &Path, doc: &serde_norway::Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let out = serde_yaml::to_string(doc).map_err(|e| e.to_string())?;
+    let out = serde_norway::to_string(doc).map_err(|e| e.to_string())?;
     config::write_config_file(path, &out)
 }
 
@@ -3675,7 +3675,7 @@ pub fn save_job_body(
     if id.is_empty() {
         return Err("The job needs a name.".into());
     }
-    let body: serde_yaml::Value = serde_yaml::to_value(&job).map_err(|e| e.to_string())?;
+    let body: serde_norway::Value = serde_norway::to_value(&job).map_err(|e| e.to_string())?;
     if !body.is_mapping() {
         return Err("The job config is malformed.".into());
     }
@@ -3686,17 +3686,17 @@ pub fn save_job_body(
         .ok_or_else(|| "The config file isn't valid.".to_string())?;
     if !map
         .get("jobs")
-        .map(serde_yaml::Value::is_mapping)
+        .map(serde_norway::Value::is_mapping)
         .unwrap_or(false)
     {
         map.insert(
             "jobs".into(),
-            serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
+            serde_norway::Value::Mapping(serde_norway::Mapping::new()),
         );
     }
     let jobs = map
         .get_mut("jobs")
-        .and_then(serde_yaml::Value::as_mapping_mut)
+        .and_then(serde_norway::Value::as_mapping_mut)
         .ok_or_else(|| "The config file isn't valid.".to_string())?;
     jobs.insert(id.as_str().into(), body);
     write_yaml_doc(&path, &doc)
@@ -3715,7 +3715,7 @@ pub fn delete_job_body(
     let mut doc = read_yaml_doc_strict(&path)?;
     if let Some(jobs) = doc
         .get_mut("jobs")
-        .and_then(serde_yaml::Value::as_mapping_mut)
+        .and_then(serde_norway::Value::as_mapping_mut)
     {
         jobs.remove(id.as_str());
         if jobs.is_empty() {
@@ -5311,7 +5311,7 @@ mod tests {
     #[test]
     fn duplicate_options_come_from_the_job() {
         let parse = |yaml: &str| {
-            let def: DuplicateDef = serde_yaml::from_str(yaml).unwrap();
+            let def: DuplicateDef = serde_norway::from_str(yaml).unwrap();
             resolve_duplicate(&def)
         };
 

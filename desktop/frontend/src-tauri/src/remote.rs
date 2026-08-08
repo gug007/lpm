@@ -3589,7 +3589,7 @@ fn handle_msg(
             send(ws, reply)?;
         }
         // ---- Structured config writes ---------------------------------------
-        // serde_yaml surgical edits (DATA preserved, comments reflow — the same
+        // serde_norway surgical edits (DATA preserved, comments reflow — the same
         // tradeoff as saveJob). Each runs on a worker thread, emits
         // projects-changed on success, and replies through the out-queue.
         "saveService" => {

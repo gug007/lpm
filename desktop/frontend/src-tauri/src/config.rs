@@ -827,7 +827,7 @@ struct ActionsYaml {
 fn parse_project_yaml(name: &str) -> Result<ProjectYaml, String> {
     let path = projects_dir().join(format!("{name}.yml"));
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-    serde_yaml::from_slice::<ProjectYaml>(&bytes).map_err(|e| e.to_string())
+    serde_norway::from_slice::<ProjectYaml>(&bytes).map_err(|e| e.to_string())
 }
 
 /// config.ResolveCwd: absolute cwd as-is, empty -> root, else root/cwd.
@@ -1278,7 +1278,7 @@ fn terminal_to_action(mut a: ActionFull) -> ActionFull {
 }
 
 fn load_actions_yaml(path: &std::path::Path) -> Option<ActionsYaml> {
-    serde_yaml::from_slice(&std::fs::read(path).ok()?).ok()
+    serde_norway::from_slice(&std::fs::read(path).ok()?).ok()
 }
 
 fn template_actions_path(name: &str) -> Option<PathBuf> {
@@ -1515,7 +1515,7 @@ fn load_repo_yaml(root: &str) -> ProjectYaml {
     let path = std::path::Path::new(root).join(".lpm.yml");
     std::fs::read(&path)
         .ok()
-        .and_then(|b| serde_yaml::from_slice::<ProjectYaml>(&b).ok())
+        .and_then(|b| serde_norway::from_slice::<ProjectYaml>(&b).ok())
         .unwrap_or_default()
 }
 
@@ -1930,7 +1930,7 @@ fn read_project(
 ) -> Value {
     let path = projects_dir().join(format!("{file_name}.yml"));
     match std::fs::read(&path) {
-        Ok(bytes) => match serde_yaml::from_slice::<ProjectYaml>(&bytes) {
+        Ok(bytes) => match serde_norway::from_slice::<ProjectYaml>(&bytes) {
             Ok(y) => {
                 let session = if y.name.is_empty() {
                     file_name.to_string()
@@ -2380,9 +2380,9 @@ mod service_deps_tests {
 
     #[test]
     fn depends_on_alias_parses() {
-        let svc: ServiceFull = serde_yaml::from_str("cmd: go run .\ndepends_on: [db]\n").unwrap();
+        let svc: ServiceFull = serde_norway::from_str("cmd: go run .\ndepends_on: [db]\n").unwrap();
         assert_eq!(svc.depends_on, req(&["db"]));
-        let camel: ServiceFull = serde_yaml::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
+        let camel: ServiceFull = serde_norway::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
         assert_eq!(camel.depends_on, req(&["db"]));
     }
 }
@@ -2392,7 +2392,7 @@ mod port_spec_tests {
     use super::*;
 
     fn ports(yaml: &str) -> Vec<i64> {
-        serde_yaml::from_str::<PortSpec>(yaml).unwrap().to_vec()
+        serde_norway::from_str::<PortSpec>(yaml).unwrap().to_vec()
     }
 
     #[test]
@@ -2500,7 +2500,7 @@ mod claude_account_tests {
     use super::*;
 
     fn account_of(yaml: &str) -> Option<String> {
-        claude_account_of(&serde_yaml::from_str::<ProjectYaml>(yaml).unwrap())
+        claude_account_of(&serde_norway::from_str::<ProjectYaml>(yaml).unwrap())
     }
 
     #[test]

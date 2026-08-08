@@ -1,7 +1,7 @@
 // Structured config editing for the mobile remote: the phone's service /
 // profile / action editors write through these. Ports serviceConfig.ts,
 // profileConfig.ts, and actionConfig.ts (reference-fixups, compact->map
-// promotion, section/layer rules). Edits go through serde_yaml, so DATA is
+// promotion, section/layer rules). Edits go through serde_norway, so DATA is
 // preserved and comments reflow — the same accepted tradeoff as save_job_body.
 //
 // Layer rules (mirroring the TS ConfigLayer stacks):
@@ -12,7 +12,7 @@
 // profile + dependsOn references) are applied in every layer.
 use crate::config;
 use serde_json::{json, Value as Json};
-use serde_yaml::{Mapping, Value as Yaml};
+use serde_norway::{Mapping, Value as Yaml};
 use std::path::{Path, PathBuf};
 
 // ---- layers -----------------------------------------------------------------
@@ -94,7 +94,7 @@ fn read_doc(path: &Path) -> Result<Yaml, String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Yaml::Mapping(Mapping::new())),
         Err(e) => Err(e.to_string()),
         Ok(b) => {
-            let doc: Yaml = serde_yaml::from_slice(&b)
+            let doc: Yaml = serde_norway::from_slice(&b)
                 .map_err(|e| format!("The config file couldn't be parsed: {e}"))?;
             if doc.is_null() {
                 Ok(Yaml::Mapping(Mapping::new()))
@@ -111,7 +111,7 @@ fn write_doc(path: &Path, doc: &Yaml) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let out = serde_yaml::to_string(doc).map_err(|e| e.to_string())?;
+    let out = serde_norway::to_string(doc).map_err(|e| e.to_string())?;
     config::write_config_file(path, &out)
 }
 
@@ -744,7 +744,7 @@ mod tests {
         Layer {
             kind,
             path: PathBuf::from("/dev/null"),
-            doc: serde_yaml::from_str(yaml).unwrap(),
+            doc: serde_norway::from_str(yaml).unwrap(),
             changed: false,
         }
     }

@@ -1,9 +1,9 @@
 // Project CRUD — port of desktop/projects.go create/remove, clone.go, and
 // duplicate.go. macOS-only. No new Cargo deps: git/cp run as subprocesses,
-// uuid (existing) provides entropy, serde_yaml writes configs.
+// uuid (existing) provides entropy, serde_norway writes configs.
 use crate::config;
 use serde::Deserialize;
-use serde_yaml::{Mapping, Value as Yaml};
+use serde_norway::{Mapping, Value as Yaml};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -31,7 +31,7 @@ fn write_project_yaml(name: &str, build: impl FnOnce(&mut Mapping)) -> Result<()
     config::ensure_dirs()?;
     let mut m = Mapping::new();
     build(&mut m);
-    let out = serde_yaml::to_string(&Yaml::Mapping(m)).map_err(|e| e.to_string())?;
+    let out = serde_norway::to_string(&Yaml::Mapping(m)).map_err(|e| e.to_string())?;
     config::write_config_file(&config::project_path(name), &out)
 }
 
@@ -1144,7 +1144,7 @@ fn resolve_destination(old_expanded: &str, new_root: &str) -> Result<String, Str
 /// else (mirrors set_project_label's read-mutate-write at commands_real.rs).
 fn rewrite_project_root(name: &str, dest_expanded: &str) -> Result<(), String> {
     let path = config::project_path(name);
-    let mut doc: Yaml = serde_yaml::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
+    let mut doc: Yaml = serde_norway::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     if let Some(map) = doc.as_mapping_mut() {
         map.insert(
@@ -1152,7 +1152,7 @@ fn rewrite_project_root(name: &str, dest_expanded: &str) -> Result<(), String> {
             Yaml::from(config::collapse_home(dest_expanded).as_str()),
         );
     }
-    let out = serde_yaml::to_string(&doc).map_err(|e| e.to_string())?;
+    let out = serde_norway::to_string(&doc).map_err(|e| e.to_string())?;
     config::write_config_file(&path, &out)
 }
 
