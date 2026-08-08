@@ -10,7 +10,7 @@ export function useTTSHotkeys(terminalId: string | null) {
   const togglePause = useTTSStore((s) => s.togglePause);
 
   useKeyboardShortcut(
-    { key: "r", meta: true, shift: true },
+    { key: "l", meta: true, shift: true },
     () => {
       if (!terminalId || !getSettings().experimentalTTS || !getSettings().ttsEnabled) return;
       const text = getTerminalSelection(terminalId);

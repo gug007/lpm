@@ -103,7 +103,8 @@ const RESERVED = new Set<string>([
   "cmd+e",
   "cmd+shift+n",
   "cmd+s",
-  // useTTSHotkeys.ts — stop / pause reading
+  // useTTSHotkeys.ts — read selection / stop / pause reading
+  "cmd+shift+l",
   "cmd+shift+s",
   "cmd+shift+p",
   // menu.rs — native Settings accelerator

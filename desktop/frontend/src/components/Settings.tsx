@@ -795,7 +795,7 @@ export function Settings({
               <SettingsRow
                 {...rowProps("tts.enable", {
                   description: ttsEnabled
-                    ? "Cmd+Shift+R to read selected text"
+                    ? "Cmd+Shift+L to read selected text"
                     : "Read terminal text aloud using Kokoro",
                 })}
               >
