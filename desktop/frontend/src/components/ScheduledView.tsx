@@ -13,6 +13,7 @@ import {
 } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { ClockIcon, PlusIcon } from "./icons";
+import { CountBadge } from "./ui/CountBadge";
 import { EmptyState } from "./ui/EmptyState";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
 import type { JobInfo } from "../jobsFormat";
@@ -122,11 +123,11 @@ export function ScheduledView() {
   const toggleEnabledJob = (job: JobInfo, enabled: boolean) =>
     targetsOfRow(job).forEach((p) => toggleEnabled(p, job.id, enabled));
 
-  // Closing a job's page is reading it — in every folder it runs in, since the
-  // row folds them into one unread count.
-  const markSeenJob = async (job: ScheduledJob) => {
+  // Opening a run reads that run and everything before it, in every folder the
+  // job runs in — the row folds them into one unread count.
+  const markSeenJob = async (job: ScheduledJob, at?: number) => {
     await Promise.all(
-      targetsOfRow(job).map((p) => MarkJobSeen(p, job.id).catch(() => {})),
+      targetsOfRow(job).map((p) => MarkJobSeen(p, job.id, at).catch(() => {})),
     );
     void refetch();
   };
@@ -275,7 +276,7 @@ export function ScheduledView() {
           onToggleEnabled={(enabled) => toggleEnabledJob(openJob, enabled)}
           onOpenCopy={(name) => selectProject(name)}
           onOpenTask={(at) => setOpenTask(at)}
-          onSeen={() => void markSeenJob(openJob)}
+          onSeenUpTo={(at) => void markSeenJob(openJob, at)}
         />
         <RemoveJobDialog
           removing={removing}
@@ -307,11 +308,7 @@ export function ScheduledView() {
       <div className="flex items-center gap-3 pt-6">
         <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           Automations
-          {unreadCount > 0 && (
-            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--accent-blue-text)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--bg-primary)]">
-              {unreadCount}
-            </span>
-          )}
+          <CountBadge count={unreadCount} label="unread automations" size="md" />
         </h1>
         <div className="flex-1" />
         {unreadCount > 0 && (

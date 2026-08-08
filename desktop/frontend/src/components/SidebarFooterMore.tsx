@@ -13,6 +13,7 @@ import {
   ZapIcon,
 } from "./icons";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
+import { CountBadge } from "./ui/CountBadge";
 
 interface SidebarFooterMoreProps {
   showScheduled: boolean;
@@ -104,11 +105,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
         {running > 0 ? (
           <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
         ) : (
-          unread > 0 && (
-            <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue-text)] px-1 text-[10px] font-semibold tabular-nums leading-none text-[var(--bg-primary)]">
-              {unread}
-            </span>
-          )
+          <CountBadge count={unread} label="unread automations" className="ml-auto" />
         )}
       </button>
       {open && (
@@ -124,11 +121,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
                 Running
               </span>
             ) : (
-              unread > 0 && (
-                <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue-text)] px-1 text-[10px] font-semibold tabular-nums leading-none text-[var(--bg-primary)]">
-                  {unread}
-                </span>
-              )
+              <CountBadge count={unread} label="unread automations" className="ml-auto" />
             )}
           </button>
           <button onClick={pick(onUsage)} className={itemClass(showUsage)}>

@@ -370,8 +370,8 @@ export function DrainPendingJobTasks() {
 export function ListAllJobs() {
   return invoke("list_all_jobs");
 }
-export function MarkJobSeen(project, jobId) {
-  return invoke("mark_job_seen", { project, jobId });
+export function MarkJobSeen(project, jobId, at) {
+  return invoke("mark_job_seen", { project, jobId, at });
 }
 export function MarkAllJobsSeen() {
   return invoke("mark_all_jobs_seen");

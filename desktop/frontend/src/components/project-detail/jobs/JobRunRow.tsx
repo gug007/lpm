@@ -60,7 +60,7 @@ export function JobRunRow({
           {label}
         </span>
         {unread && (
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-blue-text)]">
+          <span className="shrink-0 rounded-full bg-[var(--accent-blue)]/15 px-1.5 py-[1px] text-[9px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-blue-text)]">
             New
           </span>
         )}

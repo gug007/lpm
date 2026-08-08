@@ -3772,16 +3772,22 @@ pub fn set_job_enabled(project: String, job_id: String, enabled: bool) -> Result
     })
 }
 
-/// Mark everything a job has run so far as read — the user opened it. A job
-/// that runs in several folders is marked per folder, the same way its other
-/// row actions reach each one.
+/// Mark a job's runs read up to `at` — the run the user just opened, so the
+/// ones that landed after it stay unread. Without `at`, everything up to now is
+/// read. The watermark only ever moves forward: opening an older run can't
+/// un-read the newer ones already behind it. A job that runs in several folders
+/// is marked per folder, the same way its other row actions reach each one.
 #[tauri::command(async)]
-pub fn mark_job_seen(app: AppHandle, project: String, job_id: String) -> Result<(), String> {
+pub fn mark_job_seen(
+    app: AppHandle,
+    project: String,
+    job_id: String,
+    at: Option<u64>,
+) -> Result<(), String> {
+    let mark = at.unwrap_or_else(now_secs);
     with_state(|f| {
-        f.jobs
-            .entry(state_key(&project, &job_id))
-            .or_default()
-            .seen_at = Some(now_secs());
+        let st = f.jobs.entry(state_key(&project, &job_id)).or_default();
+        st.seen_at = Some(st.seen_at.map_or(mark, |seen| seen.max(mark)));
     })?;
     let _ = app.emit("job-seen", json!({ "project": project, "jobId": job_id }));
     Ok(())
