@@ -344,6 +344,26 @@ pub fn request_invite(target: &SshTarget) -> Result<RemoteInvite, String> {
     parse_invite(&raw)
 }
 
+/// What comes back when lpm is on the machine but its app isn't answering: the
+/// CLI's own words, written for someone standing at that machine and reading
+/// them on its own terminal. Arriving in a dialog on the Mac they name no
+/// machine and no fix, and they read as if *this* app had stopped.
+///
+/// Only rewritten on positive evidence — anything else is passed through, so a
+/// change to the CLI's wording costs the better message, never a wrong one.
+/// (The phrase is `require_app` in cli/src/control.rs.)
+fn explain_unreachable_app(target: &SshTarget, err: String) -> String {
+    if !err.contains("app is not running") {
+        return err;
+    }
+    format!(
+        "lpm is installed on {} but its app isn't answering there, so it can't mint an invite. \
+         Start it on that machine — `sudo systemctl restart lpm`, or `lpm-host restart` on a host \
+         without systemd — then connect again.",
+        target.destination()
+    )
+}
+
 /// The answer out of whatever the login shell printed. A chatty `~/.bashrc` or an
 /// motd lands on stdout ahead of the JSON, and taking the whole of stdout as the
 /// reply turns a healthy host into "it may be running an older lpm".
@@ -501,7 +521,7 @@ pub fn add_host(
     if blocks_pairing(&missing) {
         return Err(missing_tools_error(&missing));
     }
-    let invite = request_invite(target)?;
+    let invite = request_invite(target).map_err(|e| explain_unreachable_app(target, e))?;
     ensure_hosting(target, invite.port)?;
     let (tunnel, local) = open_pairing_tunnel(target, invite.port)?;
 
@@ -798,6 +818,37 @@ mod tests {
         assert_eq!(script.matches("lpm pair --json").count(), 2, "{script}");
         assert!(script.contains("if lpm connections"), "{script}");
         assert!(!script.contains("lpm pair --json ||"), "{script}");
+    }
+
+    // The CLI on the host talks about "lpm" without saying which machine, so on
+    // the Mac its message reads as this app having stopped. Name the machine and
+    // what to do about it.
+    #[test]
+    fn an_app_that_isnt_answering_names_the_machine() {
+        let err = explain_unreachable_app(
+            &target(),
+            "lpm: lpm app is not running — start it to control projects".into(),
+        );
+        assert!(err.contains("root@example.test"), "{err}");
+        assert!(err.contains("systemctl restart lpm"), "{err}");
+        // A host with no service manager runs it under the supervisor instead.
+        assert!(err.contains("lpm-host restart"), "{err}");
+    }
+
+    // Everything else is the host's own evidence and must survive intact —
+    // rewriting on a guess would replace a real error with a wrong instruction.
+    #[test]
+    fn other_invite_failures_pass_through() {
+        for raw in [
+            "Permission denied (publickey).",
+            "the host's invite had no pairing code",
+        ] {
+            assert_eq!(
+                explain_unreachable_app(&target(), raw.to_string()),
+                raw,
+                "{raw}"
+            );
+        }
     }
 
     // A root login is already the account sudo would switch to, so escalating

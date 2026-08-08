@@ -178,6 +178,15 @@ export const ROWS = {
     description: "Play a sound when agents finish or need approval",
     keywords: ["audio", "alert", "chime"],
   },
+  "notifications.system": {
+    kind: "row",
+    tab: "notifications",
+    id: "notifications.system",
+    label: "System notifications",
+    description:
+      "Show a notification when an agent or automation needs you and lpm isn't in front",
+    keywords: ["banner", "alert", "desktop", "background", "away"],
+  },
   "notifications.hooks": {
     kind: "row",
     tab: "notifications",

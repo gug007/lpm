@@ -28,6 +28,7 @@ export interface Settings {
   doubleClickToToggle: boolean;
   defaultProjectDirectory?: string;
   soundNotifications?: boolean;
+  systemNotifications?: boolean;
   doneSound?: string;
   waitingSound?: string;
   errorSound?: string;
@@ -80,6 +81,7 @@ const defaults: Settings = {
   theme: "dark",
   doubleClickToToggle: false,
   soundNotifications: true,
+  systemNotifications: true,
   autoCloseComposerOnSend: true,
 };
 
@@ -102,6 +104,7 @@ function normalize(s: main.Settings): Settings {
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     defaultProjectDirectory: s.defaultProjectDirectory || undefined,
     soundNotifications: s.soundNotifications ?? defaults.soundNotifications,
+    systemNotifications: s.systemNotifications ?? defaults.systemNotifications,
     doneSound: s.doneSound || undefined,
     waitingSound: s.waitingSound || undefined,
     errorSound: s.errorSound || undefined,

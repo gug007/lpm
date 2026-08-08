@@ -55,6 +55,36 @@ func automationScopeTag(_ job: AutomationJob) -> String? {
     return job.source == "repo" ? "IN REPO" : nil
 }
 
+/// Where a job runs, said in a few words for its row: the project's own name
+/// when there's one, a count when there are several, and "All projects" when
+/// that count is every project there is.
+func automationScopeLabel(_ job: AutomationJob, projectCount: Int) -> String {
+    let targets = job.runsIn
+    if targets.isEmpty { return "No project" }
+    if targets.count == 1 { return targets[0] }
+    if targets.count >= projectCount { return "All projects" }
+    return "\(targets.count) projects"
+}
+
+/// Newest activity first, with everything unread ahead of everything read — the
+/// list is a feed of what the automations did, not a directory of what exists.
+func automationsSortedForList(_ jobs: [AutomationJob]) -> [AutomationJob] {
+    jobs.sorted { a, b in
+        if (a.unread > 0) != (b.unread > 0) { return a.unread > 0 }
+        if a.running != b.running { return a.running }
+        let lastA = a.lastRunAt ?? 0
+        let lastB = b.lastRunAt ?? 0
+        if lastA != lastB { return lastA > lastB }
+        return a.displayName.localizedCaseInsensitiveCompare(b.displayName) == .orderedAscending
+    }
+}
+
+/// A run stays unread while any message in it is — a reply that landed since is
+/// the part that hasn't been read.
+func automationThreadUnread(_ thread: AutomationThread) -> Bool {
+    thread.root.unread || thread.replies.contains { $0.unread }
+}
+
 /// Where a job runs, for its own page: the project, the count when it spans
 /// several, or the home folder when it belongs to none.
 func automationScopeText(_ job: AutomationJob) -> String {

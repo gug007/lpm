@@ -1898,8 +1898,19 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                     // Off this thread: it is the peer's single read loop, and it
                     // also drains outbound frames. Blocking it on a sound would
                     // stall terminal output for the whole connection.
+                    //
+                    // A banner goes out with it when this Mac isn't in front. The
+                    // chime is gone the moment it plays, so on its own it only
+                    // reaches someone already at the machine — which is the one
+                    // case a headless host's agent doesn't need help reaching.
+                    // The payload carries no project or terminal yet, so the
+                    // notice names neither.
                     if let Some(value) = value.map(str::to_string) {
-                        std::thread::spawn(move || crate::sound::play_status_sound(&value));
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            crate::sound::play_status_sound(&value);
+                            crate::statusnotify::notify_status(&app, "", &value, "");
+                        });
                     }
                 }
                 // A forwarded config-change event is a remote sync trigger: the

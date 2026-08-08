@@ -211,6 +211,8 @@ struct DemoWorld {
         var body: [String: Any] = [:]
         // Bumped on every run start so a stopped run's stale timers no-op.
         var runSeq: Int = 0
+        // When this automation was last read: runs after it are the unread ones.
+        var seenAt: Int = 0
     }
 
     var jobs: [Job] = []
@@ -447,7 +449,10 @@ struct DemoWorld {
                     "emoji": "🌙",
                     "schedule": ["at": "03:00"],
                     "run": ["cmd": "npm test"],
-                ]),
+                ],
+                // Read up to the night before, so the demo opens with last
+                // night's run still waiting to be looked at.
+                seenAt: t0 - 1),
             Job(id: "weekly-deps", project: "blog", label: "Weekly dependency check", emoji: "📦",
                 enabled: false, runKind: "prompt",
                 summary: "Check the project's dependencies for outdated packages and summarize which updates are safe to apply.",
@@ -607,15 +612,27 @@ extension DemoWorld {
         if let v = j.lastRunAt { o["lastRunAt"] = v }
         if let v = j.nextFireAt { o["nextFireAt"] = v }
         if let v = j.runningSince { o["runningSince"] = v }
+        o["unread"] = jobUnreadCount(j)
         return o
     }
+
+    /// Runs that landed since the automation was last read. Mirrors the Mac:
+    /// quiet checks and skips leave nothing to read, so they never count.
+    func jobUnreadCount(_ j: Job) -> Int {
+        j.history.filter { $0.at > j.seenAt && Self.readableResults.contains($0.result) }.count
+    }
+
+    static let readableResults: Set<String> = [
+        "completed", "found-work", "error", "timed-out", "context-full",
+    ]
 
     func jobsPayload() -> [String: Any] {
         ["t": "jobs", "ok": true, "jobs": jobs.map(jobDict)]
     }
 
-    func jobRunDict(_ r: JobRun) -> [String: Any] {
+    func jobRunDict(_ r: JobRun, seenAt: Int = 0) -> [String: Any] {
         var o: [String: Any] = ["at": r.at, "result": r.result]
+        if r.at > seenAt, Self.readableResults.contains(r.result) { o["unread"] = true }
         if r.count > 1 { o["count"] = r.count }
         if !r.copy.isEmpty { o["copy"] = r.copy }
         if !r.output.isEmpty { o["output"] = r.output }

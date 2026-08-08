@@ -45,6 +45,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// reaches over `ssh -R`); every control verb is refused so a remote host can
 /// never drive the Mac.
 pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restricted: bool) {
+    ensure_socket_dir(&socket_path);
     // Probe before stealing: `remove_file` can't tell a stale socket (unclean
     // exit) from a live one owned by another lpm instance. Only a definitive
     // PONG proves an owner is alive — decline in that case so first-wins is
@@ -77,6 +78,25 @@ pub fn start(socket_path: String, store: Arc<StatusStore>, app: AppHandle, restr
             std::thread::spawn(move || handle_client(stream, &store, &app, restricted));
         }
     });
+}
+
+/// Make sure the directory the socket lives in exists before binding into it.
+///
+/// This runs before anything in the app has written to `~/.lpm`, so on the very
+/// first launch of a fresh account the directory isn't there yet and `bind`
+/// fails with ENOENT. The failure is only a warning, and nothing ever retries —
+/// so that instance serves no control socket for its whole life: agents in panes
+/// report no status, and the CLI on that machine answers "lpm app is not
+/// running" while the app is plainly running. On a Linux host that also means it
+/// can never be paired, because `lpm pair` reaches the app through this socket.
+/// Every later launch works, which is exactly what made it invisible.
+///
+/// Failure is left to `bind` to report: it produces the message that names the
+/// path, and this is the same directory the rest of the app creates anyway.
+fn ensure_socket_dir(socket_path: &str) {
+    if let Some(dir) = std::path::Path::new(socket_path).parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
 }
 
 /// Probe an existing socket path: connect, send `ping\n`, read one line, and
@@ -802,6 +822,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     }
     let project = &positional[0];
     let value = positional[2].clone();
+    let pane_id = options.get("pane").cloned().unwrap_or_default();
     let entry = StatusEntry {
         key: positional[1].clone(),
         value: value.clone(),
@@ -813,7 +834,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
             .unwrap_or(0),
         timestamp: now_millis(),
         agent_pid: options.get("pid").and_then(|p| p.parse().ok()).unwrap_or(0),
-        pane_id: options.get("pane").cloned().unwrap_or_default(),
+        pane_id: pane_id.clone(),
     };
     // Hook frames arrive async (backgrounded `nc`), so a Done/Error can land
     // after its pane was closed and cleaned up — drop those instead of storing
@@ -826,6 +847,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     if store.set(project, entry) {
         let _ = app.emit("status-changed", project);
         crate::sound::announce_status(app, &value);
+        crate::statusnotify::notify_status(app, project, &value, &pane_id);
     }
     "OK".into()
 }
@@ -1129,6 +1151,33 @@ mod tests {
                 }
             }
         })
+    }
+
+    // The first launch on a fresh account: ~/.lpm doesn't exist yet, and without
+    // this the bind fails with ENOENT and the instance never gets a socket.
+    #[test]
+    fn the_socket_directory_is_created_before_binding() {
+        let dir = temp_sock_path("freshhome").with_extension("d");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("lpm.sock");
+        ensure_socket_dir(path.to_str().unwrap());
+        assert!(dir.is_dir());
+        // And the bind that failed before now succeeds.
+        assert!(UnixListener::bind(&path).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // An existing directory is left exactly as it is — this runs on every start,
+    // not just the first one.
+    #[test]
+    fn an_existing_socket_directory_is_untouched() {
+        let dir = temp_sock_path("existinghome").with_extension("d");
+        std::fs::create_dir_all(&dir).unwrap();
+        let keeper = dir.join("settings.json");
+        std::fs::write(&keeper, b"{}").unwrap();
+        ensure_socket_dir(dir.join("lpm.sock").to_str().unwrap());
+        assert_eq!(std::fs::read(&keeper).unwrap(), b"{}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

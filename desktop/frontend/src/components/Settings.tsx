@@ -157,6 +157,7 @@ export function Settings({
   const dblClick = useSettingsStore((s) => s.doubleClickToToggle);
   const defaultProjectDirectory = useSettingsStore((s) => s.defaultProjectDirectory);
   const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? true);
+  const systemNotificationsEnabled = useSettingsStore((s) => s.systemNotifications ?? true);
   const doneSound = useSettingsStore((s) => s.doneSound ?? "chime");
   const waitingSound = useSettingsStore((s) => s.waitingSound ?? "chime");
   const errorSound = useSettingsStore((s) => s.errorSound ?? "chime");
@@ -649,6 +650,9 @@ export function Settings({
 
           {activeTab === "notifications" && (
             <SettingsSection>
+              <SettingsRow {...rowProps("notifications.system")}>
+                <Toggle enabled={systemNotificationsEnabled} onChange={(v) => updateSettings({ systemNotifications: v })} />
+              </SettingsRow>
               <SettingsRow {...rowProps("notifications.sound")}>
                 <Toggle enabled={soundEnabled} onChange={(v) => updateSettings({ soundNotifications: v })} />
               </SettingsRow>

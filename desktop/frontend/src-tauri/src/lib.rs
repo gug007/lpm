@@ -80,6 +80,7 @@ mod sshprobe;
 mod sshsync;
 mod status;
 mod statusfwd;
+mod statusnotify;
 mod syncstate;
 mod syncsurface;
 mod sys;

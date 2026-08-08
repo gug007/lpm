@@ -45,6 +45,7 @@ import {
   type TerminalInstance,
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
+import { useClearStatusOnInteraction } from "../hooks/useClearStatusOnInteraction";
 import { useBrowserUrls } from "../store/browserUrls";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
@@ -275,20 +276,20 @@ function PaneViewImpl(props: PaneViewProps) {
       ? activeTerm
       : null;
 
-  useEffect(() => {
-    if (!visible || !focused || activeServiceName !== null || !activeTerm)
-      return;
-    if (donePaneIDs?.has(activeTerm.id)) onClearStatus(activeTerm.id, "Done");
-    if (errorPaneIDs?.has(activeTerm.id)) onClearStatus(activeTerm.id, "Error");
-  }, [
-    visible,
-    focused,
-    activeServiceName,
-    activeTerm,
-    donePaneIDs,
-    errorPaneIDs,
+  // A finish that lands on the tab already in front is the easiest one to miss:
+  // it arrives while the user is somewhere else entirely. So the badge stays put
+  // on the active tab and is retired by the first deliberate input instead of by
+  // the tab merely being selected.
+  const attentionKinds: StatusKind[] = [];
+  if (visible && focused && activeServiceName === null && activeTerm) {
+    if (donePaneIDs?.has(activeTerm.id)) attentionKinds.push("Done");
+    if (errorPaneIDs?.has(activeTerm.id)) attentionKinds.push("Error");
+  }
+  useClearStatusOnInteraction(
+    activeTerm?.id ?? null,
+    attentionKinds,
     onClearStatus,
-  ]);
+  );
 
   const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
 
@@ -400,6 +401,8 @@ function PaneViewImpl(props: PaneViewProps) {
               // auto-clear it here, unlike Done/Error.
               const isWaiting = waitingPaneIDs?.has(t.id) ?? false;
               const isError = errorPaneIDs?.has(t.id) ?? false;
+              // Done/Error render on the active tab as well; retiring them is
+              // the interaction handler's call, not the renderer's.
               return (
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
@@ -409,9 +412,9 @@ function PaneViewImpl(props: PaneViewProps) {
                     active={isActive}
                     pinned={t.pinned}
                     shimmer={runningPaneIDs?.has(t.id) ?? false}
-                    done={!isActive && isDone}
+                    done={isDone}
                     waiting={isWaiting}
-                    error={!isActive && isError}
+                    error={isError}
                     color={t.color}
                     onClick={(e) => {
                       if (isDone) onClearStatus(t.id, "Done");

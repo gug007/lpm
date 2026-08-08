@@ -192,6 +192,8 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 | `{ "t": "runJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "runJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "stopJob", "project": "<name>", "jobId": "<id>" }` | `{ "t": "stopJob", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
 | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "enabled": bool }` | `{ "t": "setJobEnabled", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` |
+| `{ "t": "markJobSeen", "project": "<name>", "jobId": "<id>", "at": N? }` | `{ "t": "markJobSeen", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — mark this automation's runs read up to `at`, the entry the phone opened, leaving anything newer unread; omit `at` to read all of it. The watermark only moves forward, so opening an older run can't un-read newer ones. Read state is per project/job pair and shared with the desktop, so a job spanning several projects needs one call per entry in `targets`. Pushes `jobs-changed` |
+| `{ "t": "markAllJobsSeen" }` | `{ "t": "markAllJobsSeen", "ok": true }` / `{ "ok": false, "error": "…" }` — mark every automation read. Pushes `jobs-changed` |
 | `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "at": N, "message": "…", "agent": "…", "model": "…", "effort": "…" }` | `{ "t": "sendJobFollowup", "project": "<name>", "jobId": "<id>", "ok": true }` / `{ "ok": false, "error": "…" }` — continues the conversation containing history entry `at`; empty agent/model/effort use the automation's settings |
 | `{ "t": "jobConfig", "project": "<name>", "jobId": "<id>", "source": "project"\|"repo"\|"global" }` | `{ "t": "jobConfig", "project": "<name>", "jobId": "<id>", "ok": true, "job": { …raw YAML body… } }` / `{ "ok": false, "error": "…" }` — the stored job body (`label`/`emoji`/`schedule`/`check`/`duplicate`/`run`/`projects`) read from `source`'s layer file, so the phone editor can seed an edit. Mirrors the desktop's readJobPayloadFrom |
 | `{ "t": "saveJob", "id": "<id>", "source": "project"\|"repo"\|"global", "project": "<name>", "job": { …body… } }` | `{ "t": "saveJob", "ok": true, "id": "<id>" }` / `{ "ok": false, "id": "<id>", "error": "…" }` — write `job` to `jobs.<id>` in `source`'s layer file (create if new, overwrite if it exists). A new job's `id` is a fresh slug the phone derives from the label, uniquified against every visible job id so it never shadows another job's saved history; editing reuses the job's own id. An empty `id` is rejected. `job` is the full YAML body (same shape the desktop's buildJobPayload writes): `label`, optional `emoji`, `schedule` (`{ manual: true }` \| `{ every: "30m"\|"6h"\|"2d" }` — the interval floor is 5 minutes \| `{ at: "09:00", days?: [mon…] }`), optional `check`, optional `verify` (a shell command run after the run finishes, deciding whether it is reported as done or as needing a look; rejected on `action` jobs, which lpm hands off without waiting), optional `duplicate` (`true` for a plain copy with default options, or `{ mode?: "copy"\|"worktree", pullLatest?, reinstallDeps?, excludeUncommitted? }` — **write back every key you read**, since the body replaces the job's whole mapping), `run` (`{ action }` \| `{ cmd }` \| `{ prompt, agent?, model?, effort?, access?: "read" }`), and — global-layer jobs only — `projects` (the "runs in" list; `[]` = standalone, omitted = every project). New jobs use `source: "global"`. Writes off the read loop; on success the desktop's Jobs views refresh and a `jobs-changed` push goes to phones. The scheduler validates on its next read, so a bad body surfaces as an invalid row, not an error here |
@@ -541,7 +543,7 @@ installs stop generating traffic.
 | `{ "t": "exit", "id": "<termId>", "code": N }` | The terminal's process exited. |
 | `{ "t": "projects-changed" }` | A project started/stopped/renamed. Re-request `projects`. |
 | `{ "t": "status-changed", "project": "<name>" }` | A status badge changed (e.g. an agent is now Waiting). Re-request `status`. |
-| `{ "t": "jobs-changed" }` | An automation started, stopped, or completed. Re-request `jobs` and any open history/live output. |
+| `{ "t": "jobs-changed" }` | An automation started, stopped, or completed — or its read watermark moved, from this phone or the desktop. Re-request `jobs` and any open history/live output. |
 | `{ "t": "git-changed", "project": "<name>" }` | The watched project's working tree changed (sent only to a connection that issued `gitWatch` for it, debounced ~400ms after the last change). Carries no payload — re-request `git` and any open `gitDiff`s to refresh the review screen. |
 | `{ "t": "control", "id": "<termId>", "owner": ControlOwner\|null }` | The terminal's control owner changed. If `owner` is not this phone, show the "take control" placeholder and stop driving size; if it is (or `null`), render live. |
 | `{ "t": "memory-changed", "project": "<owner name>" }` | A session-memory file changed on disk — usually an agent CLI writing through the lpm-memory skill while the Memory screen is open (FSEvents, ~500ms settle). `project` is the **owner** folder name, which for a duplicate is its original: refresh when it matches either the project you are showing or the owner you learned from that project's `dir`. Notes have no equivalent push. |
@@ -617,6 +619,8 @@ targets: [string]         // the projects this job runs in
 targetCount: number       // targets.length
 runningCount: number      // how many of them are running it right now
 standalone: bool          // runs outside any project; `targets` is then empty
+unread: number            // runs that landed after the automation was last read,
+                          // folded across `targets`. 0 = nothing new
 ```
 
 Project- and repo-layer jobs stay one row per project (each carries its owning
@@ -643,6 +647,9 @@ verified: bool?             // the job's `verify` command's verdict for this run
                             // live run to check (a run salvaged after the app
                             // closed) — unverified, which is not a pass
 verifyOutput: string?       // what that command said, capped
+unread: true?               // the run landed after the automation was last read.
+                            // Only set on entries that left something to read —
+                            // quiet checks, skips and stopped runs never carry it
 ```
 
 **AgentUsageStats** (the `stats` reply) — all token counts are numbers that can reach

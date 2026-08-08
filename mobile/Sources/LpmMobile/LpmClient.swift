@@ -662,6 +662,10 @@ final class LpmClient: NSObject {
     func setJobEnabled(project: String, jobId: String, enabled: Bool) {
         send(Wire.setJobEnabled(project: project, jobId: jobId, enabled: enabled))
     }
+    func markJobSeen(project: String, jobId: String, at: Int?) {
+        send(Wire.markJobSeen(project: project, jobId: jobId, at: at))
+    }
+    func markAllJobsSeen() { send(Wire.markAllJobsSeen()) }
     func requestJobConfig(project: String, jobId: String, source: String) {
         send(Wire.jobConfig(project: project, jobId: jobId, source: source))
     }

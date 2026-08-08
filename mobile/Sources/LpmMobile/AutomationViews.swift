@@ -1,87 +1,28 @@
 import SwiftUI
 
-/// One section of the list: a project's jobs, or the two catch-alls for jobs
-/// that don't belong to exactly one project.
-private struct AutomationGroup: Identifiable {
-    let id: String
-    let title: String
-    let jobs: [AutomationJob]
-}
-
 struct AutomationsView: View {
     @Environment(AppModel.self) private var model
     @State private var editor: AutomationEditorContext?
 
-    /// Jobs grouped by where they run: one project → that project's section;
-    /// more than one → "Multiple projects"; none → "No project".
-    private var groups: [AutomationGroup] {
-        var byProject: [String: [AutomationJob]] = [:]
-        var multiple: [AutomationJob] = []
-        var standalone: [AutomationJob] = []
-        for job in model.automations {
-            if job.standalone { standalone.append(job) }
-            else if job.runsIn.count == 1 { byProject[job.runsIn[0], default: []].append(job) }
-            else { multiple.append(job) }
-        }
-        let byName = { (a: AutomationJob, b: AutomationJob) in
-            a.displayName.localizedCaseInsensitiveCompare(b.displayName) == .orderedAscending
-        }
-        var out = byProject
-            .map { AutomationGroup(id: "project/\($0.key)", title: $0.key, jobs: $0.value.sorted(by: byName)) }
-            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-        if !multiple.isEmpty {
-            out.append(AutomationGroup(id: "multi", title: "Multiple projects", jobs: multiple.sorted(by: byName)))
-        }
-        if !standalone.isEmpty {
-            out.append(AutomationGroup(id: "none", title: "No project", jobs: standalone.sorted(by: byName)))
-        }
-        return out
-    }
+    /// One flat feed rather than a directory: everything unread first, newest
+    /// activity first inside each half. Which projects an automation runs in
+    /// rides on its own row, so the list never has to be cut into sections by
+    /// project.
+    private var sorted: [AutomationJob] { automationsSortedForList(model.automations) }
+    private var unread: [AutomationJob] { sorted.filter { $0.unread > 0 } }
+    private var read: [AutomationJob] { sorted.filter { $0.unread == 0 } }
 
     var body: some View {
         List {
-            ForEach(groups) { group in
-                Section(group.title) {
-                    ForEach(group.jobs, id: \.key) { job in
-                        NavigationLink {
-                            AutomationDetailView(project: job.runProject, jobId: job.id)
-                        } label: {
-                            AutomationRow(job: job)
-                        }
-                        .contextMenu {
-                            Button {
-                                editor = .edit(job)
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
-                            }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            if job.running {
-                                Button(role: .destructive) {
-                                    model.stopAutomation(job)
-                                } label: {
-                                    Label("Stop", systemImage: "stop.fill")
-                                }
-                            } else {
-                                Button {
-                                    model.runAutomation(job)
-                                } label: {
-                                    Label("Run", systemImage: "play.fill")
-                                }
-                                .tint(.blue)
-                            }
-                        }
-                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            Button {
-                                model.setAutomationEnabled(job, enabled: !job.enabled)
-                            } label: {
-                                Label(job.enabled ? "Pause" : "Resume",
-                                      systemImage: job.enabled ? "pause.fill" : "clock.arrow.circlepath")
-                            }
-                            .tint(job.enabled ? .orange : .green)
-                        }
-                    }
+            if !unread.isEmpty {
+                Section("New") {
+                    ForEach(unread, id: \.key) { row($0) }
                 }
+            }
+            Section {
+                ForEach(read, id: \.key) { row($0) }
+            } header: {
+                if !unread.isEmpty && !read.isEmpty { Text("Earlier") }
             }
         }
         .navigationTitle("Automations")
@@ -94,6 +35,15 @@ struct AutomationsView: View {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel("New automation")
+            }
+            ToolbarItem(placement: .topBarLeading) {
+                if !unread.isEmpty {
+                    Button("Mark all read") {
+                        Haptics.tap()
+                        model.markAllAutomationsSeen()
+                    }
+                    .font(.subheadline)
+                }
             }
         }
         .sheet(item: $editor) { context in
@@ -122,6 +72,62 @@ struct AutomationsView: View {
         }
     }
 
+    private func row(_ job: AutomationJob) -> some View {
+        NavigationLink {
+            AutomationDetailView(project: job.runProject, jobId: job.id)
+        } label: {
+            AutomationRow(job: job, scope: automationScopeLabel(job, projectCount: model.projects.count))
+        }
+        .contextMenu {
+            Button {
+                editor = .edit(job)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            if job.unread > 0 {
+                Button {
+                    model.markAutomationSeen(job)
+                } label: {
+                    Label("Mark read", systemImage: "envelope.open")
+                }
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            if job.running {
+                Button(role: .destructive) {
+                    model.stopAutomation(job)
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                }
+            } else {
+                Button {
+                    model.runAutomation(job)
+                } label: {
+                    Label("Run", systemImage: "play.fill")
+                }
+                .tint(.blue)
+            }
+        }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if job.unread > 0 {
+                Button {
+                    model.markAutomationSeen(job)
+                } label: {
+                    Label("Read", systemImage: "envelope.open")
+                }
+                .tint(.blue)
+            } else {
+                Button {
+                    model.setAutomationEnabled(job, enabled: !job.enabled)
+                } label: {
+                    Label(job.enabled ? "Pause" : "Resume",
+                          systemImage: job.enabled ? "pause.fill" : "clock.arrow.circlepath")
+                }
+                .tint(job.enabled ? .orange : .green)
+            }
+        }
+    }
+
     private var automationErrorPresented: Binding<Bool> {
         Binding(
             get: { model.automationError != nil },
@@ -132,22 +138,39 @@ struct AutomationsView: View {
 
 private struct AutomationRow: View {
     let job: AutomationJob
+    /// Which projects the automation runs in — the list is flat, so the row has
+    /// to say so itself.
+    let scope: String
+
+    private var unread: Bool { job.unread > 0 }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(unread ? Color.accentColor : Color.clear)
+                .frame(width: 8, height: 8)
+
             Text(job.emoji.isEmpty ? "⏱️" : job.emoji)
                 .font(.title3)
-                .frame(width: 30)
+                .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(job.displayName)
-                        .font(.body.weight(.medium))
+                        .font(.body.weight(unread ? .semibold : .medium))
                         .lineLimit(1)
-                    if let tag = automationScopeTag(job) {
-                        Text(tag)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                    Text(scope)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.14), in: Capsule())
+                    if job.source == "repo" {
+                        Text("in repo")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
                     }
                 }
 
@@ -155,7 +178,7 @@ private struct AutomationRow: View {
                     Circle()
                         .fill(automationStatusColor(job))
                         .frame(width: 6, height: 6)
-                    Text(automationStatusText(job))
+                    Text(statusText)
                         .font(.caption)
                         .foregroundStyle(job.valid ? Color.secondary : Color.red)
                         .lineLimit(1)
@@ -170,5 +193,15 @@ private struct AutomationRow: View {
         }
         .opacity(job.enabled ? 1 : 0.6)
         .padding(.vertical, 3)
+    }
+
+    /// What the row says under the name — with the count of what's waiting in
+    /// front of it, since that is why the row is at the top of the list.
+    private var statusText: String {
+        let status = automationStatusText(job)
+        guard unread, !job.running else { return status }
+        let count = job.unread > 9 ? "9+" : "\(job.unread)"
+        let noun = job.unread == 1 ? "message" : "messages"
+        return "\(count) new \(noun) · \(status)"
     }
 }

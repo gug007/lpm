@@ -1820,6 +1820,22 @@ fn handle_msg(
                 )?,
             }
         }
+        "markJobSeen" => {
+            let project = str_field("project").unwrap_or_default();
+            let job_id = str_field("jobId").unwrap_or_default();
+            // `at` marks the run the phone opened: everything up to it is read,
+            // anything newer stays unread. Absent means "all of it".
+            let at = v.get("at").and_then(Value::as_u64).filter(|n| *n > 0);
+            let r = crate::jobs::mark_job_seen(app.clone(), project.clone(), job_id.clone(), at);
+            let mut reply = result_reply("markJobSeen", r);
+            reply["project"] = json!(project);
+            reply["jobId"] = json!(job_id);
+            send(ws, reply)?;
+        }
+        "markAllJobsSeen" => {
+            let r = crate::jobs::mark_all_jobs_seen(app.clone());
+            send(ws, result_reply("markAllJobsSeen", r))?;
+        }
         "runJob" => {
             let project = str_field("project").unwrap_or_default();
             let job_id = str_field("jobId").unwrap_or_default();
@@ -4980,6 +4996,10 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
         broadcast(&h, json!({ "t": "memory-changed", "project": project }));
     });
     let h = hub.clone();
+    app.listen("job-seen", move |_| {
+        broadcast(&h, json!({ "t": "jobs-changed" }));
+    });
+    let h = hub.clone();
     app.listen("job-status", move |event| {
         broadcast(&h, json!({ "t": "jobs-changed" }));
         let Ok(payload) = serde_json::from_str::<Value>(event.payload()) else {
@@ -5162,6 +5182,18 @@ pub fn remote_state(hub: State<'_, RemoteHub>) -> Value {
 #[tauri::command]
 pub fn remote_take_run_actions(hub: State<'_, RemoteHub>) -> Vec<Value> {
     std::mem::take(&mut *hub.inner.pending_run_actions.lock().unwrap())
+}
+
+/// The display name the frontend last reported for a live terminal. Empty pane
+/// ids, an unregistered hub, and unknown terminals all read as "no name", since
+/// every caller has a workable fallback.
+pub fn terminal_label(app: &AppHandle, pane_id: &str) -> Option<String> {
+    if pane_id.is_empty() {
+        return None;
+    }
+    let hub = app.try_state::<RemoteHub>()?;
+    let label = hub.inner.labels.lock().unwrap().get(pane_id).cloned();
+    label.filter(|l| !l.is_empty())
 }
 
 #[tauri::command]

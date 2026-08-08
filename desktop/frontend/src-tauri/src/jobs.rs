@@ -2523,15 +2523,10 @@ fn notify_if_unattended(
         body.push(' ');
         body.push_str(d);
     }
-    let attended = app
-        .get_webview_window("main")
-        .map(|w| w.is_visible().unwrap_or(false) && w.is_focused().unwrap_or(false))
-        .unwrap_or(false);
-    if attended {
+    if !crate::statusnotify::should_notify(app) {
         return;
     }
-    use tauri_plugin_notification::NotificationExt;
-    let _ = app.notification().builder().title(title).body(&body).show();
+    crate::statusnotify::notify(app, title, &body);
 }
 
 fn run_pipeline(app: &AppHandle, project: &str, job: &JobResolved, trigger: Trigger) {

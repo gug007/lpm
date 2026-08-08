@@ -91,6 +91,9 @@ struct AutomationTimeRow: View {
 struct AutomationHistoryRow: View {
     let thread: AutomationThread
     let previews: Bool
+    /// The run landed after the automation was last read — it keeps its marker
+    /// until this row is opened.
+    var unread: Bool = false
 
     private var entry: AutomationHistoryEntry { thread.tail }
 
@@ -115,9 +118,19 @@ struct AutomationHistoryRow: View {
                 .frame(width: 8, height: 8)
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 3) {
-                Text(automationEntryLabel(entry))
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(automationEntryLabel(entry))
+                        .font(.subheadline.weight(unread ? .semibold : .medium))
+                        .lineLimit(1)
+                    if unread {
+                        Text("New")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.accentColor.opacity(0.15), in: Capsule())
+                    }
+                }
                 if previews, let snippet = automationFirstLine(entry.output) {
                     Text(snippet)
                         .font(.footnote)

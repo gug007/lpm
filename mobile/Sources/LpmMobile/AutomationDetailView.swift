@@ -207,8 +207,18 @@ struct AutomationDetailView: View {
                     } label: {
                         // An agent answer opens with its point, so its first line
                         // previews well; a command's log opens with boilerplate.
-                        AutomationHistoryRow(thread: thread, previews: job?.runKind == "prompt")
+                        AutomationHistoryRow(thread: thread,
+                                             previews: job?.runKind == "prompt",
+                                             unread: automationThreadUnread(thread))
                     }
+                    // Opening a run reads it, and everything under it. Arriving on
+                    // this page reads nothing, so the list keeps pointing at what
+                    // still hasn't been looked at.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        if let job, automationThreadUnread(thread) {
+                            model.markAutomationSeen(job, upTo: thread.tail.at)
+                        }
+                    })
                 }
                 if all.count > shown.count {
                     Button("Show all \(all.count) runs") {
@@ -221,6 +231,11 @@ struct AutomationDetailView: View {
             HStack {
                 Text("Run history")
                 Spacer()
+                if let job, job.unread > 0 {
+                    Button("Mark read") { model.markAutomationSeen(job) }
+                        .font(.caption)
+                        .textCase(nil)
+                }
                 if !all.isEmpty { Text(all.count.formatted()) }
             }
         }

@@ -1363,6 +1363,24 @@ final class AppModel {
         }
     }
 
+    /// How many automations have runs the user hasn't read — what the menu badge
+    /// counts.
+    var automationsUnread: Int { automations.filter { $0.unread > 0 }.count }
+
+    /// Reading a run reads everything under it, in every folder the automation
+    /// runs in, since the row folds them into one unread count. `upTo` is the run
+    /// that was opened; nil reads the whole automation. Deliberately outside the
+    /// pending set: reading is not an action worth a spinner, and the Mac echoes
+    /// `jobs-changed` when the watermark moves.
+    func markAutomationSeen(_ job: AutomationJob, upTo at: Int? = nil) {
+        guard let client, job.unread > 0 else { return }
+        for target in job.runTargets {
+            client.markJobSeen(project: target, jobId: job.id, at: at)
+        }
+    }
+
+    func markAllAutomationsSeen() { client?.markAllJobsSeen() }
+
     private func forEachAutomationTarget(_ job: AutomationJob,
                                          _ send: (LpmClient, String) -> Void) {
         guard let client else { return }

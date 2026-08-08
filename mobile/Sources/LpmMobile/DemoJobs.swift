@@ -11,8 +11,28 @@ extension DemoServer {
         }
         register("jobHistory") { [weak self] o in
             guard let self, let project = o["project"] as? String, let jobId = o["jobId"] as? String else { return }
-            let entries = (self.job(project, jobId)?.history ?? []).map(self.world.jobRunDict)
+            let j = self.job(project, jobId)
+            let seenAt = j?.seenAt ?? 0
+            let entries = (j?.history ?? []).map { self.world.jobRunDict($0, seenAt: seenAt) }
             self.push(["t": "jobHistory", "project": project, "jobId": jobId, "ok": true, "entries": entries])
+        }
+        // Reading a run moves the watermark to it, never backwards, so opening an
+        // older run can't un-read the newer ones above it.
+        register("markJobSeen") { [weak self] o in
+            guard let self, let project = o["project"] as? String, let jobId = o["jobId"] as? String else { return }
+            if let i = self.jobIndex(project, jobId) {
+                let at = o["at"] as? Int ?? Int(Date().timeIntervalSince1970)
+                self.world.jobs[i].seenAt = max(self.world.jobs[i].seenAt, at)
+            }
+            self.push(["t": "markJobSeen", "project": project, "jobId": jobId, "ok": true])
+            self.push(["t": "jobs-changed"])
+        }
+        register("markAllJobsSeen") { [weak self] _ in
+            guard let self else { return }
+            let now = Int(Date().timeIntervalSince1970)
+            for i in self.world.jobs.indices { self.world.jobs[i].seenAt = now }
+            self.push(["t": "markAllJobsSeen", "ok": true])
+            self.push(["t": "jobs-changed"])
         }
         register("jobLiveOutput") { [weak self] o in
             guard let self, let project = o["project"] as? String, let jobId = o["jobId"] as? String else { return }

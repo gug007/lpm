@@ -79,6 +79,14 @@ enum Wire {
     static func setJobEnabled(project: String, jobId: String, enabled: Bool) -> String {
         json(["t": "setJobEnabled", "project": project, "jobId": jobId, "enabled": enabled])
     }
+    /// `at` reads the run the user opened and everything under it; without one,
+    /// the whole automation is read.
+    static func markJobSeen(project: String, jobId: String, at: Int?) -> String {
+        var o: [String: Any] = ["t": "markJobSeen", "project": project, "jobId": jobId]
+        if let at { o["at"] = at }
+        return json(o)
+    }
+    static func markAllJobsSeen() -> String { json(["t": "markAllJobsSeen"]) }
     static func sendJobFollowup(project: String, jobId: String, at: Int, message: String,
                                 agent: String, model: String, effort: String) -> String {
         json(["t": "sendJobFollowup", "project": project, "jobId": jobId, "at": at,
@@ -1057,6 +1065,9 @@ struct AutomationJob: Identifiable {
     let targetCount: Int
     let runningCount: Int
     let standalone: Bool
+    /// Runs that landed since this automation was last read, folded across every
+    /// project it runs in. Older servers omit it, which reads as nothing new.
+    let unread: Int
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -1087,6 +1098,7 @@ struct AutomationJob: Identifiable {
         agent = o["agent"] as? String ?? ""
         model = o["model"] as? String ?? ""
         effort = o["effort"] as? String ?? ""
+        unread = o["unread"] as? Int ?? 0
         targets = o["targets"] as? [String] ?? []
         targetCount = o["targetCount"] as? Int ?? 0
         runningCount = o["runningCount"] as? Int ?? 0
@@ -1130,6 +1142,8 @@ struct AutomationHistoryEntry: Identifiable {
     /// Whether the job's after-the-run check passed. nil means the job declares
     /// no check, or there was no live run to check — unverified, not failed.
     let verified: Bool?
+    /// The run landed after this automation was last read.
+    let unread: Bool
 
     init(_ o: [String: Any]) {
         at = o["at"] as? Int ?? 0
@@ -1145,6 +1159,7 @@ struct AutomationHistoryEntry: Identifiable {
         resumed = o["resumed"] as? String ?? ""
         follows = o["follows"] as? Int
         compacted = o["compacted"] as? Bool ?? false
+        unread = o["unread"] as? Bool ?? false
     }
 
     var id: Int { at }

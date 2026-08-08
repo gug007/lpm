@@ -491,7 +491,12 @@ struct ProjectsView: View {
                         Label("Activity", systemImage: "square.stack.3d.up")
                     }
                     NavigationLink(value: NotificationRoute.automations) {
-                        Label("Automations", systemImage: "clock.arrow.circlepath")
+                        // A menu row can't carry a badge, so the count rides in
+                        // the label — the dot on the button is what says the menu
+                        // is worth opening at all.
+                        Label(model.automationsUnread > 0
+                              ? "Automations (\(model.automationsUnread))" : "Automations",
+                              systemImage: "clock.arrow.circlepath")
                     }
                     NavigationLink {
                         StatsScreen()
@@ -536,16 +541,25 @@ struct ProjectsView: View {
                         .foregroundStyle(.primary)
                         .overlay(alignment: .topTrailing) {
                             let ambient = agentAmbient(model.projects)
+                            // An agent waiting on you outranks an automation that
+                            // merely has something to read.
                             if ambient.isLit {
                                 Circle()
                                     .fill(ambient.needsYou > 0 ? Color.orange : Color.red)
+                                    .frame(width: 7, height: 7)
+                                    .offset(x: 5, y: -5)
+                            } else if model.automationsUnread > 0 {
+                                Circle()
+                                    .fill(Color.accentColor)
                                     .frame(width: 7, height: 7)
                                     .offset(x: 5, y: -5)
                             }
                         }
                         .accessibilityLabel(agentAmbient(model.projects).needsYou > 0
                                             ? "More — an agent needs you"
-                                            : "More")
+                                            : model.automationsUnread > 0
+                                              ? "More — automations have new messages"
+                                              : "More")
                 }
             }
         }
