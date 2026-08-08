@@ -308,7 +308,7 @@ export function ScheduledView() {
         <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           Automations
           {unreadCount > 0 && (
-            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--accent-blue)] px-1.5 text-[11px] font-semibold tabular-nums text-white">
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--accent-blue-text)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--bg-primary)]">
               {unreadCount}
             </span>
           )}
@@ -364,7 +364,7 @@ export function ScheduledView() {
           <div className="-mx-1 space-y-4">
             {unreadRows.length > 0 && (
               <section key="unread">
-                <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue)]">
+                <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
                   New
                 </span>
                 <div className="mt-1">{renderRows(unreadRows, "unread")}</div>

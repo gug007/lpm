@@ -105,7 +105,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
           <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
         ) : (
           unread > 0 && (
-            <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue)] px-1 text-[10px] font-semibold tabular-nums leading-none text-white">
+            <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue-text)] px-1 text-[10px] font-semibold tabular-nums leading-none text-[var(--bg-primary)]">
               {unread}
             </span>
           )
@@ -123,14 +123,12 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
                 Running
               </span>
-            ) : unread > 0 ? (
-              <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue)] px-1 text-[10px] font-semibold tabular-nums leading-none text-white">
-                {unread}
-              </span>
             ) : (
-              <span className="ml-auto rounded-full bg-[var(--accent-cyan)]/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-[var(--accent-cyan)]">
-                Beta
-              </span>
+              unread > 0 && (
+                <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue-text)] px-1 text-[10px] font-semibold tabular-nums leading-none text-[var(--bg-primary)]">
+                  {unread}
+                </span>
+              )
             )}
           </button>
           <button onClick={pick(onUsage)} className={itemClass(showUsage)}>
