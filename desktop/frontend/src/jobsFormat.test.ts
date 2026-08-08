@@ -11,6 +11,7 @@ import {
   formatRunningFor,
   formatSchedule,
   groupJobThreads,
+  isThreadUnread,
   jobOutputSnippet,
   jobThreadTail,
   liveOutputTail,
@@ -267,6 +268,18 @@ describe("job result copy", () => {
     expect(jobResultTone("canceled")).toBe("neutral");
     expect(jobResultLabel("timed-out")).toBe("Stopped — ran too long");
     expect(jobResultTone("timed-out")).toBe("error");
+  });
+});
+
+describe("isThreadUnread", () => {
+  it("keeps a run unread while any of its messages is", () => {
+    const [read, repliedTo] = groupJobThreads([
+      { at: 1, result: "completed", output: "old", session: "a1" },
+      { at: 2, result: "completed", output: "new run", session: "b1" },
+      { at: 3, result: "completed", output: "reply", session: "b2", resumed: "b1", unread: true },
+    ]);
+    expect(isThreadUnread(read)).toBe(false);
+    expect(isThreadUnread(repliedTo)).toBe(true);
   });
 });
 

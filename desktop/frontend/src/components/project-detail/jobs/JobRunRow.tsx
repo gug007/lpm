@@ -6,6 +6,7 @@ import {
   jobOutputSnippet,
   jobEntryLabel,
   jobResultTone,
+  isThreadUnread,
   jobThreadTail,
   TONE_DOT_CLASS,
   type JobThread,
@@ -46,13 +47,23 @@ export function JobRunRow({
   const label = `${jobEntryLabel(root)}${
     (root.count ?? 1) > 1 ? ` × ${root.count}` : ""
   }`;
+  const unread = isThreadUnread(thread);
 
   const content = (
     <>
       <span className="flex min-w-0 items-baseline gap-2">
-        <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">
+        <span
+          className={`min-w-0 truncate text-[13px] text-[var(--text-primary)] ${
+            unread ? "font-semibold" : "font-medium"
+          }`}
+        >
           {label}
         </span>
+        {unread && (
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--accent-blue-text)]">
+            New
+          </span>
+        )}
         {stats && (
           <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
             {stats}
@@ -78,8 +89,8 @@ export function JobRunRow({
   return (
     <div
       className={`group flex gap-3 rounded-lg px-2 py-3 transition-colors ${
-        onOpen ? "hover:bg-[var(--bg-hover)]" : ""
-      }`}
+        unread ? "bg-[var(--accent-blue)]/8" : ""
+      } ${onOpen ? "hover:bg-[var(--bg-hover)]" : ""}`}
     >
       <span
         className={`mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[jobResultTone(root.result)]}`}

@@ -122,8 +122,8 @@ export function ScheduledView() {
   const toggleEnabledJob = (job: JobInfo, enabled: boolean) =>
     targetsOfRow(job).forEach((p) => toggleEnabled(p, job.id, enabled));
 
-  // Opening a job is reading it — in every folder it runs in, since the row
-  // folds them into one unread count.
+  // Closing a job's page is reading it — in every folder it runs in, since the
+  // row folds them into one unread count.
   const markSeenJob = async (job: ScheduledJob) => {
     await Promise.all(
       targetsOfRow(job).map((p) => MarkJobSeen(p, job.id).catch(() => {})),
@@ -189,10 +189,7 @@ export function ScheduledView() {
           onRunNow={() => runNowJob(job)}
           onStop={() => stopRunJob(job)}
           onToggleEnabled={(_id, enabled) => toggleEnabledJob(job, enabled)}
-          onOpen={(j) => {
-            setOpen({ project: rowProject(j), id: j.id });
-            void markSeenJob(job);
-          }}
+          onOpen={(j) => setOpen({ project: rowProject(j), id: j.id })}
           onEdit={(j) =>
             setEditing({ mode: "edit", project: rowProject(j), job: j })
           }
@@ -278,6 +275,7 @@ export function ScheduledView() {
           onToggleEnabled={(enabled) => toggleEnabledJob(openJob, enabled)}
           onOpenCopy={(name) => selectProject(name)}
           onOpenTask={(at) => setOpenTask(at)}
+          onSeen={() => void markSeenJob(openJob)}
         />
         <RemoveJobDialog
           removing={removing}
@@ -310,7 +308,7 @@ export function ScheduledView() {
         <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           Automations
           {unreadCount > 0 && (
-            <span className="rounded-full bg-[var(--accent-blue)] px-2 py-0.5 text-[11px] font-semibold text-white">
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[var(--accent-blue)] px-1.5 text-[11px] font-semibold tabular-nums text-white">
               {unreadCount}
             </span>
           )}
@@ -336,7 +334,7 @@ export function ScheduledView() {
       </div>
       <p className="mt-1 text-[11px] text-[var(--text-muted)]">
         {unreadCount > 0
-          ? `${unreadCount} ${unreadCount === 1 ? "job has" : "jobs have"} new results since you last looked.`
+          ? `${unreadCount} ${unreadCount === 1 ? "job has" : "jobs have"} new messages since you last looked.`
           : "Every scheduled job across your projects, in one place."}
       </p>
 

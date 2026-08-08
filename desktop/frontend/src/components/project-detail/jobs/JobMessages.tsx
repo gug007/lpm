@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
 import { Switch } from "../../ui/Switch";
@@ -43,6 +43,10 @@ interface JobMessagesProps {
   // Open one run's own page (its conversation), addressed by the run entry's
   // `at`.
   onOpenTask: (at: number) => void;
+  // Everything here has been read now that the page is closing. Marking on the
+  // way out rather than on the way in is what keeps the new runs marked as new
+  // while the user is looking at them.
+  onSeen: () => void;
 }
 
 // A job's page: its runs, newest activity first — each run opens its own page
@@ -60,6 +64,7 @@ export function JobMessages({
   onToggleEnabled,
   onOpenCopy,
   onOpenTask,
+  onSeen,
 }: JobMessagesProps) {
   const [entries, setEntries] = useState<JobHistoryEntry[] | null>(null);
   // A run pending removal, awaiting confirmation.
@@ -67,6 +72,11 @@ export function JobMessages({
   const [removeCopy, setRemoveCopy] = useState(false);
   const [reload, setReload] = useState(0);
   const now = useNow(job.running === true);
+
+  // Leaving the page — by any route — is what marks the runs read.
+  const seen = useRef(onSeen);
+  seen.current = onSeen;
+  useEffect(() => () => seen.current(), []);
 
   useEffect(() => {
     let cancelled = false;

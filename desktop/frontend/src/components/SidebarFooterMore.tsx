@@ -93,7 +93,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
           running > 0
             ? "More — a scheduled job is running"
             : unread > 0
-              ? `More — ${unread} automation${unread === 1 ? "" : "s"} with new results`
+              ? `More — ${unread} automation${unread === 1 ? "" : "s"} with new messages`
               : "Settings and more views"
         }
         aria-label="More"
@@ -105,7 +105,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
           <span className="ml-auto h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--accent-cyan)]" />
         ) : (
           unread > 0 && (
-            <span className="ml-auto rounded-full bg-[var(--accent-blue)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+            <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue)] px-1 text-[10px] font-semibold tabular-nums leading-none text-white">
               {unread}
             </span>
           )
@@ -124,7 +124,7 @@ export function SidebarFooterMore({ showScheduled, onScheduled, showUsage, onUsa
                 Running
               </span>
             ) : unread > 0 ? (
-              <span className="ml-auto rounded-full bg-[var(--accent-blue)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              <span className="ml-auto grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-blue)] px-1 text-[10px] font-semibold tabular-nums leading-none text-white">
                 {unread}
               </span>
             ) : (

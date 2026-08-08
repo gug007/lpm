@@ -131,6 +131,8 @@ export interface JobHistoryEntry {
   follows?: number;
   question?: string;
   compacted?: boolean;
+  // The run landed after the user last opened this job — still unread.
+  unread?: boolean;
   // Whether the job's after-the-run check passed. Undefined means the job
   // declares no check, or there was no live run to check — unverified, which is
   // not the same as failed.
@@ -165,6 +167,12 @@ export function groupJobThreads(entries: JobHistoryEntry[]): JobThread[] {
 // The thread's newest message — what a reply continues from.
 export function jobThreadTail(thread: JobThread): JobHistoryEntry {
   return thread.replies[thread.replies.length - 1] ?? thread.root;
+}
+
+// A run is unread until the job is opened, and a reply that landed since keeps
+// the whole run unread — the conversation is what the user came to read.
+export function isThreadUnread(thread: JobThread): boolean {
+  return thread.root.unread === true || thread.replies.some((r) => r.unread);
 }
 
 // Result strings emitted by the backend pipeline (jobs.rs).

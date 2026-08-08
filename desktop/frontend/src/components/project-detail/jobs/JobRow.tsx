@@ -1,6 +1,7 @@
 import { Switch } from "../../ui/Switch";
 import { ClockIcon, PencilIcon, StopIcon, TrashIcon } from "../../icons";
 import { PlayIcon } from "../icons";
+import { JobScopeTag } from "./JobScopeTag";
 import { relativeTime } from "../../../relativeTime";
 import { useNow } from "../../../hooks/useNow";
 import {
@@ -47,21 +48,21 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
 
   if (!job.valid) {
     return (
-      <div className="group relative flex items-center gap-3 rounded-lg py-3 pl-4 pr-1">
-        <span className="absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-[var(--accent-red)]" />
+      <div className="group flex items-start gap-2.5 rounded-lg py-3 pl-2 pr-1">
+        <span className="flex w-1.5 shrink-0 justify-center pt-[7px]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-red)]" />
+        </span>
         <button
           type="button"
           onClick={() => onEdit(job)}
           className="min-w-0 flex-1 text-left"
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="min-w-0 shrink truncate text-[13px] font-medium text-[var(--text-primary)]">
               {job.label || job.id}
             </span>
             {scopeLabel && (
-              <span className="shrink-0 truncate rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
-                {scopeLabel}
-              </span>
+              <JobScopeTag label={scopeLabel} inRepo={job.source === "repo"} />
             )}
           </span>
           <span className="block truncate text-[12px] text-[var(--accent-red)]">
@@ -109,16 +110,18 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
 
   return (
     <div
-      className={`group relative flex items-start gap-3 rounded-lg py-3 pl-4 pr-1 transition-colors hover:bg-[var(--bg-hover)] ${
+      className={`group flex items-start gap-2.5 rounded-lg py-3 pl-2 pr-1 transition-colors hover:bg-[var(--bg-hover)] ${
         unread > 0 ? "bg-[var(--accent-blue)]/8" : ""
       } ${enabled ? "" : "opacity-60"}`}
     >
-      {unread > 0 && (
-        <span
-          aria-hidden
-          className="absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-[var(--accent-blue)]"
-        />
-      )}
+      <span className="flex w-1.5 shrink-0 justify-center pt-[7px]">
+        {unread > 0 && (
+          <span
+            aria-hidden
+            className="h-1.5 w-1.5 rounded-full bg-[var(--accent-blue)]"
+          />
+        )}
+      </span>
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--bg-hover)] text-[15px] text-[var(--text-muted)]">
         {job.emoji || <ClockIcon size={15} />}
       </span>
@@ -128,29 +131,15 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
         onClick={() => onOpen(job)}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="flex min-w-0 items-center gap-2">
+        <span className="flex min-w-0 items-baseline gap-2">
           <span
-            className={`min-w-0 truncate text-[13px] text-[var(--text-primary)] ${
+            className={`min-w-0 shrink truncate text-[13px] text-[var(--text-primary)] ${
               unread > 0 ? "font-semibold" : "font-medium"
             }`}
           >
             {job.label || job.id}
           </span>
-          {unread > 0 && (
-            <span className="shrink-0 rounded-full bg-[var(--accent-blue)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.06em] text-white">
-              {unread === 1 ? "New" : `${unread > 9 ? "9+" : unread} new`}
-            </span>
-          )}
-          {scopeLabel && (
-            <span className="shrink-0 truncate rounded-md bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-secondary)]">
-              {scopeLabel}
-            </span>
-          )}
-          {job.source === "repo" && (
-            <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              In repo
-            </span>
-          )}
+          {scopeLabel && <JobScopeTag label={scopeLabel} inRepo={job.source === "repo"} />}
         </span>
         {description && (
           <span className="mt-1 line-clamp-2 break-words text-[12px] leading-snug text-[var(--text-secondary)] [overflow-wrap:anywhere]">
@@ -168,6 +157,13 @@ export function JobRow({ job, scopeLabel, onRunNow, onStop, onToggleEnabled, onO
             )
           )}
           <span className="min-w-0 truncate">
+            {unread > 0 && !job.running && (
+              <span className="font-medium text-[var(--accent-blue-text)]">
+                {unread > 9 ? "9+" : unread} new{" "}
+                {unread === 1 ? "message" : "messages"}
+                {" · "}
+              </span>
+            )}
             {job.running ? (
               <span className="text-[var(--accent-cyan)]">
                 {runningText}

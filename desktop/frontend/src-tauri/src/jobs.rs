@@ -3867,11 +3867,15 @@ pub fn job_live_output(project: String, job_id: String) -> Result<Value, String>
 #[tauri::command(async)]
 pub fn job_history(project: String, job_id: String) -> Result<Vec<Value>, String> {
     let st = load_job_state(&state_key(&project, &job_id));
+    let seen = st.seen_at.unwrap_or(0);
     Ok(st
         .history
         .iter()
         .map(|h| {
             let mut o = json!({ "at": h.at, "result": h.result });
+            if h.at > seen && is_readable_outcome(&h.result) {
+                o["unread"] = json!(true);
+            }
             if let Some(n) = h.count.filter(|n| *n > 1) {
                 o["count"] = json!(n);
             }
