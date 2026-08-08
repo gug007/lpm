@@ -78,10 +78,7 @@ export function TerminalPane({
           fontSize={fontSize}
           onZoomIn={onZoomIn}
           onZoomOut={onZoomOut}
-          runningPaneIDs={paneStatus.running}
-          donePaneIDs={paneStatus.done}
-          waitingPaneIDs={paneStatus.waiting}
-          errorPaneIDs={paneStatus.error}
+          paneStatus={paneStatus}
           visible={visible && active && !showEmptyState}
           onResumeSession={onResumeSession}
         />

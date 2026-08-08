@@ -49,6 +49,8 @@ import { stepRecall } from "./composerRecall";
 import { COLLECTION_DRAFTS, recordMessage, saveDraft } from "../store/messageHistory";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendSplitButton } from "./SendSplitButton";
+import { AgentStatusChip } from "./AgentStatusChip";
+import type { PaneAgentStatus } from "../hooks/usePaneStatus";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { PlusIcon, SquarePenIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
@@ -144,6 +146,10 @@ interface TerminalComposerProps {
   actionName?: string;
   // Terminal font size; the composer text scales to match it.
   fontSize: number;
+  // What the agent in the target terminal is doing, and since when — null when
+  // it reports nothing. Read out in the button row, the one surface that is
+  // always on screen while you wait for the terminal it belongs to.
+  agentStatus?: PaneAgentStatus | null;
   // Returns false when the input could not be delivered (e.g. a dead session),
   // so the draft is kept rather than cleared. An array carries ordered segments
   // (text runs and image paths) to be delivered as separate pastes.
@@ -204,7 +210,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, agentStatus, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine. Images are still supported:
   // they're uploaded to the host (which returns a host-valid path) at attach time
   // via UploadClipboardImageForTerminal; other file types stay unsupported. The
@@ -2119,6 +2125,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 onView={(item) => onOpenMemorySession(item.insert)}
                 onDelete={(item) => void deleteMemorySession(item)}
               />
+            )}
+            {agentStatus && (
+              <AgentStatusChip status={agentStatus} className="pl-1.5 pr-0.5" compact />
             )}
           </div>
           <SendSplitButton

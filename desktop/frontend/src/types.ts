@@ -419,8 +419,14 @@ export interface StatusEntry {
   icon?: string;
   color?: string;
   priority: number;
+  // When this state began.
   timestamp: number;
   paneID?: string;
+  // When the agent picked the turn up, carried across the states within it —
+  // absent when the turn's start was never seen. See status.rs.
+  turnStart?: number;
+  // When the turn finished; absent while it is still running.
+  endedAt?: number;
 }
 
 export type GeneratorIcon =

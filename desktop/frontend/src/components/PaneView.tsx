@@ -46,6 +46,7 @@ import {
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
 import { useClearStatusOnInteraction } from "../hooks/useClearStatusOnInteraction";
+import { paneAgentStatus, type PaneStatus } from "../hooks/usePaneStatus";
 import { useBrowserUrls } from "../store/browserUrls";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
@@ -121,10 +122,7 @@ export interface PaneViewProps {
   fontSize: number;
   composerOpen: boolean;
   themeOverride: ITheme | null;
-  runningPaneIDs?: Set<string>;
-  donePaneIDs?: Set<string>;
-  waitingPaneIDs?: Set<string>;
-  errorPaneIDs?: Set<string>;
+  paneStatus?: PaneStatus;
   services?: ServiceTabInfo[];
   // Every terminal tab in the whole project ({id,label}), forwarded to the
   // composer's "@" mention so it can reference any terminal's logs.
@@ -199,10 +197,7 @@ function PaneViewImpl(props: PaneViewProps) {
     fontSize,
     composerOpen,
     themeOverride,
-    runningPaneIDs,
-    donePaneIDs,
-    waitingPaneIDs,
-    errorPaneIDs,
+    paneStatus,
     services = [],
     allTerminals,
     interactiveCwd,
@@ -275,6 +270,7 @@ function PaneViewImpl(props: PaneViewProps) {
     activeServiceName === null && activeTerm && isTerminalTab(activeTerm)
       ? activeTerm
       : null;
+  const composerStatus = paneAgentStatus(paneStatus, composerTab?.id);
 
   // A finish that lands on the tab already in front is the easiest one to miss:
   // it arrives while the user is somewhere else entirely. So the badge stays put
@@ -282,8 +278,8 @@ function PaneViewImpl(props: PaneViewProps) {
   // the tab merely being selected.
   const attentionKinds: StatusKind[] = [];
   if (visible && focused && activeServiceName === null && activeTerm) {
-    if (donePaneIDs?.has(activeTerm.id)) attentionKinds.push("Done");
-    if (errorPaneIDs?.has(activeTerm.id)) attentionKinds.push("Error");
+    if (paneStatus?.done.has(activeTerm.id)) attentionKinds.push("Done");
+    if (paneStatus?.error.has(activeTerm.id)) attentionKinds.push("Error");
   }
   useClearStatusOnInteraction(
     activeTerm?.id ?? null,
@@ -396,11 +392,11 @@ function PaneViewImpl(props: PaneViewProps) {
           <TabStrip paneId={pane.id} tabIds={tabIds}>
             {pane.tabs.map((t, i) => {
               const isActive = activeServiceName === null && i === terminalIdx;
-              const isDone = donePaneIDs?.has(t.id) ?? false;
+              const isDone = paneStatus?.done.has(t.id) ?? false;
               // Waiting persists across tab clicks (user memory) so we don't
               // auto-clear it here, unlike Done/Error.
-              const isWaiting = waitingPaneIDs?.has(t.id) ?? false;
-              const isError = errorPaneIDs?.has(t.id) ?? false;
+              const isWaiting = paneStatus?.waiting.has(t.id) ?? false;
+              const isError = paneStatus?.error.has(t.id) ?? false;
               // Done/Error render on the active tab as well; retiring them is
               // the interaction handler's call, not the renderer's.
               return (
@@ -411,10 +407,11 @@ function PaneViewImpl(props: PaneViewProps) {
                     icon={<TabIcon tab={t} />}
                     active={isActive}
                     pinned={t.pinned}
-                    shimmer={runningPaneIDs?.has(t.id) ?? false}
+                    shimmer={paneStatus?.running.has(t.id) ?? false}
                     done={isDone}
                     waiting={isWaiting}
                     error={isError}
+                    agentStatus={paneAgentStatus(paneStatus, t.id)}
                     color={t.color}
                     onClick={(e) => {
                       if (isDone) onClearStatus(t.id, "Done");
@@ -610,6 +607,7 @@ function PaneViewImpl(props: PaneViewProps) {
             cwd={interactiveCwd}
             launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
             actionName={composerTab.actionName}
+            agentStatus={composerStatus}
             fontSize={fontSize}
             onSubmit={(input) => onSubmitInput(composerTab.id, input)}
             onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
@@ -621,6 +619,7 @@ function PaneViewImpl(props: PaneViewProps) {
           <ComposerReopenBar
             targetLabel={terminalDisplayLabel(composerTab)}
             fontSize={fontSize}
+            agentStatus={composerStatus}
           />
         ))}
       {tabMenu && (() => {

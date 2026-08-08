@@ -25,6 +25,7 @@ import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
 import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
+import type { PaneStatus } from "../hooks/usePaneStatus";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars } from "../terminal-themes";
 import { ansiColors } from "./terminal-utils";
 import { TerminalIcon } from "./icons";
@@ -68,10 +69,7 @@ interface TerminalViewProps {
   fontSize: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
-  runningPaneIDs?: Set<string>;
-  donePaneIDs?: Set<string>;
-  waitingPaneIDs?: Set<string>;
-  errorPaneIDs?: Set<string>;
+  paneStatus?: PaneStatus;
   visible?: boolean;
   onResumeSession?: () => void;
   ref?: React.Ref<TerminalViewHandle>;
@@ -101,7 +99,7 @@ export interface TerminalViewHandle {
   openMemory(): void;
 }
 
-export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, runningPaneIDs, donePaneIDs, waitingPaneIDs, errorPaneIDs, visible = true, onResumeSession, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onResumeSession, ref }: TerminalViewProps) {
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
   );
@@ -942,10 +940,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             services={serviceTabInfos}
             allTerminals={allTerminals}
             interactiveCwd={projectRoot}
-            runningPaneIDs={runningPaneIDs}
-            donePaneIDs={donePaneIDs}
-            waitingPaneIDs={waitingPaneIDs}
-            errorPaneIDs={errorPaneIDs}
+            paneStatus={paneStatus}
             onFocusPane={focusPane}
             onFocusTab={focusTerminal}
             onFocusService={focusService}

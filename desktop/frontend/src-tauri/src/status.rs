@@ -29,11 +29,48 @@ pub struct StatusEntry {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub color: String,
     pub priority: i64,
-    pub timestamp: i64, // unix millis
+    pub timestamp: i64, // unix millis — when this state began
     #[serde(rename = "agentPID", skip_serializing_if = "is_zero")]
     pub agent_pid: i64,
     #[serde(rename = "paneID", skip_serializing_if = "String::is_empty")]
     pub pane_id: String,
+    /// When the agent picked this turn up, carried across the states within it
+    /// so a UI can say how long the work has run rather than how long it has
+    /// been in its latest state. Zero when the turn's start was never seen.
+    #[serde(rename = "turnStart", skip_serializing_if = "is_zero")]
+    pub turn_start: i64,
+    /// When the turn finished, so an elapsed reading can stop there instead of
+    /// counting on past the work it measures. Zero while the turn is running.
+    #[serde(rename = "endedAt", skip_serializing_if = "is_zero")]
+    pub ended_at: i64,
+}
+
+/// Every state an agent reports while it still owns the turn. Only Done ends
+/// one; an unrecognized value belongs to no turn at all.
+fn is_active(value: &str) -> bool {
+    value == STATUS_RUNNING || value == STATUS_WAITING || value == STATUS_ERROR
+}
+
+/// Carry `turn_start` from the entry being replaced, and stamp `ended_at` when
+/// this is the report that ends the turn. A turn spans every active state, so
+/// an approval pause (Running -> Waiting -> Running) stays one turn; a report
+/// arriving after Done, or with nothing before it, starts a fresh one.
+fn carry_turn(existing: Option<&StatusEntry>, incoming: &mut StatusEntry) {
+    let running = existing.filter(|e| is_active(&e.value));
+    let started = running.map(|e| {
+        if e.turn_start > 0 {
+            e.turn_start
+        } else {
+            e.timestamp
+        }
+    });
+    if is_active(&incoming.value) {
+        incoming.turn_start = started.unwrap_or(incoming.timestamp);
+        incoming.ended_at = 0;
+    } else if incoming.value == STATUS_DONE {
+        incoming.turn_start = started.unwrap_or(0);
+        incoming.ended_at = incoming.timestamp;
+    }
 }
 
 #[derive(Default)]
@@ -64,14 +101,17 @@ impl StatusStore {
     }
 
     /// Returns `changed` (true when the caller should emit status-changed).
-    pub fn set(&self, project: &str, entry: StatusEntry) -> bool {
+    pub fn set(&self, project: &str, mut entry: StatusEntry) -> bool {
         let mut m = self.entries.write().unwrap();
         let bucket = m.entry(project.to_string()).or_default();
-        if let Some(existing) = bucket.get(&entry.key) {
-            if !should_replace(existing, &entry) {
-                return false;
-            }
+        let existing = bucket.get(&entry.key);
+        // A re-report of the state already held keeps the entry it would have
+        // replaced, timestamps and all, so the turn is dated from its first
+        // report rather than its latest.
+        if existing.is_some_and(|e| !should_replace(e, &entry)) {
+            return false;
         }
+        carry_turn(existing, &mut entry);
         bucket.insert(entry.key.clone(), entry);
         true
     }
@@ -227,6 +267,85 @@ mod tests {
             s.set("p", entry("k", "Done", 0, 2, "p-1")),
             "value change replaces"
         );
+    }
+
+    fn only(s: &StatusStore, project: &str) -> StatusEntry {
+        s.list(project).into_iter().next().expect("one entry")
+    }
+
+    #[test]
+    fn turn_starts_at_the_first_active_report() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        let e = only(&s, "p");
+        assert_eq!(e.turn_start, 100);
+        assert_eq!(e.ended_at, 0, "a running turn has not ended");
+    }
+
+    #[test]
+    fn turn_spans_an_approval_pause() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        s.set("p", entry("k", STATUS_WAITING, 0, 200, "p-1"));
+        s.set("p", entry("k", STATUS_RUNNING, 0, 300, "p-1"));
+        let e = only(&s, "p");
+        assert_eq!(e.turn_start, 100, "one turn, not three");
+        assert_eq!(e.timestamp, 300, "but the state itself began at 300");
+    }
+
+    #[test]
+    fn done_keeps_the_turn_and_stamps_its_end() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        s.set("p", entry("k", STATUS_DONE, 0, 400, "p-1"));
+        let e = only(&s, "p");
+        assert_eq!(e.turn_start, 100);
+        assert_eq!(e.ended_at, 400, "300ms of work, held still");
+    }
+
+    #[test]
+    fn a_repeated_report_does_not_redate_the_turn() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        s.set("p", entry("k", STATUS_RUNNING, 0, 999, "p-1"));
+        assert_eq!(only(&s, "p").turn_start, 100);
+    }
+
+    #[test]
+    fn work_after_a_finish_is_a_new_turn() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        s.set("p", entry("k", STATUS_DONE, 0, 200, "p-1"));
+        s.set("p", entry("k", STATUS_RUNNING, 0, 300, "p-1"));
+        let e = only(&s, "p");
+        assert_eq!(e.turn_start, 300);
+        assert_eq!(e.ended_at, 0, "the finish stamp does not outlive its turn");
+    }
+
+    #[test]
+    fn a_finish_with_nothing_before_it_reports_no_turn() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_DONE, 0, 400, "p-1"));
+        let e = only(&s, "p");
+        assert_eq!(e.turn_start, 0, "how long it ran is unknowable");
+        assert_eq!(e.ended_at, 400);
+    }
+
+    #[test]
+    fn a_problem_belongs_to_the_turn_it_interrupts() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        s.set("p", entry("k", STATUS_ERROR, 0, 200, "p-1"));
+        assert_eq!(only(&s, "p").turn_start, 100);
+    }
+
+    #[test]
+    fn a_cleared_agent_starts_over() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", STATUS_RUNNING, 0, 100, "p-1"));
+        assert!(s.clear("p", "k"));
+        s.set("p", entry("k", STATUS_RUNNING, 0, 300, "p-1"));
+        assert_eq!(only(&s, "p").turn_start, 300);
     }
 
     #[test]

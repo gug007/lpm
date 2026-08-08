@@ -835,6 +835,9 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
         timestamp: now_millis(),
         agent_pid: options.get("pid").and_then(|p| p.parse().ok()).unwrap_or(0),
         pane_id: pane_id.clone(),
+        // Filled in by the store, which is the only thing that sees the state
+        // this report replaces.
+        ..Default::default()
     };
     // Hook frames arrive async (backgrounded `nc`), so a Done/Error can land
     // after its pane was closed and cleaned up — drop those instead of storing
