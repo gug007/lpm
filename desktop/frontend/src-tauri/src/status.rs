@@ -159,6 +159,49 @@ impl StatusStore {
         self.retain_where(project, |e| e.pane_id == pane_id)
     }
 
+    /// Hand `old_pane_id`'s finished work to `new_pane_id`: a reconnected SSH
+    /// terminal is the same tab under a new pane id, so a Done or an Error it was
+    /// already showing follows it there instead of being thrown away with the
+    /// dead pane.
+    ///
+    /// Nothing else does. Running and Waiting describe something happening right
+    /// now, and it died with the transport along with the process behind it. A
+    /// carried Waiting would also be stuck for good: a tab click retires only
+    /// Done and Error, so the only thing that can take a question back is the
+    /// agent that asked it, and that one is gone.
+    ///
+    /// Key, value and timestamp are left alone so the phone's already-delivered
+    /// notification is neither withdrawn nor sent a second time — `remote.rs`
+    /// dedups on those three and never on the pane.
+    pub fn move_pane(&self, project: &str, old_pane_id: &str, new_pane_id: &str) -> bool {
+        // An empty pane would match every status set outside a terminal.
+        if old_pane_id.is_empty() || old_pane_id == new_pane_id {
+            return false;
+        }
+        let mut m = self.entries.write().unwrap();
+        let Some(bucket) = m.get_mut(project) else {
+            return false;
+        };
+        let before = bucket.len();
+        let mut moved = false;
+        bucket.retain(|_, e| {
+            if e.pane_id != old_pane_id {
+                return true;
+            }
+            if !matches!(e.value.as_str(), STATUS_DONE | STATUS_ERROR) {
+                return false;
+            }
+            e.pane_id = new_pane_id.to_string();
+            moved = true;
+            true
+        });
+        let dropped = bucket.len() != before;
+        if dropped && bucket.is_empty() {
+            m.remove(project);
+        }
+        dropped || moved
+    }
+
     /// Entries for a project, sorted priority desc, timestamp desc, key asc.
     /// Missing project -> empty Vec (serializes to `[]`, never `null`).
     pub fn list(&self, project: &str) -> Vec<StatusEntry> {
@@ -217,6 +260,23 @@ pub fn clear_pane_status(
     pane_id: String,
 ) -> Result<(), String> {
     if store.clear_pane(&project, &pane_id) {
+        let _ = app.emit("status-changed", &project);
+    }
+    Ok(())
+}
+
+/// App-level MovePaneStatus: a remote terminal that came back under a new pane
+/// id keeps the finishes and problems it was already showing. Frontend sends
+/// {project, oldPaneId, newPaneId}.
+#[tauri::command]
+pub fn move_pane_status(
+    app: AppHandle,
+    store: State<'_, Arc<StatusStore>>,
+    project: String,
+    old_pane_id: String,
+    new_pane_id: String,
+) -> Result<(), String> {
+    if store.move_pane(&project, &old_pane_id, &new_pane_id) {
         let _ = app.emit("status-changed", &project);
     }
     Ok(())
@@ -384,5 +444,78 @@ mod tests {
         let keys: Vec<String> = s.list("p").into_iter().map(|e| e.key).collect();
         assert_eq!(keys, ["run2"]); // every p-1 entry gone regardless of value; p-2 untouched
         assert!(!s.clear_pane("p", "p-1"), "second clear is a no-op");
+    }
+
+    #[test]
+    fn a_reconnected_pane_keeps_the_work_that_finished() {
+        let s = StatusStore::new();
+        s.set("p", entry("done1", STATUS_DONE, 0, 100, "p-1"));
+        s.set("p", entry("err1", STATUS_ERROR, 0, 100, "p-1"));
+        s.set("p", entry("done2", STATUS_DONE, 0, 100, "p-2"));
+
+        assert!(s.move_pane("p", "p-1", "p-9"));
+
+        let got: Vec<(String, String)> = s
+            .list("p")
+            .into_iter()
+            .map(|e| (e.key, e.pane_id))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("done1".to_string(), "p-9".to_string()),
+                ("done2".to_string(), "p-2".to_string()),
+                ("err1".to_string(), "p-9".to_string()),
+            ]
+        );
+    }
+
+    // Waiting especially: nothing but the agent that asked can retire one, and a
+    // reconnect means that agent is never coming back to do it.
+    #[test]
+    fn a_reconnected_pane_drops_what_the_connection_killed() {
+        let s = StatusStore::new();
+        s.set("p", entry("run1", STATUS_RUNNING, 0, 100, "p-1"));
+        s.set("p", entry("wait1", STATUS_WAITING, 0, 100, "p-1"));
+        assert!(s.move_pane("p", "p-1", "p-9"));
+        assert!(s.list("p").is_empty());
+    }
+
+    // An empty pane id belongs to every status set outside a terminal, so it must
+    // never be read as "this pane".
+    #[test]
+    fn moving_nothing_in_particular_moves_nothing() {
+        let s = StatusStore::new();
+        s.set("p", entry("job", STATUS_DONE, 0, 100, ""));
+        assert!(!s.move_pane("p", "", "p-9"));
+        assert!(!s.move_pane("p", "p-1", "p-1"));
+        assert_eq!(only(&s, "p").pane_id, "");
+    }
+
+    // The phone withdraws a notification when its key disappears, so a move must
+    // not look like one — key, value and timestamp are what it compares.
+    #[test]
+    fn moving_a_pane_leaves_the_notification_alone() {
+        let s = StatusStore::new();
+        s.set("p", entry("done1", STATUS_DONE, 0, 100, "p-1"));
+        let before = only(&s, "p");
+        s.move_pane("p", "p-1", "p-9");
+        let after = only(&s, "p");
+        assert_eq!(
+            (after.key, after.value, after.timestamp),
+            (before.key, before.value, before.timestamp)
+        );
+        assert_eq!(
+            (after.turn_start, after.ended_at),
+            (before.turn_start, before.ended_at)
+        );
+    }
+
+    #[test]
+    fn moving_a_pane_with_nothing_on_it_changes_nothing() {
+        let s = StatusStore::new();
+        s.set("p", entry("done2", STATUS_DONE, 0, 100, "p-2"));
+        assert!(!s.move_pane("p", "p-1", "p-9"));
+        assert!(!s.move_pane("missing", "p-1", "p-9"));
     }
 }

@@ -55,6 +55,7 @@ macro_rules! all_command_handlers {
             clear_port_suggestions,
             clear_status,
             clear_pane_status,
+            move_pane_status,
             cli_install_status,
             install_cli,
             agent_skill_status,

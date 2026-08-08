@@ -109,6 +109,13 @@ export function ClearStatus(project, paneID, value) {
 export function ClearPaneStatus(project, paneID) {
   return invoke("clear_pane_status", { project, paneId: paneID });
 }
+export function MovePaneStatus(project, oldPaneID, newPaneID) {
+  return invoke("move_pane_status", {
+    project,
+    oldPaneId: oldPaneID,
+    newPaneId: newPaneID,
+  });
+}
 export function CreateBranch(cwd, name) {
   return invoke("create_branch", { cwd, name });
 }

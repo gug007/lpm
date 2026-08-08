@@ -3,7 +3,7 @@ import {
   StartTerminal,
   StartTerminalForRestore,
   StopTerminal,
-  ClearPaneStatus,
+  MovePaneStatus,
   IsTerminalRemote,
 } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
@@ -183,7 +183,10 @@ export function useSshReconnect({
         ),
       }));
       applyTree(swapped);
-      ClearPaneStatus(projectName, oldId).catch(() => {});
+      // The tab is the same one the user was watching, so a finish it was already
+      // showing moves across with it — a dropped connection is no answer to that.
+      // What the dead connection took with it does not move.
+      MovePaneStatus(projectName, oldId, newId).catch(() => {});
       // Defer until React commits the swap: the pane still mounted on oldId
       // must unmount before its session is destroyed.
       setTimeout(() => disposeInteractivePaneSession(oldId), 0);
