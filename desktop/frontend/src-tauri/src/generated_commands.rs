@@ -242,6 +242,7 @@ macro_rules! all_command_handlers {
             remove_project_cascade,
             remove_projects,
             rename_branch,
+            rename_memory_session,
             rename_template,
             reorder_projects,
             reset_claude_hooks,

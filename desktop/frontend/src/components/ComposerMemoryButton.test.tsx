@@ -34,6 +34,7 @@ function render(props: Partial<Parameters<typeof ComposerMemoryButton>[0]> = {})
         onOpen={props.onOpen ?? vi.fn()}
         onPick={props.onPick ?? vi.fn()}
         onView={props.onView ?? vi.fn()}
+        onRename={props.onRename ?? vi.fn()}
         onDelete={props.onDelete ?? vi.fn()}
         {...props}
       />,
@@ -51,17 +52,20 @@ const trigger = () => container.querySelector("button[aria-label='Memory']")!;
 const rows = () =>
   Array.from(document.querySelectorAll("body button")).filter((b) => !container.contains(b));
 const search = () => document.querySelector<HTMLInputElement>("input[aria-label='Search sessions']");
+const nameField = () =>
+  document.querySelector<HTMLInputElement>("input[aria-label='Session name']")!;
 
 // React tracks the input's value on the node, so setting it through the native
 // setter is what makes onChange see the new text.
-function type(text: string) {
-  const input = search()!;
+function setInput(input: HTMLInputElement, text: string) {
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
   act(() => {
     setValue.call(input, text);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
+
+const type = (text: string) => setInput(search()!, text);
 
 function key(name: string) {
   act(() => {
@@ -149,6 +153,37 @@ describe("ComposerMemoryButton", () => {
     expect(document.body.textContent).toContain("Continue a session");
   });
 
+  it("renames a session to the slug the dialog normalized", () => {
+    const onRename = vi.fn();
+    render({ onRename });
+    click(trigger());
+    click(document.querySelector("button[aria-label='Rename auth-refactor']")!);
+
+    setInput(nameField(), "Auth Refactor V2");
+    click(rows().find((b) => b.textContent === "Rename")!);
+
+    expect(onRename).toHaveBeenCalledWith(SESSIONS[0], "auth-refactor-v2");
+    expect(document.body.textContent).not.toContain("Rename session");
+  });
+
+  it("refuses a name another session already has, and Escape closes the dialog first", () => {
+    const onRename = vi.fn();
+    render({ onRename });
+    click(trigger());
+    click(document.querySelector("button[aria-label='Rename auth-refactor']")!);
+
+    setInput(nameField(), "billing");
+    const save = rows().find((b) => b.textContent === "Rename") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    expect(document.body.textContent).toContain("already taken");
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(onRename).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Continue a session");
+  });
+
   it("keeps the plain list at three sessions and searches from four", () => {
     render({ sessions: MANY.slice(0, 3), infoById: new Map() });
     click(trigger());
@@ -173,6 +208,25 @@ describe("ComposerMemoryButton", () => {
 
     key("Enter");
     expect(onPick).toHaveBeenCalledWith(MANY[1]);
+  });
+
+  // The actions overlay the row rather than sitting inside its button, so the
+  // pointer being on them still has to count as being on the row — otherwise
+  // Enter takes a different session than the one lit up.
+  it("follows the pointer onto a whole row, actions included", () => {
+    const onPick = vi.fn();
+    render({ sessions: MANY, infoById: new Map(), onPick });
+    click(trigger());
+
+    const row = document.querySelectorAll("body li")[2];
+    act(() => {
+      row
+        .querySelector("button[aria-label^='Rename']")!
+        .dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    });
+    key("Enter");
+
+    expect(onPick).toHaveBeenCalledWith(MANY[2]);
   });
 
   it("walks matches with the arrow keys", () => {

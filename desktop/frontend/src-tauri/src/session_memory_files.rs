@@ -18,6 +18,7 @@ const MAX_DOC_BYTES: u64 = 1024 * 1024;
 const TOO_LARGE: &str =
     "_This session file is too large to show here. Open it from ~/.lpm/memory/._";
 const MAX_NAME_LEN: usize = 64;
+const BAD_NAME: &str = "A session name may only use lowercase letters, numbers and dashes.";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -169,7 +170,7 @@ fn write_session_at(
     baseline: Option<&str>,
 ) -> Result<(), String> {
     if !is_valid_name(name) {
-        return Err("A session name may only use lowercase letters, numbers and dashes.".into());
+        return Err(BAD_NAME.into());
     }
     let path = dir.join(format!("{name}.md"));
     if let Some(expected) = baseline {
@@ -207,7 +208,7 @@ pub fn delete_memory_session(project: String, name: String) -> Result<(), String
 
 fn delete_session_at(dir: &Path, name: &str) -> Result<(), String> {
     if !is_valid_name(name) {
-        return Err("A session name may only use lowercase letters, numbers and dashes.".into());
+        return Err(BAD_NAME.into());
     }
     let path = dir.join(format!("{name}.md"));
     match std::fs::remove_file(&path) {
@@ -215,6 +216,42 @@ fn delete_session_at(dir: &Path, name: &str) -> Result<(), String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(format!("cannot delete {}: {e}", path.display())),
     }
+}
+
+/// Renaming moves the file and leaves its text alone: what changes is the id an
+/// agent continues the work by. Unlike delete this refuses to act on a missing
+/// or an already-taken name — merging two workstreams into one file, or
+/// resurrecting a session an agent just removed, is never what was meant.
+#[tauri::command(async)]
+pub fn rename_memory_session(
+    project: String,
+    name: String,
+    new_name: String,
+) -> Result<(), String> {
+    ensure_local_project(&project)?;
+    rename_session_at(
+        &crate::session_memory_scope::memory_dir(&project)?,
+        &name,
+        &new_name,
+    )
+}
+
+fn rename_session_at(dir: &Path, from: &str, to: &str) -> Result<(), String> {
+    if !is_valid_name(from) || !is_valid_name(to) {
+        return Err(BAD_NAME.into());
+    }
+    if from == to {
+        return Ok(());
+    }
+    let src = dir.join(format!("{from}.md"));
+    let dst = dir.join(format!("{to}.md"));
+    if !src.is_file() {
+        return Err("This session was removed.".into());
+    }
+    if dst.exists() {
+        return Err(format!("“{to}” is already taken by another session."));
+    }
+    std::fs::rename(&src, &dst).map_err(|e| format!("cannot rename {}: {e}", src.display()))
 }
 
 /// Drop a removed project's own memory folder. Numbered duplicate names get
@@ -439,6 +476,58 @@ mod tests {
         assert!(delete_session_at(&dir, "Keep").is_err());
         assert!(tmp.path().join("memory").join("escape.md").exists());
         assert!(dir.join("keep.md").exists());
+    }
+
+    #[test]
+    fn rename_moves_the_file_and_keeps_its_text() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_memory(tmp.path(), "auth.md", "# Auth\n\n## Goal\nShip it.\n");
+
+        rename_session_at(tmp.path(), "auth", "auth-refactor").unwrap();
+        assert!(!tmp.path().join("auth.md").exists());
+        assert_eq!(
+            std::fs::read_to_string(tmp.path().join("auth-refactor.md")).unwrap(),
+            "# Auth\n\n## Goal\nShip it.\n",
+            "the document is untouched — only the id changes"
+        );
+        // Renaming to the current name is a no-op, not a self-collision error.
+        rename_session_at(tmp.path(), "auth-refactor", "auth-refactor").unwrap();
+    }
+
+    #[test]
+    fn rename_never_swallows_another_session_or_a_missing_one() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_memory(tmp.path(), "auth.md", "# Auth");
+        write_memory(tmp.path(), "freeze.md", "# Freeze");
+
+        assert!(rename_session_at(tmp.path(), "auth", "freeze").is_err());
+        assert_eq!(
+            std::fs::read_to_string(tmp.path().join("freeze.md")).unwrap(),
+            "# Freeze"
+        );
+        assert!(tmp.path().join("auth.md").exists());
+
+        // An agent deleted it while the pane had it listed: say so rather than
+        // quietly creating an empty session under the new name.
+        assert!(rename_session_at(tmp.path(), "gone", "still-here").is_err());
+        assert!(!tmp.path().join("still-here.md").exists());
+    }
+
+    #[test]
+    fn rename_rejects_a_bad_name_on_either_side() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("memory").join("web");
+        write_memory(&dir, "keep.md", "# Keep");
+        std::fs::write(tmp.path().join("memory").join("escape.md"), "# Escape").unwrap();
+
+        assert!(rename_session_at(&dir, "keep", "../escape").is_err());
+        assert!(rename_session_at(&dir, "../escape", "keep2").is_err());
+        assert!(rename_session_at(&dir, "keep", "Keep").is_err());
+        assert!(dir.join("keep.md").exists());
+        assert_eq!(
+            std::fs::read_to_string(tmp.path().join("memory").join("escape.md")).unwrap(),
+            "# Escape"
+        );
     }
 
     #[test]

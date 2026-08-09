@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   DeleteMemorySession,
   ReadMemorySessions,
+  RenameMemorySession,
   WriteMemorySession,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
@@ -10,12 +11,22 @@ import { MEMORY_CHANGED_EVENT, type MemorySession } from "../types";
 import { useAppStore } from "../store/app";
 import { useNow } from "../hooks/useNow";
 import { useContentZoom } from "../hooks/useContentZoom";
+import { MemoryCreateForm } from "./MemoryCreateForm";
+import { MemoryEditor } from "./MemoryEditor";
+import { MemoryRenameDialog } from "./MemoryRenameDialog";
 import { MemorySessionList } from "./MemorySessionList";
 import { MemoryStamp } from "./MemoryStamp";
 import { MessageMarkdown } from "./MessageMarkdown";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { ZoomControl } from "./ui/ZoomControl";
-import { BrainIcon, ChevronLeftIcon, PencilIcon, PlusIcon, TrashIcon } from "./icons";
+import {
+  BrainIcon,
+  ChevronLeftIcon,
+  PencilIcon,
+  PlusIcon,
+  SquarePenIcon,
+  TrashIcon,
+} from "./icons";
 
 interface MemoryViewProps {
   projectName: string;
@@ -29,7 +40,6 @@ interface MemoryViewProps {
 }
 
 const ZOOM_KEY = "lpm.memory-zoom";
-const EDITOR_FONT_PX = 13;
 
 type View = { kind: "list" } | { kind: "detail"; name: string } | { kind: "create" };
 
@@ -59,6 +69,7 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
   const [newTitle, setNewTitle] = useState("");
   const [saving, setSaving] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<MemorySession | null>(null);
+  const [pendingRename, setPendingRename] = useState<MemorySession | null>(null);
   const zoom = useContentZoom(visible && focused, ZOOM_KEY);
   useNow(visible, 30000);
 
@@ -158,6 +169,21 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
     setView({ kind: "list" });
   };
 
+  // Renaming the session the pane is showing has to carry the view with it —
+  // the old name now names nothing, and the detail would read as removed.
+  const confirmRename = async (name: string) => {
+    if (!pendingRename) return;
+    const from = pendingRename.name;
+    setPendingRename(null);
+    try {
+      await RenameMemorySession(projectName, from, name);
+      if (view.kind === "detail" && view.name === from) setView({ kind: "detail", name });
+      await refresh();
+    } catch (err) {
+      toast.error(`Rename memory: ${String(err)}`);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     const gone = pendingDelete;
@@ -223,6 +249,14 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
           <>
             <MemoryStamp session={detail} />
             <button
+              onClick={() => setPendingRename(detail)}
+              aria-label="Rename session"
+              title="Rename session"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            >
+              <SquarePenIcon size={13} />
+            </button>
+            <button
               onClick={() => startEdit(detail)}
               className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
@@ -277,6 +311,7 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
           sessions={sessions}
           zoom={zoom}
           onOpen={(name) => setView({ kind: "detail", name })}
+          onRename={setPendingRename}
           onDelete={setPendingDelete}
         />
       )}
@@ -300,79 +335,35 @@ export function MemoryView({ projectName, visible, focused, target }: MemoryView
       )}
 
       {detail && editing && (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if ((e.metaKey || e.ctrlKey) && (e.key === "Enter" || e.key.toLowerCase() === "s")) {
-                e.preventDefault();
-                if (!saving && draft !== baseline) void saveEdit();
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                setEditing(false);
-              }
-            }}
-            spellCheck={false}
-            autoFocus
-            style={{ fontSize: EDITOR_FONT_PX * zoom.zoom, lineHeight: 1.7 }}
-            className="min-h-0 w-full flex-1 resize-none bg-[var(--bg-primary)] px-8 py-5 font-mono text-[var(--text-primary)] focus:outline-none"
-          />
-          <div className="flex items-center gap-2 border-t border-[var(--border)] px-4 py-2.5">
-            <span className="flex-1 text-[11px] text-[var(--text-muted)]">⌘⏎ save · esc cancel</span>
-            <button
-              onClick={() => setEditing(false)}
-              className="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => void saveEdit()}
-              disabled={saving || draft === baseline}
-              className="rounded-md bg-[var(--text-primary)] px-2.5 py-1 text-xs font-medium text-[var(--bg-primary)] transition-opacity disabled:opacity-40 hover:opacity-85"
-            >
-              Save
-            </button>
-          </div>
-        </div>
+        <MemoryEditor
+          draft={draft}
+          baseline={baseline}
+          saving={saving}
+          zoom={zoom.zoom}
+          onChange={setDraft}
+          onCancel={() => setEditing(false)}
+          onSave={() => void saveEdit()}
+        />
       )}
 
       {view.kind === "create" && (
-        <div className="flex min-h-0 flex-1 justify-center px-6 pt-14">
-          <div className="w-full max-w-md">
-            <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">
-              New session
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void create();
-              }}
-              className="flex items-center gap-2"
-            >
-              <input
-                autoFocus
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="What is this session about?"
-                className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sidebar)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-purple)]/50 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={saving || !slugify(newTitle)}
-                className="rounded-lg bg-[var(--text-primary)] px-3 py-2 text-sm font-medium text-[var(--bg-primary)] transition-opacity disabled:opacity-40 hover:opacity-85"
-              >
-                Create
-              </button>
-            </form>
-            {slugify(newTitle) && (
-              <div className="mt-2 font-mono text-[11px] text-[var(--text-muted)]">
-                ~/.lpm/memory/{owner || projectName}/{slugify(newTitle)}.md
-              </div>
-            )}
-          </div>
-        </div>
+        <MemoryCreateForm
+          title={newTitle}
+          slug={slugify(newTitle)}
+          owner={owner || projectName}
+          saving={saving}
+          onChange={setNewTitle}
+          onSubmit={() => void create()}
+        />
       )}
+
+      <MemoryRenameDialog
+        open={pendingRename !== null}
+        currentName={pendingRename?.name ?? ""}
+        taken={sessions.map((s) => s.name)}
+        onCancel={() => setPendingRename(null)}
+        onSubmit={(name) => void confirmRename(name)}
+      />
 
       <ConfirmDialog
         open={pendingDelete !== null}

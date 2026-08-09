@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Eye, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
-import { relativeTime } from "../relativeTime";
 import type { MemorySessionInfo } from "../hooks/useMemorySessions";
 import type { MentionItem } from "../mentions";
-import { BrainIcon, SearchIcon, TrashIcon } from "./icons";
+import { BrainIcon, SearchIcon } from "./icons";
+import { ComposerMemoryRow } from "./ComposerMemoryRow";
+import { MemoryRenameDialog } from "./MemoryRenameDialog";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -30,6 +31,8 @@ interface ComposerMemoryButtonProps {
   onPick: (item: MentionItem) => void;
   // Opens the session in the Memory tab, to read or edit it there.
   onView: (item: MentionItem) => void;
+  // Gives the session a new id, the one agents continue it by.
+  onRename: (item: MentionItem, name: string) => void;
   // Removes the session file, after the user confirms here.
   onDelete: (item: MentionItem) => void;
 }
@@ -37,11 +40,20 @@ interface ComposerMemoryButtonProps {
 // Footer control beside Drafts: the same memory pool the "@" menu drills into,
 // reachable without typing. Picking a row drops the skill invocation into the
 // composer for the user to review and send.
-export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onView, onDelete }: ComposerMemoryButtonProps) {
+export function ComposerMemoryButton({
+  sessions,
+  infoById,
+  onOpen,
+  onPick,
+  onView,
+  onRename,
+  onDelete,
+}: ComposerMemoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const [pendingDelete, setPendingDelete] = useState<MentionItem | null>(null);
+  const [pendingRename, setPendingRename] = useState<MentionItem | null>(null);
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
     open,
     onClose: () => setOpen(false),
@@ -65,7 +77,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
 
   useEffect(() => setActive(0), [needle]);
 
-  // Escape dismisses the confirmation first, then a live search, then the panel;
+  // Escape dismisses an open dialog first, then a live search, then the panel;
   // captured so it doesn't also reach the composer's own handler, which would
   // refocus the terminal underneath. The editor keeps focus throughout, so its
   // handler — which stops propagation — would otherwise swallow Escape before
@@ -76,12 +88,13 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
       if (e.key !== "Escape") return;
       e.stopPropagation();
       if (pendingDelete) setPendingDelete(null);
+      else if (pendingRename) setPendingRename(null);
       else if (needle) setQuery("");
       else setOpen(false);
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, pendingDelete, needle]);
+  }, [open, pendingDelete, pendingRename, needle]);
 
   // Keep clicks from pulling focus off the composer editor; the caret stays put
   // so the invocation lands where the user was typing.
@@ -91,6 +104,7 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
     if (open) {
       setOpen(false);
       setPendingDelete(null);
+      setPendingRename(null);
       return;
     }
     onOpen();
@@ -130,6 +144,12 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
     if (!pendingDelete) return;
     onDelete(pendingDelete);
     setPendingDelete(null);
+  };
+
+  const confirmRename = (name: string) => {
+    if (!pendingRename) return;
+    onRename(pendingRename, name);
+    setPendingRename(null);
   };
 
   return (
@@ -212,61 +232,19 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
                     </p>
                   )}
                   <ul className="max-h-60 min-h-0 overflow-y-auto pb-1.5">
-                    {visible.map((session, i) => {
-                      const updatedAt = infoById.get(session.insert)?.updatedAt;
-                      return (
-                        <li key={session.insert} className="group/row relative">
-                          <button
-                            type="button"
-                            onMouseDown={keepEditorFocus}
-                            onMouseEnter={() => setActive(i)}
-                            onClick={() => pick(session)}
-                            className={`group flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)] ${
-                              searchable && i === active ? "bg-[var(--bg-hover)]" : ""
-                            }`}
-                          >
-                            <span className="shrink-0 text-[var(--text-muted)] transition-colors group-hover:text-[var(--accent-cyan)]">
-                              <BrainIcon />
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[12.5px] leading-[17px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                                {session.label}
-                              </span>
-                              {session.detail && (
-                                <span className="block truncate text-[11px] leading-[15px] text-[var(--text-muted)]">
-                                  {session.detail}
-                                </span>
-                              )}
-                            </span>
-                            {updatedAt !== undefined && (
-                              <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)] group-hover/row:invisible">
-                                {relativeTime(updatedAt)}
-                              </span>
-                            )}
-                          </button>
-                          <span className="absolute right-2 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover/row:flex">
-                            <button
-                              type="button"
-                              onMouseDown={keepEditorFocus}
-                              onClick={() => view(session)}
-                              aria-label={`Open ${session.label} in Memory`}
-                              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--accent-purple)]"
-                            >
-                              <Eye size={12} />
-                            </button>
-                            <button
-                              type="button"
-                              onMouseDown={keepEditorFocus}
-                              onClick={() => setPendingDelete(session)}
-                              aria-label={`Delete ${session.label}`}
-                              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--accent-red)]"
-                            >
-                              <TrashIcon size={12} />
-                            </button>
-                          </span>
-                        </li>
-                      );
-                    })}
+                    {visible.map((session, i) => (
+                      <ComposerMemoryRow
+                        key={session.insert}
+                        session={session}
+                        updatedAt={infoById.get(session.insert)?.updatedAt}
+                        highlighted={searchable && i === active}
+                        onHover={() => setActive(i)}
+                        onPick={() => pick(session)}
+                        onView={() => view(session)}
+                        onRename={() => setPendingRename(session)}
+                        onDelete={() => setPendingDelete(session)}
+                      />
+                    ))}
                   </ul>
                 </>
               )}
@@ -274,6 +252,15 @@ export function ComposerMemoryButton({ sessions, infoById, onOpen, onPick, onVie
           </div>,
           document.body,
         )}
+
+      <MemoryRenameDialog
+        open={pendingRename !== null}
+        currentName={pendingRename?.insert ?? ""}
+        taken={sessions.map((s) => s.insert)}
+        zIndexClassName="z-[90]"
+        onCancel={() => setPendingRename(null)}
+        onSubmit={confirmRename}
+      />
 
       <ConfirmDialog
         open={pendingDelete !== null}

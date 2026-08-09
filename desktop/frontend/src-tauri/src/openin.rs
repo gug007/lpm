@@ -126,6 +126,13 @@ const TARGETS: &[Target] = &[
         file_only: false,
         remote_capable: false,
     },
+    Target {
+        id: "path-finder",
+        label: "Path Finder",
+        icon: "",
+        file_only: false,
+        remote_capable: false,
+    },
 ];
 
 fn home() -> String {
@@ -206,6 +213,15 @@ fn detect(id: &str) -> Option<String> {
         "ghostty" => detect_by_paths(&["/Applications/Ghostty.app"]),
         "warp" => detect_by_paths(&["/Applications/Warp.app"]),
         "finder" => Some("/System/Library/CoreServices/Finder.app".to_string()),
+        // Cocoatech ships the bundle both plain and version-suffixed depending on
+        // the release, and Setapp installs into its own subfolder (which the
+        // prefix scan doesn't walk), so all three are named explicitly.
+        "path-finder" => detect_by_paths(&[
+            "/Applications/Path Finder 26.app",
+            "/Applications/Path Finder.app",
+            "/Applications/Setapp/Path Finder.app",
+        ])
+        .or_else(|| detect_by_prefix("Path Finder")),
         _ => None,
     }
 }
@@ -293,7 +309,9 @@ pub fn open_in(target_id: String, project_path: String) -> Result<(), String> {
         "terminal" => launch_terminal(&path),
         "iterm2" => launch_iterm(&path),
         "ghostty" => launch_ghostty(&path),
-        _ => run(Command::new("open").args(["-a", t.label, &path])),
+        // By bundle path, not label: a version-suffixed bundle (Path Finder 26)
+        // has no app named after the label for `open -a` to resolve.
+        _ => run(Command::new("open").args(["-a", &app_path, &path])),
     }
 }
 
@@ -382,13 +400,13 @@ pub fn open_file_in_editor(
     if !editor_id.is_empty() {
         let t = target(&editor_id).ok_or_else(|| format!("unknown editor: {editor_id}"))?;
         let app_path = detect(&editor_id).ok_or_else(|| format!("{} is not installed", t.label))?;
-        return open_file_with(&editor_id, t.label, &app_path, &abs, line, col);
+        return open_file_with(&editor_id, &app_path, &abs, line, col);
     }
     // No editor specified: first installed target with a file-open recipe.
     for t in TARGETS {
         if editor_has_recipe(t.id) {
             if let Some(app_path) = detect(t.id) {
-                return open_file_with(t.id, t.label, &app_path, &abs, line, col);
+                return open_file_with(t.id, &app_path, &abs, line, col);
             }
         }
     }
@@ -412,14 +430,7 @@ fn format_path_spec(path: &str, line: i64, col: i64) -> String {
     }
 }
 
-fn open_file_with(
-    id: &str,
-    label: &str,
-    app_path: &str,
-    abs: &str,
-    line: i64,
-    col: i64,
-) -> Result<(), String> {
+fn open_file_with(id: &str, app_path: &str, abs: &str, line: i64, col: i64) -> Result<(), String> {
     let spec = format_path_spec(abs, line, col);
     match id {
         "cursor" => run(
@@ -452,8 +463,9 @@ fn open_file_with(
             c.arg(abs);
             run(&mut c)
         }
-        // xcode, typora, terminals: no per-line recipe — open the app on the file.
-        _ => run(Command::new("open").args(["-a", label, abs])),
+        // xcode, typora, terminals, file managers: no per-line recipe — open the
+        // app on the file.
+        _ => run(Command::new("open").args(["-a", app_path, abs])),
     }
 }
 

@@ -1,12 +1,13 @@
 import type { ContentZoom } from "../hooks/useContentZoom";
 import type { MemorySession } from "../types";
 import { MemoryStamp } from "./MemoryStamp";
-import { TrashIcon } from "./icons";
+import { SquarePenIcon, TrashIcon } from "./icons";
 
 interface MemorySessionListProps {
   sessions: MemorySession[];
   zoom: ContentZoom;
   onOpen: (name: string) => void;
+  onRename: (session: MemorySession) => void;
   onDelete: (session: MemorySession) => void;
 }
 
@@ -24,12 +25,13 @@ function goalOf(content: string): string {
   return "";
 }
 
-// Delete sits outside the card button rather than inside it — a button nested in
-// a button is invalid, and the row stays one keyboard stop for opening.
+// Rename and delete sit outside the card button rather than inside it — a button
+// nested in a button is invalid, and the row stays one keyboard stop for opening.
 export function MemorySessionList({
   sessions,
   zoom,
   onOpen,
+  onRename,
   onDelete,
 }: MemorySessionListProps) {
   return (
@@ -59,14 +61,24 @@ export function MemorySessionList({
                     </span>
                   )}
                 </button>
-                <button
-                  onClick={() => onDelete(s)}
-                  title="Delete session"
-                  aria-label={`Delete ${s.title}`}
-                  className="absolute right-3 top-3 hidden h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors group-hover:flex hover:bg-[var(--bg-primary)] hover:text-[var(--accent-red)]"
-                >
-                  <TrashIcon />
-                </button>
+                <span className="absolute right-3 top-3 hidden items-center gap-0.5 group-hover:flex">
+                  <button
+                    onClick={() => onRename(s)}
+                    title="Rename session"
+                    aria-label={`Rename ${s.title}`}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]"
+                  >
+                    <SquarePenIcon size={13} />
+                  </button>
+                  <button
+                    onClick={() => onDelete(s)}
+                    title="Delete session"
+                    aria-label={`Delete ${s.title}`}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-primary)] hover:text-[var(--accent-red)]"
+                  >
+                    <TrashIcon />
+                  </button>
+                </span>
               </li>
             );
           })}

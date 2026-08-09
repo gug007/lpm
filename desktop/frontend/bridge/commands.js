@@ -614,6 +614,9 @@ export function RemoveProjects(names) {
 export function RenameBranch(cwd, oldName, newName) {
   return invoke("rename_branch", { cwd, oldName, newName });
 }
+export function RenameMemorySession(project, name, newName) {
+  return invoke("rename_memory_session", { project, name, newName });
+}
 export function RenameTemplate(oldName, newName) {
   return invoke("rename_template", { oldName, newName });
 }

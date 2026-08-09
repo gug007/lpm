@@ -201,6 +201,7 @@ export function RemoveProject(...args: any[]): Promise<any>;
 export function RemoveProjectCascade(...args: any[]): Promise<any>;
 export function RemoveProjects(...args: any[]): Promise<any>;
 export function RenameBranch(...args: any[]): Promise<any>;
+export function RenameMemorySession(...args: any[]): Promise<any>;
 export function RenameTemplate(...args: any[]): Promise<any>;
 export function ReorderProjects(...args: any[]): Promise<any>;
 export function ResetClaudeHooks(...args: any[]): Promise<any>;

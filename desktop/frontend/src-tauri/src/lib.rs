@@ -147,7 +147,9 @@ use projects_crud::*;
 use pty::*;
 use remote::*;
 use services::*;
-use session_memory_files::{delete_memory_session, read_memory_sessions, write_memory_session};
+use session_memory_files::{
+    delete_memory_session, read_memory_sessions, rename_memory_session, write_memory_session,
+};
 use skill_install::*;
 use sound::*;
 use sshconfig::*;

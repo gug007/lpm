@@ -17,6 +17,7 @@ import {
   NotesReadFileAsInput,
   ReadClipboardFiles,
   RemoteSetComposerDraft,
+  RenameMemorySession,
   SaveClipboardImage,
   TransformText,
   UploadAndQuoteForTerminal,
@@ -1540,6 +1541,18 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
   };
 
+  // The dialog took focus off the editor to be typed into, so hand it back —
+  // the user was mid-draft when they reached for the memory list.
+  const renameMemorySession = async (item: MentionItem, name: string) => {
+    try {
+      await RenameMemorySession(projectName, item.insert, name);
+      reloadMemorySessions();
+    } catch (err) {
+      toast.error(`Rename memory: ${String(err)}`);
+    }
+    editorRef.current?.focus();
+  };
+
   // Capture the service's current pane output (an async tmux grab) and inject it.
   const insertServiceLog = async (editor: HTMLDivElement, item: MentionItem) => {
     let body = "";
@@ -2123,6 +2136,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
                 onOpen={reloadMemorySessions}
                 onPick={insertMemorySession}
                 onView={(item) => onOpenMemorySession(item.insert)}
+                onRename={(item, name) => void renameMemorySession(item, name)}
                 onDelete={(item) => void deleteMemorySession(item)}
               />
             )}
