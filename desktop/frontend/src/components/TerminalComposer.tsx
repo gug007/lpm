@@ -2072,7 +2072,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         {blank && (
           <div
             style={textStyle}
-            className="pointer-events-none absolute left-3.5 top-1.5 text-[var(--composer-fg-muted)]"
+            className="pointer-events-none absolute left-3.5 right-3.5 top-1.5 truncate text-[var(--composer-fg-muted)]"
           >
             {composerPlaceholder(targetLabel)}
           </div>
