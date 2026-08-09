@@ -1541,6 +1541,11 @@ struct StatusEntry: Identifiable {
     // The terminal this status belongs to; empty when the reporting agent didn't
     // name one (older servers, or a status raised outside a pane).
     let paneID: String
+    // When the agent picked the turn up, carried across the states within it — 0
+    // when the turn's start was never seen.
+    let turnStart: Int
+    // When the turn finished; 0 while it is still running.
+    let endedAt: Int
 
     var id: String { key }
 
@@ -1550,6 +1555,8 @@ struct StatusEntry: Identifiable {
         priority = o["priority"] as? Int ?? 0
         timestamp = o["timestamp"] as? Int ?? 0
         paneID = o["paneID"] as? String ?? ""
+        turnStart = o["turnStart"] as? Int ?? 0
+        endedAt = o["endedAt"] as? Int ?? 0
     }
 }
 

@@ -1,6 +1,15 @@
 import SwiftUI
 import UIKit
 
+/// A terminal a task row opens, addressed before the project's tab list has
+/// loaded — the same pair `NotificationTerminalDestination` takes.
+private struct TerminalTarget: Hashable, Identifiable {
+    let project: String
+    let terminalId: String
+
+    var id: String { "\(project):\(terminalId)" }
+}
+
 private enum NotificationRoute: Hashable {
     case automations
     case terminal(project: String, id: String)
@@ -409,8 +418,26 @@ struct ProjectsView: View {
     @State private var deletingFolder: ProjectFolder?
     @State private var creatingFolder = false
     @State private var folderNameText = ""
+    // Unix millis, ticked while an agent's reading is still counting up.
+    @State private var now = Int(Date().timeIntervalSince1970 * 1000)
+    // The terminal a tapped task row opens. A task row is not a disclosure row —
+    // it pushes without the chevron a NavigationLink would draw.
+    @State private var openTerminal: TerminalTarget?
 
     private func isExpanded(_ g: ProjectFolder) -> Bool { expandedOverride[g.id] ?? !g.collapsed }
+
+    private func agentRows(_ project: Project) -> [ProjectAgentRow] {
+        projectAgentRows(project, now: now,
+                         tabTitles: model.activityTerminalTitles[project.name] ?? [:])
+    }
+
+    /// Nothing to tick once every reading has frozen, so a quiet Mac costs no
+    /// per-second work at all.
+    private var hasTickingAgent: Bool {
+        model.projects.contains { project in
+            agentRows(project).contains(where: \.isTicking)
+        }
+    }
 
     /// A friendly reference to a Mac in confirmation copy: its name in quotes, or
     /// "the Mac at <address>" while it's still identified only by an IP.
@@ -457,14 +484,31 @@ struct ProjectsView: View {
         }
     }
 
+    @ViewBuilder
     private func projectLink(_ row: SidebarRow, indented: Bool) -> some View {
+        let agents = agentRows(row.project)
         NavigationLink(value: row.project.name) {
             ProjectRow(project: row.project,
-                       pending: model.pendingRun[row.project.name] != nil)
+                       pending: model.pendingRun[row.project.name] != nil,
+                       alert: projectAgentAlert(agents))
                 .padding(.leading, indented ? 20 : 0)
         }
         .projectRowActions(row.project, removing: $removing, duplicating: $duplicating,
                            newFolderForProject: $newFolderForProject)
+
+        ForEach(agents) { agent in
+            Button {
+                if let terminal = agent.terminalId {
+                    openTerminal = TerminalTarget(project: row.project.name, terminalId: terminal)
+                }
+            } label: {
+                ProjectAgentRowView(row: agent, now: now)
+                    .padding(.leading, indented ? 20 : 0)
+            }
+            .buttonStyle(.plain)
+            .disabled(agent.terminalId == nil)
+            .listRowSeparator(.hidden)
+        }
     }
 
     var body: some View {
@@ -474,6 +518,19 @@ struct ProjectsView: View {
             }
         }
         .refreshable { await model.refreshProjects() }
+        // Task rows are named after the tab they run in, and only the Mac knows
+        // those names.
+        .task { model.loadActivityTerminals() }
+        .task(id: hasTickingAgent) {
+            while hasTickingAgent && !Task.isCancelled {
+                now = Int(Date().timeIntervalSince1970 * 1000)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+        .navigationDestination(item: $openTerminal) { target in
+            NotificationTerminalDestination(projectName: target.project,
+                                            terminalId: target.terminalId)
+        }
         .navigationTitle("Projects")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -1020,6 +1077,9 @@ struct FolderHeader: View {
 struct ProjectRow: View {
     let project: Project
     var pending: Bool = false
+    /// The one agent that wants the user, when one does. What the rest are doing is
+    /// in the task rows underneath.
+    var alert: ProjectAgentRow?
 
     var body: some View {
         HStack {
@@ -1033,8 +1093,10 @@ struct ProjectRow: View {
             .frame(width: 14)
             Text(project.label)
             Spacer()
-            if let s = project.statusEntries.first {
-                StatusBadge(value: s.value)
+            if let alert {
+                Text(alert.state.label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(alert.state.tint)
             }
         }
     }
@@ -1050,25 +1112,6 @@ struct RunningDot: View {
         Circle()
             .fill(running ? .green : .secondary)
             .frame(width: size, height: size)
-    }
-}
-
-struct StatusBadge: View {
-    let value: String
-    var color: SwiftUI.Color {
-        switch value {
-        case "Waiting": return .orange
-        case "Error": return .red
-        case "Done": return .green
-        default: return .blue
-        }
-    }
-    var body: some View {
-        Text(value)
-            .font(.caption2).bold()
-            .padding(.horizontal, 6).padding(.vertical, 2)
-            .background(color.opacity(0.15)).foregroundStyle(color)
-            .clipShape(Capsule())
     }
 }
 

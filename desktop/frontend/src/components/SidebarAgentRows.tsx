@@ -7,6 +7,9 @@ import { CheckIcon } from "./icons";
 
 export interface SidebarAgentRowsProps {
   projectName: string;
+  /** The project as the user reads it, where that is not the name the rest of
+   *  the app routes by — a paired host's projects carry a peer marker. */
+  label?: string;
   agents: SidebarAgentRow[];
   onOpenAgent: (projectName: string, agent: SidebarAgentRow) => void;
 }
@@ -16,6 +19,7 @@ export interface SidebarAgentRowsProps {
  *  it lands, and how long it took. Each line opens its terminal. */
 export const SidebarAgentRows = memo(function SidebarAgentRows({
   projectName,
+  label,
   agents,
   onOpenAgent,
 }: SidebarAgentRowsProps) {
@@ -29,7 +33,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           // Padding + mark + gap add up to the project row's own text offset,
           // so a task's name sits directly under the project's.
           className="flex w-full select-none items-center gap-2 rounded-md py-1 pl-2.5 pr-3 text-left text-[12px] text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-          title={`${AGENT_STATE_LABEL[agent.state]} — ${agent.provider} in ${projectName}`}
+          title={`${AGENT_STATE_LABEL[agent.state]} — ${agent.provider} in ${label ?? projectName}`}
         >
           <AgentStateIcon state={agent.state} />
           {/* The name is the state: it shimmers while the work runs and turns

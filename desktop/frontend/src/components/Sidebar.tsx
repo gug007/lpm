@@ -22,17 +22,11 @@ import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
 import { agentAmbient, computeProjectStatus } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
-import { readCollapsedProjects, writeCollapsedProjects } from "../sidebarCollapsed";
+import { useCollapsedAgents } from "../sidebarCollapsed";
+import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
-import {
-  SidebarIcon,
-  AlertCircleIcon,
-  ChevronRightIcon,
-  MoreVerticalIcon,
-  DetachIcon,
-  TerminalIcon,
-} from "./icons";
+import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarActivityButton } from "./SidebarActivityButton";
@@ -186,9 +180,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     null,
   );
   const [activeId, setActiveId] = useState<string | null>(null);
-  // A project shows its agents unless the user closed that row; this window
-  // keeps its own set of closed ones, seeded from the last one they left.
-  const [collapsedAgents, setCollapsedAgents] = useState<Set<string>>(readCollapsedProjects);
+  const collapsedAgents = useCollapsedAgents((s) => s.collapsed);
+  const toggleExpanded = useCollapsedAgents((s) => s.toggle);
   const { width, handleResizeStart } = useSidebarResize();
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   // Only a project this window has open publishes its tab names; the rest fall
@@ -196,13 +189,6 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const terminalTitles = useTerminalTitles((s) => s.byProject);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-
-  const toggleExpanded = (name: string) => {
-    const next = new Set(collapsedAgents);
-    if (!next.delete(name)) next.add(name);
-    setCollapsedAgents(next);
-    writeCollapsedProjects(next);
-  };
 
   // An agent row opens the terminal the agent is in; one whose pane the backend
   // never named can still only take you to the project. Stable, so the agent
@@ -779,26 +765,17 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             {alert && <SidebarAgentSummary agent={alert} />}
           </button>
           {canExpand && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleExpanded(project.name);
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className={`absolute top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-[right,color] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+            <span
+              className={`absolute top-1/2 -translate-y-1/2 transition-[right] ${
                 isContextTarget ? "right-9" : "right-2 group-hover:right-9"
               }`}
-              title={isExpanded ? "Hide agents" : "Show agents"}
-              aria-expanded={isExpanded}
-              aria-label={`${isExpanded ? "Hide" : "Show"} agents in ${project.name}`}
             >
-              {/* Turns rather than swaps, the way a folder's arrow does. */}
-              <span
-                className={`transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
-              >
-                <ChevronRightIcon />
-              </span>
-            </button>
+              <SidebarAgentChevron
+                expanded={isExpanded}
+                label={project.name}
+                onToggle={() => toggleExpanded(project.name)}
+              />
+            </span>
           )}
           {!selectMode && (
             <button
