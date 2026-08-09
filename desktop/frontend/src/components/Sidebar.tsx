@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   DndContext,
@@ -15,11 +15,24 @@ import {
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { StatusDot } from "./StatusDot";
 import { getSettings } from "../store/settings";
+import { useAppStore } from "../store/app";
+import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
 import { agentAmbient, computeProjectStatus } from "../agentStatus";
-import { SidebarIcon, CheckIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
+import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
+import { readCollapsedProjects, writeCollapsedProjects } from "../sidebarCollapsed";
+import { SidebarAgentRows } from "./SidebarAgentRows";
+import { SidebarAgentSummary } from "./SidebarAgentSummary";
+import {
+  SidebarIcon,
+  AlertCircleIcon,
+  ChevronRightIcon,
+  MoreVerticalIcon,
+  DetachIcon,
+  TerminalIcon,
+} from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarActivityButton } from "./SidebarActivityButton";
@@ -74,6 +87,10 @@ import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
+// Half a row: `py-2` (8px twice) around `text-sm`'s 20px line. The folder tree's
+// elbows meet a row here, and a row showing its agents is taller than the block
+// it sits in, so this cannot be expressed as a fraction of that block.
+const ROW_HALF = "18px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
@@ -169,9 +186,34 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     null,
   );
   const [activeId, setActiveId] = useState<string | null>(null);
+  // A project shows its agents unless the user closed that row; this window
+  // keeps its own set of closed ones, seeded from the last one they left.
+  const [collapsedAgents, setCollapsedAgents] = useState<Set<string>>(readCollapsedProjects);
   const { width, handleResizeStart } = useSidebarResize();
+  const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
+  // Only a project this window has open publishes its tab names; the rest fall
+  // back to naming their agent.
+  const terminalTitles = useTerminalTitles((s) => s.byProject);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const toggleExpanded = (name: string) => {
+    const next = new Set(collapsedAgents);
+    if (!next.delete(name)) next.add(name);
+    setCollapsedAgents(next);
+    writeCollapsedProjects(next);
+  };
+
+  // An agent row opens the terminal the agent is in; one whose pane the backend
+  // never named can still only take you to the project. Stable, so the agent
+  // list can skip re-rendering with the rest of the sidebar.
+  const openAgent = useCallback(
+    (projectName: string, agent: SidebarAgentRow) => {
+      if (agent.terminalId) focusProjectTerminal(projectName, agent.terminalId);
+      else onSelect(projectName);
+    },
+    [focusProjectTerminal, onSelect],
+  );
 
   // Remote (peer) projects render in their Mac's own section, never as folder
   // members or select-mode rows — but the section itself is a top-level slot the
@@ -246,6 +288,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const allByName = useMemo(() => new Map(projects.map((p) => [p.name, p])), [projects]);
 
   const ambient = useMemo(() => agentAmbient(projects), [projects]);
+
+  // The clamp inside `projectAgentRows` only reads `now` against timestamps that
+  // change with `projects`, so pinning it to this memo costs nothing.
+  const agentsByProject = useMemo(() => {
+    const now = Date.now();
+    return new Map(
+      projects.map((p) => [p.name, projectAgentRows(p, now, terminalTitles[p.name])]),
+    );
+  }, [projects, terminalTitles]);
 
   const openGitModal = (kind: GitModalTarget["kind"]) => {
     if (contextProject?.root && contextMenu) {
@@ -632,9 +683,24 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const isBusy = duplicatingNames.includes(project.name) || removingNames.has(project.name);
     const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
     const name = <ProjectNameDisplay project={project} parent={parent} />;
-    const showCheck = status.isDone && !status.isWaiting && !status.isError;
     const isChecked = selectedForDelete.has(project.name);
     const follow = follows.get(project.name);
+    const agents = agentsByProject.get(project.name) ?? [];
+    const alert = sidebarProjectAlert(agents);
+    // Bulk select is a list of names to tick off — the agents belong to the
+    // working list, not to that one.
+    const canExpand = !selectMode && agents.length > 0;
+    const isExpanded = canExpand && !collapsedAgents.has(project.name);
+
+    // Room at the row's end for the controls parked there: the ⋮ once the row is
+    // hovered or holding the menu, and the chevron whenever there are agents.
+    const trailingPad = canExpand
+      ? isContextTarget
+        ? "pr-14"
+        : "pr-8 group-hover:pr-14"
+      : isContextTarget
+        ? "pr-9"
+        : "group-hover:pr-9";
 
     const buttonClass = selectMode
       ? `${ROW_BASE_CLASS} ${
@@ -642,10 +708,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`
-      : `${ROW_BASE_CLASS} ${
-          isContextTarget
-            ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60"
-            : "group-hover:pr-9"
+      : `${ROW_BASE_CLASS} ${trailingPad} ${
+          isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""
         } ${
           isSelected
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
@@ -653,89 +717,119 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         }`;
 
     return (
-      <div className="group relative">
-        <button
-          onClick={(e) => handleRowClick(project.name, e)}
-          onDoubleClick={
-            selectMode
-              ? undefined
-              : () => {
-                  if (getSettings().doubleClickToToggle) onToggle(project.name);
-                }
-          }
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
-          }}
-          className={buttonClass}
-        >
-          {selectMode ? (
-            <span className="shrink-0">
-              <CheckboxBox
-                state={isChecked ? "all" : "none"}
-                tone={project.running ? "green" : "blue"}
-              />
-            </span>
-          ) : isBusy ? (
-            <span className="shrink-0 text-[var(--text-muted)]">
-              <SpinnerIcon />
-            </span>
-          ) : project.configError ? (
-            <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
-          ) : (
-            <StatusDot running={project.running} />
-          )}
-          <span
-            className="truncate"
-            style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-            title={
-              project.configError ||
-              (project.parentName
-                ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
-                : undefined)
-            }
-          >
-            {status.className ? <span className={status.className}>{name}</span> : name}
-          </span>
-          {isDetached && !isSelf && (
-            <span
-              className="shrink-0 text-[var(--text-muted)]"
-              title="Also open in a separate window"
-            >
-              <DetachIcon />
-            </span>
-          )}
-          {follow && (
-            <FollowIndicator
-              follow={follow}
-              macName={peerAlias(peerState.peers, follow.slug)}
-            />
-          )}
-          {status.isError && <span className="shrink-0 text-red-400"><AlertCircleIcon /></span>}
-          {showCheck && <span className="shrink-0 text-[var(--accent-blue)]"><CheckIcon /></span>}
-        </button>
-        {!selectMode && (
+      <>
+        <div className="group relative">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
-              if (isContextTarget) return;
-              const rect = e.currentTarget.getBoundingClientRect();
-              setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
+            onClick={(e) => handleRowClick(project.name, e)}
+            onDoubleClick={
+              selectMode
+                ? undefined
+                : () => {
+                    if (getSettings().doubleClickToToggle) onToggle(project.name);
+                  }
+            }
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu({ name: project.name, x: e.clientX, y: e.clientY });
             }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-              isContextTarget
-                ? "opacity-100"
-                : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
-            }`}
-            title="More options"
-            aria-label={`More options for ${project.name}`}
+            className={buttonClass}
           >
-            <MoreVerticalIcon />
+            {selectMode ? (
+              <span className="shrink-0">
+                <CheckboxBox
+                  state={isChecked ? "all" : "none"}
+                  tone={project.running ? "green" : "blue"}
+                />
+              </span>
+            ) : isBusy ? (
+              <span className="shrink-0 text-[var(--text-muted)]">
+                <SpinnerIcon />
+              </span>
+            ) : project.configError ? (
+              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+            ) : (
+              <StatusDot running={project.running} />
+            )}
+            <span
+              className="truncate"
+              style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+              title={
+                project.configError ||
+                (project.parentName
+                  ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
+                  : undefined)
+              }
+            >
+              {status.className ? <span className={status.className}>{name}</span> : name}
+            </span>
+            {isDetached && !isSelf && (
+              <span
+                className="shrink-0 text-[var(--text-muted)]"
+                title="Also open in a separate window"
+              >
+                <DetachIcon />
+              </span>
+            )}
+            {follow && (
+              <FollowIndicator
+                follow={follow}
+                macName={peerAlias(peerState.peers, follow.slug)}
+              />
+            )}
+            {alert && <SidebarAgentSummary agent={alert} />}
           </button>
+          {canExpand && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded(project.name);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={`absolute top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-[right,color] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+                isContextTarget ? "right-9" : "right-2 group-hover:right-9"
+              }`}
+              title={isExpanded ? "Hide agents" : "Show agents"}
+              aria-expanded={isExpanded}
+              aria-label={`${isExpanded ? "Hide" : "Show"} agents in ${project.name}`}
+            >
+              {/* Turns rather than swaps, the way a folder's arrow does. */}
+              <span
+                className={`transition-transform duration-150 ${isExpanded ? "rotate-90" : ""}`}
+              >
+                <ChevronRightIcon />
+              </span>
+            </button>
+          )}
+          {!selectMode && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // useOutsideClick's mousedown already closed the menu — skip the reopen so the second click toggles off.
+                if (isContextTarget) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+                isContextTarget
+                  ? "opacity-100"
+                  : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+              }`}
+              title="More options"
+              aria-label={`More options for ${project.name}`}
+            >
+              <MoreVerticalIcon />
+            </button>
+          )}
+        </div>
+        {isExpanded && (
+          <SidebarAgentRows
+            projectName={project.name}
+            agents={agents}
+            onOpenAgent={openAgent}
+          />
         )}
-      </div>
+      </>
     );
   };
 
@@ -831,7 +925,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // disclosure arrow, with a rounded elbow curving out to each member. The last
   // member ends the trunk at its own elbow. The connector lives in the left
   // gutter (left of the status dot), in existing row padding — so no project name
-  // is indented into less usable width.
+  // is indented into less usable width. Elbows meet the row at ROW_HALF rather
+  // than half the block's height: a member showing its agents is taller than its
+  // row, and the elbow still has to point at the row.
   // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
   // — it doesn't react to row/folder hover.
   const TRUNK_BG = "bg-[#38bdf8]/55";
@@ -875,12 +971,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                     <>
                       <span
                         aria-hidden
-                        className={`pointer-events-none absolute left-[4px] top-0 z-10 h-1/2 w-[8px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
+                        style={{ height: ROW_HALF }}
+                        className={`pointer-events-none absolute left-[4px] top-0 z-10 w-[8px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
                       />
                       {i !== lastProjectIndex && (
                         <span
                           aria-hidden
-                          className={`pointer-events-none absolute left-[4px] top-1/2 bottom-0 z-10 w-px ${TRUNK_BG}`}
+                          style={{ top: ROW_HALF }}
+                          className={`pointer-events-none absolute left-[4px] bottom-0 z-10 w-px ${TRUNK_BG}`}
                         />
                       )}
                     </>

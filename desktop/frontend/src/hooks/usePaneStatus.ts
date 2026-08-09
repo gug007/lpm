@@ -49,8 +49,12 @@ function stampOf(stamped: number | undefined, now: number): number | null {
   return Math.min(stamped, now);
 }
 
-function agentStatusOf(entry: StatusEntry, now: number): PaneAgentStatus {
+/** What one status entry reads as: its state and the span it counts. Shared so
+ *  a tab, its composer and the sidebar all measure a turn the same way. Null for
+ *  a value no agent reported — there is no turn to time. */
+export function agentStatusOf(entry: StatusEntry, now: number): PaneAgentStatus | null {
   const state = STATE[entry.value];
+  if (!state) return null;
   const stateSince = stampOf(entry.timestamp, now) ?? now;
   const turnStart = stampOf(entry.turnStart, now);
   // A finished turn reads as how long the work took, held still. Waiting and a
@@ -82,8 +86,10 @@ export function derivePaneStatus(
     else if (e.value === STATUS_ERROR) error.add(e.paneID);
     else continue;
     if (RANK[e.value] >= (ranks.get(e.paneID) ?? Number.MAX_SAFE_INTEGER)) continue;
+    const status = agentStatusOf(e, now);
+    if (!status) continue;
     ranks.set(e.paneID, RANK[e.value]);
-    agents.set(e.paneID, agentStatusOf(e, now));
+    agents.set(e.paneID, status);
   }
   return { running, done, waiting, error, agents };
 }

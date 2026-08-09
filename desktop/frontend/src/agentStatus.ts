@@ -19,6 +19,16 @@ export const AGENT_STATE_LABEL: Record<AgentState, string> = {
   idle: "Idle",
 };
 
+/** How a state reads: the color it takes, and for the two the app animates, the
+ *  motion — a shimmer while working, an amber pulse while it needs you. */
+export const AGENT_STATE_TONE: Record<AgentState, string> = {
+  "needs-you": "sidebar-waiting",
+  error: "text-[var(--accent-red)]",
+  working: "sidebar-shimmer",
+  done: "text-[var(--accent-blue)]",
+  idle: "text-[var(--text-muted)]",
+};
+
 /** Attention order; lower is more urgent. */
 export const AGENT_STATE_RANK: Record<AgentState, number> = {
   "needs-you": 0,

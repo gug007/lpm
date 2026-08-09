@@ -19,6 +19,7 @@ import {
   jobResultTone,
   jobScopePhrase,
   payloadToDraft,
+  shortDuration,
   validateJobDraft,
   type JobDraft,
 } from "./jobsFormat";
@@ -214,6 +215,16 @@ describe("formatDuration", () => {
     expect(formatDuration(4 * 60 + 30)).toBe("4m 30s");
     expect(formatDuration(60 * 60)).toBe("1h");
     expect(formatDuration(72 * 60)).toBe("1h 12m");
+  });
+});
+
+describe("shortDuration", () => {
+  it("takes millis, keeps one unit until hours, and rounds down like a stopwatch", () => {
+    expect(shortDuration(-5_000)).toBe("0s");
+    expect(shortDuration(45_900)).toBe("45s");
+    expect(shortDuration(4 * 60_000 + 30_000)).toBe("4m");
+    expect(shortDuration(2 * 3_600_000)).toBe("2h");
+    expect(shortDuration(2 * 3_600_000 + 5 * 60_000)).toBe("2h 5m");
   });
 });
 

@@ -303,6 +303,19 @@ export function formatDuration(secs: number): string {
   return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
 }
 
+/** "45s", "4m", "2h 5m" — `formatDuration` with the remainder dropped, for a
+ *  column with room for a reading rather than a stopwatch. Takes millis, and
+ *  rounds down like a stopwatch: it says what has elapsed, never more. */
+export function shortDuration(millis: number): string {
+  const secs = Math.max(0, Math.floor(millis / 1000));
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const rest = mins % 60;
+  return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
+}
+
 // "$0.42" — what a run cost, when the agent reported it.
 export function formatCost(usd: number): string {
   if (usd < 0.005) return "<$0.01";
