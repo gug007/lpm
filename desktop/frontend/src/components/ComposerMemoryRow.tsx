@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import { Eye } from "lucide-react";
 import { relativeTime } from "../relativeTime";
 import type { MentionItem } from "../mentions";
-import { BrainIcon, SquarePenIcon, TrashIcon } from "./icons";
+import { BrainIcon, PencilIcon, TrashIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
@@ -102,7 +102,7 @@ export function ComposerMemoryRow({
             aria-label={`Rename ${session.label}`}
             className={`${ACTION_BUTTON} hover:text-[var(--text-primary)]`}
           >
-            <SquarePenIcon size={12} />
+            <PencilIcon size={12} />
           </button>
         </Tooltip>
         <Tooltip content="Delete" delay={COMPOSER_TOOLTIP_DELAY_MS}>
