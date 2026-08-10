@@ -95,10 +95,7 @@ describe("SidebarAgentRows", () => {
 });
 
 describe("SidebarAgentSummary", () => {
-  it("names a state the user has to act on", () => {
-    act(() => root.render(<SidebarAgentSummary agent={agent()} />));
-    expect(container.textContent).toBe("Needs you");
-
+  it("names the state it is given", () => {
     act(() => root.render(<SidebarAgentSummary agent={agent({ state: "error" })} />));
     expect(container.textContent).toBe("Problem");
   });

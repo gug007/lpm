@@ -98,8 +98,8 @@ describe("SidebarPeerRow", () => {
       // No tab of that id is open here, so the row names the agent instead.
       "Codex1m",
     ]);
-    // The row itself only speaks for the state the user has to act on.
-    expect(container.textContent).toContain("Needs you");
+    // The row itself stays quiet — a wait reads as the amber project name.
+    expect(container.textContent).not.toContain("Needs you");
   });
 
   it("says nothing extra for a project with no agents", () => {

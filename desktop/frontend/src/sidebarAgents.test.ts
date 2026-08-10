@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "./sidebarAgents";
 import {
   STATUS_DONE,
+  STATUS_ERROR,
   STATUS_RUNNING,
   STATUS_WAITING,
   type ProjectInfo,
@@ -36,7 +37,48 @@ function project(over: Partial<ProjectInfo> = {}): ProjectInfo {
 }
 
 describe("projectAgentRows", () => {
-  it("orders agents by attention, newest first within a state", () => {
+  it("lists agents in the order their tabs sit in", () => {
+    const agents = projectAgentRows(
+      project({
+        statusEntries: [
+          entry("codex_1", STATUS_RUNNING, 60_000),
+          entry("claude_code_a", STATUS_DONE, 10_000),
+          entry("claude_code_b", STATUS_WAITING, 30_000),
+        ],
+      }),
+      NOW,
+      { "%claude_code_a": "Ship it", "%codex_1": "Rebalance", "%claude_code_b": "Port tests" },
+    );
+    expect(agents.map((a: SidebarAgentRow) => a.key)).toEqual([
+      "claude_code_a",
+      "codex_1",
+      "claude_code_b",
+    ]);
+    expect(agents[0].provider).toBe("Claude Code");
+    expect(agents[1].provider).toBe("Codex");
+    expect(agents[0].terminalId).toBe("%claude_code_a");
+  });
+
+  it("trails an agent whose tab this window can't name, most urgent first", () => {
+    const agents = projectAgentRows(
+      project({
+        statusEntries: [
+          entry("codex_1", STATUS_RUNNING, 60_000),
+          entry("claude_code_a", STATUS_DONE, 10_000),
+          entry("claude_code_b", STATUS_WAITING, 30_000),
+        ],
+      }),
+      NOW,
+      { "%codex_1": "Rebalance" },
+    );
+    expect(agents.map((a: SidebarAgentRow) => a.key)).toEqual([
+      "codex_1",
+      "claude_code_b",
+      "claude_code_a",
+    ]);
+  });
+
+  it("orders agents by attention with no tab order to follow", () => {
     const agents = projectAgentRows(
       project({
         statusEntries: [
@@ -54,9 +96,6 @@ describe("projectAgentRows", () => {
       "codex_1",
       "claude_code_a",
     ]);
-    expect(agents[0].provider).toBe("Claude Code");
-    expect(agents[1].provider).toBe("Codex");
-    expect(agents[0].terminalId).toBe("%claude_code_b");
   });
 
   it("names each agent after its tab, falling back to the agent itself", () => {
@@ -100,17 +139,19 @@ describe("projectAgentRows", () => {
 });
 
 describe("sidebarProjectAlert", () => {
-  it("speaks only for an agent that wants the user", () => {
-    const waiting = projectAgentRows(
+  it("speaks only for an agent that hit a problem", () => {
+    // A wait outranks a problem in the rows underneath, but up here the problem
+    // is the only thing that gets a word.
+    const both = projectAgentRows(
       project({
-        statusEntries: [entry("codex_1", STATUS_RUNNING), entry("claude_code_a", STATUS_WAITING)],
+        statusEntries: [entry("codex_1", STATUS_ERROR), entry("claude_code_a", STATUS_WAITING)],
       }),
       NOW,
     );
-    expect(sidebarProjectAlert(waiting)?.state).toBe("needs-you");
+    expect(sidebarProjectAlert(both)?.key).toBe("codex_1");
 
-    // Working, done and idle all say their piece in the rows underneath.
-    for (const value of [STATUS_RUNNING, STATUS_DONE, "Compacting"]) {
+    // Everything else says its piece in the rows underneath.
+    for (const value of [STATUS_WAITING, STATUS_RUNNING, STATUS_DONE, "Compacting"]) {
       const quiet = projectAgentRows(project({ statusEntries: [entry("codex_1", value)] }), NOW);
       expect(sidebarProjectAlert(quiet)).toBeNull();
     }

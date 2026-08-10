@@ -36,31 +36,43 @@ function byUrgency(a: StatusEntry, b: StatusEntry): number {
   );
 }
 
-/** Every agent a project has going, in the order the sidebar lists them. */
+/** Every agent a project has going, in the order the sidebar lists them: the
+ *  order their tabs sit in above, so the list reads as the tab strip does.
+ *  Agents in a tab this window can't name — a project it never opened — have no
+ *  place in that order and trail behind, most urgent first. */
 export function projectAgentRows(
   project: ProjectInfo,
   now: number,
   tabTitles: Record<string, string> = {},
 ): SidebarAgentRow[] {
-  return [...(project.statusEntries ?? [])].sort(byUrgency).map((entry) => {
-    const provider = providerMeta(statusProvider(entry.key)).label;
-    // Null for a status nothing acts on — an idle agent has no turn to time.
-    const turn = agentStatusOf(entry, now);
-    return {
-      key: entry.key,
-      state: agentStateOf(entry.value),
-      title: tabTitles[entry.paneID ?? ""] || provider,
-      provider,
-      terminalId: entry.paneID || null,
-      since: turn?.since ?? null,
-      until: turn?.until,
-    };
-  });
+  // Keyed in tab order by whoever publishes them (see store/terminalTitles).
+  const tabOrder = Object.keys(tabTitles);
+  const tabRank = (entry: StatusEntry) => {
+    const idx = tabOrder.indexOf(entry.paneID ?? "");
+    return idx < 0 ? tabOrder.length : idx;
+  };
+  return [...(project.statusEntries ?? [])]
+    .sort((a, b) => tabRank(a) - tabRank(b) || byUrgency(a, b))
+    .map((entry) => {
+      const provider = providerMeta(statusProvider(entry.key)).label;
+      // Null for a status nothing acts on — an idle agent has no turn to time.
+      const turn = agentStatusOf(entry, now);
+      return {
+        key: entry.key,
+        state: agentStateOf(entry.value),
+        title: tabTitles[entry.paneID ?? ""] || provider,
+        provider,
+        terminalId: entry.paneID || null,
+        since: turn?.since ?? null,
+        until: turn?.until,
+      };
+    });
 }
 
-/** The one agent the project row itself speaks for — only a state the user has
- *  to act on gets a word up there; the rest is in the rows underneath. */
+/** The one agent the project row itself speaks for — only a problem gets a word
+ *  up there. A wait shows in the row's amber name and in the rows underneath. */
 export function sidebarProjectAlert(agents: SidebarAgentRow[]): SidebarAgentRow | null {
-  const first = agents[0];
-  return first && (first.state === "needs-you" || first.state === "error") ? first : null;
+  // Not `agents[0]`: the rows sit in tab order, so the first of them says
+  // nothing about which agent needs a word up here.
+  return agents.find((agent) => agent.state === "error") ?? null;
 }

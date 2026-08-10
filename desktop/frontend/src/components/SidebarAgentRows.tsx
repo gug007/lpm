@@ -13,9 +13,9 @@ export interface SidebarAgentRowsProps {
   onOpenAgent: (projectName: string, agent: SidebarAgentRow) => void;
 }
 
-/** What a project has agents on, under its row: one line per task, most urgent
- *  first — the tab it runs in by name, colored by what it is doing, a check once
- *  it lands, and how long it took. Each line opens its terminal. */
+/** What a project has agents on, under its row: one line per task, in the order
+ *  their tabs sit in — the tab it runs in by name, colored by what it is doing,
+ *  a check once it lands, and how long it took. Each line opens its terminal. */
 export const SidebarAgentRows = memo(function SidebarAgentRows({
   projectName,
   label,
