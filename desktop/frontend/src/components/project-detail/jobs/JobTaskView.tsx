@@ -6,6 +6,7 @@ import {
   SendJobFollowup,
 } from "../../../../bridge/commands";
 import { MessageMarkdown } from "../../MessageMarkdown";
+import { TTSSpeedMenu } from "../../TTSSpeedMenu";
 import { useTTSStore } from "../../../store/tts";
 import { useSettingsStore } from "../../../store/settings";
 import {
@@ -609,7 +610,8 @@ function EntryOutput({ text }: { text: string }) {
 /// Read-aloud control for one message, in its own row under the body rather
 /// than in the hover meta row — this is a primary action on the content, not
 /// metadata about the run. Doubles as stop while this message is the one being
-/// read; hidden entirely until reading is turned on in Settings.
+/// read, with the speed picker alongside it for as long as it plays; hidden
+/// entirely until reading is turned on in Settings.
 function ReadAloudButton({
   spoken,
   reading,
@@ -622,11 +624,12 @@ function ReadAloudButton({
 }) {
   const enabled = useSettingsStore((s) => Boolean(s.ttsEnabled));
   const stopReading = useTTSStore((s) => s.stopReading);
+  const waiting = useTTSStore((s) => s.status === "loading");
 
   if (!enabled) return null;
 
   return (
-    <div className="mt-1.5 flex items-center">
+    <div className="mt-1.5 flex items-center gap-0.5">
       <button
         type="button"
         onClick={() => (reading ? stopReading() : void onStart(spoken))}
@@ -636,8 +639,11 @@ function ReadAloudButton({
           reading ? "text-[var(--accent-blue)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
         }`}
       >
-        {reading ? <StopGlyph /> : <SpeakerGlyph />}
+        {reading && waiting ? <WaitingGlyph /> : reading ? <StopGlyph /> : <SpeakerGlyph />}
       </button>
+      {reading && (
+        <TTSSpeedMenu className="rounded-md px-1.5 py-1 text-[11px] font-medium tabular-nums text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] data-[open=true]:bg-[var(--bg-secondary)] data-[open=true]:text-[var(--text-primary)]" />
+      )}
     </div>
   );
 }
@@ -656,6 +662,25 @@ function StopGlyph() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none">
       <rect x="6" y="6" width="12" height="12" rx="2" />
+    </svg>
+  );
+}
+
+/// Shown while the engine is producing audio — on a speed change that gap is
+/// silence in the middle of a reading, which without this reads as a failure.
+function WaitingGlyph() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      className="animate-spin"
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   );
 }

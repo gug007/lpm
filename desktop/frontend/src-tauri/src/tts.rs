@@ -79,6 +79,15 @@ impl Default for TtsState {
 
 type Inner = Arc<Mutex<Option<TtsSession>>>;
 
+fn is_current(inner: &Inner, id: u64) -> bool {
+    inner
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|s| s.id == id)
+        .unwrap_or(false)
+}
+
 #[tauri::command(async)]
 pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Result<(), String> {
     if text.trim().is_empty() {
@@ -134,6 +143,13 @@ pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Re
             let Ok(chunk) = serde_json::from_str::<TtsChunk>(&line) else {
                 continue;
             };
+            // A Stop or a new Start (the frontend restarts synthesis when the
+            // speed changes) has already killed this child, but its pipe can
+            // still hold whole chunks -- emitting them would play the previous
+            // reading's audio over the current one.
+            if !is_current(&inner, id) {
+                break;
+            }
             match chunk.kind.as_str() {
                 "audio" => {
                     let _ = app2.emit("tts-audio", chunk.audio);
@@ -149,8 +165,8 @@ pub fn start_tts(app: AppHandle, state: State<'_, TtsState>, text: String) -> Re
         // EOF: if this is still the current session, reap it and emit "stopped"
         // (iff it was playing). A Stop / new Start already took it -> do nothing.
         let mut guard = inner.lock().unwrap();
-        let is_current = guard.as_ref().map(|s| s.id == id).unwrap_or(false);
-        if is_current {
+        let current = guard.as_ref().map(|s| s.id == id).unwrap_or(false);
+        if current {
             let mut sess = guard.take().unwrap();
             drop(guard);
             let was_playing = sess.state == PLAYING;

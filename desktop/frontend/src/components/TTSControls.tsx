@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { useTTSStore } from "../store/tts";
+import { TTSSpeedMenu } from "./TTSSpeedMenu";
 
 export function TTSControls() {
   const status = useTTSStore((s) => s.status);
@@ -62,6 +63,8 @@ export function TTSControls() {
             style={{ left: `calc(${pct}% - 5px)` }}
           />
         </div>
+
+        <TTSSpeedMenu className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium tabular-nums text-white/50 transition-colors hover:bg-white/10 hover:text-white/90 data-[open=true]:bg-white/15 data-[open=true]:text-white" />
 
         <button
           onClick={stopReading}
