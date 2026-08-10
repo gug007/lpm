@@ -3,7 +3,6 @@ import { AGENT_STATE_LABEL, AGENT_STATE_TONE } from "../agentStatus";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { AgentStateIcon, MARK_SLOT } from "./AgentStateIcon";
 import { SidebarAgentElapsed } from "./SidebarAgentElapsed";
-import { CheckIcon } from "./icons";
 
 export interface SidebarAgentRowsProps {
   projectName: string;
@@ -35,21 +34,18 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           className="flex w-full select-none items-center gap-2 rounded-md py-1 pl-2.5 pr-3 text-left text-[12px] text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           title={`${AGENT_STATE_LABEL[agent.state]} — ${agent.provider} in ${label ?? projectName}`}
         >
-          <AgentStateIcon state={agent.state} />
-          {/* The name is the state: it shimmers while the work runs and turns
-              blue when it lands, the same way the project name above does. */}
+          <span className={MARK_SLOT} />
+          {/* The name is the state: it shimmers while the work runs, pulses
+              amber while it waits on the user and turns blue when it lands, the
+              same way the project name above and the tab it runs in do. */}
           <span
             className={`min-w-0 flex-1 truncate ${
-              agent.state === "working" || agent.state === "done"
-                ? AGENT_STATE_TONE[agent.state]
-                : ""
+              agent.state === "idle" ? "" : AGENT_STATE_TONE[agent.state]
             }`}
           >
             {agent.title}
           </span>
-          <span className={`${MARK_SLOT} text-[var(--accent-blue)]`}>
-            {agent.state === "done" && <CheckIcon />}
-          </span>
+          <AgentStateIcon state={agent.state} />
           <SidebarAgentElapsed agent={agent} />
         </button>
       ))}
