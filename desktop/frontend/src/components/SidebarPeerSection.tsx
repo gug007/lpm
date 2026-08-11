@@ -4,6 +4,7 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { SidebarPeerRow } from "./SidebarPeerRow";
 import { SortableItem } from "./ui/SortableList";
+import { peerRowToken } from "./peerRowOrder";
 import { FollowIndicator } from "./FollowIndicator";
 import type { MirrorRow } from "./peerSections";
 import type { FollowState } from "../followApi";
@@ -15,8 +16,10 @@ import type { ProjectInfo } from "../types";
 // A paired Mac's projects, rendered as a flat section headed by the Mac's name.
 // The header collapses the section, offers a hover-revealed disconnect, and — as
 // the section's drag handle — carries it to wherever the user wants it among the
-// local projects and folders. Its rows are not themselves reorderable. Selecting
-// a row opens the exact same ProjectDetail a local project uses.
+// local projects and folders. The Mac's own rows drag among themselves the way
+// local projects do (see peerRowOrder); the synced copies below them are pinned,
+// since they are here only for as long as that Mac is away. Selecting a row opens
+// the exact same ProjectDetail a local project uses.
 //
 // A Mac that is away keeps its section only for the copies synced here, so those
 // stay runnable while it sleeps.
@@ -132,9 +135,8 @@ export function SidebarPeerSection({
         projects.map((project) => {
           const mirror = mirrors.get(stripMarker(project.root));
           const mirrorFollow = mirror && follows.get(mirror.name);
-          return (
+          const row = (
             <SidebarPeerRow
-              key={project.name}
               project={project}
               label={project.label || peerRawName(project.name)}
               selected={selected === project.name}
@@ -151,6 +153,15 @@ export function SidebarPeerSection({
               onSelect={() => onSelect(project.name)}
               onContextMenu={(x, y) => onContextMenu(project.name, x, y)}
             />
+          );
+          // Rows drag only where the header does — select mode has no drag
+          // context to register them with.
+          return sortableId ? (
+            <SortableItem key={project.name} id={peerRowToken(project.name)}>
+              {row}
+            </SortableItem>
+          ) : (
+            <div key={project.name}>{row}</div>
           );
         })}
       {!collapsed &&

@@ -921,8 +921,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   reconcileSidebarLayout: (projects) => {
-    // Remote (peer) projects render in their own non-reorderable sections and
-    // never belong to sidebarOrder or folders — keep them out of the layout.
+    // Remote (peer) projects render in their Mac's own section — their order
+    // lives in settings.peerProjectOrder, never in sidebarOrder or folders, so
+    // keep them out of the layout.
     const local = projects.filter((p) => !isPeerName(p.name));
     const before: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
     const after = reconcile(

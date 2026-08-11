@@ -12,6 +12,7 @@ import {
   type GitFetchConfig,
 } from "../gitOptions";
 import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
+import type { PeerRowOrder } from "../components/peerRowOrder";
 
 export interface DetachedWindowState {
   detached: boolean;
@@ -34,6 +35,7 @@ export interface Settings {
   errorSound?: string;
   projectOrder?: string[];
   sidebarOrder?: string[];
+  peerProjectOrder?: PeerRowOrder;
   terminalTheme?: string;
   terminalFontSize?: number;
   terminalOpenInDefaultApp?: boolean;
@@ -110,6 +112,7 @@ function normalize(s: main.Settings): Settings {
     errorSound: s.errorSound || undefined,
     projectOrder: s.projectOrder,
     sidebarOrder: s.sidebarOrder,
+    peerProjectOrder: s.peerProjectOrder,
     terminalTheme: s.terminalTheme,
     terminalFontSize: s.terminalFontSize,
     terminalOpenInDefaultApp: s.terminalOpenInDefaultApp,

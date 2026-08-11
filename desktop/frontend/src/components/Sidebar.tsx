@@ -14,7 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { StatusDot } from "./StatusDot";
-import { getSettings } from "../store/settings";
+import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
@@ -76,7 +76,15 @@ import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
-import { isPeerName, stripMarker } from "../peer/markers";
+import {
+  isPeerRowId,
+  movePeerRow,
+  orderPeerProjects,
+  peerRowNameOf,
+  peerRowToken,
+  prunePeerRowOrder,
+} from "./peerRowOrder";
+import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
@@ -209,9 +217,20 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const { follows } = useFollowState();
   // Each Mac's section, and the synced copies those sections render instead of the
   // local list.
-  const { sections: peerSections, hostedRemotely } = useMemo(
+  const { sections: hostSections, hostedRemotely } = useMemo(
     () => buildPeerSections(projects, follows, peerState.peers),
     [projects, follows, peerState.peers],
+  );
+  // A host lists its projects in its own order; this Mac's preferred order for
+  // them is a setting of its own, since peer projects never join sidebarOrder.
+  const peerRowOrder = useSettingsStore((s) => s.peerProjectOrder);
+  const peerSections = useMemo(
+    () =>
+      hostSections.map((section) => ({
+        ...section,
+        projects: orderPeerProjects(section.projects, peerRowOrder?.[section.slug]),
+      })),
+    [hostSections, peerRowOrder],
   );
   const localProjects = useMemo(
     () => projects.filter((p) => !isPeerName(p.name) && !hostedRemotely.has(p.name)),
@@ -356,6 +375,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         seenPeers.add(slug);
         out.push({ kind: "peer", section });
         ids.push(token);
+        // The section's own rows sort among themselves; the synced copies it
+        // also renders (section.strays) stay put.
+        for (const remote of section.projects) ids.push(peerRowToken(remote.name));
         continue;
       }
       const p = byName.get(token);
@@ -613,14 +635,28 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   // Folder drop zones win over reorder only when a PROJECT is dragged onto a
   // folder it doesn't already belong to; folders and peer sections only reorder.
+  // A host's row is sealed inside its section — it can only target its own
+  // siblings, and nothing outside can target it — so the list never previews a
+  // move that the drop would refuse.
   const collisionDetection = useMemo<CollisionDetection>(
     () => (args) => {
       const active = String(args.active.id);
-      // Reorder fallback never picks a folder zone (those only nest) or self.
+      const activeRow = peerRowNameOf(active);
+      if (activeRow !== null) {
+        const slug = peerSlugOf(activeRow);
+        const siblings = args.droppableContainers.filter((c) => {
+          const name = peerRowNameOf(String(c.id));
+          return name !== null && name !== activeRow && peerSlugOf(name) === slug;
+        });
+        return closestCenter({ ...args, droppableContainers: siblings });
+      }
+
+      // Reorder fallback never picks a folder zone (those only nest), a host's
+      // row, or self.
       const reorderFallback = () => {
         const measurable = args.droppableContainers.filter((c) => {
           const id = String(c.id);
-          if (id === active || dropFolderTarget(id) !== null) return false;
+          if (id === active || dropFolderTarget(id) !== null || isPeerRowId(id)) return false;
           const rect = c.rect.current;
           return !!rect && rect.width > 0 && rect.height > 0;
         });
@@ -641,12 +677,30 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       }
       const items = pointer.filter((c) => {
         const id = String(c.id);
-        return dropFolderTarget(id) === null && id !== active;
+        return dropFolderTarget(id) === null && !isPeerRowId(id) && id !== active;
       });
       return items.length > 0 ? [items[0]] : reorderFallback();
     },
     [],
   );
+
+  // Reorder one host's rows. The whole section's rows are written, not just the
+  // moved one, so names the host has since dropped fall out on their own.
+  const reorderPeerRow = (activeId: string, overId: string) => {
+    const from = peerRowNameOf(activeId);
+    const to = peerRowNameOf(overId);
+    if (from === null || to === null) return;
+    const slug = peerSlugOf(from);
+    if (slug === null || slug !== peerSlugOf(to)) return;
+    const section = peerSections.find((s) => s.slug === slug);
+    if (!section) return;
+    const next = movePeerRow(section.projects.map((p) => p.name), from, to);
+    if (!next) return;
+    const kept = prunePeerRowOrder(peerRowOrder ?? {}, peerState.peers.map((p) => p.slug));
+    void saveSettings({ peerProjectOrder: { ...kept, [slug]: next } }).catch((err) =>
+      toast.error(`Failed to save order: ${err}`),
+    );
+  };
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const onDragCancel = () => setActiveId(null);
@@ -654,6 +708,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
+    if (isPeerRowId(String(active.id))) {
+      reorderPeerRow(String(active.id), String(over.id));
+      return;
+    }
     const next = resolveSidebarDrop(layoutRef.current, String(active.id), String(over.id));
     if (next) onApplySidebarLayout(next);
   };
@@ -890,6 +948,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (slug !== null) {
       const section = peerSections.find((s) => s.slug === slug);
       return section ? <span className="truncate font-medium">{section.alias}</span> : null;
+    }
+    const rowName = peerRowNameOf(activeId);
+    if (rowName !== null) {
+      const remote = allByName.get(rowName);
+      return <span className="truncate">{remote?.label || peerRawName(rowName)}</span>;
     }
     const p = projectByName.get(activeId);
     return p ? (
