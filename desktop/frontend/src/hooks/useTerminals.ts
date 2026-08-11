@@ -15,6 +15,7 @@ import { useRemoteTabControls } from "./terminals/useRemoteTabControls";
 import { useMirrorOwner } from "./terminals/useMirrorOwner";
 import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
 import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
+import { useTerminalMemory } from "./terminals/useTerminalMemory";
 
 export { type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
 
@@ -101,6 +102,14 @@ export function useTerminals(
     },
     [projectName],
   );
+
+  const { noteTerminalMemory, detachTerminalMemory } = useTerminalMemory({
+    projectName,
+    tree,
+    treeRef,
+    applyTree,
+    forward,
+  });
 
   const {
     createTerminal,
@@ -211,6 +220,8 @@ export function useTerminals(
     setRatio,
     focusPane,
     ensureRootPane,
+    noteTerminalMemory,
+    detachTerminalMemory,
   };
 
   useMirrorOwner({
@@ -292,5 +303,7 @@ export function useTerminals(
     ensureRootPane,
     getFocusedPane,
     getPane,
+    noteTerminalMemory,
+    detachTerminalMemory,
   };
 }

@@ -217,6 +217,7 @@ export function useTabCreation({
           color: opts?.color,
           startCmd: opts?.startCmd,
           resumeCmd: opts?.resumeCmd,
+          memory: opts?.memory,
         }),
       );
       const folded = foldAgentPrompt(cmd, opts?.prompt);
@@ -294,6 +295,8 @@ export function useTabCreation({
           actionName: tab.actionName,
           emoji: tab.emoji,
           color: tab.color,
+          // A fork carries on the same conversation, memory session included.
+          memory: tab.memory,
         }),
         paneId,
       );
@@ -331,6 +334,9 @@ export function useTabCreation({
               actionName: tab.actionName,
               emoji: tab.emoji,
               color: tab.color,
+              // The copy shares the original's memory folder, so the session
+              // the forked conversation was working under is still valid there.
+              ...(tab.memory ? { memory: tab.memory } : {}),
               ...(sessionId
                 ? { claudeSession: { sourceProject: projectName, sessionId } }
                 : {}),

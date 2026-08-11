@@ -1,5 +1,6 @@
 import { type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
 import { type PersistedHistoryEntry } from "../../terminals";
+import { type TerminalMemoryRef } from "../../terminalMemory";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -18,6 +19,9 @@ export interface TerminalStartOpts {
   // again). Ignored on the configName path — the backend owns those cmds.
   startCmd?: string;
   resumeCmd?: string;
+  // The lpm-memory session the new tab inherits (a forked conversation keeps
+  // writing to the session it was already working under).
+  memory?: TerminalMemoryRef;
 }
 
 export interface UseTerminalsResult {
@@ -64,4 +68,9 @@ export interface UseTerminalsResult {
   ensureRootPane: (initialServiceName?: string) => Promise<void>;
   getFocusedPane: () => PaneLeaf | null;
   getPane: (paneId: string) => PaneLeaf | null;
+  // Records that an lpm-memory invocation went into a terminal. `session` is
+  // null for the bare "remember this conversation" form, whose slug the agent
+  // hasn't chosen yet.
+  noteTerminalMemory: (terminalId: string, session: string | null) => void;
+  detachTerminalMemory: (terminalId: string) => void;
 }

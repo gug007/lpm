@@ -1,6 +1,7 @@
 import { LoadTerminals, SaveTerminals } from "../bridge/commands";
 import { main } from "../bridge/models";
 import type { SessionTitleSource } from "./paneTree";
+import type { TerminalMemoryRef } from "./terminalMemory";
 
 export interface PersistedTab {
   label: string;
@@ -9,6 +10,8 @@ export interface PersistedTab {
   sessionTitleSource?: SessionTitleSource;
   // Stable per-terminal id for message-history scoping; survives restart.
   historyKey?: string;
+  // The lpm-memory session the tab was last given.
+  memory?: TerminalMemoryRef;
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;

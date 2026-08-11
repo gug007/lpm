@@ -1,5 +1,6 @@
 import type { ComposerValue } from "./components/composerEditor";
 import type { ComposerAction } from "./store/composerActions";
+import type { TerminalMemoryRef } from "./terminalMemory";
 
 export interface ServiceInfo {
   name: string;
@@ -96,6 +97,7 @@ export type SpawnTask =
       actionName?: string;
       emoji?: string;
       color?: string;
+      memory?: TerminalMemoryRef;
       claudeSession?: { sourceProject: string; sessionId: string };
     };
 

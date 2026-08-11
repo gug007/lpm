@@ -36,6 +36,7 @@ function render(props: Partial<Parameters<typeof ComposerMemoryButton>[0]> = {})
         onView={props.onView ?? vi.fn()}
         onRename={props.onRename ?? vi.fn()}
         onDelete={props.onDelete ?? vi.fn()}
+        onDetach={props.onDetach ?? vi.fn()}
         {...props}
       />,
     );
@@ -266,5 +267,60 @@ describe("ComposerMemoryButton", () => {
     expect(document.body.textContent).toContain("Nothing saved yet");
     click(rows()[0]);
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ kind: "memory-save", insert: "" }));
+  });
+
+  describe("while the terminal is working under a session", () => {
+    const lit = () => container.querySelector("button[aria-expanded]")!;
+    const accented = (el: Element) => el.className.includes("text-[var(--accent-purple)]");
+
+    it("tints the brain and names the session, by title", () => {
+      render({ attached: { session: "auth-refactor" } });
+
+      expect(lit().getAttribute("aria-label")).toBe("Continuing Rework login");
+      expect(accented(lit())).toBe(true);
+      // Outline only: a filled glyph stops reading as a brain at 15px.
+      expect(lit().querySelector("svg")!.getAttribute("fill")).toBe("none");
+    });
+
+    it("falls back to the session id before the list has loaded", () => {
+      render({ attached: { session: "auth-refactor" }, infoById: new Map() });
+
+      expect(lit().getAttribute("aria-label")).toBe("Continuing auth-refactor");
+    });
+
+    it("says a bare save is still waiting to be named", () => {
+      render({ attached: {} });
+
+      expect(lit().getAttribute("aria-label")).toBe("Recording a new session");
+      expect(accented(lit())).toBe(true);
+    });
+
+    it("leaves an unmarked terminal's brain muted", () => {
+      render();
+
+      expect(trigger().getAttribute("aria-label")).toBe("Memory");
+      expect(accented(trigger())).toBe(false);
+    });
+
+    it("marks the attached session in the list", () => {
+      render({ attached: { session: "billing" } });
+      click(lit());
+
+      const marked = Array.from(document.querySelectorAll("body li[aria-current]"));
+      expect(marked).toHaveLength(1);
+      expect(marked[0].textContent).toContain("billing");
+    });
+
+    it("detaches and closes", () => {
+      const onDetach = vi.fn();
+      render({ attached: { session: "billing" }, onDetach });
+      click(lit());
+
+      expect(document.body.textContent).toContain("Continuing Stripe migration");
+      click(rows().find((b) => b.textContent === "Detach")!);
+
+      expect(onDetach).toHaveBeenCalledTimes(1);
+      expect(rows()).toHaveLength(0);
+    });
   });
 });

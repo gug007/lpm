@@ -74,6 +74,20 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(started).toEqual([]);
   });
 
+  it("restores the memory session a tab was working under", async () => {
+    h.startTerminal.mockResolvedValue("project-1");
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Agent", memory: { session: "auth-refactor" } }]),
+        "demo",
+        [],
+      ),
+    );
+
+    expect(pane.tabs[0].memory).toEqual({ session: "auth-refactor" });
+  });
+
   // `startedIds` is how restore knows which panes to type the launch command
   // into: an adopted terminal is already running its program, so injecting there
   // would land in a live agent's prompt.
@@ -402,6 +416,22 @@ describe("reifyTreeWithFreshPtys", () => {
       label: "My tab",
       sessionTitleSource: "manual",
     });
+  });
+
+  // The agent resumes into the same memory session after a restart, so the
+  // marker has to survive with it or the brain goes dark on a live session.
+  it("persists the memory session a tab is working under", () => {
+    const persisted = treeToPersisted({
+      kind: "leaf",
+      id: "pane",
+      activeTabIdx: 0,
+      tabs: [
+        { id: "t1", label: "Agent", memory: { session: "auth-refactor" } },
+        { id: "t2", label: "Plain" },
+      ],
+    });
+    expect(persisted.tabs?.[0].memory).toEqual({ session: "auth-refactor" });
+    expect(persisted.tabs?.[1].memory).toBeUndefined();
   });
 
   // The id is the one thing that makes adoption possible, and it's only

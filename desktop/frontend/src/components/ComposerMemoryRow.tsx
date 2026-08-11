@@ -9,6 +9,9 @@ import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 interface ComposerMemoryRowProps {
   session: MentionItem;
   updatedAt?: number;
+  // The session this terminal is already working under — marked so the list
+  // agrees with the lit button, rather than looking like nothing is running.
+  active: boolean;
   // Marks the row the search field's arrow keys are on, so Enter and the mouse
   // agree on which session is next.
   highlighted: boolean;
@@ -37,6 +40,7 @@ const ACTION_BUTTON =
 export function ComposerMemoryRow({
   session,
   updatedAt,
+  active,
   highlighted,
   onHover,
   onPick,
@@ -51,6 +55,7 @@ export function ComposerMemoryRow({
   return (
     <li
       onMouseEnter={onHover}
+      aria-current={active ? "true" : undefined}
       className={`group/row relative transition-colors hover:bg-[var(--bg-hover)] ${
         highlighted ? "bg-[var(--bg-hover)]" : ""
       }`}
@@ -61,7 +66,13 @@ export function ComposerMemoryRow({
         onClick={onPick}
         className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left ${ACTIONS_CLEARANCE}`}
       >
-        <span className="shrink-0 text-[var(--text-muted)] transition-colors group-hover/row:text-[var(--accent-cyan)]">
+        <span
+          className={`shrink-0 transition-colors ${
+            active
+              ? "text-[var(--accent-purple)]"
+              : "text-[var(--text-muted)] group-hover/row:text-[var(--accent-cyan)]"
+          }`}
+        >
           <BrainIcon />
         </span>
         <span className="min-w-0 flex-1">

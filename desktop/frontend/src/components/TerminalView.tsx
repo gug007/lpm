@@ -20,6 +20,7 @@ import {
   terminalDisplayLabel,
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
+import { scanMemoryInvocation } from "../terminalMemory";
 import { detectAICLI } from "../slashCommands";
 import { PaneLayout } from "./PaneLayout";
 import { TerminalTabDnd } from "./TerminalTabDnd";
@@ -125,14 +126,32 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const serviceHandles = useRef<Map<string, PaneHandle>>(new Map());
   const visibleRef = useRef(visible);
 
+  // Set from useTerminals below. submitPrompt is defined before that call (it is
+  // an argument to it), so it reaches the marker through a ref.
+  const noteMemoryRef = useRef<(terminalId: string, session: string | null) => void>(() => {});
+
+  // Light up the composer's memory indicator for whatever session a prompt hands
+  // the agent. Every route into a terminal passes through here or
+  // `submitInputToTerminal`, so an invocation seeded by an action or an
+  // automation marks its tab exactly like one the user typed.
+  const noteMemoryFromInput = useCallback((id: string, payload: string | string[]) => {
+    const found = scanMemoryInvocation(payload);
+    if (found) noteMemoryRef.current(id, found.session);
+  }, []);
+
   // Deliver a seeded prompt (e.g. a duplicate's initial agent task) through the
   // same robust paste-and-submit path a manual composer send uses, so its CR
   // isn't swallowed by the agent's async redraw. Stable identity: it reads the
   // handle map by ref, so a terminal registered after mount is still reachable.
   const submitPrompt = useCallback(
-    (id: string, payload: string | string[]) =>
-      terminalHandles.current.get(id)?.submitInput(payload) ?? false,
-    [],
+    (id: string, payload: string | string[]) => {
+      // Marked regardless of the return: a false result here sends the caller
+      // (useCmdInject) down its raw-write fallback, which delivers the prompt
+      // anyway.
+      noteMemoryFromInput(id, payload);
+      return terminalHandles.current.get(id)?.submitInput(payload) ?? false;
+    },
+    [noteMemoryFromInput],
   );
   // Skip the first visibility-effect run so we don't double-start log
   // streaming (the log-streaming setup effect already starts it on mount).
@@ -174,12 +193,15 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     ensureRootPane,
     getFocusedPane,
     getPane,
+    noteTerminalMemory,
+    detachTerminalMemory,
   } = useTerminals(
     projectName,
     onTerminalCountChange,
     submitPrompt,
     visible && localSessions,
   );
+  noteMemoryRef.current = noteTerminalMemory;
 
   const servicesKey = services.map((s) => s.name).join(",");
   const stableServices = useMemo(() => services, [servicesKey]);
@@ -777,9 +799,12 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (!ok && (!handle || isInteractivePaneSessionDead(terminalId))) {
         toast.error("This terminal isn't accepting input right now.");
       }
+      // Only a delivered prompt counts here — unlike the seeded path there is no
+      // fallback write, so a rejected send never reached the agent.
+      if (ok) noteMemoryFromInput(terminalId, input);
       return ok;
     },
-    [],
+    [noteMemoryFromInput],
   );
 
   const focusTerminalInput = useCallback((terminalId: string) => {
@@ -968,6 +993,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onFocusTerminalInput={focusTerminalInput}
             onRunInDuplicates={runInDuplicates}
             onOpenMemorySession={openMemorySession}
+            onDetachMemory={detachTerminalMemory}
             memoryTarget={memoryTarget}
             onRatioChange={setRatio}
             onFindInPane={findInPane}

@@ -112,6 +112,7 @@ import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
 import { useMemorySessions } from "../hooks/useMemorySessions";
 import { MENTION_TRIGGER, rankMentions, type MentionItem } from "../mentions";
+import type { TerminalMemoryRef } from "../terminalMemory";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -163,6 +164,12 @@ interface TerminalComposerProps {
   onRunInDuplicates: (seed: DuplicatePromptSeed, runHere: () => Promise<void>) => void;
   // Show a saved session in the Memory tab instead of inserting its invocation.
   onOpenMemorySession: (sessionId: string) => void;
+  // The memory session this terminal was last handed, if any — what lights the
+  // memory button up. Absent `session` means the agent hasn't named it yet.
+  memory?: TerminalMemoryRef;
+  // Stop marking this terminal as working under a memory session. Only clears
+  // lpm's own indicator; the agent keeps whatever it was told.
+  onDetachMemory: () => void;
 }
 
 // How many trailing lines of a service's pane to pull into the draft when its
@@ -211,7 +218,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, agentStatus, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, agentStatus, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine. Images are still supported:
   // they're uploaded to the host (which returns a host-valid path) at attach time
   // via UploadClipboardImageForTerminal; other file types stay unsupported. The
@@ -2133,11 +2140,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               <ComposerMemoryButton
                 sessions={memorySessions}
                 infoById={memorySessionById}
+                attached={memory}
                 onOpen={reloadMemorySessions}
                 onPick={insertMemorySession}
                 onView={(item) => onOpenMemorySession(item.insert)}
                 onRename={(item, name) => void renameMemorySession(item, name)}
                 onDelete={(item) => void deleteMemorySession(item)}
+                onDetach={onDetachMemory}
               />
             )}
             {agentStatus && (

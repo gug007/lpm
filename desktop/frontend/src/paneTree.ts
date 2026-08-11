@@ -1,4 +1,5 @@
 import type { AgentSessionRef } from "./agentSession";
+import type { TerminalMemoryRef } from "./terminalMemory";
 
 export type SplitDirection = "row" | "col";
 
@@ -26,6 +27,10 @@ export interface TerminalInstance {
   // other terminals that merely share a label. Absent on non-terminal
   // (browser/review) tabs.
   historyKey?: string;
+  // The lpm-memory session this terminal is working under, set when an
+  // invocation is sent into it and kept until the user detaches. Persisted: the
+  // agent resumes into the same session after a restart, so the badge must too.
+  memory?: TerminalMemoryRef;
   startCmd?: string;
   resumeCmd?: string;
   actionName?: string;
@@ -88,6 +93,7 @@ export function makeTerminal(
     emoji?: string;
     color?: string;
     historyKey?: string;
+    memory?: TerminalMemoryRef;
   },
 ): TerminalInstance {
   return {
@@ -98,6 +104,7 @@ export function makeTerminal(
     ...(opts?.sessionTitleSource ? { sessionTitleSource: opts.sessionTitleSource } : {}),
     ...(opts?.agentSession ? { agentSession: opts.agentSession } : {}),
     historyKey: opts?.historyKey ?? crypto.randomUUID(),
+    ...(opts?.memory ? { memory: opts.memory } : {}),
     ...(opts?.startCmd ? { startCmd: opts.startCmd } : {}),
     ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),

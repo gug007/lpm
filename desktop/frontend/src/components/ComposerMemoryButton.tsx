@@ -5,6 +5,7 @@ import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import type { MemorySessionInfo } from "../hooks/useMemorySessions";
 import type { MentionItem } from "../mentions";
+import type { TerminalMemoryRef } from "../terminalMemory";
 import { BrainIcon, SearchIcon } from "./icons";
 import { ComposerMemoryRow } from "./ComposerMemoryRow";
 import { MemoryRenameDialog } from "./MemoryRenameDialog";
@@ -35,6 +36,13 @@ interface ComposerMemoryButtonProps {
   onRename: (item: MentionItem, name: string) => void;
   // Removes the session file, after the user confirms here.
   onDelete: (item: MentionItem) => void;
+  // The session this terminal is working under, if any: the agent was handed an
+  // invocation and keeps writing there for the rest of the conversation. Absent
+  // `session` while a bare "remember this conversation" waits to be named.
+  attached?: TerminalMemoryRef;
+  // Stops showing this terminal as recording. lpm's own marker only — the agent
+  // keeps whatever it was told, so this is for a mark that has gone stale.
+  onDetach: () => void;
 }
 
 // Footer control beside Drafts: the same memory pool the "@" menu drills into,
@@ -48,6 +56,8 @@ export function ComposerMemoryButton({
   onView,
   onRename,
   onDelete,
+  attached,
+  onDetach,
 }: ComposerMemoryButtonProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -152,20 +162,36 @@ export function ComposerMemoryButton({
     setPendingRename(null);
   };
 
+  // What the lit-up button says it is doing, given how much of the session is
+  // known yet. Null when this terminal isn't working under one.
+  const attachedText = !attached
+    ? null
+    : attached.session
+      ? `Continuing ${infoById.get(attached.session)?.title || attached.session}`
+      : "Recording a new session";
+
   return (
     <div ref={triggerRef}>
-      <Tooltip content="Memory" delay={COMPOSER_TOOLTIP_DELAY_MS}>
+      <Tooltip
+        content={attachedText ? `Memory  ·  ${attachedText}` : "Memory"}
+        delay={COMPOSER_TOOLTIP_DELAY_MS}
+      >
         <button
           type="button"
           onMouseDown={keepEditorFocus}
           onClick={toggle}
-          aria-label="Memory"
+          aria-label={attachedText ?? "Memory"}
           aria-expanded={open}
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-            open
-              ? "bg-[var(--composer-hover-bg)] text-[var(--composer-fg)]"
-              : "text-[var(--composer-fg-muted)] hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
-          }`}
+            // A terminal working under a session reads as on through the outline
+            // alone — the memory accent, the same one the "/lpm-memory <id>"
+            // pill uses. The glyph stays unfilled, so it still reads as a brain.
+            attached
+              ? "text-[var(--accent-purple)]"
+              : open
+                ? "text-[var(--composer-fg)]"
+                : "text-[var(--composer-fg-muted)] hover:text-[var(--composer-fg)]"
+          } ${open ? "bg-[var(--composer-hover-bg)]" : "hover:bg-[var(--composer-hover-bg)]"}`}
         >
           <BrainIcon size={15} />
         </button>
@@ -179,6 +205,27 @@ export function ComposerMemoryButton({
             style={style}
             className="z-[80] flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl"
           >
+            {attached && (
+              <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--accent-purple)_8%,transparent)] px-3 py-2">
+                <span className="shrink-0 text-[var(--accent-purple)]">
+                  <BrainIcon size={13} />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11.5px] leading-[16px] text-[var(--text-secondary)]">
+                  {attachedText}
+                </span>
+                <button
+                  type="button"
+                  onMouseDown={keepEditorFocus}
+                  onClick={() => {
+                    setOpen(false);
+                    onDetach();
+                  }}
+                  className="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  Detach
+                </button>
+              </div>
+            )}
             <button
               type="button"
               onMouseDown={keepEditorFocus}
@@ -237,6 +284,7 @@ export function ComposerMemoryButton({
                         key={session.insert}
                         session={session}
                         updatedAt={infoById.get(session.insert)?.updatedAt}
+                        active={session.insert === attached?.session}
                         highlighted={searchable && i === active}
                         onHover={() => setActive(i)}
                         onPick={() => pick(session)}

@@ -176,6 +176,7 @@ export interface PaneViewProps {
   // Composer memory list → Memory tab: open the tab (or focus the existing one)
   // on the session the user asked to read.
   onOpenMemorySession: (sessionId: string) => void;
+  onDetachMemory: (terminalId: string) => void;
   memoryTarget: { name: string; seq: number } | null;
   onFindInPane: (paneId: string, query: string, direction: "next" | "prev") => boolean;
   filterMode: boolean;
@@ -228,6 +229,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onFocusTerminalInput,
     onRunInDuplicates,
     onOpenMemorySession,
+    onDetachMemory,
     memoryTarget,
     onFindInPane,
     filterMode,
@@ -613,6 +615,8 @@ function PaneViewImpl(props: PaneViewProps) {
             onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
             onRunInDuplicates={onRunInDuplicates}
             onOpenMemorySession={onOpenMemorySession}
+            memory={composerTab.memory}
+            onDetachMemory={() => onDetachMemory(composerTab.id)}
           />
         ) : (
           // Input closed: leave a slim stand-in that reopens it (same as ⌘I).

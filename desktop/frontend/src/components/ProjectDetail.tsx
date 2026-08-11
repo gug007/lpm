@@ -235,6 +235,7 @@ export function ProjectDetail({
               color: forkTask.color,
               startCmd: forkTask.startCmd,
               resumeCmd: forkTask.resumeCmd,
+              memory: forkTask.memory,
             }),
           )
           .catch((err) =>
