@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentCapability } from "./toolkit";
-import { buildList, visibleItems } from "./toolkitList";
+import { buildList, toPanels, visibleItems } from "./toolkitList";
 
 const cap = (over: Partial<AgentCapability> = {}): AgentCapability => ({
   id: over.name ?? "id",
@@ -130,5 +130,49 @@ describe("buildList indexing", () => {
       .map((n) => n.cap.name);
     expect(byIndex).toEqual(visibleItems(nodes).map((c) => c.name));
     expect(byIndex).toEqual(["broken", "mcp", "skill"]);
+  });
+});
+
+describe("toPanels", () => {
+  const panels = (items: AgentCapability[], expanded = NONE) =>
+    toPanels(buildList(items, expanded));
+
+  it("turns every section into a panel and hands it the rows beneath", () => {
+    const built = panels([
+      cap({ name: "deploy" }),
+      cap({ name: "chrome", kind: "mcp" }),
+    ]);
+    expect(built.map((p) => [p.label, p.nodes.length])).toEqual([
+      ["MCP servers", 1],
+      ["Skills", 1],
+    ]);
+    expect(built.every((p) => p.tone === "plain")).toBe(true);
+  });
+
+  it("marks the faults panel so it can carry the one accent", () => {
+    const built = panels([cap({ name: "broken", problem: "not trusted", blocking: true })]);
+    expect(built[0]).toMatchObject({ label: "Needs attention", tone: "warn", count: 1 });
+  });
+
+  it("gives the disabled pile a panel of its own rather than the last kind's", () => {
+    const built = panels([cap({ name: "deploy" }), cap({ name: "gmail", enabled: false })]);
+    expect(built.map((p) => p.label)).toEqual(["Skills", "Disabled"]);
+    expect(built[1]).toMatchObject({ tone: "off", toggle: "inactive", open: false });
+    expect(built[0].nodes).toHaveLength(1);
+  });
+
+  it("holds the disabled rows once the pile is opened", () => {
+    const built = panels([cap({ name: "gmail", enabled: false })], new Set(["inactive"]));
+    expect(built[0].nodes).toHaveLength(1);
+  });
+
+  it("keeps a plugin's block inside the kind it belongs to", () => {
+    const built = panels([
+      cap({ name: "mine" }),
+      cap({ name: "figma-use", scope: "plugin", detail: "figma" }),
+    ]);
+    expect(built).toHaveLength(1);
+    expect(built[0].nodes.map((n) => n.type)).toEqual(["item", "group"]);
+    expect(built[0].kind).toBe("skill");
   });
 });

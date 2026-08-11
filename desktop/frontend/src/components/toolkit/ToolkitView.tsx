@@ -1,24 +1,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToolkitCapabilities } from "../../hooks/useToolkitCapabilities";
 import type { AgentCapability, CapabilityKind } from "../../toolkit";
+import { KIND_LABELS, needsAttention } from "../../toolkit";
 import { buildList, visibleItems as itemsOf } from "../../toolkitList";
 import { rowSummary } from "../../toolkitRowText";
 import { EmptyState } from "../ui/EmptyState";
-import { LayersIcon, RefreshIcon, SearchIcon, XIcon } from "../icons";
-import { SegmentedControl } from "../ui/SegmentedControl";
+import { LayersIcon, SearchIcon, XIcon } from "../icons";
 import { ToolkitBudget } from "./ToolkitBudget";
 import { ToolkitDetail } from "./ToolkitDetail";
-import { ToolkitKindChips } from "./ToolkitKindChips";
 import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
+import { FIELD, QUIET_BUTTON, SURFACE_TOKENS } from "./surfaces";
 
 type CliFilter = "all" | "claude" | "codex";
+
+const CLI_OPTIONS: { value: CliFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "claude", label: "Claude" },
+  { value: "codex", label: "Codex" },
+];
 
 // Sentinel for "every group open", used while a filter is live so a match can
 // never hide behind a folded heading.
 const ALL_GROUPS: ReadonlySet<string> = {
   has: () => true,
 } as unknown as ReadonlySet<string>;
+
+function Notice({ tone, children }: { tone: "warn" | "bad"; children: React.ReactNode }) {
+  return (
+    <p
+      className={`shrink-0 rounded-[var(--tk-radius)] px-3 py-2 text-[10.5px] leading-snug ${
+        tone === "bad"
+          ? "bg-[color-mix(in_srgb,var(--accent-red)_12%,var(--bg-primary))] text-[var(--accent-red-text)]"
+          : "bg-[var(--tk-fault)] text-[var(--accent-amber-text)]"
+      }`}
+    >
+      {children}
+    </p>
+  );
+}
 
 interface ToolkitViewProps {
   cwd: string;
@@ -44,8 +64,6 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
 
   const all = useMemo(() => data?.items ?? [], [data]);
 
-  // The kind chips count what the CLI filter leaves, so their numbers always
-  // match what picking one would show.
   const forCli = useMemo(
     () => (cli === "all" ? all : all.filter((i) => i.cli === cli)),
     [all, cli],
@@ -71,6 +89,17 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     [matched, expanded, query],
   );
   const visibleItems = useMemo(() => itemsOf(nodes), [nodes]);
+
+  // What each kind contributed to the faults panel, so a kind's heading can say
+  // that two of its own are sitting above rather than silently missing.
+  const flaggedByKind = useMemo(() => {
+    const counts = new Map<CapabilityKind, number>();
+    for (const item of matched) {
+      if (!needsAttention(item)) continue;
+      counts.set(item.kind, (counts.get(item.kind) ?? 0) + 1);
+    }
+    return counts;
+  }, [matched]);
 
   // Counted from every item, never from `matched`: what a plugin contributes
   // does not change because you typed in the filter.
@@ -109,7 +138,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       if (inField && !ownSearch) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-      // Enter belongs to whatever control has focus — a chip, the re-scan
+      // Enter belongs to whatever control has focus — a heading, the re-scan
       // button, a group toggle, or a row, all of which activate themselves on
       // click. Handling it here would suppress that and open an unrelated row.
       const onControl = Boolean(target?.closest("button,[role=button],a,select"));
@@ -132,15 +161,16 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       } else if (e.key === "/" && !inField) {
         e.preventDefault();
         searchRef.current?.focus();
-      } else if (e.key === "Escape" && (query || ownSearch)) {
+      } else if (e.key === "Escape" && (query || kindFilter || ownSearch)) {
         e.stopPropagation();
         setQuery("");
+        setKindFilter(null);
         searchRef.current?.blur();
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [listActive, visibleItems, activeIndex, query]);
+  }, [listActive, visibleItems, activeIndex, query, kindFilter]);
 
   if (selected) {
     return (
@@ -153,85 +183,112 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     );
   }
 
-  const filtering = Boolean(query.trim()) || kindFilter !== null || cli !== "all";
+  const filtering = Boolean(query.trim()) || kindFilter !== null;
+  const attention = matched.filter(needsAttention).length;
   const pendingOnTrust = all.filter((i) => i.problem.includes("not trusted")).length;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)]">
-      <div className="flex items-center gap-2 border-b border-[var(--border)] px-2 py-1.5">
-        <SegmentedControl
-          value={cli}
-          options={[
-            { value: "all", label: "All" },
-            { value: "claude", label: "Claude" },
-            { value: "codex", label: "Codex" },
-          ]}
-          onChange={(v) => setCli(v as CliFilter)}
-          variant="subtle"
-          ariaLabel="Agent CLI"
-        />
-        <label className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--text-muted)] [&>svg]:h-3.5 [&>svg]:w-3.5">
-          <SearchIcon />
+    <div
+      style={SURFACE_TOKENS}
+      className="flex min-h-0 flex-1 flex-col gap-2 bg-[var(--bg-primary)] p-2"
+    >
+      <div className="flex shrink-0 items-center gap-2">
+        <div
+          role="group"
+          aria-label="Agent CLI"
+          className="flex shrink-0 gap-0.5 rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] p-0.5"
+        >
+          {CLI_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setCli(option.value)}
+              aria-pressed={cli === option.value}
+              className={`rounded-[7px] px-2 py-[3px] text-[10.5px] transition-colors ${
+                cli === option.value
+                  ? "bg-[var(--tk-active)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <label className={`${FIELD} flex flex-1 items-center gap-1.5`}>
+          <span className="text-[var(--text-muted)] [&>svg]:h-3.5 [&>svg]:w-3.5">
+            <SearchIcon />
+          </span>
           <input
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter (/)"
+            placeholder={forCli.length > 0 ? `Filter ${forCli.length} capabilities` : "Filter"}
             spellCheck={false}
             aria-label="Filter capabilities"
-            className="min-w-0 flex-1 bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery("")}
               aria-label="Clear filter"
-              className="shrink-0 rounded p-0.5 transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
+              className="shrink-0 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
             >
               <XIcon />
             </button>
           )}
         </label>
-        {filtering && data && (
-          <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
-            {matched.length}/{all.length}
-          </span>
-        )}
-        <button
-          onClick={refresh}
-          disabled={loading}
-          title="Re-scan"
-          aria-label="Re-scan"
-          className="shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors hover:text-[var(--text-secondary)]"
-        >
-          <span className={loading ? "flex animate-spin" : "flex"}>
-            <RefreshIcon />
-          </span>
+
+        <button onClick={refresh} disabled={loading} className={QUIET_BUTTON}>
+          {loading ? "Scanning…" : "Re-scan"}
         </button>
       </div>
 
-      {error && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--accent-red-text)]">
-          {error}
+      {data && all.length > 0 && (
+        <p className="shrink-0 truncate px-1 text-[10.5px] leading-[15px] tabular-nums text-[var(--text-muted)]">
+          {/* Counted over the chosen CLI, never over both: the panels below
+              show that set, and a total that disagrees with them reads as a
+              bug. */}
+          <span className="text-[var(--text-secondary)]">
+            {filtering
+              ? `${matched.length} of ${forCli.length} match`
+              : `${forCli.length} capabilities`}
+          </span>
+          {attention > 0 && ` · ${attention} need attention`}
+          {kindFilter && (
+            <>
+              {" · "}
+              <button
+                type="button"
+                onClick={() => setKindFilter(null)}
+                className="text-[var(--text-secondary)] underline decoration-dotted underline-offset-2"
+              >
+                {KIND_LABELS[kindFilter].toLowerCase()} only — show everything
+              </button>
+            </>
+          )}
         </p>
       )}
+
+      {error && <Notice tone="bad">{error}</Notice>}
       {data?.truncated && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--accent-amber-text)]">
+        <Notice tone="warn">
           Too many capability files to list them all — this view is incomplete.
-        </p>
+        </Notice>
       )}
       {data?.remote && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--text-muted)]">
+        <p className="shrink-0 px-1 text-[10.5px] text-[var(--text-muted)]">
           Scanned over SSH — remote capabilities are read-only here.
         </p>
       )}
       {/* Only when something is actually blocked by it. An untrusted directory
           with no project servers has nothing to warn about. */}
       {pendingOnTrust > 0 && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] leading-snug text-[var(--accent-amber-text)]">
-          {pendingOnTrust} project MCP server{pendingOnTrust === 1 ? "" : "s"} will not
-          start until you trust this directory in Claude Code.
-        </p>
+        <Notice tone="warn">
+          {pendingOnTrust} project MCP server{pendingOnTrust === 1 ? "" : "s"} will not start
+          until you trust this directory in Claude Code.
+        </Notice>
       )}
 
       {!data ? (
@@ -250,16 +307,12 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         <>
           {/* Only ever for one CLI: summing what Claude and Codex each load
               would describe a session nobody is running, and a shared
-              AGENTS.md would be counted twice. The budget otherwise follows
-              the filter, so the number always describes the rows underneath
-              it. The chips stay on `forCli`: their job is to show what picking
-              one would reveal. */}
+              AGENTS.md would be counted twice. It otherwise follows the
+              filter, so the number always describes the rows underneath it. */}
           {cli !== "all" && <ToolkitBudget items={matched} />}
-          <ToolkitKindChips items={forCli} value={kindFilter} onChange={setKindFilter} />
           {/* Nodes, not items: a kind whose members are all plugin-provided
-              renders a section and a folded group with no rows, and counting
-              only rows would call that "no matches" while the chip beside it
-              shows a number. */}
+              renders a panel and a folded group with no rows, and counting
+              only rows would call that "no matches". */}
           {nodes.length === 0 ? (
             <div className="min-h-0 flex-1">
               <EmptyState
@@ -271,10 +324,13 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
             <ToolkitList
               nodes={nodes}
               summarise={summarise}
+              flaggedByKind={flaggedByKind}
+              showCli={cli === "all"}
               activeIndex={activeIndex}
               onHover={setActiveIndex}
               onActivate={setSelected}
               onToggleGroup={toggleGroup}
+              onFilterKind={(kind) => setKindFilter((prev) => (prev === kind ? null : kind))}
             />
           )}
           <ToolkitRoots data={data} />

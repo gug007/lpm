@@ -1,46 +1,37 @@
 import { useEffect, useRef } from "react";
 import type { AgentCapability } from "../../toolkit";
-import {
-  capabilityIssue,
-  formatTokens,
-  scopeLabel,
-  shortPath,
-  upfrontBytes,
-} from "../../toolkit";
-
-// State reads from the glyph before the text, so a list of forty rows can be
-// scanned rather than read.
-function StateGlyph({ cap }: { cap: AgentCapability }) {
-  if (cap.shadowedBy)
-    return <span className="text-[var(--accent-amber-text)]" title="Shadowed">⤬</span>;
-  if (cap.problem)
-    return <span className="text-[var(--accent-red-text)]" title="Problem">✘</span>;
-  if (!cap.enabled)
-    return <span className="text-[var(--text-muted)]" title="Disabled">⊘</span>;
-  return <span className="text-[var(--accent-green-text)]" title="Active">✔</span>;
-}
+import { capabilityIssue, shortPath } from "../../toolkit";
+import { faultState, rowMeta } from "../../toolkitRowText";
+import { ROW } from "./surfaces";
 
 interface ToolkitRowProps {
   cap: AgentCapability;
   summary: string;
   active: boolean;
+  fault: boolean;
   nested: boolean;
+  showCli: boolean;
   onSelect: () => void;
   onActivate: () => void;
 }
 
+// Three columns and no glyph: what it is called, what it does, and the one fact
+// that changes what happens. A row that is fine says nothing about being fine —
+// the eye should find nothing to catch on until it reaches something amber.
 export function ToolkitRow({
   cap,
   summary,
   active,
+  fault,
   nested,
+  showCli,
   onSelect,
   onActivate,
 }: ToolkitRowProps) {
   const ref = useRef<HTMLButtonElement>(null);
   const issue = capabilityIssue(cap);
-  const muted = Boolean(cap.shadowedBy) || !cap.enabled;
-  const upfront = upfrontBytes(cap);
+  const meta = fault ? faultState(cap) : rowMeta(cap, showCli);
+  const muted = !cap.enabled || Boolean(cap.shadowedBy);
 
   // Keyboard navigation drives `active`, so the row has to bring itself into
   // view — the caller does not know the scroll container's geometry.
@@ -55,50 +46,40 @@ export function ToolkitRow({
       onMouseMove={onSelect}
       onClick={onActivate}
       aria-current={active}
-      title={cap.description || shortPath(cap.path)}
-      className={`flex w-full items-baseline gap-2 py-[3px] pr-3 text-left transition-colors ${
-        nested ? "pl-7" : "pl-3"
-      } ${active ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"}`}
+      title={issue ?? cap.description ?? shortPath(cap.path)}
+      className={`${ROW} ${nested ? "pl-6" : ""} ${
+        fault
+          ? active
+            ? "bg-[var(--tk-fault-active)]"
+            : "hover:bg-[var(--tk-fault-hover)]"
+          : active
+            ? "bg-[var(--tk-active)]"
+            : "hover:bg-[var(--tk-hover)]"
+      }`}
     >
-      <span className="w-3 shrink-0 text-[11px] leading-5">
-        <StateGlyph cap={cap} />
-      </span>
-
       <span
-        className={`max-w-[42%] shrink-0 truncate font-mono text-[12px] ${
-          muted ? "text-[var(--text-muted)] line-through" : "text-[var(--text-primary)]"
+        className={`max-w-[210px] truncate font-mono text-[12px] leading-4 ${
+          muted && !fault ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
         }`}
       >
         {cap.name}
       </span>
 
-      {/* Scope only when it is not the obvious one: "user" on forty rows is
-          decoration, while project/local/plugin genuinely change behaviour. */}
-      {cap.scope !== "user" && (
-        <span className="shrink-0 text-[9.5px] uppercase leading-[14px] tracking-wide text-[var(--text-muted)]">
-          {scopeLabel(cap.scope)}
-        </span>
-      )}
-
-      <span className="min-w-0 flex-1 truncate text-[11px]">
-        {issue && <span className="text-[var(--accent-amber-text)]">{issue}</span>}
-        {issue && summary && <span className="text-[var(--text-muted)]"> · </span>}
-        {summary && (
-          <span className="text-[var(--text-muted)]">{summary}</span>
-        )}
+      <span
+        className={`truncate text-[10.5px] leading-4 ${
+          fault ? "text-[var(--text-secondary)]" : "text-[var(--text-muted)]"
+        }`}
+      >
+        {fault ? (issue ?? summary) : summary}
       </span>
 
-      {/* Skills and subagents all cost roughly one description, so printing
-          that per row is a column of near-identical numbers. Only the figures
-          that actually differ earn the space. */}
-      {cap.kind === "instructions" && upfront > 0 && (
-        <span
-          className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]"
-          title="Estimated tokens loaded before your turn"
-        >
-          {formatTokens(upfront)}
-        </span>
-      )}
+      <span
+        className={`whitespace-nowrap text-[10.5px] leading-4 tabular-nums ${
+          fault ? "text-[var(--accent-amber-text)]" : "text-[var(--text-muted)]"
+        }`}
+      >
+        {meta}
+      </span>
     </button>
   );
 }

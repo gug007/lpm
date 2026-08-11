@@ -73,7 +73,7 @@ export function ToolkitBudget({ items }: { items: AgentCapability[] }) {
   ].filter(Boolean) as string[];
 
   return (
-    <div className="flex flex-col border-b border-[var(--border)] bg-[var(--bg-secondary)] px-3 pb-2 pt-2.5">
+    <div className="flex shrink-0 flex-col rounded-[var(--tk-radius)] bg-[var(--tk-panel)] px-3 pb-2 pt-2.5">
       <div className="flex items-baseline gap-2">
         {bytes > 0 && (
           <span className="text-[19px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-[var(--text-primary)]">
@@ -136,7 +136,7 @@ export function ToolkitBudget({ items }: { items: AgentCapability[] }) {
         <div
           aria-hidden
           style={{ width: `${measured}%` }}
-          className="relative mt-[3px] h-[13px] border-t border-[var(--border)] text-[9.5px] tabular-nums text-[var(--text-muted)]"
+          className="relative mt-[3px] h-[13px] text-[9.5px] tabular-nums text-[var(--text-muted)]"
         >
           {ticks.map((tick, index) => (
             <span
@@ -178,7 +178,10 @@ export function ToolkitBudget({ items }: { items: AgentCapability[] }) {
         )}
       </div>
 
-      <p className="mt-1 text-[10px] leading-snug text-[var(--text-muted)]">
+      <p
+        title={excludedSummary(ledger)}
+        className="mt-1 line-clamp-2 text-[10px] leading-snug text-[var(--text-muted)]"
+      >
         <span className="font-semibold text-[var(--text-secondary)]">Not in the bar:</span>{" "}
         {excludedSummary(ledger)}
       </p>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentCapability } from "./toolkit";
-import { pluginContribution, rowSummary } from "./toolkitRowText";
+import { faultState, panelMeta, pluginContribution, rowMeta, rowSummary } from "./toolkitRowText";
 
 function cap(over: Partial<AgentCapability> = {}): AgentCapability {
   return {
@@ -65,5 +65,58 @@ describe("rowSummary", () => {
   it("counts a plugin's items even when they are filtered out of view", () => {
     const all = [plugin, cap({ id: "a" })];
     expect(rowSummary(plugin, all)).toBe("1 skill");
+  });
+});
+
+const own = (over: Partial<AgentCapability> = {}) =>
+  cap({ scope: "user", detail: "", name: "deploy", ...over });
+
+describe("faultState", () => {
+  it("names each way a row can fail to do what the repo implies", () => {
+    expect(faultState(cap({ shadowedBy: "/h/.claude/skills/run/SKILL.md" }))).toBe("shadowed");
+    expect(faultState(cap({ problem: "not trusted", blocking: true }))).toBe("blocked");
+    expect(faultState(cap({ problem: "key in the repo" }))).toBe("loads anyway");
+    expect(faultState(cap({ enabled: false }))).toBe("off");
+  });
+
+  it("says nothing about a healthy row", () => {
+    expect(faultState(cap())).toBe("");
+  });
+});
+
+describe("rowMeta", () => {
+  it("stays silent for the ordinary case", () => {
+    expect(rowMeta(own())).toBe("");
+  });
+
+  it("names the scope only when it is not the obvious one", () => {
+    expect(rowMeta(own({ scope: "project" }))).toBe("project");
+    expect(rowMeta(cap())).toBe("figma@official plugin");
+  });
+
+  it("names the CLI only while both are listed together", () => {
+    expect(rowMeta(own({ cli: "codex" }))).toBe("");
+    expect(rowMeta(own({ cli: "codex" }), true)).toBe("codex");
+  });
+
+  it("prints a figure only where the numbers actually differ", () => {
+    const file = own({ kind: "instructions", name: "CLAUDE.md", bytes: 12800 });
+    expect(rowMeta(file)).toBe("~3.2k est");
+    expect(rowMeta(own({ description: "x".repeat(400) }))).toBe("");
+  });
+});
+
+describe("panelMeta", () => {
+  it("counts, costs, and says where the missing ones went", () => {
+    expect(panelMeta("skill", 17, 11600, 1)).toBe("17 · 1 flagged above · ~2.9k est up front");
+  });
+
+  it("explains a kind that costs nothing up front", () => {
+    expect(panelMeta("command", 4, 0, 0)).toBe("4 · loaded only when you run one");
+    expect(panelMeta("mcp", 5, 0, 2)).toBe("5 · 2 flagged above · schemas not counted");
+  });
+
+  it("has nothing to explain for a pile with no kind", () => {
+    expect(panelMeta(null, 3, 0, 0)).toBe("3");
   });
 });

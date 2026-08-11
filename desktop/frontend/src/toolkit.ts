@@ -74,16 +74,6 @@ export const KIND_LABELS: Record<CapabilityKind, string> = {
   hook: "Hooks",
 };
 
-export const KIND_SHORT: Record<CapabilityKind, string> = {
-  mcp: "MCP",
-  skill: "Skills",
-  plugin: "Plugins",
-  subagent: "Agents",
-  command: "Cmds",
-  instructions: "Instr",
-  hook: "Hooks",
-};
-
 // Stated in one plain sentence next to any shadowed capability. Skills and
 // subagents resolve in opposite directions — that surprise is the reason the
 // rule is spelled out rather than implied by an icon.
