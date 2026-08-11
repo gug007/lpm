@@ -117,10 +117,13 @@ export function estimateTokens(bytes: number): number {
   return Math.round(bytes / 4);
 }
 
-export function formatTokens(bytes: number): string {
-  const tokens = estimateTokens(bytes);
+export function formatTokenCount(tokens: number): string {
   if (tokens < 1000) return `${tokens}`;
   return `${(tokens / 1000).toFixed(1)}k`;
+}
+
+export function formatTokens(bytes: number): string {
+  return formatTokenCount(estimateTokens(bytes));
 }
 
 // Installed, wins its name, and has nothing wrong with it.

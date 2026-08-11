@@ -248,10 +248,13 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         />
       ) : (
         <>
-          {/* The budget follows the filter, so the number always describes the
-              rows underneath it. The chips stay on `forCli`: their job is to
-              show what picking one would reveal. */}
-          <ToolkitBudget items={matched} />
+          {/* Only ever for one CLI: summing what Claude and Codex each load
+              would describe a session nobody is running, and a shared
+              AGENTS.md would be counted twice. The budget otherwise follows
+              the filter, so the number always describes the rows underneath
+              it. The chips stay on `forCli`: their job is to show what picking
+              one would reveal. */}
+          {cli !== "all" && <ToolkitBudget items={matched} />}
           <ToolkitKindChips items={forCli} value={kindFilter} onChange={setKindFilter} />
           {/* Nodes, not items: a kind whose members are all plugin-provided
               renders a section and a folded group with no rows, and counting
