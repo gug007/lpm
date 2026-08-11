@@ -7,6 +7,7 @@ import { BrowserMirrorPlaceholder } from "./BrowserMirrorPlaceholder";
 import { IS_MIRROR_WINDOW } from "../mirror";
 import { DiffReviewPane } from "./review/DiffReviewPane";
 import { MemoryView } from "./MemoryView";
+import { ToolkitView } from "./toolkit/ToolkitView";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
@@ -23,7 +24,7 @@ import {
 } from "./terminal/icons";
 import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon, BrainIcon } from "./icons";
+import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon, BrainIcon, LayersIcon } from "./icons";
 import { Columns2 } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
@@ -88,6 +89,7 @@ function TabIcon({ tab }: { tab: TerminalInstance }) {
   if (tab.kind === "browser") return <BrowserTabIcon id={tab.id} />;
   if (tab.kind === "review") return <CodeIcon />;
   if (tab.kind === "memory") return <BrainIcon />;
+  if (tab.kind === "toolkit") return <LayersIcon />;
   if (tab.emoji)
     return (
       <span
@@ -137,6 +139,7 @@ export interface PaneViewProps {
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
   onAddReview: (paneId: string) => void;
+  onAddToolkit: (paneId: string) => void;
   onResumeSession?: () => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
@@ -209,6 +212,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onAddTerminal,
     onAddBrowser,
     onAddReview,
+    onAddToolkit,
     onResumeSession,
     onCloseTerminal,
     onCloseOtherTerminals,
@@ -435,6 +439,7 @@ function PaneViewImpl(props: PaneViewProps) {
             onAddTerminal={() => onAddTerminal(pane.id)}
             onAddBrowser={() => onAddBrowser(pane.id)}
             onAddReview={() => onAddReview(pane.id)}
+            onAddToolkit={() => onAddToolkit(pane.id)}
             onResumeSession={onResumeSession}
           />
           </div>
@@ -579,6 +584,14 @@ function PaneViewImpl(props: PaneViewProps) {
                   focused={focused}
                   target={memoryTarget}
                 />
+              ) : t.kind === "toolkit" ? (
+                <ErrorBoundary resetKey={t.id} scope="toolkit">
+                  <ToolkitView
+                    cwd={interactiveCwd}
+                    visible={visible && isActive}
+                    focused={focused}
+                  />
+                </ErrorBoundary>
               ) : (
                 <InteractiveTab
                   terminalId={t.id}

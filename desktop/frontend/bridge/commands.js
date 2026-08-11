@@ -581,6 +581,15 @@ export function ReadFile(absPath) {
 export function ReadGlobalConfig() {
   return invoke("read_global_config");
 }
+export function ListAgentCapabilities(cwd) {
+  return invoke("list_agent_capabilities", { cwd });
+}
+export function ReadAgentCapability(path) {
+  return invoke("read_agent_capability", { path });
+}
+export function WriteAgentCapability(path, content, baseline) {
+  return invoke("write_agent_capability", { path, content, baseline });
+}
 export function ReadMemorySessions(project) {
   return invoke("read_memory_sessions", { project });
 }

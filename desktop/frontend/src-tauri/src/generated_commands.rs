@@ -14,6 +14,9 @@ macro_rules! all_command_handlers {
         tauri::generate_handler![
             ack_terminal_data,
             agent_limits,
+            list_agent_capabilities,
+            read_agent_capability,
+            write_agent_capability,
             agent_session_title,
             list_agent_sessions,
             agent_usage_stats,

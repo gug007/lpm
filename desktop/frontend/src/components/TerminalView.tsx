@@ -171,6 +171,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     addBrowserToPane,
     addReviewToPane,
     addMemoryToPane,
+    addToolkitToPane,
     closeTerminal,
     closeOtherTerminals,
     focusTerminal,
@@ -463,6 +464,17 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [getPane, addMemoryToPane, focusTerminal],
   );
 
+  const openToolkitInPane = useCallback(
+    (paneId: string) => {
+      const pane = getPane(paneId);
+      if (!pane) return;
+      const toolkitIdx = pane.tabs.findIndex((t) => t.kind === "toolkit");
+      if (toolkitIdx < 0) addToolkitToPane(paneId);
+      else focusTerminal(paneId, toolkitIdx);
+    },
+    [getPane, addToolkitToPane, focusTerminal],
+  );
+
   // Sidebar menu entry: focus the memory tab wherever it lives in the layout,
   // or add one to the focused pane.
   const openMemory = useCallback(() => {
@@ -681,6 +693,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "i", meta: true },
       { key: "r", meta: true, shift: true },
       { key: "m", meta: true, shift: true },
+      { key: "k", meta: true, shift: true },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
@@ -688,6 +701,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (matched.key === "-") return onZoomOut();
       if (matched.key === "r") return toggleUtilityTab("review", openReviewInPane);
       if (matched.key === "m") return toggleUtilityTab("memory", openMemoryInPane);
+      if (matched.key === "k") return toggleUtilityTab("toolkit", openToolkitInPane);
       if (matched.key === "i") {
         if (focusedComposerTerminalId) useComposerStore.getState().toggle();
         return;
@@ -973,6 +987,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
             onAddReview={openReviewInPane}
+            onAddToolkit={openToolkitInPane}
             onResumeSession={onResumeSession}
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}

@@ -1,7 +1,7 @@
 import { ALL_SERVICES, type PaneLeaf } from "../../paneTree";
 
-// Tabs that ⌘⇧R / ⌘⇧M toggle on and off in the focused pane.
-export type UtilityTabKind = "review" | "memory";
+// Tabs that ⌘⇧R / ⌘⇧M / ⌘⇧K toggle on and off in the focused pane.
+export type UtilityTabKind = "review" | "memory" | "toolkit";
 
 // The header entry the toggle was pressed from — a terminal tab, or the service
 // log the pane was showing.

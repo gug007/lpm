@@ -187,7 +187,7 @@ fn builtins(cli: &str) -> Vec<AgentCommand> {
         .collect()
 }
 
-fn yaml_str(v: &serde_norway::Value, k: &str) -> String {
+pub(crate) fn yaml_str(v: &serde_norway::Value, k: &str) -> String {
     v.get(k)
         .and_then(|x| x.as_str())
         .unwrap_or("")
@@ -197,7 +197,7 @@ fn yaml_str(v: &serde_norway::Value, k: &str) -> String {
 
 // Split a markdown file into (frontmatter yaml head, body). Recognizes a leading
 // `---` fence closed by a `---` at the start of a later line.
-fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
+pub(crate) fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
     let trimmed = content.trim_start_matches('\u{feff}');
     let rest = match trimmed
         .strip_prefix("---\n")

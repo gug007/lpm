@@ -22,6 +22,7 @@ import {
   makeTerminal,
   makeBrowser,
   makeMemory,
+  makeToolkit,
   makeReview,
   isTerminalTab,
   collectPanes,
@@ -390,6 +391,15 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
+  // Toolkit tabs have no PTY either — they render the agent-capabilities page.
+  const addToolkitToPane = useCallback(
+    (paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return forward("addToolkitToPane", paneId);
+      addTerminal(makeToolkit(nextId("toolkit")), paneId);
+    },
+    [addTerminal, forward],
+  );
+
   return {
     createTerminal,
     adoptTerminal,
@@ -401,5 +411,6 @@ export function useTabCreation({
     addBrowserToPane,
     addReviewToPane,
     addMemoryToPane,
+    addToolkitToPane,
   };
 }
