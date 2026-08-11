@@ -9,7 +9,7 @@ function Section({ node }: { node: Extract<ListNode, { type: "section" }> }) {
     <div className="sticky top-0 z-10 flex items-baseline gap-2 bg-[var(--bg-primary)] px-3 pb-1 pt-3">
       <span
         className={`text-[10px] font-medium uppercase tracking-wider ${
-          node.tone === "warn" ? "text-[var(--accent-amber)]" : "text-[var(--text-muted)]"
+          node.tone === "warn" ? "text-[var(--accent-amber-text)]" : "text-[var(--text-muted)]"
         }`}
       >
         {node.label}
@@ -58,6 +58,7 @@ function Group({
 
 interface ToolkitListProps {
   nodes: ListNode[];
+  summarise: (cap: AgentCapability) => string;
   activeIndex: number;
   onHover: (index: number) => void;
   onActivate: (cap: AgentCapability) => void;
@@ -68,6 +69,7 @@ interface ToolkitListProps {
 // the keyboard walks come from the same source.
 export function ToolkitList({
   nodes,
+  summarise,
   activeIndex,
   onHover,
   onActivate,
@@ -83,6 +85,7 @@ export function ToolkitList({
           <ToolkitRow
             key={node.cap.id}
             cap={node.cap}
+            summary={summarise(node.cap)}
             nested={node.nested}
             active={node.index === activeIndex}
             onSelect={() => onHover(node.index)}

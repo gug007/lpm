@@ -1,5 +1,5 @@
 import type { AgentCapability, CapabilityKind } from "../../toolkit";
-import { KIND_ORDER, KIND_SHORT, isBroken } from "../../toolkit";
+import { KIND_ORDER, KIND_SHORT, needsAttention } from "../../toolkit";
 
 interface ToolkitKindChipsProps {
   items: AgentCapability[];
@@ -33,7 +33,7 @@ function Chip({
     >
       <span>{label}</span>
       <span className="tabular-nums text-[var(--text-muted)]">{count}</span>
-      {warn ? <span className="tabular-nums text-[var(--accent-amber)]">!{warn}</span> : null}
+      {warn ? <span className="tabular-nums text-[var(--accent-amber-text)]">!{warn}</span> : null}
     </button>
   );
 }
@@ -46,7 +46,7 @@ export function ToolkitKindChips({ items, value, onChange }: ToolkitKindChipsPro
       <Chip
         label="All"
         count={items.length}
-        warn={items.filter(isBroken).length}
+        warn={items.filter(needsAttention).length}
         active={value === null}
         onClick={() => onChange(null)}
       />
@@ -58,7 +58,7 @@ export function ToolkitKindChips({ items, value, onChange }: ToolkitKindChipsPro
             key={kind}
             label={KIND_SHORT[kind]}
             count={group.length}
-            warn={group.filter(isBroken).length}
+            warn={group.filter(needsAttention).length}
             active={value === kind}
             onClick={() => onChange(value === kind ? null : kind)}
           />

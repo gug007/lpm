@@ -26,6 +26,9 @@ export interface AgentCapability {
   editable: boolean;
   shadowedBy: string;
   problem: string;
+  // Whether `problem` actually stops it loading. A secret warning and an
+  // ambiguous tie do not.
+  blocking: boolean;
   bytes: number;
 }
 
@@ -120,10 +123,25 @@ export function formatTokens(bytes: number): string {
   return `${(tokens / 1000).toFixed(1)}k`;
 }
 
-// Broken means "you asked for this and it will not work". Disabled is a choice
-// the user already made, so it is listed apart rather than flagged as a fault.
-export function isBroken(cap: AgentCapability): boolean {
-  return Boolean(cap.problem) || Boolean(cap.shadowedBy);
+// Installed, wins its name, and has nothing wrong with it.
+export function loads(cap: AgentCapability): boolean {
+  return cap.enabled && !cap.shadowedBy && !cap.problem;
+}
+
+// Disabled is a choice the user already made, so it is listed apart rather than
+// flagged as a fault: this is "you did not turn it off, and it still is not
+// doing what you expect".
+export function needsAttention(cap: AgentCapability): boolean {
+  return cap.enabled && !loads(cap);
+}
+
+// Whether it still occupies the context window, which is a different question
+// from whether anything is wrong with it. Only `blocking` problems stop a
+// capability loading: a server with a literal API key starts anyway, and an
+// ambiguous tie flags every candidate even though one of them wins — zeroing
+// those would under-report the very number the pane exists to give.
+export function costsContext(cap: AgentCapability): boolean {
+  return cap.enabled && !cap.shadowedBy && !(cap.problem && cap.blocking);
 }
 
 // Descriptions are written for the model, not for a list: they open with
@@ -181,7 +199,7 @@ export function totalBytes(items: AgentCapability[]): number {
 //   - MCP tool schemas *do* load up front, but measuring them means connecting
 //     to the server, so they are reported as uncounted rather than guessed at.
 export function upfrontBytes(cap: AgentCapability): number {
-  if (!cap.enabled || cap.shadowedBy) return 0;
+  if (!costsContext(cap)) return 0;
   if (cap.kind === "instructions") return cap.bytes;
   if (cap.kind === "skill" || cap.kind === "subagent") {
     return cap.name.length + cap.description.length;
@@ -193,10 +211,11 @@ export function upfrontTotal(items: AgentCapability[]): number {
   return items.reduce((sum, i) => sum + upfrontBytes(i), 0);
 }
 
-// Enabled MCP servers, whose tool schemas load up front and are the usual
-// dominant cost — the number the estimate above deliberately excludes.
+// MCP servers that load, whose tool schemas are the usual dominant cost — the
+// number the estimate above deliberately excludes. Same predicate as the bytes,
+// so the headline and its caveat describe one set.
 export function uncountedServers(items: AgentCapability[]): number {
-  return items.filter((i) => i.kind === "mcp" && i.enabled && !i.problem).length;
+  return items.filter((i) => i.kind === "mcp" && costsContext(i)).length;
 }
 
 // Frontmatter as the detail view shows it: a chip table above the prose, with

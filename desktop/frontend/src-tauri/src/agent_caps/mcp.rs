@@ -200,6 +200,7 @@ fn claude_mcp(home: &Path, cwd: &str, root: Option<&Path>, out: &mut AgentCapabi
             cap.enabled = false;
         } else if !trusted && cap.problem.is_empty() {
             cap.problem = "pending approval — this directory is not trusted yet".into();
+            cap.blocking = true;
         }
         out.items.push(cap);
     }

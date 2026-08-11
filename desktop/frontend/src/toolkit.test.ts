@@ -3,8 +3,10 @@ import type { AgentCapability, CapabilityKind } from "./toolkit";
 import {
   capabilityIssue,
   formatTokens,
+  costsContext,
   groupByKind,
-  isBroken,
+  loads,
+  needsAttention,
   shortDescription,
   shortPath,
   splitFrontmatter,
@@ -28,6 +30,7 @@ function cap(over: Partial<AgentCapability> = {}): AgentCapability {
     editable: true,
     shadowedBy: "",
     problem: "",
+    blocking: false,
     bytes: 0,
     ...over,
   };
@@ -68,17 +71,48 @@ describe("capabilityIssue", () => {
   });
 });
 
-describe("isBroken", () => {
-  it("covers problems and shadowing", () => {
-    expect(isBroken(cap())).toBe(false);
-    expect(isBroken(cap({ problem: "boom" }))).toBe(true);
-    expect(isBroken(cap({ shadowedBy: "/x" }))).toBe(true);
+describe("loads / needsAttention / costsContext", () => {
+  it("covers problems, shadowing and the off switch", () => {
+    expect(loads(cap())).toBe(true);
+    expect(loads(cap({ problem: "boom" }))).toBe(false);
+    expect(loads(cap({ shadowedBy: "/x" }))).toBe(false);
+    expect(loads(cap({ enabled: false }))).toBe(false);
   });
 
   // Turning something off is a decision the user already made. Flagging it as
   // a fault trains them to ignore the warning that matters.
-  it("does not treat a deliberately disabled capability as broken", () => {
-    expect(isBroken(cap({ enabled: false }))).toBe(false);
+  it("does not demand attention for a deliberately disabled capability", () => {
+    expect(needsAttention(cap({ enabled: false }))).toBe(false);
+    expect(needsAttention(cap({ problem: "boom" }))).toBe(true);
+    expect(needsAttention(cap({ shadowedBy: "/x" }))).toBe(true);
+    expect(needsAttention(cap())).toBe(false);
+  });
+
+  // An ambiguous tie marks BOTH candidates, and one of them wins. Zeroing them
+  // would under-report the cost by exactly the amount that does load.
+  it("keeps counting a capability whose problem does not stop it loading", () => {
+    const tie = { problem: "ambiguous — the CLI does not define which of these wins" };
+    expect(costsContext(cap(tie))).toBe(true);
+    expect(upfrontBytes(cap({ ...tie, kind: "instructions", bytes: 400 }))).toBe(400);
+  });
+
+  it("stops counting one that is genuinely blocked, or shadowed, or off", () => {
+    const blocked = { problem: "not trusted yet", blocking: true };
+    expect(costsContext(cap(blocked))).toBe(false);
+    expect(upfrontBytes(cap({ ...blocked, kind: "instructions", bytes: 400 }))).toBe(0);
+    expect(costsContext(cap({ shadowedBy: "/x" }))).toBe(false);
+    expect(costsContext(cap({ enabled: false }))).toBe(false);
+  });
+
+  // The caveat beside the headline counts servers whose schemas load. A literal
+  // API key is worth flagging and does not stop the server starting.
+  it("counts a server flagged for a secret, but not one that never starts", () => {
+    const servers = [
+      cap({ kind: "mcp" }),
+      cap({ kind: "mcp", problem: "API_KEY holds a literal value" }),
+      cap({ kind: "mcp", problem: "plugin is not enabled", blocking: true }),
+    ];
+    expect(uncountedServers(servers)).toBe(2);
   });
 });
 
@@ -208,7 +242,13 @@ describe("upfrontTotal and uncountedServers", () => {
     cap({ id: "md", kind: "instructions", bytes: 1000 }),
     cap({ id: "mcp-on", kind: "mcp", bytes: 5000 }),
     cap({ id: "mcp-off", kind: "mcp", bytes: 5000, enabled: false }),
-    cap({ id: "mcp-pending", kind: "mcp", bytes: 5000, problem: "pending approval" }),
+    cap({
+      id: "mcp-pending",
+      kind: "mcp",
+      bytes: 5000,
+      problem: "pending approval",
+      blocking: true,
+    }),
   ];
 
   it("sums only what can be measured honestly", () => {

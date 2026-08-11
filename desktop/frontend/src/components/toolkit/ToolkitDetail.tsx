@@ -26,11 +26,12 @@ type View = "doc" | "source";
 
 interface ToolkitDetailProps {
   cap: AgentCapability;
+  active: boolean;
   onBack: () => void;
   onSaved: () => void;
 }
 
-export function ToolkitDetail({ cap, onBack, onSaved }: ToolkitDetailProps) {
+export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailProps) {
   const [doc, setDoc] = useState<CapabilityDoc | null>(null);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
@@ -59,15 +60,19 @@ export function ToolkitDetail({ cap, onBack, onSaved }: ToolkitDetailProps) {
   const dirty = draft !== baseline;
 
   // Escape returns to the list, but never discards an unsaved edit silently.
+  // Gated on `active` and left in the bubble phase: an inactive tab is hidden
+  // rather than unmounted, so a capture-phase listener here would swallow
+  // Escape for whatever the user is actually looking at.
   useEffect(() => {
+    if (!active || dirty) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || dirty) return;
+      if (e.key !== "Escape") return;
       e.stopPropagation();
       onBack();
     };
-    document.addEventListener("keydown", onKey, true);
-    return () => document.removeEventListener("keydown", onKey, true);
-  }, [dirty, onBack]);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [active, dirty, onBack]);
 
   const save = async () => {
     setSaving(true);
@@ -108,7 +113,7 @@ export function ToolkitDetail({ cap, onBack, onSaved }: ToolkitDetailProps) {
           {cap.name}
         </span>
         {dirty && (
-          <span className="shrink-0 text-[10px] text-[var(--accent-amber)]">unsaved</span>
+          <span className="shrink-0 text-[10px] text-[var(--accent-amber-text)]">unsaved</span>
         )}
         <div className="ml-auto shrink-0">
           <SegmentedControl
@@ -151,13 +156,13 @@ export function ToolkitDetail({ cap, onBack, onSaved }: ToolkitDetailProps) {
       </div>
 
       {issue && (
-        <p className="border-b border-[var(--border)] bg-[var(--bg-hover)] px-3 py-1.5 text-[11px] leading-snug text-[var(--accent-amber)]">
+        <p className="border-b border-[var(--border)] bg-[var(--bg-hover)] px-3 py-1.5 text-[11px] leading-snug text-[var(--accent-amber-text)]">
           {issue}
         </p>
       )}
 
       {error ? (
-        <p className="px-4 py-6 text-[12px] text-[var(--accent-red)]">{error}</p>
+        <p className="px-4 py-6 text-[12px] text-[var(--accent-red-text)]">{error}</p>
       ) : view === "source" || !doc ? (
         <ToolkitSource
           draft={draft}

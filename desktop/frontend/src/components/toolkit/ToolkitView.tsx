@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToolkitCapabilities } from "../../hooks/useToolkitCapabilities";
 import type { AgentCapability, CapabilityKind } from "../../toolkit";
 import { buildList, visibleItems as itemsOf } from "../../toolkitList";
+import { rowSummary } from "../../toolkitRowText";
 import { EmptyState } from "../ui/EmptyState";
 import { LayersIcon, RefreshIcon, SearchIcon, XIcon } from "../icons";
 import { SegmentedControl } from "../ui/SegmentedControl";
@@ -71,6 +72,13 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
   );
   const visibleItems = useMemo(() => itemsOf(nodes), [nodes]);
 
+  // Counted from every item, never from `matched`: what a plugin contributes
+  // does not change because you typed in the filter.
+  const summarise = useCallback(
+    (cap: AgentCapability) => rowSummary(cap, all),
+    [all],
+  );
+
   const toggleGroup = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -101,6 +109,12 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       if (inField && !ownSearch) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
+      // Enter belongs to whatever control has focus — a chip, the re-scan
+      // button, a group toggle, or a row, all of which activate themselves on
+      // click. Handling it here would suppress that and open an unrelated row.
+      const onControl = Boolean(target?.closest("button,[role=button],a,select"));
+      if (e.key === "Enter" && onControl && !ownSearch) return;
+
       const step = (delta: number) => {
         e.preventDefault();
         setActiveIndex((i) =>
@@ -130,7 +144,12 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
 
   if (selected) {
     return (
-      <ToolkitDetail cap={selected} onBack={() => setSelected(null)} onSaved={refresh} />
+      <ToolkitDetail
+        cap={selected}
+        active={visible && focused}
+        onBack={() => setSelected(null)}
+        onSaved={refresh}
+      />
     );
   }
 
@@ -192,12 +211,12 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       </div>
 
       {error && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--accent-red)]">
+        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--accent-red-text)]">
           {error}
         </p>
       )}
       {data?.truncated && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--accent-amber)]">
+        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--accent-amber-text)]">
           Too many capability files to list them all — this view is incomplete.
         </p>
       )}
@@ -209,7 +228,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       {/* Only when something is actually blocked by it. An untrusted directory
           with no project servers has nothing to warn about. */}
       {pendingOnTrust > 0 && (
-        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] leading-snug text-[var(--accent-amber)]">
+        <p className="border-b border-[var(--border)] px-3 py-1.5 text-[11px] leading-snug text-[var(--accent-amber-text)]">
           {pendingOnTrust} project MCP server{pendingOnTrust === 1 ? "" : "s"} will not
           start until you trust this directory in Claude Code.
         </p>
@@ -229,9 +248,16 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         />
       ) : (
         <>
-          <ToolkitBudget items={forCli} />
+          {/* The budget follows the filter, so the number always describes the
+              rows underneath it. The chips stay on `forCli`: their job is to
+              show what picking one would reveal. */}
+          <ToolkitBudget items={matched} />
           <ToolkitKindChips items={forCli} value={kindFilter} onChange={setKindFilter} />
-          {visibleItems.length === 0 ? (
+          {/* Nodes, not items: a kind whose members are all plugin-provided
+              renders a section and a folded group with no rows, and counting
+              only rows would call that "no matches" while the chip beside it
+              shows a number. */}
+          {nodes.length === 0 ? (
             <div className="min-h-0 flex-1">
               <EmptyState
                 title="No matches"
@@ -241,6 +267,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
           ) : (
             <ToolkitList
               nodes={nodes}
+              summarise={summarise}
               activeIndex={activeIndex}
               onHover={setActiveIndex}
               onActivate={setSelected}

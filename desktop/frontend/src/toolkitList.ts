@@ -2,7 +2,7 @@
 // sections the eye reads can never drift apart.
 
 import type { AgentCapability, CapabilityKind } from "./toolkit";
-import { KIND_ORDER, isBroken, upfrontTotal } from "./toolkit";
+import { KIND_ORDER, loads, needsAttention, upfrontTotal } from "./toolkit";
 
 export type ListNode =
   | { type: "section"; id: string; label: string; count: number; bytes: number; tone?: "warn" }
@@ -34,10 +34,10 @@ export function buildList(
   };
 
   // Disabled is a choice, not a fault: it belongs at the end, not under a
-  // warning header. Only genuinely broken things demand attention.
-  const attention = items.filter((i) => i.enabled && isBroken(i));
+  // warning header. Only things the user did not switch off demand attention.
+  const attention = items.filter(needsAttention);
   const inactive = items.filter((i) => !i.enabled);
-  const healthy = items.filter((i) => i.enabled && !isBroken(i));
+  const healthy = items.filter(loads);
 
   if (attention.length > 0) {
     nodes.push({

@@ -37,7 +37,7 @@ export function ToolkitRoots({ data }: { data: AgentCapabilities }) {
               className="flex items-baseline gap-2 text-[10px]"
               title={root.path}
             >
-              <span className={root.exists ? "text-[var(--accent-green)]" : "text-[var(--text-muted)]"}>
+              <span className={root.exists ? "text-[var(--accent-green-text)]" : "text-[var(--text-muted)]"}>
                 {root.exists ? "✔" : "—"}
               </span>
               <span

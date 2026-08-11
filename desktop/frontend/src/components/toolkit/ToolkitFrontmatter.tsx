@@ -23,7 +23,7 @@ export function ToolkitFrontmatter({ fields }: ToolkitFrontmatterProps) {
           <div key={field.key} className="contents">
             <dt
               className={`font-mono text-[10.5px] leading-5 ${
-                portable ? "text-[var(--text-muted)]" : "text-[var(--accent-amber)]"
+                portable ? "text-[var(--text-muted)]" : "text-[var(--accent-amber-text)]"
               }`}
               title={portable ? undefined : "Not portable — other agents ignore this key"}
             >

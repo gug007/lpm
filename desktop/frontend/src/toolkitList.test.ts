@@ -15,6 +15,7 @@ const cap = (over: Partial<AgentCapability> = {}): AgentCapability => ({
   editable: true,
   shadowedBy: "",
   problem: "",
+  blocking: false,
   bytes: 0,
   ...over,
 });
@@ -62,6 +63,16 @@ describe("buildList plugin grouping", () => {
     const nodes = buildList(items, NONE);
     expect(visibleItems(nodes).map((c) => c.name)).toEqual(["mine"]);
     expect(groupIds(items)).toEqual(["skill:figma@official", "skill:frontend-design@official"]);
+  });
+
+  // The pane decides whether to show "No matches" from the node list, not the
+  // row list: with every member folded away there are no rows, but there is
+  // plenty on screen, and the chip beside it reads a non-zero count.
+  it("still emits a heading when every member is folded out of view", () => {
+    const onlyPlugin = items.filter((c) => c.scope === "plugin");
+    const nodes = buildList(onlyPlugin, NONE);
+    expect(visibleItems(nodes)).toHaveLength(0);
+    expect(nodes.length).toBeGreaterThan(0);
   });
 
   it("shows a plugin's members once expanded, nested under it", () => {

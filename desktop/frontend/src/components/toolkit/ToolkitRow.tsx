@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { AgentCapability } from "../../toolkit";
 import {
   capabilityIssue,
   formatTokens,
   scopeLabel,
-  shortDescription,
   shortPath,
   upfrontBytes,
 } from "../../toolkit";
@@ -13,28 +12,35 @@ import {
 // scanned rather than read.
 function StateGlyph({ cap }: { cap: AgentCapability }) {
   if (cap.shadowedBy)
-    return <span className="text-[var(--accent-amber)]" title="Shadowed">⤬</span>;
+    return <span className="text-[var(--accent-amber-text)]" title="Shadowed">⤬</span>;
   if (cap.problem)
-    return <span className="text-[var(--accent-red)]" title="Problem">✘</span>;
+    return <span className="text-[var(--accent-red-text)]" title="Problem">✘</span>;
   if (!cap.enabled)
     return <span className="text-[var(--text-muted)]" title="Disabled">⊘</span>;
-  return <span className="text-[var(--accent-green)]" title="Active">✔</span>;
+  return <span className="text-[var(--accent-green-text)]" title="Active">✔</span>;
 }
 
 interface ToolkitRowProps {
   cap: AgentCapability;
+  summary: string;
   active: boolean;
   nested: boolean;
   onSelect: () => void;
   onActivate: () => void;
 }
 
-export function ToolkitRow({ cap, active, nested, onSelect, onActivate }: ToolkitRowProps) {
+export function ToolkitRow({
+  cap,
+  summary,
+  active,
+  nested,
+  onSelect,
+  onActivate,
+}: ToolkitRowProps) {
   const ref = useRef<HTMLButtonElement>(null);
   const issue = capabilityIssue(cap);
   const muted = Boolean(cap.shadowedBy) || !cap.enabled;
   const upfront = upfrontBytes(cap);
-  const summary = useMemo(() => shortDescription(cap.description), [cap.description]);
 
   // Keyboard navigation drives `active`, so the row has to bring itself into
   // view — the caller does not know the scroll container's geometry.
@@ -75,7 +81,7 @@ export function ToolkitRow({ cap, active, nested, onSelect, onActivate }: Toolki
       )}
 
       <span className="min-w-0 flex-1 truncate text-[11px]">
-        {issue && <span className="text-[var(--accent-amber)]">{issue}</span>}
+        {issue && <span className="text-[var(--accent-amber-text)]">{issue}</span>}
         {issue && summary && <span className="text-[var(--text-muted)]"> · </span>}
         {summary && (
           <span className="text-[var(--text-muted)]">{summary}</span>

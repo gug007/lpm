@@ -50,6 +50,8 @@ pub fn mark_shadowed(items: &mut [AgentCapability]) {
             .collect();
 
         if winners.len() > 1 {
+            // Not blocking: one of these does load, we just cannot say which,
+            // so their cost stays in the estimate.
             for &i in &winners {
                 items[i].problem =
                     "ambiguous — the CLI does not define which of these wins".to_string();

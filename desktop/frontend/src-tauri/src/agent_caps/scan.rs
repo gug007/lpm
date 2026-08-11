@@ -9,6 +9,12 @@ use std::path::{Path, PathBuf};
 /// the pane. Hitting it sets `truncated`, which the UI shows rather than hides.
 const FILE_CAP: usize = 800;
 
+/// A bound on the IPC payload, not a display decision. The pane estimates what
+/// a skill costs in every turn from its description length, so clamping here to
+/// a label-sized figure would under-report that cost rather than merely shorten
+/// a label. Truncation for display belongs in the row that draws it.
+const DESC_CAP: usize = 4000;
+
 pub fn scan(cwd: &str) -> AgentCapabilities {
     let home = dirs::home_dir().unwrap_or_default();
     let root = Some(cwd)
@@ -51,7 +57,7 @@ pub(super) fn describe_content(content: &str) -> String {
         if let Ok(val) = serde_norway::from_str::<serde_norway::Value>(head) {
             let d = crate::aigen::yaml_str(&val, "description");
             if !d.is_empty() {
-                return d.chars().take(300).collect();
+                return d.chars().take(DESC_CAP).collect();
             }
         }
     }
@@ -69,7 +75,7 @@ pub(super) fn describe_content(content: &str) -> String {
         })
         .unwrap_or("")
         .chars()
-        .take(200)
+        .take(DESC_CAP)
         .collect()
 }
 
@@ -140,21 +146,16 @@ fn instructions_at(cli: &str, scope: &str, path: &Path, out: &mut AgentCapabilit
     let Some(name) = path.file_name().and_then(|s| s.to_str()).map(str::to_string) else {
         return;
     };
-    let (_, bytes) = describe(path);
+    let (description, bytes) = describe(path);
     let mut cap = AgentCapability::new(cli, KIND_INSTRUCTIONS, scope, &name);
     cap.path = path.to_string_lossy().into_owned();
-    cap.description = format!("{} of instructions always in context", human_bytes(bytes));
+    // The file's own first line, not its size: the row already prints the size
+    // in its own column, and `@AGENTS.md` says more about an 11-byte CLAUDE.md
+    // than "11 B" does.
+    cap.description = description;
     cap.bytes = bytes;
     cap.editable = true;
     out.items.push(cap);
-}
-
-fn human_bytes(bytes: u64) -> String {
-    if bytes < 1024 {
-        format!("{bytes} B")
-    } else {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
-    }
 }
 
 // ---- per-CLI layouts ---------------------------------------------------------
@@ -174,8 +175,19 @@ fn claude(home: &Path, root: Option<&Path>, out: &mut AgentCapabilities) {
         instructions_at("claude", "project", &root.join("CLAUDE.md"), out);
     }
 
-    for (plugin, install_path) in plugins::installed_plugins(home) {
+    // A plugin gates everything it ships, so a disabled one takes its skills
+    // with it. Reporting them as loading is the exact failure this pane exists
+    // to catch — and it would put their descriptions in the token estimate too.
+    for (plugin, install_path, enabled) in plugins::installed_plugins(home) {
+        let first = out.items.len();
         skills_in("claude", "plugin", &install_path.join("skills"), &plugin, out);
+        if !enabled {
+            for cap in &mut out.items[first..] {
+                cap.enabled = false;
+                cap.problem = format!("{plugin} is not enabled, so this skill never loads");
+                cap.blocking = true;
+            }
+        }
     }
 }
 
@@ -206,6 +218,19 @@ mod tests {
 
         let no_fm = "# Heading\n\n```sh\nignored\n```\n\nThe first real line.";
         assert_eq!(super::describe_content(no_fm), "The first real line.");
+    }
+
+    /// The pane estimates a skill's standing context cost from this string's
+    /// length, so a description longer than a label must survive intact — the
+    /// real ones run to 800+ characters.
+    #[test]
+    fn keeps_descriptions_longer_than_a_label() {
+        let long = "x".repeat(500);
+        let doc = format!("---\ndescription: {long}\n---\n\nBody.");
+        assert_eq!(super::describe_content(&doc).len(), 500);
+
+        let body = format!("{}\n", "y".repeat(500));
+        assert_eq!(super::describe_content(&body).len(), 500);
     }
 
     /// Machine-dependent, so it never runs in CI. Kept because "what does the

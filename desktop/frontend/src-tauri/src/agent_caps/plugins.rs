@@ -12,14 +12,18 @@ use super::{KIND_HOOK, KIND_PLUGIN};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// `(plugin@marketplace, installPath)` for every installed plugin.
-pub fn installed_plugins(home: &Path) -> Vec<(String, PathBuf)> {
+/// `(plugin@marketplace, installPath, enabled)` for every installed plugin. The
+/// enable flag travels with the install because everything a plugin ships is
+/// gated behind it — a caller that enumerates its skills without the flag
+/// reports them as loading when they do not.
+pub fn installed_plugins(home: &Path) -> Vec<(String, PathBuf, bool)> {
     let Some(json) = read_json(&home.join(".claude/plugins/installed_plugins.json")) else {
         return Vec::new();
     };
     let Some(map) = json.get("plugins").and_then(Value::as_object) else {
         return Vec::new();
     };
+    let settings = read_json(&home.join(".claude/settings.json"));
     map.iter()
         .filter_map(|(name, installs)| {
             let path = installs
@@ -28,7 +32,8 @@ pub fn installed_plugins(home: &Path) -> Vec<(String, PathBuf)> {
                 .get("installPath")?
                 .as_str()?
                 .to_string();
-            Some((name.clone(), PathBuf::from(path)))
+            let on = plugin_enabled(settings.as_ref(), name);
+            Some((name.clone(), PathBuf::from(path), on))
         })
         .collect()
 }
@@ -47,19 +52,15 @@ fn plugin_enabled(settings: Option<&Value>, name: &str) -> bool {
 }
 
 fn claude_plugins(home: &Path, out: &mut AgentCapabilities) {
-    let settings = read_json(&home.join(".claude/settings.json"));
-    for (name, install_path) in installed_plugins(home) {
-        let on = plugin_enabled(settings.as_ref(), &name);
+    for (name, install_path, on) in installed_plugins(home) {
         let marketplace = name.split_once('@').map(|(_, m)| m.to_string()).unwrap_or_default();
         let mut cap = AgentCapability::new("claude", KIND_PLUGIN, "user", &name);
         cap.path = install_path.to_string_lossy().into_owned();
         cap.enabled = on;
         cap.detail = marketplace;
-        cap.description = if on {
-            "Enabled in ~/.claude/settings.json".into()
-        } else {
-            "Installed but not listed in enabledPlugins".into()
-        };
+        // No description: enabled/disabled is what the row's state mark already
+        // says, and what the plugin actually contributes is counted from the
+        // items it shipped, which only the front end has in one place.
         out.items.push(cap);
 
         // A plugin's own servers, which `claude mcp list` prints as
@@ -77,6 +78,7 @@ fn claude_plugins(home: &Path, out: &mut AgentCapabilities) {
             server.enabled = on;
             if !on {
                 server.problem = format!("{name} is not enabled, so this server never starts");
+                server.blocking = true;
             }
             out.items.push(server);
         }

@@ -50,6 +50,12 @@ pub struct AgentCapability {
     pub shadowed_by: String,
     /// Human-readable reason this capability will not work, "" when fine.
     pub problem: String,
+    /// Whether `problem` actually stops it loading. Not every problem does: a
+    /// server with a literal API key starts and loads its schemas anyway, and
+    /// an ambiguous tie marks every candidate even though one of them wins. The
+    /// pane's token estimate must not zero those out, so the two questions —
+    /// "is something wrong" and "does it still cost context" — stay separate.
+    pub blocking: bool,
     /// Size on disk of the defining file, the basis for the token estimate.
     pub bytes: u64,
 }
