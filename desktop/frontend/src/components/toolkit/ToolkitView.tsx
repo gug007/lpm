@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToolkitCapabilities } from "../../hooks/useToolkitCapabilities";
 import type { AgentCapability, CapabilityKind } from "../../toolkit";
-import { orderForDisplay } from "../../toolkit";
+import { buildList, visibleItems as itemsOf } from "../../toolkitList";
 import { EmptyState } from "../ui/EmptyState";
 import { LayersIcon, RefreshIcon, SearchIcon, XIcon } from "../icons";
 import { SegmentedControl } from "../ui/SegmentedControl";
@@ -12,6 +12,12 @@ import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
 
 type CliFilter = "all" | "claude" | "codex";
+
+// Sentinel for "every group open", used while a filter is live so a match can
+// never hide behind a folded heading.
+const ALL_GROUPS: ReadonlySet<string> = {
+  has: () => true,
+} as unknown as ReadonlySet<string>;
 
 interface ToolkitViewProps {
   cwd: string;
@@ -30,6 +36,9 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<AgentCapability | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  // Plugin blocks and the disabled pile start folded: one vendor shipping a
+  // dozen skills should not bury everything the user installed themselves.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
 
   const all = useMemo(() => data?.items ?? [], [data]);
@@ -41,9 +50,9 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     [all, cli],
   );
 
-  const visibleItems = useMemo(() => {
+  const matched = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const filtered = forCli.filter((item) => {
+    return forCli.filter((item) => {
       if (kindFilter && item.kind !== kindFilter) return false;
       if (!needle) return true;
       return (
@@ -52,8 +61,24 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         item.detail.toLowerCase().includes(needle)
       );
     });
-    return orderForDisplay(filtered);
   }, [forCli, kindFilter, query]);
+
+  // A live filter expands every group: hiding a match behind a collapsed
+  // heading makes the search look broken.
+  const nodes = useMemo(
+    () => buildList(matched, query.trim() ? ALL_GROUPS : expanded),
+    [matched, expanded, query],
+  );
+  const visibleItems = useMemo(() => itemsOf(nodes), [nodes]);
+
+  const toggleGroup = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -150,7 +175,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         </label>
         {filtering && data && (
           <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]">
-            {visibleItems.length}/{all.length}
+            {matched.length}/{all.length}
           </span>
         )}
         <button
@@ -215,10 +240,11 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
             </div>
           ) : (
             <ToolkitList
-              items={visibleItems}
+              nodes={nodes}
               activeIndex={activeIndex}
               onHover={setActiveIndex}
               onActivate={setSelected}
+              onToggleGroup={toggleGroup}
             />
           )}
           <ToolkitRoots data={data} />

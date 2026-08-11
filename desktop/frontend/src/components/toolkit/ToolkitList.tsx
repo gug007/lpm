@@ -1,82 +1,95 @@
-import type { AgentCapability, CapabilityKind } from "../../toolkit";
-import { KIND_LABELS, formatTokens, groupByKind, isBroken } from "../../toolkit";
+import type { AgentCapability } from "../../toolkit";
+import { formatTokens } from "../../toolkit";
+import type { ListNode } from "../../toolkitList";
+import { ChevronDownIcon, ChevronRightIcon } from "../icons";
 import { ToolkitRow } from "./ToolkitRow";
 
-function SectionHeader({
-  label,
-  count,
-  bytes,
-  tone,
-}: {
-  label: string;
-  count: number;
-  bytes: number;
-  tone?: "warn";
-}) {
+function Section({ node }: { node: Extract<ListNode, { type: "section" }> }) {
   return (
     <div className="sticky top-0 z-10 flex items-baseline gap-2 bg-[var(--bg-primary)] px-3 pb-1 pt-3">
       <span
         className={`text-[10px] font-medium uppercase tracking-wider ${
-          tone === "warn" ? "text-[var(--accent-amber)]" : "text-[var(--text-muted)]"
+          node.tone === "warn" ? "text-[var(--accent-amber)]" : "text-[var(--text-muted)]"
         }`}
       >
-        {label}
+        {node.label}
       </span>
       <span className="h-px flex-1 bg-[var(--border)]" />
       <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
-        {count}
-        {bytes > 0 ? ` · ~${formatTokens(bytes)}` : ""}
+        {node.count}
+        {node.bytes > 0 ? ` · ~${formatTokens(node.bytes)}` : ""}
       </span>
     </div>
   );
 }
 
+function Group({
+  node,
+  onToggle,
+}: {
+  node: Extract<ListNode, { type: "group" }>;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={node.open}
+      className="flex w-full items-baseline gap-1.5 py-[3px] pl-3 pr-3 text-left transition-colors hover:bg-[var(--bg-hover)]"
+    >
+      <span className="w-3 shrink-0 self-center text-[var(--text-muted)] [&>svg]:h-2.5 [&>svg]:w-2.5">
+        {node.open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+      </span>
+      <span className="truncate font-mono text-[11.5px] text-[var(--text-secondary)]">
+        {node.label}
+      </span>
+      <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+        {node.count}
+      </span>
+      <span className="flex-1" />
+      {node.bytes > 0 && (
+        <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+          ~{formatTokens(node.bytes)}
+        </span>
+      )}
+    </button>
+  );
+}
+
 interface ToolkitListProps {
-  items: AgentCapability[];
+  nodes: ListNode[];
   activeIndex: number;
   onHover: (index: number) => void;
   onActivate: (cap: AgentCapability) => void;
+  onToggleGroup: (id: string) => void;
 }
 
-// `items` arrives in display order (see `orderForDisplay`), so the flat index
-// the keyboard walks and the rendered order cannot drift apart.
-export function ToolkitList({ items, activeIndex, onHover, onActivate }: ToolkitListProps) {
-  const broken = items.filter(isBroken);
-  const healthy = items.filter((i) => !isBroken(i));
-  let index = -1;
-
-  const renderRow = (cap: AgentCapability) => {
-    index += 1;
-    const at = index;
-    return (
-      <ToolkitRow
-        key={cap.id}
-        cap={cap}
-        active={at === activeIndex}
-        onSelect={() => onHover(at)}
-        onActivate={() => onActivate(cap)}
-      />
-    );
-  };
-
+// Renders straight from the prepared node list, so what is on screen and what
+// the keyboard walks come from the same source.
+export function ToolkitList({
+  nodes,
+  activeIndex,
+  onHover,
+  onActivate,
+  onToggleGroup,
+}: ToolkitListProps) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-      {broken.length > 0 && (
-        <>
-          <SectionHeader label="Needs attention" count={broken.length} bytes={0} tone="warn" />
-          {broken.map(renderRow)}
-        </>
-      )}
-      {groupByKind(healthy).map((group) => (
-        <div key={group.kind}>
-          <SectionHeader
-            label={KIND_LABELS[group.kind as CapabilityKind]}
-            count={group.items.length}
-            bytes={group.bytes}
+      {nodes.map((node) => {
+        if (node.type === "section") return <Section key={node.id} node={node} />;
+        if (node.type === "group")
+          return <Group key={node.id} node={node} onToggle={() => onToggleGroup(node.id)} />;
+        return (
+          <ToolkitRow
+            key={node.cap.id}
+            cap={node.cap}
+            nested={node.nested}
+            active={node.index === activeIndex}
+            onSelect={() => onHover(node.index)}
+            onActivate={() => onActivate(node.cap)}
           />
-          {group.items.map(renderRow)}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

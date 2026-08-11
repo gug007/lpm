@@ -5,7 +5,7 @@ import {
   formatTokens,
   groupByKind,
   isBroken,
-  orderForDisplay,
+  shortDescription,
   shortPath,
   splitFrontmatter,
   totalBytes,
@@ -40,9 +40,9 @@ describe("capabilityIssue", () => {
 
   it("names the winner and states the rule when shadowed", () => {
     const issue = capabilityIssue(
-      cap({ scope: "project", shadowedBy: "/h/.claude/skills/deploy/SKILL.md" }),
+      cap({ scope: "project", shadowedBy: "/Users/ada/.claude/skills/deploy/SKILL.md" }),
     );
-    expect(issue).toContain("/h/.claude/skills/deploy/SKILL.md");
+    expect(issue).toContain("~/.claude/skills/deploy/SKILL.md");
     expect(issue).toContain("personal copy");
   });
 
@@ -58,8 +58,8 @@ describe("capabilityIssue", () => {
     expect(issue).toContain("Shadowed by");
   });
 
-  it("reports a disabled capability with no other problem", () => {
-    expect(capabilityIssue(cap({ enabled: false }))).toContain("Disabled");
+  it("says nothing about a capability that is merely switched off", () => {
+    expect(capabilityIssue(cap({ enabled: false }))).toBeNull();
   });
 
   it("passes a backend problem through verbatim", () => {
@@ -69,11 +69,16 @@ describe("capabilityIssue", () => {
 });
 
 describe("isBroken", () => {
-  it("covers problems, shadowing and disabled alike", () => {
+  it("covers problems and shadowing", () => {
     expect(isBroken(cap())).toBe(false);
     expect(isBroken(cap({ problem: "boom" }))).toBe(true);
     expect(isBroken(cap({ shadowedBy: "/x" }))).toBe(true);
-    expect(isBroken(cap({ enabled: false }))).toBe(true);
+  });
+
+  // Turning something off is a decision the user already made. Flagging it as
+  // a fault trains them to ignore the warning that matters.
+  it("does not treat a deliberately disabled capability as broken", () => {
+    expect(isBroken(cap({ enabled: false }))).toBe(false);
   });
 });
 
@@ -141,29 +146,6 @@ describe("splitFrontmatter", () => {
   it("does not treat a mid-file rule as frontmatter", () => {
     const content = "# Heading\n\n---\n\nnot: frontmatter\n";
     expect(splitFrontmatter(content).fields).toEqual([]);
-  });
-});
-
-describe("orderForDisplay", () => {
-  it("puts everything broken first, then groups the rest by kind", () => {
-    const ordered = orderForDisplay([
-      cap({ id: "healthy-skill", kind: "skill", name: "b" }),
-      cap({ id: "healthy-mcp", kind: "mcp", name: "a" }),
-      cap({ id: "broken", kind: "command", name: "z", problem: "boom" }),
-    ]);
-    expect(ordered.map((c) => c.id)).toEqual(["broken", "healthy-mcp", "healthy-skill"]);
-  });
-
-  it("returns every item exactly once, so index-based keyboard nav stays sound", () => {
-    const items = [
-      cap({ id: "a", shadowedBy: "/x" }),
-      cap({ id: "b", kind: "mcp" }),
-      cap({ id: "c", kind: "hook", enabled: false }),
-      cap({ id: "d", kind: "plugin" }),
-    ];
-    const ordered = orderForDisplay(items);
-    expect(ordered).toHaveLength(items.length);
-    expect(new Set(ordered.map((c) => c.id)).size).toBe(items.length);
   });
 });
 
@@ -235,5 +217,42 @@ describe("upfrontTotal and uncountedServers", () => {
 
   it("counts the servers whose schemas load but cannot be measured", () => {
     expect(uncountedServers(items)).toBe(1);
+  });
+});
+
+// Descriptions are prompt text aimed at the model. In a list they need to be
+// readable at a glance, not rendered as literal asterisks and backticks.
+describe("shortDescription", () => {
+  it("strips markdown that would otherwise show as punctuation", () => {
+    expect(shortDescription("**MANDATORY** — call `use_figma` first.")).toBe(
+      "MANDATORY — call use_figma first.",
+    );
+  });
+
+  it("keeps the first sentence and drops the rest", () => {
+    const long =
+      "Translates Figma motion into code. Use when implementing animation from a Figma design.";
+    expect(shortDescription(long)).toBe("Translates Figma motion into code.");
+  });
+
+  it("truncates a first sentence that runs long", () => {
+    const result = shortDescription(`${"word ".repeat(60)}end.`);
+    expect(result.length).toBeLessThanOrEqual(110);
+    expect(result.endsWith("…")).toBe(true);
+  });
+
+  it("collapses newlines so a row stays one line", () => {
+    expect(shortDescription("first\n\nsecond")).toBe("first second");
+  });
+
+  // snake_case is everywhere in tool and skill names; underscore-italics are not.
+  it("leaves underscores in identifiers alone", () => {
+    expect(shortDescription("Calls browser_navigate and node_repl.")).toBe(
+      "Calls browser_navigate and node_repl.",
+    );
+  });
+
+  it("passes an empty description through", () => {
+    expect(shortDescription("")).toBe("");
   });
 });

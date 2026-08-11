@@ -120,8 +120,26 @@ export function formatTokens(bytes: number): string {
   return `${(tokens / 1000).toFixed(1)}k`;
 }
 
+// Broken means "you asked for this and it will not work". Disabled is a choice
+// the user already made, so it is listed apart rather than flagged as a fault.
 export function isBroken(cap: AgentCapability): boolean {
-  return Boolean(cap.problem) || Boolean(cap.shadowedBy) || !cap.enabled;
+  return Boolean(cap.problem) || Boolean(cap.shadowedBy);
+}
+
+// Descriptions are written for the model, not for a list: they open with
+// "**MANDATORY prerequisite** — you MUST…" and run for paragraphs. Take the
+// first sentence, drop the markdown that would otherwise render as literal
+// asterisks, and let the row's title attribute carry the rest.
+export function shortDescription(text: string): string {
+  const plain = text
+    // `*` and backticks only: underscores are snake_case in tool and skill
+    // names far more often than they are markdown emphasis.
+    .replace(/[*`]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentence = /^(.{20,}?[.!?])(\s|$)/.exec(plain);
+  const first = sentence ? sentence[1] : plain;
+  return first.length > 110 ? `${first.slice(0, 109).trimEnd()}…` : first;
 }
 
 // The one-line reason a capability will not do what the user expects, or null
@@ -129,10 +147,9 @@ export function isBroken(cap: AgentCapability): boolean {
 export function capabilityIssue(cap: AgentCapability): string | null {
   if (cap.shadowedBy) {
     const rule = SHADOW_RULE[cap.kind] ?? "";
-    return `Shadowed by ${cap.shadowedBy}. ${rule}`.trim();
+    return `Shadowed by ${shortPath(cap.shadowedBy)}. ${rule}`.trim();
   }
   if (cap.problem) return cap.problem;
-  if (!cap.enabled) return "Disabled — the agent will not load this.";
   return null;
 }
 
@@ -180,15 +197,6 @@ export function upfrontTotal(items: AgentCapability[]): number {
 // dominant cost — the number the estimate above deliberately excludes.
 export function uncountedServers(items: AgentCapability[]): number {
   return items.filter((i) => i.kind === "mcp" && i.enabled && !i.problem).length;
-}
-
-// The order the list renders in: everything broken first, then by kind. The
-// pane exists to surface the capability that is installed and will not load, so
-// it never sits below forty healthy rows.
-export function orderForDisplay(items: AgentCapability[]): AgentCapability[] {
-  const broken = items.filter(isBroken);
-  const healthy = groupByKind(items.filter((i) => !isBroken(i))).flatMap((g) => g.items);
-  return [...broken, ...healthy];
 }
 
 // Frontmatter as the detail view shows it: a chip table above the prose, with
