@@ -46,6 +46,10 @@ PREFIX=${LPM_PREFIX:-/opt/lpm}
 # different home would put ~/.lpm somewhere the other paths don't look.
 SERVICE_HOME=${LPM_HOME:-/root}
 DISPLAY_NUM=${LPM_DISPLAY:-99}
+# How far above that to look when the configured display turns out to be taken.
+# Seventeen X servers on one machine is not a busy host, it is a wrong
+# LPM_DISPLAY, and saying so beats hunting up to :99999.
+DISPLAY_SCAN=16
 APP=${LPM_APP:-$PREFIX/lpm-desktop}
 XVFB=${LPM_XVFB:-Xvfb}
 WM=${LPM_WM:-matchbox-window-manager}
@@ -126,6 +130,50 @@ read_pid() {
 
 pgid_of() { ps -o pgid= -p "$1" 2>/dev/null | tr -d ' '; }
 
+# A path is matched whole, never by its last component: $APP is an absolute path,
+# and matching lpm-desktop by name alone would reach every other copy on the
+# machine — including, when this file's tests run on a developer's Mac, the lpm
+# they are running them from. Only a bare program name (Xvfb) is matched by name,
+# because a name is all argv[0] carries when PATH is what resolved it.
+same_prog() {
+    [ "$1" = "$2" ] && return 0
+    case "$2" in */*) return 1 ;; esac
+    [ "${1##*/}" = "$2" ]
+}
+
+# Every pid running this program, optionally narrowed to one whose argv also
+# carries a given word. For an X server that word is the display it serves, and
+# it is the only thing that makes signalling one of them safe: an Xvfb on :98 is
+# somebody else's and stays up.
+#
+# A program is recognised at argv[0], or at argv[1] where argv[0] is the
+# interpreter of a #! script. Those two positions and no others — a program
+# merely named on somebody else's command line (`grep lpm-desktop`) is not that
+# program, and everything this returns is about to be signalled.
+prog_pids() {
+    want=$1
+    arg=${2:-}
+    ps -eo pid=,args= 2>/dev/null | while read -r p a b rest; do
+        [ "$p" = "$$" ] && continue
+        match=
+        if same_prog "$a" "$want"; then
+            match=1
+        else
+            case "${a##*/}" in
+                *sh) same_prog "$b" "$want" && match=1 ;;
+            esac
+        fi
+        [ -n "$match" ] || continue
+        if [ -n "$arg" ]; then
+            case " $b $rest " in
+                *" $arg "*) ;;
+                *) continue ;;
+            esac
+        fi
+        printf '%s ' "$p"
+    done
+}
+
 # TERM, then KILL after a grace period. Returns as soon as the process is gone.
 stop_pid() {
     p=$1
@@ -148,11 +196,46 @@ stop_pid() {
 }
 
 display_up() {
+    d=${1:-$DISPLAY_NUM}
     if command -v xdpyinfo >/dev/null 2>&1; then
-        xdpyinfo -display ":$DISPLAY_NUM" >/dev/null 2>&1
+        xdpyinfo -display ":$d" >/dev/null 2>&1
     else
-        [ -S "/tmp/.X11-unix/X$DISPLAY_NUM" ]
+        [ -S "/tmp/.X11-unix/X$d" ]
     fi
+}
+
+# The first display above the configured one that nothing answers on.
+free_display() {
+    n=$((DISPLAY_NUM + 1))
+    last=$((DISPLAY_NUM + DISPLAY_SCAN))
+    while [ "$n" -le "$last" ]; do
+        display_up "$n" || { printf '%s\n' "$n"; return 0; }
+        n=$((n + 1))
+    done
+    return 1
+}
+
+# An lpm running here that this supervisor does not own. A supervisor killed
+# outright — OOM, `kill -9`, a container losing its PID 1 — leaves the app, the
+# window manager and the display running with nothing left on the machine naming
+# them, and so does a stack somebody brought up by hand. Every later start then
+# found the display taken and gave up, which made the host impossible to update
+# from the Mac: the installer's `restart` stops what the pid file names, and the
+# pid file named nothing.
+#
+# Stopped rather than worked around: a second app against the same ~/.lpm is a
+# worse failure than the one being fixed. Only reached once read_pid has said
+# nothing of ours is alive, and only the app's own path and this host's display
+# number are matched — an X server on another display is not ours to end. The
+# window manager would exit with the display anyway; it goes explicitly so that
+# it doesn't depend on that.
+reclaim_orphans() {
+    orphans=$(prog_pids "$APP")
+    [ -n "$orphans" ] || return 1
+    for p in $orphans; do stop_pid "$p" 10; done
+    for p in $(prog_pids "$WM"); do stop_pid "$p" 5; done
+    for p in $(prog_pids "$XVFB" ":$DISPLAY_NUM"); do stop_pid "$p" 5; done
+    return 0
 }
 
 # ---------------------------------------------------------------- supervise --
@@ -163,6 +246,7 @@ display_up() {
 XVFB_PID=
 WM_PID=
 APP_PID=
+DISPLAY_NOTED=
 
 # The app's own `ssh -N` forwards are spawned with null stdio, so nothing ever
 # ends them on a broken pipe and there is no SIGTERM handler in the app to reap
@@ -207,8 +291,20 @@ on_term() {
 
 start_display() {
     if display_up; then
-        echo "[hostctl] display :$DISPLAY_NUM is already in use — set LPM_DISPLAY to a free number" >&2
-        return 1
+        # Not ours: reclaim_orphans took down anything of lpm's before this ran.
+        # An image that runs its own X server on :99 is a real shape — a
+        # browser-automation base, a sandbox sharing /tmp/.X11-unix — and
+        # refusing to start there left a host nobody could update from the Mac,
+        # with the only advice ("set LPM_DISPLAY") not something the Mac can act
+        # on. So move: which display this host draws into is an implementation
+        # detail of this host, and nothing outside it depends on the number.
+        moved=$(free_display) || {
+            echo "[hostctl] :$DISPLAY_NUM and the $DISPLAY_SCAN displays above it are all in use — set LPM_DISPLAY to a free number" >&2
+            return 1
+        }
+        echo "[hostctl] display :$DISPLAY_NUM belongs to something else — using :$moved"
+        DISPLAY_NUM=$moved
+        export DISPLAY=":$DISPLAY_NUM"
     fi
     # An X server killed outright leaves its lock file behind, and the next start
     # then refuses the display nothing is actually using. Only removed once the
@@ -249,6 +345,13 @@ supervise() {
 
     printf '%s\n%s\n' "$$" "$(proc_args $$)" > "$PID_FILE"
 
+    # After the pid file, deliberately: this can take the app's full stop grace,
+    # and `start` is watching for that file to decide whether anything is
+    # happening at all.
+    if reclaim_orphans; then
+        echo "[hostctl] stopped an lpm that was running here unsupervised"
+    fi
+
     # host.env was read at the top of this script, so everything it set is
     # already exported and already visible to the settings above.
     export HOME="$SERVICE_HOME"
@@ -281,6 +384,13 @@ supervise() {
             rm -f "$PID_FILE"
             return 1
         fi
+        # Recorded here rather than with the pid above, because it is not always
+        # the display that was configured. Appended, never rewritten: nothing
+        # added to this file can then leave it momentarily not naming its pid.
+        [ -n "$DISPLAY_NOTED" ] || {
+            printf 'display=:%s\n' "$DISPLAY_NUM" >> "$PID_FILE"
+            DISPLAY_NOTED=1
+        }
         echo "[hostctl] starting $APP on :$DISPLAY_NUM"
         # Backgrounded and waited on rather than run in the foreground: a POSIX
         # shell runs a trap only once the current foreground command finishes, so
@@ -364,6 +474,14 @@ do_start() {
 do_stop() {
     if ! read_pid; then
         rm -f "$PID_FILE"
+        # Which is not the same as nothing running: a supervisor killed outright
+        # leaves its stack up with nothing naming it, and answering "not running"
+        # to a machine where lpm is plainly running is exactly how a host ends up
+        # impossible to update — the installer runs this before every start.
+        if reclaim_orphans; then
+            echo "lpm was running here unsupervised; stopped it."
+            return 0
+        fi
         echo "lpm is not running here."
         return 0
     fi
@@ -397,7 +515,13 @@ do_stop() {
 
 do_status() {
     if read_pid; then
-        echo "lpm is running here (pid $PID, display :$DISPLAY_NUM)."
+        # What the supervisor settled on, which is not always what is configured:
+        # a display that was taken at start time moves the whole stack, and a
+        # status line naming the other one sends people to look at the wrong X
+        # server.
+        d=$(sed -n 's/^display=//p' "$PID_FILE" 2>/dev/null | sed -n 1p)
+        [ -n "$d" ] || d=":$DISPLAY_NUM"
+        echo "lpm is running here (pid $PID, display $d)."
         echo "Log: $LOG"
         return 0
     fi

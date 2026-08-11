@@ -102,7 +102,23 @@ Two container-specific things the installer can't fix for you:
   All of them are defaults: anything you set in `/etc/lpm/host.env` wins.
 
 `hostctl.sh` reads that same `host.env`, so a host set up this way takes its
-`SHELL` and anything else you put there from one file, as the unit does.
+`SHELL` and anything else you put there from one file, as the unit does. The
+installer merges into that file rather than rewriting it — upgrades keep whatever
+you set — and owns exactly one line in it, `SHELL`, so re-running the installer is
+still how a login shell that was detected wrong gets corrected.
+
+Two things the supervisor sorts out for itself on the way up, both of which used
+to be a host that could never be updated again:
+
+- **The display is taken.** Some images run their own X server on `:99`. The
+  supervisor moves to the first free display above it and logs which one; nothing
+  outside the host depends on the number. `lpm-host status` names the one it
+  settled on.
+- **An lpm is running that nothing is supervising.** A supervisor killed outright
+  leaves the app, the window manager and the display up with nothing naming them.
+  `start` and `stop` both find that stack — by the app's own path and this host's
+  display number — and end it, rather than reporting that lpm is not running on a
+  machine where it plainly is.
 
 ## Pairing
 
@@ -206,7 +222,9 @@ sudo -H lpm connections                    # the app answers = its page is runni
 
 On a container the app's own output goes to `~/.lpm/logs/host.log` rather than
 the journal — the supervisor writes its decisions there too, so a crash loop is
-visible as the restarts it is.
+visible as the restarts it is, and so is a display it had to move to or an
+unsupervised lpm it stopped on the way up. `DISPLAY=:99` in the commands above is
+the default, not a promise: take the number from `lpm-host status`.
 
 Ask the app, not the port: nothing listens on 8766 until you pair, so a missing
 listener on a host you haven't paired yet is the normal state and says nothing

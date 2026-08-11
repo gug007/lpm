@@ -90,6 +90,10 @@ pidof_file() { cat "$1" 2>/dev/null; }
 # The fake Xvfb writes its socket under $STATE, so point the probe there too.
 STATE_X=$STATE/x11-unix
 
+# The app rewrites app.env on every start, so which display it was handed is
+# waited for rather than read once.
+on_display() { wait_for 'grep -qx "DISPLAY=:'"$1"'" "'"$STATE"'/app.env" 2>/dev/null' 10; }
+
 wait_for() { # predicate-command, seconds
     i=0
     while [ "$i" -lt $((${2} * 10)) ]; do
@@ -182,20 +186,68 @@ ctl stop > "$ROOT/out" 2>&1
 alive "$STRANGER" && ok "stop leaves a stranger alone" || no "stop killed an unrelated process"
 kill -KILL "$STRANGER" 2>/dev/null
 
-echo "== the display is already taken =="
+echo "== the display belongs to something else =="
+# An image that runs its own X server on the configured display. Refusing to
+# start there is what left a host un-updatable from the Mac: the installer runs
+# `restart` on every upgrade, and its advice — set LPM_DISPLAY — is not something
+# the Mac can carry out.
+echo stay > "$STATE/app-mode"
+: > "$STATE/app.pids"
+rm -f "$STATE/app.env"
 touch "$STATE/x11-unix/X77"
 ctl start > "$ROOT/out" 2>&1
-check "start fails when the display is in use" "$?" "1"
-grep -q "already in use" "$ROOT/logs/host.log" &&
-    ok "an occupied display is named, not silently reused" ||
+check "start succeeds anyway" "$?" "0"
+wait_for '[ -s "$STATE/app.pids" ]' 10 && ok "the app still comes up" || no "start said: $(cat "$ROOT/out")"
+on_display 78 && ok "on the first free display" || no "app DISPLAY=$(val DISPLAY)"
+grep -q "belongs to something else — using :78" "$ROOT/logs/host.log" &&
+    ok "and the move is in the log, not silent" ||
     no "log: $(tail -n 5 "$ROOT/logs/host.log" 2>/dev/null)"
-# The failure has to reach whoever ran the install: the pid file appears before
-# the display does, so reporting on that alone sent the installer off to wait 90
-# seconds for an app that had already given up.
-grep -q "did not start" "$ROOT/out" && ok "and the caller is told, not just the log" ||
-    no "start said: $(cat "$ROOT/out")"
-rm -f "$STATE/x11-unix/X77"
+ctl status > "$ROOT/out" 2>&1
+grep -q "display :78" "$ROOT/out" && ok "status names the display it settled on" ||
+    no "status: $(cat "$ROOT/out")"
 ctl stop > /dev/null 2>&1
+[ -e "$STATE/x11-unix/X77" ] && ok "the other server is left alone" || no "stop took down :77"
+rm -f "$STATE/x11-unix/X77"
+
+echo "== an lpm nothing is supervising =="
+# The supervisor killed outright, which is how a container ends up with the app,
+# the window manager and the display running and nothing on the machine naming
+# them. Every start then found :77 taken and gave up.
+echo stay > "$STATE/app-mode"
+: > "$STATE/app.pids"
+ctl start > /dev/null 2>&1
+wait_for '[ -s "$STATE/app.pids" ]' 10
+SUP=$(sed -n 1p "$ROOT/run/host.pid")
+ORPHAN=$(tail -n 1 "$STATE/app.pids")
+OXVFB=$(pidof_file "$STATE/xvfb.pid")
+kill -KILL "$SUP" 2>/dev/null
+rm -f "$STATE/app.env"
+ctl start > "$ROOT/out" 2>&1
+check "start exit code with an orphaned stack" "$?" "0"
+wait_for '! kill -0 '"$ORPHAN"' 2>/dev/null' 15 && ok "the unsupervised app is stopped" ||
+    no "a second app was started alongside the first"
+alive "$OXVFB" && no "its display is still up" || ok "and its display with it"
+wait_for '[ "$(wc -l < "$STATE/app.pids" | tr -d " ")" -ge 2 ]' 10 &&
+    ok "a supervised app takes its place" || no "nothing came back: $(cat "$ROOT/out")"
+on_display 77 && ok "on the display it was configured for" || no "app DISPLAY=$(val DISPLAY)"
+grep -q "unsupervised" "$ROOT/logs/host.log" && ok "the log says what it found" ||
+    no "log: $(tail -n 5 "$ROOT/logs/host.log" 2>/dev/null)"
+ctl stop > /dev/null 2>&1
+
+echo "== stop reaches one too =="
+: > "$STATE/app.pids"
+ctl start > /dev/null 2>&1
+wait_for '[ -s "$STATE/app.pids" ]' 10
+SUP=$(sed -n 1p "$ROOT/run/host.pid")
+ORPHAN=$(tail -n 1 "$STATE/app.pids")
+kill -KILL "$SUP" 2>/dev/null
+ctl stop > "$ROOT/out" 2>&1
+grep -q "unsupervised" "$ROOT/out" && ok "stop says what it actually found" ||
+    no "stop: $(cat "$ROOT/out")"
+wait_for '! kill -0 '"$ORPHAN"' 2>/dev/null' 15 && ok "and stops it" ||
+    no "stop reported an lpm it did not stop"
+ctl stop > "$ROOT/out" 2>&1
+grep -q "not running" "$ROOT/out" && ok "with nothing left, it says so" || no "stop: $(cat "$ROOT/out")"
 
 echo "== a missing app binary =="
 LPM_PREFIX="$BIN" LPM_HOME="$ROOT/home" LPM_APP="$BIN/not-installed" \

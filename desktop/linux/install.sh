@@ -156,7 +156,22 @@ case "${LOGIN_SHELL##*/}" in
 esac
 echo "==> Recording SHELL=$LOGIN_SHELL in $ENV_FILE"
 install -d "$(dirname "$ENV_FILE")"
-printf 'SHELL=%s\n' "$LOGIN_SHELL" > "$ENV_FILE"
+# Merged, not rewritten. This file is the machine's, not the installer's: the
+# units and hostctl.sh read it for everything a particular host needs set, and
+# truncating it here undid all of that on every upgrade — including the
+# LPM_DISPLAY the supervisor's own "display in use" error asks for, which then
+# survived exactly until the next update. The SHELL line is the one the installer
+# owns, so that one is replaced: re-running the installer is how a login shell
+# that was detected wrong gets fixed.
+ENV_NEW=$ENV_FILE.new
+if [ -f "$ENV_FILE" ]; then
+    grep -v '^[[:space:]]*SHELL=' "$ENV_FILE" > "$ENV_NEW" || :
+else
+    : > "$ENV_NEW"
+fi
+printf 'SHELL=%s\n' "$LOGIN_SHELL" >> "$ENV_NEW"
+chmod 644 "$ENV_NEW"
+mv -f "$ENV_NEW" "$ENV_FILE"
 
 if [ "$SUPERVISOR" = "systemd" ]; then
     echo "==> Installing systemd units"
