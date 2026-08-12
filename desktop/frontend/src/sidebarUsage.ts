@@ -1,6 +1,6 @@
 import { providerMeta } from "./agentStatus";
 import { formatTokenCount } from "./agentUsageFormat";
-import { STALE_MS, barColor, fmtPct, resetText } from "./components/stats/limitsFormat";
+import { STALE_MS, barColor, fmtPct, resetDurationShort } from "./components/stats/limitsFormat";
 import type { AgentLimitsMap, LimitWindow, ProviderLimits } from "./hooks/useAgentLimits";
 import type { AgentUsageStats } from "./types";
 
@@ -114,9 +114,10 @@ export function usageRows(
         : peak > 0
           ? row.tokens / peak
           : 0,
-      // The percentage is rendered on its own, so this carries only the second
-      // fact: when the window comes back, or the day's spend without one.
-      detail: win ? resetText(win.resetsAt, now) : `${formatTokenCount(row.tokens)} today`,
+      // Just the duration — "resets in" costs half the row and the hover card
+      // spells it out anyway. The day's spend keeps its unit, which is the word
+      // that makes it a token count rather than a countdown.
+      detail: win ? resetDurationShort(win.resetsAt, now) : `${formatTokenCount(row.tokens)} today`,
       percentText: win ? fmtPct(win.usedPercent) : "",
       windowLabel: win ? row.label : "",
       percent: win ? win.usedPercent : null,

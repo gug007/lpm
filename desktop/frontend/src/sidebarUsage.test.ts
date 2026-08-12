@@ -57,7 +57,7 @@ describe("usageRows", () => {
   it("leads with when the window resets", () => {
     const rows = usageRows(limits, null, NOW, { window: "fiveHour" });
     expect(rows.map((r) => r.provider)).toEqual(["claude", "codex"]);
-    expect(rows[0].detail).toBe("resets in 2h");
+    expect(rows[0].detail).toBe("2h");
     expect(rows[0].fraction).toBeCloseTo(0.34);
     expect(rows[0].percent).toBe(34);
   });
@@ -66,7 +66,7 @@ describe("usageRows", () => {
     const [claude] = usageRows(limits, null, NOW);
     expect(claude.windowLabel).toBe("weekly");
     expect(claude.percent).toBe(88);
-    expect(claude.detail).toBe("resets in 1d 2h");
+    expect(claude.detail).toBe("1d 2h");
   });
 
   it("colours the bar by how much of the window is gone", () => {
@@ -141,7 +141,7 @@ describe("usageRows", () => {
   it("carries the percentage next to the reset time", () => {
     const [claude] = usageRows(limits, null, NOW);
     expect(claude.percentText).toBe("88%");
-    expect(claude.detail).toBe("resets in 1d 2h");
+    expect(claude.detail).toBe("1d 2h");
   });
 
   it("leaves only the percentage when the reset time is unknown", () => {

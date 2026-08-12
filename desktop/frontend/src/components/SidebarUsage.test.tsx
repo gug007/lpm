@@ -98,10 +98,10 @@ describe("SidebarUsage", () => {
     const rows = [...container.querySelectorAll("button")];
     expect(rows).toHaveLength(2);
     expect(rows[0].textContent).toContain("Claude");
-    expect(rows[0].textContent).toContain("resets in 1d 2h");
+    expect(rows[0].textContent).toContain("1d 2h");
     expect(rows[0].textContent).toContain("61%");
     expect(rows[1].textContent).toContain("Codex");
-    expect(rows[1].textContent).toContain("resets in 2h");
+    expect(rows[1].textContent).toContain("2h");
     expect(rows[1].textContent).toContain("12%");
   });
 
@@ -110,7 +110,7 @@ describe("SidebarUsage", () => {
     await render();
 
     const [claude] = [...container.querySelectorAll("button")];
-    expect(claude.textContent).toContain("resets in 2h");
+    expect(claude.textContent).toContain("2h");
   });
 
   it("hides a tool the user turned off", async () => {
