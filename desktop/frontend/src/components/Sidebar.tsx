@@ -29,7 +29,6 @@ import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
-import { SidebarActivityButton } from "./SidebarActivityButton";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem } from "./ui/SortableList";
 import {
@@ -1438,13 +1437,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             Terminals
           </button>
         </Tooltip>
-        <SidebarActivityButton
-          active={showFleet}
+        <SidebarFooterMore
+          showActivity={showFleet}
+          onActivity={onFleet}
           needsYou={ambient.needsYou}
           hasError={ambient.hasError}
-          onToggle={onFleet}
-        />
-        <SidebarFooterMore
           showScheduled={showScheduled}
           onScheduled={onScheduled}
           showUsage={showUsage}
