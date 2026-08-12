@@ -4,11 +4,7 @@ import { ArrowDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { trackDownload, type DownloadSource } from "@/lib/analytics";
 import { releaseAsset, RELEASES_URL } from "@/lib/links";
-import {
-  isMacDownloadPlatform,
-  usePlatform,
-  type MacDownloadPlatform,
-} from "@/lib/use-platform";
+import { usePlatform, type MacDownloadPlatform } from "@/lib/use-platform";
 import { SignatureBadge } from "./signature-badge";
 
 type Entry = {
@@ -34,11 +30,6 @@ const ENTRIES: Record<MacDownloadPlatform, Entry> = {
     choiceDescription: "For x86-64 Macs",
     ariaLabel: "Download lpm for Intel x86-64 Macs",
   },
-};
-
-const FALLBACK = {
-  href: "/#download",
-  label: "Choose your Mac download",
 };
 
 export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
@@ -83,7 +74,10 @@ export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
     );
   }
 
-  if (platform === "mac-unknown") {
+  // `null` is the server snapshot, before detection has run. Render the same
+  // chooser as `mac-unknown` so the delivered HTML carries real .dmg links
+  // instead of an anchor to another page. The copy claims no detection.
+  if (platform === "mac-unknown" || platform === null) {
     return (
       <div className="flex w-full flex-col items-center gap-3">
         <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
@@ -127,12 +121,10 @@ export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
     );
   }
 
-  const { href, label } = isMacDownloadPlatform(platform)
-    ? ENTRIES[platform]
-    : FALLBACK;
+  // Everything else returned above, so only the two detected Macs reach here.
+  const { href, label } = ENTRIES[platform];
 
   const handleClick = () => {
-    if (!isMacDownloadPlatform(platform)) return;
     trackDownload({ source, platform, href });
   };
 

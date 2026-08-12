@@ -4,7 +4,13 @@ import Script from "next/script";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
-import { SITE_URL, THEME_STORAGE_KEY } from "@/lib/links";
+import {
+  RELEASES_URL,
+  REPO_URL,
+  SITE_URL,
+  TELEGRAM_URL,
+  THEME_STORAGE_KEY,
+} from "@/lib/links";
 import { jsonLdString } from "@/lib/structured-data";
 
 const geistSans = Geist({
@@ -61,9 +67,25 @@ const themeScript = `
 })();
 `;
 
+const PUBLISHER_ID = `${SITE_URL}/#publisher`;
+
 const structuredData = {
   "@context": "https://schema.org",
   "@graph": [
+    {
+      "@type": "Organization",
+      "@id": PUBLISHER_ID,
+      name: "lpm",
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.png`,
+      sameAs: [REPO_URL, TELEGRAM_URL],
+      contactPoint: {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        url: TELEGRAM_URL,
+        availableLanguage: "English",
+      },
+    },
     {
       "@type": "SoftwareApplication",
       "@id": `${SITE_URL}/#app`,
@@ -73,8 +95,10 @@ const structuredData = {
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS",
       url: SITE_URL,
-      downloadUrl: "https://github.com/gug007/lpm/releases/latest",
-      softwareHelp: "https://github.com/gug007/lpm",
+      downloadUrl: RELEASES_URL,
+      softwareHelp: REPO_URL,
+      author: { "@id": PUBLISHER_ID },
+      publisher: { "@id": PUBLISHER_ID },
       offers: {
         "@type": "Offer",
         price: "0",
@@ -86,6 +110,7 @@ const structuredData = {
       "@id": `${SITE_URL}/#website`,
       name: "lpm",
       url: SITE_URL,
+      publisher: { "@id": PUBLISHER_ID },
     },
   ],
 };

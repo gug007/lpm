@@ -5,8 +5,11 @@ import { GitHubStarButton } from "./github-star-button";
 import { NavMobileMenu } from "./nav-mobile-menu";
 import { ThemeToggle } from "./theme-toggle";
 
+// No display utility here: callers own it. An unprefixed `inline-flex` baked in
+// would tie with an unprefixed `hidden` on equal specificity and win on source
+// order, silently disabling `hidden md:inline-flex` at phone widths.
 const linkClass =
-  "inline-flex items-center h-9 px-1 text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
+  "items-center h-9 px-1 text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
 
 export function Nav() {
   return (
@@ -17,7 +20,7 @@ export function Nav() {
       <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
         <Link
           href="/"
-          className="flex items-center gap-2 text-base font-bold tracking-tight text-gray-900 dark:text-white"
+          className="flex shrink-0 items-center gap-2 text-base font-bold tracking-tight text-gray-900 dark:text-white"
         >
           <Image
             src="/icon.png"
@@ -31,7 +34,7 @@ export function Nav() {
         </Link>
         <div className="flex items-center gap-3 sm:gap-5">
           <GitHubStarButton />
-          <Link href="/config" className={linkClass}>
+          <Link href="/config" className={`inline-flex ${linkClass}`}>
             Docs
           </Link>
           <Link
