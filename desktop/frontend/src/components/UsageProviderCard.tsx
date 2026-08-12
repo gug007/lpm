@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { ProviderLimits } from "../hooks/useAgentLimits";
 import {
   FIVE_HOUR_MS,
@@ -13,9 +14,12 @@ interface UsageProviderCardProps {
   now: number;
   title: string;
   subtitle?: string;
+  /** Extra line under the meters — the sidebar's popover adds the day's spend,
+   *  which the windows themselves do not carry. */
+  footer?: ReactNode;
 }
 
-export function UsageProviderCard({ data, now, title, subtitle }: UsageProviderCardProps) {
+export function UsageProviderCard({ data, now, title, subtitle, footer }: UsageProviderCardProps) {
   const meta = providerMeta(data.provider);
   const stale = now - data.updatedAt > STALE_MS;
 
@@ -64,6 +68,12 @@ export function UsageProviderCard({ data, now, title, subtitle }: UsageProviderC
           stale={stale}
         />
       </div>
+
+      {footer && (
+        <div className="mt-4 border-t border-[var(--border)]/50 pt-3 text-[11px] tabular-nums text-[var(--text-muted)]">
+          {footer}
+        </div>
+      )}
     </section>
   );
 }

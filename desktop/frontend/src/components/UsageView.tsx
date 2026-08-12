@@ -5,12 +5,15 @@ import { ApplyClaudeLimits } from "../../bridge/commands";
 import { useAgentLimits, pickProvider } from "../hooks/useAgentLimits";
 import type { ProviderLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
+import { useTokensToday } from "../hooks/useTokensToday";
 import { useSettingsStore } from "../store/settings";
 import { useAccountsStore } from "../store/accounts";
+import { tokensToday } from "../sidebarUsage";
 import { providerMeta } from "./stats/limitsFormat";
 import { UsageProviderCard } from "./UsageProviderCard";
 import { UsageEmptyPanel } from "./UsageEmptyPanel";
 import { UsageSkeleton } from "./UsageSkeleton";
+import { UsageSidebarSection } from "./UsageSidebarSection";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
 interface ClaudeCard {
@@ -29,6 +32,7 @@ export function UsageView({ onClose }: UsageViewProps) {
   const now = useNow(true, 30_000);
   const enabled = useSettingsStore((s) => s.claudeLimitsEnabled ?? false);
   const update = useSettingsStore((s) => s.update);
+  const { stats: todayStats } = useTokensToday();
   const accounts = useAccountsStore((s) => s.accounts);
   const statuses = useAccountsStore((s) => s.statuses);
   const hydrateAccounts = useAccountsStore((s) => s.hydrate);
@@ -60,6 +64,8 @@ export function UsageView({ onClose }: UsageViewProps) {
       })
       .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
   }, [enabled, map, accounts, statuses]);
+
+  const spentToday = useMemo(() => tokensToday(todayStats), [todayStats]);
 
   const codex = pickProvider(map, "codex");
   const showClaudeEnable = claudeCards.length === 0 && !enabled;
@@ -189,6 +195,8 @@ export function UsageView({ onClose }: UsageViewProps) {
                 </UsageEmptyPanel>
               )}
             </div>
+
+            <UsageSidebarSection tokensToday={spentToday} />
           </div>
         )}
       </div>

@@ -12,6 +12,7 @@ import {
   type GitFetchConfig,
 } from "../gitOptions";
 import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
+import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
 import type { PeerRowOrder } from "../components/peerRowOrder";
 
 export interface DetachedWindowState {
@@ -46,6 +47,9 @@ export interface Settings {
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
   claudeLimitsEnabled?: boolean;
+  usageInSidebar?: boolean;
+  usageSidebarTools?: string[];
+  usageSidebarWindow?: UsageWindowChoice;
   aiCli?: string;
   aiModel?: string;
   aiEffort?: string;
@@ -85,6 +89,7 @@ const defaults: Settings = {
   soundNotifications: true,
   systemNotifications: true,
   autoCloseComposerOnSend: true,
+  usageInSidebar: true,
 };
 
 interface SettingsActions {
@@ -123,6 +128,16 @@ function normalize(s: main.Settings): Settings {
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,
     claudeLimitsEnabled: s.claudeLimitsEnabled,
+    usageInSidebar: s.usageInSidebar ?? defaults.usageInSidebar,
+    usageSidebarTools: Array.isArray(s.usageSidebarTools)
+      ? USAGE_TOOLS.filter((tool) => s.usageSidebarTools.includes(tool))
+      : undefined,
+    usageSidebarWindow:
+      s.usageSidebarWindow === "fiveHour" ||
+      s.usageSidebarWindow === "weekly" ||
+      s.usageSidebarWindow === "higher"
+        ? s.usageSidebarWindow
+        : undefined,
     aiCli: s.aiCli || undefined,
     aiModel: s.aiModel || undefined,
     aiEffort: s.aiEffort || undefined,

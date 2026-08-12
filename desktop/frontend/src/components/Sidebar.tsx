@@ -29,6 +29,7 @@ import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
+import { SidebarUsage } from "./SidebarUsage";
 import { ProgressBar } from "./ui/ProgressBar";
 import { SortableItem } from "./ui/SortableList";
 import {
@@ -1416,6 +1417,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       )}
 
       <SidebarAgentToolsPill />
+
+      <SidebarUsage onOpen={onUsage} />
 
       <div className="flex flex-col p-2">
         <Tooltip
