@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import { StatusDot } from "./StatusDot";
+import { StatusDot, dotKind } from "./StatusDot";
 import { MoreVerticalIcon } from "./icons";
 import { type ProjectInfo } from "../types";
 import { computeProjectStatus } from "../agentStatus";
@@ -94,7 +94,7 @@ export function SidebarPeerRow({
               : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           }`}
         >
-          <StatusDot running={project.running} />
+          <StatusDot running={project.running} kind={dotKind(project)} />
           <span className="truncate" title={label}>
             {cls ? <span className={cls}>{label}</span> : label}
           </span>

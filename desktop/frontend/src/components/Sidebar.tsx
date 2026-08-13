@@ -13,7 +13,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { StatusDot } from "./StatusDot";
+import { StatusDot, dotKind } from "./StatusDot";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useTerminalTitles } from "../store/terminalTitles";
@@ -89,9 +89,13 @@ import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 const ROW_BASE_CLASS =
   "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
-// Half a row: `py-2` (8px twice) around `text-sm`'s 20px line. The folder tree's
-// elbows meet a row here, and a row showing its agents is taller than the block
-// it sits in, so this cannot be expressed as a fraction of that block.
+// One disclosure step: `px-3` (12px) plus 15px, applied to the rows inside an
+// expanded folder. Overrides ROW_BASE_CLASS's `px-3` the same way `pr-*` does.
+// The folder tree's elbows land on the status dot this leaves room for.
+const ROW_INDENT_CLASS = "pl-[27px]";
+// Half a row: `py-2` (8px twice) around `text-sm`'s 20px line. The elbows meet a
+// row here, and a row showing its agents is taller than the block it sits in, so
+// this cannot be expressed as a fraction of that block.
 const ROW_HALF = "18px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
@@ -716,7 +720,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (next) onApplySidebarLayout(next);
   };
 
-  const renderProjectRow = (project: ProjectInfo) => {
+  const renderProjectRow = (project: ProjectInfo, indented: boolean) => {
     const status = computeProjectStatus(project.statusEntries);
     const isDetached = detached.has(project.name);
     const isSelf = project.name === detachedSelf;
@@ -746,13 +750,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         ? "pr-9"
         : "group-hover:pr-9";
 
+    const indentClass = indented ? ROW_INDENT_CLASS : "";
+
     const buttonClass = selectMode
-      ? `${ROW_BASE_CLASS} ${
+      ? `${ROW_BASE_CLASS} ${indentClass} ${
           isChecked
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`
-      : `${ROW_BASE_CLASS} ${trailingPad} ${
+      : `${ROW_BASE_CLASS} ${trailingPad} ${indentClass} ${
           isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""
         } ${
           isSelected
@@ -792,7 +798,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             ) : project.configError ? (
               <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
             ) : (
-              <StatusDot running={project.running} />
+              <StatusDot running={project.running} kind={dotKind(project)} />
             )}
             <span
               className="truncate"
@@ -861,6 +867,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <SidebarAgentRows
             projectName={project.name}
             agents={agents}
+            indented={indented}
             onOpenAgent={openAgent}
           />
         )}
@@ -914,7 +921,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }
 
     if (item.kind === "empty") {
-      const emptyClass = "mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)]";
+      const emptyClass = `mb-0.5 rounded-md px-3 py-1.5 text-[11px] italic text-[var(--text-muted)] ${ROW_INDENT_CLASS}`;
       if (selectMode) {
         return <div key={`empty-${item.group.id}`} className={emptyClass}>Empty</div>;
       }
@@ -926,7 +933,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }
 
     const { project, isChild } = item;
-    const row = renderProjectRow(project);
+    const row = renderProjectRow(project, item.folderId !== undefined);
     if (isChild || selectMode) {
       return <div key={project.name}>{row}</div>;
     }
@@ -961,17 +968,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   })();
 
   // A folder header plus its (expanded) member rows render inside one block, tied
-  // together by a tree connector: a vertical trunk that drops from the folder's
-  // disclosure arrow, with a rounded elbow curving out to each member. The last
-  // member ends the trunk at its own elbow. The connector lives in the left
-  // gutter (left of the status dot), in existing row padding — so no project name
-  // is indented into less usable width. Elbows meet the row at ROW_HALF rather
-  // than half the block's height: a member showing its agents is taller than its
-  // row, and the elbow still has to point at the row.
+  // together by a tree connector: a trunk dropping from the folder's disclosure
+  // arrow, with a rounded elbow curving out to each member. The last member ends
+  // the trunk at its own elbow. The connector runs in the disclosure step the
+  // members are indented by (TREE_X to the member's status dot at 27px), so it
+  // costs no name width. Elbows meet the row at ROW_HALF rather than half the
+  // block's height: a member showing its agents is taller than its row, and the
+  // elbow still has to point at the row.
   // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
   // — it doesn't react to row/folder hover.
   const TRUNK_BG = "bg-[#38bdf8]/55";
   const ELBOW_BORDER = "border-[#38bdf8]/55";
+  // Under the folder chevron: `px-2` (8px) plus half of the 14px icon.
+  const TREE_X = "left-[15px]";
   const renderFolderBlock = (
     groupItem: Extract<TreeItem, { kind: "group" }>,
     body: TreeItem[],
@@ -990,16 +999,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         <div className="relative">
           {renderRow(groupItem)}
           {hasProjects && showConnectors && (
-            <>
-              <span
-                aria-hidden
-                className={`pointer-events-none absolute left-[4px] top-[9px] z-10 h-[11px] w-[11.5px] rounded-t-[6px] border-l border-r border-t ${ELBOW_BORDER}`}
-              />
-              <span
-                aria-hidden
-                className={`pointer-events-none absolute left-[4px] top-[20px] bottom-0 z-10 w-px ${TRUNK_BG}`}
-              />
-            </>
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute ${TREE_X} top-[25px] bottom-0 z-10 w-px ${TRUNK_BG}`}
+            />
           )}
         </div>
         {body.length > 0 && (
@@ -1012,13 +1015,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                       <span
                         aria-hidden
                         style={{ height: ROW_HALF }}
-                        className={`pointer-events-none absolute left-[4px] top-0 z-10 w-[8px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
+                        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 w-[12px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
                       />
                       {i !== lastProjectIndex && (
                         <span
                           aria-hidden
                           style={{ top: ROW_HALF }}
-                          className={`pointer-events-none absolute left-[4px] bottom-0 z-10 w-px ${TRUNK_BG}`}
+                          className={`pointer-events-none absolute ${TREE_X} bottom-0 z-10 w-px ${TRUNK_BG}`}
                         />
                       )}
                     </>
@@ -1100,7 +1103,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2">
+      {/* The scrollbar is the right-hand padding, not an addition to it: WKWebView
+          draws a classic 8px bar that takes layout width whether or not its thumb
+          is painted (globals.css fades the thumb, it never reclaims the space), so
+          `px-2` here left 16px on the right against 8 on the left. `scroll` rather
+          than `auto` keeps that gutter reserved even when the list fits, so the
+          rows don't change width as projects come and go. */}
+      <nav className="flex-1 overflow-y-scroll pl-2">
         {selectMode ? (
           navItems
         ) : (

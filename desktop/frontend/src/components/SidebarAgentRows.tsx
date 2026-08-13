@@ -10,6 +10,9 @@ export interface SidebarAgentRowsProps {
    *  the app routes by — a paired host's projects carry a peer marker. */
   label?: string;
   agents: SidebarAgentRow[];
+  /** Set when the project row above sits inside an expanded folder, so its
+   *  tasks take the same disclosure step and stay under its name. */
+  indented?: boolean;
   onOpenAgent: (projectName: string, agent: SidebarAgentRow) => void;
 }
 
@@ -20,6 +23,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   projectName,
   label,
   agents,
+  indented,
   onOpenAgent,
 }: SidebarAgentRowsProps) {
   return (
@@ -31,7 +35,9 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           onPointerDown={(e) => e.stopPropagation()}
           // Padding + mark + gap add up to the project row's own text offset,
           // so a task's name sits directly under the project's.
-          className="flex w-full select-none items-center gap-2 rounded-md py-1 pl-2.5 pr-3 text-left text-[12px] text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className={`flex w-full select-none items-center gap-2 rounded-md py-1 pr-3 text-left text-[12px] text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+            indented ? "pl-[25px]" : "pl-2.5"
+          }`}
           title={`${AGENT_STATE_LABEL[agent.state]} — ${agent.provider} in ${label ?? projectName}`}
         >
           <span className={MARK_SLOT} />
