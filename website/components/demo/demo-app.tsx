@@ -21,6 +21,19 @@ import INITIAL_PROJECTS, {
 } from "./projects";
 import { DemoSidebar } from "./sidebar";
 import { MobileProjectSwitcher } from "./mobile-project-switcher";
+import { ActivityView } from "./activity-view";
+import { AutomationsView } from "./automations-view";
+import { UsageView } from "./usage-view";
+import { StatsView } from "./stats-view";
+import { MobileView } from "./mobile-view";
+import {
+  INITIAL_JOBS,
+  runningJobCount,
+  unreadJobCount,
+  type DemoJob,
+} from "./automations";
+import { DEFAULT_USAGE_SETTINGS, type UsageSidebarSettings } from "./usage-data";
+import type { DemoView } from "./views";
 import {
   DemoProjectView,
   initialPaneState,
@@ -182,9 +195,10 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [agentTabStatusByProject, setAgentTabStatusByProject] = useState<
     Record<string, Record<string, AgentStatus>>
   >({});
-  const [view, setView] = useState<"project" | "terminals" | "settings">(
-    "project",
-  );
+  const [view, setView] = useState<DemoView>("project");
+  const [jobs, setJobs] = useState<DemoJob[]>(INITIAL_JOBS);
+  const [usageSettings, setUsageSettings] =
+    useState<UsageSidebarSettings>(DEFAULT_USAGE_SETTINGS);
   const [adding, setAdding] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
   const [autoCursor, setAutoCursor] = useState<AutoCursorState>({
@@ -600,8 +614,11 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         runningByProject={runningByProject}
         aiStatusByProject={aiStatusByProject}
         onAddProject={() => setAdding(true)}
-        onOpenTerminals={() => setView("terminals")}
-        onOpenSettings={() => setView("settings")}
+        onOpenView={setView}
+        usageSettings={usageSettings}
+        hasError={Object.values(aiStatusByProject).includes("error")}
+        unreadAutomations={unreadJobCount(jobs)}
+        runningAutomations={runningJobCount(jobs)}
       />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MobileProjectSwitcher
@@ -615,6 +632,28 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
           <GlobalTerminalsView />
         ) : view === "settings" ? (
           <SettingsView />
+        ) : view === "activity" ? (
+          <ActivityView
+            projects={projects}
+            runningByProject={runningByProject}
+            aiStatusByProject={aiStatusByProject}
+            agentTabStatusByProject={agentTabStatusByProject}
+            jobs={jobs}
+            onOpenProject={selectProject}
+            onOpenAutomations={() => setView("automations")}
+          />
+        ) : view === "automations" ? (
+          <AutomationsView
+            jobs={jobs}
+            setJobs={setJobs}
+            projects={projects.map((p) => p.name)}
+          />
+        ) : view === "usage" ? (
+          <UsageView settings={usageSettings} onSettingsChange={setUsageSettings} />
+        ) : view === "stats" ? (
+          <StatsView />
+        ) : view === "mobile" ? (
+          <MobileView />
         ) : (
           <DemoProjectView
             key={project.name}

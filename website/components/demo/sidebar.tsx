@@ -1,20 +1,25 @@
 "use client";
 
-import { AlertCircle, Check, Settings, Terminal } from "lucide-react";
+import { AlertCircle, Check, Terminal } from "lucide-react";
 import type { AiStatus, DemoProject } from "./projects";
-
-type SidebarView = "project" | "terminals" | "settings";
+import { SidebarMoreMenu } from "./sidebar-more-menu";
+import { SidebarUsage } from "./sidebar-usage";
+import type { UsageSidebarSettings } from "./usage-data";
+import type { DemoView } from "./views";
 
 type SidebarProps = {
   projects: DemoProject[];
   selected: string;
-  activeView: SidebarView;
+  activeView: DemoView;
   onSelect: (name: string) => void;
   runningByProject: Record<string, Set<string>>;
   aiStatusByProject: Record<string, AiStatus>;
   onAddProject: () => void;
-  onOpenTerminals: () => void;
-  onOpenSettings: () => void;
+  onOpenView: (view: DemoView) => void;
+  usageSettings: UsageSidebarSettings;
+  hasError: boolean;
+  unreadAutomations: number;
+  runningAutomations: number;
 };
 
 export function DemoSidebar({
@@ -25,8 +30,11 @@ export function DemoSidebar({
   runningByProject,
   aiStatusByProject,
   onAddProject,
-  onOpenTerminals,
-  onOpenSettings,
+  onOpenView,
+  usageSettings,
+  hasError,
+  unreadAutomations,
+  runningAutomations,
 }: SidebarProps) {
   const projectSelected = activeView === "project";
 
@@ -66,18 +74,20 @@ export function DemoSidebar({
           />
         ))}
       </nav>
+      <SidebarUsage settings={usageSettings} onOpen={() => onOpenView("usage")} />
       <div className="flex flex-col gap-0.5 p-2">
         <FooterRow
           icon={<Terminal className="h-3.5 w-3.5" strokeWidth={1.75} />}
           label="Terminals"
           active={activeView === "terminals"}
-          onClick={onOpenTerminals}
+          onClick={() => onOpenView("terminals")}
         />
-        <FooterRow
-          icon={<Settings className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          label="Settings"
-          active={activeView === "settings"}
-          onClick={onOpenSettings}
+        <SidebarMoreMenu
+          activeView={activeView}
+          onOpen={onOpenView}
+          hasError={hasError}
+          unreadAutomations={unreadAutomations}
+          runningAutomations={runningAutomations}
         />
       </div>
     </aside>
