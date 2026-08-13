@@ -148,76 +148,82 @@ export default function IsolationMatrix() {
           className="mb-12"
         />
 
-        <div className="hidden overflow-x-auto rounded-2xl border border-gray-200 md:block dark:border-gray-800">
-          <table className="w-full min-w-[54rem] text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-800 dark:bg-white/[0.025]">
-                <th
-                  scope="col"
-                  className="w-[26%] px-5 py-4 text-left font-medium text-gray-500 dark:text-gray-400"
-                >
-                  Capability
-                </th>
-                {COLUMNS.map((column, index) => (
+        <div className="@container relative hidden md:block">
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
+            <table className="w-full min-w-[54rem] text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-800 dark:bg-white/[0.025]">
                   <th
-                    key={column.name}
                     scope="col"
-                    className={`px-4 py-4 text-center align-bottom ${
-                      index === COLUMNS.length - 1
-                        ? "bg-emerald-50/60 dark:bg-emerald-400/[0.045]"
-                        : ""
-                    }`}
+                    className="sticky left-0 z-20 w-[26%] bg-gray-50 px-5 py-4 text-left font-medium text-gray-500 dark:bg-[#171717] dark:text-gray-400"
                   >
-                    <span
-                      className={`block text-[13px] font-semibold ${
-                        column.mono ? "font-mono" : ""
-                      } ${
+                    Capability
+                  </th>
+                  {COLUMNS.map((column, index) => (
+                    <th
+                      key={column.name}
+                      scope="col"
+                      className={`px-4 py-4 text-center align-bottom ${
                         index === COLUMNS.length - 1
-                          ? "text-emerald-800 dark:text-emerald-300"
-                          : "text-gray-700 dark:text-gray-300"
-                      }`}
-                    >
-                      {column.name}
-                    </span>
-                    <span className="mt-1 block text-[11px] font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                      {column.sub}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ROWS.map((row, rowIndex) => (
-                <tr
-                  key={row.label}
-                  className={
-                    rowIndex < ROWS.length - 1
-                      ? "border-b border-gray-200 dark:border-gray-800"
-                      : ""
-                  }
-                >
-                  <th
-                    scope="row"
-                    className="px-5 py-4 text-left align-middle font-medium text-gray-800 dark:text-gray-200"
-                  >
-                    {row.label}
-                  </th>
-                  {row.cells.map((cell, cellIndex) => (
-                    <td
-                      key={COLUMNS[cellIndex].name}
-                      className={`px-4 py-4 align-middle ${
-                        cellIndex === COLUMNS.length - 1
-                          ? "bg-emerald-50/35 dark:bg-emerald-400/[0.025]"
+                          ? "bg-emerald-50/60 dark:bg-emerald-400/[0.045]"
                           : ""
                       }`}
                     >
-                      <CellValue value={cell} />
-                    </td>
+                      <span
+                        className={`block text-[13px] font-semibold ${
+                          column.mono ? "font-mono" : ""
+                        } ${
+                          index === COLUMNS.length - 1
+                            ? "text-emerald-800 dark:text-emerald-300"
+                            : "text-gray-700 dark:text-gray-300"
+                        }`}
+                      >
+                        {column.name}
+                      </span>
+                      <span className="mt-1 block text-[11px] font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                        {column.sub}
+                      </span>
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {ROWS.map((row, rowIndex) => (
+                  <tr
+                    key={row.label}
+                    className={
+                      rowIndex < ROWS.length - 1
+                        ? "border-b border-gray-200 dark:border-gray-800"
+                        : ""
+                    }
+                  >
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 bg-white px-5 py-4 text-left align-middle font-medium text-gray-800 dark:bg-[#111] dark:text-gray-200"
+                    >
+                      {row.label}
+                    </th>
+                    {row.cells.map((cell, cellIndex) => (
+                      <td
+                        key={COLUMNS[cellIndex].name}
+                        className={`px-4 py-4 align-middle ${
+                          cellIndex === COLUMNS.length - 1
+                            ? "bg-emerald-50/35 dark:bg-emerald-400/[0.025]"
+                            : ""
+                        }`}
+                      >
+                        <CellValue value={cell} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-px right-px w-10 rounded-r-[15px] bg-gradient-to-l from-white to-transparent @min-[55rem]:hidden dark:from-[#111]"
+          />
         </div>
 
         <div className="space-y-4 md:hidden">

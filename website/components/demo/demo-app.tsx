@@ -210,11 +210,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startButtonRef = useRef<HTMLButtonElement | null>(null);
   const autoCursorRanRef = useRef(false);
-  const interactedRef = useRef(false);
   const hasBeenSeenRef = useRef(false);
 
   const markInteracted = () => {
-    interactedRef.current = true;
     if (!hasInteracted) setHasInteracted(true);
     setAutoCursor({ phase: "hidden" });
     setRingPulseOn(false);
@@ -346,15 +344,11 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     );
     timers.push(
       setTimeout(() => {
-        if (cancelled) return;
-        if (!cursorHidden) {
-          setAutoCursor({ phase: "fade", x: targetX, y: targetY });
-          setRingPulseOn(false);
-        }
-        if (!interactedRef.current) {
-          interactedRef.current = true;
-          setHasInteracted(true);
-        }
+        if (cancelled || cursorHidden) return;
+        // Only the mimed cursor retires here. The "click anything" invitation
+        // stands until the visitor actually touches the demo.
+        setAutoCursor({ phase: "fade", x: targetX, y: targetY });
+        setRingPulseOn(false);
       }, 2150),
     );
     timers.push(
@@ -594,7 +588,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   return (
     <div
       ref={containerRef}
+      data-on-dark
       onPointerDownCapture={markInteracted}
+      onKeyDownCapture={markInteracted}
       className={`relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
         glowActive ? "ring-2 ring-emerald-500/30" : "ring-0 ring-transparent"
       }`}

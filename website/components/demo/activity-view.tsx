@@ -65,7 +65,7 @@ export function ActivityView({
               }`}
             >
               {option.label}
-              <span className="tabular-nums text-[#6b6b6b]">{count}</span>
+              <span className="tabular-nums text-[#8a8a8a]">{count}</span>
             </button>
           );
         })}

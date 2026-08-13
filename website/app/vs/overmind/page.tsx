@@ -75,9 +75,9 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: true,
   },
   {
-    label: "Requires installing and learning tmux",
-    lpm: false,
-    competitor: true,
+    label: "Runs without installing or learning tmux",
+    lpm: true,
+    competitor: false,
   },
   {
     label: "Session survives terminal restart",
@@ -197,8 +197,6 @@ export default function OvermindVsPage() {
         description="Overmind is a capable Procfile manager built around tmux. lpm trades its cross-platform CLI, scaling, and automatic PORT assignment for a native Mac workspace with per-service panes, multi-project switching, and AI-agent workflows."
       />
 
-      <DemoSection />
-
       <ComparisonBasis
         reviewed="July 26, 2026"
         sources={[
@@ -241,6 +239,8 @@ export default function OvermindVsPage() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq title="Switching from Overmind" items={FAQS} />
 

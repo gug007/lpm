@@ -468,33 +468,33 @@ export function DemoProjectView({
         />
       )}
 
-      {tree && (
-        <div className="flex shrink-0 items-center gap-1 bg-[#1a1a1a] px-2 py-1">
-          <AppTip />
-          {footerActions.map((a) => (
-            <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
-          ))}
-          {git && (
-            <DemoBranchSwitcher
-              git={git}
-              onCheckout={handleGitCheckout}
-              onCommit={handleGitCommit}
-              onPull={handleGitPull}
-              onPush={handleGitPush}
-              onFetch={handleGitFetch}
-              onMerge={handleGitMerge}
-              onCreatePR={handleGitCreatePR}
-              onDiscard={handleGitDiscard}
-              onSync={handleGitSync}
-              onCreateBranch={handleGitCreateBranch}
-              onRenameBranch={onGitRenameBranch}
-              onDeleteBranch={onGitDeleteBranch}
-              onRemoveRemote={onGitRemoveRemote}
-              onCopyBranchName={handleGitCopyBranchName}
-            />
-          )}
-        </div>
-      )}
+      {/* Outside the tree guard: the footer must not pop in and shove the
+          workspace up the moment the first pane appears. */}
+      <div className="flex shrink-0 items-center gap-1 bg-[#1a1a1a] px-2 py-1">
+        <AppTip />
+        {footerActions.map((a) => (
+          <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
+        ))}
+        {git && (
+          <DemoBranchSwitcher
+            git={git}
+            onCheckout={handleGitCheckout}
+            onCommit={handleGitCommit}
+            onPull={handleGitPull}
+            onPush={handleGitPush}
+            onFetch={handleGitFetch}
+            onMerge={handleGitMerge}
+            onCreatePR={handleGitCreatePR}
+            onDiscard={handleGitDiscard}
+            onSync={handleGitSync}
+            onCreateBranch={handleGitCreateBranch}
+            onRenameBranch={onGitRenameBranch}
+            onDeleteBranch={onGitDeleteBranch}
+            onRemoveRemote={onGitRemoveRemote}
+            onCopyBranchName={handleGitCopyBranchName}
+          />
+        )}
+      </div>
 
       {runningAction && (
         <DemoActionModal
@@ -748,7 +748,7 @@ function SplitView(
   const isRow = split.direction === "row";
 
   const onDividerDown = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.PointerEvent<HTMLDivElement>) => {
       e.preventDefault();
       const container = containerRef.current;
       if (!container) return;
@@ -757,9 +757,14 @@ function SplitView(
       if (total <= 0) return;
       const origin = isRow ? rect.left : rect.top;
 
+      const divider = e.currentTarget;
+      const pointerId = e.pointerId;
+      divider.setPointerCapture(pointerId);
+
       let rafId = 0;
       let pendingPos = 0;
-      const onMove = (ev: MouseEvent) => {
+      const onMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
         pendingPos = isRow ? ev.clientX : ev.clientY;
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
@@ -767,15 +772,19 @@ function SplitView(
           onRatioChange(path, (pendingPos - origin) / total);
         });
       };
-      const onUp = () => {
+      const onUp = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
         if (rafId) cancelAnimationFrame(rafId);
-        window.removeEventListener("mousemove", onMove);
-        window.removeEventListener("mouseup", onUp);
+        divider.releasePointerCapture(pointerId);
+        divider.removeEventListener("pointermove", onMove);
+        divider.removeEventListener("pointerup", onUp);
+        divider.removeEventListener("pointercancel", onUp);
         onResizeEnd();
       };
       onResizeStart(split.direction);
-      window.addEventListener("mousemove", onMove);
-      window.addEventListener("mouseup", onUp);
+      divider.addEventListener("pointermove", onMove);
+      divider.addEventListener("pointerup", onUp);
+      divider.addEventListener("pointercancel", onUp);
     },
     [isRow, path, split.direction, onRatioChange, onResizeStart, onResizeEnd],
   );
@@ -798,7 +807,8 @@ function SplitView(
         <PaneLayout {...props} node={split.a} path={[...path, 0]} />
       </div>
       <div
-        onMouseDown={onDividerDown}
+        onPointerDown={onDividerDown}
+        style={{ touchAction: "none" }}
         className={`shrink-0 bg-[#2d2d2d] hover:bg-[#4a4a4a] transition-colors ${
           isRow ? "w-[3px] cursor-col-resize" : "h-[3px] cursor-row-resize"
         }`}
@@ -1001,7 +1011,7 @@ function HeaderActionButton({
       {action.emoji && (
         <span className="text-[13px] leading-none">{action.emoji}</span>
       )}
-      <span className={action.emoji ? "hidden lg:inline" : ""}>
+      <span className={action.emoji ? "hidden @min-[560px]:inline" : ""}>
         {action.label}
       </span>
     </button>
@@ -1072,8 +1082,10 @@ function Header({
     : "border-[#1a1a1a]/20 bg-[#e5e5e5] text-[#1a1a1a]";
   const chevronIdle =
     "border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]";
+  // @container: action labels follow the pane's own width, which is far
+  // narrower than the viewport when the demo is embedded in a page.
   return (
-    <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
+    <div className="@container flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
       <div className="min-w-0 shrink-0 truncate pr-2 text-xl font-semibold tracking-tight text-[#e5e5e5]">
         {project.label ?? project.name}
       </div>

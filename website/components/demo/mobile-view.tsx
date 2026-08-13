@@ -216,7 +216,7 @@ export function MobileView() {
             </div>
           </div>
 
-          <p className="text-[11px] leading-relaxed text-[#666]">
+          <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
             Nothing routes through a server of ours — the phone talks to your Mac directly.
           </p>
         </div>

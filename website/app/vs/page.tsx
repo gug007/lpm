@@ -46,6 +46,30 @@ type Entry = {
 
 const ENTRIES: Entry[] = [
   {
+    slug: "iterm2",
+    name: "iTerm2",
+    tagline:
+      "The macOS terminal most developers already have open. lpm adds the project layer above it — start, stop, and duplicate whole stacks.",
+  },
+  {
+    slug: "tmux",
+    name: "tmux",
+    tagline:
+      "Hand-rolled panes and .tmux.conf. lpm is one-command start, same visibility, no config.",
+  },
+  {
+    slug: "cmux",
+    name: "cmux",
+    tagline:
+      "Native macOS terminal for AI coding agents from Manaflow (YC). lpm adds project-level start/stop/duplicate and repo-generated configs on top.",
+  },
+  {
+    slug: "docker-compose",
+    name: "Docker Compose",
+    tagline:
+      "Containers for local dev. lpm runs your stack natively, or drives compose when you need it.",
+  },
+  {
     slug: "foreman",
     name: "Foreman",
     tagline:
@@ -58,34 +82,10 @@ const ENTRIES: Entry[] = [
       "Tmux-based Procfile runner. lpm gives the same per-process control — without needing tmux.",
   },
   {
-    slug: "docker-compose",
-    name: "Docker Compose",
-    tagline:
-      "Containers for local dev. lpm runs your stack natively, or drives compose when you need it.",
-  },
-  {
-    slug: "tmux",
-    name: "tmux",
-    tagline:
-      "Hand-rolled panes and .tmux.conf. lpm is one-command start, same visibility, no config.",
-  },
-  {
     slug: "pm2",
     name: "PM2",
     tagline:
       "Production Node daemon. lpm is built for the dev loop — the two are complementary.",
-  },
-  {
-    slug: "cmux",
-    name: "cmux",
-    tagline:
-      "Native macOS terminal for AI coding agents from Manaflow (YC). lpm adds project-level start/stop/duplicate and repo-generated configs on top.",
-  },
-  {
-    slug: "iterm2",
-    name: "iTerm2",
-    tagline:
-      "The macOS terminal most developers already have open. lpm adds the project layer above it — start, stop, and duplicate whole stacks.",
   },
 ];
 
@@ -127,8 +127,11 @@ export default function ComparisonsHubPage() {
       <section className="pb-12 sm:pb-16">
         <div className="max-w-3xl mx-auto px-6">
           <ul className="grid sm:grid-cols-2 gap-3">
-            {ENTRIES.map((entry) => (
-              <li key={entry.slug}>
+            {ENTRIES.map((entry, i) => (
+              <li
+                key={entry.slug}
+                className={i === ENTRIES.length - 1 ? "sm:col-span-2" : ""}
+              >
                 <Link
                   href={vsPath(entry.slug)}
                   className="group block h-full rounded-2xl border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors duration-200 p-6"
@@ -149,9 +152,10 @@ export default function ComparisonsHubPage() {
         </div>
       </section>
 
-      <section className="py-16 sm:py-20">
+      <section className="py-12 sm:py-16">
         <div className="max-w-3xl mx-auto px-6">
           <SectionHeader
+            className="mb-0"
             eyebrow="How we write these"
             title="Written for the people who already use the other tool"
             description="Each page acknowledges where the alternative wins, where lpm wins, and where they can coexist. If we can't name a workflow difference, we don't pretend there is one."

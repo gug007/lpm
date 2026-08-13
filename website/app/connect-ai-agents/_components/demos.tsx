@@ -1,3 +1,4 @@
+import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
 
 type Demo = {
@@ -80,17 +81,12 @@ export default function Demos() {
                   {demo.body}
                 </p>
               </div>
-              <video
+              <AutoVideo
                 src={`${demo.media}.mp4`}
                 poster={`${demo.media}-poster.jpg`}
                 width={1224}
                 height={754}
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="none"
-                aria-label={demo.label}
+                label={demo.label}
                 className="w-full h-auto rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
               />
             </div>

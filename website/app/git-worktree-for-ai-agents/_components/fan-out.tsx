@@ -1,3 +1,4 @@
+import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
 
 const MODES = [
@@ -95,17 +96,12 @@ export default function FanOut() {
         </p>
 
         <div className="mt-10 overflow-hidden rounded-xl border border-gray-200 bg-gray-950 shadow-2xl shadow-gray-200/60 dark:border-gray-800 dark:shadow-black/40">
-          <video
+          <AutoVideo
             src="/screenrecording/agent-duplicate-fanout.mp4"
             poster="/screenrecording/agent-duplicate-fanout-poster.jpg"
             width={1224}
             height={804}
-            controls
-            muted
-            loop
-            playsInline
-            preload="none"
-            aria-label="Fanning one prompt out to three project copies in lpm, each running its own coding agent"
+            label="Fanning one prompt out to three project copies in lpm, each running its own coding agent"
             className="h-auto w-full"
           />
         </div>

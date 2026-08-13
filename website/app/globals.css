@@ -3,6 +3,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: light;
+
   --background: #ffffff;
   --foreground: #171717;
 
@@ -13,11 +15,18 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --background: #111111;
   --foreground: #e5e7eb;
 
   --surface: rgba(255, 255, 255, 0.028);
   --hairline: rgb(38 38 38);
+  --focus-ring: #ffffff;
+}
+
+/* Surfaces that stay dark in either theme need the dark-theme focus ring. */
+[data-on-dark] {
   --focus-ring: #ffffff;
 }
 
@@ -95,25 +104,6 @@ html {
     0 0 16px -2px color-mix(in oklab, var(--color-emerald-500) 15%, transparent);
   border-color: var(--color-emerald-500) !important;
   position: relative;
-}
-.dl-card.recommended::before {
-  content: "Recommended";
-  position: absolute;
-  top: -9px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: white;
-  background: linear-gradient(
-    135deg,
-    var(--color-emerald-600),
-    var(--color-emerald-700)
-  );
-  padding: 1px 10px;
-  border-radius: 9999px;
-  white-space: nowrap;
 }
 .dl-card.recommended:hover {
   box-shadow:
@@ -348,5 +338,9 @@ html {
   *::after {
     transition-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+  /* A loader frozen a fraction into its first turn reads as a hung page. */
+  .animate-spin {
+    animation-iteration-count: infinite !important;
   }
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { useDismiss } from "./hooks";
 import type { Action } from "./types";
 
 export function SplitButton({
@@ -13,8 +14,11 @@ export function SplitButton({
 }) {
   const [open, setOpen] = useState(false);
   const [lastUsed, setLastUsed] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const primaryChild = resolvePrimaryChild(action, lastUsed);
   const hasCmd = !!action.cmd || !!primaryChild;
+
+  useDismiss(containerRef, () => setOpen(false), open);
 
   const runChild = (child: Action) => {
     setOpen(false);
@@ -26,10 +30,11 @@ export function SplitButton({
 
   if (!hasCmd) {
     return (
-      <div className="relative shrink-0">
+      <div ref={containerRef} className="relative shrink-0">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
           className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-gray-200 dark:border-gray-800 px-3.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 transition-all hover:bg-gray-50 dark:hover:bg-gray-900 hover:text-gray-900 dark:hover:text-white"
         >
           {action.label}
@@ -47,7 +52,7 @@ export function SplitButton({
   }
 
   return (
-    <div className="relative shrink-0">
+    <div ref={containerRef} className="relative shrink-0">
       <div className="inline-flex items-stretch rounded-lg border border-gray-200 dark:border-gray-800">
         <button
           type="button"
@@ -59,6 +64,8 @@ export function SplitButton({
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
+          aria-label={`${action.label} options`}
+          aria-expanded={open}
           className={`flex items-center rounded-r-lg border-l border-gray-200 dark:border-gray-800 px-1.5 transition-all ${
             open
               ? "bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white"

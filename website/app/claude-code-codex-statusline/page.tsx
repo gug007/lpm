@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   Check,
+  ChevronDown,
   Code2,
   Eye,
   FileSliders,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
 import { RelatedPages } from "@/components/related-pages";
+import { SectionHeader } from "@/components/section-header";
 import {
   AI_AGENTS_PATH,
   CLAUDE_ACCOUNTS_PATH,
@@ -32,15 +34,15 @@ import {
 } from "@/lib/structured-data";
 import LpmStatuslineDemo from "./_components/lpm-statusline-demo";
 
-const TITLE = "Customize Claude Code & Codex Statuslines in LPM";
+const TITLE = "Customize Claude Code & Codex Statuslines in lpm";
 const DESCRIPTION =
-  "Customize Claude Code and Codex statuslines visually in LPM Desktop for macOS. Pick presets, reorder fields, tune colors and meters, preview live, and apply automatically.";
+  "Customize Claude Code and Codex statuslines visually in lpm Desktop for macOS. Pick presets, reorder fields, tune colors and meters, preview live, and apply automatically.";
 
 const FAQ_ITEMS = [
   {
-    question: "How do I customize a Claude Code statusline in LPM Desktop?",
+    question: "How do I customize a Claude Code statusline in lpm Desktop?",
     answer:
-      "Open Settings from the bottom of the LPM sidebar, choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. LPM applies valid changes while you work.",
+      "Open Settings from the bottom of the lpm sidebar, choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work.",
   },
   {
     question: "What can I change in the Claude Code statusline?",
@@ -48,17 +50,17 @@ const FAQ_ITEMS = [
       "You can arrange the project folder, full path, model, Git branch, context remaining, five-hour usage, weekly usage, session cost, and custom text. Each item can have its own color, label, and icon. You can also choose separators, usage meter styles, meter width, icons, and Git status.",
   },
   {
-    question: "How does Codex statusline customization work in LPM?",
+    question: "How does Codex statusline customization work in lpm?",
     answer:
-      "LPM shows the fields supported by your Codex version, including model, reasoning, project, Git, context, limits, tokens, run state, permissions, task progress, and thread details. Pick a preset, add or remove fields, reorder them, and choose whether Codex uses its active theme colors.",
+      "lpm shows the fields supported by your Codex version, including model, reasoning, project, Git, context, limits, tokens, run state, permissions, task progress, and thread details. Pick a preset, add or remove fields, reorder them, and choose whether Codex uses its active theme colors.",
   },
   {
     question: "Do I need to edit settings.json or config.toml?",
     answer:
-      "No. LPM provides visual controls and saves the matching local configuration for Claude Code or Codex. You can customize either statusline without hand-editing scripts, JSON, or TOML.",
+      "No. lpm provides visual controls and saves the matching local configuration for Claude Code or Codex. You can customize either statusline without hand-editing scripts, JSON, or TOML.",
   },
   {
-    question: "Can LPM hide the statusline?",
+    question: "Can lpm hide the statusline?",
     answer:
       "Yes. Choose Off to hide the configurable statusline. For Codex, removing every item also hides the footer. You can return to a preset or add fields again at any time.",
   },
@@ -70,7 +72,7 @@ const FAQ_ITEMS = [
   {
     question: "Is statusline configuration private?",
     answer:
-      "Yes. LPM is a native macOS app and applies statusline settings locally on your Mac. The visual editor does not require you to paste agent configuration or session data into a website.",
+      "Yes. lpm is a native macOS app and applies statusline settings locally on your Mac. The visual editor does not require you to paste agent configuration or session data into a website.",
   },
 ];
 
@@ -82,7 +84,7 @@ export const metadata: Metadata = {
     "Claude Code status line",
     "Codex statusline",
     "Codex status line",
-    "LPM Desktop",
+    "lpm Desktop",
     "Claude Code statusline GUI",
     "Codex statusline GUI",
     "customize Claude Code statusline",
@@ -95,7 +97,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "Use LPM Desktop to visually customize Claude Code and Codex statuslines with presets, live preview, fields, colors, and usage meters.",
+      "Use lpm Desktop to visually customize Claude Code and Codex statuslines with presets, live preview, fields, colors, and usage meters.",
     type: "website",
     url: STATUSLINE_PATH,
     siteName: "lpm",
@@ -104,7 +106,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Visual statusline customization for Claude Code and Codex, built into LPM Desktop for macOS.",
+      "Visual statusline customization for Claude Code and Codex, built into lpm Desktop for macOS.",
   },
 };
 
@@ -114,7 +116,7 @@ const structuredData = [
     description: DESCRIPTION,
     path: STATUSLINE_PATH,
     about: [
-      "LPM Desktop",
+      "lpm Desktop",
       "Claude Code statusline",
       "Codex status line",
       "visual statusline editor",
@@ -124,7 +126,7 @@ const structuredData = [
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "LPM statusline customization",
+      name: "lpm statusline customization",
       path: STATUSLINE_PATH,
     },
   ]),
@@ -132,7 +134,7 @@ const structuredData = [
   {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    name: "LPM Desktop",
+    name: "lpm Desktop",
     description: DESCRIPTION,
     url: `${SITE_URL}${STATUSLINE_PATH}`,
     downloadUrl: RELEASES_URL,
@@ -158,12 +160,12 @@ const benefits = [
   {
     icon: SlidersHorizontal,
     title: "Visual instead of fragile",
-    copy: "Choose from real fields, valid colors, separators, and meter styles. LPM keeps the underlying agent configuration out of your way.",
+    copy: "Choose from real fields, valid colors, separators, and meter styles. lpm keeps the underlying agent configuration out of your way.",
   },
   {
     icon: Eye,
     title: "Preview the real signal",
-    copy: "See representative values using your LPM terminal theme and font size before the line reaches Claude Code or Codex.",
+    copy: "See representative values using your lpm terminal theme and font size before the line reaches Claude Code or Codex.",
   },
   {
     icon: Save,
@@ -177,7 +179,7 @@ const steps = [
     step: "01",
     icon: Settings2,
     title: "Open AI & Integrations",
-    copy: "In LPM Desktop, click Settings at the bottom of the sidebar and select AI & Integrations.",
+    copy: "In lpm Desktop, click Settings at the bottom of the sidebar and select AI & Integrations.",
   },
   {
     step: "02",
@@ -206,14 +208,14 @@ export default function ClaudeCodeCodexStatuslinePage() {
         <div className="mx-auto max-w-5xl px-6">
           <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/75 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-white/[0.04] dark:text-gray-300">
             <WandSparkles className="h-3.5 w-3.5" aria-hidden />
-            Built into LPM Desktop · macOS
+            Built into lpm Desktop · macOS
           </p>
           <h1 className="bg-gradient-to-br from-gray-950 via-gray-800 to-gray-500 bg-clip-text text-4xl font-extrabold leading-[1.04] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-500 sm:text-6xl lg:text-7xl">
             Customize your AI statuslines.{" "}
             <span className="block">Without editing config files.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-lg">
-            LPM Desktop gives Claude Code and Codex a visual statusline editor.
+            lpm Desktop gives Claude Code and Codex a visual statusline editor.
             Pick a layout, arrange useful signals, tune the appearance, and see
             every change before it applies.
           </p>
@@ -246,23 +248,15 @@ export default function ClaudeCodeCodexStatuslinePage() {
 
       <LpmStatuslineDemo />
 
-      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-28">
+      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-              One LPM setting, two agent formats
-            </p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
-              LPM handles what each statusline supports
-            </h2>
-            <p className="mt-4 text-base leading-relaxed text-gray-600 dark:text-gray-400">
-              Claude Code and Codex expose different customization systems. LPM
-              gives each one a focused editor while keeping the workflow
-              consistent.
-            </p>
-          </div>
+          <SectionHeader
+            eyebrow="One lpm setting, two agent formats"
+            title="lpm handles what each statusline supports"
+            description="Claude Code and Codex expose different customization systems. lpm gives each one a focused editor while keeping the workflow consistent."
+          />
 
-          <div className="mt-12 grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-2">
             <article className="rounded-3xl border border-[#D97757]/25 bg-white p-6 shadow-sm dark:bg-[#151515] sm:p-8">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -278,7 +272,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 </span>
               </div>
               <p className="mt-5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                LPM builds and applies Claude Code’s command-powered statusline
+                lpm builds and applies Claude Code’s command-powered statusline
                 through a visual editor.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
@@ -323,7 +317,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 </span>
               </div>
               <p className="mt-5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                LPM turns Codex’s native statusline fields into a visual,
+                lpm turns Codex’s native statusline fields into a visual,
                 reorderable list and saves it to the local configuration.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
@@ -356,17 +350,13 @@ export default function ClaudeCodeCodexStatuslinePage() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28">
+      <section className="py-20 sm:py-24">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-              Made for daily agent work
-            </p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
-              Your statusline should reduce uncertainty
-            </h2>
-          </div>
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
+          <SectionHeader
+            eyebrow="Made for daily agent work"
+            title="Your statusline should reduce uncertainty"
+          />
+          <div className="grid gap-5 md:grid-cols-3">
             {benefits.map(({ icon: Icon, title, copy }) => (
               <article
                 key={title}
@@ -387,17 +377,13 @@ export default function ClaudeCodeCodexStatuslinePage() {
         </div>
       </section>
 
-      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-28">
+      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
         <div className="mx-auto max-w-5xl px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-              Three steps in LPM Desktop
-            </p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
-              From default to useful in a minute
-            </h2>
-          </div>
-          <div className="mt-12 grid gap-5 md:grid-cols-3">
+          <SectionHeader
+            eyebrow="Three steps in lpm Desktop"
+            title="From default to useful in a minute"
+          />
+          <div className="grid gap-5 md:grid-cols-3">
             {steps.map(({ step, icon: Icon, title, copy }) => (
               <article
                 key={step}
@@ -421,31 +407,27 @@ export default function ClaudeCodeCodexStatuslinePage() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-28">
+      <section className="py-20 sm:py-24">
         <div className="mx-auto max-w-3xl px-6">
-          <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-              LPM statusline customization FAQ
-            </p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
-              What to know before you customize
-            </h2>
-          </div>
-          <div className="mt-10 divide-y divide-gray-200 border-y border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+          <SectionHeader
+            eyebrow="lpm statusline customization FAQ"
+            title="What to know before you customize"
+          />
+          <ul className="space-y-3">
             {FAQ_ITEMS.map((item) => (
-              <details key={item.question} className="group py-1">
-                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-6 py-4 text-left text-base font-semibold text-gray-900 marker:content-none dark:text-gray-100">
-                  {item.question}
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 text-lg font-normal text-gray-500 transition group-open:rotate-45 dark:border-gray-700 dark:text-gray-400">
-                    +
-                  </span>
-                </summary>
-                <p className="max-w-2xl pb-5 pr-10 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                  {item.answer}
-                </p>
-              </details>
+              <li key={item.question}>
+                <details className="group rounded-2xl border border-gray-200 transition-colors duration-200 hover:border-gray-300 open:border-gray-300 open:bg-gray-50/50 dark:border-gray-800 dark:hover:border-gray-700 dark:open:border-gray-700 dark:open:bg-white/[0.02]">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100 [&::-webkit-details-marker]:hidden">
+                    <span>{item.question}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200 group-open:rotate-180 dark:text-gray-400" />
+                  </summary>
+                  <div className="px-5 pb-4 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                    {item.answer}
+                  </div>
+                </details>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
       </section>
 
@@ -453,7 +435,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
         links={[
           {
             href: TOKEN_USAGE_PATH,
-            title: "Claude Code & Codex token usage in LPM",
+            title: "Claude Code & Codex token usage in lpm",
             description:
               "Track tokens, estimated cost, cache usage, models, projects, and sessions in a private Mac dashboard.",
           },
@@ -478,28 +460,27 @@ export default function ClaudeCodeCodexStatuslinePage() {
         ]}
       />
 
-      <section className="px-6 pb-20 sm:pb-28">
-        <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-gray-800 bg-[#0b0b0b] px-6 py-12 text-center shadow-2xl sm:px-10 sm:py-16">
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-500">
-            Statusline included
-          </p>
-          <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-bold tracking-tight text-white sm:text-4xl">
+      <section className="py-20 text-center sm:py-24">
+        <div className="mx-auto max-w-3xl px-6">
+          <h2 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-3xl font-extrabold leading-[1.1] tracking-tight text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl">
             Put Claude Code and Codex in one visible workspace.
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-gray-400 sm:text-base">
-            LPM keeps agents, statuslines, services, logs, Git changes, and
+          <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-lg">
+            lpm keeps agents, statuslines, services, logs, Git changes, and
             project copies together in one native macOS app.
           </p>
-          <div className="mt-8 flex justify-center">
+          <div className="mt-10 flex justify-center">
             <HeroDownload />
           </div>
-          <Link
-            href={AI_AGENTS_PATH}
-            className="mt-6 inline-flex min-h-11 items-center gap-1.5 px-3 text-sm font-semibold text-gray-400 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            See the complete AI agent workflow
-            <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
+          <div className="mt-8">
+            <Link
+              href={AI_AGENTS_PATH}
+              className="inline-flex min-h-11 items-center gap-1.5 px-3 text-[13px] text-gray-500 transition-colors duration-200 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
+            >
+              See the complete AI agent workflow
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </div>
         </div>
       </section>
     </>

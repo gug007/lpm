@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { AI_AGENTS_PATH, VS_BASE_PATH } from "@/lib/links";
 import { GitHubStarButton } from "./github-star-button";
+import { NavLink } from "./nav-link";
 import { NavMobileMenu } from "./nav-mobile-menu";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -9,7 +10,7 @@ import { ThemeToggle } from "./theme-toggle";
 // would tie with an unprefixed `hidden` on equal specificity and win on source
 // order, silently disabling `hidden md:inline-flex` at phone widths.
 const linkClass =
-  "items-center h-9 px-1 text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
+  "items-center h-9 px-1 text-[13px] transition-colors duration-200";
 
 export function Nav() {
   return (
@@ -32,23 +33,25 @@ export function Nav() {
           />
           lpm
         </Link>
-        <div className="flex items-center gap-3 sm:gap-5">
-          <GitHubStarButton />
-          <Link href="/config" className={`inline-flex ${linkClass}`}>
+        <div className="-mr-2 flex items-center gap-3 sm:gap-5">
+          <span className="hidden sm:inline-flex">
+            <GitHubStarButton />
+          </span>
+          <NavLink href="/config" className={`inline-flex ${linkClass}`}>
             Docs
-          </Link>
-          <Link
+          </NavLink>
+          <NavLink
             href={AI_AGENTS_PATH}
             className={`hidden md:inline-flex whitespace-nowrap ${linkClass}`}
           >
             For AI agents
-          </Link>
-          <Link href={VS_BASE_PATH} className={`hidden md:inline-flex ${linkClass}`}>
+          </NavLink>
+          <NavLink href={VS_BASE_PATH} className={`hidden md:inline-flex ${linkClass}`}>
             Compare
-          </Link>
+          </NavLink>
           <Link
             href="/#download"
-            className="hidden sm:inline-flex items-center rounded-full bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
+            className="inline-flex items-center rounded-full bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
           >
             Download
           </Link>

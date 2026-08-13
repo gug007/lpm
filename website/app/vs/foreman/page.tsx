@@ -204,8 +204,6 @@ export default function LpmVsForemanPage() {
         description="Foreman is stable and lovable for Rails devs. lpm keeps the name-plus-command simplicity and adds per-service panes, a desktop app, multi-project switching, and parallel AI-agent workflows."
       />
 
-      <DemoSection />
-
       <FeatureMatrix
         title="Foreman and lpm, feature by feature"
         description="Rows where Foreman wins are called out honestly. No marketing shade — this is the real shape of the overlap."
@@ -241,6 +239,8 @@ export default function LpmVsForemanPage() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq
         title="Switching from Foreman to lpm — the honest FAQ"

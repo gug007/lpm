@@ -859,7 +859,7 @@ function MergeDialog({
               {selected ? (
                 <BranchOption b={selected} />
               ) : (
-                <span className="flex-1 text-[#666]">No other branches</span>
+                <span className="flex-1 text-[#8a8a8a]">No other branches</span>
               )}
               <span className="shrink-0 text-[#919191]">
                 <ChevronDownIcon />

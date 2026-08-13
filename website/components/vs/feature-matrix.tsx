@@ -49,7 +49,7 @@ function Cell({ value }: { value: MatrixCell }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-400 dark:text-gray-500"
       />
       <span className="sr-only">No</span>
     </>
@@ -77,13 +77,13 @@ export function FeatureMatrix({
           description={description}
         />
 
-        <div className="hidden sm:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+        <div className="hidden md:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50/60 dark:bg-white/[0.02] border-b border-gray-200 dark:border-gray-800">
                 <th
                   scope="col"
-                  className="text-left font-medium text-gray-500 dark:text-gray-400 px-5 py-4 w-1/2"
+                  className="text-left font-medium text-gray-500 dark:text-gray-400 px-5 py-4 w-2/5 md:w-1/2"
                 >
                   Capability
                 </th>
@@ -130,7 +130,7 @@ export function FeatureMatrix({
           </table>
         </div>
 
-        <div className="sm:hidden space-y-4">
+        <div className="md:hidden space-y-4">
           {columns.map((c) => {
             const isLpm = c.key === "lpm";
             return (
@@ -152,19 +152,34 @@ export function FeatureMatrix({
                   {c.label}
                 </h3>
                 <ul className="space-y-3">
-                  {rows.map((row) => (
-                    <li
-                      key={row.label}
-                      className="flex items-start gap-3 text-sm"
-                    >
-                      <span className="mt-0.5 shrink-0">
-                        <Cell value={row[c.key]} />
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        {row.label}
-                      </span>
-                    </li>
-                  ))}
+                  {rows.map((row) => {
+                    const value = row[c.key];
+                    if (typeof value === "string" && value !== "partial") {
+                      return (
+                        <li key={row.label} className="pl-7 text-sm">
+                          <span className="block text-gray-600 dark:text-gray-400 leading-relaxed">
+                            {row.label}
+                          </span>
+                          <span className="block text-left text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
+                            {value}
+                          </span>
+                        </li>
+                      );
+                    }
+                    return (
+                      <li
+                        key={row.label}
+                        className="flex items-start gap-3 text-sm"
+                      >
+                        <span className="mt-0.5 shrink-0">
+                          <Cell value={value} />
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                          {row.label}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );

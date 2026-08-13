@@ -45,7 +45,7 @@ export default function Insights() {
                 </div>
               ))}
             </div>
-            <div className="mt-3 flex items-center justify-between text-[11px] text-white/35">
+            <div className="mt-3 flex items-center justify-between text-[11px] text-white/60">
               <span>Start</span>
               <span>Peak day highlighted in your totals</span>
               <span>Now</span>
@@ -62,7 +62,7 @@ export default function Insights() {
               >
                 <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-[#181818]">
                   <span className="text-xl font-semibold">100%</span>
-                  <span className="text-[10px] text-white/40">accounted for</span>
+                  <span className="text-[10px] text-white/55">accounted for</span>
                 </div>
               </div>
             </div>
@@ -99,7 +99,7 @@ export default function Insights() {
                 <p className="text-xs font-medium text-white/45">Projects & sessions</p>
                 <h3 className="mt-1 text-lg font-semibold">Follow usage back to the codebase</h3>
               </div>
-              <span className="text-[11px] text-white/35">Tokens · Sessions · Name</span>
+              <span className="text-[11px] text-white/60">Tokens · Sessions · Name</span>
             </div>
             <div className="mt-5 space-y-3">
               {PROJECTS.map((project) => (
@@ -111,7 +111,7 @@ export default function Insights() {
                       style={{ width: project.width }}
                     />
                   </span>
-                  <span className="w-20 text-right text-white/35">{project.sessions}</span>
+                  <span className="w-20 text-right text-white/60">{project.sessions}</span>
                 </div>
               ))}
             </div>

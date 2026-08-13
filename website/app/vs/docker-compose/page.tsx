@@ -193,8 +193,6 @@ export default function LpmVsDockerComposePage() {
         description="Docker Compose is excellent for prod parity and cross-team reproducibility. lpm is about the daily native dev loop on one machine — with per-service panes, a project switcher, and room for AI agents alongside your stack."
       />
 
-      <DemoSection />
-
       <FeatureMatrix
         title="Docker Compose and lpm, feature by feature"
         description="Different jobs. Rows where Compose clearly wins are called out honestly — nothing here is a dunk."
@@ -231,6 +229,8 @@ export default function LpmVsDockerComposePage() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq
         title="Switching from — or alongside — Docker Compose"

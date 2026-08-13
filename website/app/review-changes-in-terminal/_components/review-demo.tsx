@@ -155,6 +155,7 @@ function ReviewViewer() {
 
   return (
     <div
+      data-on-dark
       onKeyDown={onKeyDown}
       className="mx-auto max-w-5xl overflow-hidden rounded-xl border border-gray-200 bg-[#1a1a1a] shadow-2xl shadow-gray-900/10 dark:border-[#2e2e2e] dark:shadow-black/40"
     >
@@ -190,7 +191,7 @@ function ReviewViewer() {
               key={f.path}
               type="button"
               onClick={() => setActive(i)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition-colors ${
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset focus-visible:outline-none ${
                 i === active
                   ? "bg-[#2a2a2a] text-[#e5e5e5]"
                   : "text-[#b3b3b3] hover:bg-[#242424]"
@@ -219,7 +220,7 @@ function ReviewViewer() {
                 }}
                 onClick={() => setActive(i)}
                 aria-current={i === active}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors ${
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset focus-visible:outline-none ${
                   i === active
                     ? "bg-[#2a2a2a] text-[#e5e5e5]"
                     : "text-[#b3b3b3] hover:bg-[#242424]"

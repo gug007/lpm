@@ -3,6 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { Cta } from "@/components/config/cta";
 import { FieldTable, type Field } from "@/components/config/field-table";
+import { MobileTableOfContents } from "@/components/config/mobile-toc";
 import { ConfigPlayground } from "@/components/config/playground";
 import { Section } from "@/components/config/section";
 import { TableOfContents } from "@/components/config/toc";
@@ -417,6 +418,8 @@ export default function ConfigPage() {
             as="h1"
           />
 
+          <MobileTableOfContents />
+
           <div className="lg:flex lg:gap-12">
             <aside className="hidden lg:block lg:w-44 lg:flex-shrink-0">
               <div className="sticky top-20">
@@ -444,8 +447,11 @@ export default function ConfigPage() {
                   </>
                 }
               >
+                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Edit the YAML — the preview updates live.
+                </p>
                 <ConfigPlayground
-                  filename="project.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={PROJECT_EXAMPLE}
                 />
 
@@ -501,7 +507,7 @@ export default function ConfigPage() {
                   <code className="font-mono">env</code>.
                 </p>
                 <ConfigPlayground
-                  filename="services.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={SERVICES_EXAMPLE}
                 />
                 <FieldTable fields={serviceFields} />
@@ -525,7 +531,7 @@ export default function ConfigPage() {
                   retry until its dependency answers.
                 </p>
                 <ConfigPlayground
-                  filename="services-depends.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={SERVICES_DEPENDS_EXAMPLE}
                 />
 
@@ -571,7 +577,7 @@ export default function ConfigPage() {
                   running; everything else just runs.
                 </p>
                 <ConfigPlayground
-                  filename="actions.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_EXAMPLE}
                 />
                 <FieldTable fields={actionFields} />
@@ -585,7 +591,7 @@ export default function ConfigPage() {
                   entirely. Great for everyday dev commands:
                 </p>
                 <ConfigPlayground
-                  filename="actions-shorthand.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_SHORTHAND_EXAMPLE}
                 />
 
@@ -602,7 +608,7 @@ export default function ConfigPage() {
                   find it:
                 </p>
                 <ConfigPlayground
-                  filename="actions-destructive.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_DESTRUCTIVE_EXAMPLE}
                 />
 
@@ -619,7 +625,7 @@ export default function ConfigPage() {
                   production and preview tucked behind it:
                 </p>
                 <ConfigPlayground
-                  filename="actions-nested.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_NESTED_EXAMPLE}
                 />
 
@@ -637,7 +643,7 @@ export default function ConfigPage() {
                   to pin one option as the default instead:
                 </p>
                 <ConfigPlayground
-                  filename="actions-primary.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_PRIMARY_EXAMPLE}
                 />
 
@@ -651,7 +657,7 @@ export default function ConfigPage() {
                   toolkit (Migrate, Seed, Reset):
                 </p>
                 <ConfigPlayground
-                  filename="actions-dropdown.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_DROPDOWN_EXAMPLE}
                 />
 
@@ -669,7 +675,7 @@ export default function ConfigPage() {
                   parallel while you keep working:
                 </p>
                 <ConfigPlayground
-                  filename="actions-background.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={ACTIONS_BACKGROUND_EXAMPLE}
                 />
 
@@ -732,7 +738,7 @@ export default function ConfigPage() {
                   <code className="font-mono">env</code> when you need them:
                 </p>
                 <ConfigPlayground
-                  filename="terminals.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={TERMINALS_EXAMPLE}
                 />
                 <FieldTable fields={terminalFields} />
@@ -761,7 +767,7 @@ export default function ConfigPage() {
                   the right window, no remembering which folder you were in:
                 </p>
                 <ConfigPlayground
-                  filename="terminals-agents.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={TERMINALS_AGENTS_EXAMPLE}
                 />
               </Section>
@@ -798,7 +804,7 @@ export default function ConfigPage() {
                   skips the API when you don&rsquo;t need it:
                 </p>
                 <ConfigPlayground
-                  filename="profiles.yml"
+                  filename="~/.lpm/projects/myapp.yml"
                   initial={PROFILES_EXAMPLE}
                 />
                 <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
@@ -820,7 +826,7 @@ export default function ConfigPage() {
                   running&rdquo; without touching the config:
                 </p>
                 <ConfigPlayground
-                  filename="profiles-multi.yml"
+                  filename="~/.lpm/projects/shop.yml"
                   initial={PROFILES_MULTI_EXAMPLE}
                 />
 
@@ -939,7 +945,7 @@ export default function ConfigPage() {
                   ceremony.
                 </p>
                 <ConfigPlayground
-                  filename="blog.yml"
+                  filename="~/.lpm/projects/blog.yml"
                   initial={RECIPE_MINIMAL}
                 />
 
@@ -952,7 +958,7 @@ export default function ConfigPage() {
                   above, plus three one-click buttons in the toolbar.
                 </p>
                 <ConfigPlayground
-                  filename="blog.yml"
+                  filename="~/.lpm/projects/blog.yml"
                   initial={RECIPE_TESTS}
                 />
 
@@ -968,7 +974,7 @@ export default function ConfigPage() {
                   terminal tab.
                 </p>
                 <ConfigPlayground
-                  filename="webapp.yml"
+                  filename="~/.lpm/projects/webapp.yml"
                   initial={RECIPE_NEXT_NODE}
                 />
 
@@ -983,7 +989,7 @@ export default function ConfigPage() {
                   file, not here.
                 </p>
                 <ConfigPlayground
-                  filename="webapp.yml"
+                  filename="~/.lpm/projects/webapp.yml"
                   initial={RECIPE_ENV}
                 />
 
@@ -998,7 +1004,7 @@ export default function ConfigPage() {
                   from its own folder.
                 </p>
                 <ConfigPlayground
-                  filename="mono.yml"
+                  filename="~/.lpm/projects/mono.yml"
                   initial={RECIPE_MONOREPO}
                 />
 

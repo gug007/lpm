@@ -23,6 +23,29 @@ export function CodeBlock({
     }
   };
 
+  const copyButton = (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? "Copied" : "Copy code"}
+      className={`flex min-h-9 min-w-9 items-center justify-center gap-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur px-2 py-1 text-[10px] font-medium text-gray-500 dark:text-gray-400 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100 hover:text-gray-900 dark:hover:text-white hover:border-gray-300 dark:hover:border-gray-600 transition-opacity ${
+        filename ? "-my-1.5 ml-auto" : "absolute top-2 right-2 z-10"
+      }`}
+    >
+      {copied ? (
+        <>
+          <Check className="w-3 h-3 text-emerald-500" />
+          Copied
+        </>
+      ) : (
+        <>
+          <Copy className="w-3 h-3" />
+          Copy
+        </>
+      )}
+    </button>
+  );
+
   return (
     <div className="group relative rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden mb-4">
       {filename && (
@@ -31,29 +54,13 @@ export function CodeBlock({
           <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
             {filename}
           </span>
+          {copyButton}
         </div>
       )}
-      <button
-        type="button"
-        onClick={handleCopy}
-        aria-label={copied ? "Copied" : "Copy code"}
-        className="absolute top-2 right-2 z-10 flex items-center gap-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur px-2 py-1 text-[10px] font-medium text-gray-500 dark:text-gray-400 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-gray-900 dark:hover:text-white hover:border-gray-300 dark:hover:border-gray-600 transition-opacity"
-      >
-        {copied ? (
-          <>
-            <Check className="w-3 h-3 text-emerald-500" />
-            Copied
-          </>
-        ) : (
-          <>
-            <Copy className="w-3 h-3" />
-            Copy
-          </>
-        )}
-      </button>
+      {!filename && copyButton}
       <pre
         ref={preRef}
-        className="px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto"
+        className={`${filename ? "px-4" : "pl-4 pr-24"} py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-x-auto`}
       >
         <code>{children}</code>
       </pre>

@@ -32,9 +32,11 @@ type SelectedAction = {
 export function PlaygroundPreview({
   config,
   error,
+  stale = false,
 }: {
   config: RawConfig | null;
   error: string | null;
+  stale?: boolean;
 }) {
   const [runningKeys, setRunningKeys] = useState<Set<string>>(new Set());
   const [openTerminalKeys, setOpenTerminalKeys] = useState<Set<string>>(
@@ -195,7 +197,11 @@ export function PlaygroundPreview({
     <div className="dark relative h-full flex flex-col bg-[#1a1a1a]">
       {error && <ErrorBanner message={error} />}
 
-      <div className="flex-1 flex flex-col px-6 pt-4 pb-6 min-h-0">
+      <div
+        className={`flex-1 flex flex-col px-6 pt-4 pb-6 min-h-0 transition-opacity ${
+          stale ? "opacity-60" : ""
+        }`}
+      >
         <Header
           projectName={projectName}
           services={services}
@@ -225,7 +231,14 @@ export function PlaygroundPreview({
             onCloseTerminal={toggleTerminal}
           />
         ) : (
-          <EmptyState projectName={projectName} hasAnyService={hasAnyService} />
+          <EmptyState
+            projectName={projectName}
+            hasAnyService={hasAnyService}
+            terminalLabel={terminals[0]?.label}
+            onOpenTerminal={
+              terminals[0] ? () => toggleTerminal(terminals[0].key) : undefined
+            }
+          />
         )}
 
         {hasAnyPane && footerActions.length > 0 && (

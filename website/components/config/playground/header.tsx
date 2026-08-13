@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, Menu as MenuIcon, Terminal } from "lucide-react";
+import { useDismiss } from "./hooks";
 import { SecondaryButton } from "./secondary-button";
 import { SplitButton } from "./split-button";
 import { StartMenuItem, StartMenuSection } from "./start-menu";
@@ -152,12 +153,16 @@ function HamburgerMenu({
   onOpenAction: (a: Action) => void;
   onToggleTerminal: (key: string) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useDismiss(containerRef, onClose, open);
+
   return (
-    <div className="relative shrink-0">
+    <div ref={containerRef} className="relative shrink-0">
       <button
         type="button"
         onClick={onToggle}
         aria-label="Project actions"
+        aria-expanded={open}
         className={`flex items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
           open
             ? "border-transparent bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white"
@@ -236,6 +241,9 @@ function StartSplitButton({
   onStartProfile: (name: string) => void;
   onToggleService: (key: string) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  useDismiss(containerRef, onCloseStartMenu, showStartSplit && startOpen);
+
   const mainShapeClass = showStartSplit ? "rounded-l-lg" : "rounded-lg";
   const mainColorClass = effectiveRunning
     ? "bg-red-500 text-white"
@@ -245,7 +253,7 @@ function StartSplitButton({
     : "border-white/20 dark:border-gray-900/20 bg-gray-900 text-white dark:bg-white dark:text-gray-900";
 
   return (
-    <div className="relative flex shrink-0">
+    <div ref={containerRef} className="relative flex shrink-0">
       <button
         type="button"
         onClick={onStartStop}
@@ -257,6 +265,8 @@ function StartSplitButton({
         <button
           type="button"
           onClick={onToggleStartMenu}
+          aria-label="Start options"
+          aria-expanded={startOpen}
           className={`rounded-r-lg border-l px-1.5 py-1.5 transition-all hover:opacity-85 ${chevronColorClass}`}
         >
           <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />

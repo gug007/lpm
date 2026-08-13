@@ -185,8 +185,6 @@ export default function LpmVsCmuxPage() {
         description="cmux is a native macOS terminal built for agents. lpm is a project manager with a built-in terminal. They overlap in the panes-for-agents area, but solve different halves of the workflow. Honest side-by-side, no shade."
       />
 
-      <DemoSection />
-
       <FeatureMatrix
         title="cmux and lpm, feature by feature"
         description="Rows where cmux wins are called out honestly. No marketing shade — this is the real shape of the overlap."
@@ -220,6 +218,8 @@ export default function LpmVsCmuxPage() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq title="lpm vs cmux — the honest FAQ" items={FAQ_ITEMS} />
 

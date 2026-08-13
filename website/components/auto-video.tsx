@@ -13,7 +13,9 @@ type Props = {
 
 /**
  * Looping product footage that stays still for visitors who ask for reduced
- * motion — they get the poster frame plus native controls to play it manually.
+ * motion — they get the poster frame, and everyone keeps native controls.
+ * Playback starts from the effect rather than `autoPlay` so the reduced-motion
+ * preference is known before the first frame plays.
  */
 export function AutoVideo({
   src,
@@ -30,7 +32,10 @@ export function AutoVideo({
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => {
       setReduceMotion(mq.matches);
-      if (mq.matches) ref.current?.pause();
+      const video = ref.current;
+      if (!video) return;
+      if (mq.matches) video.pause();
+      else void video.play().catch(() => {});
     };
     update();
     mq.addEventListener("change", update);
@@ -44,8 +49,9 @@ export function AutoVideo({
       poster={poster}
       width={width}
       height={height}
-      autoPlay={!reduceMotion}
-      controls={reduceMotion}
+      controls
+      controlsList="nodownload noremoteplayback"
+      disablePictureInPicture
       muted
       loop={!reduceMotion}
       playsInline

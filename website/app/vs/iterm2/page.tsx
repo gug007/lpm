@@ -201,8 +201,6 @@ export default function LpmVsIterm2Page() {
         description="iTerm2 is the terminal emulator most Mac developers already have open, and it is very good at that job. lpm sits a layer above: it starts and stops your whole stack, shows live status per service, and duplicates a project when a second agent needs its own checkout. Honest side-by-side, including the rows where iTerm2 wins."
       />
 
-      <DemoSection />
-
       <FeatureMatrix
         title="iTerm2 and lpm, feature by feature"
         description="These tools overlap less than the search results suggest. Rows where iTerm2 wins are called out plainly — it is the better emulator, and lpm does not pretend otherwise."
@@ -237,6 +235,8 @@ export default function LpmVsIterm2Page() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq title="lpm vs iTerm2 — the honest FAQ" items={FAQ_ITEMS} />
 

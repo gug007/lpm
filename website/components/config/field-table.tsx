@@ -11,7 +11,34 @@ export function FieldTable({ fields }: { fields: Field[] }) {
   const hasRequired = fields.some((f) => f.required);
   return (
     <div>
-      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+      <ul className="md:hidden space-y-2">
+        {fields.map((f) => (
+          <li
+            key={f.name}
+            className="rounded-xl border border-gray-200 dark:border-gray-800 px-4 py-3"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span>
+                <code className="font-mono text-[11px] font-semibold text-gray-900 dark:text-gray-100">
+                  {f.name}
+                </code>
+                {f.required && (
+                  <span aria-label="required" className="text-rose-500 ml-0.5">
+                    *
+                  </span>
+                )}
+              </span>
+              <code className="flex-shrink-0 rounded border border-gray-200 dark:border-gray-800 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 dark:text-gray-400">
+                {f.type}
+              </code>
+            </div>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              {f.description}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
         <table className="w-full text-xs text-left">
           <thead className="bg-gray-50 dark:bg-gray-900/60 text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[10px]">
             <tr>

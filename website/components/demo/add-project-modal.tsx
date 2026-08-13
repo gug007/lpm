@@ -221,13 +221,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   const sshNameRef = useRef<HTMLInputElement>(null);
   const cloneUrlRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (phase === "ssh") sshNameRef.current?.focus();
-    if (phase === "clone") cloneUrlRef.current?.focus();
-  }, [phase]);
-
-  if (!open) return null;
-
   const reset = () => {
     setPhase("pick");
     setName("");
@@ -247,6 +240,22 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
     reset();
     onClose();
   };
+
+  useEffect(() => {
+    if (phase === "ssh") sshNameRef.current?.focus();
+    if (phase === "clone") cloneUrlRef.current?.focus();
+  }, [phase]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  if (!open) return null;
 
   const submitSsh = () => {
     const trimmed = name.trim();
@@ -288,7 +297,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       {phase === "pick" && (
         <div
           role="dialog"
-          aria-modal="true"
           aria-labelledby="add-project-title"
           className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-2 pb-2 pt-5 shadow-2xl"
         >
@@ -357,7 +365,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       {phase === "ssh" && (
         <div
           role="dialog"
-          aria-modal="true"
           aria-labelledby="ssh-host-title"
           className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-5 pb-5 pt-4 shadow-2xl"
         >
@@ -404,7 +411,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
             </label>
 
@@ -420,7 +427,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   spellCheck={false}
                   autoCapitalize="off"
                   autoCorrect="off"
-                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
                 />
               </label>
               <label className="flex w-24 flex-col gap-1.5">
@@ -433,7 +440,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   placeholder="22"
                   inputMode="numeric"
                   spellCheck={false}
-                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
                 />
               </label>
             </div>
@@ -449,7 +456,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
             </label>
 
@@ -476,7 +483,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       {phase === "clone" && (
         <div
           role="dialog"
-          aria-modal="true"
           aria-labelledby="clone-repo-title"
           className="relative w-[420px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-5 pb-5 pt-4 shadow-2xl"
         >
@@ -523,9 +529,9 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
-              <span className="text-[10px] text-[#666]">
+              <span className="text-[10px] text-[#8a8a8a]">
                 HTTPS or SSH URL. Uses your existing Git credentials.
               </span>
             </label>
@@ -569,7 +575,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   </div>
                 )}
               </div>
-              <span className="text-[10px] text-[#666]">
+              <span className="text-[10px] text-[#8a8a8a]">
                 Repository will be cloned into a new subfolder here.
               </span>
             </div>
@@ -588,7 +594,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 spellCheck={false}
                 autoCapitalize="off"
                 autoCorrect="off"
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
             </label>
 
@@ -609,7 +615,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
               {showAdvanced && (
                 <label className="mt-2 flex flex-col gap-1.5">
                   <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                    Branch <span className="lowercase text-[#666]">(optional)</span>
+                    Branch <span className="lowercase text-[#8a8a8a]">(optional)</span>
                   </span>
                   <input
                     value={branch}
@@ -618,9 +624,9 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                     spellCheck={false}
                     autoCapitalize="off"
                     autoCorrect="off"
-                    className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#666] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                    className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
                   />
-                  <span className="text-[10px] text-[#666]">
+                  <span className="text-[10px] text-[#8a8a8a]">
                     Leave blank to use the repository&apos;s default branch.
                   </span>
                 </label>
@@ -650,7 +656,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       {phase === "template" && (
         <div
           role="dialog"
-          aria-modal="true"
           aria-labelledby="template-title"
           className="relative w-[420px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-2 pb-2 pt-4 shadow-2xl"
         >
@@ -756,7 +761,6 @@ function FolderPicker({
   return (
     <div
       role="dialog"
-      aria-modal="true"
       aria-label="Choose a folder"
       className="relative w-[640px] max-w-[calc(100%-2rem)] flex flex-col overflow-hidden rounded-xl border border-[#3a3a3a] bg-[#1f1f1f] shadow-2xl"
     >
@@ -864,7 +868,7 @@ function FolderPicker({
                 className="w-[180px] shrink-0 overflow-y-auto border-r border-[#2a2a2a] last:border-r-0"
               >
                 {items.length === 0 ? (
-                  <div className="px-3 py-4 text-[11px] italic text-[#666]">
+                  <div className="px-3 py-4 text-[11px] italic text-[#8a8a8a]">
                     Empty folder
                   </div>
                 ) : (

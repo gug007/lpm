@@ -1,6 +1,5 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { HeroDownload } from "@/components/home/hero-download";
 import AppStoreButton from "./app-store-button";
 
 export default function Hero() {
@@ -22,15 +21,12 @@ export default function Hero() {
           comes with you.
         </p>
 
-        <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:items-start">
+        <div className="mt-10 flex justify-center">
           <AppStoreButton />
-          <div className="hidden sm:block">
-            <HeroDownload />
-          </div>
         </div>
         <Link
           href="/#download"
-          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white sm:hidden"
+          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Get lpm for your Mac
           <ArrowRight className="w-3.5 h-3.5" />

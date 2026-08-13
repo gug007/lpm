@@ -155,7 +155,7 @@ export function StatsView() {
                 <span className="w-12 shrink-0 text-right tabular-nums text-[#b3b3b3]">
                   {formatTokens(session.tokens)}
                 </span>
-                <span className="w-16 shrink-0 text-right tabular-nums text-[#666]">
+                <span className="w-16 shrink-0 text-right tabular-nums text-[#8a8a8a]">
                   {session.when}
                 </span>
               </div>
@@ -163,7 +163,7 @@ export function StatsView() {
           </Panel>
         </div>
 
-        <p className="mt-3 text-[11px] leading-relaxed text-[#666]">
+        <p className="mt-3 text-[11px] leading-relaxed text-[#8a8a8a]">
           Usage metadata stays on your Mac — lpm reads token counts from local session histories.
           Prompts and responses are never included.
         </p>
@@ -203,7 +203,7 @@ function ActivityChart({ stats }: { stats: StatsSlice }) {
           );
         })}
       </div>
-      <div className="mt-1.5 flex justify-between text-[10px] tabular-nums text-[#666]">
+      <div className="mt-1.5 flex justify-between text-[10px] tabular-nums text-[#8a8a8a]">
         <span>{agoLabel(stats.daily[0]?.ago ?? 0)}</span>
         <span>today</span>
       </div>
@@ -235,7 +235,7 @@ function TodayPanel({ stats }: { stats: StatsSlice }) {
           </div>
         </div>
       ))}
-      <p className="mt-3 text-[10px] text-[#666]">
+      <p className="mt-3 text-[10px] text-[#8a8a8a]">
         Counts update as your agents run — no account linking, no upload.
       </p>
     </Panel>
@@ -296,7 +296,7 @@ function ShareRow({
       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <span className="min-w-0 flex-1 truncate text-[#e5e5e5]">{label}</span>
       <span className="shrink-0 tabular-nums text-[#919191]">{formatTokens(tokens)}</span>
-      <span className="w-8 shrink-0 text-right tabular-nums text-[#666]">
+      <span className="w-8 shrink-0 text-right tabular-nums text-[#8a8a8a]">
         {Math.round((tokens / total) * 100)}%
       </span>
     </div>

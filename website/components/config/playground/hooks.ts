@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 export function useDarkMode(): boolean {
   const [dark, setDark] = useState(false);
@@ -17,6 +17,28 @@ export function useDarkMode(): boolean {
     return () => observer.disconnect();
   }, []);
   return dark;
+}
+
+export function useDismiss<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  onClose: () => void,
+  active = true,
+) {
+  useEffect(() => {
+    if (!active) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [ref, onClose, active]);
 }
 
 export function useInView<T extends HTMLElement>(rootMargin = "300px 0px") {

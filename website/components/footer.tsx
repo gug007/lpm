@@ -89,17 +89,17 @@ const GROUPS: Group[] = [
 const headingClass =
   "text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400";
 const linkClass =
-  "text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
+  "inline-flex items-center py-1 text-[13px] text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200";
 
 export function Footer() {
   return (
     <footer className="border-t border-gray-200 dark:border-gray-800 py-14">
       <div data-nosnippet className="max-w-5xl mx-auto px-6">
-        <div className="grid grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-10 min-[480px]:grid-cols-2 lg:grid-cols-4">
           {GROUPS.map((group) => (
             <nav key={group.heading} aria-label={group.heading}>
               <h2 className={headingClass}>{group.heading}</h2>
-              <ul className="mt-4 space-y-2.5">
+              <ul className="mt-4 space-y-1.5">
                 {group.links.map((link) => (
                   <li key={link.href}>
                     <Link href={link.href} className={linkClass}>
@@ -114,7 +114,7 @@ export function Footer() {
 
         <nav aria-label="Comparisons" className="mt-10">
           <h2 className={headingClass}>Compare lpm with</h2>
-          <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2.5">
+          <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5">
             {VS_SLUGS.map((slug) => (
               <li key={slug}>
                 <Link href={vsPath(slug)} className={linkClass}>

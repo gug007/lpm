@@ -216,8 +216,6 @@ export default function LpmVsPm2Page() {
         description="PM2 is a production-first process supervisor with local watch and development modes. lpm specializes in the interactive Mac workflow around your services: live panes, project switching, and isolated copies for parallel agents."
       />
 
-      <DemoSection />
-
       <ComparisonBasis
         reviewed="July 26, 2026"
         sources={[
@@ -267,6 +265,8 @@ export default function LpmVsPm2Page() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq
         title="lpm vs PM2 — the honest FAQ"

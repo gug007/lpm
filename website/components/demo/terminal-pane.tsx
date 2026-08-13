@@ -14,6 +14,9 @@ import {
 import type { LineColor, OutputLine } from "./projects";
 import type { AgentStatus } from "./agent-terminal";
 import { AddTabSplitButton } from "./tab-controls";
+import { FOCUS_RING } from "./ui";
+
+const STICK_THRESHOLD_PX = 24;
 
 const STATUS_LABEL_CLASS: Record<AgentStatus, string> = {
   running: "sidebar-shimmer",
@@ -70,7 +73,7 @@ export function PaneHeader({
   onTabContextMenu,
 }: PaneHeaderProps) {
   return (
-    <div role="tablist" className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
+    <div className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
@@ -80,28 +83,28 @@ export function PaneHeader({
             e.preventDefault();
             onTabContextMenu(i, e.clientX, e.clientY);
           };
+          // The close control is revealed on hover, and on the active tab so it
+          // stays reachable without a pointer that can hover (touch).
+          const revealFlex = active ? "flex" : "hidden group-hover:flex";
+          const revealBlock = active ? "block" : "hidden group-hover:block";
           return (
             <div
               key={tab.key}
-              role="tab"
-              tabIndex={0}
-              aria-selected={active}
               onClick={() => onSelectTab(i)}
               onContextMenu={onContext}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onSelectTab(i);
-                }
-              }}
-              className={`group flex min-w-0 items-center gap-1.5 rounded-md px-2 py-0.5 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+              className={`group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors ${
                 active
                   ? "bg-white/[0.1] text-[#d4d4d4]"
                   : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
               }`}
             >
-              <span className="flex w-3.5 shrink-0 items-center justify-center">
-                <span aria-hidden="true" className="flex items-center justify-center group-hover:hidden">
+              <span className="flex shrink-0 items-center justify-center gap-1">
+                <span
+                  aria-hidden="true"
+                  className={`items-center justify-center ${
+                    active ? "flex" : "flex group-hover:hidden"
+                  }`}
+                >
                   {tab.type === "service" ? (
                     <Zap
                       className={`w-3 h-3 ${tab.running ? "text-emerald-400" : "text-[#8e8e8e]"}`}
@@ -121,7 +124,7 @@ export function PaneHeader({
                 {tab.pinned ? (
                   <Pin
                     aria-hidden="true"
-                    className="hidden w-3 h-3 text-[#8e8e8e] group-hover:block"
+                    className={`w-3 h-3 text-[#8e8e8e] ${revealBlock}`}
                     fill="currentColor"
                   />
                 ) : (
@@ -133,24 +136,30 @@ export function PaneHeader({
                     }}
                     aria-label={`Close ${tab.label}`}
                     title="Close (⌘W)"
-                    className="hidden items-center justify-center rounded text-[#8e8e8e] transition-colors hover:text-gray-100 group-hover:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+                    className={`items-center justify-center rounded text-[#8e8e8e] transition-colors hover:text-gray-100 ${revealFlex} ${FOCUS_RING}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
                 )}
               </span>
-              <span
-                className={`font-mono text-[11px] font-medium truncate ${
-                  tab.status ? STATUS_LABEL_CLASS[tab.status] : ""
-                }`}
+              <button
+                type="button"
+                aria-current={active ? "true" : undefined}
+                className={`flex min-w-0 items-center gap-1.5 rounded-sm text-left ${FOCUS_RING}`}
               >
-                {tab.label}
-              </span>
-              {tab.port !== undefined && (
-                <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
-                  :{tab.port}
+                <span
+                  className={`font-mono text-[11px] font-medium truncate ${
+                    tab.status ? STATUS_LABEL_CLASS[tab.status] : ""
+                  }`}
+                >
+                  {tab.label}
                 </span>
-              )}
+                {tab.port !== undefined && (
+                  <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
+                    :{tab.port}
+                  </span>
+                )}
+              </button>
             </div>
           );
         })}
@@ -196,6 +205,9 @@ type StreamingOutputProps = {
 export function StreamingOutput({ output, loop }: StreamingOutputProps) {
   const [lines, setLines] = useState<OutputLine[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Scrolling up to read boot output must not be undone by the next line, so
+  // the view only follows the tail while it is already parked at the bottom.
+  const stickRef = useRef(true);
 
   useEffect(() => {
     const timers: number[] = [];
@@ -229,12 +241,20 @@ export function StreamingOutput({ output, loop }: StreamingOutputProps) {
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   }, [lines]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX;
+  };
 
   return (
     <div
       ref={scrollRef}
+      onScroll={onScroll}
       className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-[#1a1a1a]"
     >
       {lines.map((line, i) => (

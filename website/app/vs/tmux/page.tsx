@@ -178,8 +178,6 @@ export default function VsTmuxPage() {
         description="tmux is a wonderful terminal multiplexer. lpm is a project manager for your local dev stacks that happens to give you the same pane-per-service layout for free. If you only use tmux to wire up your dev stack, this page is for you."
       />
 
-      <DemoSection />
-
       <FeatureMatrix
         title="Where each tool earns its keep"
         description="tmux wins on persistence, ubiquity, and raw flexibility. lpm wins on first-class projects, zero-config start, and a desktop app. Here is the honest side-by-side."
@@ -216,6 +214,8 @@ export default function VsTmuxPage() {
           ],
         }}
       />
+
+      <DemoSection />
 
       <Faq
         title="lpm vs tmux, answered honestly"

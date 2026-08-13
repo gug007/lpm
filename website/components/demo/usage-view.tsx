@@ -13,6 +13,7 @@ import {
   type UsageWindowChoice,
   type UsageWindowData,
 } from "./usage-data";
+import { FOCUS_RING } from "./ui";
 
 const WINDOWS: { value: UsageWindowChoice; label: string }[] = [
   { value: "fiveHour", label: "5-hour" },
@@ -69,7 +70,7 @@ export function UsageView({ settings, onSettingsChange }: UsageViewProps) {
               role="switch"
               aria-checked={settings.enabled}
               onClick={() => onSettingsChange({ ...settings, enabled: !settings.enabled })}
-              className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${
+              className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${FOCUS_RING} ${
                 settings.enabled ? "bg-emerald-500" : "bg-[#3a3a3a]"
               }`}
             >
@@ -96,7 +97,7 @@ export function UsageView({ settings, onSettingsChange }: UsageViewProps) {
                     role="switch"
                     aria-checked={on}
                     onClick={() => toggleTool(provider.key)}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${
+                    className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] transition-colors ${FOCUS_RING} ${
                       on
                         ? "border-[#60a5fa] bg-[#60a5fa]/10 text-[#e5e5e5]"
                         : "border-[#2e2e2e] text-[#919191] hover:bg-[#2a2a2a]"
@@ -125,7 +126,7 @@ export function UsageView({ settings, onSettingsChange }: UsageViewProps) {
                   key={option.value}
                   type="button"
                   onClick={() => onSettingsChange({ ...settings, window: option.value })}
-                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
+                  className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${FOCUS_RING} ${
                     settings.window === option.value
                       ? "bg-[#333333] text-[#e5e5e5]"
                       : "text-[#919191] hover:text-[#e5e5e5]"
@@ -138,7 +139,7 @@ export function UsageView({ settings, onSettingsChange }: UsageViewProps) {
           </OptionRow>
         </div>
 
-        <p className="mt-3 text-[11px] leading-relaxed text-[#666]">
+        <p className="mt-3 text-[11px] leading-relaxed text-[#8a8a8a]">
           lpm reads the limits your agents report locally, so you see what&apos;s left before a
           window runs out mid-task.
         </p>

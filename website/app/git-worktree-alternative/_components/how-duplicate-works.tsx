@@ -4,6 +4,7 @@ import {
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
+import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
 
 type Step = {
@@ -66,17 +67,12 @@ export default function HowDuplicateWorks() {
         </div>
 
         <div className="mt-10 overflow-hidden rounded-xl border border-gray-200 bg-gray-950 shadow-2xl shadow-gray-200/60 dark:border-gray-800 dark:shadow-black/40">
-          <video
+          <AutoVideo
             src="/screenrecording/duplicate-project.mp4"
             poster="/screenrecording/duplicate-project-poster.jpg"
             width={1224}
             height={804}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="none"
-            aria-label="Duplicating a project in lpm to create an independent copy for another coding agent"
+            label="Duplicating a project in lpm to create an independent copy for another coding agent"
             className="h-auto w-full"
           />
         </div>

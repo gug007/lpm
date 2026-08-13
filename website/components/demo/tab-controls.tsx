@@ -204,6 +204,14 @@ function TabRenameForm({
     return () => cancelAnimationFrame(id);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const trimmed = value.trim();
   const canSubmit =
     trimmed.length > 0 && (trimmed !== initialValue.trim() || emoji !== initialEmoji);
@@ -239,7 +247,7 @@ function TabRenameForm({
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"
-              className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#666] focus:border-cyan-500 ${
+              className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500 ${
                 withEmoji ? "pl-12 pr-3" : "px-3"
               }`}
             />
@@ -286,16 +294,35 @@ function MenuLayer({
   children: React.ReactNode;
   onClose: () => void;
 }) {
+  const anchorRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
+    // The menu sits at coordinates captured on open, so a scroll that moves its
+    // trigger strands it. Only scrollers that contain the trigger count — the
+    // terminal panes stream output and scroll themselves constantly.
+    const onScroll = (e: Event) => {
+      const anchor = anchorRef.current;
+      const target = e.target as Node | null;
+      if (!anchor || !target || !target.contains(anchor)) return;
+      onClose();
+    };
+    const dismiss = () => onClose();
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", dismiss);
+    };
   }, [onClose]);
   return (
     <>
       <button
+        ref={anchorRef}
         type="button"
         aria-label="Close menu"
         onMouseDown={onClose}
@@ -400,7 +427,7 @@ function MenuButton({
       <span className="shrink-0 text-[#919191]">{icon}</span>
       <span className="flex-1 truncate">{label}</span>
       {hint && (
-        <span className="shrink-0 font-mono text-[10px] text-[#666]">{hint}</span>
+        <span className="shrink-0 font-mono text-[10px] text-[#8a8a8a]">{hint}</span>
       )}
     </button>
   );

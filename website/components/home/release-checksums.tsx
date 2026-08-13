@@ -56,7 +56,7 @@ export function ReleaseChecksums({
               >
                 {asset.label} ({asset.architecture})
               </a>
-              <span className="text-[11px] text-gray-400">
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
                 {formatSize(asset.size)}
               </span>
             </div>

@@ -90,7 +90,7 @@ function AddActionForm({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Run Tests"
                 spellCheck={false}
-                className="w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 pl-12 pr-3 text-sm text-[#e5e5e5] outline-none transition-colors placeholder:text-[#666] focus:border-cyan-500"
+                className="w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 pl-12 pr-3 text-sm text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500"
               />
             </EmojiPickerField>
           </div>
@@ -106,7 +106,7 @@ function AddActionForm({
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"
-              className="rounded-lg border border-[#2e2e2e] bg-transparent px-3 py-2.5 font-mono text-[13px] text-[#e5e5e5] outline-none transition-colors placeholder:text-[#666] focus:border-cyan-500"
+              className="rounded-lg border border-[#2e2e2e] bg-transparent px-3 py-2.5 font-mono text-[13px] text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500"
             />
           </label>
 

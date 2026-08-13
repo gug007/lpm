@@ -18,7 +18,7 @@ export function Hero() {
           />
           Built for Mac developers
         </p>
-        <h1 className="text-balance text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-b from-gray-950 via-gray-900 to-gray-700 dark:from-white dark:via-white dark:to-gray-300 bg-clip-text text-transparent">
+        <h1 className="text-balance text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Switch projects in one click, duplicate in seconds, run coding agents
           in parallel.
         </h1>

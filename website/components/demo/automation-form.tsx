@@ -53,7 +53,7 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Morning triage"
-            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none placeholder:text-[#666] focus:border-[#454545]"
+            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none placeholder:text-[#8a8a8a] focus:border-[#454545]"
           />
         </Field>
         <Field label="Project">
@@ -74,7 +74,7 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Review open PRs and summarise what changed"
-            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none placeholder:text-[#666] focus:border-[#454545]"
+            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none placeholder:text-[#8a8a8a] focus:border-[#454545]"
           />
         </Field>
         <Field label="Schedule">

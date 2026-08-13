@@ -7,6 +7,7 @@ import {
   Settings as SettingsIcon,
   Sun,
 } from "lucide-react";
+import { FOCUS_RING } from "./ui";
 
 const THEMES = [
   { id: "Light", icon: Sun },
@@ -37,7 +38,7 @@ export function SettingsView() {
                     key={id}
                     type="button"
                     onClick={() => setTheme(id)}
-                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${FOCUS_RING} ${
                       theme === id
                         ? "bg-[#333333] text-[#e5e5e5]"
                         : "text-[#919191] hover:text-[#e5e5e5]"
@@ -74,7 +75,7 @@ export function SettingsView() {
             </Row>
           </Section>
 
-          <p className="text-[11px] leading-relaxed text-[#666]">
+          <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
             You&apos;re in the interactive demo — these preview lpm&apos;s real
             Settings. Download the app to save your own.
           </p>
@@ -138,7 +139,7 @@ function ToggleRow({
         role="switch"
         aria-checked={on}
         onClick={onToggle}
-        className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${
+        className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${FOCUS_RING} ${
           on ? "bg-emerald-500" : "bg-[#3a3a3a]"
         }`}
       >

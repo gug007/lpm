@@ -18,7 +18,7 @@ export function TerminalPanel({
   header,
 }: Props) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-[#181818]">
+    <div data-on-dark className="flex min-w-0 flex-1 flex-col bg-[#181818]">
       {header}
       {siblings && siblings.length > 0 && (
         <div

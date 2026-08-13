@@ -12,14 +12,7 @@ export type { RawConfig };
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((m) => m.default),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-full w-full flex items-center justify-center text-[11px] text-gray-400 dark:text-gray-600">
-        Loading editor…
-      </div>
-    ),
-  },
+  { ssr: false, loading: () => null },
 );
 
 const DEFAULT_STARTER = `name: myapp
@@ -68,6 +61,8 @@ const MONACO_OPTIONS = {
   tabSize: 2,
   padding: { top: 12, bottom: 12 },
   renderLineHighlight: "none" as const,
+  tabFocusMode: true,
+  ariaLabel: "lpm YAML config playground",
   overviewRulerLanes: 0,
   hideCursorInOverviewRuler: true,
   overviewRulerBorder: false,
@@ -102,10 +97,15 @@ function parseConfig(source: string): ParseResult {
   }
 }
 
+function heightForSource(source: string): number {
+  const lines = source.replace(/\n+$/, "").split("\n").length;
+  return Math.min(360, Math.max(120, lines * 18 + 28));
+}
+
 export function ConfigPlayground({
   initial,
   filename = "example.yml",
-  editorHeight = 300,
+  editorHeight,
   previewHeight = 280,
 }: {
   initial?: string;
@@ -116,10 +116,28 @@ export function ConfigPlayground({
   const starter = initial ?? DEFAULT_STARTER;
   const [code, setCode] = useState(starter);
   const [copied, setCopied] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
   const dark = useDarkMode();
   const { ref, inView } = useInView<HTMLDivElement>();
 
   const { config, error } = useMemo(() => parseConfig(code), [code]);
+  const [lastParsed, setLastParsed] = useState<RawConfig | null>(
+    () => parseConfig(starter).config,
+  );
+
+  const previewConfig = config ?? (error ? lastParsed : null);
+  // Monaco wraps long lines (wordWrap: "on"), so once it mounts its own
+  // content height replaces the newline-count estimate.
+  const [contentHeight, setContentHeight] = useState<number | null>(null);
+  const height =
+    editorHeight ??
+    Math.min(360, Math.max(120, contentHeight ?? heightForSource(starter)));
+
+  const applyCode = (next: string) => {
+    setCode(next);
+    const parsed = parseConfig(next).config;
+    if (parsed) setLastParsed(parsed);
+  };
 
   const handleCopy = async () => {
     try {
@@ -130,7 +148,7 @@ export function ConfigPlayground({
     }
   };
 
-  const handleReset = () => setCode(starter);
+  const handleReset = () => applyCode(starter);
 
   return (
     <div ref={ref} className="mb-6">
@@ -145,24 +163,37 @@ export function ConfigPlayground({
 
         <div className="flex flex-col">
           <div style={{ height: previewHeight }}>
-            <PlaygroundPreview config={config} error={error} />
+            <PlaygroundPreview
+              config={previewConfig}
+              error={error}
+              stale={error !== null && previewConfig !== null}
+            />
           </div>
           <div
-            className="border-t border-gray-200 dark:border-gray-800"
-            style={{ height: editorHeight }}
+            className="relative border-t border-gray-200 dark:border-gray-800"
+            style={{ height }}
           >
-            {inView ? (
+            {inView && (
               <MonacoEditor
                 height="100%"
                 defaultLanguage="yaml"
                 language="yaml"
                 theme={dark ? "vs-dark" : "vs"}
                 value={code}
-                onChange={(v) => setCode(v ?? "")}
+                onChange={(v) => applyCode(v ?? "")}
+                onMount={(editor) => {
+                  setEditorReady(true);
+                  const sync = () => setContentHeight(editor.getContentHeight());
+                  sync();
+                  editor.onDidContentSizeChange(sync);
+                }}
                 options={MONACO_OPTIONS}
               />
-            ) : (
-              <pre className="h-full w-full m-0 px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-relaxed overflow-auto bg-white dark:bg-gray-950">
+            )}
+            {!editorReady && (
+              <pre
+                className="absolute inset-0 m-0 px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-[18px] overflow-auto bg-white dark:bg-gray-950"
+              >
                 <code>{starter}</code>
               </pre>
             )}

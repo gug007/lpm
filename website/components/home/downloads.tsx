@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   Laptop,
@@ -9,41 +10,18 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { trackDownload } from "@/lib/analytics";
-import { releaseAsset, RELEASES_URL } from "@/lib/links";
+import { MOBILE_PATH, RELEASES_URL } from "@/lib/links";
 import {
   usePlatform,
   type MacDownloadPlatform,
 } from "@/lib/use-platform";
-import { HighlightPlatform } from "./highlight-platform";
+import { DOWNLOAD_ENTRIES } from "./hero-download";
 import { SignatureBadge } from "./signature-badge";
 
-type Download = {
-  href: string;
-  platform: MacDownloadPlatform;
-  product: "desktop";
-  label: string;
-  sub: string;
-  icon: LucideIcon;
+const ICONS: Record<MacDownloadPlatform, LucideIcon> = {
+  "mac-arm": Laptop,
+  "mac-intel": Monitor,
 };
-
-const DOWNLOADS: Download[] = [
-  {
-    href: releaseAsset("lpm-desktop-macos-arm64.dmg"),
-    platform: "mac-arm",
-    product: "desktop",
-    label: "Apple Silicon",
-    sub: "For M-series Macs",
-    icon: Laptop,
-  },
-  {
-    href: releaseAsset("lpm-desktop-macos-amd64.dmg"),
-    platform: "mac-intel",
-    product: "desktop",
-    label: "Intel",
-    sub: "For x86-64 Macs",
-    icon: Monitor,
-  },
-];
 
 export function Downloads({ children }: { children?: ReactNode }) {
   const platform = usePlatform();
@@ -77,33 +55,58 @@ export function Downloads({ children }: { children?: ReactNode }) {
             <p className="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-200">
               The lpm desktop app requires macOS
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            <div className="mt-3">
+              <Link
+                href={MOBILE_PATH}
+                prefetch={false}
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-700 underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 dark:text-gray-200 dark:decoration-gray-600 dark:hover:text-white"
+              >
+                Meanwhile — get the iPhone companion
+                <ArrowRight className="w-3.5 h-3.5" aria-hidden />
+              </Link>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Open lpm.cx on your Mac to choose the correct installer.
             </p>
           </div>
         ) : (
-          <>
-            <HighlightPlatform />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
-              {DOWNLOADS.map(({ href, platform, label, sub, icon: Icon }) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto">
+            {Object.values(DOWNLOAD_ENTRIES).map((entry) => {
+              const Icon = ICONS[entry.platform];
+              const recommended = platform === entry.platform;
+              return (
                 <a
-                  key={href}
-                  href={href}
-                  data-platform={platform}
+                  key={entry.href}
+                  href={entry.href}
                   onClick={() =>
-                    trackDownload({ source: "downloads", platform, href })
+                    trackDownload({
+                      source: "downloads",
+                      platform: entry.platform,
+                      href: entry.href,
+                    })
                   }
-                  className="dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]"
+                  className={`dl-card group relative flex flex-col items-center gap-2 px-6 py-6 rounded-2xl border border-gray-200 dark:border-gray-800 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-[#111]${
+                    recommended ? " recommended" : ""
+                  }`}
                 >
+                  {recommended && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-br from-emerald-600 to-emerald-700 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-white">
+                      Recommended
+                    </span>
+                  )}
                   <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center mb-1 group-hover:bg-gray-100 dark:group-hover:bg-gray-800 transition-colors">
                     <Icon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                   </div>
-                  <span className="text-sm font-semibold">{label}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>
+                  <span className="text-sm font-semibold">
+                    {entry.choiceLabel}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {entry.choiceDescription}
+                  </span>
                 </a>
-              ))}
-            </div>
-          </>
+              );
+            })}
+          </div>
         )}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
           <a

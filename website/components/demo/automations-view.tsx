@@ -9,6 +9,7 @@ import {
   unreadJobCount,
   type DemoJob,
 } from "./automations";
+import { FOCUS_RING } from "./ui";
 
 const RUN_MS = 2600;
 
@@ -84,7 +85,7 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
             <button
               type="button"
               onClick={() => setJobs((prev) => prev.map((job) => ({ ...job, unread: 0 })))}
-              className="rounded-lg px-2 py-1.5 text-[11px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+              className={`rounded-lg px-2 py-1.5 text-[11px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING}`}
             >
               Mark all read
             </button>
@@ -92,7 +93,7 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className="flex items-center gap-1 rounded-lg bg-[#e5e5e5] px-2.5 py-1.5 text-[11px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-90"
+            className={`flex items-center gap-1 rounded-lg bg-[#e5e5e5] px-2.5 py-1.5 text-[11px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-90 ${FOCUS_RING}`}
           >
             <Plus className="h-3 w-3" strokeWidth={2.25} />
             New job
@@ -126,7 +127,7 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
             />
           ))}
         </div>
-        <p className="mt-4 text-[11px] leading-relaxed text-[#666]">
+        <p className="mt-4 text-[11px] leading-relaxed text-[#8a8a8a]">
           Jobs run an agent in the project on your machine — on a schedule or on demand — and leave
           what they did here.
         </p>
@@ -169,7 +170,7 @@ function JobRow({
           type="button"
           onClick={onOpen}
           aria-expanded={open}
-          className="min-w-0 flex-1 text-left focus-visible:outline-none"
+          className={`min-w-0 flex-1 rounded-md text-left ${FOCUS_RING}`}
         >
           <span className="flex min-w-0 items-baseline gap-2">
             <span
@@ -212,7 +213,7 @@ function JobRow({
             onClick={onStop}
             title="Stop"
             aria-label={`Stop ${job.label}`}
-            className="shrink-0 rounded-md p-1.5 text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#f87171]"
+            className={`shrink-0 rounded-md p-1.5 text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#f87171] ${FOCUS_RING}`}
           >
             <Square className="h-3 w-3" strokeWidth={2} fill="currentColor" />
           </button>
@@ -222,7 +223,7 @@ function JobRow({
             onClick={onRunNow}
             title="Run now"
             aria-label={`Run ${job.label} now`}
-            className="shrink-0 rounded-md p-1.5 text-[#919191] opacity-0 transition-opacity hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:opacity-100 group-hover:opacity-100"
+            className={`shrink-0 rounded-md p-1.5 text-[#919191] opacity-0 transition-opacity hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:opacity-100 group-hover:opacity-100 ${FOCUS_RING}`}
           >
             <Play className="h-3 w-3" strokeWidth={2} fill="currentColor" />
           </button>
@@ -233,7 +234,7 @@ function JobRow({
           aria-checked={job.enabled}
           aria-label={`${job.enabled ? "Pause" : "Resume"} ${job.label}`}
           onClick={onToggleEnabled}
-          className={`mt-1 inline-flex h-[16px] w-7 shrink-0 items-center rounded-full transition-colors ${
+          className={`mt-1 inline-flex h-[16px] w-7 shrink-0 items-center rounded-full transition-colors ${FOCUS_RING} ${
             job.enabled ? "bg-emerald-500" : "bg-[#3a3a3a]"
           }`}
         >
@@ -254,7 +255,7 @@ function JobRow({
           ) : (
             job.messages.map((message, index) => (
               <span key={index} className="flex gap-2 text-[11px] leading-snug text-[#b3b3b3]">
-                <span className="shrink-0 tabular-nums text-[#666]">{message.at}</span>
+                <span className="shrink-0 tabular-nums text-[#8a8a8a]">{message.at}</span>
                 <span className="min-w-0">{message.text}</span>
               </span>
             ))

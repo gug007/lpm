@@ -57,12 +57,19 @@ export const metadata: Metadata = {
   },
 };
 
+const THEME_COLOR_LIGHT = "#ffffff";
+const THEME_COLOR_DARK = "#111111";
+
 const themeScript = `
 (function() {
   try {
     var t = localStorage.getItem('${THEME_STORAGE_KEY}') ||
       (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     if (t === 'dark') document.documentElement.classList.add('dark');
+    var m = document.createElement('meta');
+    m.name = 'theme-color';
+    m.content = t === 'dark' ? '${THEME_COLOR_DARK}' : '${THEME_COLOR_LIGHT}';
+    document.head.appendChild(m);
   } catch (e) {}
 })();
 `;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { DemoProject } from "./projects";
+import { FOCUS_RING } from "./ui";
 
 function ReviewHeader({
   project,
@@ -16,7 +17,7 @@ function ReviewHeader({
       <span className="text-[#8e8e8e]">
         {count === 0 ? "no files" : count === 1 ? "1 file" : `${count} files`}
       </span>
-      <span className="ml-auto truncate font-mono text-[10px] text-[#666]">
+      <span className="ml-auto truncate font-mono text-[10px] text-[#8a8a8a]">
         {project.root}
       </span>
     </div>
@@ -42,7 +43,7 @@ export function ReviewView({ project }: { project: DemoProject }) {
           <div className="text-[13px] font-medium text-[#b3b3b3]">
             Nothing to review
           </div>
-          <p className="font-mono text-[11px] text-[#666]">
+          <p className="font-mono text-[11px] text-[#8a8a8a]">
             working tree clean
             {project.git ? ` on ${project.git.branch}` : ""}
           </p>
@@ -65,7 +66,7 @@ export function ReviewView({ project }: { project: DemoProject }) {
                 key={f.path}
                 type="button"
                 onClick={() => setActive(i)}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] transition-colors ${FOCUS_RING} ${
                   i === active
                     ? "bg-[#2a2a2a] text-[#e5e5e5]"
                     : "text-[#b3b3b3] hover:bg-[#242424]"

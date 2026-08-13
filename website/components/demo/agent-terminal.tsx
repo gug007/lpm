@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { History, Mic, Plus, Send, Sparkles } from "lucide-react";
+import { History, Mic, Plus, Send, Sparkles, Square } from "lucide-react";
 import type { ReplyContext } from "./projects";
+import { FOCUS_RING, useReducedMotion } from "./ui";
 
 export type AgentKind = "claude" | "codex";
 export type AgentStatus = "running" | "done";
@@ -87,18 +88,21 @@ type HistoryItem = {
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const MAX_HISTORY = 30;
+const SUGGESTED_PROMPT = "Explain what this project does";
+const STICK_THRESHOLD_PX = 24;
 
 function useSpinnerFrame(active: boolean): string {
   const [i, setI] = useState(0);
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
-    if (!active) return;
+    if (!active || reducedMotion) return;
     const id = window.setInterval(
       () => setI((v) => (v + 1) % SPINNER.length),
       80,
     );
     return () => window.clearInterval(id);
-  }, [active]);
-  return SPINNER[i];
+  }, [active, reducedMotion]);
+  return reducedMotion ? SPINNER[0] : SPINNER[i];
 }
 
 const GENERIC_REPLY_CONTEXT: ReplyContext = {
@@ -311,7 +315,18 @@ export function AgentTerminal({
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Reading back through the transcript must survive the next streamed step,
+  // so the view only follows the tail while it is already at the bottom.
+  const stickRef = useRef(true);
   const nextIdRef = useRef(0);
+  // Streamed steps arrive on timers; interrupting a turn has to cancel them
+  // or the dead turn keeps appending over the next one.
+  const timersRef = useRef<number[]>([]);
+  const clearTimers = () => {
+    timersRef.current.forEach(window.clearTimeout);
+    timersRef.current = [];
+  };
+  useEffect(() => clearTimers, []);
   const onStatusRef = useRef(onStatus);
   useEffect(() => {
     onStatusRef.current = onStatus;
@@ -325,6 +340,8 @@ export function AgentTerminal({
   ) => {
     const steps = opts?.steps ?? buildReply(text, agent, replyContext);
     if (steps.length === 0) return;
+    clearTimers();
+    stickRef.current = true;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
     setHistory((h) => {
@@ -338,26 +355,30 @@ export function AgentTerminal({
     steps.forEach((step, i) => {
       acc += stepDelay(step);
       const isLast = i === steps.length - 1;
-      window.setTimeout(() => {
-        setHistory((h) =>
-          h.map((item) =>
-            item.id === id ? { ...item, revealed: i + 1 } : item,
-          ),
-        );
-        // keepBusy leaves the session on its final live spinner (still
-        // "running") instead of settling — an agent that stays mid-task.
-        if (isLast && !opts?.keepBusy) {
-          window.setTimeout(() => {
-            setHistory((h) =>
-              h.map((item) =>
-                item.id === id ? { ...item, finished: true } : item,
-              ),
+      timersRef.current.push(
+        window.setTimeout(() => {
+          setHistory((h) =>
+            h.map((item) =>
+              item.id === id ? { ...item, revealed: i + 1 } : item,
+            ),
+          );
+          // keepBusy leaves the session on its final live spinner (still
+          // "running") instead of settling — an agent that stays mid-task.
+          if (isLast && !opts?.keepBusy) {
+            timersRef.current.push(
+              window.setTimeout(() => {
+                setHistory((h) =>
+                  h.map((item) =>
+                    item.id === id ? { ...item, finished: true } : item,
+                  ),
+                );
+                setBusy(false);
+                onStatusRef.current?.("done");
+              }, 220),
             );
-            setBusy(false);
-            onStatusRef.current?.("done");
-          }, 220);
-        }
-      }, acc);
+          }
+        }, acc),
+      );
     });
   };
 
@@ -386,15 +407,42 @@ export function AgentTerminal({
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   }, [history, input, busy]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX;
+  };
+
+  // Mirrors the app's interrupt: the turn in flight settles where it stands
+  // and the composer is free again.
+  const stop = () => {
+    clearTimers();
+    setHistory((h) =>
+      h.map((item) => (item.finished ? item : { ...item, finished: true })),
+    );
+    setBusy(false);
+    onStatusRef.current?.("done");
+    inputRef.current?.focus();
+  };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text) return;
+    if (busy) stop();
     setInput("");
     runQuery(text);
+  };
+
+  const lastQuery = history.length ? history[history.length - 1].query : "";
+
+  const fillInput = (text: string) => {
+    setInput(text);
+    inputRef.current?.focus();
   };
 
   const b = BRAND[agent];
@@ -410,6 +458,7 @@ export function AgentTerminal({
     <div className="flex flex-1 min-h-0 flex-col bg-[#1a1a1a]">
       <div
         ref={scrollRef}
+        onScroll={onScroll}
         onClick={() => inputRef.current?.focus()}
         className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100"
       >
@@ -491,38 +540,64 @@ export function AgentTerminal({
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              disabled={busy}
-              placeholder={busy ? "Working…" : `Send to ${agentName}…`}
+              placeholder={
+                busy ? "Working… press Stop to interrupt" : `Send to ${agentName}…`
+              }
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"
               autoComplete="off"
               data-1p-ignore
               data-lpignore="true"
-              className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100 disabled:opacity-50"
+              className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100"
             />
             <div className="mt-1.5 flex items-center justify-end gap-0.5">
-              <ComposerIcon title="Dictate">
+              <span
+                aria-hidden="true"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-gray-600"
+              >
                 <Mic className="h-3.5 w-3.5" />
-              </ComposerIcon>
-              <ComposerIcon title="AI actions">
+              </span>
+              <ComposerIcon
+                title="Suggest a prompt"
+                onClick={() => fillInput(SUGGESTED_PROMPT)}
+              >
                 <Sparkles className="h-3.5 w-3.5" />
               </ComposerIcon>
-              <ComposerIcon title="New input">
+              <ComposerIcon
+                title="New input"
+                onClick={() => inputRef.current?.focus()}
+              >
                 <Plus className="h-4 w-4" />
               </ComposerIcon>
-              <ComposerIcon title="Message history">
+              <ComposerIcon
+                title="Message history"
+                disabled={!lastQuery}
+                onClick={() => fillInput(lastQuery)}
+              >
                 <History className="h-3.5 w-3.5" />
               </ComposerIcon>
-              <button
-                type="submit"
-                disabled={busy || !input.trim()}
-                aria-label="Send"
-                title="Send"
-                className="ml-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#60a5fa] text-[#1a1a1a] transition-opacity hover:opacity-85 disabled:opacity-40"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
+              {busy ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  aria-label="Stop"
+                  title="Stop"
+                  className={`ml-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#f87171] text-[#1a1a1a] transition-opacity hover:opacity-85 ${FOCUS_RING}`}
+                >
+                  <Square className="h-3 w-3" fill="currentColor" strokeWidth={2} />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!input.trim()}
+                  aria-label="Send"
+                  title="Send"
+                  className={`ml-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#60a5fa] text-[#1a1a1a] transition-opacity hover:opacity-85 disabled:opacity-40 ${FOCUS_RING}`}
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </form>
@@ -533,9 +608,13 @@ export function AgentTerminal({
 
 function ComposerIcon({
   title,
+  onClick,
+  disabled,
   children,
 }: {
   title: string;
+  onClick: () => void;
+  disabled?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -543,7 +622,9 @@ function ComposerIcon({
       type="button"
       title={title}
       aria-label={title}
-      className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/[0.06] hover:text-gray-200 disabled:pointer-events-none disabled:opacity-40 ${FOCUS_RING}`}
     >
       {children}
     </button>

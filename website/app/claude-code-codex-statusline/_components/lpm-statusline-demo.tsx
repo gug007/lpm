@@ -149,7 +149,7 @@ export default function LpmStatuslineDemo() {
           </div>
           <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500 dark:text-gray-400">
             <Monitor className="h-3.5 w-3.5" aria-hidden />
-            LPM Desktop · Settings · AI &amp; Integrations
+            lpm Desktop · Settings · AI &amp; Integrations
           </div>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
             <Save className="h-3 w-3" aria-hidden />
@@ -162,7 +162,7 @@ export default function LpmStatuslineDemo() {
             <div>
               <p className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden />
-                Interactive LPM preview
+                Interactive lpm preview
               </p>
               <h2
                 id="preview-title"
@@ -172,11 +172,12 @@ export default function LpmStatuslineDemo() {
               </h2>
               <p className="mt-1 max-w-xl text-sm text-gray-500 dark:text-gray-400">
                 Pick a layout, arrange the signals, and tune the appearance just
-                as you would inside LPM Desktop. In the app, find this editor
+                as you would inside lpm Desktop. In the app, find this editor
                 under Settings → AI &amp; Integrations.
               </p>
             </div>
             <div
+              role="group"
               className="flex rounded-2xl bg-gray-950 p-1.5 dark:bg-black"
               aria-label="Choose an AI coding agent"
             >
@@ -306,30 +307,34 @@ export default function LpmStatuslineDemo() {
                         <span className="w-5 text-center font-mono text-[11px] text-gray-500 dark:text-gray-400">
                           {index + 1}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            isClaude && setEditingClaudeItem(item.id)
-                          }
-                          className={`min-w-0 flex-1 truncate rounded-md py-2 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
-                            isEditing
-                              ? "text-[#B75F40] dark:text-[#F09978]"
-                              : "text-gray-800 dark:text-gray-200"
-                          } ${isClaude ? "cursor-pointer" : "cursor-default"}`}
-                        >
-                          {item.label}
-                          {isEditing && (
-                            <span className="ml-2 inline-flex -translate-y-px items-center rounded-full bg-[#D97757]/12 px-2 py-0.5 align-middle text-[9px] font-semibold uppercase tracking-[0.08em] dark:bg-[#D97757]/18">
-                              Editing
-                            </span>
-                          )}
-                        </button>
+                        {isClaude ? (
+                          <button
+                            type="button"
+                            onClick={() => setEditingClaudeItem(item.id)}
+                            className={`min-w-0 flex-1 cursor-pointer truncate rounded-md py-2 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
+                              isEditing
+                                ? "text-[#B75F40] dark:text-[#F09978]"
+                                : "text-gray-800 dark:text-gray-200"
+                            }`}
+                          >
+                            {item.label}
+                            {isEditing && (
+                              <span className="ml-2 inline-flex -translate-y-px items-center rounded-full bg-[#D97757]/12 px-2 py-0.5 align-middle text-[9px] font-semibold uppercase tracking-[0.08em] dark:bg-[#D97757]/18">
+                                Editing
+                              </span>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="min-w-0 flex-1 truncate py-2 text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {item.label}
+                          </span>
+                        )}
                         <button
                           type="button"
                           onClick={() => moveItem(item.id, -1)}
                           disabled={index === 0}
                           aria-label={`Move ${item.label} left`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
                         >
                           <ChevronLeft className="h-4 w-4" aria-hidden />
                         </button>
@@ -338,7 +343,7 @@ export default function LpmStatuslineDemo() {
                           onClick={() => moveItem(item.id, 1)}
                           disabled={index === selectedItems.length - 1}
                           aria-label={`Move ${item.label} right`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-white/10 dark:hover:text-white"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
                         >
                           <ChevronRight className="h-4 w-4" aria-hidden />
                         </button>
@@ -347,7 +352,7 @@ export default function LpmStatuslineDemo() {
                           onClick={() => removeItem(item.id)}
                           disabled={isClaude && selectedItems.length === 1}
                           aria-label={`Remove ${item.label}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-25 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
                         >
                           <X className="h-3.5 w-3.5" aria-hidden />
                         </button>
@@ -453,40 +458,44 @@ export default function LpmStatuslineDemo() {
                     {selectedItems.length === 0 ? (
                       <span className="text-zinc-600">Statusline hidden</span>
                     ) : (
-                      <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        <div className="flex min-w-max items-center whitespace-nowrap pr-6">
-                        {selectedItems.map((item, index) => (
-                          <span key={item.id} className="flex items-center">
-                            {index > 0 && (
-                              <span className="px-2 text-zinc-700">
-                                {isClaude ? separators[separator].value : "·"}
+                      <div className="relative">
+                        <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          <div className="flex min-w-max items-center whitespace-nowrap pr-10">
+                            {selectedItems.map((item, index) => (
+                              <span key={item.id} className="flex items-center">
+                                {index > 0 && (
+                                  <span className="px-2 text-zinc-700">
+                                    {isClaude
+                                      ? separators[separator].value
+                                      : "·"}
+                                  </span>
+                                )}
+                                <span
+                                  className={
+                                    isClaude
+                                      ? claudeColors[
+                                          claudeItemColors[item.id] ?? "default"
+                                        ].preview
+                                      : codexColors
+                                        ? index % 3 === 0
+                                          ? "text-emerald-300"
+                                          : index % 3 === 1
+                                            ? "text-cyan-300"
+                                            : "text-zinc-400"
+                                        : "text-zinc-300"
+                                  }
+                                >
+                                  {isClaude && showIcons && item.icon
+                                    ? `${item.icon} `
+                                    : ""}
+                                  {previewText(item)}
+                                </span>
                               </span>
-                            )}
-                            <span
-                              className={
-                                isClaude
-                                  ? claudeColors[
-                                      claudeItemColors[item.id] ?? "default"
-                                    ].preview
-                                  : codexColors
-                                    ? index % 3 === 0
-                                      ? "text-emerald-300"
-                                      : index % 3 === 1
-                                        ? "text-cyan-300"
-                                        : "text-zinc-400"
-                                    : "text-zinc-300"
-                              }
-                            >
-                              {isClaude && showIcons && item.icon
-                                ? `${item.icon} `
-                                : ""}
-                              {previewText(item)}
-                            </span>
-                          </span>
-                        ))}
+                            ))}
+                          </div>
                         </div>
                         <div
-                          className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-[#080808] to-transparent"
+                          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#080808] to-transparent"
                           aria-hidden
                         />
                       </div>
@@ -679,7 +688,7 @@ export default function LpmStatuslineDemo() {
                         Use active Codex theme colors
                       </span>
                       <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">
-                        LPM preserves the colors selected with{" "}
+                        lpm preserves the colors selected with{" "}
                         <code className="font-mono">/theme</code>.
                       </span>
                     </span>
@@ -698,7 +707,7 @@ export default function LpmStatuslineDemo() {
                     </span>
                   </button>
                   <p className="mt-3 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                    Codex controls separators and rendering. LPM gives you every
+                    Codex controls separators and rendering. lpm gives you every
                     supported field, ordering, presets, colors, and an Off
                     state without opening config.toml.
                   </p>
@@ -709,7 +718,7 @@ export default function LpmStatuslineDemo() {
             <div className="mt-4 rounded-2xl border border-gray-800 bg-[#0b0b0b] p-5 text-white">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-400">
                 <Settings2 className="h-4 w-4" aria-hidden />
-                Applied by LPM Desktop
+                Applied by lpm Desktop
               </div>
               <p className="mt-3 text-sm leading-relaxed text-gray-300">
                 In the Mac app, changes save to the active agent configuration
@@ -719,7 +728,7 @@ export default function LpmStatuslineDemo() {
                 href="/#download"
                 className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-gray-950 transition hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               >
-                Download LPM for macOS
+                Download lpm for macOS
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             </div>
