@@ -75,15 +75,6 @@ func projectAgentRows(_ project: Project, now: Int, tabTitles: [String: String])
     }
 }
 
-/// The one agent the project row itself speaks for — only a state the user has to
-/// act on gets a word up there; the rest is in the rows underneath.
-func projectAgentAlert(_ rows: [ProjectAgentRow]) -> ProjectAgentRow? {
-    guard let first = rows.first, first.state == .needsYou || first.state == .error else {
-        return nil
-    }
-    return first
-}
-
 /// "45s", "4m", "2h 5m" — `formatActivityDuration` with the remainder dropped, for
 /// a row with room for a reading rather than a stopwatch. Takes millis, and rounds
 /// down like a stopwatch: it says what has elapsed, never more.

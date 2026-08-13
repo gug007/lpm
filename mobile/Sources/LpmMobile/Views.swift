@@ -487,27 +487,31 @@ struct ProjectsView: View {
     @ViewBuilder
     private func projectLink(_ row: SidebarRow, indented: Bool) -> some View {
         let agents = agentRows(row.project)
+        let indent: CGFloat = indented ? 20 : 0
         NavigationLink(value: row.project.name) {
             ProjectRow(project: row.project,
                        pending: model.pendingRun[row.project.name] != nil,
-                       alert: projectAgentAlert(agents))
-                .padding(.leading, indented ? 20 : 0)
+                       agentCount: agents.count)
+                .padding(.leading, indent)
         }
         .projectRowActions(row.project, removing: $removing, duplicating: $duplicating,
                            newFolderForProject: $newFolderForProject)
+        // A project holding a deck runs into it with no rule between them: the two
+        // rows are one cell, and the deck's own separator closes it.
+        .listRowSeparator(agents.isEmpty ? .visible : .hidden, edges: .bottom)
 
-        ForEach(agents) { agent in
-            Button {
+        if !agents.isEmpty {
+            ProjectTerminalDeck(rows: agents, now: now) { agent in
                 if let terminal = agent.terminalId {
                     openTerminal = TerminalTarget(project: row.project.name, terminalId: terminal)
                 }
-            } label: {
-                ProjectAgentRowView(row: agent, now: now)
-                    .padding(.leading, indented ? 20 : 0)
             }
-            .buttonStyle(.plain)
-            .disabled(agent.terminalId == nil)
-            .listRowSeparator(.hidden)
+            // The deck hangs flush under its project and starts beneath the project
+            // name — the dot's 14pt column plus the stack's spacing.
+            .listRowInsets(EdgeInsets(top: 0, leading: 16 + 22 + indent, bottom: 8, trailing: 16))
+            // Its separator closes the cell in line with every other row's, rather
+            // than starting at the deck's own left edge.
+            .alignmentGuide(.listRowSeparatorLeading) { _ in 0 }
         }
     }
 
@@ -518,9 +522,13 @@ struct ProjectsView: View {
             }
         }
         .refreshable { await model.refreshProjects() }
-        // Task rows are named after the tab they run in, and only the Mac knows
-        // those names.
-        .task { model.loadActivityTerminals() }
+        // Terminal rows are named after the tab they run in, and only the Mac knows
+        // those names. Keyed on which projects have agents so the ask lands after
+        // the project list itself has arrived, and again whenever an agent starts
+        // somewhere new — a bare `.task` fires once, against an empty list.
+        .task(id: model.projects.filter { !$0.statusEntries.isEmpty }.map(\.name)) {
+            model.loadActivityTerminals()
+        }
         .task(id: hasTickingAgent) {
             while hasTickingAgent && !Task.isCancelled {
                 now = Int(Date().timeIntervalSince1970 * 1000)
@@ -1077,9 +1085,9 @@ struct FolderHeader: View {
 struct ProjectRow: View {
     let project: Project
     var pending: Bool = false
-    /// The one agent that wants the user, when one does. What the rest are doing is
-    /// in the task rows underneath.
-    var alert: ProjectAgentRow?
+    /// How many terminals the project has going. What each of them is doing is in
+    /// the deck underneath, so the row itself only counts them.
+    var agentCount: Int = 0
 
     var body: some View {
         HStack {
@@ -1093,10 +1101,15 @@ struct ProjectRow: View {
             .frame(width: 14)
             Text(project.label)
             Spacer()
-            if let alert {
-                Text(alert.state.label)
+            if agentCount > 0 {
+                Text("\(agentCount)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(alert.state.tint)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .frame(minWidth: 20, minHeight: 20)
+                    .background(Color(.tertiarySystemFill), in: Capsule())
+                    .accessibilityLabel(agentCount == 1 ? "1 terminal" : "\(agentCount) terminals")
             }
         }
     }
