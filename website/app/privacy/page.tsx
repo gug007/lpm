@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { PRIVACY_PATH, REPO_URL } from "@/lib/links";
+import { MOBILE_PATH, PRIVACY_PATH, REPO_URL } from "@/lib/links";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Last updated: July 8, 2026
+        Last updated: August 13, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -43,7 +43,8 @@ export default function PrivacyPage() {
           lpm is an open-source project. The <strong>software itself</strong>{" "}
           (the macOS desktop app and the lpm Link iOS app) runs entirely on your
           machine. It does not collect, transmit, or share any personal data,
-          telemetry, or usage information.
+          telemetry, or usage information. The single exception is iPhone push
+          notifications, which you have to turn on yourself — described below.
         </p>
         <p>
           This <strong>website</strong> (lpm.cx) uses a small amount of
@@ -57,9 +58,26 @@ export default function PrivacyPage() {
         </h2>
         <ul className="list-disc pl-5 space-y-1">
           <li>No analytics, tracking, or telemetry.</li>
-          <li>No account required. No data is sent to any server we control.</li>
+          <li>No account required.</li>
           <li>
             All project configuration and state stays on your local machine.
+          </li>
+          <li>
+            <strong>Push notifications are the one exception</strong>, and only
+            if you pair an{" "}
+            <Link
+              href={MOBILE_PATH}
+              className="underline hover:text-gray-900 dark:hover:text-gray-100"
+            >
+              iPhone
+            </Link>
+            . Apple requires a signing key to deliver them, so those
+            notifications are relayed through a server we run. The contents are
+            sealed on your Mac and can only be opened by your iPhone — we can
+            see that a notification was relayed and to which device, never what
+            it says. Nothing else leaves your machine: terminal output,
+            keystrokes, diffs, and files go straight from your Mac to your
+            phone.
           </li>
           <li>
             Source code is available at{" "}

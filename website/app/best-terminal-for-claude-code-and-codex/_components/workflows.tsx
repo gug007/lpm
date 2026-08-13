@@ -12,10 +12,12 @@ const WORKFLOWS: Workflow[] = [
       <>
         Click Start on your project in the lpm sidebar and the full stack
         boots in one window, one service per tab. Point Claude Code at it to
-        drive the feature work, then flip the profile dropdown in the header
-        to a lighter test profile and point Codex at that. Two agents, the
-        same repo, no fighting over port 3000 — and you can watch both of
-        them work by glancing at the live service tabs side by side.
+        drive the feature work. For the second agent, open Duplicate and
+        create a linked worktree — a real Git worktree on its own branch,
+        with its own services and its own ports — then point Codex at that.
+        Two agents, two checkouts, nothing fighting over port 3000, and both
+        projects sit in the same sidebar so you can watch the live service
+        tabs side by side.
       </>
     ),
   },

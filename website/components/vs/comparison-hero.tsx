@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowRight } from "lucide-react";
-import { REPO_URL } from "@/lib/links";
+import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
 
 type Props = {
@@ -28,13 +27,10 @@ export function ComparisonHero({ eyebrow, title, description }: Props) {
         </div>
 
         <div className="mt-8">
-          <a
-            href={REPO_URL}
+          <GithubLink
+            source="vs-hero"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
-          >
-            View on GitHub
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          />
         </div>
       </div>
     </section>

@@ -33,6 +33,7 @@ export const VS_SLUGS = [
   "tmux",
   "pm2",
   "cmux",
+  "iterm2",
 ] as const;
 export type VsSlug = (typeof VS_SLUGS)[number];
 export const vsPath = (slug: VsSlug): string => `${VS_BASE_PATH}/${slug}`;

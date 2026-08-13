@@ -7,9 +7,9 @@ import { VS_BASE_PATH, vsPath, type VsSlug } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
-  title: "lpm Alternatives & Comparisons — tmux, cmux, PM2 & More",
+  title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
   description:
-    "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
+    "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
   keywords: [
     "lpm alternatives",
     "foreman alternative",
@@ -18,21 +18,23 @@ export const metadata: Metadata = {
     "pm2 alternative dev",
     "docker compose alternative for dev",
     "cmux alternative",
+    "iterm2 alternative",
+    "iterm alternative",
   ],
   alternates: { canonical: VS_BASE_PATH },
   openGraph: {
-    title: "lpm Alternatives & Comparisons — tmux, cmux, PM2 & More",
+    title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
     description:
-      "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
+      "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
     type: "website",
     url: VS_BASE_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm Alternatives & Comparisons — tmux, cmux, PM2 & More",
+    title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
     description:
-      "Honest side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
+      "Honest side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
   },
 };
 
@@ -79,13 +81,19 @@ const ENTRIES: Entry[] = [
     tagline:
       "Native macOS terminal for AI coding agents from Manaflow (YC). lpm adds project-level start/stop/duplicate and repo-generated configs on top.",
   },
+  {
+    slug: "iterm2",
+    name: "iTerm2",
+    tagline:
+      "The macOS terminal most developers already have open. lpm adds the project layer above it — start, stop, and duplicate whole stacks.",
+  },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm Alternatives & Comparisons — tmux, cmux, PM2 & More",
+    title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
     description:
-      "Side-by-side comparisons of lpm against Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
+      "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
     path: VS_BASE_PATH,
   }),
   breadcrumbJsonLd([
@@ -107,7 +115,7 @@ export default function ComparisonsHubPage() {
             Comparisons
           </p>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-            Compare lpm with tmux, cmux, PM2, and more.
+            Compare lpm with iTerm2, tmux, cmux, and more.
           </h1>
           <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
             Honest, per-workflow comparisons — not vague superiority claims.

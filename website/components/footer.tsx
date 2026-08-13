@@ -33,6 +33,7 @@ const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
   tmux: "tmux",
   pm2: "PM2",
   cmux: "cmux",
+  iterm2: "iTerm2",
 };
 
 type Group = {

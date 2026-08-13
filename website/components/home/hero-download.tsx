@@ -2,7 +2,11 @@
 
 import { ArrowDown, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { trackDownload, type DownloadSource } from "@/lib/analytics";
+import {
+  trackDownload,
+  trackGithubVisit,
+  type DownloadSource,
+} from "@/lib/analytics";
 import { releaseAsset, RELEASES_URL } from "@/lib/links";
 import { usePlatform, type MacDownloadPlatform } from "@/lib/use-platform";
 import { SignatureBadge } from "./signature-badge";
@@ -53,6 +57,9 @@ export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
   const releasesLink = (
     <a
       href={RELEASES_URL}
+      onClick={() =>
+        trackGithubVisit({ source: "download-releases", href: RELEASES_URL })
+      }
       className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
     >
       View all downloads

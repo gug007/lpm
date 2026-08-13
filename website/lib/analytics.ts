@@ -1,3 +1,4 @@
+import { RELEASES_URL } from "@/lib/links";
 import type { MacDownloadPlatform } from "@/lib/use-platform";
 
 declare global {
@@ -32,6 +33,32 @@ export function trackDownload({
     download_architecture: platform,
     link_url: href,
     file_name: new URL(href).pathname.split("/").pop(),
+  });
+}
+
+export type GithubLinkSource =
+  | "mac-hero"
+  | "mac-cta"
+  | "vs-hero"
+  | "vs-cta"
+  | "download-releases";
+
+type TrackGithubVisitParams = {
+  source: GithubLinkSource;
+  href: string;
+};
+
+export function trackGithubVisit({
+  source,
+  href,
+}: TrackGithubVisitParams): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  window.gtag("event", "github_visit", {
+    source,
+    link_url: href,
+    // The releases page serves the same .dmg as the download buttons, so this
+    // link is a real download path that never reaches trackDownload.
+    is_release_path: href.startsWith(RELEASES_URL),
   });
 }
 

@@ -50,6 +50,7 @@ const LAST_MODIFIED: Record<string, string> = {
   [vsPath("tmux")]: "2026-07-19",
   [vsPath("pm2")]: "2026-07-26",
   [vsPath("cmux")]: "2026-07-19",
+  [vsPath("iterm2")]: "2026-08-13",
   [STATS_PATH]: "2026-07-16",
   [PRIVACY_PATH]: "2026-07-08",
   [TERMS_PATH]: "2026-04-17",
