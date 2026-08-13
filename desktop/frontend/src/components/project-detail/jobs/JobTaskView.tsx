@@ -15,10 +15,14 @@ import {
   speechBlocks,
 } from "../../../tts/markdownToSpeech";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { ZoomControl } from "../../ui/ZoomControl";
+import type { ContentZoom } from "../../../hooks/useContentZoom";
 import { JobLiveOutput } from "./JobLiveOutput";
 import {
+  CheckIcon,
   ChevronLeftIcon,
   ClockIcon,
+  CopyIcon,
   StopIcon,
   TrashIcon,
 } from "../../icons";
@@ -59,6 +63,8 @@ interface JobTaskViewProps {
   // The `at` of the run entry whose conversation this page shows.
   rootAt: number;
   refreshKey: number;
+  // Reader zoom, shared with the rest of the Automations section.
+  zoom: ContentZoom;
   onBack: () => void;
   onStop: () => void;
   onChanged: () => void;
@@ -72,6 +78,7 @@ export function JobTaskView({
   job,
   rootAt,
   refreshKey,
+  zoom,
   onBack,
   onStop,
   onChanged,
@@ -247,6 +254,14 @@ export function JobTaskView({
           </h1>
           <p className="truncate text-[11px] text-[var(--text-muted)]">{meta}</p>
         </div>
+        <ZoomControl
+          percent={zoom.percent}
+          onZoomIn={zoom.zoomIn}
+          onZoomOut={zoom.zoomOut}
+          onReset={zoom.zoomReset}
+          canZoomIn={zoom.canZoomIn}
+          canZoomOut={zoom.canZoomOut}
+        />
         {job.running && (
           <button
             type="button"
@@ -273,7 +288,10 @@ export function JobTaskView({
       </div>
 
       <div
-        ref={scrollRef}
+        ref={(el) => {
+          scrollRef.current = el;
+          zoom.surfaceRef(el);
+        }}
         onScroll={() => {
           const el = scrollRef.current;
           if (el) {
@@ -288,7 +306,7 @@ export function JobTaskView({
             Loading…
           </p>
         ) : (
-          <>
+          <div style={{ zoom: zoom.zoom }}>
             <EntryBody
               entry={thread.root}
               onOpenCopy={onOpenCopy}
@@ -337,7 +355,7 @@ export function JobTaskView({
                 />
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -451,15 +469,6 @@ function EntryHeader({
   // trailing meta under its message.
   quiet?: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
-
-  const copyOutput = () => {
-    if (!entry.output) return;
-    void navigator.clipboard.writeText(entry.output);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
   const stats = [
     entry.durationSecs !== undefined && entry.durationSecs > 0
       ? formatDuration(entry.durationSecs)
@@ -479,15 +488,6 @@ function EntryHeader({
             className="text-[11px] font-medium text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
           >
             Open project
-          </button>
-        )}
-        {entry.output && (
-          <button
-            type="button"
-            onClick={copyOutput}
-            className="text-[11px] font-medium text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
-          >
-            {copied ? "Copied" : "Copy"}
           </button>
         )}
         {onRemove && (
@@ -558,15 +558,6 @@ function EntryHeader({
           Open project
         </button>
       )}
-      {entry.output && (
-        <button
-          type="button"
-          onClick={copyOutput}
-          className="shrink-0 text-[11px] font-medium text-[var(--text-muted)] opacity-0 transition-all hover:text-[var(--text-primary)] focus-visible:opacity-100 group-hover:opacity-100"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
-      )}
       {onRemove && (
         <button
           type="button"
@@ -586,7 +577,7 @@ function EntryHeader({
   );
 }
 
-/// The message body plus its read control. The block being spoken is tinted —
+/// The message body plus its actions. The block being spoken is tinted —
 /// see `speakingLineAt` for why that is approximate rather than word-exact.
 function EntryOutput({ text }: { text: string }) {
   const startReading = useTTSStore((s) => s.startReading);
@@ -602,22 +593,55 @@ function EntryOutput({ text }: { text: string }) {
   return (
     <div className="mt-2">
       <MessageMarkdown text={text} speakingLine={speakingLine} />
-      <ReadAloudButton text={text} spoken={spoken} reading={reading} onStart={startReading} />
+      {/* Actions on the message itself, in their own row under the body rather
+          than in the hover meta row — that row is metadata about the run. */}
+      <div className="mt-1.5 flex items-center gap-0.5">
+        <CopyMessageButton text={text} />
+        <ReadAloudButton spoken={spoken} reading={reading} onStart={startReading} />
+      </div>
     </div>
   );
 }
 
-/// Read-aloud control for one message, in its own row under the body rather
-/// than in the hover meta row — this is a primary action on the content, not
-/// metadata about the run. Doubles as stop while this message is the one being
-/// read, with the speed picker alongside it for as long as it plays; hidden
-/// entirely until reading is turned on in Settings.
+/// Copies the message as written — markdown source, so links and structure
+/// survive a paste into another agent or a doc.
+function CopyMessageButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void navigator.clipboard.writeText(text);
+        setCopied(true);
+      }}
+      title={copied ? "Copied" : "Copy message"}
+      aria-label={copied ? "Copied" : "Copy message"}
+      className={`-ml-1 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-secondary)] ${
+        copied
+          ? "text-[var(--accent-green)]"
+          : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+      }`}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon size={15} />}
+    </button>
+  );
+}
+
+/// Doubles as stop while this message is the one being read, with the speed
+/// picker alongside it for as long as it plays; hidden entirely until reading
+/// is turned on in Settings.
 function ReadAloudButton({
   spoken,
   reading,
   onStart,
 }: {
-  text: string;
   spoken: string;
   reading: boolean;
   onStart: (text: string) => Promise<void>;
@@ -629,13 +653,13 @@ function ReadAloudButton({
   if (!enabled) return null;
 
   return (
-    <div className="mt-1.5 flex items-center gap-0.5">
+    <>
       <button
         type="button"
         onClick={() => (reading ? stopReading() : void onStart(spoken))}
         title={reading ? "Stop reading" : "Read aloud"}
         aria-label={reading ? "Stop reading" : "Read aloud"}
-        className={`-ml-1 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-secondary)] ${
+        className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-secondary)] ${
           reading ? "text-[var(--accent-blue)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
         }`}
       >
@@ -644,7 +668,7 @@ function ReadAloudButton({
       {reading && (
         <TTSSpeedMenu className="rounded-md px-1.5 py-1 text-[11px] font-medium tabular-nums text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)] data-[open=true]:bg-[var(--bg-secondary)] data-[open=true]:text-[var(--text-primary)]" />
       )}
-    </div>
+    </>
   );
 }
 

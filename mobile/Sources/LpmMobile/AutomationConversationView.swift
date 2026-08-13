@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// One run of an automation as a conversation: what it was asked, what it said,
 /// and the replies that continued it.
@@ -165,20 +166,53 @@ private struct AutomationMessage: View {
             if !quiet { AutomationMessageMeta(entry: entry) }
             if !entry.output.isEmpty {
                 MarkdownText(entry.output, speakingBlock: isReading ? model.speech.speakingBlock : nil)
-                Button {
-                    model.speech.toggle(id: sourceID, title: title, subtitle: subtitle,
-                                        markdown: entry.output)
-                } label: {
-                    Image(systemName: isReading ? "stop.circle" : "speaker.wave.2")
-                        .font(.system(size: 14))
-                        .foregroundStyle(isReading ? Color.accentColor : Color.secondary)
-                        .frame(width: 30, height: 28, alignment: .leading)
-                        .contentShape(Rectangle())
+                HStack(spacing: 0) {
+                    AutomationCopyButton(text: entry.output)
+                    Button {
+                        model.speech.toggle(id: sourceID, title: title, subtitle: subtitle,
+                                            markdown: entry.output)
+                    } label: {
+                        Image(systemName: isReading ? "stop.circle" : "speaker.wave.2")
+                            .font(.system(size: 14))
+                            .foregroundStyle(isReading ? Color.accentColor : Color.secondary)
+                            .frame(width: 30, height: 28, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isReading ? "Stop reading" : "Read aloud")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isReading ? "Stop reading" : "Read aloud")
             }
             if quiet { AutomationMessageMeta(entry: entry) }
+        }
+    }
+}
+
+/// Copies the message as written — markdown source, so links and structure
+/// survive a paste elsewhere. The checkmark is the only confirmation the copy
+/// landed, so it holds long enough to be read after the thumb lifts.
+private struct AutomationCopyButton: View {
+    let text: String
+
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            UIPasteboard.general.string = text
+            copied = true
+            Haptics.tap()
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 14))
+                .foregroundStyle(copied ? Color.accentColor : Color.secondary)
+                .frame(width: 30, height: 28, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(copied ? "Copied" : "Copy message")
+        .task(id: copied) {
+            guard copied else { return }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            copied = false
         }
     }
 }

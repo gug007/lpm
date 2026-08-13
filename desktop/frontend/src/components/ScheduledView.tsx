@@ -12,9 +12,11 @@ import {
   StopJobRun,
 } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
+import { useContentZoom } from "../hooks/useContentZoom";
 import { ClockIcon, PlusIcon } from "./icons";
 import { CountBadge } from "./ui/CountBadge";
 import { EmptyState } from "./ui/EmptyState";
+import { ZoomControl } from "./ui/ZoomControl";
 import { deleteJob, deleteJobGlobal } from "../jobsConfig";
 import type { JobInfo } from "../jobsFormat";
 import { isUnread, jobScopeLabel, sortJobsForList } from "../jobsList";
@@ -30,6 +32,10 @@ import { RunProjectsDialog } from "./project-detail/jobs/RunProjectsDialog";
 
 type Editing = { mode: "new" } | { mode: "edit"; project: string; job: JobInfo } | null;
 
+// One reader zoom for the whole section — the list, a job's runs, and a run's
+// conversation all read at the level the user last picked.
+const ZOOM_KEY = "lpm.automations-zoom";
+
 export function ScheduledView() {
   const projects = useAppStore((s) => s.projects);
   const selectProject = useAppStore((s) => s.selectProject);
@@ -43,6 +49,8 @@ export function ScheduledView() {
   // A multi-project job awaiting the "which projects?" pick before a manual run.
   const [runPick, setRunPick] = useState<ScheduledJob | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // The job editor has its own text surfaces, so it takes ⌘+/⌘− back while open.
+  const zoom = useContentZoom(editing === null, ZOOM_KEY);
 
   const refetch = useCallback(async () => {
     try {
@@ -250,6 +258,7 @@ export function ScheduledView() {
         job={openJob}
         rootAt={openTask}
         refreshKey={refreshKey}
+        zoom={zoom}
         onBack={() => setOpenTask(null)}
         onStop={() => stopRun(open.project, openJob.id)}
         onChanged={() => void refetch()}
@@ -265,6 +274,7 @@ export function ScheduledView() {
           project={open.project}
           job={openJob}
           refreshKey={refreshKey}
+          zoom={zoom}
           onBack={() => setOpen(null)}
           onEdit={() =>
             setEditing({ mode: "edit", project: open.project, job: openJob })
@@ -311,6 +321,16 @@ export function ScheduledView() {
           <CountBadge count={unreadCount} label="unread automations" size="md" />
         </h1>
         <div className="flex-1" />
+        {rows !== null && rows.length > 0 && (
+          <ZoomControl
+            percent={zoom.percent}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onReset={zoom.zoomReset}
+            canZoomIn={zoom.canZoomIn}
+            canZoomOut={zoom.canZoomOut}
+          />
+        )}
         {unreadCount > 0 && (
           <button
             type="button"
@@ -335,7 +355,10 @@ export function ScheduledView() {
           : "Every scheduled job across your projects, in one place."}
       </p>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4">
+      <div
+        ref={zoom.surfaceRef}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
+      >
         {error ? (
           <EmptyState title="Couldn't load scheduled jobs" body={error} />
         ) : rows === null ? (
@@ -358,7 +381,7 @@ export function ScheduledView() {
             </button>
           </EmptyState>
         ) : (
-          <div className="-mx-1 space-y-4">
+          <div className="-mx-1 space-y-4" style={{ zoom: zoom.zoom }}>
             {unreadRows.length > 0 && (
               <section key="unread">
                 <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">

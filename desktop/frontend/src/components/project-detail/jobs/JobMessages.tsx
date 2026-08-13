@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import { DeleteJobHistory, JobHistory } from "../../../../bridge/commands";
 import { Switch } from "../../ui/Switch";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { ZoomControl } from "../../ui/ZoomControl";
+import type { ContentZoom } from "../../../hooks/useContentZoom";
 import {
   ChevronLeftIcon,
   ClockIcon,
@@ -30,6 +32,8 @@ interface JobMessagesProps {
   project: string;
   job: JobInfo;
   refreshKey: number;
+  // Reader zoom, shared with the rest of the Automations section.
+  zoom: ContentZoom;
   onBack: () => void;
   onEdit: () => void;
   onRunNow: () => void;
@@ -55,6 +59,7 @@ export function JobMessages({
   project,
   job,
   refreshKey,
+  zoom,
   onBack,
   onEdit,
   onRunNow,
@@ -142,6 +147,14 @@ export function JobMessages({
           </h1>
           <p className="truncate text-[11px] text-[var(--text-muted)]">{meta}</p>
         </div>
+        <ZoomControl
+          percent={zoom.percent}
+          onZoomIn={zoom.zoomIn}
+          onZoomOut={zoom.zoomOut}
+          onReset={zoom.zoomReset}
+          canZoomIn={zoom.canZoomIn}
+          canZoomOut={zoom.canZoomOut}
+        />
         {job.running ? (
           <button
             type="button"
@@ -199,7 +212,10 @@ export function JobMessages({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4">
+      <div
+        ref={zoom.surfaceRef}
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
+      >
         {!job.valid ? (
           <p className="py-10 text-center text-[12px] text-[var(--accent-red)]">
             {job.error || "This job can't run — edit it to fix its settings."}
@@ -213,7 +229,7 @@ export function JobMessages({
             No runs yet — use Run now to try it.
           </p>
         ) : (
-          <div className="-mx-2">
+          <div className="-mx-2" style={{ zoom: zoom.zoom }}>
             {job.running && (
               <div className="px-2 pb-2">
                 <div className="flex items-center gap-3 py-3">
