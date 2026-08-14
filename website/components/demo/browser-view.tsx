@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import {
   ChevronLeft,
   ChevronRight,
@@ -115,14 +116,18 @@ const NAV_BTN =
 export function BrowserView({
   project,
   runningServices,
+  initialUrl,
 }: {
   project: DemoProject;
   runningServices: Set<string>;
+  initialUrl?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [address, setAddress] = useState("");
-  const [history, setHistory] = useState<string[]>([]);
-  const [histIdx, setHistIdx] = useState(-1);
+  const [address, setAddress] = useState(initialUrl ?? "");
+  const [history, setHistory] = useState<string[]>(
+    initialUrl ? [initialUrl] : [],
+  );
+  const [histIdx, setHistIdx] = useState(initialUrl ? 0 : -1);
   const [nav, setNav] = useState(0);
   const [dark, setDark] = useState(true);
 
@@ -196,7 +201,7 @@ export function BrowserView({
         <button className={NAV_BTN} onClick={reload} title="Reload" aria-label="Reload">
           <RotateCw className="h-4 w-4" />
         </button>
-        <form onSubmit={go} className="relative flex-1">
+        <form onSubmit={go} autoComplete="off" className="relative flex-1">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#7e7e7e]">
             {url ? (
               secure ? (
@@ -212,9 +217,7 @@ export function BrowserView({
             ref={inputRef}
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            spellCheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
+            {...NO_AUTOFILL}
             placeholder="Search Google or enter a URL…"
             className="h-7 w-full rounded-md border border-[#2e2e2e] bg-[#1a1a1a] pl-7 pr-2.5 text-xs text-[#e5e5e5] outline-none placeholder:text-[#7e7e7e] focus:border-[#5a5a5a]"
           />
@@ -234,7 +237,7 @@ export function BrowserView({
       </div>
 
       <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: c.bg }}>
-        <LoadingBar key={nav} accent={c.accent} />
+        <LoadingBar key={`bar-${nav}`} accent={c.accent} />
         {!parsed ? (
           <EmptyState
             c={c}
@@ -243,7 +246,7 @@ export function BrowserView({
             onFocus={() => inputRef.current?.focus()}
           />
         ) : (
-          <div key={nav} className="absolute inset-0 overflow-auto">
+          <div key={`page-${nav}`} className="absolute inset-0 overflow-auto">
             <Page
               parsed={parsed}
               project={project}

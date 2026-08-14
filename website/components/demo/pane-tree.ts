@@ -4,7 +4,7 @@ export type LeafContent =
   | { kind: "service"; name: string }
   | { kind: "shell"; id: string; label?: string; emoji?: string; pinned?: boolean }
   | { kind: "action"; key: string; label: string; emoji?: string; pinned?: boolean }
-  | { kind: "browser"; id: string; label?: string; pinned?: boolean }
+  | { kind: "browser"; id: string; label?: string; pinned?: boolean; url?: string }
   | { kind: "review"; id: string; pinned?: boolean };
 
 export interface PaneLeaf {
@@ -52,8 +52,12 @@ export function pickTerminalLabel(node: PaneNode | null): string {
   return `Terminal ${n}`;
 }
 
-export function newBrowserContent(): LeafContent {
-  return { kind: "browser", id: `br-${Date.now().toString(36)}-${rand(4)}` };
+export function newBrowserContent(url?: string): LeafContent {
+  return {
+    kind: "browser",
+    id: `br-${Date.now().toString(36)}-${rand(4)}`,
+    ...(url ? { url } : {}),
+  };
 }
 
 export function newReviewContent(): LeafContent {

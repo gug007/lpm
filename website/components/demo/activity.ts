@@ -1,4 +1,5 @@
 import type { AgentStatus } from "./agent-terminal";
+import type { AgentTabState } from "./project-view";
 import type { DemoJob } from "./automations";
 import type { AiStatus, DemoProject } from "./projects";
 
@@ -43,7 +44,7 @@ export type ActivityInput = {
   projects: DemoProject[];
   runningByProject: Record<string, Set<string>>;
   aiStatusByProject: Record<string, AiStatus>;
-  agentTabStatusByProject: Record<string, Record<string, AgentStatus>>;
+  agentTabStatusByProject: Record<string, Record<string, AgentTabState>>;
   jobs: DemoJob[];
 };
 
@@ -64,15 +65,14 @@ export function activityRows({
     const tabKeys = Object.keys(tabs);
 
     for (const key of tabKeys) {
-      const action = project.actions.find((a) => a.name === key);
       rows.push({
         id: `agent:${project.name}:${key}`,
         kind: "agent",
         project: project.name,
         projectLabel: label,
-        title: action?.label ?? key,
+        title: tabs[key].label,
         detail: project.root,
-        state: agentState(tabs[key]),
+        state: agentState(tabs[key].status),
       });
     }
 

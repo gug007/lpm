@@ -1,82 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
+import { useStickToBottom } from "./use-stick-to-bottom";
 import { History, Mic, Plus, Send, Sparkles, Square } from "lucide-react";
 import type { ReplyContext } from "./projects";
 import { FOCUS_RING, useReducedMotion } from "./ui";
+import {
+  BRAND,
+  DONE_STEPS,
+  GENERIC_REPLY_CONTEXT,
+  IN_PROGRESS_STEPS,
+  SUGGESTIONS,
+  buildReply,
+  keepAliveSteps,
+  settleStep,
+  stepDelay,
+  type AgentKind,
+  type AgentStep as Step,
+  type ReplyIntent,
+} from "./agent-script";
 
-export type AgentKind = "claude" | "codex";
 export type AgentStatus = "running" | "done";
-
-type Brand = {
-  glyph: string;
-  color: string;
-  prompt: string;
-  bullet: string;
-  title: string;
-  help: string;
-  name: string;
-};
-
-const BRAND: Record<AgentKind, Brand> = {
-  claude: {
-    glyph: "✻",
-    color: "text-fuchsia-300",
-    prompt: ">",
-    bullet: "●",
-    title: "Welcome to Claude Code!",
-    help: "/help for help · /status for your setup",
-    name: "Claude Code",
-  },
-  codex: {
-    glyph: "◆",
-    color: "text-cyan-300",
-    prompt: "▶",
-    bullet: "▸",
-    title: "Codex CLI · ready",
-    help: "/help · /model · /resume",
-    name: "Codex",
-  },
-};
-
-// A canned session that streams agent work and then holds on a live "Thinking…"
-// spinner — used to show a project mid-task ("in progress") the moment you open
-// it. It never resolves on its own, so the sidebar stays in the running state.
-const IN_PROGRESS_STEPS: Step[] = [
-  { kind: "thinking" },
-  { kind: "tool", label: "Read", arg: "internal/auth/jwt.go", result: "212 lines" },
-  { kind: "tool", label: "Grep", arg: "RotateSigningKey", result: "6 matches" },
-  {
-    kind: "text",
-    text: "Rotating the signing key on a schedule and keeping a grace window so in-flight tokens stay valid.",
-  },
-  { kind: "tool", label: "Edit", arg: "internal/auth/rotation.go", result: "+48 -6" },
-  { kind: "tool", label: "Bash", arg: "go test ./internal/auth/...", result: "running…" },
-  { kind: "thinking" },
-];
-
-// A finished session — shown fully revealed when a project opens with work
-// already complete.
-const DONE_STEPS: Step[] = [
-  { kind: "thinking" },
-  { kind: "tool", label: "Glob", arg: "src/pages/api/**/*.ts", result: "24 routes" },
-  { kind: "tool", label: "Read", arg: "src/content/reference.mdx", result: "88 lines" },
-  { kind: "tool", label: "Write", arg: "src/content/reference.mdx", result: "+312 -74" },
-  {
-    kind: "text",
-    text: "Regenerated the API reference from the current routes — 24 endpoints grouped by resource, each with request and response examples.",
-  },
-  {
-    kind: "text",
-    text: "The dev server hot-reloaded; the updated page is live at /reference.",
-    style: "muted",
-  },
-];
-
-type Step =
-  | { kind: "thinking" }
-  | { kind: "tool"; label: string; arg: string; result: string }
-  | { kind: "text"; text: string; style?: "default" | "muted" };
 
 type HistoryItem = {
   id: number;
@@ -84,210 +29,29 @@ type HistoryItem = {
   revealed: number;
   steps: Step[];
   finished: boolean;
+  keepBusy?: boolean;
 };
 
 const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const MAX_HISTORY = 30;
-const SUGGESTED_PROMPT = "Explain what this project does";
-const STICK_THRESHOLD_PX = 24;
+// How long a seeded "still working" session runs before it lands.
+const KEEP_ALIVE_MS = 5200;
+const SETTLE_AFTER_MS = 32000;
 
-function useSpinnerFrame(active: boolean): string {
+// Its own component so the 80ms tick re-renders one span, not the whole
+// transcript — every mounted project has a session that may be spinning.
+function Spinner() {
   const [i, setI] = useState(0);
   const reducedMotion = useReducedMotion();
   useEffect(() => {
-    if (!active || reducedMotion) return;
+    if (reducedMotion) return;
     const id = window.setInterval(
       () => setI((v) => (v + 1) % SPINNER.length),
       80,
     );
     return () => window.clearInterval(id);
-  }, [active, reducedMotion]);
-  return reducedMotion ? SPINNER[0] : SPINNER[i];
-}
-
-const GENERIC_REPLY_CONTEXT: ReplyContext = {
-  manifest: "README.md",
-  manifestLines: "64 lines",
-  sourceGlob: "**/*",
-  sourceMatches: "37 matches",
-  overview: "Fresh project — nothing indexed yet beyond the files on disk.",
-  flows: "Point me at what you're building and I'll dig in.",
-  testCmd: "make test",
-  testResult: "no tests configured",
-  testSummary: "No test suite wired up yet. Want me to scaffold one?",
-  focusFile: "README.md",
-  focusLines: "64 lines",
-  focusArea: "this project",
-  hotspotDir: "./",
-  deployFile: "README.md",
-  deployCmd: "make deploy",
-  draftFile: "src/new-feature.ts",
-  wireTarget: "the entry point",
-};
-
-function buildReply(
-  query: string,
-  agent: AgentKind,
-  ctx: ReplyContext = GENERIC_REPLY_CONTEXT,
-): Step[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-
-  if (/^(hi|hello|hey|yo)\b/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "text",
-        text:
-          agent === "claude"
-            ? "Hey! What can I help you with in this project?"
-            : "Hi. What do you want to work on?",
-      },
-    ];
-  }
-
-  if (/what (is|does)|explain|tell me|overview|summary|describe/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "tool",
-        label: "Read",
-        arg: ctx.manifest,
-        result: ctx.manifestLines,
-      },
-      { kind: "tool", label: "Read", arg: "README.md", result: "108 lines" },
-      {
-        kind: "tool",
-        label: "Glob",
-        arg: ctx.sourceGlob,
-        result: ctx.sourceMatches,
-      },
-      { kind: "text", text: ctx.overview },
-      { kind: "text", text: "", style: "muted" },
-      { kind: "text", text: ctx.flows },
-    ];
-  }
-
-  if (/test|spec|vitest|jest|rspec/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "tool",
-        label: "Bash",
-        arg: ctx.testCmd,
-        result: ctx.testResult,
-      },
-      { kind: "text", text: ctx.testSummary },
-    ];
-  }
-
-  if (/fix|bug|error|failing|broken|crash/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "tool",
-        label: "Grep",
-        arg: "TODO|FIXME",
-        result: "3 matches",
-      },
-      {
-        kind: "tool",
-        label: "Read",
-        arg: ctx.focusFile,
-        result: ctx.focusLines,
-      },
-      {
-        kind: "text",
-        text:
-          agent === "claude"
-            ? `Found 3 TODOs in ${ctx.focusArea}. Want me to patch them or walk you through what each one is blocking?`
-            : `3 TODOs in ${ctx.focusArea}. I can draft a patch or leave them as-is — which?`,
-      },
-    ];
-  }
-
-  if (/deploy|ship|release|production/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "tool",
-        label: "Bash",
-        arg: "git status --porcelain",
-        result: "clean",
-      },
-      { kind: "tool", label: "Read", arg: ctx.deployFile, result: "68 lines" },
-      {
-        kind: "text",
-        text: `Tree is clean. I can run \`${ctx.deployCmd}\` when you're ready — but you'll want to run the full test suite first.`,
-      },
-    ];
-  }
-
-  if (/refactor|clean|simplify|rewrite/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "tool",
-        label: "Glob",
-        arg: ctx.sourceGlob,
-        result: ctx.sourceMatches,
-      },
-      {
-        kind: "text",
-        text: `Scanning for duplication and long functions. A few hotspots jump out in \`${ctx.hotspotDir}\` — want me to propose a refactor plan before touching anything?`,
-      },
-    ];
-  }
-
-  if (/add|implement|build|create|new/.test(q)) {
-    return [
-      { kind: "thinking" },
-      {
-        kind: "tool",
-        label: "Read",
-        arg: ctx.focusFile,
-        result: ctx.focusLines,
-      },
-      { kind: "tool", label: "Write", arg: ctx.draftFile, result: "draft" },
-      {
-        kind: "text",
-        text: `Drafted a skeleton in \`${ctx.draftFile}\`. Want me to wire it up into ${ctx.wireTarget} next?`,
-      },
-    ];
-  }
-
-  if (/document|docs|readme|comments/.test(q)) {
-    return [
-      { kind: "thinking" },
-      { kind: "tool", label: "Read", arg: "README.md", result: "108 lines" },
-      {
-        kind: "text",
-        text: "README covers setup but the API section is stale. I can regenerate it from the current routes if that's useful.",
-      },
-    ];
-  }
-
-  if (/^(thanks|thank you|ok|okay|cool|great|nice|perfect)\b/.test(q)) {
-    return [{ kind: "text", text: agent === "claude" ? "Anytime." : "👍" }];
-  }
-
-  return [
-    { kind: "thinking" },
-    { kind: "tool", label: "Read", arg: ctx.manifest, result: "ok" },
-    {
-      kind: "text",
-      text:
-        agent === "claude"
-          ? "Got it — taking a look. Want me to just describe the plan, or go ahead and make the change?"
-          : "Looking now. Draft a plan or apply changes directly?",
-    },
-  ];
-}
-
-function stepDelay(step: Step): number {
-  if (step.kind === "thinking") return 650;
-  if (step.kind === "tool") return 380;
-  return step.text ? 260 : 90;
+  }, [reducedMotion]);
+  return <>{reducedMotion ? SPINNER[0] : SPINNER[i]}</>;
 }
 
 type AgentTerminalProps = {
@@ -300,6 +64,7 @@ type AgentTerminalProps = {
   // working); "done" shows the reply already finished (work already complete).
   autoPrompt?: string;
   autoMode?: "progress" | "done";
+  autoSteps?: Step[];
 };
 
 export function AgentTerminal({
@@ -309,78 +74,108 @@ export function AgentTerminal({
   onStatus,
   autoPrompt,
   autoMode = "progress",
+  autoSteps,
 }: AgentTerminalProps) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  // Reading back through the transcript must survive the next streamed step,
-  // so the view only follows the tail while it is already at the bottom.
-  const stickRef = useRef(true);
+  const { ref: scrollRef, onScroll } = useStickToBottom<HTMLDivElement>([
+    history,
+    busy,
+  ]);
   const nextIdRef = useRef(0);
-  // Streamed steps arrive on timers; interrupting a turn has to cancel them
-  // or the dead turn keeps appending over the next one.
-  const timersRef = useRef<number[]>([]);
-  const clearTimers = () => {
-    timersRef.current.forEach(window.clearTimeout);
-    timersRef.current = [];
-  };
-  useEffect(() => clearTimers, []);
+  const pendingRef = useRef<ReplyIntent | undefined>(undefined);
+  const keepAliveIdxRef = useRef(0);
   const onStatusRef = useRef(onStatus);
   useEffect(() => {
     onStatusRef.current = onStatus;
   });
 
-  const spinner = useSpinnerFrame(busy);
+  const ctx = replyContext ?? GENERIC_REPLY_CONTEXT;
 
   const runQuery = (
     text: string,
     opts?: { steps?: Step[]; keepBusy?: boolean },
   ) => {
-    const steps = opts?.steps ?? buildReply(text, agent, replyContext);
+    let steps = opts?.steps;
+    if (!steps) {
+      const reply = buildReply(text, agent, ctx, pendingRef.current);
+      steps = reply.steps;
+      pendingRef.current = reply.intent;
+    }
     if (steps.length === 0) return;
-    clearTimers();
-    stickRef.current = true;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
     setHistory((h) => {
-      const next = [...h, { id, query: text, revealed: 0, steps, finished: false }];
+      const next = [
+        ...h,
+        {
+          id,
+          query: text,
+          revealed: 0,
+          steps,
+          finished: false,
+          keepBusy: opts?.keepBusy,
+        },
+      ];
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
     });
     setBusy(true);
     onStatusRef.current?.("running");
-
-    let acc = 0;
-    steps.forEach((step, i) => {
-      acc += stepDelay(step);
-      const isLast = i === steps.length - 1;
-      timersRef.current.push(
-        window.setTimeout(() => {
-          setHistory((h) =>
-            h.map((item) =>
-              item.id === id ? { ...item, revealed: i + 1 } : item,
-            ),
-          );
-          // keepBusy leaves the session on its final live spinner (still
-          // "running") instead of settling — an agent that stays mid-task.
-          if (isLast && !opts?.keepBusy) {
-            timersRef.current.push(
-              window.setTimeout(() => {
-                setHistory((h) =>
-                  h.map((item) =>
-                    item.id === id ? { ...item, finished: true } : item,
-                  ),
-                );
-                setBusy(false);
-                onStatusRef.current?.("done");
-              }, 220),
-            );
-          }
-        }, acc),
-      );
-    });
   };
+
+  // One pending timer at a time, re-derived from the transcript: closing the
+  // tab or interrupting cancels the reveal instead of leaving timers to report
+  // a status for a turn that is already over.
+  useEffect(() => {
+    const item = history[history.length - 1];
+    if (!item || item.finished) return;
+
+    const patch = (fn: (x: HistoryItem) => HistoryItem) =>
+      setHistory((h) => h.map((x) => (x.id === item.id ? fn(x) : x)));
+
+    const finish = (closing?: Step) => {
+      patch((x) => ({
+        ...x,
+        finished: true,
+        keepBusy: false,
+        steps: closing ? [...x.steps, closing] : x.steps,
+        revealed: x.steps.length + (closing ? 1 : 0),
+      }));
+      setBusy(false);
+      onStatusRef.current?.("done");
+    };
+
+    const after = (ms: number, fn: () => void) => {
+      const id = window.setTimeout(fn, ms);
+      return () => window.clearTimeout(id);
+    };
+
+    if (item.revealed < item.steps.length) {
+      return after(stepDelay(item.steps[item.revealed]), () =>
+        patch((x) => ({ ...x, revealed: x.revealed + 1 })),
+      );
+    }
+
+    if (!item.keepBusy) return after(220, () => finish());
+
+    // A seeded session keeps working rather than freezing on one spinner:
+    // more steps trickle in, then it lands so the sidebar badge can flip.
+    const alive = keepAliveSteps(ctx);
+    const extra = keepAliveIdxRef.current;
+    if (extra >= alive.length) {
+      return after(SETTLE_AFTER_MS, () => finish(settleStep(ctx)));
+    }
+    return after(KEEP_ALIVE_MS, () => {
+      keepAliveIdxRef.current = extra + 1;
+      patch((x) => ({
+        ...x,
+        steps: [...x.steps, alive[extra]],
+        revealed: x.steps.length,
+      }));
+    });
+  }, [history, ctx]);
 
   const startedRef = useRef(false);
   useEffect(() => {
@@ -389,7 +184,10 @@ export function AgentTerminal({
     // The agent launches idle, awaiting your first prompt — unless it opens
     // with work in flight (progress) or already finished (done) via autoPrompt.
     if (autoPrompt && autoMode === "progress") {
-      runQuery(autoPrompt, { steps: IN_PROGRESS_STEPS, keepBusy: true });
+      runQuery(autoPrompt, {
+        steps: autoSteps ?? IN_PROGRESS_STEPS,
+        keepBusy: true,
+      });
     } else if (autoPrompt && autoMode === "done") {
       nextIdRef.current += 1;
       setHistory([
@@ -401,26 +199,16 @@ export function AgentTerminal({
           finished: true,
         },
       ]);
+      // Without this the finished session never reports itself, so its sidebar
+      // badge disappears for good the first time the project is opened.
+      onStatusRef.current?.("done");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [history, input, busy]);
-
-  const onScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    stickRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX;
-  };
-
   // Mirrors the app's interrupt: the turn in flight settles where it stands
   // and the composer is free again.
   const stop = () => {
-    clearTimers();
     setHistory((h) =>
       h.map((item) => (item.finished ? item : { ...item, finished: true })),
     );
@@ -496,7 +284,7 @@ export function AgentTerminal({
                 return (
                   <div key={i} className={brandColor}>
                     <span className="inline-block w-3 tabular-nums">
-                      {active ? spinner : "✓"}
+                      {active ? <Spinner /> : "✓"}
                     </span>
                     <span className="ml-1">Thinking…</span>
                   </div>
@@ -533,7 +321,24 @@ export function AgentTerminal({
 
       </div>
       <div className="shrink-0 border-t border-[#2e2e2e] px-3 py-2">
-        <form onSubmit={onSubmit}>
+        {history.length === 0 && !busy && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {SUGGESTIONS.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => {
+                  setInput("");
+                  runQuery(suggestion);
+                }}
+                className={`rounded-full border border-[#2e2e2e] bg-[#202020] px-2.5 py-1 text-[10px] transition-colors hover:bg-[#2a2a2a] ${brandColor} ${FOCUS_RING}`}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+        <form onSubmit={onSubmit} autoComplete="off">
           <div className="rounded-lg border border-[#2e2e2e] bg-[#202020] px-2.5 py-2 transition-colors focus-within:border-[#3a3a3a]">
             <input
               ref={inputRef}
@@ -543,12 +348,7 @@ export function AgentTerminal({
               placeholder={
                 busy ? "Working… press Stop to interrupt" : `Send to ${agentName}…`
               }
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
-              data-1p-ignore
-              data-lpignore="true"
+              {...NO_AUTOFILL}
               className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100"
             />
             <div className="mt-1.5 flex items-center justify-end gap-0.5">
@@ -560,7 +360,7 @@ export function AgentTerminal({
               </span>
               <ComposerIcon
                 title="Suggest a prompt"
-                onClick={() => fillInput(SUGGESTED_PROMPT)}
+                onClick={() => fillInput(SUGGESTIONS[0])}
               >
                 <Sparkles className="h-3.5 w-3.5" />
               </ComposerIcon>

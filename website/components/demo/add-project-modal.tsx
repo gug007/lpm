@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import {
   ChevronDown,
   ChevronLeft,
@@ -393,6 +394,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
           </p>
 
           <form
+            autoComplete="off"
             className="mt-4 flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
@@ -408,9 +410,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 value={host}
                 onChange={(e) => setHost(e.target.value)}
                 placeholder="example.com or 10.0.0.5"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
+                {...NO_AUTOFILL}
                 className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
             </label>
@@ -424,9 +424,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   value={user}
                   onChange={(e) => setUser(e.target.value)}
                   placeholder="root"
-                  spellCheck={false}
-                  autoCapitalize="off"
-                  autoCorrect="off"
+                  {...NO_AUTOFILL}
                   className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
                 />
               </label>
@@ -439,7 +437,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   onChange={(e) => setPort(e.target.value)}
                   placeholder="22"
                   inputMode="numeric"
-                  spellCheck={false}
+                  {...NO_AUTOFILL}
                   className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
                 />
               </label>
@@ -453,9 +451,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="my-server"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
+                {...NO_AUTOFILL}
                 className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
             </label>
@@ -511,6 +507,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
           </p>
 
           <form
+            autoComplete="off"
             className="mt-4 flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
@@ -526,9 +523,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://github.com/owner/repo.git"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
+                {...NO_AUTOFILL}
                 className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
               <span className="text-[10px] text-[#8a8a8a]">
@@ -591,9 +586,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   setName(e.target.value);
                 }}
                 placeholder="my-repo"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
+                {...NO_AUTOFILL}
                 className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
               />
             </label>
@@ -621,9 +614,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                     value={branch}
                     onChange={(e) => setBranch(e.target.value)}
                     placeholder="main"
-                    spellCheck={false}
-                    autoCapitalize="off"
-                    autoCorrect="off"
+                    {...NO_AUTOFILL}
                     className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
                   />
                   <span className="text-[10px] text-[#8a8a8a]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import type { DemoBranch, DemoGit } from "./projects";
 
 const ICON_PROPS = {
@@ -260,11 +261,13 @@ export function DemoBranchSwitcher({
   const searchRef = useRef<HTMLInputElement>(null);
   const newBranchRef = useRef<HTMLInputElement>(null);
   const pullCloseTimer = useRef<number | null>(null);
+  const genTimer = useRef<number | null>(null);
   const genIdxRef = useRef(0);
 
   const generateBranchName = () => {
     setGeneratingName(true);
-    window.setTimeout(() => {
+    if (genTimer.current) window.clearTimeout(genTimer.current);
+    genTimer.current = window.setTimeout(() => {
       const suggestion =
         AI_BRANCH_SUGGESTIONS[genIdxRef.current % AI_BRANCH_SUGGESTIONS.length];
       genIdxRef.current += 1;
@@ -275,6 +278,12 @@ export function DemoBranchSwitcher({
   };
 
   const closeBranchMenu = () => {
+    // Otherwise the pending suggestion lands in — and refocuses — a menu the
+    // visitor already dismissed.
+    if (genTimer.current) {
+      window.clearTimeout(genTimer.current);
+      genTimer.current = null;
+    }
     setBranchOpen(false);
     setQuery("");
     setCreating(false);
@@ -306,6 +315,7 @@ export function DemoBranchSwitcher({
 
   useEffect(() => () => {
     if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
+    if (genTimer.current) window.clearTimeout(genTimer.current);
   }, []);
 
   const openPullMenu = () => {
@@ -421,9 +431,7 @@ export function DemoBranchSwitcher({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search branches"
-                spellCheck={false}
-                autoCapitalize="off"
-                autoCorrect="off"
+                {...NO_AUTOFILL}
                 className="w-full rounded-md bg-[#1a1a1a] px-2 py-1 text-[11px] text-[#e5e5e5] placeholder:text-[#919191] outline-none border border-transparent focus:border-[#3a3a3a]"
               />
             </div>
@@ -452,6 +460,7 @@ export function DemoBranchSwitcher({
                         <BranchIcon />
                         <input
                           autoFocus
+                          {...NO_AUTOFILL}
                           value={renameValue}
                           onChange={(e) => setRenameValue(e.target.value)}
                           aria-label={`New name for branch ${b.name}`}
@@ -573,9 +582,7 @@ export function DemoBranchSwitcher({
                       value={newBranchName}
                       onChange={(e) => setNewBranchName(e.target.value)}
                       placeholder="new-branch-name"
-                      spellCheck={false}
-                      autoCapitalize="off"
-                      autoCorrect="off"
+                      {...NO_AUTOFILL}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();

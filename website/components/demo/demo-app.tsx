@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -38,9 +37,9 @@ import {
   DemoProjectView,
   initialPaneState,
   type ActionTerminalMap,
+  type AgentTabState,
 } from "./project-view";
 import type { PaneNode } from "./pane-tree";
-import type { AgentStatus } from "./agent-terminal";
 import { GlobalTerminalsView } from "./global-terminals-view";
 import { SettingsView } from "./settings-view";
 import {
@@ -53,6 +52,12 @@ type DemoAppProps = {
   heightCss?: string;
   heightCssSm?: string;
 };
+
+type HintStage = "invite" | "next" | "hidden";
+
+const EMPTY_SERVICES: ReadonlySet<string> = new Set<string>();
+const EMPTY_ACTIONS: ActionTerminalMap = {};
+const EMPTY_STATUS: Record<string, AgentTabState> = {};
 
 type AutoCursorState =
   | { phase: "hidden" }
@@ -193,29 +198,33 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     Record<string, ActionTerminalMap>
   >(() => initialActionTerminalState(INITIAL_PROJECTS));
   const [agentTabStatusByProject, setAgentTabStatusByProject] = useState<
-    Record<string, Record<string, AgentStatus>>
+    Record<string, Record<string, AgentTabState>>
   >({});
   const [view, setView] = useState<DemoView>("project");
   const [jobs, setJobs] = useState<DemoJob[]>(INITIAL_JOBS);
   const [usageSettings, setUsageSettings] =
     useState<UsageSidebarSettings>(DEFAULT_USAGE_SETTINGS);
   const [adding, setAdding] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
+  const [visited, setVisited] = useState<Set<string>>(
+    () => new Set([INITIAL_PROJECTS[0].name]),
+  );
   const [autoCursor, setAutoCursor] = useState<AutoCursorState>({
     phase: "hidden",
   });
   const [ringPulseOn, setRingPulseOn] = useState(false);
+  const [hint, setHint] = useState<HintStage>("invite");
   const [isInView, setIsInView] = useState(false);
   const [glowActive, setGlowActive] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startButtonRef = useRef<HTMLButtonElement | null>(null);
+  const agentButtonRef = useRef<HTMLButtonElement | null>(null);
   const autoCursorRanRef = useRef(false);
   const hasBeenSeenRef = useRef(false);
 
   const markInteracted = () => {
-    if (!hasInteracted) setHasInteracted(true);
     setAutoCursor({ phase: "hidden" });
     setRingPulseOn(false);
+    setHint("hidden");
   };
 
   useEffect(() => {
@@ -259,13 +268,27 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     if (!startBtn) return;
     autoCursorRanRef.current = true;
 
-    // Start is a toggle, so read its rendered state before firing: the effect
-    // can arm twice (Strict Mode, Fast Refresh) and a blind second click would
-    // stop the project it just started.
+    // The mimed cursor clicks real buttons, but each beat must fire at most
+    // once: Start is a toggle, so a second click would stop what it started,
+    // and a second agent click would open a duplicate tab.
+    let started = false;
+    let launched = false;
+
     const startIfIdle = () => {
-      if (startBtn.getAttribute("aria-label") === "Start services") {
-        startBtn.click();
-      }
+      if (started) return;
+      started = true;
+      startBtn.click();
+    };
+
+    // The agent is the product's whole point, so the mimed cursor launches it
+    // too — a passive visitor otherwise only ever sees service logs, which any
+    // process manager can show.
+    const launchAgentIfIdle = () => {
+      const btn = agentButtonRef.current;
+      if (launched || !btn) return;
+      launched = true;
+      btn.click();
+      setHint("next");
     };
 
     const prefersReducedMotion = window.matchMedia(
@@ -273,6 +296,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     ).matches;
     if (prefersReducedMotion) {
       startIfIdle();
+      launchAgentIfIdle();
       return;
     }
 
@@ -309,60 +333,72 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     container.addEventListener("keydown", onKeyDown);
 
     const containerRect = container.getBoundingClientRect();
-    const btnRect = startBtn.getBoundingClientRect();
-    const targetX = btnRect.left + btnRect.width / 2 - containerRect.left;
-    const targetY = btnRect.top + btnRect.height / 2 - containerRect.top;
-    const startX = containerRect.width * 0.45;
-    const startY = containerRect.height * 0.65;
+    const at = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return {
+        x: r.left + r.width / 2 - containerRect.left,
+        y: r.top + r.height / 2 - containerRect.top,
+      };
+    };
+    const start = at(startBtn);
+    const from = {
+      x: containerRect.width * 0.45,
+      y: containerRect.height * 0.65,
+    };
 
-    timers.push(
-      setTimeout(() => {
-        if (cancelled || cursorHidden) return;
-        setRingPulseOn(true);
-      }, 0),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (cancelled || cursorHidden) return;
-        setAutoCursor({ phase: "travel", x: startX, y: startY });
-      }, 600),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (cancelled || cursorHidden) return;
-        setAutoCursor({ phase: "travel", x: targetX, y: targetY });
-      }, 680),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (cancelled) return;
-        if (!cursorHidden) {
-          setAutoCursor({ phase: "tap", x: targetX, y: targetY });
-        }
-        startIfIdle();
-      }, 1700),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (cancelled || cursorHidden) return;
-        // Only the mimed cursor retires here. The "click anything" invitation
-        // stands until the visitor actually touches the demo.
-        setAutoCursor({ phase: "fade", x: targetX, y: targetY });
-        setRingPulseOn(false);
-      }, 2150),
-    );
-    timers.push(
-      setTimeout(() => {
-        if (cancelled || cursorHidden) return;
-        setAutoCursor({ phase: "hidden" });
-      }, 2600),
-    );
+    const step = (ms: number, fn: () => void) => {
+      timers.push(
+        setTimeout(() => {
+          if (!cancelled) fn();
+        }, ms),
+      );
+    };
+    // Most beats are pure cursor animation: skip them once the visitor's own
+    // pointer has taken over, but let the clicks through.
+    const mime = (ms: number, fn: () => void) =>
+      step(ms, () => {
+        if (!cursorHidden) fn();
+      });
+
+    mime(0, () => setRingPulseOn(true));
+    mime(600, () => setAutoCursor({ phase: "travel", ...from }));
+    mime(680, () => setAutoCursor({ phase: "travel", ...start }));
+    step(1700, () => {
+      if (!cursorHidden) setAutoCursor({ phase: "tap", ...start });
+      startIfIdle();
+    });
+    mime(2000, () => setRingPulseOn(false));
+
+    // Second beat: hand the freshly started project to Claude Code. The button
+    // can shift as services open panes, so each beat re-reads its position.
+    const agentAt = () => {
+      const el = agentButtonRef.current;
+      return el ? at(el) : null;
+    };
+    const moveToAgent = (phase: "travel" | "tap" | "fade") => () => {
+      const pos = agentAt();
+      if (pos) setAutoCursor({ phase, ...pos });
+    };
+
+    mime(2400, moveToAgent("travel"));
+    step(3400, () => {
+      if (!cursorHidden) moveToAgent("tap")();
+      launchAgentIfIdle();
+    });
+    mime(3900, moveToAgent("fade"));
+    mime(4400, () => setAutoCursor({ phase: "hidden" }));
 
     return () => {
+      // Scrolling away mid-flight would otherwise strand the mimed cursor on
+      // screen and abandon the sequence half-done — the effect never re-arms,
+      // so the visitor would come back to a project that never got its agent.
+      // Skip the remaining animation, but land on the state it was heading for.
+      if (!cancelled) {
+        startIfIdle();
+        launchAgentIfIdle();
+      }
       cancelled = true;
       clearTimers();
-      // Scrolling away mid-flight would otherwise strand the mimed cursor on
-      // screen: the effect never re-arms, so nothing would clear it.
       hideCursor();
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerdown", onPointerDown);
@@ -375,53 +411,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     [projects, selected],
   );
 
-  const setTree: Dispatch<SetStateAction<PaneNode | null>> = useCallback(
-    (update) => {
-      setTreeByProject((prev) => {
-        const cur =
-          project.name in prev
-            ? prev[project.name]
-            : initialPaneState(project).tree;
-        const next = typeof update === "function" ? update(cur) : update;
-        return { ...prev, [project.name]: next };
-      });
-    },
-    [project],
-  );
-
-  const setActionTerminals: Dispatch<SetStateAction<ActionTerminalMap>> =
-    useCallback(
-      (update) => {
-        setActionTerminalsByProject((prev) => {
-          const cur =
-            project.name in prev
-              ? prev[project.name]
-              : initialPaneState(project).actionTerminals;
-          const next = typeof update === "function" ? update(cur) : update;
-          return { ...prev, [project.name]: next };
-        });
-      },
-      [project],
-    );
-
-  const setAgentTabStatus: Dispatch<
-    SetStateAction<Record<string, AgentStatus>>
-  > = useCallback(
-    (update) => {
-      setAgentTabStatusByProject((prev) => {
-        const cur = prev[project.name] ?? {};
-        const next = typeof update === "function" ? update(cur) : update;
-        return { ...prev, [project.name]: next };
-      });
-    },
-    [project],
-  );
-
   const selectProject = (name: string) => {
     setSelected(name);
     setView("project");
-    // Viewing a project consumes its attention badge (done) — a running agent
-    // re-announces itself when its view mounts.
+    setVisited((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
+    // Viewing a project consumes its unopened-attention badge; from here on the
+    // sidebar reads the live status off the session itself.
     setAiStatusByProject((prev) => {
       if (!(name in prev)) return prev;
       const next = { ...prev };
@@ -430,140 +425,155 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     });
   };
 
-  const setAiStatus = (name: string, status: AiStatus) => {
-    setAiStatusByProject((prev) => ({ ...prev, [name]: status }));
-  };
+  // Sessions stay mounted across switches, so a project's badge comes from its
+  // live agent tabs when it has any, and falls back to the seeded rollup for
+  // projects this visit has never opened.
+  const { sidebarStatus, hasAgentError } = useMemo(() => {
+    const out: Record<string, AiStatus> = {};
+    for (const p of projects) {
+      const tabs = Object.values(agentTabStatusByProject[p.name] ?? {});
+      if (tabs.length) {
+        out[p.name] = tabs.some((t) => t.status === "running")
+          ? "running"
+          : "done";
+      } else if (aiStatusByProject[p.name]) {
+        out[p.name] = aiStatusByProject[p.name];
+      }
+    }
+    return {
+      sidebarStatus: out,
+      hasAgentError: Object.values(out).includes("error"),
+    };
+  }, [projects, agentTabStatusByProject, aiStatusByProject]);
 
-  const runningHere = runningByProject[project.name];
-  const gitHere = gitByProject[project.name];
+  // Every visited project stays mounted, so its handlers must bind to a name
+  // rather than to whichever project happens to be selected.
+  const handlers = useMemo(() => {
+    const build = (p: DemoProject) => {
+    const name = p.name;
 
-  const startServices = (names: string[]) => {
-    setRunningByProject((prev) => ({
-      ...prev,
-      [project.name]: new Set(
-        names.filter((n) => project.services.some((s) => s.name === n)),
-      ),
-    }));
-  };
+    // Narrows a by-project record down to this project's slice.
+    const scoped =
+      <T,>(
+        setAll: Dispatch<SetStateAction<Record<string, T>>>,
+        fallback: () => T,
+      ): Dispatch<SetStateAction<T>> =>
+      (update) =>
+        setAll((prev) => {
+          const cur = name in prev ? prev[name] : fallback();
+          const next = typeof update === "function"
+            ? (update as (c: T) => T)(cur)
+            : update;
+          return { ...prev, [name]: next };
+        });
 
-  const stopAll = () => {
-    setRunningByProject((prev) => ({
-      ...prev,
-      [project.name]: new Set(),
-    }));
-  };
-
-  const toggleService = (name: string) => {
-    setRunningByProject((prev) => {
-      const next = new Set(prev[project.name]);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return { ...prev, [project.name]: next };
-    });
-  };
-
-  const updateGit = (mutate: (g: DemoGit) => DemoGit) => {
-    setGitByProject((prev) => {
-      const cur = prev[project.name];
-      if (!cur) return prev;
-      return { ...prev, [project.name]: mutate(cur) };
-    });
-  };
-
-  const handleCheckout = (b: DemoBranch) => {
-    updateGit((g) => {
-      const hasLocal = g.branches.some((x) => !x.remote && x.name === b.name);
-      const branches =
-        b.remote && !hasLocal
-          ? [{ name: b.name, age: "now" }, ...g.branches]
-          : g.branches;
-      return {
-        ...g,
-        branch: b.name,
-        uncommitted: 0,
-        ahead: 0,
-        behind: 0,
-        branches,
-      };
-    });
-  };
-
-  const handleCommit = () => {
-    updateGit((g) =>
-      g.uncommitted === 0 ? g : { ...g, uncommitted: 0, ahead: g.ahead + 1 },
+    const setTree = scoped(setTreeByProject, () => initialPaneState(p).tree);
+    const setActionTerminals = scoped(
+      setActionTerminalsByProject,
+      () => initialPaneState(p).actionTerminals,
     );
-  };
+    const setAgentTabStatus = scoped(setAgentTabStatusByProject, () => ({}));
 
-  const handlePull = () => {
-    updateGit((g) => ({ ...g, behind: 0 }));
-  };
+    const updateGit = (mutate: (g: DemoGit) => DemoGit) => {
+      setGitByProject((prev) => {
+        const cur = prev[name];
+        if (!cur) return prev;
+        return { ...prev, [name]: mutate(cur) };
+      });
+    };
 
-  const handlePush = () => {
-    updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 }));
-  };
+    return {
+      setTree,
+      setActionTerminals,
+      setAgentTabStatus,
+      onStartServices: (names: string[]) =>
+        setRunningByProject((prev) => ({
+          ...prev,
+          [name]: new Set(
+            names.filter((n) => p.services.some((s) => s.name === n)),
+          ),
+        })),
+      onStopAll: () =>
+        setRunningByProject((prev) => ({ ...prev, [name]: new Set() })),
+      onToggleService: (svc: string) =>
+        setRunningByProject((prev) => {
+          const next = new Set(prev[name]);
+          if (next.has(svc)) next.delete(svc);
+          else next.add(svc);
+          return { ...prev, [name]: next };
+        }),
+      onGitCheckout: (b: DemoBranch) =>
+        updateGit((g) => {
+          const hasLocal = g.branches.some(
+            (x) => !x.remote && x.name === b.name,
+          );
+          const branches =
+            b.remote && !hasLocal
+              ? [{ name: b.name, age: "now" }, ...g.branches]
+              : g.branches;
+          return {
+            ...g,
+            branch: b.name,
+            uncommitted: 0,
+            ahead: 0,
+            behind: 0,
+            branches,
+          };
+        }),
+      onGitCommit: () =>
+        updateGit((g) =>
+          g.uncommitted === 0 ? g : { ...g, uncommitted: 0, ahead: g.ahead + 1 },
+        ),
+      onGitPull: () => updateGit((g) => ({ ...g, behind: 0 })),
+      onGitPush: () => updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
+      // Fetch only updates remote-tracking refs; the demo has nothing new to
+      // pull in, so this is a no-op — same as a real "Already up to date".
+      onGitFetch: () => {},
+      onGitMerge: () =>
+        updateGit((g) => ({ ...g, ahead: g.ahead + 1, uncommitted: 0 })),
+      onGitCreatePR: () =>
+        updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
+      onGitDiscard: () => updateGit((g) => ({ ...g, uncommitted: 0 })),
+      onGitSync: () => updateGit((g) => ({ ...g, ahead: 0, behind: 0 })),
+      onGitCreateBranch: (branch: string) =>
+        updateGit((g) => ({
+          ...g,
+          branch,
+          uncommitted: 0,
+          ahead: 0,
+          behind: 0,
+          branches: [{ name: branch, age: "now" }, ...g.branches],
+        })),
+      onGitRenameBranch: (oldName: string, newName: string) =>
+        updateGit((g) => ({
+          ...g,
+          branch: g.branch === oldName ? newName : g.branch,
+          branches: g.branches.map((b) =>
+            !b.remote && b.name === oldName ? { ...b, name: newName } : b,
+          ),
+        })),
+      onGitDeleteBranch: (branch: string) =>
+        updateGit((g) => ({
+          ...g,
+          branches: g.branches.filter((b) => b.remote || b.name !== branch),
+        })),
+      onGitRemoveRemote: (branch: DemoBranch) =>
+        updateGit((g) => ({
+          ...g,
+          branches: g.branches.filter(
+            (b) => !(b.remote === branch.remote && b.name === branch.name),
+          ),
+        })),
+    };
+    };
+    // Setters from useState are stable, so only the project list can invalidate.
+    return Object.fromEntries(projects.map((p) => [p.name, build(p)]));
+  }, [projects]);
 
-  const handleFetch = () => {
-    // Fetch only updates remote-tracking refs; the demo has nothing new to pull
-    // in, so this is a no-op — same as a real "Already up to date" fetch.
-  };
-
-  const handleMerge = () => {
-    updateGit((g) => ({ ...g, ahead: g.ahead + 1, uncommitted: 0 }));
-  };
-
-  const handleCreatePR = () => {
-    updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 }));
-  };
-
-  const handleDiscard = () => {
-    updateGit((g) => ({ ...g, uncommitted: 0 }));
-  };
-
-  const handleSync = () => {
-    updateGit((g) => ({ ...g, ahead: 0, behind: 0 }));
-  };
-
-  const handleCreateBranch = (name: string) => {
-    updateGit((g) => ({
-      ...g,
-      branch: name,
-      uncommitted: 0,
-      ahead: 0,
-      behind: 0,
-      branches: [{ name, age: "now" }, ...g.branches],
-    }));
-  };
-
-  const handleRenameBranch = (oldName: string, newName: string) => {
-    updateGit((g) => ({
-      ...g,
-      branch: g.branch === oldName ? newName : g.branch,
-      branches: g.branches.map((b) =>
-        !b.remote && b.name === oldName ? { ...b, name: newName } : b,
-      ),
-    }));
-  };
-
-  const handleDeleteBranch = (name: string) => {
-    updateGit((g) => ({
-      ...g,
-      branches: g.branches.filter((b) => b.remote || b.name !== name),
-    }));
-  };
-
-  const handleRemoveRemote = (branch: DemoBranch) => {
-    updateGit((g) => ({
-      ...g,
-      branches: g.branches.filter(
-        (b) => !(b.remote === branch.remote && b.name === branch.name),
-      ),
-    }));
-  };
-
-  const handleAddAction = (input: NewActionInput) => {
+  const handleAddAction = (name: string, input: NewActionInput) => {
     setProjects((prev) =>
       prev.map((p) =>
-        p.name === project.name
+        p.name === name
           ? { ...p, actions: [...p.actions, buildActionFromInput(input, p.actions)] }
           : p,
       ),
@@ -584,6 +594,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     setView("project");
     setAdding(false);
   };
+
+  // A pill that never leaves reads as chrome rather than a prompt.
+  useEffect(() => {
+    if (hint !== "next") return;
+    const id = window.setTimeout(() => setHint("hidden"), 24000);
+    return () => window.clearTimeout(id);
+  }, [hint]);
+
+  const hidden = hint === "hidden" || !isInView;
 
   return (
     <div
@@ -608,11 +627,11 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         activeView={view}
         onSelect={selectProject}
         runningByProject={runningByProject}
-        aiStatusByProject={aiStatusByProject}
+        aiStatusByProject={sidebarStatus}
         onAddProject={() => setAdding(true)}
         onOpenView={setView}
         usageSettings={usageSettings}
-        hasError={Object.values(aiStatusByProject).includes("error")}
+        hasError={hasAgentError}
         unreadAutomations={unreadJobCount(jobs)}
         runningAutomations={runningJobCount(jobs)}
       />
@@ -650,40 +669,36 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
           <StatsView />
         ) : view === "mobile" ? (
           <MobileView />
-        ) : (
-          <DemoProjectView
-            key={project.name}
-            project={project}
-            runningServices={runningHere}
-            tree={treeByProject[project.name] ?? null}
-            setTree={setTree}
-            actionTerminals={actionTerminalsByProject[project.name] ?? {}}
-            setActionTerminals={setActionTerminals}
-            agentTabStatus={agentTabStatusByProject[project.name] ?? {}}
-            setAgentTabStatus={setAgentTabStatus}
-            onStartServices={startServices}
-            onStopAll={stopAll}
-            onToggleService={toggleService}
-            git={gitHere}
-            onGitCheckout={handleCheckout}
-            onGitCommit={handleCommit}
-            onGitPull={handlePull}
-            onGitPush={handlePush}
-            onGitFetch={handleFetch}
-            onGitMerge={handleMerge}
-            onGitCreatePR={handleCreatePR}
-            onGitDiscard={handleDiscard}
-            onGitSync={handleSync}
-            onGitCreateBranch={handleCreateBranch}
-            onGitRenameBranch={handleRenameBranch}
-            onGitDeleteBranch={handleDeleteBranch}
-            onGitRemoveRemote={handleRemoveRemote}
-            onAddAction={handleAddAction}
-            onAgentStatus={(status) => setAiStatus(project.name, status)}
-            startButtonRef={startButtonRef}
-            startRingPulse={ringPulseOn && !hasInteracted}
-          />
-        )}
+        ) : null}
+        {/* Visited projects stay mounted: switching away must not reboot a
+            service's logs or erase a conversation you were having. */}
+        {projects
+          .filter((p) => visited.has(p.name))
+          .map((p) => {
+            const h = handlers[p.name];
+            const active = view === "project" && p.name === project.name;
+            return (
+              <div
+                key={p.name}
+                className={
+                  active ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"
+                }
+              >
+                <DemoProjectView
+                  {...h}
+                  project={p}
+                  runningServices={runningByProject[p.name] ?? EMPTY_SERVICES}
+                  tree={treeByProject[p.name] ?? null}
+                  actionTerminals={actionTerminalsByProject[p.name] ?? EMPTY_ACTIONS}
+                  agentTabStatus={agentTabStatusByProject[p.name] ?? EMPTY_STATUS}
+                  git={gitByProject[p.name]}
+                  onAddAction={(input) => handleAddAction(p.name, input)}
+                  startButtonRef={active ? startButtonRef : undefined}
+                  agentButtonRef={active ? agentButtonRef : undefined}
+                  startRingPulse={active && ringPulseOn}                />
+              </div>
+            );
+          })}
       </div>
       <DemoAddProjectModal
         open={adding}
@@ -723,9 +738,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       <div
         role="status"
         aria-live="polite"
-        aria-hidden={hasInteracted || !isInView}
+        aria-hidden={hidden}
         className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3 sm:pb-6 transition-all duration-500 ${
-          hasInteracted || !isInView
+          hidden
             ? "translate-y-2 opacity-0"
             : "translate-y-0 opacity-100 motion-safe:animate-bounce-soft"
         }`}
@@ -735,10 +750,22 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
             className="h-3.5 w-3.5 text-indigo-300 shrink-0"
             strokeWidth={2.25}
           />
-          <span className="sm:hidden">Tap anything — it works</span>
-          <span className="hidden sm:inline">
-            Yes, this really works. Click anything.
-          </span>
+          {hint === "next" ? (
+            <>
+              <span className="sm:hidden">Claude is working — tap around</span>
+              <span className="hidden sm:inline">
+                Claude keeps working while you switch projects — try
+                auth-service.
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="sm:hidden">Tap anything — it works</span>
+              <span className="hidden sm:inline">
+                Yes, this really works. Click anything.
+              </span>
+            </>
+          )}
         </div>
       </div>
     </div>

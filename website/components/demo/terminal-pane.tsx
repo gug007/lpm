@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import {
   Code,
   Columns2,
@@ -13,10 +13,10 @@ import {
 } from "lucide-react";
 import type { LineColor, OutputLine } from "./projects";
 import type { AgentStatus } from "./agent-terminal";
+import { useStickToBottom } from "./use-stick-to-bottom";
 import { AddTabSplitButton } from "./tab-controls";
 import { FOCUS_RING } from "./ui";
 
-const STICK_THRESHOLD_PX = 24;
 
 const STATUS_LABEL_CLASS: Record<AgentStatus, string> = {
   running: "sidebar-shimmer",
@@ -55,6 +55,7 @@ type PaneHeaderProps = {
   onNewTab?: () => void;
   onNewBrowser?: () => void;
   onNewReview?: () => void;
+  onOpenPort: (port: number) => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
   onTabContextMenu?: (idx: number, x: number, y: number) => void;
@@ -68,6 +69,7 @@ export function PaneHeader({
   onNewTab,
   onNewBrowser,
   onNewReview,
+  onOpenPort,
   onSplitRight,
   onSplitDown,
   onTabContextMenu,
@@ -77,6 +79,7 @@ export function PaneHeader({
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
+          const port = tab.port;
           const canContext = tab.type !== "service";
           const onContext = (e: MouseEvent) => {
             if (!canContext || !onTabContextMenu) return;
@@ -154,12 +157,20 @@ export function PaneHeader({
                 >
                   {tab.label}
                 </span>
-                {tab.port !== undefined && (
-                  <span className="font-mono text-[10px] text-[#8e8e8e] tabular-nums shrink-0">
-                    :{tab.port}
-                  </span>
-                )}
               </button>
+              {port !== undefined && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenPort(port);
+                  }}
+                  title={`Preview localhost:${port} in a browser tab`}
+                  className={`shrink-0 rounded font-mono text-[10px] tabular-nums text-[#8e8e8e] transition-colors hover:text-cyan-300 ${FOCUS_RING}`}
+                >
+                  :{port}
+                </button>
+              )}
             </div>
           );
         })}
@@ -204,10 +215,7 @@ type StreamingOutputProps = {
 
 export function StreamingOutput({ output, loop }: StreamingOutputProps) {
   const [lines, setLines] = useState<OutputLine[]>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  // Scrolling up to read boot output must not be undone by the next line, so
-  // the view only follows the tail while it is already parked at the bottom.
-  const stickRef = useRef(true);
+  const { ref: scrollRef, onScroll } = useStickToBottom<HTMLDivElement>([lines]);
 
   useEffect(() => {
     const timers: number[] = [];
@@ -239,17 +247,6 @@ export function StreamingOutput({ output, loop }: StreamingOutputProps) {
     };
   }, [output, loop]);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [lines]);
-
-  const onScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    stickRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX;
-  };
 
   return (
     <div

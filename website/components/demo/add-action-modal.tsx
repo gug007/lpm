@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import { Play, Terminal as TerminalIcon } from "lucide-react";
 import { EmojiPickerField } from "./tab-controls";
 
@@ -67,9 +68,10 @@ function AddActionForm({
         aria-label="Close"
         onClick={onClose}
         className="absolute inset-0 bg-black/50"
-      />
+              />
       <form
         onSubmit={submit}
+        autoComplete="off"
         className="relative w-[400px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] p-5 shadow-2xl"
       >
         <div className="text-[13px] font-semibold text-[#e5e5e5]">New action</div>
@@ -89,7 +91,7 @@ function AddActionForm({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Run Tests"
-                spellCheck={false}
+                {...NO_AUTOFILL}
                 className="w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 pl-12 pr-3 text-sm text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500"
               />
             </EmojiPickerField>
@@ -103,9 +105,7 @@ function AddActionForm({
               value={cmd}
               onChange={(e) => setCmd(e.target.value)}
               placeholder="pnpm test"
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
+              {...NO_AUTOFILL}
               className="rounded-lg border border-[#2e2e2e] bg-transparent px-3 py-2.5 font-mono text-[13px] text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500"
             />
           </label>
@@ -118,14 +118,16 @@ function AddActionForm({
               <ModeOption
                 active={runMode === "terminal"}
                 onClick={() => setRunMode("terminal")}
-                icon={<TerminalIcon className="h-3.5 w-3.5" />}
+                icon={<TerminalIcon className="h-3.5 w-3.5"
+              />}
                 label="Open terminal"
                 desc="Good for servers & long tasks"
               />
               <ModeOption
                 active={runMode === "once"}
                 onClick={() => setRunMode("once")}
-                icon={<Play className="h-3.5 w-3.5" />}
+                icon={<Play className="h-3.5 w-3.5"
+              />}
                 label="Run once"
                 desc="Shows output in a pop-up"
               />
@@ -138,7 +140,7 @@ function AddActionForm({
               checked={confirm}
               onChange={(e) => setConfirm(e.target.checked)}
               className="h-3.5 w-3.5 accent-cyan-500"
-            />
+              />
             Ask for confirmation before running
           </label>
         </div>

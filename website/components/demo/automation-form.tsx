@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import type { DemoJob } from "./automations";
 
 const SCHEDULES = [
@@ -44,12 +45,14 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
   return (
     <form
       onSubmit={submit}
+      autoComplete="off"
       className="mb-3 rounded-xl border border-[#2e2e2e] bg-[#1d1d1d] p-3.5"
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Name">
           <input
             autoFocus
+            {...NO_AUTOFILL}
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Morning triage"
@@ -71,6 +74,7 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
         </Field>
         <Field label="What the agent should do">
           <input
+            {...NO_AUTOFILL}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Review open PRs and summarise what changed"

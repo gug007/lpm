@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import {
   ChevronDown,
   Code,
@@ -233,6 +234,7 @@ function TabRenameForm({
       />
       <form
         onSubmit={submit}
+        autoComplete="off"
         className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] p-5 shadow-2xl"
       >
         <div className="text-[11px] font-medium uppercase tracking-wider text-[#919191]">
@@ -245,9 +247,7 @@ function TabRenameForm({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               aria-label="Tab name"
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
+              {...NO_AUTOFILL}
               className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500 ${
                 withEmoji ? "pl-12 pr-3" : "px-3"
               }`}

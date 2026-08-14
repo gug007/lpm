@@ -1,3 +1,5 @@
+import type { AgentStep } from "./agent-script";
+
 export type LineColor =
   | "default"
   | "muted"
@@ -33,6 +35,8 @@ export type DemoAction = {
   // sent — "progress" streams an unfinished reply, "done" shows it complete.
   autoPrompt?: string;
   autoMode?: "progress" | "done";
+  // The work that reply streams. Falls back to a generic canned session.
+  autoSteps?: AgentStep[];
   confirm?: boolean;
   durationMs?: number;
   output: OutputLine[];
@@ -215,7 +219,26 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      CLAUDE_ACTION,
+      {
+        ...CLAUDE_ACTION,
+        autoPrompt: "Add a 14-day trial to the billing flow",
+        autoMode: "progress",
+        // Mirrors saas-app's seeded working-tree diff, so the Review tab shows
+        // exactly the changes the visitor just watched Claude make.
+        autoSteps: [
+          { kind: "thinking" },
+          { kind: "tool", label: "Read", arg: "src/lib/billing.ts", result: "142 lines" },
+          { kind: "tool", label: "Grep", arg: "createSubscription", result: "4 matches" },
+          {
+            kind: "text",
+            text: "Adding the trial to subscription creation, with a fallback plan so an unknown price can't silently create a free subscription.",
+          },
+          { kind: "tool", label: "Edit", arg: "src/lib/billing.ts", result: "+3 -1" },
+          { kind: "tool", label: "Write", arg: "src/lib/stripe-webhook.ts", result: "+48" },
+          { kind: "tool", label: "Bash", arg: "pnpm test", result: "running…" },
+          { kind: "thinking" },
+        ],
+      },
       {
         name: "test",
         label: "Run Tests",

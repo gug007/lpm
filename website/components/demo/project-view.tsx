@@ -7,6 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
+import { useStickToBottom } from "./use-stick-to-bottom";
 import {
   ChevronDown,
   Globe,
@@ -59,6 +61,10 @@ const MAX_TERMINAL_HISTORY = 200;
 
 export type ActionTerminalMap = Record<string, DemoAction>;
 
+// Keyed by tab key, which encodes no human-readable name — the label rides
+// along so views like Activity can title a row without parsing the key.
+export type AgentTabState = { label: string; status: AgentStatus };
+
 // The workspace lives in DemoApp, keyed by project, so switching projects and
 // back doesn't wipe panes the header still reports as running.
 export function initialPaneState(project: DemoProject): {
@@ -88,9 +94,9 @@ type ProjectViewProps = {
   setTree: React.Dispatch<React.SetStateAction<PaneNode | null>>;
   actionTerminals: ActionTerminalMap;
   setActionTerminals: React.Dispatch<React.SetStateAction<ActionTerminalMap>>;
-  agentTabStatus: Record<string, AgentStatus>;
+  agentTabStatus: Record<string, AgentTabState>;
   setAgentTabStatus: React.Dispatch<
-    React.SetStateAction<Record<string, AgentStatus>>
+    React.SetStateAction<Record<string, AgentTabState>>
   >;
   onStartServices: (names: string[]) => void;
   onStopAll: () => void;
@@ -110,8 +116,8 @@ type ProjectViewProps = {
   onGitDeleteBranch: (name: string) => void;
   onGitRemoveRemote: (branch: DemoBranch) => void;
   onAddAction: (input: NewActionInput) => void;
-  onAgentStatus?: (status: AgentStatus) => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
+  agentButtonRef?: React.Ref<HTMLButtonElement>;
   startRingPulse?: boolean;
 };
 
@@ -127,8 +133,11 @@ function reconcileServices(
   for (const name of running) {
     if (existing.has(name)) continue;
     const leaf = makeLeaf({ kind: "service", name });
+    // Each service nests one level deeper, so a fixed 0.5 would halve every
+    // pane below it (50/25/12.5…). Give the newcomer an even 1/n share instead.
+    const share = t ? 1 / (collectLeaves(t).length + 1) : 1;
     t = t
-      ? { kind: "split", direction: "row", ratio: 0.5, a: leaf, b: t }
+      ? { kind: "split", direction: "row", ratio: share, a: leaf, b: t }
       : leaf;
   }
   return t;
@@ -161,16 +170,19 @@ export function DemoProjectView({
   onGitDeleteBranch,
   onGitRemoveRemote,
   onAddAction,
-  onAgentStatus,
   startButtonRef,
+  agentButtonRef,
   startRingPulse,
 }: ProjectViewProps) {
   const [startOpen, setStartOpen] = useState(false);
   const [addingAction, setAddingAction] = useState(false);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
-  const handleAgentStatus = (tabKey: string, status: AgentStatus) => {
-    setAgentTabStatus((prev) => ({ ...prev, [tabKey]: status }));
-    onAgentStatus?.(status);
+  const handleAgentStatus = (
+    tabKey: string,
+    label: string,
+    status: AgentStatus,
+  ) => {
+    setAgentTabStatus((prev) => ({ ...prev, [tabKey]: { label, status } }));
   };
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDir, setResizeDir] = useState<SplitDirection>("row");
@@ -221,8 +233,10 @@ export function DemoProjectView({
     );
   };
 
-  const addBrowserToLeaf = (leafId: string) => {
-    setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newBrowserContent()) : prev));
+  const addBrowserToLeaf = (leafId: string, url?: string) => {
+    setTree((prev) =>
+      prev ? addTabToLeaf(prev, leafId, newBrowserContent(url)) : prev,
+    );
   };
 
   const addReviewToLeaf = (leafId: string) => {
@@ -343,23 +357,28 @@ export function DemoProjectView({
   };
 
   const handleCloseTab = (leafId: string, tabIdx: number) => {
-    setTree((prev) => {
-      if (!prev) return prev;
-      const leaf = findLeaf(prev, leafId);
-      const tab = leaf?.tabs[tabIdx];
-      if (!tab) return prev;
-      if (tab.kind === "service") onToggleService(tab.name);
-      else if (tab.kind === "action") {
-        const key = tab.key;
-        setActionTerminals((map) => {
-          if (!(key in map)) return map;
-          const next = { ...map };
-          delete next[key];
-          return next;
-        });
-      }
-      return closeTabInLeaf(prev, leafId, tabIdx);
-    });
+    const leaf = tree ? findLeaf(tree, leafId) : null;
+    const tab = leaf?.tabs[tabIdx];
+    if (!tab) return;
+    if (tab.kind === "service") onToggleService(tab.name);
+    else if (tab.kind === "action") {
+      const key = tab.key;
+      setActionTerminals((map) => {
+        if (!(key in map)) return map;
+        const next = { ...map };
+        delete next[key];
+        return next;
+      });
+      // Otherwise Activity keeps listing an agent whose tab is gone.
+      const statusKey = tabKey(tab);
+      setAgentTabStatus((prev) => {
+        if (!(statusKey in prev)) return prev;
+        const next = { ...prev };
+        delete next[statusKey];
+        return next;
+      });
+    }
+    setTree((prev) => (prev ? closeTabInLeaf(prev, leafId, tabIdx) : prev));
   };
 
   const handleSelectTab = (leafId: string, tabIdx: number) => {
@@ -435,6 +454,7 @@ export function DemoProjectView({
         }}
         runningServices={runningServices}
         startButtonRef={startButtonRef}
+        agentButtonRef={agentButtonRef}
         startRingPulse={startRingPulse}
       />
 
@@ -566,14 +586,14 @@ type PaneLayoutProps = {
   onCloseTab: (leafId: string, tabIdx: number) => void;
   onSelectTab: (leafId: string, tabIdx: number) => void;
   onNewTab: (leafId: string) => void;
-  onNewBrowser: (leafId: string) => void;
+  onNewBrowser: (leafId: string, url?: string) => void;
   onNewReview: (leafId: string) => void;
   onTabContextMenu: (leafId: string, tabIdx: number, x: number, y: number) => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onResizeStart: (dir: SplitDirection) => void;
   onResizeEnd: () => void;
-  agentTabStatus: Record<string, AgentStatus>;
-  onAgentTabStatus: (tabKey: string, status: AgentStatus) => void;
+  agentTabStatus: Record<string, AgentTabState>;
+  onAgentTabStatus: (tabKey: string, label: string, status: AgentStatus) => void;
 };
 
 function PaneLayout(props: PaneLayoutProps) {
@@ -585,8 +605,8 @@ type LeafContext = {
   project: DemoProject;
   runningServices: Set<string>;
   actionTerminals: ActionTerminalMap;
-  agentTabStatus: Record<string, AgentStatus>;
-  onAgentTabStatus: (tabKey: string, status: AgentStatus) => void;
+  agentTabStatus: Record<string, AgentTabState>;
+  onAgentTabStatus: (tabKey: string, label: string, status: AgentStatus) => void;
 };
 
 type ResolvedTab = {
@@ -642,6 +662,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
           key={tab.id}
           project={ctx.project}
           runningServices={ctx.runningServices}
+          initialUrl={tab.url}
         />
       ),
     };
@@ -666,7 +687,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
     running: true,
     emoji: tab.emoji,
     pinned: tab.pinned,
-    status: action?.agent ? ctx.agentTabStatus[key] : undefined,
+    status: action?.agent ? ctx.agentTabStatus[key]?.status : undefined,
   };
   if (!action) return { info, body: null };
   return {
@@ -679,7 +700,8 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         replyContext={ctx.project.replyContext}
         autoPrompt={action.autoPrompt}
         autoMode={action.autoMode}
-        onStatus={(status) => ctx.onAgentTabStatus(key, status)}
+        autoSteps={action.autoSteps}
+        onStatus={(status) => ctx.onAgentTabStatus(key, tab.label, status)}
       />
     ) : (
       <StreamingOutput key={tab.key} output={action.output} loop={action.loop} />
@@ -720,6 +742,9 @@ function Leaf({
         onNewTab={() => onNewTab(leaf.id)}
         onNewBrowser={() => onNewBrowser(leaf.id)}
         onNewReview={() => onNewReview(leaf.id)}
+        onOpenPort={(port) =>
+          onNewBrowser(leaf.id, `http://localhost:${port}`)
+        }
         onTabContextMenu={(i, x, y) => onTabContextMenu(leaf.id, i, x, y)}
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}
@@ -885,6 +910,9 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
     { prompt: string; input: string; output: string }[]
   >([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { ref: scrollRef, onScroll } = useStickToBottom<HTMLDivElement>([
+    history,
+  ]);
 
   const rel = projectRoot.replace(/^~\/?/, "");
   const prompt = rel ? `~/${rel} $ ` : `~ $ `;
@@ -912,7 +940,7 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
       ].join("\n");
     }
     if (trimmed === "whoami") return "demo";
-    if (trimmed === "date") return "Thu Apr 23 09:01:42 UTC 2026";
+    if (trimmed === "date") return new Date().toString();
     if (trimmed === "clear") return "__clear__";
     if (trimmed.startsWith("echo ")) return trimmed.slice(5);
     if (trimmed === "help") {
@@ -946,6 +974,8 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
 
   return (
     <div
+      ref={scrollRef}
+      onScroll={onScroll}
       className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-[#1a1a1a]"
       onClick={() => inputRef.current?.focus()}
     >
@@ -966,19 +996,14 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
           )}
         </div>
       ))}
-      <form onSubmit={onSubmit} className="flex items-center text-gray-100">
+      <form onSubmit={onSubmit} autoComplete="off" className="flex items-center text-gray-100">
         <span className="text-cyan-300 whitespace-pre">{prompt}</span>
         <input
           ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoCorrect="off"
-          autoComplete="off"
-          data-1p-ignore
-          data-lpignore="true"
+          {...NO_AUTOFILL}
           className="flex-1 bg-transparent outline-none text-gray-100 font-mono caret-gray-100"
         />
       </form>
@@ -997,13 +1022,16 @@ function DropdownSectionLabel({ children }: { children: ReactNode }) {
 function HeaderActionButton({
   action,
   onRun,
+  buttonRef,
 }: {
   action: DemoAction;
   onRun: () => void;
+  buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   return (
     <button
       type="button"
+      ref={buttonRef}
       onClick={onRun}
       title={action.label}
       className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-2.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
@@ -1011,7 +1039,13 @@ function HeaderActionButton({
       {action.emoji && (
         <span className="text-[13px] leading-none">{action.emoji}</span>
       )}
-      <span className={action.emoji ? "hidden @min-[560px]:inline" : ""}>
+      {/* Agents are the headline feature — only utility actions collapse to
+          their emoji on narrow windows. */}
+      <span
+        className={
+          action.emoji && !action.agent ? "hidden @min-[560px]:inline" : ""
+        }
+      >
         {action.label}
       </span>
     </button>
@@ -1054,6 +1088,7 @@ type HeaderProps = {
   onOpenAction: (a: DemoAction) => void;
   onAddAction: () => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
+  agentButtonRef?: React.Ref<HTMLButtonElement>;
   startRingPulse?: boolean;
 };
 
@@ -1071,8 +1106,10 @@ function Header({
   onOpenAction,
   onAddAction,
   startButtonRef,
+  agentButtonRef,
   startRingPulse,
 }: HeaderProps) {
+  const agentAction = headerActions.find((a) => a.agent);
   const hasServices = project.services.length > 0;
   const startColor = anyRunning
     ? "bg-[#f87171] text-white"
@@ -1095,6 +1132,7 @@ function Header({
             <HeaderActionButton
               key={a.name}
               action={a}
+              buttonRef={a === agentAction ? agentButtonRef : undefined}
               onRun={() => onOpenAction(a)}
             />
           ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { NO_AUTOFILL } from "./no-autofill";
 import { Plus, QrCode, Smartphone } from "lucide-react";
 import { APP_STORE_URL } from "@/lib/links";
 
@@ -102,6 +103,7 @@ export function MobileView() {
               <Row label="Port" desc="The port the mobile app connects to.">
                 <input
                   type="number"
+                  {...NO_AUTOFILL}
                   value={port}
                   min={1024}
                   max={65535}
