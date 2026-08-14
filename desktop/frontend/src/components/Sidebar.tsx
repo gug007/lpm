@@ -229,6 +229,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Only a project this window has open publishes its tab names; the rest fall
   // back to naming their agent.
   const terminalTitles = useTerminalTitles((s) => s.byProject);
+  const focusedTerminals = useTerminalTitles((s) => s.focusedByProject);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -908,6 +909,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             projectName={project.name}
             agents={agents}
             indented={indented}
+            // Only the project being looked at has a tab on screen; the rest
+            // keep publishing whichever tab they were left on.
+            activeTerminalId={isSelected ? focusedTerminals[project.name] ?? null : null}
             onOpenAgent={openAgent}
           />
         )}

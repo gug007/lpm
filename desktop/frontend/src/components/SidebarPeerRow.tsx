@@ -52,6 +52,7 @@ export function SidebarPeerRow({
   // Only a project this window has open publishes its tab names; the rest fall
   // back to naming their agent.
   const titles = useTerminalTitles((s) => s.byProject[project.name]);
+  const focusedTerminal = useTerminalTitles((s) => s.focusedByProject[project.name] ?? null);
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   const collapsedAgents = useCollapsedAgents((s) => s.collapsed);
   const toggleExpanded = useCollapsedAgents((s) => s.toggle);
@@ -143,6 +144,7 @@ export function SidebarPeerRow({
           projectName={project.name}
           label={label}
           agents={agents}
+          activeTerminalId={selected ? focusedTerminal : null}
           onOpenAgent={openAgent}
         />
       )}

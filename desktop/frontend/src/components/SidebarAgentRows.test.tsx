@@ -72,6 +72,34 @@ describe("SidebarAgentRows", () => {
     expect(rows[3].querySelector("svg")).toBeNull();
   });
 
+  it("marks only the row whose terminal is on screen", () => {
+    const rowsFor = (activeTerminalId: string | null) => {
+      act(() => {
+        root.render(
+          <SidebarAgentRows
+            projectName="crypto-portfolio"
+            agents={[
+              agent({ key: "a", terminalId: "%1" }),
+              agent({ key: "b", terminalId: "%2" }),
+              // A status whose pane the backend never named can't be the tab on
+              // screen, however the id compares.
+              agent({ key: "c", terminalId: null }),
+            ]}
+            activeTerminalId={activeTerminalId}
+            onOpenAgent={vi.fn()}
+          />,
+        );
+      });
+      return [...container.querySelectorAll("button")].map((b) =>
+        b.className.includes("bg-[var(--text-primary)]/8"),
+      );
+    };
+
+    expect(rowsFor("%2")).toEqual([false, true, false]);
+    // Nothing is marked for a project that isn't the one being looked at.
+    expect(rowsFor(null)).toEqual([false, false, false]);
+  });
+
   it("opens the terminal the clicked agent is in", () => {
     const onOpenAgent = vi.fn();
     act(() => {

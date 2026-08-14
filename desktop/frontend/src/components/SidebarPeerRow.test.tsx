@@ -83,7 +83,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
-  useTerminalTitles.getState().clearProjectTitles(NAME);
+  useTerminalTitles.getState().clearProject(NAME);
 });
 
 describe("SidebarPeerRow", () => {

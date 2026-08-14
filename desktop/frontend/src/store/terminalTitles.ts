@@ -1,14 +1,22 @@
 import { create } from "zustand";
 
-// The name a terminal tab is showing (its agent session title once one lands,
-// otherwise its label), published by every mounted project so views outside
-// that project — Activity, the sidebar — can name the session a status belongs
-// to. Keyed in tab order: the sidebar lists a project's agents the way its tab
-// strip reads, and takes that order from these keys.
+// What each mounted project's tab strip is showing, published for the views
+// outside it — Activity, the sidebar — that have no tree of their own to read:
+// the name of every tab, and which one the user is looking at.
+//
+// Names are the tab's agent session title once one lands, otherwise its label,
+// keyed in tab order: the sidebar lists a project's agents the way its tab strip
+// reads, and takes that order from these keys.
 interface TerminalTitlesState {
   byProject: Record<string, Record<string, string>>;
+  // The focused pane's active terminal, per project. Null while that pane shows
+  // a service log or has no tabs. Every mounted project publishes one, open or
+  // not, so a reader that means "the tab on screen" has to check the project is
+  // the selected one first.
+  focusedByProject: Record<string, string | null>;
   setProjectTitles: (project: string, titles: Record<string, string>) => void;
-  clearProjectTitles: (project: string) => void;
+  setProjectFocus: (project: string, terminalId: string | null) => void;
+  clearProject: (project: string) => void;
 }
 
 // Order counts: dragging a tab leaves every name untouched and only moves the
@@ -22,6 +30,7 @@ function same(a: Record<string, string>, b: Record<string, string>): boolean {
 
 export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
   byProject: {},
+  focusedByProject: {},
 
   setProjectTitles: (project, titles) =>
     set((s) => {
@@ -30,10 +39,17 @@ export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
       return { byProject: { ...s.byProject, [project]: titles } };
     }),
 
-  clearProjectTitles: (project) =>
+  setProjectFocus: (project, terminalId) =>
     set((s) => {
-      if (!(project in s.byProject)) return s;
-      const { [project]: _gone, ...rest } = s.byProject;
-      return { byProject: rest };
+      if (s.focusedByProject[project] === terminalId) return s;
+      return { focusedByProject: { ...s.focusedByProject, [project]: terminalId } };
+    }),
+
+  clearProject: (project) =>
+    set((s) => {
+      if (!(project in s.byProject) && !(project in s.focusedByProject)) return s;
+      const { [project]: _names, ...byProject } = s.byProject;
+      const { [project]: _focus, ...focusedByProject } = s.focusedByProject;
+      return { byProject, focusedByProject };
     }),
 }));

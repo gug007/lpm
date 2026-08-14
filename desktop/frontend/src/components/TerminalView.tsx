@@ -371,7 +371,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   }, [projectName, allTerminals]);
 
   useEffect(
-    () => () => useTerminalTitles.getState().clearProjectTitles(projectName),
+    () => () => useTerminalTitles.getState().clearProject(projectName),
     [projectName],
   );
 
@@ -803,6 +803,13 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   useEffect(() => {
     useComposerStore.getState().setActive(projectName, focusedComposerTerminalId);
   }, [projectName, focusedComposerTerminalId]);
+
+  // Which tab the user is looking at, for the sidebar: it marks the agent row
+  // whose terminal this is, so a project's list says which of its sessions is
+  // the one on screen.
+  useEffect(() => {
+    useTerminalTitles.getState().setProjectFocus(projectName, activeTerminalId);
+  }, [projectName, activeTerminalId]);
 
   const submitInputToTerminal = useCallback(
     (terminalId: string, input: string | string[]): boolean => {
