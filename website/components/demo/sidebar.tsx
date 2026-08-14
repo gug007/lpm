@@ -2,7 +2,6 @@
 
 import { AlertCircle, Check, Terminal } from "lucide-react";
 import type { AiStatus, DemoProject } from "./projects";
-import { BRAND } from "./agent-script";
 import { SidebarMoreMenu } from "./sidebar-more-menu";
 import { SidebarUsage } from "./sidebar-usage";
 import type { UsageSidebarSettings } from "./usage-data";
@@ -140,14 +139,6 @@ function ProjectRow({
       <span className={`min-w-0 flex-1 truncate ${nameClass}`}>{label}</span>
       {aiStatus === "error" ? (
         <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" strokeWidth={2} />
-      ) : aiStatus === "running" ? (
-        <span
-          aria-hidden="true"
-          title="An agent is working here"
-          className={`shrink-0 text-[11px] leading-none motion-safe:animate-pulse ${BRAND.claude.color}`}
-        >
-          {BRAND.claude.glyph}
-        </span>
       ) : aiStatus === "done" ? (
         <Check className="h-3.5 w-3.5 shrink-0 text-[#60a5fa]" strokeWidth={2.25} />
       ) : null}

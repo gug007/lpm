@@ -200,7 +200,7 @@ function closingRange(steps: Step[]): { start: number; end: number } | null {
 
 // Claude Code bolds the counts inside a `⎿` result line.
 function emphasize(result: string): ReactNode {
-  return result.split(/(\d[\d,]*)/).map((part, i) =>
+  return result.split(/(\d[\d,]*(?:\.\d+)?)/).map((part, i) =>
     i % 2 === 1 ? (
       <span key={i} className="font-semibold text-gray-300">
         {part}
