@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
@@ -151,6 +151,7 @@ export function BulkDuplicateDialog({
   // across open/close (Sidebar's Duplicate), and without this a reopened field
   // would keep seeding from the previous session's retained draft.
   const [openSession, setOpenSession] = useState(0);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Every place this project already exists — here and on connected Macs with a
   // same-named project. A copy targeted at another Mac is created THERE by
@@ -545,11 +546,14 @@ export function BulkDuplicateDialog({
 
   // Enter confirms from the count or command field; leave it to the focused
   // control when a button (segment, picker option, toggle) has focus, and let
-  // Shift+Enter add a newline while composing a prompt.
+  // Shift+Enter add a newline while composing a prompt. The dialog floats
+  // without a backdrop, so only confirm while focus is actually inside it —
+  // Enter in the terminal or sidebar must not create copies.
   useEventListener(
     "keydown",
     (e) => {
       if (e.key !== "Enter" || e.isComposing) return;
+      if (!contentRef.current?.contains(document.activeElement)) return;
       if (document.activeElement instanceof HTMLButtonElement) return;
       const active = document.activeElement as HTMLElement | null;
       if (
@@ -579,6 +583,7 @@ export function BulkDuplicateDialog({
     <Modal
       open={open}
       onClose={onCancel}
+      ref={contentRef}
       backdrop={false}
       draggable
       zIndexClassName="z-[60]"

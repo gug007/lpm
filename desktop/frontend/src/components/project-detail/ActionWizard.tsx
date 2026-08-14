@@ -105,10 +105,10 @@ import {
 } from "../icons";
 import { Modal } from "../ui/Modal";
 import { AIButton } from "../ui/AIButton";
-import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { Switch } from "../ui/Switch";
 import { EmojiSlotButton } from "../EmojiPickerButton";
+import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import { useOutsideClick } from "../../hooks/useOutsideClick";
 
 const NEW_ACTION_KEY = "new-action";
@@ -773,7 +773,6 @@ export function ActionWizard({
   // the move runs on Save, before the field save.
   const [moveTarget, setMoveTarget] = useState<ActionConfigLayer | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
-  const [discardOpen, setDiscardOpen] = useState(false);
   // Create mode: re-opens the template gallery after typing has collapsed it.
   const [templatesOpen, setTemplatesOpen] = useState(false);
   // The action's full on-disk payload (edit mode only). Null until the read
@@ -817,7 +816,6 @@ export function ActionWizard({
     setEditSource(null);
     setMoveTarget(null);
     setAiModalOpen(false);
-    setDiscardOpen(false);
     setTemplatesOpen(false);
     setEditingPayload(null);
     setWorkingBase({});
@@ -1152,11 +1150,13 @@ export function ActionWizard({
     return unmanagedFieldsChanged(workingBase, editing ? editingPayload ?? {} : {});
   };
 
-  const requestClose = () => {
-    if (saving) return;
-    if (isDirty()) setDiscardOpen(true);
-    else onClose();
-  };
+  const { requestClose, guardOpen, dialog } = useDiscardGuard({
+    open,
+    entity: "action",
+    isDirty,
+    saving,
+    onClose,
+  });
 
   const applyAiResult = (yaml: string) => {
     setEditorContent(yaml);
@@ -1200,8 +1200,8 @@ export function ActionWizard({
       <Modal
         open={open}
         onClose={requestClose}
-        closeOnEscape={!discardOpen && !aiModalOpen}
-        closeOnBackdrop={!discardOpen && !aiModalOpen}
+        closeOnEscape={!guardOpen && !aiModalOpen}
+        closeOnBackdrop={!guardOpen && !aiModalOpen}
         backdropClassName="bg-black/50 backdrop-blur-sm"
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
@@ -1618,19 +1618,7 @@ export function ActionWizard({
         onClose={() => setAiModalOpen(false)}
         onGenerated={applyAiResult}
       />
-      <ConfirmDialog
-        open={discardOpen}
-        title="Discard changes?"
-        body="Your edits to this action won't be saved."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
-        variant="destructive"
-        onCancel={() => setDiscardOpen(false)}
-        onConfirm={() => {
-          setDiscardOpen(false);
-          onClose();
-        }}
-      />
+      {dialog}
     </>
   );
 }

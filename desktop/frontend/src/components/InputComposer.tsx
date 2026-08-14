@@ -10,7 +10,6 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import {
   ReadClipboardFiles,
@@ -30,6 +29,7 @@ import { ComposerMicButton } from "./ComposerMicButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { TerminalHistoryButton } from "./TerminalHistoryButton";
+import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { loadImageDataUrl } from "./imageDataUrl";
 import {
   chipAfterCaret,
@@ -663,20 +663,9 @@ export function InputComposer({
           const next = e.relatedTarget as Node | null;
           if (!next || !e.currentTarget.contains(next)) setDragOver(false);
         }}
-        className={`relative mt-2 rounded-xl border bg-[var(--bg-secondary)] transition-colors ${
-          dragOver
-            ? "border-[var(--accent-cyan)]"
-            : "border-[var(--border)] focus-within:border-[var(--accent-cyan)]"
-        }`}
+        className="relative mt-2 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] transition-colors focus-within:border-[var(--accent-cyan)]"
       >
-        {dragOver && (
-          <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--accent-cyan)] bg-[var(--accent-cyan)]/10 backdrop-blur-[2px]">
-            <ImagePlus size={18} className="text-[var(--accent-cyan)]" />
-            <span className="text-[11px] font-medium text-[var(--accent-cyan)]">
-              Drop image to attach
-            </span>
-          </div>
-        )}
+        {dragOver && <TerminalDropOverlay compact label="Drop files to add" />}
 
         <div
           ref={editorRef}

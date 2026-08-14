@@ -51,7 +51,7 @@ export function MemorySessionList({
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">
                       {s.title}
                     </span>
-                    <span className="group-hover:invisible">
+                    <span className="group-hover:invisible group-focus-within:invisible">
                       <MemoryStamp session={s} />
                     </span>
                   </span>
@@ -61,7 +61,7 @@ export function MemorySessionList({
                     </span>
                   )}
                 </button>
-                <span className="absolute right-3 top-3 hidden items-center gap-0.5 group-hover:flex">
+                <span className="absolute right-3 top-3 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                   <button
                     onClick={() => onRename(s)}
                     title="Rename session"

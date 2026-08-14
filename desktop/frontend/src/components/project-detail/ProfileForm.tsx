@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { appendProfile, renameProfile, replaceProfile } from "../../profileConfig";
 import { computeDesiredKey } from "../../forms/keys";
 import { slugifiedNameSchema } from "../../forms/schemas";
+import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import type { ProfileInfo, ServiceInfo } from "../../types";
 import { CheckIcon, XIcon } from "../icons";
 import { Modal } from "../ui/Modal";
@@ -80,7 +81,7 @@ export function ProfileForm({
     reset,
     trigger,
     setFocus,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: DEFAULT_VALUES,
@@ -196,107 +197,120 @@ export function ProfileForm({
     }
   };
 
+  const { requestClose, guardOpen, dialog } = useDiscardGuard({
+    open,
+    entity: "profile",
+    isDirty: () => isDirty,
+    saving,
+    onClose,
+  });
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      backdropClassName="bg-black/50 backdrop-blur-sm"
-      contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
-    >
-      <form onSubmit={onSubmit} noValidate>
-        <div
-          className="flex max-h-[88vh] w-[min(800px,calc(100vw-32px))] flex-col"
-          onKeyDown={onKeyDown}
-        >
-          <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
-                {isEditing ? "Edit profile" : "Add profile"}
-              </h2>
-              <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">
-                A profile is a named bundle of services to start together — for example, a
-                minimal "frontend-only" set for design work.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
-          </header>
-
-          <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
-            <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-              <div className="space-y-5">
-                <label className="block">
-                  <span className="mb-1.5 block text-[13px] font-medium text-[var(--text-primary)]">
-                    Name
-                  </span>
-                  <input
-                    placeholder="frontend-only"
-                    className={inputClass}
-                    {...register("name")}
-                  />
-                  <span className="mt-1.5 block text-[11px] text-[var(--text-muted)]">
-                    Click this name in the start menu to launch the bundle.
-                  </span>
-                </label>
-
-                <ServiceChecklist
-                  services={services}
-                  picked={pickedSet}
-                  onToggle={toggle}
-                />
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        closeOnEscape={!guardOpen}
+        closeOnBackdrop={!guardOpen}
+        backdropClassName="bg-black/50 backdrop-blur-sm"
+        contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      >
+        <form onSubmit={onSubmit} noValidate>
+          <div
+            className="flex max-h-[88vh] w-[min(800px,calc(100vw-32px))] flex-col"
+            onKeyDown={onKeyDown}
+          >
+            <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+                  {isEditing ? "Edit profile" : "Add profile"}
+                </h2>
+                <p className="mt-2 max-w-[520px] text-[13px] leading-5 text-[var(--text-secondary)]">
+                  A profile is a named bundle of services to start together — for example, a
+                  minimal "frontend-only" set for design work.
+                </p>
               </div>
-            </div>
-
-            <StartMenuPreview
-              services={previewServiceEntries}
-              profiles={previewProfileEntries}
-              asideWidthClass="lg:w-[320px]"
-              onPickService={onPickService}
-              onPickProfile={onPickProfile}
-            />
-          </div>
-
-          <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
-            {isEditing && onDelete && (
               <button
                 type="button"
-                onClick={onDelete}
-                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
+                onClick={requestClose}
+                aria-label="Close"
+                className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
-                Delete profile
+                <XIcon />
               </button>
-            )}
-            <div className="ml-auto flex items-center gap-3">
-              {!canSave && errorHint && (
-                <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
-                  {errorHint}
-                </span>
+            </header>
+
+            <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
+              <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
+                <div className="space-y-5">
+                  <label className="block">
+                    <span className="mb-1.5 block text-[13px] font-medium text-[var(--text-primary)]">
+                      Name
+                    </span>
+                    <input
+                      placeholder="frontend-only"
+                      className={inputClass}
+                      {...register("name")}
+                    />
+                    <span className="mt-1.5 block text-[11px] text-[var(--text-muted)]">
+                      Click this name in the start menu to launch the bundle.
+                    </span>
+                  </label>
+
+                  <ServiceChecklist
+                    services={services}
+                    picked={pickedSet}
+                    onToggle={toggle}
+                  />
+                </div>
+              </div>
+
+              <StartMenuPreview
+                services={previewServiceEntries}
+                profiles={previewProfileEntries}
+                asideWidthClass="lg:w-[320px]"
+                onPickService={onPickService}
+                onPickProfile={onPickProfile}
+              />
+            </div>
+
+            <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
+              {isEditing && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
+                >
+                  Delete profile
+                </button>
               )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!canSave}
-                className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
-              >
-                {saving ? "Saving..." : isEditing ? "Save changes" : "Add profile"}
-              </button>
-            </div>
-          </footer>
-        </div>
-      </form>
-    </Modal>
+              <div className="ml-auto flex items-center gap-3">
+                {!canSave && errorHint && (
+                  <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
+                    {errorHint}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSave}
+                  className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+                >
+                  {saving ? "Saving..." : isEditing ? "Save changes" : "Add profile"}
+                </button>
+              </div>
+            </footer>
+          </div>
+        </form>
+      </Modal>
+      {dialog}
+    </>
   );
 }
 

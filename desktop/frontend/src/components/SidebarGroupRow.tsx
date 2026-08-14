@@ -1,10 +1,22 @@
 import { ChevronRightIcon, MoreVerticalIcon } from "./icons";
 import type { ProjectGroup } from "../types";
 
+/** The most urgent state among a collapsed folder's hidden members, worn by
+ *  the header's count so the fold doesn't silence them. */
+export type GroupTone = "error" | "waiting" | "running";
+
+const TONE_CLASS: Record<GroupTone, string> = {
+  error: "text-[var(--accent-red-text)]",
+  waiting: "sidebar-waiting",
+  running: "text-[var(--accent-green-text)]",
+};
+
 interface SidebarGroupRowProps {
   group: ProjectGroup;
   collapsed: boolean;
   count: number;
+  tone: GroupTone | null;
+  containsSelected: boolean;
   selectMode: boolean;
   isContextTarget: boolean;
   onToggle: () => void;
@@ -15,6 +27,8 @@ export function SidebarGroupRow({
   group,
   collapsed,
   count,
+  tone,
+  containsSelected,
   selectMode,
   isContextTarget,
   onToggle,
@@ -28,7 +42,11 @@ export function SidebarGroupRow({
           e.preventDefault();
           onMore(e.clientX, e.clientY);
         }}
-        className={`flex w-full select-none items-center gap-2 rounded-md px-2 py-2 text-left text-sm outline-none transition-colors text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+        className={`flex w-full select-none items-center gap-2 rounded-md px-2 py-2 text-left text-sm outline-none transition-colors ${
+          containsSelected
+            ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+        } ${
           isContextTarget ? "pr-9 ring-1 ring-inset ring-[var(--accent-cyan)]/60" : "group-hover/folder:pr-9"
         }`}
       >
@@ -42,11 +60,15 @@ export function SidebarGroupRow({
         <span className="truncate font-medium">{group.name}</span>
         {count > 0 && (
           <span
-            className={`ml-auto shrink-0 text-[11px] tabular-nums text-[var(--text-muted)] transition-opacity ${
+            className={`ml-auto shrink-0 text-[11px] tabular-nums transition-opacity ${
               isContextTarget ? "opacity-0" : "group-hover/folder:opacity-0"
             }`}
           >
-            {count}
+            {/* The pulse animates opacity, which would beat the hover fade on the
+                same element — the fade lives on the wrapper above instead. */}
+            <span className={tone ? TONE_CLASS[tone] : "text-[var(--text-muted)]"}>
+              {count}
+            </span>
           </span>
         )}
       </button>

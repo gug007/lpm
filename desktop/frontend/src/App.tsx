@@ -38,6 +38,7 @@ import { useSshEnvMismatchToasts } from "./hooks/useSshEnvMismatchToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { getSettings, saveSettings } from "./store/settings";
 import { useAppStore } from "./store/app";
+import { useResolvedTheme } from "./theme";
 import { onRunInDuplicates } from "./mirror";
 import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
@@ -63,6 +64,7 @@ export default function App() {
   const duplicatingNames = useAppStore((s) => s.duplicatingNames);
   const removingNames = useAppStore((s) => s.removingNames);
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
+  const theme = useResolvedTheme();
 
   const setView = useAppStore((s) => s.setView);
   const toggleAgentOverview = useAppStore((s) => s.toggleAgentOverview);
@@ -259,7 +261,7 @@ export default function App() {
     <div className="flex h-screen">
       <Toaster
         position="top-right"
-        theme="system"
+        theme={theme}
         offset={56}
         closeButton
         richColors

@@ -1,3 +1,4 @@
+import type { Terminal } from "@xterm/xterm";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { ansiColors } from "./terminal-colors";
 
@@ -17,6 +18,11 @@ const MIN_FIT_HEIGHT_PX = 24;
 
 export function canFitHost(host: HTMLElement): boolean {
   return host.clientWidth >= MIN_FIT_WIDTH_PX && host.clientHeight >= MIN_FIT_HEIGHT_PX;
+}
+
+export function isAtBottom(term: Terminal): boolean {
+  const buf = term.buffer.active;
+  return buf.viewportY >= buf.baseY;
 }
 
 export interface TerminalThemeStyle {

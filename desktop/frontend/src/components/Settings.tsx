@@ -73,7 +73,7 @@ import { ClaudeAccountRow } from "./ClaudeAccountRow";
 import { ClaudeAccountsSetupGuide } from "./ClaudeAccountsSetupGuide";
 import { ClaudeLoginModal } from "./ClaudeLoginModal";
 import { InlineNameEditor } from "./InlineNameEditor";
-import { modalInputDefaults } from "../forms/styles";
+import { modalInputClass, modalInputDefaults } from "../forms/styles";
 import { SettingsSearch } from "./SettingsSearch";
 import { SettingsSelect } from "./SettingsSelect";
 import { OpenAIKeyRow, OpenAIVoiceRow } from "./OpenAITTSRows";
@@ -1714,7 +1714,7 @@ function NewTemplateModal({
           }
         }}
         placeholder="e.g. rails"
-        className="mt-4 w-full rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 font-mono text-sm outline-none focus:border-[var(--text-primary)]/40"
+        className={`${modalInputClass} mt-4 font-mono`}
       />
       <div className="mt-3 text-[11px] text-[var(--text-muted)]">
         After saving, add this snippet to any project's config:
@@ -1927,9 +1927,12 @@ function PassphraseModal({
           <input
             type="password"
             value={pass}
-            onChange={(e) => setPass(e.target.value)}
+            onChange={(e) => {
+              setPass(e.target.value);
+              setError(null);
+            }}
             autoFocus
-            className="rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/40"
+            className={modalInputClass}
             placeholder="At least 8 characters"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !confirm) submit();
@@ -1942,8 +1945,11 @@ function PassphraseModal({
             <input
               type="password"
               value={confirmPass}
-              onChange={(e) => setConfirmPass(e.target.value)}
-              className="rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm outline-none focus:border-[var(--text-primary)]/40"
+              onChange={(e) => {
+                setConfirmPass(e.target.value);
+                setError(null);
+              }}
+              className={modalInputClass}
               onKeyDown={(e) => {
                 if (e.key === "Enter") submit();
               }}
@@ -1951,7 +1957,7 @@ function PassphraseModal({
           </label>
         )}
         {error && (
-          <p className="rounded-md bg-red-500/10 px-2 py-1 text-xs text-red-400">{error}</p>
+          <p className="rounded-md bg-[var(--accent-red)]/10 px-2 py-1 text-xs text-[var(--accent-red-text)]">{error}</p>
         )}
       </div>
 

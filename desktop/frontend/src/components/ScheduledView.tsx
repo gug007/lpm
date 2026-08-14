@@ -359,8 +359,16 @@ export function ScheduledView() {
         ref={zoom.surfaceRef}
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-6 pt-4"
       >
-        {error ? (
-          <EmptyState title="Couldn't load scheduled jobs" body={error} />
+        {error && !rows?.length ? (
+          <EmptyState title="Couldn't load scheduled jobs" body={error}>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="mt-4 rounded-lg bg-[var(--text-primary)] px-3.5 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition hover:opacity-90"
+            >
+              Try again
+            </button>
+          </EmptyState>
         ) : rows === null ? (
           <p className="py-8 text-center text-[12px] text-[var(--text-muted)]">
             Loading…
@@ -381,28 +389,35 @@ export function ScheduledView() {
             </button>
           </EmptyState>
         ) : (
-          <div className="-mx-1 space-y-4" style={{ zoom: zoom.zoom }}>
-            {unreadRows.length > 0 && (
-              <section key="unread">
-                <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
-                  New
-                </span>
-                <div className="mt-1">{renderRows(unreadRows, "unread")}</div>
-              </section>
+          <>
+            {error && (
+              <p className="mb-3 rounded-lg bg-[color-mix(in_srgb,var(--accent-red)_12%,var(--bg-primary))] px-3 py-2 text-[11px] leading-snug text-[var(--accent-red-text)]">
+                Couldn't refresh scheduled jobs: {error}
+              </p>
             )}
-            {readRows.length > 0 && (
-              <section key="read">
-                {unreadRows.length > 0 && (
-                  <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                    Earlier
+            <div className="-mx-1 space-y-4" style={{ zoom: zoom.zoom }}>
+              {unreadRows.length > 0 && (
+                <section key="unread">
+                  <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--accent-blue-text)]">
+                    New
                   </span>
-                )}
-                <div className={unreadRows.length > 0 ? "mt-1" : ""}>
-                  {renderRows(readRows, "read")}
-                </div>
-              </section>
-            )}
-          </div>
+                  <div className="mt-1">{renderRows(unreadRows, "unread")}</div>
+                </section>
+              )}
+              {readRows.length > 0 && (
+                <section key="read">
+                  {unreadRows.length > 0 && (
+                    <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                      Earlier
+                    </span>
+                  )}
+                  <div className={unreadRows.length > 0 ? "mt-1" : ""}>
+                    {renderRows(readRows, "read")}
+                  </div>
+                </section>
+              )}
+            </div>
+          </>
         )}
       </div>
 

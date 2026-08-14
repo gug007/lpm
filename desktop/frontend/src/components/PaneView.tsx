@@ -9,6 +9,7 @@ import { DiffReviewPane } from "./review/DiffReviewPane";
 import { MemoryView } from "./MemoryView";
 import { ToolkitView } from "./toolkit/ToolkitView";
 import { ErrorBoundary } from "./ui/ErrorBoundary";
+import { ScrollFadeEdges } from "./ui/ScrollFadeEdges";
 import { Pane, type PaneHandle } from "./Pane";
 import { HeaderTab } from "./terminal/HeaderTab";
 import { RenameModal } from "./RenameModal";
@@ -443,12 +444,11 @@ function PaneViewImpl(props: PaneViewProps) {
             onResumeSession={onResumeSession}
           />
           </div>
-          {canScrollLeft && (
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[var(--terminal-header)] to-transparent" />
-          )}
-          {canScrollRight && (
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[var(--terminal-header)] to-transparent" />
-          )}
+          <ScrollFadeEdges
+            canScrollLeft={canScrollLeft}
+            canScrollRight={canScrollRight}
+            from="from-[var(--terminal-header)]"
+          />
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           <Tooltip
@@ -460,10 +460,7 @@ function PaneViewImpl(props: PaneViewProps) {
             side="bottom"
             align="end"
           >
-            <IconBtn
-              onClick={() => onSplit(pane.id, "row")}
-              title="Split right (⌘D)"
-            >
+            <IconBtn onClick={() => onSplit(pane.id, "row")} ariaLabel="Split right">
               <SplitRightIcon />
             </IconBtn>
           </Tooltip>
@@ -476,15 +473,12 @@ function PaneViewImpl(props: PaneViewProps) {
             side="bottom"
             align="end"
           >
-            <IconBtn
-              onClick={() => onSplit(pane.id, "col")}
-              title="Split down (⌘⇧D)"
-            >
+            <IconBtn onClick={() => onSplit(pane.id, "col")} ariaLabel="Split down">
               <SplitDownIcon />
             </IconBtn>
           </Tooltip>
           <Tooltip content="Clear" side="bottom" align="end">
-            <IconBtn onClick={() => onClearPane(pane.id)} title="Clear">
+            <IconBtn onClick={() => onClearPane(pane.id)} ariaLabel="Clear">
               <ClearIcon />
             </IconBtn>
           </Tooltip>
@@ -495,14 +489,14 @@ function PaneViewImpl(props: PaneViewProps) {
           >
             <IconBtn
               onClick={() => onToggleFullscreen(pane.id)}
-              title={fullscreen ? "Exit fullscreen (Esc)" : "Fullscreen"}
+              ariaLabel={fullscreen ? "Exit fullscreen" : "Fullscreen"}
             >
               {fullscreen ? <ShrinkIcon /> : <ExpandIcon />}
             </IconBtn>
           </Tooltip>
           {canClose && (
             <Tooltip content="Close pane" side="bottom" align="end">
-              <IconBtn onClick={() => onClosePane(pane.id)} title="Close pane">
+              <IconBtn onClick={() => onClosePane(pane.id)} ariaLabel="Close pane">
                 <XIcon />
               </IconBtn>
             </Tooltip>

@@ -78,6 +78,7 @@ export function TabContextMenu({
       <ContextMenuItem
         label="Close"
         icon={<XIcon />}
+        shortcut="⌘W"
         destructive
         onClick={close(onCloseTab)}
       />

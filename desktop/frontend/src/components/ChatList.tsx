@@ -82,7 +82,7 @@ export function ChatList({
               aria-pressed={active}
               onClick={() => !renaming && onSelect(c.id)}
               onKeyDown={(e) => {
-                if (renaming) return;
+                if (renaming || e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   onSelect(c.id);
@@ -107,10 +107,10 @@ export function ChatList({
               ) : (
                 <>
                   <span className="flex-1 truncate">{c.title}</span>
-                  <span className="shrink-0 text-[10px] text-[var(--text-muted)] opacity-80 group-hover:hidden">
+                  <span className="shrink-0 text-[10px] text-[var(--text-muted)] opacity-80 group-hover:hidden group-focus-within:hidden">
                     {relativeShort(c.updatedAt)}
                   </span>
-                  <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
+                  <div className="hidden shrink-0 items-center gap-0.5 group-hover:flex group-focus-within:flex">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

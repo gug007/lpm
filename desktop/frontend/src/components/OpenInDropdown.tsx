@@ -83,10 +83,7 @@ export function OpenInDropdown({ projectPath, isRemote = false }: {
         </button>
       </div>
       {open && (
-        <div
-          className="absolute right-0 top-full z-50 mt-1.5 w-52 origin-top-right rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-xl"
-          style={{ animation: "switcher-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1) both" }}
-        >
+        <div className="switcher-in absolute right-0 top-full z-50 mt-1.5 w-52 origin-top-right rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-1 shadow-xl">
           {groups.map((group, gi) => (
             <div key={group.label ?? "other"}>
               {group.label ? (

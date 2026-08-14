@@ -79,7 +79,7 @@ export function computeProjectStatus(
     }
   }
   const className = isError
-    ? "text-red-400"
+    ? "text-[var(--accent-red-text)]"
     : isWaiting
     ? "sidebar-waiting"
     : isWorking

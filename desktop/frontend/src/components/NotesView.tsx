@@ -672,7 +672,7 @@ export function NotesView({ projectName, visible }: NotesViewProps) {
             )}
             {searchQuery.isError && (
               <div className="px-6 py-8 text-center text-xs text-[var(--accent-red)]">
-                Search failed.
+                {`Search failed: ${searchQuery.error}`}
               </div>
             )}
             {!searchQuery.isPending &&

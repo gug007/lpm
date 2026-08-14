@@ -158,7 +158,7 @@ export function HeaderTab({
               </span>
             </Tooltip>
           ) : closable ? (
-            <Tooltip content="Close (Cmd+W)" side="bottom" triggerClassName="hidden group-hover:inline-flex">
+            <Tooltip content="Close  ·  ⌘W" side="bottom" triggerClassName="hidden group-hover:inline-flex">
               <span
                 onClick={(e) => {
                   e.stopPropagation();

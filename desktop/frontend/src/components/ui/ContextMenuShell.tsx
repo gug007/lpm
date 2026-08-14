@@ -19,7 +19,25 @@ export const MENU_PANEL_CLASS =
 export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: ContextMenuShellProps) {
   const ref = useOutsideClick<HTMLDivElement>(onClose);
   useEventListener("keydown", (e) => {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const items = Array.from(
+      ref.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
+    );
+    if (items.length === 0) return;
+    e.preventDefault();
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const delta = e.key === "ArrowDown" ? 1 : -1;
+    const next =
+      index === -1
+        ? delta === 1
+          ? 0
+          : items.length - 1
+        : (index + delta + items.length) % items.length;
+    items[next].focus();
   }, document);
 
   // Shift the menu up/left when the click lands too close to the bottom or

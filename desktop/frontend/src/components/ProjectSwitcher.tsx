@@ -1,5 +1,5 @@
+import { useLayoutEffect, useRef } from "react";
 import { Modal } from "./ui/Modal";
-import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { useAppStore } from "../store/app";
 import { ProjectNameDisplay, findParentProject } from "./ProjectNameDisplay";
 
@@ -10,8 +10,14 @@ interface ProjectSwitcherProps {
 }
 
 export function ProjectSwitcher({ active, list, index }: ProjectSwitcherProps) {
-  const reduceMotion = usePrefersReducedMotion();
   const projects = useAppStore((s) => s.projects);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the highlighted row visible as Ctrl+Tab moves the selection.
+  useLayoutEffect(() => {
+    const row = listRef.current?.children[index] as HTMLElement | undefined;
+    row?.scrollIntoView({ block: "nearest" });
+  }, [active, index]);
 
   return (
     <Modal
@@ -19,28 +25,21 @@ export function ProjectSwitcher({ active, list, index }: ProjectSwitcherProps) {
       onClose={() => {}}
       backdrop={false}
       closeOnEscape={false}
+      autoFocus={false}
       zIndexClassName="z-[70]"
     >
-      <div
-        style={{
-          animation: reduceMotion
-            ? undefined
-            : "switcher-in 160ms cubic-bezier(0.2, 0.9, 0.3, 1) both",
-        }}
-        className="w-[min(340px,86vw)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-2 shadow-2xl"
-      >
+      <div className="switcher-in w-[min(340px,86vw)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-2 shadow-2xl">
         <div className="px-2 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-[var(--text-muted)]">
           Switch project
         </div>
-        <div className="flex flex-col gap-0.5">
+        <div ref={listRef} className="flex max-h-[60vh] flex-col gap-0.5 overflow-y-auto">
           {list.map((name, i) => {
-            const highlighted = i === index;
             const project = projects.find((p) => p.name === name);
             return (
               <div
                 key={name}
-                className={`truncate rounded-lg px-3 py-2 text-sm ${
-                  highlighted
+                className={`shrink-0 truncate rounded-lg px-3 py-2 text-sm ${
+                  i === index
                     ? "bg-[var(--bg-hover)] text-[var(--text-primary)] ring-1 ring-inset ring-[var(--accent-cyan)]/40"
                     : "text-[var(--text-secondary)]"
                 }`}

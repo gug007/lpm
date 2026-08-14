@@ -11,6 +11,8 @@ import {
 } from "../../serviceConfig";
 import { computeDesiredKey } from "../../forms/keys";
 import { portInputSchema, slugifiedNameSchema } from "../../forms/schemas";
+import { modalErrorInputClass } from "../../forms/styles";
+import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import type { ProfileInfo, ServiceInfo } from "../../types";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon, XIcon } from "../icons";
 import { Modal } from "../ui/Modal";
@@ -182,7 +184,7 @@ export function ServiceForm({
     trigger,
     setFocus,
     setValue,
-    formState: { errors, isValid },
+    formState: { errors, isValid, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: DEFAULT_VALUES,
@@ -344,199 +346,209 @@ export function ServiceForm({
     }
   };
 
+  const { requestClose, guardOpen, dialog } = useDiscardGuard({
+    open,
+    entity: "service",
+    isDirty: () => isDirty,
+    saving,
+    onClose,
+  });
+
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      backdropClassName="bg-black/50 backdrop-blur-sm"
-      contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
-    >
-      <form onSubmit={onSubmit} noValidate>
-        <div
-          className="flex max-h-[88vh] w-[min(880px,calc(100vw-32px))] flex-col"
-          onKeyDown={onKeyDown}
-        >
-          <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
-                {isEditing ? "Edit service" : "Add service"}
-              </h2>
-              <p className="mt-2 max-w-[560px] text-[13px] leading-5 text-[var(--text-secondary)]">
-                Services are long-running processes started with the project — dev servers,
-                workers, databases.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close"
-              className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            >
-              <XIcon />
-            </button>
-          </header>
-
-          <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
-            <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
-              <div className="space-y-5">
-                <Field label="Name" hint="Lowercase letters, digits, dashes.">
-                  <input
-                    placeholder="api"
-                    className={inputClass}
-                    {...register("name")}
-                  />
-                </Field>
-
-                <Field label="Command" hint="What you would type in a terminal to start it.">
-                  <textarea
-                    placeholder="npm run dev"
-                    rows={2}
-                    className={textareaClass}
-                    {...register("cmd")}
-                  />
-                </Field>
-
-                <AdvancedSection
-                  open={advancedOpen}
-                  onToggle={() => setAdvancedOpen((v) => !v)}
-                >
-                  <Field
-                    label="Working directory"
-                    hint="Relative to project root or absolute."
-                  >
-                    <input
-                      placeholder="apps/api"
-                      className={inputClass}
-                      {...register("cwd")}
-                    />
-                  </Field>
-
-                  <Field label="Port" hint="The port this service listens on.">
-                    <input
-                      placeholder="3000"
-                      inputMode="numeric"
-                      className={
-                        inputClass +
-                        (errors.port ? " border-[var(--accent-red,#dc2626)]" : "")
-                      }
-                      {...register("port")}
-                    />
-                  </Field>
-
-                  {watchedPort.trim() && (
-                    <PortConflictPicker
-                      value={watchedPortConflict}
-                      onChange={(value) =>
-                        setValue("portConflict", value, { shouldDirty: true })
-                      }
-                      verb="start"
-                    />
-                  )}
-
-                  <Field
-                    label="Depends on"
-                    hint="These services start first, in order, and turn on automatically with this one."
-                  >
-                    <DependsOnPicker
-                      options={otherServiceNames}
-                      value={watchedDependsOn}
-                      onChange={(next) =>
-                        setValue("dependsOn", next, { shouldDirty: true })
-                      }
-                    />
-                  </Field>
-
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-[13px] font-medium text-[var(--text-primary)]">
-                        Environment variables
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => envAppend({ key: "", value: "" })}
-                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                      >
-                        <PlusIcon /> Add
-                      </button>
-                    </div>
-                    {envFields.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-[var(--border)] px-4 py-3 text-[12px] text-[var(--text-muted)]">
-                        No env vars set. Click <span className="font-medium">Add</span> to define one.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {envFields.map((field, idx) => (
-                          <div key={field.id} className="flex items-center gap-2">
-                            <input
-                              placeholder="KEY"
-                              className={`${envInputClass} w-[40%]`}
-                              {...register(`env.${idx}.key` as const)}
-                            />
-                            <input
-                              placeholder="value"
-                              className={`${envInputClass} flex-1`}
-                              {...register(`env.${idx}.value` as const)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => envRemove(idx)}
-                              aria-label="Remove variable"
-                              className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-                            >
-                              <TrashIcon />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </AdvancedSection>
+    <>
+      <Modal
+        open={open}
+        onClose={requestClose}
+        closeOnEscape={!guardOpen}
+        closeOnBackdrop={!guardOpen}
+        backdropClassName="bg-black/50 backdrop-blur-sm"
+        contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
+      >
+        <form onSubmit={onSubmit} noValidate>
+          <div
+            className="flex max-h-[88vh] w-[min(880px,calc(100vw-32px))] flex-col"
+            onKeyDown={onKeyDown}
+          >
+            <header className="flex items-start justify-between gap-4 px-8 pb-6 pt-7">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[22px] font-semibold leading-tight tracking-tight text-[var(--text-primary)]">
+                  {isEditing ? "Edit service" : "Add service"}
+                </h2>
+                <p className="mt-2 max-w-[560px] text-[13px] leading-5 text-[var(--text-secondary)]">
+                  Services are long-running processes started with the project — dev servers,
+                  workers, databases.
+                </p>
               </div>
-            </div>
-
-            <StartMenuPreview
-              services={previewServiceEntries}
-              profiles={previewProfileEntries}
-              onPickService={onPickService}
-              onPickProfile={onPickProfile}
-            />
-          </div>
-
-          <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
-            {isEditing && onDelete && (
               <button
                 type="button"
-                onClick={onDelete}
-                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
+                onClick={requestClose}
+                aria-label="Close"
+                className="-mr-2 -mt-2 rounded-xl p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
-                Delete service
+                <XIcon />
               </button>
-            )}
-            <div className="ml-auto flex items-center gap-3">
-              {!canSave && errorHint && (
-                <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
-                  {errorHint}
-                </span>
+            </header>
+
+            <div className="flex min-h-0 flex-1 flex-col border-t border-[var(--border)] lg:flex-row">
+              <div className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
+                <div className="space-y-5">
+                  <Field label="Name" hint="Lowercase letters, digits, dashes.">
+                    <input
+                      placeholder="api"
+                      className={inputClass}
+                      {...register("name")}
+                    />
+                  </Field>
+
+                  <Field label="Command" hint="What you would type in a terminal to start it.">
+                    <textarea
+                      placeholder="npm run dev"
+                      rows={2}
+                      className={textareaClass}
+                      {...register("cmd")}
+                    />
+                  </Field>
+
+                  <AdvancedSection
+                    open={advancedOpen}
+                    onToggle={() => setAdvancedOpen((v) => !v)}
+                  >
+                    <Field
+                      label="Working directory"
+                      hint="Relative to project root or absolute."
+                    >
+                      <input
+                        placeholder="apps/api"
+                        className={inputClass}
+                        {...register("cwd")}
+                      />
+                    </Field>
+
+                    <Field label="Port" hint="The port this service listens on.">
+                      <input
+                        placeholder="3000"
+                        inputMode="numeric"
+                        className={`${inputClass} ${errors.port ? modalErrorInputClass : ""}`}
+                        {...register("port")}
+                      />
+                    </Field>
+
+                    {watchedPort.trim() && (
+                      <PortConflictPicker
+                        value={watchedPortConflict}
+                        onChange={(value) =>
+                          setValue("portConflict", value, { shouldDirty: true })
+                        }
+                        verb="start"
+                      />
+                    )}
+
+                    <Field
+                      label="Depends on"
+                      hint="These services start first, in order, and turn on automatically with this one."
+                    >
+                      <DependsOnPicker
+                        options={otherServiceNames}
+                        value={watchedDependsOn}
+                        onChange={(next) =>
+                          setValue("dependsOn", next, { shouldDirty: true })
+                        }
+                      />
+                    </Field>
+
+                    <div>
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-[13px] font-medium text-[var(--text-primary)]">
+                          Environment variables
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => envAppend({ key: "", value: "" })}
+                          className="flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                        >
+                          <PlusIcon /> Add
+                        </button>
+                      </div>
+                      {envFields.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-[var(--border)] px-4 py-3 text-[12px] text-[var(--text-muted)]">
+                          No env vars set. Click <span className="font-medium">Add</span> to define one.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {envFields.map((field, idx) => (
+                            <div key={field.id} className="flex items-center gap-2">
+                              <input
+                                placeholder="KEY"
+                                className={`${envInputClass} w-[40%]`}
+                                {...register(`env.${idx}.key` as const)}
+                              />
+                              <input
+                                placeholder="value"
+                                className={`${envInputClass} flex-1`}
+                                {...register(`env.${idx}.value` as const)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => envRemove(idx)}
+                                aria-label="Remove variable"
+                                className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                              >
+                                <TrashIcon />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </AdvancedSection>
+                </div>
+              </div>
+
+              <StartMenuPreview
+                services={previewServiceEntries}
+                profiles={previewProfileEntries}
+                onPickService={onPickService}
+                onPickProfile={onPickProfile}
+              />
+            </div>
+
+            <footer className="flex items-center gap-3 border-t border-[var(--border)] px-8 py-4">
+              {isEditing && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--accent-red)] transition-colors hover:bg-[var(--accent-red)]/10"
+                >
+                  Delete service
+                </button>
               )}
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!canSave}
-                className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
-              >
-                {saving ? "Saving..." : isEditing ? "Save changes" : "Add service"}
-              </button>
-            </div>
-          </footer>
-        </div>
-      </form>
-    </Modal>
+              <div className="ml-auto flex items-center gap-3">
+                {!canSave && errorHint && (
+                  <span className="hidden text-[12px] text-[var(--text-muted)] sm:inline">
+                    {errorHint}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={requestClose}
+                  className="rounded-xl px-3 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSave}
+                  className="rounded-xl bg-[var(--text-primary)] px-5 py-2.5 text-[13px] font-semibold text-[var(--bg-primary)] shadow-sm transition hover:opacity-90 disabled:opacity-40 disabled:shadow-none"
+                >
+                  {saving ? "Saving..." : isEditing ? "Save changes" : "Add service"}
+                </button>
+              </div>
+            </footer>
+          </div>
+        </form>
+      </Modal>
+      {dialog}
+    </>
   );
 }
 

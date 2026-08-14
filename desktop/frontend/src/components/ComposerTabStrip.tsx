@@ -15,6 +15,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PlusIcon, XIcon } from "./icons";
+import { ScrollFadeEdges } from "./ui/ScrollFadeEdges";
+import { useScrollFade } from "../hooks/useScrollFade";
 
 export interface ComposerTabView {
   id: string;
@@ -132,6 +134,7 @@ export function ComposerTabStrip({ tabs, activeId, onSelect, onClose, onAdd, onR
   // Index of the tab the drag is currently over, or null when no drag is in
   // progress. Drives the cyan insertion bar on that tab.
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const { ref: scrollRef, canScrollLeft, canScrollRight } = useScrollFade<HTMLDivElement>([tabs]);
 
   // Pointer only, 5px activation: a quick click still falls through to the tab's
   // own handlers, and no KeyboardSensor hijacks Enter/Space on the buttons.
@@ -170,33 +173,40 @@ export function ComposerTabStrip({ tabs, activeId, onSelect, onClose, onAdd, onR
       onDragCancel={() => setOverIndex(null)}
     >
       <SortableContext items={tabs.map((t) => t.id)} strategy={horizontalListSortingStrategy}>
-        <div className="no-scrollbar flex items-center overflow-x-auto pl-3">
-          {tabs.map((tab, i) => {
-            const active = tab.id === activeId;
-            const nextActive = i + 1 < tabs.length && tabs[i + 1].id === activeId;
-            return (
-              <SortableComposerTab
-                key={tab.id}
-                tab={tab}
-                active={active}
-                separator={i < tabs.length - 1}
-                separatorHidden={active || nextActive}
-                showLeadingIndicator={overIndex === i}
-                onSelect={onSelect}
-                onClose={handleClose}
-                activeRef={activeRef}
-              />
-            );
-          })}
-          <button
-            type="button"
-            onClick={onAdd}
-            aria-label="New input"
-            title="New input"
-            className="ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--composer-fg-muted)] outline-none transition-colors hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] [&>svg]:h-3.5 [&>svg]:w-3.5"
-          >
-            <PlusIcon />
-          </button>
+        <div className="relative min-w-0">
+          <div ref={scrollRef} className="no-scrollbar flex items-center overflow-x-auto pl-3">
+            {tabs.map((tab, i) => {
+              const active = tab.id === activeId;
+              const nextActive = i + 1 < tabs.length && tabs[i + 1].id === activeId;
+              return (
+                <SortableComposerTab
+                  key={tab.id}
+                  tab={tab}
+                  active={active}
+                  separator={i < tabs.length - 1}
+                  separatorHidden={active || nextActive}
+                  showLeadingIndicator={overIndex === i}
+                  onSelect={onSelect}
+                  onClose={handleClose}
+                  activeRef={activeRef}
+                />
+              );
+            })}
+            <button
+              type="button"
+              onClick={onAdd}
+              aria-label="New input"
+              title="New input"
+              className="ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--composer-fg-muted)] outline-none transition-colors hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] [&>svg]:h-3.5 [&>svg]:w-3.5"
+            >
+              <PlusIcon />
+            </button>
+          </div>
+          <ScrollFadeEdges
+            canScrollLeft={canScrollLeft}
+            canScrollRight={canScrollRight}
+            from="from-[var(--terminal-bg)]"
+          />
         </div>
       </SortableContext>
     </DndContext>

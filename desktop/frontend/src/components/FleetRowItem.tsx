@@ -14,7 +14,7 @@ const STATE_STYLE: Record<
     text: "text-[var(--accent-amber-text)]",
     motion: "sidebar-waiting",
   },
-  error: { dot: "bg-[var(--accent-red)]", text: "text-red-400" },
+  error: { dot: "bg-[var(--accent-red)]", text: "text-[var(--accent-red-text)]" },
   working: {
     dot: "bg-[var(--accent-cyan)]",
     text: "text-[var(--accent-cyan-text)]",
@@ -73,7 +73,8 @@ export const FleetRowItem = memo(function FleetRowItem({
       id={fleetRowDomId(row.id)}
       role="option"
       aria-selected={selected}
-      className={`group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors ${
+      onClick={() => onOpen(row)}
+      className={`group flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors ${
         selected
           ? "bg-[var(--bg-active)] ring-1 ring-inset ring-[var(--accent-blue)]"
           : "hover:bg-[var(--bg-hover)]"
@@ -89,7 +90,6 @@ export const FleetRowItem = memo(function FleetRowItem({
 
       <button
         type="button"
-        onClick={() => onOpen(row)}
         className="min-w-0 flex-1 text-left focus-visible:outline-none"
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -122,7 +122,10 @@ export const FleetRowItem = memo(function FleetRowItem({
 
       <button
         type="button"
-        onClick={() => onDismiss(row)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss(row);
+        }}
         aria-label={
           row.dismissable
             ? `Clear ${AGENT_STATE_LABEL[row.state]} on ${spokenName}`

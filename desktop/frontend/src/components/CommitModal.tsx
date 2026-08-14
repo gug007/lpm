@@ -28,7 +28,11 @@ import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "../gitOptions";
 import { runAutoCommit } from "../autoCommit";
-import { ChangedFilesTree } from "./ChangedFilesTree";
+import {
+  ChangedFilesTree,
+  TriStateCheckbox,
+  checkState,
+} from "./ChangedFilesTree";
 import { SideBySideDiffModal } from "./SideBySideDiffModal";
 import { Tooltip } from "./ui/Tooltip";
 
@@ -279,6 +283,8 @@ export function CommitModal({
 
   const selectedFiles = useMemo(() => Array.from(selected), [selected]);
 
+  const allState = checkState(selected.size, files.length);
+
   const canCommit =
     !busy && !generating && message.trim().length > 0 && selected.size > 0;
 
@@ -501,10 +507,25 @@ export function CommitModal({
 
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-[var(--text-muted)]">
-                Changes
-                <span className="ml-1 text-[var(--text-muted)]">
-                  {selected.size}/{files.length}
+              <span className="flex items-center gap-2">
+                {files.length > 0 && (
+                  <TriStateCheckbox
+                    state={allState}
+                    onToggle={() =>
+                      setSelection(
+                        files.map((f) => f.path),
+                        allState !== "all",
+                      )
+                    }
+                    disabled={!!busy}
+                    ariaLabel="Select all changes"
+                  />
+                )}
+                <span className="text-xs font-medium text-[var(--text-muted)]">
+                  Changes
+                  <span className="ml-1 text-[var(--text-muted)]">
+                    {selected.size}/{files.length}
+                  </span>
                 </span>
               </span>
               {files.length > 0 && (

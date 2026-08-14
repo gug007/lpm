@@ -177,6 +177,18 @@ interface CodeBlockProps {
 
 function CodeBlock({ code, lang }: CodeBlockProps) {
   const [lines, setLines] = useState<Token[][] | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copy = () => {
+    void navigator.clipboard.writeText(code);
+    setCopied(true);
+  };
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
 
   useEffect(() => {
     if (!lang) {
@@ -205,11 +217,15 @@ function CodeBlock({ code, lang }: CodeBlockProps) {
         <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-1 text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
           <span>{lang}</span>
           <button
-            onClick={() => navigator.clipboard.writeText(code)}
-            className="rounded px-1 text-[10px] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]"
+            onClick={copy}
+            className={`rounded px-1 text-[10px] ${
+              copied
+                ? "text-[var(--accent-green-text)]"
+                : "hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]"
+            }`}
             title="Copy"
           >
-            copy
+            {copied ? "copied" : "copy"}
           </button>
         </div>
       )}

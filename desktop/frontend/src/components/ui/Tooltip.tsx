@@ -102,6 +102,14 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
         className={triggerClassName}
         onMouseEnter={show}
         onMouseLeave={hide}
+        // Immediate (no dwell) on keyboard focus; :focus-visible keeps mouse
+        // clicks from pinning the tooltip until blur.
+        onFocus={(e) => {
+          if (e.target.matches(":focus-visible")) setVisible(true);
+        }}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget)) hide();
+        }}
       >
         {children}
       </span>

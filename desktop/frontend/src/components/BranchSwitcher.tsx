@@ -70,6 +70,7 @@ export function BranchSwitcher({
   const { status, branches, refresh } = gitState;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   const searchResults = useBranchSearch(projectPath, query, open);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -90,6 +91,7 @@ export function BranchSwitcher({
   const [pruning, setPruning] = useState(false);
   const pruningRef = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const ai = useAIPicker(commitMenuOpen);
 
   const commitMenuRef = useOutsideClick<HTMLDivElement>(
@@ -120,6 +122,12 @@ export function BranchSwitcher({
     [branches, query, searchResults, current],
   );
 
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, open]);
+
+  const clampedIndex = Math.min(activeIndex, Math.max(filtered.length - 1, 0));
+
   if (!status?.isGitRepo) return null;
 
   const checkout = async (branch: main.Branch) => {
@@ -138,6 +146,15 @@ export function BranchSwitcher({
     } finally {
       setBusy(false);
     }
+  };
+
+  const moveActive = (delta: number) => {
+    if (filtered.length === 0) return;
+    const next = Math.max(0, Math.min(filtered.length - 1, clampedIndex + delta));
+    setActiveIndex(next);
+    listRef.current
+      ?.querySelector(`[data-branch-index="${next}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   };
 
   const create = async (name: string) => {
@@ -432,6 +449,19 @@ export function BranchSwitcher({
                 ref={searchRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    moveActive(1);
+                  } else if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    moveActive(-1);
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    const branch = filtered[clampedIndex];
+                    if (branch) checkout(branch);
+                  }
+                }}
                 placeholder="Search branches"
                 autoComplete="off"
                 autoCorrect="off"
@@ -440,7 +470,7 @@ export function BranchSwitcher({
                 className="w-full rounded-lg bg-transparent px-3 py-2 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
               />
             </div>
-            <div className="max-h-[360px] overflow-y-auto py-1.5">
+            <div ref={listRef} className="max-h-[360px] overflow-y-auto py-1.5">
               <div className="flex items-center px-4 pb-1.5 pt-2">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
                   Branches
@@ -457,7 +487,7 @@ export function BranchSwitcher({
                   No matches
                 </div>
               )}
-              {filtered.map((b) => {
+              {filtered.map((b, i) => {
                 const isCurrent = b.name === status.branch;
                 const age = relativeTime(b.committerDate);
                 const key = branchKey(b);
@@ -467,7 +497,10 @@ export function BranchSwitcher({
                 return (
                   <div
                     key={key}
-                    className="group relative flex w-full items-center transition-colors hover:bg-[var(--bg-hover)]"
+                    data-branch-index={i}
+                    className={`group relative flex w-full items-center transition-colors hover:bg-[var(--bg-hover)] ${
+                      i === clampedIndex ? "bg-[var(--bg-hover)]" : ""
+                    }`}
                   >
                     {isRenaming ? (
                       <div className="flex w-full items-center gap-2.5 px-4 py-2 text-[13px]">
@@ -545,7 +578,7 @@ export function BranchSwitcher({
                           </span>
                         </button>
                         <div className="flex shrink-0 items-center gap-1 pr-4">
-                          <div className="hidden items-center gap-0.5 pr-1 group-hover:flex">
+                          <div className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                             <BranchActionButton
                               title="Copy branch name"
                               onClick={() => copyBranchName(b.name)}

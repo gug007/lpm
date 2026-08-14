@@ -38,7 +38,7 @@ export function StartMenu({
   // would have nothing to bundle, so the section stays hidden.
   const showProfilesSection = services.length > 0;
   return (
-    <div className="absolute right-0 top-full z-50 mt-2 min-w-[280px] max-w-[340px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
+    <div className="switcher-in absolute right-0 top-full z-50 mt-2 min-w-[280px] max-w-[340px] origin-top-right overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl">
       {showProfilesSection && (
         <Section label="Profiles">
           {profiles.map((p) => (

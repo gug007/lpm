@@ -24,6 +24,7 @@ import {
 type ChangedFile = main.ChangedFile;
 
 const BASE_DIFF_FONT_PX = 11;
+const NO_DIRTY_PATHS: Set<string> = new Set();
 
 interface Props {
   open: boolean;
@@ -46,10 +47,11 @@ export function SideBySideDiffModal({
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [activeFile, setActiveFile] = useState<string | null>(null);
-  const [dirtyCount, setDirtyCount] = useState(0);
+  const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(NO_DIRTY_PATHS);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const stackRef = useRef<MonacoDiffPoolHandle>(null);
   const zoom = useContentZoom(open);
+  const dirtyCount = dirtyPaths.size;
 
   const tree = useMemo(() => buildTree(files), [files]);
   // Render the diff stack in the same order the tree lists files.
@@ -60,7 +62,7 @@ export function SideBySideDiffModal({
     setCollapsed(new Set());
     setActiveFile(orderedFiles[0]?.path ?? null);
     setConfirmDiscard(false);
-    setDirtyCount(0);
+    setDirtyPaths(NO_DIRTY_PATHS);
   }, [open, orderedFiles]);
 
   const toggleCollapse = (path: string) => {
@@ -153,7 +155,7 @@ export function SideBySideDiffModal({
             selected={selected}
             authority="commit"
             onActiveFileChange={setActiveFile}
-            onDirtyCountChange={setDirtyCount}
+            onDirtyPathsChange={setDirtyPaths}
           />
         </div>
       </div>

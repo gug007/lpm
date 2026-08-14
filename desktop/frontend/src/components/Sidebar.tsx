@@ -20,13 +20,13 @@ import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
-import { agentAmbient, computeProjectStatus } from "../agentStatus";
+import { agentAmbient, agentStateOf, computeProjectStatus } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { useCollapsedAgents } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
-import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, TerminalIcon } from "./icons";
+import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
@@ -49,7 +49,7 @@ import {
   resolveSidebarDrop,
   syncPeerTokens,
 } from "./sidebarLayout";
-import { SidebarGroupRow } from "./SidebarGroupRow";
+import { SidebarGroupRow, type GroupTone } from "./SidebarGroupRow";
 import { GroupContextMenu } from "./GroupContextMenu";
 import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -99,6 +99,36 @@ const ROW_INDENT_CLASS = "pl-[27px]";
 const ROW_HALF = "18px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
+
+const UNTAME_DOM_ID = /[^a-zA-Z0-9_-]/g;
+
+/** A project name is a DOM id too (scroll-into-view), so it has to be tame. */
+const projectRowDomId = (name: string) =>
+  `sidebar-project-${name.replace(UNTAME_DOM_ID, "_")}`;
+
+function groupRollupTone(
+  members: ProjectInfo[],
+  childrenByParent: Map<string, ProjectInfo[]>,
+): GroupTone | null {
+  let waiting = false;
+  let running = false;
+  const scan = (project: ProjectInfo) => {
+    for (const entry of project.statusEntries ?? []) {
+      const state = agentStateOf(entry.value);
+      if (state === "error") return true;
+      if (state === "needs-you") waiting = true;
+    }
+    running ||= project.running;
+    return false;
+  };
+  for (const member of members) {
+    if (scan(member)) return "error";
+    for (const child of childrenByParent.get(member.name) ?? []) {
+      if (scan(child)) return "error";
+    }
+  }
+  return waiting ? "waiting" : running ? "running" : null;
+}
 
 interface SidebarProps {
   projects: ProjectInfo[];
@@ -154,7 +184,7 @@ type TreeItem =
   // `count` is the members that resolve to a live project, not members.length:
   // a folder can hold a name whose project isn't in the current list, and the
   // header must count what the folder actually shows.
-  | { kind: "group"; group: ProjectGroup; count: number }
+  | { kind: "group"; group: ProjectGroup; count: number; tone: GroupTone | null }
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection };
@@ -353,7 +383,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       const members = g.members
         .map((n) => byName.get(n))
         .filter((p): p is ProjectInfo => !!p);
-      out.push({ kind: "group", group: g, count: members.length });
+      const tone = g.collapsed ? groupRollupTone(members, childrenByParent) : null;
+      out.push({ kind: "group", group: g, count: members.length, tone });
       ids.push(groupToken(g.id));
       if (!g.collapsed) {
         if (members.length === 0) out.push({ kind: "empty", group: g });
@@ -488,6 +519,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Escape leaves select mode, but only when no menu is open (the open menu's
   // own Escape handler closes it first).
   useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu && !groupMenu);
+
+  // Selection moves without a click too (Ctrl+Tab, ⌘-number, Activity); keep
+  // the selected row visible. A row the sidebar doesn't render — a peer's, or
+  // one inside a collapsed folder — has no element and is left alone.
+  useEffect(() => {
+    if (selected)
+      document.getElementById(projectRowDomId(selected))?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
 
   const renamingProject = renamingName ? allByName.get(renamingName) : undefined;
   const renamingParent = renamingProject?.parentName
@@ -770,6 +809,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       <>
         <div className="group relative">
           <button
+            id={projectRowDomId(project.name)}
             onClick={(e) => handleRowClick(project.name, e)}
             onDoubleClick={
               selectMode
@@ -796,7 +836,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 <SpinnerIcon />
               </span>
             ) : project.configError ? (
-              <span className="h-2 w-2 shrink-0 rounded-full bg-red-500" title="Config error" />
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent-red)]" title="Config error" />
             ) : (
               <StatusDot running={project.running} kind={dotKind(project)} />
             )}
@@ -807,7 +847,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 project.configError ||
                 (project.parentName
                   ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
-                  : undefined)
+                  : projectDisplayName(project, parent))
               }
             >
               {status.className ? <span className={status.className}>{name}</span> : name}
@@ -877,11 +917,20 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
   const renderRow = (item: TreeItem) => {
     if (item.kind === "group") {
+      const selectedProject =
+        item.group.collapsed && selected !== null ? projectByName.get(selected) : undefined;
+      const selectionFolder = selectedProject
+        ? memberOf.get(selectedProject.name) ??
+          (selectedProject.parentName ? memberOf.get(selectedProject.parentName) : undefined)
+        : undefined;
+      const containsSelected = selectionFolder === item.group.id;
       const header = (
         <SidebarGroupRow
           group={item.group}
           collapsed={!!item.group.collapsed}
           count={item.count}
+          tone={item.tone}
+          containsSelected={containsSelected}
           selectMode={selectMode}
           isContextTarget={groupMenu?.id === item.group.id}
           onToggle={() => onToggleGroupCollapsed(item.group.id)}
@@ -977,8 +1026,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // elbow still has to point at the row.
   // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
   // — it doesn't react to row/folder hover.
-  const TRUNK_BG = "bg-[#38bdf8]/55";
-  const ELBOW_BORDER = "border-[#38bdf8]/55";
+  const TRUNK_BG = "bg-[var(--accent-sky)]/55";
+  const ELBOW_BORDER = "border-[var(--accent-sky)]/55";
   // Under the folder chevron: `px-2` (8px) plus half of the 14px icon.
   const TREE_X = "left-[15px]";
   const renderFolderBlock = (
@@ -1095,10 +1144,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         ) : (
           <button
             onClick={onAddProject}
-            className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
             title="Add project"
           >
-            +
+            <PlusIcon />
           </button>
         )}
       </div>
@@ -1187,10 +1236,16 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onWorktree={() => setBulkDuplicate({ name: contextMenu.name, mode: "worktree" })}
             onSyncHere={syncSource ? () => setSyncing(syncSource) : undefined}
             following={contextFollow}
-            onCopyPath={() => {
+            onCopyPath={async () => {
               // Copy the host-native path; the /@peer-… marker is a routing key,
               // meaningless outside lpm (a no-op strip for local projects).
-              if (contextProject?.root) navigator.clipboard.writeText(stripMarker(contextProject.root));
+              if (!contextProject?.root) return;
+              try {
+                await navigator.clipboard.writeText(stripMarker(contextProject.root));
+                toast.success("Path copied");
+              } catch {
+                toast.error("Copy failed");
+              }
             }}
             onDetach={() => onDetachProject(contextMenu.name)}
             onAttach={() => onAttachProject(contextMenu.name)}

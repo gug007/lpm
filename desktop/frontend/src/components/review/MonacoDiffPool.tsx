@@ -105,9 +105,9 @@ interface MonacoDiffPoolProps {
   // review tab and the commit modal) never share — and dispose — each other's
   // models. Must be distinct per mount site.
   authority?: string;
-  // Reports how many files have unsaved edits, so a host can warn before
-  // discarding them (e.g. the commit modal on close).
-  onDirtyCountChange?: (count: number) => void;
+  // Reports which paths have unsaved edits, so a host's file tree can badge them
+  // and warn before discarding them (e.g. the commit modal on close).
+  onDirtyPathsChange?: (paths: Set<string>) => void;
 }
 
 export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolProps>(
@@ -123,7 +123,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       onActiveFileChange,
       selected,
       authority = "pool",
-      onDirtyCountChange,
+      onDirtyPathsChange,
     },
     ref,
   ) {
@@ -922,8 +922,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     }, [sideBySide, scheduleLayout]);
 
     useEffect(() => {
-      onDirtyCountChange?.(dirtyPaths.size);
-    }, [dirtyPaths, onDirtyCountChange]);
+      onDirtyPathsChange?.(dirtyPaths);
+    }, [dirtyPaths, onDirtyPathsChange]);
 
     // Observe each file frame; drive assignment off what is near the viewport.
     useEffect(() => {
@@ -981,7 +981,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       }
       // Prune per-file React state for departed files too, or a stale
       // classification (e.g. was-binary) lingers if the path returns, and
-      // onDirtyCountChange counts files no longer in the changeset.
+      // onDirtyPathsChange reports files no longer in the changeset.
       if (departed.size > 0) {
         const dropFromSet = (prev: Set<string>) => {
           let changed = false;

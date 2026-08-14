@@ -16,7 +16,9 @@ import {
   sshUserSchema,
 } from "../forms/schemas";
 import {
+  modalErrorBannerClass,
   modalErrorInputClass,
+  modalErrorTextClass,
   modalInputClass,
   modalInputDefaults,
 } from "../forms/styles";
@@ -50,6 +52,7 @@ export function AddSSHProjectModal() {
   const onCreate = useAppStore((s) => s.addSSHProject);
 
   const [sshHosts, setSshHosts] = useState<main.SSHConfigHost[]>([]);
+  const [submitError, setSubmitError] = useState("");
   const [picker, setPicker] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useOutsideClick<HTMLDivElement>(
@@ -74,6 +77,7 @@ export function AddSSHProjectModal() {
   useEffect(() => {
     if (!open) return;
     reset(DEFAULT_VALUES);
+    setSubmitError("");
     setPicker("");
     setPickerOpen(false);
     let cancelled = false;
@@ -155,21 +159,28 @@ export function AddSSHProjectModal() {
   }, [host, user, pickerMatch, nameDirty, setValue]);
 
   const onSubmit = handleSubmit(async (values) => {
+    setSubmitError("");
     const portNum = values.port === "" ? 22 : Number(values.port);
-    await onCreate({
-      name: slugify(values.name),
-      host: values.host,
-      user: values.user,
-      port: portNum,
-      key: values.key,
-      dir: values.dir,
-    });
+    try {
+      await onCreate({
+        name: slugify(values.name),
+        host: values.host,
+        user: values.user,
+        port: portNum,
+        key: values.key,
+        dir: values.dir,
+      });
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : String(err ?? "Connection failed");
+      setSubmitError(msg);
+    }
   });
 
   const textInputProps = { ...modalInputDefaults, disabled: busy } as const;
 
   const errorText = (msg: string) => (
-    <p className="mt-1 text-[11px] text-[var(--danger,#f87171)]">{msg}</p>
+    <p className={`mt-1 ${modalErrorTextClass}`}>{msg}</p>
   );
 
   return (
@@ -202,6 +213,12 @@ export function AddSSHProjectModal() {
           and terminals will run over this SSH connection.
         </p>
 
+        {submitError && (
+          <div className={`mt-4 ${modalErrorBannerClass}`}>
+            Couldn't add the SSH project. {submitError}
+          </div>
+        )}
+
         <div className="mt-4 grid grid-cols-[1fr_120px] gap-3">
           {sshHosts.length > 0 && (
             <div className="col-span-2">
@@ -213,7 +230,7 @@ export function AddSSHProjectModal() {
                   type="button"
                   onClick={() => setPickerOpen((p) => !p)}
                   disabled={busy}
-                  className={`${modalInputClass} flex items-center justify-between text-left ${pickerOpen ? "border-[var(--text-muted)]" : ""}`}
+                  className={`${modalInputClass} flex items-center justify-between text-left ${pickerOpen ? "border-[var(--accent-cyan)]" : ""}`}
                 >
                   <span
                     className={pickerLabel ? "" : "text-[var(--text-muted)]"}

@@ -1,7 +1,13 @@
-export const modalInputClass =
-  "w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--text-muted)] disabled:opacity-60";
+import { FIELD_CLASS } from "../components/ui/fields";
 
-export const modalErrorInputClass = "border-[var(--danger,#f87171)]";
+export const modalInputClass = `${FIELD_CLASS} px-3 py-2 disabled:opacity-60`;
+
+export const modalErrorInputClass = "border-[var(--accent-red-text)]";
+
+export const modalErrorTextClass = "text-[11px] text-[var(--accent-red-text)]";
+
+export const modalErrorBannerClass =
+  "rounded-md border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 px-3 py-2 text-[12px] leading-relaxed text-[var(--accent-red-text)]";
 
 export const modalInputDefaults = {
   autoComplete: "off",

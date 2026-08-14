@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { main } from "../../bridge/models";
 import { UndoIcon } from "./icons";
 import { DiffViewer } from "./DiffViewer";
@@ -138,6 +138,13 @@ export function fileDescendants(node: TreeNode): string[] {
   return node.children.flatMap(fileDescendants);
 }
 
+export type CheckState = "none" | "some" | "all";
+
+export function checkState(selectedCount: number, total: number): CheckState {
+  if (selectedCount === 0) return "none";
+  return selectedCount === total ? "all" : "some";
+}
+
 export function folderState(
   node: FolderNode,
   selected: Set<string>,
@@ -145,12 +152,8 @@ export function folderState(
   const paths = fileDescendants(node);
   let count = 0;
   for (const p of paths) if (selected.has(p)) count++;
-  if (count === 0) return "none";
-  if (count === paths.length) return "all";
-  return "some";
+  return checkState(count, paths.length);
 }
-
-export type CheckState = "none" | "some" | "all";
 
 export function CheckboxBox({
   state,
@@ -189,6 +192,42 @@ export function CheckboxBox({
         <span className="h-[2px] w-[8px] rounded-full bg-current" />
       )}
     </span>
+  );
+}
+
+export function TriStateCheckbox({
+  state,
+  onToggle,
+  disabled,
+  ariaLabel,
+  stopPropagation,
+}: {
+  state: CheckState;
+  onToggle: () => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+  stopPropagation?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = state === "some";
+  }, [state]);
+  return (
+    <label
+      className="flex shrink-0 cursor-pointer items-center"
+      onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
+    >
+      <CheckboxBox state={state} />
+      <input
+        ref={inputRef}
+        type="checkbox"
+        checked={state === "all"}
+        onChange={onToggle}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        className="sr-only"
+      />
+    </label>
   );
 }
 
@@ -283,24 +322,12 @@ function FolderRow({
       >
         &#9654;
       </span>
-      <label
-        className="flex shrink-0 cursor-pointer items-center"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <CheckboxBox state={state} />
-        <input
-          type="checkbox"
-          checked={state === "all"}
-          ref={(el) => {
-            if (el) el.indeterminate = state === "some";
-          }}
-          onChange={() =>
-            onSetSelection(fileDescendants(node), state !== "all")
-          }
-          disabled={busy}
-          className="sr-only"
-        />
-      </label>
+      <TriStateCheckbox
+        state={state}
+        onToggle={() => onSetSelection(fileDescendants(node), state !== "all")}
+        disabled={busy}
+        stopPropagation
+      />
       <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
         {node.name}
       </span>
@@ -358,16 +385,11 @@ function FileRow({
         }`}
       >
         <span className="w-3 shrink-0" />
-        <label className="flex shrink-0 cursor-pointer items-center">
-          <CheckboxBox state={checked ? "all" : "none"} />
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={() => onToggleFile(node.path)}
-            disabled={busy}
-            className="sr-only"
-          />
-        </label>
+        <TriStateCheckbox
+          state={checked ? "all" : "none"}
+          onToggle={() => onToggleFile(node.path)}
+          disabled={busy}
+        />
         <span
           className={`w-3 shrink-0 text-center text-[11px] font-bold ${statusClr}`}
           title={node.file.status}

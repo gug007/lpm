@@ -87,8 +87,10 @@ function SplitView({ split, path = [], onRatioChange, primaryPaneId, ...rest }: 
   const aStyle = { [dim]: `${ratio * 100}%` } as React.CSSProperties;
   const bStyle = { [dim]: `${(1 - ratio) * 100}%` } as React.CSSProperties;
 
-  const dividerClass = `shrink-0 bg-[var(--bg-sidebar)] hover:bg-[var(--accent-cyan)] transition-colors ${
-    isRow ? "w-[3px] cursor-col-resize" : "h-[3px] cursor-row-resize"
+  // 7px hit zone, 3px visible bar: padding is excluded from the painted
+  // background via bg-clip-content.
+  const dividerClass = `shrink-0 bg-[var(--bg-sidebar)] bg-clip-content hover:bg-[var(--accent-cyan)] transition-colors ${
+    isRow ? "w-[7px] px-[2px] cursor-col-resize" : "h-[7px] py-[2px] cursor-row-resize"
   }`;
 
   return (

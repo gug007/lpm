@@ -27,6 +27,7 @@ export function useReviewFiles(
   active = true,
 ) {
   const [files, setFiles] = useState<ChangedFile[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
 
@@ -38,7 +39,9 @@ export function useReviewFiles(
       // Keep the same array reference when the list is unchanged so a noisy
       // git-changed burst doesn't rebuild the tree or re-run dependents.
       setFiles((prev) => (sameFiles(prev, next) ? prev : next));
-    } catch {
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
       setFiles((prev) => (prev.length === 0 ? prev : []));
     }
   }, [projectPath, mode, baseBranch]);
@@ -52,5 +55,5 @@ export function useReviewFiles(
   useEventListener("focus", refresh);
   useGitChanged(projectPath, refresh);
 
-  return { files, refresh };
+  return { files, error, refresh };
 }

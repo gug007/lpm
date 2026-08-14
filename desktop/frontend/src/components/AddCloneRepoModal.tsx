@@ -11,7 +11,9 @@ import { BrowseFolder } from "../../bridge/commands";
 import { getSettings } from "../store/settings";
 import { gitUrlSchema, projectNameSchema } from "../forms/schemas";
 import {
+  modalErrorBannerClass,
   modalErrorInputClass,
+  modalErrorTextClass,
   modalInputClass,
   modalInputDefaults,
 } from "../forms/styles";
@@ -121,7 +123,7 @@ export function AddCloneRepoModal() {
   const textInputProps = { ...modalInputDefaults, disabled: busy } as const;
 
   const errorText = (msg: string) => (
-    <p className="mt-1 text-[11px] text-[var(--danger,#f87171)]">{msg}</p>
+    <p className={`mt-1 ${modalErrorTextClass}`}>{msg}</p>
   );
   const hintText = (msg: string) => (
     <p className="mt-1 text-[11px] text-[var(--text-muted)]">{msg}</p>
@@ -159,7 +161,7 @@ export function AddCloneRepoModal() {
         </p>
 
         {submitError && (
-          <div className="mt-4 rounded-md border border-[var(--danger,#f87171)]/40 bg-[var(--danger,#f87171)]/10 px-3 py-2 text-[12px] leading-relaxed text-[var(--danger,#f87171)]">
+          <div className={`mt-4 ${modalErrorBannerClass}`}>
             Couldn't clone the repository. {submitError}
           </div>
         )}

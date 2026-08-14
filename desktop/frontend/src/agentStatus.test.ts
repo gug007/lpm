@@ -99,7 +99,7 @@ describe("computeProjectStatus", () => {
       isDone: true,
       isWaiting: true,
       isError: true,
-      className: "text-red-400",
+      className: "text-[var(--accent-red-text)]",
     });
   });
 

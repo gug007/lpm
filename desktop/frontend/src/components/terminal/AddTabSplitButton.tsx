@@ -3,6 +3,7 @@ import { PlusIcon } from "./icons";
 import { ChevronDownIcon, GlobeIcon, CodeIcon, HistoryIcon, LayersIcon } from "../icons";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
+import { Tooltip } from "../ui/Tooltip";
 
 interface AddTabSplitButtonProps {
   onAddTerminal: () => void;
@@ -38,28 +39,32 @@ export function AddTabSplitButton({
 
   return (
     <div ref={ref} className="ml-1.5 flex shrink-0 items-center gap-px">
-      <button
-        onClick={onAddTerminal}
-        title="New terminal (⌘T)"
-        className={`${half} px-1.5 [&>svg]:h-3.5 [&>svg]:w-3.5`}
-      >
-        <PlusIcon />
-      </button>
+      <Tooltip content="New terminal  ·  ⌘T" side="bottom">
+        <button
+          onClick={onAddTerminal}
+          aria-label="New terminal"
+          className={`${half} px-1.5 [&>svg]:h-3.5 [&>svg]:w-3.5`}
+        >
+          <PlusIcon />
+        </button>
+      </Tooltip>
       <span className="h-3 w-px shrink-0 bg-[var(--terminal-header-border)] opacity-25" />
-      <button
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={toggleMenu}
-        title="More options"
-        aria-haspopup="menu"
-        aria-expanded={!!menu}
-        className={`${half} px-1 [&>svg]:h-3 [&>svg]:w-3 ${
-          menu
-            ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
-            : "opacity-70 hover:opacity-100"
-        }`}
-      >
-        <ChevronDownIcon />
-      </button>
+      <Tooltip content="More options" side="bottom">
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={toggleMenu}
+          aria-label="More options"
+          aria-haspopup="menu"
+          aria-expanded={!!menu}
+          className={`${half} px-1 [&>svg]:h-3 [&>svg]:w-3 ${
+            menu
+              ? "bg-[var(--terminal-header-active)] text-[var(--terminal-tab-active)]"
+              : "opacity-70 hover:opacity-100"
+          }`}
+        >
+          <ChevronDownIcon />
+        </button>
+      </Tooltip>
       {menu && (
         <ContextMenuShell x={menu.x} y={menu.y} minWidth={180} onClose={() => setMenu(null)}>
           <ContextMenuItem

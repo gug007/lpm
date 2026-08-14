@@ -20,6 +20,7 @@ import { SegmentedControl } from "../ui/SegmentedControl";
 import { MonacoDiffPool, type MonacoDiffPoolHandle } from "./MonacoDiffPool";
 import { RefreshIcon, FileIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { DiffFileTree } from "./DiffFileTree";
@@ -93,7 +94,7 @@ export function DiffReviewPane({
 }: DiffReviewPaneProps) {
   const [mode, setMode] = useState<ReviewMode>("working");
   const [baseBranch, setBaseBranch] = useState("");
-  const { files, refresh } = useReviewFiles(projectRoot, mode, baseBranch, active);
+  const { files, error, refresh } = useReviewFiles(projectRoot, mode, baseBranch, active);
   // Build the tree once; the changes list renders it directly and the diff stack
   // reads its flattened order (folders first, alphabetical) so both stay in sync.
   const tree = useMemo(() => buildTree(files), [files]);
@@ -113,6 +114,10 @@ export function DiffReviewPane({
   const [singleMounted, setSingleMounted] = useState(false);
   const [ready, setReady] = useState(false);
   const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(new Set());
+  const [poolDirtyPaths, setPoolDirtyPaths] = useState<Set<string>>(EMPTY_DIRTY);
+  // Set while the source-mode switch waits on the discard confirmation: the
+  // pool remounts per mode (key={mode}), which destroys its unsaved edits.
+  const [pendingMode, setPendingMode] = useState<ReviewMode | null>(null);
   const [conflict, setConflict] = useState<{ path: string; theirs: string } | null>(
     null,
   );
@@ -156,11 +161,17 @@ export function DiffReviewPane({
   const rootRef = useRef<HTMLDivElement>(null);
   const fontSizeRef = useRef(fontSize);
   const wheelAccumRef = useRef(0);
+  const orderedFilesRef = useRef<ChangedFile[]>([]);
+  const selectedPathRef = useRef<string | null>(null);
+  const viewModeRef = useRef<PaneViewMode>("all");
   filesRef.current = files;
   baseRef.current = baseBranch;
   modeRef.current = mode;
   activeRef.current = active;
   fontSizeRef.current = fontSize;
+  orderedFilesRef.current = orderedFiles;
+  selectedPathRef.current = selectedPath;
+  viewModeRef.current = viewMode;
 
   const statusOf = useCallback(
     (path: string) => filesRef.current.find((f) => f.path === path)?.status,
@@ -185,6 +196,30 @@ export function DiffReviewPane({
     setFontSize((f) => Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, f + delta)));
   }, []);
   const zoomReset = useCallback(() => setFontSize(baseFontSize), [baseFontSize]);
+
+  const requestModeChange = useCallback(
+    (next: ReviewMode) => {
+      if (next === mode) return;
+      if (poolDirtyPaths.size > 0) {
+        setPendingMode(next);
+        return;
+      }
+      setMode(next);
+    },
+    [mode, poolDirtyPaths],
+  );
+
+  const stepFile = useCallback((delta: number) => {
+    const ordered = orderedFilesRef.current;
+    if (ordered.length === 0) return;
+    const idx = ordered.findIndex((f) => f.path === selectedPathRef.current);
+    const clamped =
+      idx < 0 ? 0 : Math.min(ordered.length - 1, Math.max(0, idx + delta));
+    const next = ordered[clamped].path;
+    if (next === selectedPathRef.current) return;
+    setSelectedPath(next);
+    if (viewModeRef.current === "all") stackRef.current?.scrollToFile(next);
+  }, []);
 
   const withSuppressed = useCallback((fn: () => void) => {
     suppressChangeRef.current = true;
@@ -580,12 +615,25 @@ export function DiffReviewPane({
     editorRef.current?.updateOptions({ fontSize });
   }, [fontSize]);
 
-  // Zoom via ⌘+ / ⌘- / ⌘0, and ⌘/pinch-wheel. Capture phase so the keys never
-  // reach Monaco, and a non-passive wheel listener so we can preventDefault.
+  // Zoom via ⌘+ / ⌘- / ⌘0, and ⌘/pinch-wheel; ⌃⌥↓ / ⌃⌥↑ steps through files
+  // (⌥-arrows alone would shadow Monaco's move-line command). Capture phase so
+  // the keys never reach Monaco, and a non-passive wheel listener so we can
+  // preventDefault.
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.ctrlKey &&
+        e.altKey &&
+        !e.metaKey &&
+        (e.key === "ArrowDown" || e.key === "ArrowUp")
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        stepFile(e.key === "ArrowDown" ? 1 : -1);
+        return;
+      }
       if (!e.metaKey) return;
       if (e.key === "=" || e.key === "+") {
         e.preventDefault();
@@ -621,7 +669,7 @@ export function DiffReviewPane({
       root.removeEventListener("keydown", onKeyDown, true);
       root.removeEventListener("wheel", onWheel, true);
     };
-  }, [zoomBy, zoomReset]);
+  }, [stepFile, zoomBy, zoomReset]);
 
   useGitChanged(projectRoot, reconcileActive);
 
@@ -640,10 +688,18 @@ export function DiffReviewPane({
     );
   const activeDirty = !!selectedPath && dirtyPaths.has(selectedPath);
 
+  // The single editor and the pool hold independent buffers and both stay
+  // mounted across view toggles, so the tree badges the union of their dirt.
+  const treeDirtyPaths = useMemo(
+    () =>
+      mode === "working" ? new Set([...dirtyPaths, ...poolDirtyPaths]) : EMPTY_DIRTY,
+    [mode, dirtyPaths, poolDirtyPaths],
+  );
+
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)]/20 px-3">
-        <DiffSourceModeToggle mode={mode} onChange={setMode} />
+        <DiffSourceModeToggle mode={mode} onChange={requestModeChange} />
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-muted)]">
           {viewMode === "single" ? selectedPath ?? "Select a file" : ""}
         </span>
@@ -703,7 +759,10 @@ export function DiffReviewPane({
           className="relative flex shrink-0 flex-col border-r border-[var(--border)]"
           style={{ width: treeWidth }}
         >
-          <div className="flex h-9 shrink-0 items-center justify-between px-3">
+          <div
+            className="flex h-9 shrink-0 items-center justify-between px-3"
+            title="Next / previous file: ⌃⌥↓ / ⌃⌥↑"
+          >
             <span className="text-[11px] font-medium text-[var(--text-secondary)]">
               Changes
             </span>
@@ -713,26 +772,17 @@ export function DiffReviewPane({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {files.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
-                  <FileIcon size={18} />
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-xs font-medium text-[var(--text-secondary)]">
-                    No changes
-                  </p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    Edits show up here as you work.
-                  </p>
-                </div>
-              </div>
+              <ReviewPlaceholder
+                error={error}
+                title="No changes"
+                body="Edits show up here as you work."
+                className="px-4 py-12"
+              />
             ) : (
               <DiffFileTree
                 tree={tree}
                 selectedPath={selectedPath}
-                dirtyPaths={
-                  mode === "working" && viewMode === "single" ? dirtyPaths : EMPTY_DIRTY
-                }
+                dirtyPaths={treeDirtyPaths}
                 onSelect={(path) => {
                   setSelectedPath(path);
                   // In the all-files overview, scroll the stack to the file.
@@ -769,21 +819,16 @@ export function DiffReviewPane({
             </div>
           )}
           {!selectedPath && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)] text-[var(--text-muted)]">
-                <FileIcon size={18} />
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-xs font-medium text-[var(--text-secondary)]">
-                  {files.length === 0 ? "Nothing to review" : "Select a file"}
-                </p>
-                <p className="text-[11px] text-[var(--text-muted)]">
-                  {files.length === 0
-                    ? "Your working tree is clean."
-                    : "Pick a file to see its diff."}
-                </p>
-              </div>
-            </div>
+            <ReviewPlaceholder
+              error={error}
+              title={files.length === 0 ? "Nothing to review" : "Select a file"}
+              body={
+                files.length === 0
+                  ? "Your working tree is clean."
+                  : "Pick a file to see its diff."
+              }
+              className="absolute inset-0 justify-center px-6"
+            />
           )}
         </div>
         {/* The stack stays mounted (hidden in single mode) so in-progress edits
@@ -800,8 +845,57 @@ export function DiffReviewPane({
             sideBySide={sideBySide}
             active={active && viewMode === "all"}
             onActiveFileChange={setSelectedPath}
+            onDirtyPathsChange={setPoolDirtyPaths}
           />
         </div>
+      </div>
+
+      <ConfirmDialog
+        open={pendingMode !== null}
+        title="Discard unsaved edits?"
+        body={`You have unsaved changes in ${poolDirtyPaths.size} file${
+          poolDirtyPaths.size === 1 ? "" : "s"
+        }. Switching sources will discard them.`}
+        cancelLabel="Keep editing"
+        confirmLabel="Discard & switch"
+        variant="destructive"
+        onCancel={() => setPendingMode(null)}
+        onConfirm={() => {
+          if (pendingMode) setMode(pendingMode);
+          setPendingMode(null);
+        }}
+      />
+    </div>
+  );
+}
+
+function ReviewPlaceholder({
+  error,
+  title,
+  body,
+  className,
+}: {
+  error: string | null;
+  title: string;
+  body: string;
+  className: string;
+}) {
+  return (
+    <div className={`flex flex-col items-center gap-3 text-center ${className}`}>
+      <div
+        className={`flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bg-secondary)] ${
+          error ? "text-[var(--accent-red)]" : "text-[var(--text-muted)]"
+        }`}
+      >
+        <FileIcon size={18} />
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-xs font-medium text-[var(--text-secondary)]">
+          {error ? "Couldn't read changes" : title}
+        </p>
+        <p className="break-words text-[11px] text-[var(--text-muted)]">
+          {error ?? body}
+        </p>
       </div>
     </div>
   );

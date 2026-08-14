@@ -264,12 +264,16 @@ export function MergeBranchDialog({
     <Modal
       open={open}
       onClose={closeDialog}
-      closeOnBackdrop={!busy}
+      backdrop={false}
+      draggable
       closeOnEscape={!busy}
       zIndexClassName="z-[60]"
       contentClassName="w-[480px] overflow-visible rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
     >
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+      <div
+        data-modal-drag-handle
+        className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3"
+      >
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           {mode.kind === "conflicts" ? "Merge conflicts" : "Merge"}
         </h3>

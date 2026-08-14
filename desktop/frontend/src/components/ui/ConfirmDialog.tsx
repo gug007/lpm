@@ -100,6 +100,7 @@ export function ConfirmDialog({
       ))}
       <div className={`${title ? "mt-5" : "mt-4"} flex justify-end gap-2`}>
         <button
+          autoFocus={!mustType}
           onClick={onCancel}
           className={`rounded-lg border border-[var(--border)] ${title ? "px-4 py-2 text-sm" : "px-3 py-1.5 text-xs"} font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)]`}
         >

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Modal } from "./ui/Modal";
 import { ChevronRightIcon, FolderIcon, XIcon } from "./icons";
 import { PeerInvoke } from "../../bridge/commands";
+import { modalErrorBannerClass } from "../forms/styles";
 
 interface DirListing {
   path: string;
@@ -88,9 +89,7 @@ export function RemoteFolderBrowserModal({
       </div>
 
       {error && (
-        <div className="mt-4 rounded-md border border-[var(--danger,#f87171)]/40 bg-[var(--danger,#f87171)]/10 px-3 py-2 text-[12px] leading-relaxed text-[var(--danger,#f87171)]">
-          {error}
-        </div>
+        <div className={`mt-4 ${modalErrorBannerClass}`}>{error}</div>
       )}
 
       <div className="mt-4 min-h-[140px] flex-1 overflow-y-auto rounded-lg border border-[var(--border)]">

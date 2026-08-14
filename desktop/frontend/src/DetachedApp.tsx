@@ -14,6 +14,7 @@ import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useAppStore } from "./store/app";
+import { useResolvedTheme } from "./theme";
 import { FocusMainWindow } from "../bridge/commands";
 
 interface DetachedAppProps {
@@ -28,6 +29,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const duplicatingNames = useAppStore((s) => s.duplicatingNames);
   const removingNames = useAppStore((s) => s.removingNames);
+  const theme = useResolvedTheme();
 
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
@@ -91,7 +93,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
     <div className="flex h-screen">
       <Toaster
         position="top-right"
-        theme="system"
+        theme={theme}
         offset={56}
         closeButton
         richColors

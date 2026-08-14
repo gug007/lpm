@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { useEventListener } from "../hooks/useEventListener";
 import { ChevronLeftIcon, XIcon } from "./icons";
 import { DrillCrumb } from "./DrillCrumb";
 
@@ -38,6 +39,24 @@ export function DrillMenu({
   };
   const screen = stack.length ? stack[stack.length - 1] : root;
   const drilled = stack.length > 0;
+
+  // Escape backs out one level, closing only from the root. Popping a drilled
+  // screen stops immediately so an enclosing surface with its own document
+  // Escape listener (e.g. Modal) doesn't also close; at the root the event
+  // travels on so whichever surface is on top decides.
+  useEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== "Escape") return;
+      if (drilled) {
+        e.stopImmediatePropagation();
+        api.pop();
+      } else {
+        onClose();
+      }
+    },
+    document,
+  );
 
   useEffect(() => {
     if (stack.length > 0 && screen.isEmpty?.()) setStack((s) => s.slice(0, -1));

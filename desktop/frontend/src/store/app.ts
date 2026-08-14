@@ -1397,8 +1397,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         view: "projects",
         sshModalOpen: false,
       });
-    } catch (err) {
-      toast.error(`Failed to add SSH project: ${err}`);
     } finally {
       set({ addingSSHProject: false });
     }

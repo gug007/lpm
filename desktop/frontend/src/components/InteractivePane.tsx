@@ -22,9 +22,10 @@ import {
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
 import { quoteImagePathForPaste, unquotePastedPath } from "../composerValue";
-import { canFitHost, getTerminalTheme, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
+import { canFitHost, getTerminalTheme, isAtBottom, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
+import { ArrowDownIcon } from "./terminal/icons";
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import {
   PASTE_QUIET_MS,
@@ -910,9 +911,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   });
 
   term.onScroll(() => {
-    const buf = term.buffer.active;
-    const atBottom = buf.baseY + term.rows >= buf.length;
-    session.onScrollState?.(atBottom);
+    session.onScrollState?.(isAtBottom(term));
   });
 
   if (!IS_MIRROR_WINDOW && amOwner()) {
@@ -1318,6 +1317,8 @@ export function InteractivePane({
   const themeOverrideRef = useRef(themeOverride);
   const onExitRef = useRef(onExit);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const atBottomRef = useRef(true);
   fontSizeRef.current = fontSize;
   scrollCallbackRef.current = onScrollStateChange;
   themeOverrideRef.current = themeOverride;
@@ -1327,6 +1328,22 @@ export function InteractivePane({
   const clearConsole = () => {
     sessionRef.current?.term.clear();
     filterRef.current?.refresh();
+  };
+
+  // onScroll fires per scrolled line while output streams, so re-render only
+  // when the scroll position actually crosses the bottom.
+  const updateAtBottom = (bottom: boolean) => {
+    if (atBottomRef.current === bottom) return;
+    atBottomRef.current = bottom;
+    setAtBottom(bottom);
+  };
+
+  const scrollToBottom = () => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.term.scrollToBottom();
+    updateAtBottom(true);
+    scrollCallbackRef.current?.(true);
   };
 
   useImperativeHandle(ref, () => ({
@@ -1356,12 +1373,7 @@ export function InteractivePane({
         onCount,
       );
     },
-    scrollToBottom() {
-      const session = sessionRef.current;
-      if (!session) return;
-      session.term.scrollToBottom();
-      scrollCallbackRef.current?.(true);
-    },
+    scrollToBottom,
     focus() {
       sessionRef.current?.term.focus();
     },
@@ -1518,7 +1530,11 @@ export function InteractivePane({
     session.term.options.theme =
       themeOverrideRef.current ?? getTerminalTheme(el);
     session.themeOverride = themeOverrideRef.current ?? null;
-    session.onScrollState = (atBottom) => scrollCallbackRef.current?.(atBottom);
+    session.onScrollState = (bottom) => {
+      updateAtBottom(bottom);
+      scrollCallbackRef.current?.(bottom);
+    };
+    updateAtBottom(isAtBottom(session.term));
     session.onAfterClear = () => filterRef.current?.refresh();
     session.onExit = (code) => onExitRef.current?.(code);
 
@@ -1663,7 +1679,17 @@ export function InteractivePane({
           setMenu({ x: e.clientX, y: e.clientY });
         }}
         className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-      />
+      >
+        {!atBottom && (
+          <button
+            aria-label="Scroll to bottom"
+            onClick={scrollToBottom}
+            className="absolute bottom-3 right-3 z-10 flex items-center justify-center rounded-full border border-[var(--border)] bg-[var(--terminal-header)] p-1.5 text-[var(--terminal-header-text)] shadow-md transition-colors hover:text-[var(--terminal-tab-active)]"
+          >
+            <ArrowDownIcon />
+          </button>
+        )}
+      </div>
       {menu && sessionRef.current && (
         <ConsoleContextMenu
           x={menu.x}

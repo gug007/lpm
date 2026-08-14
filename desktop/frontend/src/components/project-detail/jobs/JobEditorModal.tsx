@@ -35,6 +35,7 @@ import {
 } from "../../../jobsFormat";
 import { type ComposerValue } from "../../../composerValue";
 import { isDuplicate, type ActionInfo } from "../../../types";
+import { useDiscardGuard } from "../../../hooks/useDiscardGuard";
 import { useAppStore } from "../../../store/app";
 import { effortsFor, MODEL_OPTIONS } from "../../../agentModelOptions";
 
@@ -295,6 +296,14 @@ export function JobEditorModal({
     }
   };
 
+  const { requestClose, guardOpen, dialog } = useDiscardGuard({
+    open,
+    entity: "job",
+    isDirty: () => touched,
+    saving,
+    onClose,
+  });
+
   // Two scopes the picker can't rewrite: a repo job is declared by the project's
   // own checked-in config, which travels with that folder (moving it would mean
   // editing the repo, as its missing Delete already reflects), and an
@@ -333,9 +342,9 @@ export function JobEditorModal({
     <>
       <Modal
         open={open}
-        onClose={onClose}
-        closeOnEscape={!confirmDelete}
-        closeOnBackdrop={!confirmDelete}
+        onClose={requestClose}
+        closeOnEscape={!confirmDelete && !guardOpen}
+        closeOnBackdrop={!confirmDelete && !guardOpen}
         backdropClassName="bg-black/50 backdrop-blur-sm"
         contentClassName="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-2xl"
       >
@@ -351,7 +360,7 @@ export function JobEditorModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={requestClose}
               aria-label="Close"
               className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
@@ -651,7 +660,7 @@ export function JobEditorModal({
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={requestClose}
                 className="rounded-lg px-4 py-2 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               >
                 Cancel
@@ -704,6 +713,7 @@ export function JobEditorModal({
         onCancel={() => setConfirmDelete(false)}
         onConfirm={() => void remove()}
       />
+      {dialog}
     </>
   );
 }

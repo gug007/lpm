@@ -210,7 +210,7 @@ export function CreateBranchModal({
               disabled={busy}
               className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] disabled:opacity-40"
             >
-              Close
+              Cancel
             </button>
             <button
               type="submit"
