@@ -153,8 +153,8 @@ function DemoStage() {
 
 function DemoCaption() {
   return (
-    <div className="mb-4 flex flex-col items-center gap-2 text-center md:mb-5 md:flex-row md:items-center md:justify-between md:gap-6 md:text-left">
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 md:justify-start">
+    <div className="mb-4 flex flex-col items-center gap-2 text-center lg:mb-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:text-left">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:justify-start">
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
           <span
             className="relative hidden h-1.5 w-1.5 md:inline-flex"
@@ -170,14 +170,13 @@ function DemoCaption() {
           Projects, terminals, agents, a built-in browser — one click each
         </h2>
       </div>
-      <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 md:max-w-sm md:text-right dark:text-gray-400">
+      <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 lg:max-w-none lg:whitespace-nowrap lg:text-right dark:text-gray-400">
         <span className="md:hidden">
           A recording of lpm booting a project and handing it to Claude Code —
           lpm is a macOS app, so the clickable demo runs on desktop.
         </span>
         <span className="hidden md:inline">
-          Click anything below — projects, services, agents. It runs live in
-          your browser.
+          Click anything — it runs live in your browser.
         </span>
       </p>
     </div>

@@ -369,8 +369,10 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     });
     mime(2000, () => setRingPulseOn(false));
 
-    // Second beat: hand the freshly started project to Claude Code. The button
-    // can shift as services open panes, so each beat re-reads its position.
+    // Second beat: hand the freshly started project to Claude Code. It waits on
+    // the services long enough for a visitor to watch them boot — jumping
+    // straight to the agent buries the thing the first click just did. The
+    // button can shift as services open panes, so each beat re-reads it.
     const agentAt = () => {
       const el = agentButtonRef.current;
       return el ? at(el) : null;
@@ -380,13 +382,13 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       if (pos) setAutoCursor({ phase, ...pos });
     };
 
-    mime(2400, moveToAgent("travel"));
-    step(3400, () => {
+    mime(5200, moveToAgent("travel"));
+    step(6200, () => {
       if (!cursorHidden) moveToAgent("tap")();
       launchAgentIfIdle();
     });
-    mime(3900, moveToAgent("fade"));
-    mime(4400, () => setAutoCursor({ phase: "hidden" }));
+    mime(6700, moveToAgent("fade"));
+    mime(7200, () => setAutoCursor({ phase: "hidden" }));
 
     return () => {
       // Scrolling away mid-flight would otherwise strand the mimed cursor on

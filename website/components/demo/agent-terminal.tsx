@@ -5,7 +5,9 @@ import { NO_AUTOFILL } from "./no-autofill";
 import { useStickToBottom } from "./use-stick-to-bottom";
 import { History, Mic, Plus, Send, Sparkles, Square } from "lucide-react";
 import type { ReplyContext } from "./projects";
-import { FOCUS_RING, useReducedMotion } from "./ui";
+import { FOCUS_RING } from "./ui";
+import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
+import { AgentTurn } from "./agent-turn";
 import {
   BRAND,
   DONE_STEPS,
@@ -29,30 +31,18 @@ type HistoryItem = {
   revealed: number;
   steps: Step[];
   finished: boolean;
+  startedAt: number;
+  doneMs: number;
   keepBusy?: boolean;
 };
 
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const MAX_HISTORY = 30;
 // How long a seeded "still working" session runs before it lands.
 const KEEP_ALIVE_MS = 5200;
 const SETTLE_AFTER_MS = 32000;
-
-// Its own component so the 80ms tick re-renders one span, not the whole
-// transcript — every mounted project has a session that may be spinning.
-function Spinner() {
-  const [i, setI] = useState(0);
-  const reducedMotion = useReducedMotion();
-  useEffect(() => {
-    if (reducedMotion) return;
-    const id = window.setInterval(
-      () => setI((v) => (v + 1) % SPINNER.length),
-      80,
-    );
-    return () => window.clearInterval(id);
-  }, [reducedMotion]);
-  return <>{reducedMotion ? SPINNER[0] : SPINNER[i]}</>;
-}
+// What a session that opens already finished claims it spent, so its footer
+// reads like a turn that really ran instead of one that took no time at all.
+const SEEDED_DONE_MS = 9000;
 
 type AgentTerminalProps = {
   agent: AgentKind;
@@ -116,6 +106,8 @@ export function AgentTerminal({
           revealed: 0,
           steps,
           finished: false,
+          startedAt: Date.now(),
+          doneMs: 0,
           keepBusy: opts?.keepBusy,
         },
       ];
@@ -140,6 +132,7 @@ export function AgentTerminal({
         ...x,
         finished: true,
         keepBusy: false,
+        doneMs: Date.now() - x.startedAt,
         steps: closing ? [...x.steps, closing] : x.steps,
         revealed: x.steps.length + (closing ? 1 : 0),
       }));
@@ -197,6 +190,8 @@ export function AgentTerminal({
           revealed: DONE_STEPS.length,
           steps: DONE_STEPS,
           finished: true,
+          startedAt: Date.now() - SEEDED_DONE_MS,
+          doneMs: SEEDED_DONE_MS,
         },
       ]);
       // Without this the finished session never reports itself, so its sidebar
@@ -210,7 +205,11 @@ export function AgentTerminal({
   // and the composer is free again.
   const stop = () => {
     setHistory((h) =>
-      h.map((item) => (item.finished ? item : { ...item, finished: true })),
+      h.map((item) =>
+        item.finished
+          ? item
+          : { ...item, finished: true, doneMs: Date.now() - item.startedAt },
+      ),
     );
     setBusy(false);
     onStatusRef.current?.("done");
@@ -234,13 +233,15 @@ export function AgentTerminal({
   };
 
   const b = BRAND[agent];
-  const brand = b.glyph;
-  const brandColor = b.color;
-  const promptGlyph = b.prompt;
-  const toolBullet = b.bullet;
-  const welcomeTitle = b.title;
-  const welcomeHelp = b.help;
-  const agentName = b.name;
+  const project = cwd.slice(cwd.lastIndexOf("/") + 1);
+  // Drives the status line's context/cost readouts, so they drift with the work
+  // on screen instead of sitting at a constant.
+  const work = history.reduce(
+    (total, item) =>
+      total +
+      item.steps.slice(0, item.revealed).filter((s) => s.kind === "tool").length,
+    0,
+  );
 
   return (
     <div className="flex flex-1 min-h-0 flex-col bg-[#1a1a1a]">
@@ -250,76 +251,47 @@ export function AgentTerminal({
         onClick={() => inputRef.current?.focus()}
         className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100"
       >
-      <div className="text-emerald-400">$ {agent}</div>
-      <div className="h-2" />
-      <div className={brandColor}>
-        <span className="mr-2">{brand}</span>
-        {welcomeTitle}
-      </div>
-      <div className="h-1" />
-      <div className="pl-4 text-gray-400">{welcomeHelp}</div>
-      <div className="pl-4 text-gray-400">cwd: {cwd}</div>
-      <div className="h-1" />
-      <div className="pl-2 text-gray-600">────────────────────</div>
-      <div className="h-1" />
-      <div className="pl-2 text-gray-400">
-        ※ Tip: lpm launched {agent === "claude" ? "Claude" : "Codex"}{" "}
-        in this project&apos;s root
-      </div>
-
-      <div className="h-3" />
-
-      {history.map((item) => (
-        <div key={item.id} className="mb-3">
-          <div className="flex gap-2">
-            <span className={brandColor}>{promptGlyph}</span>
-            <span className="text-gray-100 whitespace-pre-wrap break-words">
-              {item.query}
-            </span>
-          </div>
-          <div className="mt-1 pl-4 space-y-1">
-            {item.steps.slice(0, item.revealed).map((step, i) => {
-              if (step.kind === "thinking") {
-                const active = !item.finished && i === item.revealed - 1;
-                return (
-                  <div key={i} className={brandColor}>
-                    <span className="inline-block w-3 tabular-nums">
-                      {active ? <Spinner /> : "✓"}
-                    </span>
-                    <span className="ml-1">Thinking…</span>
-                  </div>
-                );
-              }
-              if (step.kind === "tool") {
-                return (
-                  <div key={i}>
-                    <div>
-                      <span className={brandColor}>{toolBullet}</span>
-                      <span className="ml-1.5 text-gray-200">{step.label}</span>
-                      <span className="text-gray-500">({step.arg})</span>
-                    </div>
-                    <div className="pl-5 text-gray-500">⎿ {step.result}</div>
-                  </div>
-                );
-              }
-              const className =
-                step.style === "muted"
-                  ? "text-gray-500"
-                  : "text-gray-100";
-              return (
-                <div
-                  key={i}
-                  className={`${className} whitespace-pre-wrap break-words`}
-                >
-                  {step.text || " "}
-                </div>
-              );
-            })}
-          </div>
+        <div className="text-emerald-400">$ {b.cmd}</div>
+        <div className="h-2" />
+        <AgentBanner agent={agent} cwd={cwd} />
+        <div className="h-2" />
+        <div className="text-gray-500">
+          <span className="font-semibold text-gray-400">
+            {agent === "claude" ? "※ Tip:" : "Tip:"}
+          </span>{" "}
+          lpm launched {agent === "claude" ? "Claude" : "Codex"} in this
+          project&apos;s root
         </div>
-      ))}
 
+        <div className="h-3" />
+
+        {history.map((item) => (
+          <AgentTurn
+            key={item.id}
+            agent={agent}
+            query={item.query}
+            steps={item.steps}
+            revealed={item.revealed}
+            finished={item.finished}
+            footer={
+              !item.finished ? (
+                <WorkingLine
+                  agent={agent}
+                  seed={item.id}
+                  startedAt={item.startedAt}
+                  tokens={tokensFor(item)}
+                />
+              ) : agent === "claude" ? (
+                <TurnFooter
+                  seed={item.id}
+                  seconds={Math.max(1, Math.round(item.doneMs / 1000))}
+                />
+              ) : null
+            }
+          />
+        ))}
       </div>
+      <AgentStatusLine agent={agent} project={project} work={work} />
       <div className="shrink-0 border-t border-[#2e2e2e] px-3 py-2">
         {history.length === 0 && !busy && (
           <div className="mb-2 flex flex-wrap gap-1.5">
@@ -331,7 +303,7 @@ export function AgentTerminal({
                   setInput("");
                   runQuery(suggestion);
                 }}
-                className={`rounded-full border border-[#2e2e2e] bg-[#202020] px-2.5 py-1 text-[10px] transition-colors hover:bg-[#2a2a2a] ${brandColor} ${FOCUS_RING}`}
+                className={`rounded-full border border-[#2e2e2e] bg-[#202020] px-2.5 py-1 text-[10px] transition-colors hover:bg-[#2a2a2a] ${b.color} ${FOCUS_RING}`}
               >
                 {suggestion}
               </button>
@@ -339,14 +311,14 @@ export function AgentTerminal({
           </div>
         )}
         <form onSubmit={onSubmit} autoComplete="off">
-          <div className="rounded-lg border border-[#2e2e2e] bg-[#202020] px-2.5 py-2 transition-colors focus-within:border-[#3a3a3a]">
+          <div className="rounded-lg border border-[#2e2e2e] bg-[#202020] px-2.5 py-2 transition-colors focus-within:border-cyan-500">
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={
-                busy ? "Working… press Stop to interrupt" : `Send to ${agentName}…`
+                busy ? "Working… press Stop to interrupt" : `Send to ${b.name}…`
               }
               {...NO_AUTOFILL}
               className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100"
@@ -404,6 +376,16 @@ export function AgentTerminal({
       </div>
     </div>
   );
+}
+
+// Rough enough to read like the live counter Claude Code shows mid-turn: all it
+// has to do is grow with the work already on screen.
+function tokensFor(item: HistoryItem): number {
+  return item.steps.slice(0, item.revealed).reduce((total, step) => {
+    if (step.kind === "tool") return total + 340;
+    if (step.kind === "text") return total + Math.ceil(step.text.length / 3);
+    return total + 120;
+  }, 280);
 }
 
 function ComposerIcon({

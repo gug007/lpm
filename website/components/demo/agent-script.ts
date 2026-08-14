@@ -13,36 +13,72 @@ export type ReplyIntent = "fix" | "add" | "refactor" | "docs" | "deploy";
 
 type Reply = { steps: AgentStep[]; intent?: ReplyIntent };
 
+// Mirrors what each CLI actually prints, down to the banner layout, prompt
+// glyph and step bullet — the demo terminal is only convincing if a visitor
+// who runs these tools daily recognises them at a glance.
 export type Brand = {
   glyph: string;
   color: string;
+  cmd: string;
+  name: string;
+  version: string;
+  model: string;
+  account: string;
   prompt: string;
   bullet: string;
-  title: string;
-  help: string;
-  name: string;
 };
 
 export const BRAND: Record<AgentKind, Brand> = {
   claude: {
     glyph: "✻",
-    color: "text-fuchsia-300",
-    prompt: ">",
-    bullet: "●",
-    title: "Welcome to Claude Code!",
-    help: "/help for help · /status for your setup",
+    color: "text-[#d97757]",
+    cmd: "claude",
     name: "Claude Code",
+    version: "v2.1.232",
+    model: "Fable 5",
+    account: "Claude Max",
+    prompt: "❯",
+    bullet: "⏺",
   },
   codex: {
     glyph: "◆",
-    color: "text-cyan-300",
-    prompt: "▶",
-    bullet: "▸",
-    title: "Codex CLI · ready",
-    help: "/help · /model · /resume",
+    color: "text-[#ffb242]",
+    cmd: "codex",
     name: "Codex",
+    version: "v0.147.0",
+    model: "gpt-5.6-sol max",
+    account: "",
+    prompt: "›",
+    bullet: "•",
   },
 };
+
+// Claude Code labels each turn with a whimsical verb, and swaps it for a past
+// tense one once the turn lands.
+const VERBS: readonly (readonly [string, string])[] = [
+  ["Percolating", "Percolated"],
+  ["Cogitating", "Cogitated"],
+  ["Noodling", "Noodled"],
+  ["Simmering", "Simmered"],
+  ["Puzzling", "Puzzled"],
+  ["Brewing", "Brewed"],
+  ["Churning", "Churned"],
+  ["Mulling", "Mulled"],
+  ["Ruminating", "Ruminated"],
+  ["Spelunking", "Spelunked"],
+  ["Wrangling", "Wrangled"],
+  ["Marinating", "Marinated"],
+];
+
+export function workingVerb(seed: number): string {
+  return VERBS[seed % VERBS.length][0];
+}
+
+export function settledVerb(seed: number): string {
+  return VERBS[(seed + 5) % VERBS.length][1];
+}
+
+export const CLAUDE_STARS = ["✢", "✳", "∗", "✻", "✽", "✻", "∗", "✳"];
 
 export const SUGGESTIONS = [
   "What does this project do?",
