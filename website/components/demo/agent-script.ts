@@ -17,7 +17,6 @@ type Reply = { steps: AgentStep[]; intent?: ReplyIntent };
 // glyph and step bullet — the demo terminal is only convincing if a visitor
 // who runs these tools daily recognises them at a glance.
 export type Brand = {
-  glyph: string;
   color: string;
   cmd: string;
   name: string;
@@ -30,7 +29,6 @@ export type Brand = {
 
 export const BRAND: Record<AgentKind, Brand> = {
   claude: {
-    glyph: "✻",
     color: "text-[#d97757]",
     cmd: "claude",
     name: "Claude Code",
@@ -41,7 +39,6 @@ export const BRAND: Record<AgentKind, Brand> = {
     bullet: "⏺",
   },
   codex: {
-    glyph: "◆",
     color: "text-[#ffb242]",
     cmd: "codex",
     name: "Codex",
