@@ -1,12 +1,20 @@
+"use client";
+
+import { trackAppStoreVisit, type AppStoreSource } from "@/lib/analytics";
 import { APP_STORE_URL } from "@/lib/links";
 
-export default function AppStoreButton() {
+export default function AppStoreButton({
+  source = "mobile-hero",
+}: {
+  source?: AppStoreSource;
+}) {
   return (
     <a
       href={APP_STORE_URL}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Download lpm link on the App Store"
+      onClick={() => trackAppStoreVisit(source)}
       className="group inline-flex w-full max-w-xs items-center justify-center gap-3 rounded-full bg-black px-10 py-[18px] text-white shadow-sm ring-1 ring-gray-900/10 transition-[background-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-[1px] hover:bg-gray-900 hover:shadow-lg active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:ring-white/25 dark:hover:ring-white/40 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950 sm:w-auto sm:max-w-none sm:px-7 sm:py-3.5"
     >
       <svg

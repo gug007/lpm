@@ -76,7 +76,7 @@ function Indicator({ on }: { on: boolean }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>
@@ -152,15 +152,6 @@ export default function Comparison() {
           </table>
         </div>
 
-        <p className="hidden sm:block mt-4 text-xs text-gray-500 dark:text-gray-400 text-right">
-          <Link
-            href={vsPath("cmux")}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Or compare lpm to cmux directly →
-          </Link>
-        </p>
-
         <div className="sm:hidden space-y-4">
           {ALTERNATIVES.map((a) => {
             const isLpm = a.key === "lpm";
@@ -201,6 +192,15 @@ export default function Comparison() {
             );
           })}
         </div>
+
+        <p className="mt-6 text-xs text-gray-500 dark:text-gray-400 sm:mt-4 sm:text-right">
+          <Link
+            href={vsPath("cmux")}
+            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+          >
+            Or compare lpm to cmux directly →
+          </Link>
+        </p>
       </div>
     </section>
   );

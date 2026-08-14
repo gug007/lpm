@@ -14,6 +14,11 @@ const FAQS: QA[] = [
       "Yes. The iOS app is a companion, not a standalone terminal. Every project, service, and AI agent runs on your Mac inside lpm — the phone is a live display and input client that pairs with it. Install lpm on your Mac first, then pair your iPhone or iPad.",
   },
   {
+    question: "How is this different from Claude Code's built-in remote control?",
+    answer:
+      "They solve overlapping problems from different ends, and they work fine side by side. Claude Code's own remote control keeps a Claude Code session moving from your phone. The lpm companion mirrors the real terminal sessions running on your Mac — full scrollback, and you type into the same session — so it works with whatever agent is in that terminal: Claude Code, Codex, Gemini CLI, or anything else you run there. It also covers the steps around the agent: reviewing the diff, committing, pulling and pushing, opening a pull request, and starting or stopping the project's services. And it pairs straight to your Mac by QR code, with no account to create.",
+  },
+  {
     question: "Can I prompt Claude Code and Codex from my phone?",
     answer:
       "Yes. Each terminal has a full prompt composer: type or dictate a prompt, run an AI rewrite and pick from variants, use slash commands for the agent in that terminal, @-mention changed files, branches, terminal output, or service logs, and attach images. Your prompt goes to the real agent session running on your Mac.",

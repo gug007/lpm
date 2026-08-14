@@ -31,7 +31,7 @@ const FAQS: QA[] = [
   {
     question: "Can I use my existing shell setup (zsh, dotfiles, aliases) in lpm?",
     answer:
-      "Yes. lpm panes are real terminal sessions running your default shell — zsh, bash, or fish — with your full dotfile configuration loaded. Every alias, function, $PATH entry, and prompt theme works exactly as it does in Terminal.app or iTerm2.",
+      "Yes, including the parts a monorepo depends on. Each pane starts your default shell as a login shell, so .zshrc and .zprofile run, your version managers (nvm, pyenv, rbenv, mise) initialize, and direnv still swaps environments as you cd between packages. Every alias, function, $PATH entry, and prompt theme behaves the way it does in Terminal.app. Each service and terminal also starts in the working directory you gave it, so a pane opens straight into the package it belongs to instead of at the repo root.",
   },
   {
     question: "How is lpm different from using tmux inside iTerm2?",

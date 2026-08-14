@@ -1,54 +1,125 @@
+import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { jsonLdString } from "@/lib/structured-data";
 
 type QA = {
   question: string;
-  answer: string;
+  answer: ReactNode;
+  answerText?: string;
 };
 
 const FAQS: QA[] = [
   {
     question: "Does lpm replace Termius as my SSH client on Mac?",
-    answer:
-      "For developers who want their terminal to handle remote work alongside local services, yes — lpm imports `~/.ssh/config` directly (no separate host vault), runs remote services in panes next to your local ones, and forwards ports without leaving the window. If you specifically need a saved-snippet library or an SFTP file browser, Termius still does those things; lpm is a terminal-first SSH workspace, not a feature-parity Termius alternative on Mac. For most remote-dev workflows, the terminal-first approach replaces the dedicated client entirely.",
+    answer: (
+      <>
+        For developers who want their terminal to handle remote work alongside
+        local services, yes — lpm reads the hosts already in your{" "}
+        <code className="text-xs">~/.ssh/config</code> (no separate host vault),
+        runs remote services in panes next to your local ones, and forwards
+        ports without leaving the window. If you specifically need a
+        saved-snippet library or an SFTP file browser, Termius still does those
+        things; lpm is a terminal-first SSH workspace, not a feature-parity
+        Termius alternative on Mac. For most remote-dev workflows, the
+        terminal-first approach replaces the dedicated client entirely.
+      </>
+    ),
+    answerText:
+      "For developers who want their terminal to handle remote work alongside local services, yes — lpm reads the hosts already in your ~/.ssh/config (no separate host vault), runs remote services in panes next to your local ones, and forwards ports without leaving the window. If you specifically need a saved-snippet library or an SFTP file browser, Termius still does those things; lpm is a terminal-first SSH workspace, not a feature-parity Termius alternative on Mac. For most remote-dev workflows, the terminal-first approach replaces the dedicated client entirely.",
   },
   {
-    question: "How does lpm import my `~/.ssh/config`?",
-    answer:
-      "When you add an SSH project, lpm reads `~/.ssh/config` (and any files referenced by `Include` directives, up to four levels deep), parses out the non-wildcard `Host` blocks, and shows them in a dropdown. Pick any host from `~/.ssh/config` and lpm pre-fills the host alias, user, port, and identity file in the form. lpm connects through that Host alias, so OpenSSH can still apply alias-scoped options such as `HostName`, `ProxyJump`, and `ProxyCommand`. The config import is one read, and your `~/.ssh/config` stays the source of truth.",
+    question: "How does lpm import my SSH config?",
+    answer: (
+      <>
+        When you add an SSH project, lpm reads{" "}
+        <code className="text-xs">~/.ssh/config</code> (and any files pulled in
+        by <code className="text-xs">Include</code> directives, up to four
+        levels deep), parses out the non-wildcard{" "}
+        <code className="text-xs">Host</code> blocks, and shows them in a
+        dropdown. Pick a host and lpm pre-fills the host alias, user, port, and
+        identity file in the form. lpm connects through that alias, so OpenSSH
+        can still apply alias-scoped options such as{" "}
+        <code className="text-xs">HostName</code>,{" "}
+        <code className="text-xs">ProxyJump</code>, and{" "}
+        <code className="text-xs">ProxyCommand</code>. The import is one read,
+        and your config file stays the source of truth.
+      </>
+    ),
+    answerText:
+      "When you add an SSH project, lpm reads ~/.ssh/config (and any files pulled in by Include directives, up to four levels deep), parses out the non-wildcard Host blocks, and shows them in a dropdown. Pick a host and lpm pre-fills the host alias, user, port, and identity file in the form. lpm connects through that alias, so OpenSSH can still apply alias-scoped options such as HostName, ProxyJump, and ProxyCommand. The import is one read, and your config file stays the source of truth.",
   },
   {
-    question: "Can I forward a remote port to localhost without typing `ssh -L`?",
-    answer:
-      "Yes — that's the whole point of the Ports popover. Type the remote port, leave the local port blank, hit Enter; lpm spawns the forward, polls `localhost:<port>` until something actually accepts a connection, and only then surfaces the success toast. So you know the tunnel is usable, not just spawned. Declared service ports auto-forward at start, and ad-hoc binds discovered on the remote surface as one-click suggestions — remote port forwarding without the `ssh -L` archaeology.",
+    question: "Can I forward a remote port to localhost without typing ssh -L?",
+    answer: (
+      <>
+        Yes — that&apos;s the whole point of the Ports popover. Type the remote
+        port, leave the local port blank, hit Enter; lpm spawns the forward,
+        polls <code className="text-xs">localhost:&lt;port&gt;</code> until
+        something actually accepts a connection, and only then surfaces the
+        success toast. So you know the tunnel is usable, not just spawned.
+        Declared service ports auto-forward at start, and ad-hoc binds
+        discovered on the remote surface as one-click suggestions — remote port
+        forwarding without the <code className="text-xs">ssh -L</code>{" "}
+        archaeology.
+      </>
+    ),
+    answerText:
+      "Yes — that's the whole point of the Ports popover. Type the remote port, leave the local port blank, hit Enter; lpm spawns the forward, polls localhost:<port> until something actually accepts a connection, and only then surfaces the success toast. So you know the tunnel is usable, not just spawned. Declared service ports auto-forward at start, and ad-hoc binds discovered on the remote surface as one-click suggestions — remote port forwarding without the ssh -L archaeology.",
   },
   {
-    question: "Does lpm work with a jump host or bastion (`ProxyJump`)?",
-    answer:
-      "Yes, when the jump host is part of the selected `Host` entry in your OpenSSH config. lpm saves the Host alias and invokes OpenSSH with that alias, so options such as `ProxyJump bastion` or `ProxyCommand` remain in OpenSSH's hands. The first connection prompts for whatever your bastion requires (key passphrase, 2FA); the multiplexed channel keeps it open after that, so later services, actions, and terminals can reuse it.",
+    question: "Does lpm work with a jump host or bastion?",
+    answer: (
+      <>
+        Yes, when the jump host is part of the selected{" "}
+        <code className="text-xs">Host</code> entry in your OpenSSH config. lpm
+        saves the host alias and invokes OpenSSH with it, so options such as{" "}
+        <code className="text-xs">ProxyJump bastion</code> or{" "}
+        <code className="text-xs">ProxyCommand</code> remain in OpenSSH&apos;s
+        hands. The first connection prompts for whatever your bastion requires
+        (key passphrase, 2FA); the multiplexed channel keeps it open after that,
+        so later services, actions, and terminals can reuse it.
+      </>
+    ),
+    answerText:
+      "Yes, when the jump host is part of the selected Host entry in your OpenSSH config. lpm saves the host alias and invokes OpenSSH with it, so options such as ProxyJump bastion or ProxyCommand remain in OpenSSH's hands. The first connection prompts for whatever your bastion requires (key passphrase, 2FA); the multiplexed channel keeps it open after that, so later services, actions, and terminals can reuse it.",
   },
   {
     question: "Can actions run on the remote host, or locally against remote files?",
     answer:
-      "Both — each action picks its mode independently. Remote actions (the default for SSH projects) run their command on the remote host over ssh — useful for a deploy, a migration, a remote build. Sync actions mirror the remote source tree to your Mac, run the command locally against the mirror, and push changes back — so a local tool (a code formatter, an IDE refactor, an AI coding session) can act on remote source without you shuttling files manually.",
+      "Both — each action picks where it runs, independently of the others. Remote actions (the default for SSH projects) run their command on the remote host over ssh — useful for a deploy, a migration, a remote build. The other choice mirrors the remote source tree to your Mac, runs the command locally against the mirror, and pushes changes back — so a local tool (a code formatter, an IDE refactor, an AI coding session) can act on remote source without you shuttling files manually.",
   },
   {
     question: "Is lpm a good iTerm2 or Warp alternative for SSH work specifically?",
-    answer:
-      "Both iTerm2 and Warp are capable Mac terminals, and raw `ssh` inside either can use your OpenSSH config. lpm is different because it adds a project model around the SSH session itself: a host picker reading `~/.ssh/config`, remote services in panes beside local ones, port forwarding with readiness checks, remote port suggestions, and per-project lifecycle for forwards. If your day is mostly local terminal work with the occasional `ssh user@host`, a general terminal is fine. If you cross the local/remote line every hour, lpm is built for that workflow.",
+    answer: (
+      <>
+        Both iTerm2 and Warp are capable Mac terminals, and raw{" "}
+        <code className="text-xs">ssh</code> inside either can use your OpenSSH
+        config. lpm is different because it adds a project model around the SSH
+        session itself: a host picker reading{" "}
+        <code className="text-xs">~/.ssh/config</code>, remote services in panes
+        beside local ones, port forwarding with readiness checks, remote port
+        suggestions, and per-project lifecycle for forwards. If your day is
+        mostly local terminal work with the occasional{" "}
+        <code className="text-xs">ssh user@host</code>, a general terminal is
+        fine. If you cross the local/remote line every hour, lpm is built for
+        that workflow.
+      </>
+    ),
+    answerText:
+      "Both iTerm2 and Warp are capable Mac terminals, and raw ssh inside either can use your OpenSSH config. lpm is different because it adds a project model around the SSH session itself: a host picker reading ~/.ssh/config, remote services in panes beside local ones, port forwarding with readiness checks, remote port suggestions, and per-project lifecycle for forwards. If your day is mostly local terminal work with the occasional ssh user@host, a general terminal is fine. If you cross the local/remote line every hour, lpm is built for that workflow.",
   },
 ];
 
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: FAQS.map(({ question, answer }) => ({
+  mainEntity: FAQS.map(({ question, answer, answerText }) => ({
     "@type": "Question",
     name: question,
     acceptedAnswer: {
       "@type": "Answer",
-      text: answer,
+      text: typeof answer === "string" ? answer : answerText ?? "",
     },
   })),
 };

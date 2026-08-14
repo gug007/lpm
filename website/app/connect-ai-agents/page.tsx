@@ -19,9 +19,9 @@ import Install from "./_components/install";
 import Parallel from "./_components/parallel";
 import Workflows from "./_components/workflows";
 
-const TITLE = "Claude Code Skills & Codex Tools for Your Dev Environment";
+const TITLE = "Claude Code Skills & Codex Tools for Dev Environments";
 const DESCRIPTION =
-  "Give Claude Code, Codex, Gemini CLI, and OpenCode a CLI to run your project — start, stop, and restart dev servers, read logs, wait for ports, report status, and fan out into parallel copies. One-click skill and CLI install for your Mac.";
+  "Give Claude Code, Codex, Gemini CLI, and OpenCode a CLI to run your project — start and restart dev servers, read logs, and fan out into parallel copies.";
 
 export const metadata: Metadata = {
   title: TITLE,

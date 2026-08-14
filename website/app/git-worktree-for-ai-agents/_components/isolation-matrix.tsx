@@ -98,7 +98,7 @@ function CellValue({ value }: { value: Cell }) {
     <>
       <X
         aria-hidden
-        className="mx-auto h-4 w-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto h-4 w-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>

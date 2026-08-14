@@ -7,12 +7,12 @@ type Outcome = {
 
 const OUTCOMES: Outcome[] = [
   {
-    title: "You stop hand-typing `ssh -L` for every remote dev server.",
+    title: "You stop hand-typing a port-forward command for every remote dev server.",
     body: "Declared service ports auto-forward at start. Ad-hoc binds — a compose port, a one-off debug server — surface as one-click suggestions in the Ports popover the moment they appear on the remote. The success toast only fires when localhost:<port> actually accepts a connection, so the link in the toast works the first time.",
   },
   {
     title:
-      "You stop re-entering host, user, port, and key data your `~/.ssh/config` already knows.",
+      "You stop re-entering host, user, port, and key data your SSH config already knows.",
     body: "The picker reads your existing hosts and keeps the selected Host alias intact, so OpenSSH can still apply alias-scoped options such as HostName, ProxyJump, ProxyCommand, Port, and IdentityFile. Creating a new SSH project drops to four clicks: pick host, confirm, save, start. The ~/.ssh/config file stays the source of truth.",
   },
   {

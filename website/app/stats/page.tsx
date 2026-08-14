@@ -178,7 +178,7 @@ function StatCard({
   emphasis?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 px-5 py-6 bg-white dark:bg-[#111]">
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 px-5 py-6 bg-background">
       <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
         {label}
       </div>

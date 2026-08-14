@@ -22,7 +22,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <AppStoreButton />
+          <AppStoreButton source="mobile-hero" />
         </div>
         <Link
           href="/#download"

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { jsonLdString } from "@/lib/structured-data";
-import { REPO_URL } from "@/lib/links";
+import { REPO_URL, WORKTREE_AGENTS_PATH } from "@/lib/links";
 
 type QA = {
   question: string;
@@ -18,8 +19,27 @@ const FAQS: QA[] = [
   },
   {
     question: "Can I run multiple agents in parallel on the same repo?",
-    answer:
-      "Yes. Each project gets its own entry in the app sidebar with live panes per service, so Claude Code on one stack and Codex on another sit side by side — every agent's output visible at once, no tab juggling.",
+    answer: (
+      <>
+        Yes — each agent works in its own copy of the repo, so they never edit
+        the same files. Duplicate copies the project folder (dependencies,{" "}
+        <code className="text-xs">.env</code> files, and uncommitted work
+        included) and Worktree checks out a real Git worktree on its own branch;
+        either way you can create up to 50 copies at once and queue the same
+        prompt in every one. Every copy appears in the sidebar with its own
+        services and terminals, so Claude Code in one and Codex in another sit
+        side by side with all their output visible. The{" "}
+        <Link
+          href={WORKTREE_AGENTS_PATH}
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          worktree guide
+        </Link>{" "}
+        covers which of the two to reach for.
+      </>
+    ),
+    answerText:
+      "Yes — each agent works in its own copy of the repo, so they never edit the same files. Duplicate copies the project folder (dependencies, .env files, and uncommitted work included) and Worktree checks out a real Git worktree on its own branch; either way you can create up to 50 copies at once and queue the same prompt in every one. Every copy appears in the sidebar with its own services and terminals, so Claude Code in one and Codex in another sit side by side with all their output visible. See lpm.cx/git-worktree-for-ai-agents for which of the two to reach for.",
   },
   {
     question: "Do I need Docker to use lpm?",

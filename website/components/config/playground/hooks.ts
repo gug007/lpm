@@ -65,3 +65,25 @@ export function useInView<T extends HTMLElement>(rootMargin = "300px 0px") {
   }, [inView, rootMargin]);
   return { ref, inView };
 }
+
+/** Like useInView, but keeps tracking so it also reports leaving the viewport. */
+export function useNearViewport<T extends HTMLElement>(
+  rootMargin = "300px 0px",
+) {
+  const ref = useRef<T>(null);
+  const [near, setNear] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[entries.length - 1];
+        if (entry) setNear(entry.isIntersecting);
+      },
+      { rootMargin },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [rootMargin]);
+  return { ref, near };
+}

@@ -1,11 +1,13 @@
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 
 type AlternativeKey = "lpm" | "gitKraken" | "iterm2" | "terminal" | "tmux" | "sourceTree";
 
+type Cell = boolean | string;
+
 type Capability = {
   label: string;
-} & Record<AlternativeKey, boolean>;
+} & Record<AlternativeKey, Cell>;
 
 const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
   { key: "lpm", label: "lpm" },
@@ -81,18 +83,34 @@ const CAPABILITIES: Capability[] = [
     sourceTree: false,
   },
   {
-    label: "Free and open source",
+    label: "Free",
+    lpm: true,
+    gitKraken: "Local and public repos",
+    iterm2: true,
+    terminal: true,
+    tmux: true,
+    sourceTree: true,
+  },
+  {
+    label: "Open source",
     lpm: true,
     gitKraken: false,
     iterm2: true,
-    terminal: true,
+    terminal: false,
     tmux: true,
     sourceTree: false,
   },
 ];
 
-function Indicator({ on }: { on: boolean }) {
-  return on ? (
+function Indicator({ value }: { value: Cell }) {
+  if (typeof value === "string") {
+    return (
+      <span className="block text-center text-xs leading-snug text-gray-600 dark:text-gray-400">
+        {value}
+      </span>
+    );
+  }
+  return value ? (
     <>
       <Check
         aria-hidden="true"
@@ -104,11 +122,26 @@ function Indicator({ on }: { on: boolean }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>
   );
+}
+
+function Mark({ value }: { value: Cell }) {
+  if (typeof value === "string") {
+    return (
+      <>
+        <Minus
+          aria-hidden="true"
+          className="w-4 h-4 text-gray-500 dark:text-gray-400"
+        />
+        <span className="sr-only">Partly</span>
+      </>
+    );
+  }
+  return <Indicator value={value} />;
 }
 
 export default function Comparison() {
@@ -171,7 +204,7 @@ export default function Comparison() {
                           : ""
                       }`}
                     >
-                      <Indicator on={cap[a.key]} />
+                      <Indicator value={cap[a.key]} />
                     </td>
                   ))}
                 </tr>
@@ -202,19 +235,27 @@ export default function Comparison() {
                   {a.label}
                 </h3>
                 <ul className="space-y-3">
-                  {CAPABILITIES.map((cap) => (
-                    <li
-                      key={cap.label}
-                      className="flex items-start gap-3 text-sm"
-                    >
-                      <span className="mt-0.5 shrink-0">
-                        <Indicator on={cap[a.key]} />
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        {cap.label}
-                      </span>
-                    </li>
-                  ))}
+                  {CAPABILITIES.map((cap) => {
+                    const value = cap[a.key];
+                    return (
+                      <li
+                        key={cap.label}
+                        className="flex items-start gap-3 text-sm"
+                      >
+                        <span className="mt-0.5 shrink-0">
+                          <Mark value={value} />
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                          {cap.label}
+                          {typeof value === "string" && (
+                            <span className="block text-xs text-gray-500 dark:text-gray-500">
+                              {value}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );

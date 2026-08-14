@@ -7,9 +7,9 @@ import {
   CONNECT_AGENTS_PATH,
   LINUX_HOST_PATH,
   REVIEW_CHANGES_PATH,
+  STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
   WORKTREE_ALTERNATIVE_PATH,
-  vsPath,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
@@ -22,9 +22,9 @@ import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Best Terminal for Claude Code & Codex — Run in Parallel",
+  title: "Best Terminal for Claude Code & Codex in Parallel",
   description:
-    "lpm is the terminal workspace built for running Claude Code and Codex in parallel on the same codebase. Start your dev stack in one command and keep every agent in view.",
+    "Run Claude Code and Codex in parallel on the same codebase — each agent in its own copy, your dev stack started in one command, every session in view.",
   keywords: [
     "best terminal for claude code",
     "best terminal for codex",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     canonical: AI_AGENTS_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Claude Code & Codex — Run in Parallel",
+    title: "Best Terminal for Claude Code & Codex in Parallel",
     description:
       "Run Claude Code and Codex side by side on the same codebase. lpm is the terminal workspace for developers using AI coding agents in parallel.",
     type: "website",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Claude Code & Codex — Run in Parallel",
+    title: "Best Terminal for Claude Code & Codex in Parallel",
     description:
       "Run Claude Code and Codex side by side on the same codebase. lpm is the terminal workspace for developers using AI coding agents in parallel.",
   },
@@ -54,9 +54,9 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal for Claude Code & Codex — Run in Parallel",
+    title: "Best Terminal for Claude Code & Codex in Parallel",
     description:
-      "lpm is the terminal workspace built for running Claude Code and Codex in parallel on the same codebase. Start your dev stack in one command and keep every agent in view.",
+      "Run Claude Code and Codex in parallel on the same codebase — each agent in its own copy, your dev stack started in one command, every session in view.",
     path: AI_AGENTS_PATH,
   }),
   breadcrumbJsonLd([
@@ -116,10 +116,10 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
               "Move the long runs to a Linux box you own and drive it from the same window.",
           },
           {
-            href: vsPath("cmux"),
-            title: "lpm vs cmux",
+            href: STATUSLINE_PATH,
+            title: "Claude Code & Codex statuslines",
             description:
-              "How lpm compares to cmux for running parallel AI coding agents.",
+              "Pick a preset, reorder the fields, and preview live — so parallel agent sessions stay readable at a glance.",
           },
           {
             href: REVIEW_CHANGES_PATH,

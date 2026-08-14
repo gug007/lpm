@@ -21,7 +21,7 @@ export default function Hero() {
         <p className="text-xs font-medium uppercase tracking-[0.25em] text-emerald-700/70 dark:text-emerald-300/70 mb-6">
           Git worktree alternative for macOS
         </p>
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.05] bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
+        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           A Git worktree alternative that duplicates the whole dev environment.
         </h1>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
@@ -32,7 +32,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source="worktree-alt-hero" />
         </div>
 
         <a

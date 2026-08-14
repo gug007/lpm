@@ -93,7 +93,7 @@ const MATRIX_ROWS: MatrixRow[] = [
   },
   {
     label: "Works over SSH on any Unix box",
-    lpm: false,
+    lpm: "remote projects + port forwarding",
     competitor: true,
   },
   {
@@ -126,8 +126,19 @@ const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: "Is this basically tmuxinator with a GUI?",
-    answer:
-      "Overlapping goals, different shape. tmuxinator gives you named, YAML-defined tmux layouts per project. lpm gives you managed projects with live pane output, a visual switcher, and first-class start / stop / duplicate. If your tmuxinator file is mostly `rails s`, `npm dev`, `redis`, `sidekiq`, lpm will feel like a shortcut. If you lean on custom layouts, splits, and keybindings, tmuxinator will still suit you better.",
+    answer: (
+      <>
+        Overlapping goals, different shape. tmuxinator gives you named,
+        YAML-defined tmux layouts per project. lpm gives you managed projects
+        with live pane output, a visual switcher, and first-class start / stop /
+        duplicate. If your tmuxinator file is mostly <code>rails s</code>,{" "}
+        <code>npm dev</code>, <code>redis</code>, and <code>sidekiq</code>, lpm
+        will feel like a shortcut. If you lean on custom layouts, splits, and
+        keybindings, tmuxinator will still suit you better.
+      </>
+    ),
+    answerText:
+      "Overlapping goals, different shape. tmuxinator gives you named, YAML-defined tmux layouts per project. lpm gives you managed projects with live pane output, a visual switcher, and first-class start / stop / duplicate. If your tmuxinator file is mostly rails s, npm dev, redis, and sidekiq, lpm will feel like a shortcut. If you lean on custom layouts, splits, and keybindings, tmuxinator will still suit you better.",
   },
   {
     question: "How do I move a tmuxinator project over to lpm?",
@@ -206,8 +217,8 @@ export default function VsTmuxPage() {
             "You already love tmux and use it for much more than starting services.",
           points: [
             "You have years of muscle memory and a .tmux.conf you actually enjoy.",
-            "Most of your work happens inside SSH sessions on remote machines.",
-            "You need sessions that survive terminal crashes, reboots, and ssh drops.",
+            "Your session lives on the remote box itself and you reach it from any machine — tmux runs there; lpm drives remote projects from a Mac app instead.",
+            "You need sessions you can reattach from any SSH login, not from a desktop app.",
             "You use tmux for vim splits, logs, monitoring, ops work — not just dev servers.",
             "You already have a tmuxinator or zellij layout that fits your brain perfectly.",
             "You work on a platform other than macOS — lpm is macOS-only.",

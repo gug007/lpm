@@ -94,7 +94,7 @@ export default function ClaudeCodeCodexTokenUsagePage() {
         links={[
           {
             href: STATUSLINE_PATH,
-            title: "Customize statuslines in lpm Desktop",
+            title: "Customize statuslines in lpm",
             description:
               "Visually customize Claude Code and Codex statuslines with presets, live preview, colors, meters, and automatic local saving.",
           },

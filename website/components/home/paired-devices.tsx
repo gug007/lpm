@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   BatteryFull,
@@ -192,6 +192,8 @@ export function PairedDevices({
   const [typing, setTyping] = useState(false);
   const [control, setControl] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const [inView, setInView] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -202,7 +204,26 @@ export function PairedDevices({
   }, []);
 
   useEffect(() => {
-    if (reduced) return;
+    const el = sectionRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      setInView(entry.isIntersecting);
+      // Leaving mid-sequence would otherwise freeze a half-typed frame that
+      // lingers on the way back until the loop's first step clears it.
+      if (!entry.isIntersecting) {
+        setTab(0);
+        setRevealed(0);
+        setTyped("");
+        setTyping(false);
+        setControl(false);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (reduced || !inView) return;
 
     const steps: Step[] = [];
     const goTab = (t: number, wait: number) =>
@@ -284,7 +305,7 @@ export function PairedDevices({
     };
     run();
     return () => clearTimeout(timer);
-  }, [reduced]);
+  }, [reduced, inView]);
 
   const tabView = reduced ? 0 : tab;
   const session = SESSIONS[tabView];
@@ -329,6 +350,7 @@ export function PairedDevices({
 
   return (
     <section
+      ref={sectionRef}
       className={`${flush ? "pb-16 sm:pb-20" : "py-20 sm:py-24"} overflow-x-clip`}
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6">

@@ -28,7 +28,6 @@ export const metadata: Metadata = {
   keywords: [
     "pm2 alternative dev",
     "pm2 vs lpm",
-    "dev process manager",
     "node dev process manager",
     "pm2 for local development",
     "node.js process manager",

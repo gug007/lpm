@@ -244,6 +244,7 @@ function TabRenameForm({
               ref={inputRef}
               value={value}
               onChange={(e) => setValue(e.target.value)}
+              aria-label="Tab name"
               spellCheck={false}
               autoCapitalize="off"
               autoCorrect="off"

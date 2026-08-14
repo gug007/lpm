@@ -99,7 +99,10 @@ export function HowItWorks() {
   return (
     <section className="py-20 sm:py-24 border-y border-gray-200 dark:border-gray-800/60 bg-gray-50/60 dark:bg-white/[0.015]">
       <div className="max-w-3xl mx-auto px-6">
-        <SectionHeader eyebrow="How it works" title="See it in action" />
+        <SectionHeader
+          eyebrow="How it works"
+          title="From folder to running agents in six steps"
+        />
 
         <div className="space-y-12">
           {STEPS.map((step) => (

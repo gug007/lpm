@@ -1,6 +1,5 @@
-import { ArrowRight } from "lucide-react";
+import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
-import { REPO_URL } from "@/lib/links";
 
 export default function Cta() {
   return (
@@ -19,17 +18,14 @@ export default function Cta() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source="review-cta" />
         </div>
 
         <div className="mt-8">
-          <a
-            href={REPO_URL}
+          <GithubLink
+            source="review-cta"
             className="text-[13px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 inline-flex items-center gap-1.5"
-          >
-            View on GitHub
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          />
         </div>
       </div>
     </section>

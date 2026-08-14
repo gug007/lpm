@@ -63,6 +63,22 @@ html {
   outline-offset: -2px;
 }
 
+/* The interactive replicas invite clicking, so their controls get the pointer
+   cursor browsers withhold from buttons and selects. Layered into `base` so a
+   control that deliberately carries a cursor-* utility keeps its own cursor —
+   utilities always outrank the base layer, whatever the specificity. */
+@layer base {
+  .replica-ui
+    :is(
+      button,
+      select,
+      [role="button"],
+      input:is([type="checkbox"], [type="radio"])
+    ):not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }

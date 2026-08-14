@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { load as parseYaml, YAMLException } from "js-yaml";
 import { RotateCcw, Check, Copy } from "lucide-react";
-import { useDarkMode, useInView } from "./hooks";
+import { useDarkMode, useNearViewport } from "./hooks";
 import { PlaygroundPreview } from "./preview";
 import type { RawConfig } from "./types";
 
@@ -118,7 +118,16 @@ export function ConfigPlayground({
   const [copied, setCopied] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
   const dark = useDarkMode();
-  const { ref, inView } = useInView<HTMLDivElement>();
+  const { ref, near } = useNearViewport<HTMLDivElement>("1200px 0px");
+  // A page of playgrounds is 20+ editors; only the ones near the viewport stay
+  // mounted, but an edited one keeps its editor so typing state survives.
+  const showEditor = near || code !== starter;
+
+  const [editorMounted, setEditorMounted] = useState(showEditor);
+  if (editorMounted !== showEditor) {
+    setEditorMounted(showEditor);
+    setEditorReady(false);
+  }
 
   const { config, error } = useMemo(() => parseConfig(code), [code]);
   const [lastParsed, setLastParsed] = useState<RawConfig | null>(
@@ -152,7 +161,7 @@ export function ConfigPlayground({
 
   return (
     <div ref={ref} className="mb-6">
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950">
+      <div className="replica-ui rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950">
         <Toolbar
           filename={filename}
           valid={error === null}
@@ -173,7 +182,7 @@ export function ConfigPlayground({
             className="relative border-t border-gray-200 dark:border-gray-800"
             style={{ height }}
           >
-            {inView && (
+            {showEditor && (
               <MonacoEditor
                 height="100%"
                 defaultLanguage="yaml"
@@ -190,11 +199,11 @@ export function ConfigPlayground({
                 options={MONACO_OPTIONS}
               />
             )}
-            {!editorReady && (
+            {(!showEditor || !editorReady) && (
               <pre
                 className="absolute inset-0 m-0 px-4 py-3 text-xs font-mono text-gray-700 dark:text-gray-300 leading-[18px] overflow-auto bg-white dark:bg-gray-950"
               >
-                <code>{starter}</code>
+                <code>{code}</code>
               </pre>
             )}
           </div>

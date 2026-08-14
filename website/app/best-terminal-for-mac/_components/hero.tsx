@@ -18,7 +18,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source="best-mac-hero" />
         </div>
 
         <div className="mt-8">

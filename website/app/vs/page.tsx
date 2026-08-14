@@ -7,13 +7,13 @@ import { VS_BASE_PATH, vsPath, type VsSlug } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
-  title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
+  title: {
+    absolute: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
+  },
   description:
     "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
   keywords: [
     "lpm alternatives",
-    "foreman alternative",
-    "overmind alternative",
     "tmux alternative",
     "pm2 alternative dev",
     "docker compose alternative for dev",

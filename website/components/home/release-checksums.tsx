@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import type { ReleaseVerification } from "@/lib/release-verification";
+import { TrackedAssetLink } from "./tracked-asset-link";
 
 function formatDate(value: string | null): string | null {
   if (!value) return null;
@@ -50,12 +51,13 @@ export function ReleaseChecksums({
             className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-white/[0.03] px-4 py-3"
           >
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-              <a
+              <TrackedAssetLink
                 href={asset.downloadUrl}
+                architecture={asset.architecture}
                 className="text-xs font-semibold text-gray-800 hover:text-black dark:text-gray-200 dark:hover:text-white transition-colors"
               >
                 {asset.label} ({asset.architecture})
-              </a>
+              </TrackedAssetLink>
               <span className="text-[11px] text-gray-500 dark:text-gray-400">
                 {formatSize(asset.size)}
               </span>

@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { jsonLdString } from "@/lib/structured-data";
+import { vsPath } from "@/lib/links";
 
 type QA = {
   question: string;
@@ -23,12 +25,28 @@ const FAQS: QA[] = [
   {
     question: "Is lpm a good git terminal for Mac?",
     answer:
-      "Yes. lpm panes are real macOS terminals running your shell of choice — zsh, bash, or fish — so every git command, alias, and dotfile works exactly as it does in Terminal.app or iTerm2. You can run git in one pane and your dev servers in another inside the same native window.",
+      "Yes, and the output looks the way you expect it to. Panes are real macOS terminal sessions with GPU-accelerated rendering, 256-color and 24-bit color escapes drawn as sent, and Unicode 11 character widths, so colored diffs, prompt themes, and full-screen tools like lazygit or tig render the way they do in iTerm2. URLs and file paths in the output are clickable. You run git in one pane and your dev servers in another, inside the same native window.",
   },
   {
     question: "Is lpm a good iTerm2 alternative on Mac?",
-    answer:
-      "If you picked iTerm2 for tabs and split panes, lpm gives you those plus a visual project sidebar, a one-click full-stack start, and live output per service. If you only need a raw terminal with no project awareness, iTerm2 is still a fine choice — lpm is the step up for developers juggling multiple services and projects.",
+    answer: (
+      <>
+        If you picked iTerm2 for tabs and split panes, lpm gives you those plus
+        a visual project sidebar, a one-click full-stack start, and live output
+        per service. If you only need a raw terminal with no project awareness,
+        iTerm2 is still a fine choice — lpm is the step up for developers
+        juggling multiple services and projects. There is a{" "}
+        <Link
+          href={vsPath("iterm2")}
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          side-by-side comparison of lpm and iTerm2
+        </Link>{" "}
+        if you want the details.
+      </>
+    ),
+    answerText:
+      "If you picked iTerm2 for tabs and split panes, lpm gives you those plus a visual project sidebar, a one-click full-stack start, and live output per service. If you only need a raw terminal with no project awareness, iTerm2 is still a fine choice — lpm is the step up for developers juggling multiple services and projects. A side-by-side comparison of lpm and iTerm2 is at lpm.cx/vs/iterm2.",
   },
   {
     question: "How do I download lpm for macOS?",

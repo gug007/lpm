@@ -10,7 +10,7 @@ export function StartMenuSection({
 }) {
   return (
     <div className="py-1">
-      <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+      <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
         {label}
       </div>
       {children}
@@ -59,7 +59,7 @@ export function StartMenuItem({
       <span className="flex min-w-0 flex-1 flex-col">
         <span className={`truncate ${mono ? "font-mono" : ""}`}>{label}</span>
         {subtext && (
-          <span className="truncate text-[10px] text-gray-400 dark:text-gray-500 font-mono">
+          <span className="truncate text-[10px] text-gray-500 dark:text-gray-400 font-mono">
             {subtext}
           </span>
         )}
@@ -87,7 +87,7 @@ function StatusDot({ running }: { running: boolean }) {
 
 function TrailingMeta({ children }: { children: ReactNode }) {
   return (
-    <span className="font-mono text-[10px] text-gray-400 dark:text-gray-500 flex-shrink-0">
+    <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400 flex-shrink-0">
       {children}
     </span>
   );

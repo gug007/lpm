@@ -1,4 +1,4 @@
-import { BarChart3, ChevronDown, ShieldCheck } from "lucide-react";
+import { ChevronDown, ShieldCheck } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
 
 export default function Hero() {
@@ -6,11 +6,10 @@ export default function Hero() {
     <section className="relative overflow-hidden pt-28 pb-12 text-center sm:pt-40 sm:pb-16">
       <div className="absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(circle_at_24%_10%,rgba(217,119,87,0.16),transparent_32%),radial-gradient(circle_at_76%_8%,rgba(16,163,127,0.13),transparent_30%)] dark:bg-[radial-gradient(circle_at_24%_10%,rgba(217,119,87,0.2),transparent_32%),radial-gradient(circle_at_76%_8%,rgba(16,163,127,0.17),transparent_30%)]" />
       <div className="mx-auto max-w-4xl px-6">
-        <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-white/[0.04] dark:text-gray-300">
-          <BarChart3 className="h-3.5 w-3.5" aria-hidden />
+        <p className="mb-6 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
           Local AI usage analytics
         </p>
-        <h1 className="bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 bg-clip-text text-4xl font-extrabold leading-[1.05] tracking-tight text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-6xl">
+        <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-4xl font-extrabold leading-[1.1] tracking-tight text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-6xl">
           Track Claude Code and Codex token usage by project.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed tracking-wide text-gray-600 dark:text-gray-400 sm:text-lg">
@@ -20,7 +19,7 @@ export default function Hero() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source="token-usage-hero" />
         </div>
 
         <a

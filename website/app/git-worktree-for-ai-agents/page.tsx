@@ -27,10 +27,10 @@ import WhatBreaks from "./_components/what-breaks";
 
 const TITLE = "Git Worktrees for Claude Code, Codex & AI Agents";
 const DESCRIPTION =
-  "How to run parallel AI coding agents on one repository: what a Git worktree does and does not carry, what Claude Code and Codex create natively, and when a standalone project copy is the better boundary.";
+  "Run Claude Code and Codex in parallel on one repo: what a Git worktree does not carry, what each CLI creates natively, and when a full project copy fits better.";
 
 export const metadata: Metadata = {
-  title: { absolute: `${TITLE} (2026)` },
+  title: TITLE,
   description: DESCRIPTION,
   keywords: [
     "git worktree claude code",

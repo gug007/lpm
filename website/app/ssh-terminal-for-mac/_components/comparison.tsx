@@ -68,8 +68,8 @@ const CAPABILITIES: Capability[] = [
     editorRemote: false,
   },
   {
-    label: "Run local tools against a remote tree with mode: sync",
-    note: "lpm can rsync ssh.dir into a local mirror, run a local action, then push changes back to the remote host.",
+    label: "Run local tools against a synced mirror of the remote tree that pushes changes back",
+    note: "lpm keeps a local mirror of the remote project directory, runs the action against that mirror on your Mac, then syncs the edits back to the remote host.",
     lpm: true,
     dedicatedClient: false,
     generalTerminal: false,
@@ -91,7 +91,7 @@ function Indicator({ on }: { on: boolean }) {
     <>
       <Minus
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">Not built in</span>
     </>

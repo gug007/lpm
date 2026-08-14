@@ -26,13 +26,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "lpm — Local Dev Process Manager for Mac | Claude Code & Codex",
+    default: "lpm — Run Claude Code & Codex in Parallel | Mac Dev Projects",
     template: "%s — lpm",
   },
   description:
     "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
   keywords: [
-    "local dev process manager",
+    "run claude code in parallel",
+    "claude code multiple projects",
     "macOS app",
     "project switcher",
     "run multiple dev servers",
@@ -42,7 +43,7 @@ export const metadata: Metadata = {
     "dev tools",
   ],
   openGraph: {
-    title: "lpm — Local Dev Process Manager for Mac | Claude Code & Codex",
+    title: "lpm — Run Claude Code & Codex in Parallel | Mac Dev Projects",
     description:
       "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
     type: "website",
@@ -51,7 +52,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Local Dev Process Manager for Mac | Claude Code & Codex",
+    title: "lpm — Run Claude Code & Codex in Parallel | Mac Dev Projects",
     description:
       "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
   },
@@ -98,7 +99,7 @@ const structuredData = {
       "@id": `${SITE_URL}/#app`,
       name: "lpm",
       description:
-        "A free, open-source local dev process manager for Mac. Switch projects in one click, duplicate them in seconds, and run coding agents in parallel.",
+        "A free, open-source Mac app that starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running Claude Code, Codex, and other AI coding agents in parallel.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS",
       url: SITE_URL,

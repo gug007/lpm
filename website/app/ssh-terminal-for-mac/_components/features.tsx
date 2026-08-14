@@ -55,18 +55,8 @@ const FEATURES: Feature[] = [
   },
   {
     icon: Shuffle,
-    title: "Action mode: run remote, or sync and run local",
-    body: (
-      <>
-        Each action declares <code className="text-xs">mode: remote</code> (run
-        the command on the host over ssh) or{" "}
-        <code className="text-xs">mode: sync</code> (rsync the remote source
-        tree into a local mirror, run a local tool against it, push changes
-        back). Local formatters, refactors, and AI coding sessions get to act
-        on remote source without you shuttling files. The ssh action mode flips
-        per-action, so each step picks the right side of the wire.
-      </>
-    ),
+    title: "Run an action remotely, or locally against a synced mirror",
+    body: "Each action chooses where it runs: on the remote host over ssh, or locally against a mirror of the remote source tree that pushes your changes back when the command finishes. Local formatters, refactors, and AI coding sessions get to act on remote source without you shuttling files. The choice is per action, so each step picks the right side of the wire.",
   },
   {
     icon: RadioTower,
@@ -86,17 +76,7 @@ const FEATURES: Feature[] = [
   {
     icon: Activity,
     title: "Per-project remote profile, isolated lifecycle",
-    body: (
-      <>
-        Each project carries its own <code className="text-xs">ssh:</code>{" "}
-        block — host, user, port, key, remote directory — alongside its
-        services and actions. Forwards, port pollers, and rsync mirrors are
-        scoped to that project. Stop the project and every forward dies; quit
-        the app and nothing leaks. <code className="text-xs">prod</code>,{" "}
-        <code className="text-xs">staging</code>, and your local copy are three
-        peer projects, one click apart.
-      </>
-    ),
+    body: "Each project remembers its own remote — host, user, port, key, and working directory — alongside its services and actions. Forwards, port checks, and synced mirrors are scoped to that project. Stop the project and every forward dies; quit the app and nothing leaks. Prod, staging, and your local copy are three peer projects, one click apart.",
   },
 ];
 

@@ -1,11 +1,13 @@
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 
 type AlternativeKey = "lpm" | "iterm2" | "terminal" | "tmux" | "warp" | "vsCode";
 
+type Cell = boolean | string;
+
 type Capability = {
   label: string;
-} & Record<AlternativeKey, boolean>;
+} & Record<AlternativeKey, Cell>;
 
 const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
   { key: "lpm", label: "lpm" },
@@ -18,7 +20,7 @@ const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
 
 const CAPABILITIES: Capability[] = [
   {
-    label: "Native Apple Silicon app (no Electron)",
+    label: "Native Mac app, not an Electron shell",
     lpm: true,
     iterm2: true,
     terminal: true,
@@ -54,7 +56,7 @@ const CAPABILITIES: Capability[] = [
     vsCode: false,
   },
   {
-    label: "AI-generated service config for your stack",
+    label: "Describe your stack, get working service definitions",
     lpm: true,
     iterm2: false,
     terminal: false,
@@ -63,7 +65,7 @@ const CAPABILITIES: Capability[] = [
     vsCode: false,
   },
   {
-    label: "Run multiple AI agents on the same codebase without conflicts",
+    label: "Parallel Claude Code and Codex runs on one repo, no collisions",
     lpm: true,
     iterm2: false,
     terminal: false,
@@ -81,7 +83,7 @@ const CAPABILITIES: Capability[] = [
     vsCode: false,
   },
   {
-    label: "Built-in config editor for your project's services",
+    label: "Add or edit a service without leaving your workspace",
     lpm: true,
     iterm2: false,
     terminal: false,
@@ -90,18 +92,34 @@ const CAPABILITIES: Capability[] = [
     vsCode: false,
   },
   {
-    label: "Free and open source",
+    label: "Free",
     lpm: true,
     iterm2: true,
     terminal: true,
     tmux: true,
-    warp: false,
-    vsCode: false,
+    warp: true,
+    vsCode: true,
+  },
+  {
+    label: "Open source",
+    lpm: true,
+    iterm2: true,
+    terminal: false,
+    tmux: true,
+    warp: true,
+    vsCode: "Code-OSS only",
   },
 ];
 
-function Indicator({ on }: { on: boolean }) {
-  return on ? (
+function Indicator({ value }: { value: Cell }) {
+  if (typeof value === "string") {
+    return (
+      <span className="block text-center text-xs leading-snug text-gray-600 dark:text-gray-400">
+        {value}
+      </span>
+    );
+  }
+  return value ? (
     <>
       <Check
         aria-hidden="true"
@@ -113,11 +131,26 @@ function Indicator({ on }: { on: boolean }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>
   );
+}
+
+function Mark({ value }: { value: Cell }) {
+  if (typeof value === "string") {
+    return (
+      <>
+        <Minus
+          aria-hidden="true"
+          className="w-4 h-4 text-gray-500 dark:text-gray-400"
+        />
+        <span className="sr-only">Partly</span>
+      </>
+    );
+  }
+  return <Indicator value={value} />;
 }
 
 export default function Comparison() {
@@ -127,7 +160,7 @@ export default function Comparison() {
         <SectionHeader
           eyebrow="How it compares"
           title="lpm vs iTerm2, Terminal.app, tmux, Warp, and VS Code terminal"
-          description="A capability matrix for Mac developers choosing between the tools already on their machine."
+          description="A workflow matrix: starting a full stack, watching each service on its own, and moving between projects without tearing everything down."
         />
 
         <div className="hidden sm:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -180,7 +213,7 @@ export default function Comparison() {
                           : ""
                       }`}
                     >
-                      <Indicator on={cap[a.key]} />
+                      <Indicator value={cap[a.key]} />
                     </td>
                   ))}
                 </tr>
@@ -211,19 +244,27 @@ export default function Comparison() {
                   {a.label}
                 </h3>
                 <ul className="space-y-3">
-                  {CAPABILITIES.map((cap) => (
-                    <li
-                      key={cap.label}
-                      className="flex items-start gap-3 text-sm"
-                    >
-                      <span className="mt-0.5 shrink-0">
-                        <Indicator on={cap[a.key]} />
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        {cap.label}
-                      </span>
-                    </li>
-                  ))}
+                  {CAPABILITIES.map((cap) => {
+                    const value = cap[a.key];
+                    return (
+                      <li
+                        key={cap.label}
+                        className="flex items-start gap-3 text-sm"
+                      >
+                        <span className="mt-0.5 shrink-0">
+                          <Mark value={value} />
+                        </span>
+                        <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
+                          {cap.label}
+                          {typeof value === "string" && (
+                            <span className="block text-xs text-gray-500 dark:text-gray-500">
+                              {value}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );

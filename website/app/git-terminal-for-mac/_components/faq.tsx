@@ -1,27 +1,65 @@
+import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { jsonLdString } from "@/lib/structured-data";
 
 type QA = {
   question: string;
-  answer: string;
+  answer: ReactNode;
+  answerText?: string;
 };
 
 const FAQS: QA[] = [
   {
     question: "Can I use lpm as my primary git terminal on Mac?",
-    answer:
-      "Yes. lpm panes are real terminal sessions running your default shell — zsh, bash, or fish — with your full dotfile configuration loaded. Every git command, alias, and credential helper works exactly as it does in Terminal.app or iTerm2. You get a shell pane for git right next to your running service panes, all in one native Mac window.",
+    answer: (
+      <>
+        Yes, and the git-specific plumbing carries over untouched. A pane is a
+        real login shell in a real terminal session, so your{" "}
+        <code className="text-xs">credential.helper</code> keeps talking to the
+        macOS Keychain, your SSH agent still authenticates pushes, your
+        commit-signing key still signs commits, and every alias in your{" "}
+        <code className="text-xs">~/.gitconfig</code> — the{" "}
+        <code className="text-xs">git lg</code> you have muscle memory for —
+        expands the same way it does in Terminal.app. Nothing about git is
+        wrapped or re-implemented; you get that shell right beside your running
+        service panes.
+      </>
+    ),
+    answerText:
+      "Yes, and the git-specific plumbing carries over untouched. A pane is a real login shell in a real terminal session, so your credential.helper keeps talking to the macOS Keychain, your SSH agent still authenticates pushes, your commit-signing key still signs commits, and every alias in your ~/.gitconfig — the git lg you have muscle memory for — expands the same way it does in Terminal.app. Nothing about git is wrapped or re-implemented; you get that shell right beside your running service panes.",
   },
   {
     question: "Does lpm replace a GUI git client like GitKraken or SourceTree?",
-    answer:
-      "For developers who prefer typing git commands, yes. lpm does not show a visual branch graph — it gives you a real shell where you run `git log --oneline --graph`, `git rebase -i`, and `git push` as you normally would, while your dev servers keep streaming in adjacent panes. If you rely on a click-to-cherry-pick GUI, you can still run GitKraken alongside lpm, but most terminal-first developers find the shell pane is all they need.",
+    answer: (
+      <>
+        For developers who prefer typing git commands, yes. lpm does not show a
+        visual branch graph — it gives you a real shell where you run{" "}
+        <code className="text-xs">git log --oneline --graph</code>,{" "}
+        <code className="text-xs">git rebase -i</code>, and{" "}
+        <code className="text-xs">git push</code> as you normally would, while
+        your dev servers keep streaming in adjacent panes. If you rely on a
+        click-to-cherry-pick GUI, you can still run GitKraken alongside lpm, but
+        most terminal-first developers find the shell pane is all they need.
+      </>
+    ),
+    answerText:
+      "For developers who prefer typing git commands, yes. lpm does not show a visual branch graph — it gives you a real shell where you run git log --oneline --graph, git rebase -i, and git push as you normally would, while your dev servers keep streaming in adjacent panes. If you rely on a click-to-cherry-pick GUI, you can still run GitKraken alongside lpm, but most terminal-first developers find the shell pane is all they need.",
   },
   {
     question: "Will my dev server stop running when I switch git branches inside lpm?",
-    answer:
-      "No. Service panes in lpm run independently of which branch your shell is on. When you `git checkout feature/xyz` in a shell pane, the service panes keep streaming. If a branch change requires a dependency install or a migration, you control when to restart services — lpm won't restart them behind your back.",
+    answer: (
+      <>
+        No. Service panes in lpm run independently of which branch your shell is
+        on. When you{" "}
+        <code className="text-xs">git checkout feature/xyz</code> in a shell
+        pane, the service panes keep streaming. If a branch change requires a
+        dependency install or a migration, you control when to restart services
+        — lpm won&apos;t restart them behind your back.
+      </>
+    ),
+    answerText:
+      "No. Service panes in lpm run independently of which branch your shell is on. When you git checkout feature/xyz in a shell pane, the service panes keep streaming. If a branch change requires a dependency install or a migration, you control when to restart services — lpm won't restart them behind your back.",
   },
   {
     question: "How does lpm help with PR review workflows on Mac?",
@@ -29,26 +67,49 @@ const FAQS: QA[] = [
       "You can open a second lpm workspace pointed at the same repo, check out the review branch there, start just the services you need, test the change, and switch back to your main workspace — all within lpm. Your original branch, its running services, and your terminal history are exactly as you left them.",
   },
   {
-    question: "Can I run `git bisect` or long-running git operations inside lpm?",
-    answer:
-      "Yes. A shell pane in lpm is a full terminal session — `git bisect`, `git rebase -i`, `git filter-branch`, and any other long-running git operation runs exactly as it would in iTerm2 or Terminal.app. The other service panes keep running alongside it so you can see the effect of each bisect step on your live stack.",
+    question: "Can I run git bisect or long-running git operations inside lpm?",
+    answer: (
+      <>
+        Yes. A shell pane in lpm is a full terminal session —{" "}
+        <code className="text-xs">git bisect</code>,{" "}
+        <code className="text-xs">git rebase -i</code>,{" "}
+        <code className="text-xs">git filter-branch</code>, and any other
+        long-running git operation runs exactly as it would in iTerm2 or
+        Terminal.app. The other service panes keep running alongside it so you
+        can see the effect of each bisect step on your live stack.
+      </>
+    ),
+    answerText:
+      "Yes. A shell pane in lpm is a full terminal session — git bisect, git rebase -i, git filter-branch, and any other long-running git operation runs exactly as it would in iTerm2 or Terminal.app. The other service panes keep running alongside it so you can see the effect of each bisect step on your live stack.",
   },
   {
-    question: "Is lpm a good terminal for Mac developers who use GitHub CLI (`gh`)?",
-    answer:
-      "Yes. lpm shell panes run your full shell configuration, so `gh pr create`, `gh pr checkout`, `gh run watch`, and any other GitHub CLI command work with your existing auth and aliases. Run `gh run watch` in a shell pane while your dev server streams in the next pane — you get CI output and local output in the same window without a browser tab.",
+    question: "Is lpm a good terminal for Mac developers who use the GitHub CLI?",
+    answer: (
+      <>
+        Yes. lpm shell panes run your full shell configuration, so{" "}
+        <code className="text-xs">gh pr create</code>,{" "}
+        <code className="text-xs">gh pr checkout</code>,{" "}
+        <code className="text-xs">gh run watch</code>, and any other GitHub CLI
+        command work with your existing auth and aliases. Run{" "}
+        <code className="text-xs">gh run watch</code> in a shell pane while your
+        dev server streams in the next pane — you get CI output and local output
+        in the same window without a browser tab.
+      </>
+    ),
+    answerText:
+      "Yes. lpm shell panes run your full shell configuration, so gh pr create, gh pr checkout, gh run watch, and any other GitHub CLI command work with your existing auth and aliases. Run gh run watch in a shell pane while your dev server streams in the next pane — you get CI output and local output in the same window without a browser tab.",
   },
 ];
 
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
-  mainEntity: FAQS.map(({ question, answer }) => ({
+  mainEntity: FAQS.map(({ question, answer, answerText }) => ({
     "@type": "Question",
     name: question,
     acceptedAnswer: {
       "@type": "Answer",
-      text: answer,
+      text: typeof answer === "string" ? answer : answerText ?? "",
     },
   })),
 };

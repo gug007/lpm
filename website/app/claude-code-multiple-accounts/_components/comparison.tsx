@@ -74,7 +74,7 @@ function Indicator({ on }: { on: boolean }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>

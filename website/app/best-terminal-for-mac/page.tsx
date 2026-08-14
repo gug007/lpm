@@ -7,6 +7,7 @@ import {
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PROJECT_SIDEBAR_PATH,
+  vsPath,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
@@ -19,14 +20,13 @@ import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
+  title: "Best Terminal for Mac — Native Apple Silicon",
   description:
     "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
   keywords: [
     "best terminal for mac",
     "best terminal for macos",
     "mac terminal app",
-    "best terminal for mac developers",
     "best terminal for mac m1",
     "best free terminal for mac",
     "native mac terminal",
@@ -35,24 +35,24 @@ export const metadata: Metadata = {
     canonical: BEST_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
+    title: "Best Terminal for Mac — Native Apple Silicon",
     description:
-      "A native macOS terminal workspace. Run every service side by side, switch projects visually, and skip the Electron bloat of Hyper or Tabby.",
+      "A real Mac app, not an Electron shell. Native Apple Silicon build, instant launch, and a terminal that holds a whole project instead of one shell.",
     type: "website",
     url: BEST_TERMINAL_MAC_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
+    title: "Best Terminal for Mac — Native Apple Silicon",
     description:
-      "A native macOS terminal workspace. Run every service side by side, switch projects visually, and skip the Electron bloat.",
+      "A real Mac app, not an Electron shell. Native Apple Silicon, instant launch, and a terminal built around projects rather than tabs.",
   },
 };
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal App for Mac — Native Apple Silicon Workspace",
+    title: "Best Terminal for Mac — Native Apple Silicon",
     description:
       "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
     path: BEST_TERMINAL_MAC_PATH,
@@ -73,7 +73,7 @@ export default function BestTerminalForMacPage() {
       <Hero />
       <DemoSection />
       <ComparisonBasis
-        reviewed="July 26, 2026"
+        reviewed="August 13, 2026"
         sources={[
           {
             href: "https://iterm2.com/features.html",
@@ -110,6 +110,12 @@ export default function BestTerminalForMacPage() {
             title: "Terminal with a project sidebar",
             description:
               "What replaces the tab row: one persistent row per project, holding its terminals and running state.",
+          },
+          {
+            href: vsPath("iterm2"),
+            title: "lpm vs iTerm2",
+            description:
+              "Side by side with the Mac terminal you already have open — including where iTerm2 still wins.",
           },
         ]}
       />

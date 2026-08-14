@@ -1,6 +1,5 @@
-import { ArrowRight } from "lucide-react";
+import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
-import { REPO_URL } from "@/lib/links";
 
 export default function Hero() {
   return (
@@ -21,17 +20,14 @@ export default function Hero() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source="connect-agents-hero" />
         </div>
 
         <div className="mt-8">
-          <a
-            href={REPO_URL}
+          <GithubLink
+            source="connect-agents-hero"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
-          >
-            View on GitHub
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          />
         </div>
       </div>
     </section>

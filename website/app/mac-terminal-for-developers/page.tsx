@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Mac Terminal App for Developers — Run Your Full Stack",
     description:
-      "A Mac terminal workspace for developers. Run every service side by side, switch repos without losing context, and coordinate AI agents.",
+      "Web, API, worker, and database in one window — per-service logs, one-click restarts, and repo switching that leaves the stack running.",
   },
 };
 

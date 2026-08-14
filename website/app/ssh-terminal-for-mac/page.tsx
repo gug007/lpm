@@ -21,10 +21,10 @@ import { jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 const pageUrl = `${SITE_URL}${SSH_TERMINAL_MAC_PATH}`;
 
 const pageDescription =
-  "lpm is a native SSH terminal for Mac developers. Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.";
+  "A native SSH terminal for Mac developers. Import your SSH config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.";
 
 export const metadata: Metadata = {
-  title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
+  title: "Mac SSH Client & Terminal with Port Forwarding",
   description: pageDescription,
   keywords: [
     "mac ssh client",
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     canonical: SSH_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
+    title: "Mac SSH Client & Terminal with Port Forwarding",
     description:
       "Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote services beside local ones in one native Mac terminal.",
     type: "website",
@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
+    title: "Mac SSH Client & Terminal with Port Forwarding",
     description:
       "A native macOS SSH terminal that imports your ~/.ssh/config, forwards remote ports, and keeps remote services next to your local stack.",
   },
@@ -57,7 +57,7 @@ export const metadata: Metadata = {
 
 const structuredData = [
   webPageJsonLd({
-    title: "Mac SSH Client & Terminal — Port Forwarding & Remote Dev",
+    title: "Mac SSH Client & Terminal with Port Forwarding",
     description: pageDescription,
     path: SSH_TERMINAL_MAC_PATH,
     about: [

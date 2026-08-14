@@ -149,7 +149,7 @@ export default function LpmStatuslineDemo() {
           </div>
           <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500 dark:text-gray-400">
             <Monitor className="h-3.5 w-3.5" aria-hidden />
-            lpm Desktop · Settings · AI &amp; Integrations
+            lpm · Settings · AI &amp; Integrations
           </div>
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
             <Save className="h-3 w-3" aria-hidden />
@@ -172,7 +172,7 @@ export default function LpmStatuslineDemo() {
               </h2>
               <p className="mt-1 max-w-xl text-sm text-gray-500 dark:text-gray-400">
                 Pick a layout, arrange the signals, and tune the appearance just
-                as you would inside lpm Desktop. In the app, find this editor
+                as you would inside lpm. In the app, find this editor
                 under Settings → AI &amp; Integrations.
               </p>
             </div>
@@ -718,7 +718,7 @@ export default function LpmStatuslineDemo() {
             <div className="mt-4 rounded-2xl border border-gray-800 bg-[#0b0b0b] p-5 text-white">
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-400">
                 <Settings2 className="h-4 w-4" aria-hidden />
-                Applied by lpm Desktop
+                Applied by lpm
               </div>
               <p className="mt-3 text-sm leading-relaxed text-gray-300">
                 In the Mac app, changes save to the active agent configuration

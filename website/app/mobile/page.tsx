@@ -20,6 +20,7 @@ import Notifications from "./_components/notifications";
 import Problem from "./_components/problem";
 import ReviewShip from "./_components/review-ship";
 import Security from "./_components/security";
+import VsRemoteControl from "./_components/vs-remote-control";
 
 const TITLE = "Control Claude Code on Your Mac From Your iPhone";
 const DESCRIPTION =
@@ -86,6 +87,7 @@ export default function MobilePage() {
       <Hero />
       <PairedDevices companionLink={false} flush />
       <Problem />
+      <VsRemoteControl />
       <Features />
       <Composer />
       <ReviewShip />

@@ -29,7 +29,7 @@ import Security from "./_components/security";
 
 const TITLE = "Run Claude Code & Codex on a Remote Linux Server";
 const DESCRIPTION =
-  "Add a Linux server to lpm on your Mac by typing user@host. lpm installs and pairs itself over SSH, and the server's projects, terminals and agents keep running with your lid closed.";
+  "Run Claude Code and Codex on a Linux box you own: add it by typing user@host, lpm pairs itself over SSH, and the server keeps working with your lid closed.";
 
 export const metadata: Metadata = {
   title: TITLE,

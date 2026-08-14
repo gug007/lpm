@@ -513,16 +513,29 @@ include `GitBranch`, `GitPullRequestArrow`, `FolderKanban`, `LayoutGrid`, `Layer
 Every sibling page exports a `Metadata` constant in its `page.tsx`. The shape is fixed.
 The SSH page must export the same shape.
 
-### 4.1 Lengths observed across siblings
+### 4.1 Length budget
 
-| Field                  | Best  | Developers | Git   |
-|------------------------|------:|-----------:|------:|
-| `title` chars          | 54    | 52         | 58    |
-| `description` chars    | 154   | 156        | 163   |
-| `keywords` count       | 20    | 19         | 20    |
+`app/layout.tsx` sets `title.template = "%s — lpm"`, so the rendered SERP title is the
+page `title` **plus 6 characters**. Budget accordingly:
 
-**Targets for SSH page**: `title` ≈ 50–60 chars; `description` ≈ 150–165 chars; `keywords`
-≈ 18–20 entries (last two should always be `"lpm"` and `"local project manager"`).
+| Field                  | Budget                                                        |
+|------------------------|---------------------------------------------------------------|
+| `title` chars          | ≤ 54 (renders ≤ 60 with the ` — lpm` suffix)                   |
+| `description` chars    | 150–165                                                        |
+| `keywords` count       | 8–14 entries                                                   |
+
+Copy rules that override any older sibling you are cloning from:
+
+- **Never embed the brand in `title`** — the layout template appends it. (`/vs/*` pages
+  are the only exception: they use `title: { absolute: … }` and carry their own suffix.)
+- **Never use the phrase "local project manager"** or any other expansion of the brand.
+  The brand is `lpm`, lowercase, and it is never spelled out. Do not use "lpm Desktop"
+  or other variants either.
+- **Never position lpm as a "process manager."** It runs projects — services, terminals,
+  and agents — as first-class objects.
+- On agent-facing pages, write **"Claude Code"** and **"Codex"** literally in the title,
+  description, and keywords. Do not collapse them into "AI agents" only.
+- Keywords are search phrases, not branding. Do not pad the list with brand terms.
 
 ### 4.2 Exact TS structure
 
@@ -534,13 +547,11 @@ import type { Metadata } from "next";
 import { SSH_TERMINAL_MAC_PATH } from "@/lib/links";
 
 export const metadata: Metadata = {
-  title: "<TITLE — 50–60 chars>",
+  title: "<TITLE — ≤ 54 chars, no brand>",
   description: "<DESCRIPTION — 150–165 chars>",
   keywords: [
     "<primary keyword>",
-    "<…18 more SSH-related variants…>",
-    "lpm",
-    "local project manager",
+    "<…7–13 more SSH-related search phrases…>",
   ],
   alternates: {
     canonical: SSH_TERMINAL_MAC_PATH,
@@ -570,9 +581,11 @@ Notes:
 
 ### 4.3 OG image
 
-There is no per-page `openGraph.images` array. The site relies on the global
-`app/opengraph-image.tsx` route convention to generate the OG image. **Do not** add an
-`images` field to the SSH page metadata.
+**Do not** add an `images` field to page metadata. Each route ships an
+`opengraph-image.tsx` next to its `page.tsx` (built with `ogImage()` from
+`@/lib/og-template`) and Next wires it up by file convention; `app/opengraph-image.tsx`
+is the site-wide fallback. The card's `headline` and `alt` must match the page's own H1
+and title — an OG card that names the page differently is a defect.
 
 ---
 
@@ -770,7 +783,7 @@ Insertion point: after the existing `GIT_TERMINAL_MAC_PATH` entry, before the
 
 ## 7. Structured data (JSON-LD) emission
 
-Two structured-data scripts are emitted per page:
+One global block plus the per-page blocks below:
 
 ### 7.1 SoftwareApplication (global, in layout)
 
@@ -807,8 +820,17 @@ Important constraints:
   for the SSH page is variant A (string answers), which avoids this entirely.
 - **Recommendation**: keep all 6 SSH FAQ answers as plain strings.
 
-No other JSON-LD types (HowTo, BreadcrumbList, Product) are emitted by sibling pages.
-Do not add new structured data types unless the architect asks.
+### 7.3 WebPage + BreadcrumbList (per page, in `page.tsx`)
+
+Current pages also emit a `WebPage` entity and a `BreadcrumbList` from `page.tsx`, built
+with the helpers in `@/lib/structured-data` (`webPageJsonLd`, `breadcrumbJsonLd`,
+`faqJsonLd`, serialized through `jsonLdString`). Prefer the helpers over hand-written
+objects. The `WebPage` `name` **must be the same string as `metadata.title`,
+`openGraph.title`, and `twitter.title`** — a page that names itself three different ways
+is a defect verifiers will flag.
+
+Do not add a page-level `SoftwareApplication` (see §7.1) or any other structured-data
+type unless the architect asks.
 
 ---
 
@@ -970,8 +992,10 @@ Mobile lpm card border: `border-gray-300 dark:border-gray-700`
 
 - [ ] `website/app/ssh-terminal-for-mac/page.tsx` exists with the 8 ordered sections.
 - [ ] All 8 `_components/*.tsx` files created, each a default export.
-- [ ] `metadata` exports `title` ≤ 60 chars, `description` ≈ 150–165 chars, 18–20
-      keywords ending in `"lpm"` and `"local project manager"`.
+- [ ] `metadata` exports `title` ≤ 54 chars (≤ 60 once the layout appends ` — lpm`),
+      `description` ≈ 150–165 chars, 8–14 keyword phrases, no brand terms in the list.
+- [ ] No brand in `title`, no "local project manager", no "process manager" positioning;
+      "Claude Code" / "Codex" spelled literally where the page targets them.
 - [ ] `alternates.canonical` and `openGraph.url` both reference `SSH_TERMINAL_MAC_PATH`.
 - [ ] `SSH_TERMINAL_MAC_PATH` added to `website/lib/links.ts`.
 - [ ] Sitemap entry added in `website/app/sitemap.ts` (priority 0.8, monthly).

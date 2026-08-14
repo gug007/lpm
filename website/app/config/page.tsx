@@ -202,6 +202,20 @@ const actionFields: Field[] = [
     ),
   },
   {
+    name: "emoji",
+    type: "string",
+    required: false,
+    description: (
+      <>
+        A single emoji shown in front of the label, so a crowded toolbar stays
+        scannable. It&rsquo;s prefixed to whatever the label resolves to —{" "}
+        <code className="font-mono">emoji: 🚀</code>{" "}with{" "}
+        <code className="font-mono">label: Deploy</code>{" "}renders as{" "}
+        <code className="font-mono">🚀 Deploy</code>.
+      </>
+    ),
+  },
+  {
     name: "cwd",
     type: "string",
     required: false,
@@ -287,6 +301,23 @@ const actionFields: Field[] = [
       </>
     ),
   },
+  {
+    name: "primary",
+    type: "string",
+    required: false,
+    description: (
+      <>
+        Only for actions with nested{" "}
+        <code className="font-mono">actions</code>: which child the main half of
+        the split button runs. Name a child&rsquo;s key (
+        <code className="font-mono">primary: staging</code>) to pin it, or use{" "}
+        <code className="font-mono">last-used</code>{" "}so the button follows
+        whichever child you ran most recently — remembered per project on that
+        Mac. It takes precedence over the parent&rsquo;s own{" "}
+        <code className="font-mono">cmd</code>.
+      </>
+    ),
+  },
 ];
 
 const terminalFields: Field[] = [
@@ -327,6 +358,20 @@ const terminalFields: Field[] = [
         lpm uses the terminal&rsquo;s key — so{" "}
         <code className="font-mono">claude</code> just shows up as{" "}
         <code className="font-mono">claude</code>.
+      </>
+    ),
+  },
+  {
+    name: "emoji",
+    type: "string",
+    required: false,
+    description: (
+      <>
+        Same as on actions: a single emoji prefixed to the label, handy for
+        telling a row of agent terminals apart at a glance —{" "}
+        <code className="font-mono">emoji: 🤖</code>{" "}with{" "}
+        <code className="font-mono">label: Claude Code</code>{" "}renders as{" "}
+        <code className="font-mono">🤖 Claude Code</code>.
       </>
     ),
   },
@@ -564,8 +609,9 @@ export default function ConfigPage() {
                     Actions are the commands you run once in a while — your test
                     suite, a database migration, a deploy script. Services run
                     continuously; actions fire once, do their job, and show you
-                    the result. Click one in the desktop app toolbar (or tuck it
-                    into the three-dot menu) and lpm runs it for you.
+                    the result. Click one in the desktop app toolbar — or tuck
+                    it into the footer bar under the terminal — and lpm runs it
+                    for you.
                   </>
                 }
               >
@@ -581,6 +627,20 @@ export default function ConfigPage() {
                   initial={ACTIONS_EXAMPLE}
                 />
                 <FieldTable fields={actionFields} />
+
+                <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+                  <strong className="font-medium text-gray-700 dark:text-gray-200">
+                    Other fields.
+                  </strong>{" "}
+                  This table covers what the examples on this page use. Actions
+                  also accept <code className="font-mono">shortcut</code>{" "}(a
+                  key combo that runs the action while the project is open),{" "}
+                  <code className="font-mono">inputs</code>{" "}(values lpm asks
+                  for before running and substitutes into the command), and{" "}
+                  <code className="font-mono">prompt</code>{" "}(text typed into
+                  the terminal an action opens). The desktop app&rsquo;s action
+                  editor writes all three for you.
+                </p>
 
                 <p className="mt-8 mb-3 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                   <strong className="font-medium text-gray-700 dark:text-gray-200">
@@ -1061,7 +1121,9 @@ export default function ConfigPage() {
                     </code>{" "}
                     fields are non-empty
                   </Bullet>
-                  <Bullet>Ports are in range 0-65535 with no duplicates</Bullet>
+                  <Bullet>
+                    Ports are whole numbers from 1 to 65535, with no duplicates
+                  </Bullet>
                   <Bullet>
                     All{" "}
                     <code className="font-mono text-gray-600 dark:text-gray-300">

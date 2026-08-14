@@ -18,12 +18,30 @@ const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
 
 const CAPABILITIES: Capability[] = [
   {
-    label: "Native Apple Silicon app (no Electron)",
+    label: "Native Apple Silicon build, no Electron runtime",
     lpm: true,
     iterm2: true,
     terminal: true,
     tmux: true,
     hyper: false,
+    warp: true,
+  },
+  {
+    label: "Free",
+    lpm: true,
+    iterm2: true,
+    terminal: true,
+    tmux: true,
+    hyper: true,
+    warp: true,
+  },
+  {
+    label: "Open source",
+    lpm: true,
+    iterm2: true,
+    terminal: false,
+    tmux: true,
+    hyper: true,
     warp: true,
   },
   {
@@ -54,7 +72,7 @@ const CAPABILITIES: Capability[] = [
     warp: false,
   },
   {
-    label: "AI-generated service config for your stack",
+    label: "AI writes the project setup from your stack",
     lpm: true,
     iterm2: false,
     terminal: false,
@@ -63,7 +81,7 @@ const CAPABILITIES: Capability[] = [
     warp: false,
   },
   {
-    label: "Run multiple AI agents on the same codebase without conflicts",
+    label: "Claude Code and Codex side by side, each in its own copy",
     lpm: true,
     iterm2: false,
     terminal: false,
@@ -72,22 +90,13 @@ const CAPABILITIES: Capability[] = [
     warp: false,
   },
   {
-    label: "Built-in config editor for your project's services",
+    label: "Project setup you edit inside the app",
     lpm: true,
     iterm2: false,
     terminal: false,
     tmux: false,
     hyper: false,
     warp: false,
-  },
-  {
-    label: "Free and open source",
-    lpm: true,
-    iterm2: true,
-    terminal: true,
-    tmux: true,
-    hyper: true,
-    warp: true,
   },
 ];
 
@@ -104,7 +113,7 @@ function Indicator({ on }: { on: boolean }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-300 dark:text-gray-600"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>
@@ -118,7 +127,7 @@ export default function Comparison() {
         <SectionHeader
           eyebrow="How it compares"
           title="lpm vs iTerm2, Terminal.app, tmux, Hyper, and Warp"
-          description="iTerm2, tmux, Warp, and the others can arrange panes and run scripts. These rows focus on built-in project and service awareness."
+          description="Every one of these renders text fast on Apple Silicon. These rows start with what the app itself costs and how it is built, then move to what it knows about the project you opened."
         />
 
         <div className="hidden sm:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">

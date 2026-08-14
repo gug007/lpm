@@ -31,7 +31,7 @@ export default function HowItWorks() {
         <ol className="grid gap-8 md:grid-cols-3">
           {STEPS.map((step) => (
             <li key={step.number} className="relative border-t border-gray-200 pt-6 dark:border-gray-800">
-              <span className="font-mono text-xs font-semibold text-gray-400 dark:text-gray-600">
+              <span className="font-mono text-xs font-semibold text-gray-500 dark:text-gray-400">
                 {step.number}
               </span>
               <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-gray-100">

@@ -24,7 +24,7 @@ import WhenToUse from "./_components/when-to-use";
 
 const TITLE = "Git Worktree Alternative for Parallel AI Agents";
 const DESCRIPTION =
-  "Compare Git worktrees with lpm Duplicate: standalone macOS project copies that preserve your local setup and can launch Claude Code, Codex, or any command in parallel.";
+  "Compare Git worktrees with lpm Duplicate: standalone Mac project copies that keep your local setup and run Claude Code, Codex, or any command in parallel.";
 
 export const metadata: Metadata = {
   title: TITLE,

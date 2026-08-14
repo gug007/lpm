@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { StreamingOutput } from "./terminal-pane";
 import type { DemoAction } from "./projects";
@@ -15,6 +15,9 @@ export function DemoActionModal({
   onClose: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>(action.confirm ? "idle" : "running");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const primaryRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<Element | null>(null);
 
   const durationMs = action.durationMs ?? 1000;
 
@@ -23,6 +26,31 @@ export function DemoActionModal({
     const id = window.setTimeout(() => setPhase("result"), durationMs);
     return () => window.clearTimeout(id);
   }, [phase, durationMs]);
+
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement;
+    return () => {
+      const trigger = returnFocusRef.current;
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, []);
+
+  // While the action runs there is no enabled button to hold focus, so the
+  // dialog itself takes it rather than letting it fall back to <body>.
+  useEffect(() => {
+    const primary = primaryRef.current;
+    if (primary && !primary.disabled) primary.focus();
+    else dialogRef.current?.focus();
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase === "running") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, onClose]);
 
   return (
     <div className="absolute inset-0 z-[60] flex items-center justify-center p-4">
@@ -33,8 +61,14 @@ export function DemoActionModal({
         className="absolute inset-0 bg-black/50"
       />
       {phase === "idle" ? (
-        <div className="relative w-72 rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl">
-          <div className="text-sm text-[#b3b3b3]">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          tabIndex={-1}
+          aria-labelledby="demo-action-confirm-title"
+          className="relative w-72 rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl"
+        >
+          <div id="demo-action-confirm-title" className="text-sm text-[#b3b3b3]">
             Run <span className="font-medium text-[#e5e5e5]">{action.label}</span>
             ?
           </div>
@@ -47,6 +81,7 @@ export function DemoActionModal({
               Cancel
             </button>
             <button
+              ref={primaryRef}
               type="button"
               onClick={() => setPhase("running")}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${
@@ -60,9 +95,18 @@ export function DemoActionModal({
           </div>
         </div>
       ) : (
-        <div className="relative w-[28rem] max-w-[calc(100%-2rem)] rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl">
+        <div
+          ref={dialogRef}
+          role="dialog"
+          tabIndex={-1}
+          aria-labelledby="demo-action-title"
+          className="relative w-[28rem] max-w-[calc(100%-2rem)] rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl"
+        >
           <div className="flex items-center justify-between gap-2">
-            <div className="text-base font-semibold text-[#e5e5e5]">
+            <div
+              id="demo-action-title"
+              className="text-base font-semibold text-[#e5e5e5]"
+            >
               {phase === "result" ? `${action.label} finished` : `Running ${action.label}`}
             </div>
             {phase === "result" ? (
@@ -82,6 +126,7 @@ export function DemoActionModal({
               {phase === "result" ? `exit 0 · ${durationMs}ms` : " "}
             </span>
             <button
+              ref={primaryRef}
               type="button"
               onClick={onClose}
               disabled={phase === "running"}

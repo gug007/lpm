@@ -49,7 +49,7 @@ function Cell({ value }: { value: MatrixCell }) {
     <>
       <X
         aria-hidden="true"
-        className="mx-auto w-4 h-4 text-gray-400 dark:text-gray-500"
+        className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
     </>
@@ -130,61 +130,41 @@ export function FeatureMatrix({
           </table>
         </div>
 
-        <div className="md:hidden space-y-4">
-          {columns.map((c) => {
-            const isLpm = c.key === "lpm";
-            return (
-              <div
-                key={c.key}
-                className={`rounded-2xl border p-5 ${
-                  isLpm
-                    ? "border-gray-300 dark:border-gray-700 bg-gray-50/60 dark:bg-white/[0.04]"
-                    : "border-gray-200 dark:border-gray-800"
-                }`}
-              >
-                <h3
-                  className={`text-sm font-semibold mb-4 ${
-                    isLpm
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-700 dark:text-gray-300"
-                  }`}
-                >
-                  {c.label}
-                </h3>
-                <ul className="space-y-3">
-                  {rows.map((row) => {
-                    const value = row[c.key];
-                    if (typeof value === "string" && value !== "partial") {
-                      return (
-                        <li key={row.label} className="pl-7 text-sm">
-                          <span className="block text-gray-600 dark:text-gray-400 leading-relaxed">
-                            {row.label}
-                          </span>
-                          <span className="block text-left text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
-                            {value}
-                          </span>
-                        </li>
-                      );
-                    }
-                    return (
-                      <li
-                        key={row.label}
-                        className="flex items-start gap-3 text-sm"
-                      >
-                        <span className="mt-0.5 shrink-0">
-                          <Cell value={value} />
-                        </span>
-                        <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                          {row.label}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+        <ul className="md:hidden space-y-3">
+          {rows.map((row) => (
+            <li
+              key={row.label}
+              className="rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+            >
+              <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-white/[0.02] px-4 py-3 text-sm text-gray-700 dark:text-gray-300 leading-snug">
+                {row.label}
               </div>
-            );
-          })}
-        </div>
+              <div className="grid grid-cols-2 divide-x divide-gray-200 dark:divide-gray-800">
+                {columns.map((c) => (
+                  <div
+                    key={c.key}
+                    className={`min-w-0 px-2.5 py-3 ${
+                      c.key === "lpm"
+                        ? "bg-gray-100/70 dark:bg-white/[0.04]"
+                        : ""
+                    }`}
+                  >
+                    <div
+                      className={`mb-1.5 text-center text-[11px] font-semibold ${
+                        c.key === "lpm"
+                          ? "text-gray-900 dark:text-white"
+                          : "text-gray-500 dark:text-gray-400"
+                      }`}
+                    >
+                      {c.label}
+                    </div>
+                    <Cell value={row[c.key]} />
+                  </div>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
   );

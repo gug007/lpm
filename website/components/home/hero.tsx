@@ -23,10 +23,10 @@ export function Hero() {
           in parallel.
         </h1>
         <p className="mt-6 text-pretty text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
-          lpm is the free, open-source local dev process manager for Mac. Start,
-          stop, and switch whole projects with live output per service, next to
-          one-click terminals for Claude Code and Codex — every duplicate keeps
-          its dependencies and uncommitted work intact.
+          lpm is a free, open-source Mac app for running local dev projects.
+          Start, stop, and switch whole projects with live output per service,
+          next to one-click terminals for Claude Code and Codex — every
+          duplicate keeps its dependencies and uncommitted work intact.
         </p>
 
         <div className="mt-9 max-w-xl mx-auto space-y-4">
@@ -37,7 +37,8 @@ export function Hero() {
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
             >
               <Play className="w-3.5 h-3.5" aria-hidden />
-              Try the interactive demo
+              <span className="md:hidden">Watch the demo</span>
+              <span className="hidden md:inline">Try the interactive demo</span>
             </a>
           </div>
         </div>

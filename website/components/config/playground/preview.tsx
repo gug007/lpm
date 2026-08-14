@@ -194,7 +194,7 @@ export function PlaygroundPreview({
   };
 
   return (
-    <div className="dark relative h-full flex flex-col bg-[#1a1a1a]">
+    <div data-on-dark className="dark relative h-full flex flex-col bg-[#1a1a1a]">
       {error && <ErrorBanner message={error} />}
 
       <div

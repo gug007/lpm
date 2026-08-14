@@ -16,7 +16,7 @@ export default function Cta() {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source="best-mac-cta" />
         </div>
 
         <div className="mt-8">

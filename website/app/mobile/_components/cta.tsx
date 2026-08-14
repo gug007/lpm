@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
-import { REPO_URL } from "@/lib/links";
 import AppStoreButton from "./app-store-button";
 
 export default function Cta() {
@@ -20,9 +20,9 @@ export default function Cta() {
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:items-start">
-          <AppStoreButton />
+          <AppStoreButton source="mobile-cta" />
           <div className="hidden sm:block">
-            <HeroDownload />
+            <HeroDownload source="mobile-cta" />
           </div>
         </div>
         <Link
@@ -34,13 +34,10 @@ export default function Cta() {
         </Link>
 
         <div className="mt-8">
-          <a
-            href={REPO_URL}
+          <GithubLink
+            source="mobile-cta"
             className="text-[13px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 inline-flex items-center gap-1.5"
-          >
-            View on GitHub
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
+          />
         </div>
       </div>
     </section>

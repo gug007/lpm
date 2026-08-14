@@ -9,7 +9,7 @@ export default function Hero() {
         <p className="mb-6 text-xs font-medium tracking-[0.25em] text-gray-500 uppercase dark:text-gray-400">
           Project sidebar · macOS
         </p>
-        <h1 className="bg-gradient-to-br from-gray-950 via-gray-800 to-gray-600 bg-clip-text text-4xl leading-[1.05] font-extrabold tracking-tight text-transparent sm:text-6xl dark:from-white dark:via-gray-100 dark:to-gray-400">
+        <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-4xl leading-[1.1] font-extrabold tracking-tight text-transparent sm:text-6xl dark:from-white dark:via-gray-100 dark:to-gray-400">
           A Mac terminal with a project sidebar — not another row of tabs.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed tracking-wide text-gray-600 sm:text-lg dark:text-gray-400">

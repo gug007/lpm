@@ -28,8 +28,6 @@ export const metadata: Metadata = {
   keywords: [
     "foreman alternative",
     "foreman vs lpm",
-    "procfile manager",
-    "rails process manager",
     "procfile alternative",
     "foreman start",
   ],

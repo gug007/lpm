@@ -454,6 +454,7 @@ export function DemoBranchSwitcher({
                           autoFocus
                           value={renameValue}
                           onChange={(e) => setRenameValue(e.target.value)}
+                          aria-label={`New name for branch ${b.name}`}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();

@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     "docker compose alternative for dev",
     "docker compose vs lpm",
     "dev without docker",
-    "native dev process manager",
+    "run dev stack without docker on mac",
     "docker compose macos slow",
     "local dev without containers",
   ],

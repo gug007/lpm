@@ -3,8 +3,8 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   CLAUDE_ACCOUNTS_PATH,
-  CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
@@ -21,7 +21,7 @@ import Workflows from "./_components/workflows";
 export const metadata: Metadata = {
   title: "Multiple Claude Code Accounts — One Per Project",
   description:
-    "Run multiple Claude Code accounts on one Mac without logging out. lpm pins an account to each project — work and personal run in parallel, signed in once, tokens untouched.",
+    "Run multiple Claude Code accounts on one Mac without logging out — lpm pins an account to each project, so work and personal stay signed in at once.",
   keywords: [
     "claude code multiple accounts",
     "switch claude code accounts",
@@ -53,7 +53,7 @@ const structuredData = [
   webPageJsonLd({
     title: "Multiple Claude Code Accounts — One Per Project",
     description:
-      "Run multiple Claude Code accounts on one Mac without logging out. lpm pins an account to each project — work and personal run in parallel, signed in once, tokens untouched.",
+      "Run multiple Claude Code accounts on one Mac without logging out — lpm pins an account to each project, so work and personal stay signed in at once.",
     path: CLAUDE_ACCOUNTS_PATH,
     about: [
       "multiple Claude Code accounts",
@@ -107,10 +107,10 @@ export default function ClaudeCodeMultipleAccountsPage() {
               "Track usage across projects, providers, models, and recent sessions without sending the dashboard to the cloud.",
           },
           {
-            href: CONFIG_PATH,
-            title: "Configuration reference",
+            href: STATUSLINE_PATH,
+            title: "Claude Code & Codex statuslines",
             description:
-              "Every project config field — services, actions, terminals, profiles, and account pinning.",
+              "Pick a preset, reorder the fields, and preview live — so you can tell each session apart at a glance.",
           },
         ]}
       />

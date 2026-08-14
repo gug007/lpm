@@ -16,7 +16,7 @@ import Workflows from "./_components/workflows";
 
 const TITLE = "Review Code Changes in Your Terminal Before You Commit";
 const DESCRIPTION =
-  "Review code changes in your terminal with lpm — a full file-by-file diff viewer built into a native macOS workspace. See what changed before you commit, right next to your running services and AI agents.";
+  "See what Claude Code and Codex changed before you commit — a file-by-file diff viewer built into a native Mac terminal, beside your running services.";
 
 export const metadata: Metadata = {
   title: TITLE,

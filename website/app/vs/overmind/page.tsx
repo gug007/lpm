@@ -20,20 +20,18 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
-  title: { absolute: "Overmind CLI Alternative for Mac — No tmux | lpm" },
+  title: { absolute: "Overmind CLI Alternative for Mac — No tmux" },
   description:
     "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
   keywords: [
     "overmind alternative",
     "overmind vs lpm",
-    "procfile manager",
-    "rails process manager",
     "procfile gui",
     "per-process dev server",
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "Overmind CLI Alternative for Mac — No tmux | lpm",
+    title: "Overmind CLI Alternative for Mac — No tmux",
     description:
       "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
     type: "website",
@@ -42,7 +40,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Overmind CLI Alternative for Mac — No tmux | lpm",
+    title: "Overmind CLI Alternative for Mac — No tmux",
     description:
       "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
   },
@@ -172,7 +170,7 @@ const FAQS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "Overmind CLI Alternative for Mac — No tmux | lpm",
+    title: "Overmind CLI Alternative for Mac — No tmux",
     description:
       "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
     path: PATH,

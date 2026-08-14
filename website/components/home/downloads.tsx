@@ -9,7 +9,7 @@ import {
   Package,
   type LucideIcon,
 } from "lucide-react";
-import { trackDownload } from "@/lib/analytics";
+import { trackDownload, trackGithubVisit } from "@/lib/analytics";
 import { MOBILE_PATH, RELEASES_URL } from "@/lib/links";
 import {
   usePlatform,
@@ -111,6 +111,12 @@ export function Downloads({ children }: { children?: ReactNode }) {
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
           <a
             href={RELEASES_URL}
+            onClick={() =>
+              trackGithubVisit({
+                source: "downloads-releases",
+                href: RELEASES_URL,
+              })
+            }
             className="inline-flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             View all downloads

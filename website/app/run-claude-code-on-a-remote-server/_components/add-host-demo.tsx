@@ -132,7 +132,7 @@ function HostRow({ connected }: { connected: boolean }) {
           />
           <span className={`truncate ${MUTED}`}>
             {connected
-              ? "Connected · lpm 0.5.16"
+              ? "Connected"
               : `Connecting over SSH to ${TARGET}…`}
           </span>
         </span>

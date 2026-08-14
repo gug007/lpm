@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { trackGithubVisit, type GithubLinkSource } from "@/lib/analytics";
 import { REPO_URL } from "@/lib/links";
@@ -7,9 +8,10 @@ import { REPO_URL } from "@/lib/links";
 type Props = {
   source: GithubLinkSource;
   className?: string;
+  children?: ReactNode;
 };
 
-export function GithubLink({ source, className }: Props) {
+export function GithubLink({ source, className, children }: Props) {
   return (
     <a
       href={REPO_URL}
@@ -18,7 +20,7 @@ export function GithubLink({ source, className }: Props) {
       onClick={() => trackGithubVisit({ source, href: REPO_URL })}
       className={className}
     >
-      View on GitHub
+      {children ?? "View on GitHub"}
       <ArrowUpRight className="w-3.5 h-3.5" aria-hidden />
     </a>
   );
