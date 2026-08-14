@@ -568,6 +568,11 @@ struct ProjectsView: View {
                     } label: {
                         Label("Stats", systemImage: "chart.bar")
                     }
+                    NavigationLink {
+                        UsageScreen()
+                    } label: {
+                        Label("Usage", systemImage: "speedometer")
+                    }
                     Button { showingSettings = true } label: {
                         Label("Settings", systemImage: "gearshape")
                     }

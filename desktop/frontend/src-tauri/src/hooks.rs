@@ -960,15 +960,18 @@ fn remove_claude_statusline_at(path: &Path) -> Result<(), String> {
 
 /// Install or uninstall the Claude usage-limit forwarder. The frontend toggle
 /// owns the persisted `claudeLimitsEnabled` flag; this only performs the
-/// filesystem side effect.
+/// filesystem side effect, then tells paired phones about the new state — they
+/// have no other way to learn Claude usage was switched off here.
 #[tauri::command(async)]
-pub fn apply_claude_limits(enabled: bool) -> Result<(), String> {
+pub fn apply_claude_limits(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
     let path = claude_settings_path();
     if enabled {
-        install_claude_statusline_at(&path)
+        install_claude_statusline_at(&path)?;
     } else {
-        remove_claude_statusline_at(&path)
+        remove_claude_statusline_at(&path)?;
     }
+    crate::remote::set_claude_limits_enabled(&app, enabled);
+    Ok(())
 }
 
 /// Startup re-apply: silently reinstall the forwarder when the user previously

@@ -26,6 +26,8 @@ final class LpmClient: NSObject {
     var onProjects: (([Project]) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
+    var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
+    var onLimitsChanged: ((_ snapshot: LimitsSnapshot) -> Void)?
     var onSpeech: ((_ reqId: String, _ audio: String?, _ error: String?) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
@@ -644,6 +646,7 @@ final class LpmClient: NSObject {
     func requestProjects() { send(Wire.projects()) }
     func requestSidebar() { send(Wire.sidebar()) }
     func requestStats(days: Int) { send(Wire.stats(days: days)) }
+    func requestLimits() { send(Wire.limits()) }
     func requestSpeech(reqId: String, text: String) { send(Wire.ttsSpeak(reqId: reqId, text: text)) }
     func requestTerminals(project: String) { send(Wire.terminals(project: project)) }
     func requestSlash(id: String, project: String) { send(Wire.slash(id: id, project: project)) }
@@ -1050,6 +1053,8 @@ final class LpmClient: NSObject {
             case .projects(let p): self.onProjects?(p)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
+            case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
+            case .limitsChanged(let snapshot): self.onLimitsChanged?(snapshot)
             case .ttsSpeak(let reqId, let audio, let error): self.onSpeech?(reqId, audio, error)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .slash(let id, let cmds): self.onSlash?(id, cmds)

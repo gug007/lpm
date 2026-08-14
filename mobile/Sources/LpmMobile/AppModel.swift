@@ -299,6 +299,9 @@ final class AppModel {
     var memory = MemoryStore()
     var notes = NotesStore()
 
+    // The agent plan-usage meters (`model.usage`), same split.
+    var usage = UsageStore()
+
     // Loaded file-viewer contents, keyed by "<project>\n<path>", so the FileViewer
     // sheet can render loading / content / error for the file it opened.
     var loadedFiles: [String: FileLoad] = [:]
@@ -364,6 +367,7 @@ final class AppModel {
         git.model = self
         memory.model = self
         notes.model = self
+        usage.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName)
         }
@@ -1047,6 +1051,10 @@ final class AppModel {
         memory.model = self
         notes = NotesStore()
         notes.model = self
+        // And for the usage meters — their keys name the tool, not the Mac, so
+        // carrying the old map over would show one Mac's numbers under another.
+        usage = UsageStore()
+        usage.model = self
         loadedFiles = [:]
         pendingAgentPrompt = [:]
     }
@@ -1914,6 +1922,7 @@ final class AppModel {
         // their spinners); their requests queue on the client until it reconnects.
         memory.handleConnectionReset()
         notes.handleConnectionReset()
+        usage.handleConnectionReset()
         historyPending = []
         historyLoadingMore = false
         if historyActive {
@@ -2124,6 +2133,7 @@ final class AppModel {
         wireConnection(c)
         wireProjects(c)
         wireStats(c)
+        wireUsage(c)
         wireTerminals(c)
         wireAutomations(c)
         wireProjectEvents(c)
@@ -2269,6 +2279,11 @@ final class AppModel {
                 self.statsError = error ?? "Couldn't load stats."
             }
         }
+    }
+
+    private func wireUsage(_ c: LpmClient) {
+        c.onLimits = { [weak self] snapshot, error in self?.usage.apply(snapshot, error: error) }
+        c.onLimitsChanged = { [weak self] snapshot in self?.usage.applyPush(snapshot) }
     }
 
     private func wireTerminals(_ c: LpmClient) {

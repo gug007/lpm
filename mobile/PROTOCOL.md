@@ -185,6 +185,7 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 |---|---|
 | `{ "t": "projects" }` | `{ "t": "projects", "projects": [ProjectInfo…] }` |
 | `{ "t": "stats", "days": N }` | `{ "t": "stats", "ok": true, "stats": AgentUsageStats }` / `{ "ok": false, "error": "…" }` — local agent token-usage stats for the last `N` days (`0` = all time), i.e. the desktop Stats page. The Mac scans Claude Code / Codex session-history files (usage metadata only — no prompts or responses), so it runs off this connection's read loop and the reply arrives **asynchronously** (later than a fast request sent after it). SSH projects are excluded |
+| `{ "t": "limits" }` | `{ "t": "limits", "ok": true, "limits": AgentLimits, "claudeEnabled": bool, "now": unix MILLIS }` / `{ "ok": false, "error": "…" }` — the agent plan-usage meters (the desktop Usage page): how much of each tool's 5-hour and weekly window is used. Answered inline from an in-memory store, so it is fast and ordered. `claudeEnabled` is false when Claude reporting has not been switched on for this Mac — the phone must show "off on this Mac" rather than an empty spinner, because an off Mac never reports Claude windows at all. Codex needs no opt-in. `now` is the Mac's own clock when it built the frame; it anchors `updatedAt`, which the Mac stamps, and not `resetsAt`, which comes from the tool's own servers (see AgentLimits below) |
 | `{ "t": "ttsSpeak", "reqId": "<uuid>", "text": "…" }` | `{ "t": "ttsSpeak", "reqId": "<uuid>", "ok": true, "format": "aac", "audio": "<base64>" }` / `{ "ok": false, "error": "…" }` — synthesizes `text` with the Mac's configured OpenAI voice and returns the whole clip as base64 AAC. Slow (a network round trip per chunk, and long text is split across several), so the reply arrives on the out-queue rather than in order; `reqId` lets the phone drop the answer to a request it has already superseded. Requires an OpenAI key in the Mac's Keychain — without one the reply is `ok: false`. |
 | `{ "t": "jobs" }` | `{ "t": "jobs", "ok": true, "jobs": [JobInfo…] }` / `{ "ok": false, "error": "…" }` — every automation across local projects |
 | `{ "t": "jobHistory", "project": "<name>", "jobId": "<id>" }` | `{ "t": "jobHistory", "project": "<name>", "jobId": "<id>", "ok": true, "entries": [JobHistoryEntry…] }` / `{ "ok": false, "error": "…" }` |
@@ -547,6 +548,7 @@ installs stop generating traffic.
 | `{ "t": "git-changed", "project": "<name>" }` | The watched project's working tree changed (sent only to a connection that issued `gitWatch` for it, debounced ~400ms after the last change). Carries no payload — re-request `git` and any open `gitDiff`s to refresh the review screen. |
 | `{ "t": "control", "id": "<termId>", "owner": ControlOwner\|null }` | The terminal's control owner changed. If `owner` is not this phone, show the "take control" placeholder and stop driving size; if it is (or `null`), render live. |
 | `{ "t": "memory-changed", "project": "<owner name>" }` | A session-memory file changed on disk — usually an agent CLI writing through the lpm-memory skill while the Memory screen is open (FSEvents, ~500ms settle). `project` is the **owner** folder name, which for a duplicate is its original: refresh when it matches either the project you are showing or the owner you learned from that project's `dir`. Notes have no equivalent push. |
+| `{ "t": "limits-changed", "limits": AgentLimits, "claudeEnabled": bool, "now": unix MILLIS }` | A tool reported new plan usage. Carries the full snapshot — apply it directly, **do not re-request** `limits`. Sent only on a meaningful change (a re-report of identical numbers is suppressed on the Mac). `now` is the Mac's clock at send time, as on the `limits` reply: re-measure the offset from every push, since the phone may have been asleep — or the Mac's clock corrected — since the last one. |
 | `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
 
 ## Data shapes
@@ -670,6 +672,40 @@ sources:   [ { provider, files: N } ]   // history files scanned per provider
 **TokenUsage**: `{ inputTokens, cachedInputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens, reasoningTokens, totalTokens }`. Invariants: `inputTokens` **already includes** the cached input (`cacheCreation + cacheRead`); `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. So cache share = `cachedInputTokens / max(1, inputTokens)`.
 **UsageBreakdown**: `{ key, label, sessions, tokens: TokenUsage }`.
 Cost is **estimated on the phone** from `models` — and per day from `daily[].models` — using per-model list prices with cache reads/writes priced separately, matching the desktop. No cost field is sent.
+
+**AgentLimits** (the `limits` reply) — a map keyed `"codex"` or `"claude:<accountId>"`:
+```
+provider:  "claude" | "codex"
+accountId: string?          // Claude only (its config-dir account, often "default"); OMITTED for Codex
+label:     string?          // Codex plan ("pro"), Claude model display name — OMITTED when unknown
+fiveHour:  { usedPercent: 0..100, resetsAt: unix SECONDS } ?   // OMITTED, never null
+weekly:    { usedPercent: 0..100, resetsAt: unix SECONDS } ?   // OMITTED, never null
+updatedAt: unix MILLIS      // NOT seconds — the units differ inside one object
+```
+Invariants: `usedPercent` is not clamped, so values above 100 occur — clamp only a
+progress bar, never the number or the verdict. `resetsAt: 0` means unknown. A window
+already past its reset describes a window that no longer exists and is rendered as
+absent rather than as a full bar. The 5-hour and weekly window lengths are fixed
+constants on the client and never travel on the wire, so a client derives how far
+into a window it is from `resetsAt` alone.
+
+`now` rides **beside** `limits` on the reply and the `limits-changed` push (not inside
+a map entry) and is the Mac's clock, unix MILLIS, at the moment it built the frame.
+The two stamps above sit on different clocks: `resetsAt` is copied verbatim from what
+the tool's own servers reported, while `updatedAt` is stamped by the Mac when it read
+that report. `now` therefore anchors `updatedAt` and nothing else — a client takes
+`offset = now − its own clock at receipt` and ages "last reported" against
+`own clock + offset`, but compares `resetsAt` against its own clock raw, which is both
+the timeline the provider stamped against and the one the client prints the reset time
+in. Applying the offset to `resetsAt` breaks it in both directions: a Mac running slow
+keeps a window that has already turned over reading "resets in 10m", a Mac running fast
+hides a window with 10 real minutes left. (One exception the client cannot see: an
+older Codex build reports a relative `resets_in_seconds`, which the Mac converts with
+its own clock.) A Mac older than this field sends no `now` at all, so the field is
+**optional**: fall back to a zero offset rather than treating its absence as an error.
+Sanity-check what does arrive — a value outside a believable wall-clock range (a `0`,
+or seconds sent where millis were meant) would age "last reported" by decades, so it is
+safer to ignore it and keep the offset at zero.
 
 **MemorySession** — one work-session log:
 ```

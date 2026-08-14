@@ -632,6 +632,12 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
     hub.drop_ring(id);
 }
 
+/// Whether any phone is attached right now. Lets a hot emitter skip building a
+/// frame — and any I/O that feeds it — when the fan-out would go nowhere.
+fn has_clients(hub: &RemoteHub) -> bool {
+    !hub.inner.clients.lock().unwrap().is_empty()
+}
+
 fn broadcast(hub: &RemoteHub, val: Value) {
     let payload = val.to_string();
     let clients = hub.inner.clients.lock().unwrap();
@@ -697,6 +703,7 @@ pub fn start(hub: RemoteHub, app: AppHandle) {
         eprintln!("warning: {e}");
     }
     hub.server_id(); // mint and persist this flavor's id on first run
+    seed_claude_limits_enabled();
     install_forwarders(&hub, &app);
     apply(&hub, &app);
 }
@@ -1373,6 +1380,68 @@ fn result_reply(kind: &str, r: Result<(), String>) -> Value {
     }
 }
 
+/// The `limits`/`limits-changed` payload: the agent usage-limit snapshot plus
+/// whether Claude reporting is switched on for this Mac. Without the flag the
+/// phone cannot tell "off here" from "no Claude session yet". `now` is this
+/// Mac's wall clock in millis, and it anchors `updatedAt` alone: that stamp is
+/// ours, while each window's `resetsAt` is copied verbatim from the tool's own
+/// servers. A phone that shifted `resetsAt` by the same offset would hide a live
+/// window whenever this Mac runs fast, and keep a turned-over one whenever it
+/// runs slow.
+fn limits_frame(limits: Value, claude_enabled: bool) -> Value {
+    json!({
+        "limits": limits,
+        "claudeEnabled": claude_enabled,
+        "now": crate::status::now_millis(),
+    })
+}
+
+/// The Claude reporting switch, mirrored in memory. Nothing that builds a frame
+/// may re-read it from settings: the desktop persists the flag *after* the apply
+/// command returns, so a meter update landing inside that window would fan out
+/// the stale value and leave the phone showing meters that never update again.
+/// Keeping it here also takes disk I/O off the per-agent-turn push path.
+static CLAUDE_LIMITS_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Seed the mirror from the persisted flag. Runs on every startup, enabled or
+/// not, before any listener can push.
+fn seed_claude_limits_enabled() {
+    let enabled = config::load_settings()
+        .get("claudeLimitsEnabled")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    CLAUDE_LIMITS_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+fn limits_payload(app: &AppHandle, snapshot: Option<Value>) -> Value {
+    let limits = snapshot.unwrap_or_else(|| limits_snapshot(app));
+    limits_frame(limits, CLAUDE_LIMITS_ENABLED.load(Ordering::Relaxed))
+}
+
+fn limits_snapshot(app: &AppHandle) -> Value {
+    let store = app.state::<Arc<crate::agent_limits::AgentLimitsStore>>();
+    serde_json::to_value(store.snapshot()).unwrap_or_else(|_| json!({}))
+}
+
+/// Record the Claude reporting switch and fan it out the instant it is applied
+/// on the Mac, so a phone with the Usage screen open doesn't keep rendering
+/// meters that are no longer being updated (or stay on the "off here" panel
+/// after it was turned on). The mirror is updated before the client guard: with
+/// no phone attached there is nothing to push, but the next push must still
+/// carry the new state.
+pub fn set_claude_limits_enabled(app: &AppHandle, enabled: bool) {
+    CLAUDE_LIMITS_ENABLED.store(enabled, Ordering::Relaxed);
+    let Some(hub) = app.try_state::<RemoteHub>() else {
+        return;
+    };
+    if !has_clients(hub.inner()) {
+        return;
+    }
+    let mut frame = limits_frame(limits_snapshot(app), enabled);
+    frame["t"] = json!("limits-changed");
+    broadcast(hub.inner(), frame);
+}
+
 /// Like `result_reply` but echoes the `project` the phone addressed, so a reply
 /// can be matched to its request even with several projects in flight.
 fn git_result_reply(kind: &str, project: &str, r: Result<(), String>) -> Value {
@@ -1760,6 +1829,15 @@ fn handle_msg(
                 };
                 let _ = out.try_send(reply.to_string());
             });
+        }
+        "limits" => {
+            // Agent plan-usage meters (the desktop Usage page). A lock-and-clone
+            // of the in-memory store, so it answers on the read loop rather than
+            // the out-queue.
+            let mut reply = limits_payload(app, None);
+            reply["t"] = json!("limits");
+            reply["ok"] = json!(true);
+            send(ws, reply)?;
         }
         "ttsSpeak" => {
             // Synthesize an automation result for the phone's read-aloud. Slow
@@ -5028,6 +5106,21 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
             .unwrap_or_default();
         let detail = payload.get("detail").and_then(Value::as_str);
         push_automation_notification(&h, project, job_id, label, result, detail);
+    });
+    // Plan-usage meters change when an agent CLI reports new numbers; the event
+    // already carries the whole snapshot, so the phone renders without a round trip.
+    let h = hub.clone();
+    let a = app.clone();
+    app.listen("agent-limits-changed", move |e| {
+        // Fires on every agent turn, on the emitting thread — bail before doing
+        // any work when no phone is attached.
+        if !has_clients(&h) {
+            return;
+        }
+        let snapshot = serde_json::from_str::<Value>(e.payload()).ok();
+        let mut frame = limits_payload(&a, snapshot);
+        frame["t"] = json!("limits-changed");
+        broadcast(&h, frame);
     });
 }
 

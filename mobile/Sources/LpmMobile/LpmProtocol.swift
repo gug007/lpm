@@ -35,6 +35,7 @@ enum Wire {
     static func projects() -> String { json(["t": "projects"]) }
     static func sidebar() -> String { json(["t": "sidebar"]) }
     static func stats(days: Int) -> String { json(["t": "stats", "days": days]) }
+    static func limits() -> String { json(["t": "limits"]) }
     static func ttsSpeak(reqId: String, text: String) -> String {
         json(["t": "ttsSpeak", "reqId": reqId, "text": text])
     }
@@ -423,6 +424,10 @@ enum Wire {
         // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
         // a hard failure; the scan runs on the Mac and replies asynchronously.
         case stats(AgentStats?, error: String?)
+        // Agent plan-usage meters (the desktop Usage page). `limitsChanged` is a
+        // server push carrying the whole snapshot, not a hint to re-request.
+        case limits(LimitsSnapshot?, error: String?)
+        case limitsChanged(LimitsSnapshot)
         /// Synthesized speech for a read-aloud request. `audio` is base64 AAC.
         case ttsSpeak(reqId: String, audio: String?, error: String?)
         case terminals(project: String, [TerminalInfo])
@@ -609,6 +614,10 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .stats(ok ? AgentStats(obj["stats"] as? [String: Any] ?? [:]) : nil,
                               error: ok ? nil : (obj["error"] as? String ?? "Couldn't load stats."))
+            case "limits":
+                let ok = obj["ok"] as? Bool ?? false
+                return .limits(ok ? LimitsSnapshot(obj) : nil,
+                               error: ok ? nil : (obj["error"] as? String ?? usageGenericError))
             case "terminals":
                 return .terminals(project: obj["project"] as? String ?? "",
                                   (obj["terminals"] as? [[String: Any]] ?? []).map(TerminalInfo.init))
@@ -670,6 +679,7 @@ enum Wire {
                 return .jobDeleted(id: obj["id"] as? String ?? "",
                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't delete the automation."))
             case "jobs-changed": return .jobsChanged
+            case "limits-changed": return .limitsChanged(LimitsSnapshot(obj))
             case "seed":
                 let draft = obj["draft"] as? [String: Any]
                 return .seed(id: obj["id"] as? String ?? "",
