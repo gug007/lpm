@@ -1,46 +1,41 @@
-import { Play } from "lucide-react";
-import { DEMO_ANCHOR } from "@/lib/links";
-import { HeroDownload } from "./hero-download";
+import { HeroCta } from "./hero-cta";
 import { ProofStrip } from "./proof-strip";
 
+// The interactive demo sits directly below and has to reach the first
+// viewport, so the hero's vertical rhythm tracks viewport height rather than
+// stepping at width breakpoints.
 export function Hero() {
   return (
-    <section className="relative pt-28 sm:pt-40 pb-10 sm:pb-14 text-center">
+    <section className="relative pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-grid"
       />
-      <div className="relative max-w-4xl mx-auto px-6">
-        <p className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400 mb-6">
+      <div className="relative mx-auto max-w-5xl px-6">
+        <p className="mb-5 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
           <span
             aria-hidden="true"
             className="h-1.5 w-1.5 rounded-full bg-emerald-500/90 dark:bg-emerald-400/90"
           />
           Built for Mac developers
         </p>
-        <h1 className="text-balance text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          Switch projects in one click, duplicate in seconds, run coding agents
-          in parallel.
+        <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-tight text-transparent sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] dark:from-white dark:via-gray-100 dark:to-gray-400">
+          Every project. Every agent.
+          <br />
+          One window.
         </h1>
-        <p className="mt-6 text-pretty text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
-          lpm is a free, open-source Mac app for running local dev projects.
-          Start, stop, and switch whole projects with live output per service,
-          next to one-click terminals for Claude Code and Codex — every
-          duplicate keeps its dependencies and uncommitted work intact.
+        <p className="mx-auto mt-5 max-w-3xl text-pretty text-base leading-relaxed text-gray-600 sm:text-[17px] dark:text-gray-400">
+          lpm is a free, open-source Mac app for local dev projects: switch in
+          one click, see every service&apos;s live output, and run Claude Code
+          and Codex side by side
+          <span className="hidden sm:inline">
+            , plus duplicates in seconds
+          </span>
+          .
         </p>
 
-        <div className="mt-9 max-w-xl mx-auto space-y-4">
-          <HeroDownload />
-          <div className="flex justify-center">
-            <a
-              href={DEMO_ANCHOR}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-gray-300 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
-            >
-              <Play className="w-3.5 h-3.5" aria-hidden />
-              <span className="md:hidden">Watch the demo</span>
-              <span className="hidden md:inline">Try the interactive demo</span>
-            </a>
-          </div>
+        <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-3xl">
+          <HeroCta />
         </div>
 
         <ProofStrip />

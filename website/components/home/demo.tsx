@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AutoVideo } from "@/components/auto-video";
-import { SectionHeader } from "@/components/section-header";
 import { useInView } from "@/components/config/playground/hooks";
 import { MOBILE_PATH } from "@/lib/links";
 
@@ -75,6 +74,23 @@ function DesktopOnlyPrompt() {
   );
 }
 
+// The frame sits in the first viewport, so the observer fires on load. Waiting
+// for an idle slot keeps the demo's bundle off the critical path — the poster
+// placeholder is what the visitor sees while the page settles.
+function useIdle() {
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    const request = window.requestIdleCallback;
+    if (!request) {
+      const timer = window.setTimeout(() => setIdle(true), 300);
+      return () => window.clearTimeout(timer);
+    }
+    const handle = request(() => setIdle(true), { timeout: 1500 });
+    return () => window.cancelIdleCallback?.(handle);
+  }, []);
+  return idle;
+}
+
 function DemoStage() {
   // null until the media query is read on the client. While null, both shells
   // stay mounted and CSS picks the visible one, so the first paint matches the
@@ -82,6 +98,7 @@ function DemoStage() {
   // detection resolves, the losing subtree unmounts entirely.
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   const { ref, inView } = useInView<HTMLDivElement>("600px 0px");
+  const idle = useIdle();
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -106,7 +123,7 @@ function DemoStage() {
           >
             Skip the interactive demo
           </a>
-          {isDesktop && inView ? (
+          {isDesktop && inView && idle ? (
             <DemoApp
               heightCss={DEMO_HEIGHT_DESKTOP}
               heightCssSm={DEMO_HEIGHT_DESKTOP}
@@ -134,45 +151,48 @@ function DemoStage() {
   );
 }
 
+function DemoCaption() {
+  return (
+    <div className="mb-4 flex flex-col items-center gap-2 text-center md:mb-5 md:flex-row md:items-center md:justify-between md:gap-6 md:text-left">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 md:justify-start">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
+          <span
+            className="relative hidden h-1.5 w-1.5 md:inline-flex"
+            aria-hidden="true"
+          >
+            <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          </span>
+          <span className="md:hidden">See it in action</span>
+          <span className="hidden md:inline">Live interactive demo</span>
+        </span>
+        <h2 className="text-balance text-lg font-bold tracking-tight sm:text-xl">
+          Projects, terminals, agents, a built-in browser — one click each
+        </h2>
+      </div>
+      <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 md:max-w-sm md:text-right dark:text-gray-400">
+        <span className="md:hidden">
+          A recording of lpm booting a project and handing it to Claude Code —
+          lpm is a macOS app, so the clickable demo runs on desktop.
+        </span>
+        <span className="hidden md:inline">
+          Click anything below — projects, services, agents. It runs live in
+          your browser.
+        </span>
+      </p>
+    </div>
+  );
+}
+
 export function DemoSection() {
   return (
     <section
       id="demo"
       aria-label="Live interactive demo"
-      className="scroll-mt-20 pt-10 sm:pt-14 pb-16 sm:pb-20"
+      className="scroll-mt-20 pb-16 sm:pb-20"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <SectionHeader
-          eyebrow={
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className="relative hidden h-1.5 w-1.5 md:inline-flex"
-                aria-hidden="true"
-              >
-                <span className="absolute inline-flex h-full w-full motion-safe:animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              </span>
-              <span className="md:hidden">See it in action</span>
-              <span className="hidden md:inline">Live interactive demo</span>
-            </span>
-          }
-          title="Projects, terminals, agents, a built-in browser — one click each"
-          description={
-            <>
-              <span className="md:hidden">
-                Watch lpm boot a project&apos;s services and hand it straight to
-                Claude Code. The demo below is a recording — lpm is a macOS app,
-                so the clickable version runs on desktop.
-              </span>
-              <span className="hidden md:inline">
-                Click anywhere below. Switch projects, start services, launch
-                Claude Code or Codex, and preview your dev server in the in-pane
-                browser — all running live in your browser, right now.
-              </span>
-            </>
-          }
-          className="mb-10"
-        />
+        <DemoCaption />
         <div data-nosnippet>
           <DemoStage />
         </div>

@@ -52,15 +52,19 @@ html {
 }
 
 /*
- * Site-wide keyboard focus. Zero-specificity so the components that already
- * define their own focus-visible ring keep it.
+ * Site-wide keyboard focus. Layered into `base` so a control that carries its
+ * own outline-* utility keeps it — `:focus-visible` alone ties with a single
+ * utility class on specificity, which stacked this ring on top of every field
+ * that had already opted out with `outline-none`.
  */
-:where(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-:where(summary):focus-visible {
-  outline-offset: -2px;
+@layer base {
+  :where(a, button, summary, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  :where(summary):focus-visible {
+    outline-offset: -2px;
+  }
 }
 
 /* The interactive replicas invite clicking, so their controls get the pointer

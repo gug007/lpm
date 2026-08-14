@@ -22,7 +22,12 @@ import type {
   DemoProject,
   DemoService,
 } from "./projects";
-import { PaneHeader, StreamingOutput, type TabInfo } from "./terminal-pane";
+import {
+  PaneHeader,
+  ServiceLabelBar,
+  StreamingOutput,
+  type TabInfo,
+} from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
 import { AgentTerminal, type AgentStatus } from "./agent-terminal";
@@ -41,11 +46,10 @@ import {
   addTabToLeaf,
   appendLeaf,
   collectLeaves,
-  closeServiceTab,
   closeTabInLeaf,
-  collectServiceNames,
   defaultLabel,
   findLeaf,
+  isServiceTab,
   makeLeaf,
   newBrowserContent,
   newReviewContent,
@@ -53,6 +57,7 @@ import {
   setActiveTab,
   setRatioAtPath,
   splitAtLeaf,
+  syncServiceTabs,
   tabKey,
   updateTabInLeaf,
 } from "./pane-tree";
@@ -120,28 +125,6 @@ type ProjectViewProps = {
   agentButtonRef?: React.Ref<HTMLButtonElement>;
   startRingPulse?: boolean;
 };
-
-function reconcileServices(
-  tree: PaneNode | null,
-  running: Set<string>,
-): PaneNode | null {
-  let t: PaneNode | null = tree;
-  for (const name of collectServiceNames(t)) {
-    if (!running.has(name) && t) t = closeServiceTab(t, name);
-  }
-  const existing = new Set(collectServiceNames(t));
-  for (const name of running) {
-    if (existing.has(name)) continue;
-    const leaf = makeLeaf({ kind: "service", name });
-    // Each service nests one level deeper, so a fixed 0.5 would halve every
-    // pane below it (50/25/12.5…). Give the newcomer an even 1/n share instead.
-    const share = t ? 1 / (collectLeaves(t).length + 1) : 1;
-    t = t
-      ? { kind: "split", direction: "row", ratio: share, a: leaf, b: t }
-      : leaf;
-  }
-  return t;
-}
 
 export function DemoProjectView({
   project,
@@ -279,7 +262,7 @@ export function DemoProjectView({
     setTree((prev) =>
       prev
         ? updateTabInLeaf(prev, leafId, tabIdx, (t) =>
-            t.kind === "service"
+            isServiceTab(t)
               ? t
               : t.kind === "browser"
                 ? { ...t, label }
@@ -293,7 +276,7 @@ export function DemoProjectView({
     setTree((prev) =>
       prev
         ? updateTabInLeaf(prev, leafId, tabIdx, (t) =>
-            t.kind === "service" ? t : { ...t, pinned: !t.pinned },
+            isServiceTab(t) ? t : { ...t, pinned: !t.pinned },
           )
         : prev,
     );
@@ -356,12 +339,32 @@ export function DemoProjectView({
     );
   };
 
+  // Keeps the tab strip and the running set in step: the service tabs are
+  // rebuilt from whatever is running once the toggle lands.
+  const applyServicesToTree = (names: string[]) => {
+    const ordered = project.services
+      .map((s) => s.name)
+      .filter((n) => names.includes(n));
+    setTree((prev) => syncServiceTabs(prev, ordered));
+  };
+
+  const handleToggleService = (name: string) => {
+    onToggleService(name);
+    const next = new Set(runningServices);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    applyServicesToTree([...next]);
+  };
+
   const handleCloseTab = (leafId: string, tabIdx: number) => {
     const leaf = tree ? findLeaf(tree, leafId) : null;
     const tab = leaf?.tabs[tabIdx];
-    if (!tab) return;
-    if (tab.kind === "service") onToggleService(tab.name);
-    else if (tab.kind === "action") {
+    if (!tab || tab.kind === "all") return;
+    if (tab.kind === "service") {
+      handleToggleService(tab.name);
+      return;
+    }
+    if (tab.kind === "action") {
       const key = tab.key;
       setActionTerminals((map) => {
         if (!(key in map)) return map;
@@ -401,10 +404,6 @@ export function DemoProjectView({
     setIsResizing(false);
   }, []);
 
-  const applyServicesToTree = (names: string[]) => {
-    setTree((prev) => reconcileServices(prev, new Set(names)));
-  };
-
   const handleStartStop = () => {
     if (anyRunning) {
       onStopAll();
@@ -417,14 +416,6 @@ export function DemoProjectView({
       onStartServices(names);
       applyServicesToTree(names);
     }
-  };
-
-  const handleToggleService = (name: string) => {
-    onToggleService(name);
-    const next = new Set(runningServices);
-    if (next.has(name)) next.delete(name);
-    else next.add(name);
-    applyServicesToTree([...next]);
   };
 
   const handleStartProfile = (profile: string) => {
@@ -535,7 +526,7 @@ export function DemoProjectView({
       {tabMenu && (() => {
         const leaf = tree ? findLeaf(tree, tabMenu.leafId) : null;
         const tab = leaf?.tabs[tabMenu.tabIdx];
-        if (!tab || tab.kind === "service") return null;
+        if (!tab || isServiceTab(tab)) return null;
         const pinned = tab.pinned === true;
         return (
           <TabContextMenu
@@ -555,7 +546,7 @@ export function DemoProjectView({
       {renaming && (() => {
         const leaf = tree ? findLeaf(tree, renaming.leafId) : null;
         const tab = leaf?.tabs[renaming.tabIdx];
-        if (!tab || tab.kind === "service") return null;
+        if (!tab || isServiceTab(tab)) return null;
         const hasEmoji = tab.kind === "shell" || tab.kind === "action";
         const initialLabel =
           tab.kind === "review" ? defaultLabel(tab) : tab.label ?? defaultLabel(tab);
@@ -616,6 +607,15 @@ type ResolvedTab = {
 
 function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
   const key = tabKey(tab);
+  // The aggregate has no body of its own — Leaf tiles the service logs, which
+  // stay mounted so switching between All and a single service never restarts
+  // the stream.
+  if (tab.kind === "all") {
+    return {
+      info: { key, label: "All", type: "all", running: true, closable: false },
+      body: null,
+    };
+  }
   if (tab.kind === "service") {
     const svc = ctx.project.services.find((s) => s.name === tab.name);
     return {
@@ -732,6 +732,11 @@ function Leaf({
     onAgentTabStatus,
   };
   const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
+  const serviceIdxs = leaf.tabs.flatMap((t, i) =>
+    t.kind === "service" ? [i] : [],
+  );
+  const allActive = leaf.tabs[leaf.activeTabIdx]?.kind === "all";
+  const servicesVisible = allActive || serviceIdxs.includes(leaf.activeTabIdx);
   return (
     <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
       <PaneHeader
@@ -750,16 +755,50 @@ function Leaf({
         onSplitDown={() => onSplit(leaf.id, "col")}
       />
       <div className="relative flex-1 min-h-0">
-        {resolved.map(({ info, body }, i) => (
+        {serviceIdxs.length > 0 && (
           <div
-            key={info.key}
-            className={`absolute inset-0 flex-col ${
-              i === leaf.activeTabIdx ? "flex" : "hidden"
+            className={`absolute inset-0 ${servicesVisible ? "flex" : "hidden"} ${
+              allActive ? "divide-x divide-[#2e2e2e]" : ""
             }`}
           >
-            {body}
+            {serviceIdxs.map((i) => {
+              const { info, body } = resolved[i];
+              const visible = allActive || i === leaf.activeTabIdx;
+              return (
+                <div
+                  key={info.key}
+                  className={
+                    visible
+                      ? `flex min-h-0 flex-1 flex-col overflow-hidden ${
+                          allActive ? "min-w-32" : "min-w-0"
+                        }`
+                      : "hidden"
+                  }
+                >
+                  {allActive && (
+                    <ServiceLabelBar
+                      label={info.label}
+                      onClick={() => onSelectTab(leaf.id, i)}
+                    />
+                  )}
+                  {body}
+                </div>
+              );
+            })}
           </div>
-        ))}
+        )}
+        {resolved.map(({ info, body }, i) =>
+          isServiceTab(leaf.tabs[i]) ? null : (
+            <div
+              key={info.key}
+              className={`absolute inset-0 flex-col ${
+                i === leaf.activeTabIdx ? "flex" : "hidden"
+              }`}
+            >
+              {body}
+            </div>
+          ),
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 export type SplitDirection = "row" | "col";
 
 export type LeafContent =
+  | { kind: "all" }
   | { kind: "service"; name: string }
   | { kind: "shell"; id: string; label?: string; emoji?: string; pinned?: boolean }
   | { kind: "action"; key: string; label: string; emoji?: string; pinned?: boolean }
@@ -73,6 +74,7 @@ export function makeLeaf(content: LeafContent): PaneLeaf {
 }
 
 export function tabKey(content: LeafContent): string {
+  if (content.kind === "all") return "all";
   if (content.kind === "service") return `s:${content.name}`;
   if (content.kind === "shell") return `sh:${content.id}`;
   if (content.kind === "browser") return `b:${content.id}`;
@@ -81,6 +83,7 @@ export function tabKey(content: LeafContent): string {
 }
 
 export function defaultLabel(content: LeafContent): string {
+  if (content.kind === "all") return "All";
   if (content.kind === "service") return content.name;
   if (content.kind === "shell") return "Terminal";
   if (content.kind === "browser") return "Browser";
@@ -246,15 +249,46 @@ export function updateTabInLeaf(
   });
 }
 
-export function closeServiceTab(
-  node: PaneNode,
-  name: string,
+export type ServiceTab = Extract<LeafContent, { kind: "all" | "service" }>;
+
+export function isServiceTab(content: LeafContent): content is ServiceTab {
+  return content.kind === "all" || content.kind === "service";
+}
+
+// Service logs are tabs of the first pane, ahead of that pane's own tabs, with
+// an "All" aggregate in front whenever more than one runs — starting a project
+// fills one pane rather than carving out a split per service.
+export function syncServiceTabs(
+  node: PaneNode | null,
+  running: string[],
 ): PaneNode | null {
-  for (const leaf of collectLeaves(node)) {
-    const idx = leaf.tabs.findIndex(
-      (t) => t.kind === "service" && t.name === name,
-    );
-    if (idx !== -1) return closeTabInLeaf(node, leaf.id, idx);
+  const head: LeafContent[] = running.map((name) => ({
+    kind: "service",
+    name,
+  }));
+  if (running.length > 1) head.unshift({ kind: "all" });
+
+  const target = collectLeaves(node)[0];
+  if (!node || !target) {
+    return head.length === 0
+      ? node
+      : { kind: "leaf", id: newLeafId(), tabs: head, activeTabIdx: 0 };
   }
-  return node;
+
+  const tabs = [...head, ...target.tabs.filter((t) => !isServiceTab(t))];
+  if (tabs.length === 0) return removeLeaf(node, target.id);
+
+  // Starting a project pulls focus onto the services it just launched;
+  // afterwards the tab in front keeps its place as the strip reshuffles.
+  const active = target.tabs[target.activeTabIdx];
+  const startingUp = head.length > 0 && !target.tabs.some(isServiceTab);
+  const activeTabIdx =
+    startingUp || !active
+      ? 0
+      : Math.max(
+          0,
+          tabs.findIndex((t) => tabKey(t) === tabKey(active)),
+        );
+
+  return mapLeaf(node, target.id, (leaf) => ({ ...leaf, tabs, activeTabIdx }));
 }

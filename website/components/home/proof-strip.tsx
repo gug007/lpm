@@ -27,7 +27,7 @@ export async function ProofStrip() {
   }
 
   return (
-    <p className="mt-6 text-[12px] text-gray-500 dark:text-gray-400 tracking-wide">
+    <p className="mt-4 text-[12px] text-gray-500 dark:text-gray-400 tracking-wide">
       {parts.map((part) => (
         <span key={part}>
           {part}

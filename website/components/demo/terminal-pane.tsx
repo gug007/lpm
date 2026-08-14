@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type MouseEvent } from "react";
 import {
+  ChevronRight,
   Code,
   Columns2,
   Globe,
@@ -39,12 +40,13 @@ const COLOR_CLASS: Record<LineColor, string> = {
 export type TabInfo = {
   key: string;
   label: string;
-  type: "service" | "terminal" | "browser" | "review";
+  type: "all" | "service" | "terminal" | "browser" | "review";
   port?: number;
   running: boolean;
   emoji?: string;
   pinned?: boolean;
   status?: AgentStatus;
+  closable?: boolean;
 };
 
 type PaneHeaderProps = {
@@ -80,7 +82,8 @@ export function PaneHeader({
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
           const port = tab.port;
-          const canContext = tab.type !== "service";
+          const closable = tab.closable !== false;
+          const canContext = tab.type !== "service" && tab.type !== "all";
           const onContext = (e: MouseEvent) => {
             if (!canContext || !onTabContextMenu) return;
             e.preventDefault();
@@ -105,10 +108,12 @@ export function PaneHeader({
                 <span
                   aria-hidden="true"
                   className={`items-center justify-center ${
-                    active ? "flex" : "flex group-hover:hidden"
+                    active || !closable ? "flex" : "flex group-hover:hidden"
                   }`}
                 >
-                  {tab.type === "service" ? (
+                  {tab.type === "all" ? (
+                    <Columns2 className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                  ) : tab.type === "service" ? (
                     <Zap
                       className={`w-3 h-3 ${tab.running ? "text-emerald-400" : "text-[#8e8e8e]"}`}
                       strokeWidth={2}
@@ -124,7 +129,7 @@ export function PaneHeader({
                     <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
                   )}
                 </span>
-                {tab.pinned ? (
+                {!closable ? null : tab.pinned ? (
                   <Pin
                     aria-hidden="true"
                     className={`w-3 h-3 text-[#8e8e8e] ${revealBlock}`}
@@ -205,6 +210,28 @@ export function PaneHeader({
         </button>
       )}
     </div>
+  );
+}
+
+// Names a log column in the tiled "All" view, and doubles as the way into that
+// service's own tab.
+export function ServiceLabelBar({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={`Open ${label} tab`}
+      className={`group flex shrink-0 items-center gap-1 border-b border-[#2e2e2e] bg-[#2d2d2d] px-3 py-0.5 text-left font-mono text-[10px] font-medium text-[#8e8e8e] transition-colors hover:text-[#d4d4d4] ${FOCUS_RING}`}
+    >
+      <span className="truncate">{label}</span>
+      <ChevronRight className="w-3 h-3 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
+    </button>
   );
 }
 
