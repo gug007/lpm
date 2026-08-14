@@ -15,35 +15,35 @@ const DUPLICATE_POINTS = [
 
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden pt-28 sm:pt-40 pb-16 sm:pb-24">
+    <section className="relative overflow-hidden pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)]">
       <div className="absolute inset-x-0 top-0 -z-10 h-[44rem] bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.11),transparent_32%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.14),transparent_30%)]" />
       <div className="max-w-5xl mx-auto px-6 text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.25em] text-emerald-700/70 dark:text-emerald-300/70 mb-6">
+        <p className="text-xs font-medium uppercase tracking-[0.25em] text-emerald-700/70 dark:text-emerald-300/70 mb-5">
           Git worktree alternative for macOS
         </p>
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
+        <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           A Git worktree alternative that duplicates the whole dev environment.
         </h1>
-        <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
+        <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
           Git worktrees isolate tracked files. lpm Duplicate creates fast,
           standalone copies of the project you are actually working in —
           including its current state and local setup — then runs Claude Code,
           Codex, or any command in each copy.
         </p>
 
-        <div className="mt-10 flex justify-center">
+        <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <HeroDownload source="worktree-alt-hero" />
         </div>
 
         <a
           href="#comparison"
-          className="mt-7 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          className="mt-[clamp(1rem,2vh,1.5rem)] inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
         >
           Compare before downloading
           <ArrowDown className="w-3.5 h-3.5" aria-hidden />
         </a>
 
-        <div className="mt-14 grid gap-4 md:grid-cols-2 text-left">
+        <div className="mt-[clamp(2rem,4.5vh,2.5rem)] grid gap-4 md:grid-cols-2 text-left">
           <div className="rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-sm dark:border-gray-800 dark:bg-white/[0.025]">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">

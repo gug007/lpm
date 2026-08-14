@@ -135,22 +135,22 @@ export default function ClaudeCodeCodexStatuslinePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
 
-      <section className="relative overflow-hidden pt-28 pb-12 text-center sm:pt-40 sm:pb-16">
+      <section className="relative overflow-hidden pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
         <div className="absolute inset-x-0 top-0 -z-10 h-[50rem] bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.17),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.16),transparent_27%)] dark:bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.22),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.2),transparent_27%)]" />
         <div className="mx-auto max-w-5xl px-6">
-          <p className="mb-6 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
+          <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
             Built into lpm · macOS
           </p>
-          <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-4xl font-extrabold leading-[1.1] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-6xl lg:text-7xl">
+          <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)]">
             Customize Claude Code & Codex statuslines.{" "}
             <span className="block">Without editing config files.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-lg">
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
             lpm gives Claude Code and Codex a visual statusline editor.
             Pick a layout, arrange useful signals, tune the appearance, and see
             every change before it applies.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs text-gray-500 dark:text-gray-400">
+          <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-2">
               <Eye className="h-3.5 w-3.5" aria-hidden />
               Live preview
@@ -164,7 +164,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
               Native and private
             </span>
           </div>
-          <div className="mt-9 flex flex-col items-center gap-4">
+          <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex flex-col items-center gap-3">
             <HeroDownload source="statusline-hero" />
             <a
               href="#preview"

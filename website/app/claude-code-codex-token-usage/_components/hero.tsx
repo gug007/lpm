@@ -3,34 +3,34 @@ import { HeroDownload } from "@/components/home/hero-download";
 
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden pt-28 pb-12 text-center sm:pt-40 sm:pb-16">
+    <section className="relative overflow-hidden pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
       <div className="absolute inset-x-0 top-0 -z-10 h-[42rem] bg-[radial-gradient(circle_at_24%_10%,rgba(217,119,87,0.16),transparent_32%),radial-gradient(circle_at_76%_8%,rgba(16,163,127,0.13),transparent_30%)] dark:bg-[radial-gradient(circle_at_24%_10%,rgba(217,119,87,0.2),transparent_32%),radial-gradient(circle_at_76%_8%,rgba(16,163,127,0.17),transparent_30%)]" />
       <div className="mx-auto max-w-4xl px-6">
-        <p className="mb-6 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
+        <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
           Local AI usage analytics
         </p>
-        <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-4xl font-extrabold leading-[1.1] tracking-tight text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-6xl">
+        <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-tight text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)]">
           Track Claude Code and Codex token usage by project.
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed tracking-wide text-gray-600 dark:text-gray-400 sm:text-lg">
+        <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed tracking-wide text-gray-600 dark:text-gray-400 sm:text-[17px]">
           See tokens, approximate cost, cache efficiency, models, projects, and
           daily activity in one native Mac dashboard. Usage metadata stays on
           this Mac; prompts and responses are not included.
         </p>
 
-        <div className="mt-10 flex justify-center">
+        <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <HeroDownload source="token-usage-hero" />
         </div>
 
         <a
           href="#dashboard"
-          className="mt-7 inline-flex min-h-11 items-center gap-1.5 px-3 text-sm font-medium text-gray-500 transition-colors duration-200 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
+          className="mt-[clamp(0.75rem,1.8vh,1.25rem)] inline-flex min-h-11 items-center gap-1.5 px-3 text-sm font-medium text-gray-500 transition-colors duration-200 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
         >
           Explore the dashboard
           <ChevronDown className="h-4 w-4" aria-hidden />
         </a>
 
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-[clamp(0.75rem,1.8vh,1.25rem)] flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-gray-500 dark:text-gray-400">
           <span className="inline-flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-[#D97757]" aria-hidden />
             Claude Code

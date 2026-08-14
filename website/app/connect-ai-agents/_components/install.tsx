@@ -27,13 +27,13 @@ const STEPS: Step[] = [
 
 export default function Install() {
   return (
-    <section className="py-20 sm:py-24">
+    <section className="pt-4 pb-20 sm:pt-6 sm:pb-24">
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="One-click setup"
           title="Install once, and every agent can drive your projects"
           description="No config to hand-write, no MCP server to run. Click a button in lpm and your AI coding agents gain a command-line tool for your dev environment."
-          className="mb-12"
+          className="mb-8"
         />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {STEPS.map(({ icon: Icon, title, body }) => (

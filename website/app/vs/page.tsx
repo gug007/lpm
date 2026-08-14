@@ -109,22 +109,22 @@ export default function ComparisonsHubPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
-      <section className="pt-28 sm:pt-40 pb-12 sm:pb-16 text-center">
+      <section className="pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
         <div className="max-w-3xl mx-auto px-6">
-          <p className="text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400 mb-6">
+          <p className="text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400 mb-5">
             Comparisons
           </p>
-          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
+          <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
             Compare lpm with iTerm2, tmux, cmux, and more.
           </h1>
-          <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
+          <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
             Honest, per-workflow comparisons — not vague superiority claims.
             Pick the page that matches the tool you already use.
           </p>
         </div>
       </section>
 
-      <section className="pb-12 sm:pb-16">
+      <section className="pt-4 pb-12 sm:pt-6 sm:pb-16">
         <div className="max-w-3xl mx-auto px-6">
           <ul className="grid sm:grid-cols-2 gap-3">
             {ENTRIES.map((entry, i) => (

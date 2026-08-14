@@ -313,7 +313,7 @@ export default function ReviewDemo() {
     <section
       id="demo"
       aria-label="Interactive diff review demo"
-      className="scroll-mt-20 py-12 sm:py-16"
+      className="scroll-mt-20 pb-12 sm:pb-16"
     >
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
         <SectionHeader
@@ -328,7 +328,7 @@ export default function ReviewDemo() {
           }
           title="A full diff review, right in your workspace"
           description="Click any file to read its diff. Modified, added, and deleted — every change laid out before you commit, without leaving the terminal."
-          className="mb-8"
+          className="mb-6"
         />
         <ReviewViewer />
       </div>
