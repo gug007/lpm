@@ -7,7 +7,7 @@ export default function AppExample() {
       className="overflow-hidden pb-16 sm:pb-24"
     >
       <div className="mx-auto max-w-6xl px-6">
-        <div className="mb-4 flex flex-col items-center gap-2 text-center lg:mb-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:text-left">
+        <div className="mb-4 flex flex-col items-center gap-2 text-center lg:mb-5 lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:text-left">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:justify-start">
             <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold tracking-widest text-gray-600 uppercase dark:bg-gray-800/60 dark:text-gray-300">
               The window
