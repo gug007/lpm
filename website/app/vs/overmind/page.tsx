@@ -20,9 +20,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
-  title: { absolute: "Overmind CLI Alternative for Mac — No tmux" },
+  title: { absolute: "lpm vs Overmind — Procfile Alternative, No tmux Setup" },
   description:
-    "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
+    "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
   keywords: [
     "overmind alternative",
     "overmind vs lpm",
@@ -31,18 +31,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "Overmind CLI Alternative for Mac — No tmux",
+    title: "lpm vs Overmind — Procfile Alternative, No tmux Setup",
     description:
-      "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
+      "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Overmind CLI Alternative for Mac — No tmux",
+    title: "lpm vs Overmind — Procfile Alternative, No tmux Setup",
     description:
-      "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
+      "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
   },
 };
 
@@ -73,7 +73,7 @@ const MATRIX_ROWS: MatrixRow[] = [
     competitor: true,
   },
   {
-    label: "Runs without installing or learning tmux",
+    label: "Runs without setting up or learning tmux",
     lpm: true,
     competitor: false,
   },
@@ -147,9 +147,9 @@ const FAQS: FaqItem[] = [
       "You'll convert the lines, but the shape is the same. lpm keeps each project in a small per-project config file you can read, edit, and commit — each service is just a name and a command, exactly like your Procfile. Keep the Procfile in the repo if Foreman or Heroku still needs it; lpm just reads its own config alongside.",
   },
   {
-    question: "Does lpm require tmux?",
+    question: "Do I have to set up tmux to use lpm?",
     answer:
-      "No. Your services run in persistent sessions that survive app and terminal restarts, and each one renders in its own pane in the desktop app — there's nothing to install, configure, or attach to. The difference from Overmind is that you don't write a .tmux.conf, memorize keybindings, or attach to windows by hand; you just click a pane.",
+      "No — lpm manages the session layer for you. Your services run in persistent sessions that survive app and terminal restarts, and each one renders in its own pane in the desktop app; there's nothing to configure or attach to. The difference from Overmind is that you never touch tmux yourself: no .tmux.conf to write, no keybindings to memorize, no windows to attach to by hand — you just click a pane.",
   },
   {
     question: "How do I attach to a single process the way overmind connect does?",
@@ -170,9 +170,9 @@ const FAQS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "Overmind CLI Alternative for Mac — No tmux",
+    title: "lpm vs Overmind — Procfile Alternative, No tmux Setup",
     description:
-      "Compare Overmind with free, open-source lpm for local Procfile workflows: per-service control, tmux, Rails development, SSH, and multi-project switching.",
+      "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
     path: PATH,
   }),
   breadcrumbJsonLd([
@@ -191,7 +191,7 @@ export default function OvermindVsPage() {
       />
       <ComparisonHero
         eyebrow="lpm vs Overmind"
-        title="An Overmind alternative for Mac — Procfile control without tmux."
+        title="An Overmind alternative for Mac — Procfile control, no tmux setup."
         description="Overmind is a capable Procfile manager built around tmux. lpm trades its cross-platform CLI, scaling, and automatic PORT assignment for a native Mac workspace with per-service panes, multi-project switching, and AI-agent workflows."
       />
 
@@ -220,7 +220,7 @@ export default function OvermindVsPage() {
           points: [
             "You switch between two or more local projects during the day and want a visual sidebar, not separate terminal windows.",
             "You run Claude Code, Codex, Cursor, or aider against the same codebase and want each agent's services visible without context-switching.",
-            "You don't want to install or learn tmux just to run a Rails or Next.js stack.",
+            "You don't want to set up or learn tmux just to run a Rails or Next.js stack.",
             "You like the idea of clicking a service to attach to its pane with full scrollback and an interactive prompt.",
             "Your whole team isn't on tmux and you want something a new hire can open on day one.",
           ],
@@ -260,7 +260,7 @@ export default function OvermindVsPage() {
       />
 
       <Cta
-        title="Keep Overmind's per-process control. Skip the tmux."
+        title="Keep Overmind's per-process control. Skip the tmux setup."
         description={
           <>
             Install lpm, convert your Procfile lines into a small per-project config, and every service shows up as its own live pane in the desktop app. Sessions persist across app and terminal restarts — nothing to attach to. Free and open source on{" "}

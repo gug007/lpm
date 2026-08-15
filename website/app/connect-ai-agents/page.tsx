@@ -8,7 +8,12 @@ import {
   LINUX_HOST_PATH,
   WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  screenRecordingJsonLd,
+  webPageJsonLd,
+} from "@/lib/structured-data";
 import Commands from "./_components/commands";
 import Cta from "./_components/cta";
 import Demos from "./_components/demos";
@@ -77,6 +82,9 @@ const structuredData = [
       path: CONNECT_AGENTS_PATH,
     },
   ]),
+  screenRecordingJsonLd("agent-run-command"),
+  screenRecordingJsonLd("agent-parallel-tabs"),
+  screenRecordingJsonLd("agent-duplicate-fanout"),
 ];
 
 export default function ConnectAiAgentsPage() {

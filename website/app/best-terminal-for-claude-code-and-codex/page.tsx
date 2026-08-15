@@ -22,9 +22,9 @@ import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Best Terminal for Claude Code & Codex in Parallel",
+  title: "Best Terminal for Claude Code, Codex & Gemini (2026)",
   description:
-    "Run Claude Code and Codex in parallel on the same codebase — each agent in its own copy, your dev stack started in one command, every session in view.",
+    "Run Claude Code and Codex in parallel on the same codebase — each agent in its own project copy, every session visible in one native Mac window. Free download.",
   keywords: [
     "best terminal for claude code",
     "best terminal for codex",
@@ -37,18 +37,18 @@ export const metadata: Metadata = {
     canonical: AI_AGENTS_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Claude Code & Codex in Parallel",
+    title: "Best Terminal for Claude Code, Codex & Gemini (2026)",
     description:
-      "Run Claude Code and Codex side by side on the same codebase. lpm is the terminal workspace for developers using AI coding agents in parallel.",
+      "Run Claude Code and Codex in parallel on the same codebase — each agent in its own project copy, every session visible in one native Mac window. Free download.",
     type: "website",
     url: AI_AGENTS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Claude Code & Codex in Parallel",
+    title: "Best Terminal for Claude Code, Codex & Gemini (2026)",
     description:
-      "Run Claude Code and Codex side by side on the same codebase. lpm is the terminal workspace for developers using AI coding agents in parallel.",
+      "Run Claude Code and Codex in parallel on the same codebase — each agent in its own project copy, every session visible in one native Mac window. Free download.",
   },
 };
 

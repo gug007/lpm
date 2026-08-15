@@ -24,8 +24,9 @@ const pageDescription =
   "A native SSH terminal for Mac developers. Import your SSH config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.";
 
 export const metadata: Metadata = {
-  title: "Mac SSH Client & Terminal with Port Forwarding",
-  description: pageDescription,
+  title: "SSH Terminal for Mac — Port Forwarding Built In",
+  description:
+    "Imports your ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote dev-box services in panes beside your local stack. No hand-typed ssh -L.",
   keywords: [
     "mac ssh client",
     "ssh terminal for mac",
@@ -40,18 +41,18 @@ export const metadata: Metadata = {
     canonical: SSH_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Mac SSH Client & Terminal with Port Forwarding",
+    title: "SSH Terminal for Mac — Port Forwarding Built In",
     description:
-      "Import ~/.ssh/config hosts, forward remote ports to localhost, and run remote services beside local ones in one native Mac terminal.",
+      "Imports your ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote dev-box services in panes beside your local stack. No hand-typed ssh -L.",
     type: "website",
     url: pageUrl,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mac SSH Client & Terminal with Port Forwarding",
+    title: "SSH Terminal for Mac — Port Forwarding Built In",
     description:
-      "A native macOS SSH terminal that imports your ~/.ssh/config, forwards remote ports, and keeps remote services next to your local stack.",
+      "Imports your ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote dev-box services in panes beside your local stack. No hand-typed ssh -L.",
   },
 };
 

@@ -20,9 +20,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("docker-compose");
 
 export const metadata: Metadata = {
-  title: { absolute: "Docker Compose Alternative for Fast Native Development" },
+  title: { absolute: "lpm vs Docker Compose — Native Local Dev, No Containers" },
   description:
-    "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
+    "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
   keywords: [
     "docker compose alternative for dev",
     "docker compose vs lpm",
@@ -33,18 +33,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "Docker Compose Alternative for Fast Native Development",
+    title: "lpm vs Docker Compose — Native Local Dev, No Containers",
     description:
-      "Run your Rails, Next.js, Go, or Python stack natively with per-service panes and a visual project switcher — or drive Docker Compose through lpm. Honest comparison.",
+      "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Docker Compose Alternative for Fast Native Development",
+    title: "lpm vs Docker Compose — Native Local Dev, No Containers",
     description:
-      "Native dev, without container overhead. Or run compose through lpm — they're not mutually exclusive.",
+      "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
   },
 };
 
@@ -168,9 +168,9 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "Docker Compose Alternative for Fast Native Development",
+    title: "lpm vs Docker Compose — Native Local Dev, No Containers",
     description:
-      "Native dev, without container overhead. Honest comparison of lpm and Docker Compose for running your Rails, Next.js, Go, or Python stack locally.",
+      "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
     path: PATH,
   }),
   breadcrumbJsonLd([

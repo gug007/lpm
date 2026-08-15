@@ -18,9 +18,9 @@ import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Mac Terminal App for Developers — Run Your Full Stack",
+  title: "Mac Terminal for Developers Running Full Stacks",
   description:
-    "lpm is a Mac terminal built for developers — launch your full stack in one window, track per-service logs, and switch between repos without losing context.",
+    "One window for every service — per-service log panes, instant repo switching that keeps your state, and room for AI agents beside your stack. Native and free.",
   keywords: [
     "mac terminal app",
     "mac terminal for developers",
@@ -34,18 +34,18 @@ export const metadata: Metadata = {
     canonical: MAC_TERMINAL_DEVELOPERS_PATH,
   },
   openGraph: {
-    title: "Mac Terminal App for Developers — Run Your Full Stack",
+    title: "Mac Terminal for Developers Running Full Stacks",
     description:
-      "Launch every service in your stack from one Mac terminal window. Per-service logs, instant project switching, and native Apple Silicon performance.",
+      "One window for every service — per-service log panes, instant repo switching that keeps your state, and room for AI agents beside your stack. Native and free.",
     type: "website",
     url: MAC_TERMINAL_DEVELOPERS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mac Terminal App for Developers — Run Your Full Stack",
+    title: "Mac Terminal for Developers Running Full Stacks",
     description:
-      "Web, API, worker, and database in one window — per-service logs, one-click restarts, and repo switching that leaves the stack running.",
+      "One window for every service — per-service log panes, instant repo switching that keeps your state, and room for AI agents beside your stack. Native and free.",
   },
 };
 

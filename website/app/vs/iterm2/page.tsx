@@ -20,7 +20,7 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 
 const PATH = vsPath("iterm2");
 
-const TITLE = "iTerm2 Alternative for Mac — Projects, Not Just Panes";
+const TITLE = "lpm vs iTerm2 — Projects, Not Just Panes";
 const DESCRIPTION =
   "iTerm2 is a great terminal emulator. lpm is a project manager with a terminal inside it. Honest side-by-side, including where iTerm2 wins.";
 

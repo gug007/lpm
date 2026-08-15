@@ -17,6 +17,7 @@ import {
   TOKEN_USAGE_PATH,
   vsPath,
 } from "@/lib/links";
+import { jsonLdString, screenRecordingJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   alternates: {
@@ -24,9 +25,22 @@ export const metadata: Metadata = {
   },
 };
 
+const structuredData = [
+  screenRecordingJsonLd("add-project"),
+  screenRecordingJsonLd("start-project"),
+  screenRecordingJsonLd("add-action"),
+  screenRecordingJsonLd("run-profile-project"),
+  screenRecordingJsonLd("start-project-claude"),
+  screenRecordingJsonLd("duplicate-project"),
+];
+
 export default function HomePage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
+      />
       <Hero />
       <DemoSection />
       <HowItWorks />

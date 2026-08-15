@@ -91,6 +91,22 @@ export async function getDownloadStats(): Promise<DownloadStats | null> {
   };
 }
 
+export async function fetchLatestVersion(): Promise<string | null> {
+  try {
+    const res = await fetch(`${RELEASES_API}/latest`, {
+      headers: { Accept: "application/vnd.github+json" },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { tag_name?: string };
+    return typeof data.tag_name === "string"
+      ? data.tag_name.replace(/^v/, "")
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchStarCount(): Promise<number | null> {
   try {
     const res = await fetch(REPO_API_URL, {

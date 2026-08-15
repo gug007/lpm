@@ -7,25 +7,25 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: "Download stats",
+  title: "Download Stats",
   description:
-    "Live download counts for lpm across all GitHub releases.",
+    "Live download counts for lpm across all GitHub releases, refreshed hourly — see how many times each version of the free Mac app has been downloaded.",
   alternates: {
     canonical: STATS_PATH,
   },
   openGraph: {
-    title: "Download stats",
+    title: "Download Stats",
     description:
-      "Live download counts for lpm across all GitHub releases.",
+      "Live download counts for lpm across all GitHub releases, refreshed hourly — see how many times each version of the free Mac app has been downloaded.",
     type: "website",
     url: STATS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Download stats",
+    title: "Download Stats",
     description:
-      "Live download counts for lpm across all GitHub releases.",
+      "Live download counts for lpm across all GitHub releases, refreshed hourly — see how many times each version of the free Mac app has been downloaded.",
   },
 };
 

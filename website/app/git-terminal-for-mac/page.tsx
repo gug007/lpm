@@ -18,9 +18,9 @@ import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Git Terminal for Mac with Dev Servers in One Window",
+  title: "Git Terminal for Mac with Built-In Diff Review",
   description:
-    "lpm is the git terminal for Mac developers — run git workflows alongside your dev servers in one native window, watch CI logs, and never lose branch context again.",
+    "Branch, rebase, and push in a shell pane next to live service logs — with a file-by-file diff view to review changes before you commit. Native Mac app, free.",
   keywords: [
     "git terminal for mac",
     "best git terminal for mac",
@@ -33,18 +33,18 @@ export const metadata: Metadata = {
     canonical: GIT_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Git Terminal for Mac with Dev Servers in One Window",
+    title: "Git Terminal for Mac with Built-In Diff Review",
     description:
-      "Run every git workflow alongside your dev servers in one native Mac window. No context switching between a GUI git client and a separate terminal.",
+      "Branch, rebase, and push in a shell pane next to live service logs — with a file-by-file diff view to review changes before you commit. Native Mac app, free.",
     type: "website",
     url: GIT_TERMINAL_MAC_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Git Terminal for Mac with Dev Servers in One Window",
+    title: "Git Terminal for Mac with Built-In Diff Review",
     description:
-      "The Mac terminal that keeps your git workflow and your dev servers in the same window. Branch, rebase, watch CI — without ever leaving lpm.",
+      "Branch, rebase, and push in a shell pane next to live service logs — with a file-by-file diff view to review changes before you commit. Native Mac app, free.",
   },
 };
 

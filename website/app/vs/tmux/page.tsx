@@ -17,9 +17,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("tmux");
 
 export const metadata: Metadata = {
-  title: { absolute: "tmux Alternative for Mac — Run Dev Stacks Without Config" },
+  title: { absolute: "lpm vs tmux — Pane-per-Service Dev Stacks, No Config" },
   description:
-    "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
+    "Get tmux's pane-per-service layout without writing config — one command starts your whole stack. An honest look at when tmux still wins, and when lpm does.",
   keywords: [
     "tmux alternative dev",
     "tmux vs lpm",
@@ -30,18 +30,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "tmux Alternative for Mac — Run Dev Stacks Without Config",
+    title: "lpm vs tmux — Pane-per-Service Dev Stacks, No Config",
     description:
-      "tmux-level visibility, one-command start, no config. How lpm compares to tmux when you use it only as a crude dev-stack process manager.",
+      "Get tmux's pane-per-service layout without writing config — one command starts your whole stack. An honest look at when tmux still wins, and when lpm does.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "tmux Alternative for Mac — Run Dev Stacks Without Config",
+    title: "lpm vs tmux — Pane-per-Service Dev Stacks, No Config",
     description:
-      "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for local dev stacks.",
+      "Get tmux's pane-per-service layout without writing config — one command starts your whole stack. An honest look at when tmux still wins, and when lpm does.",
   },
 };
 
@@ -117,7 +117,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does lpm use tmux under the hood?",
     answer:
-      "What matters is the behavior: your services run in persistent sessions that survive app and terminal restarts, and each one gets its own scrollable pane in the desktop app. There's nothing to install, configure, or attach to — no .tmux.conf to edit, no keybindings to memorize, no windows to attach to by name. You get the persistence and per-service visibility you'd normally build with tmux, without setting any of it up.",
+      "What matters is the behavior: your services run in persistent sessions that survive app and terminal restarts, and each one gets its own scrollable pane in the desktop app. There's nothing for you to set up, configure, or attach to — no .tmux.conf to edit, no keybindings to memorize, no windows to attach to by name. You get the persistence and per-service visibility you'd normally build with tmux, without setting any of it up.",
   },
   {
     question: "What about my remote / SSH workflow?",
@@ -160,13 +160,18 @@ const FAQ_ITEMS: FaqItem[] = [
     ),
     answerText: `Point lpm at the directory and let it generate the service config from your repo, or define the services yourself — each one is just a name and a command. Then start the project from the app. You can keep the tmuxinator file around as a fallback; lpm won't touch it. Source and examples are on GitHub at ${REPO_URL}.`,
   },
+  {
+    question: "PM2 vs tmux — which one for local development?",
+    answer:
+      "Different jobs, so the comparison is a bit of a trap. PM2 is a restart-on-crash process daemon: it keeps processes alive in the background and restarts them when they die. tmux is persistent interactive sessions and panes: terminals you watch, scroll, and type into. Some people run both — tmux for the interactive session, PM2 for supervision. If what you actually want is the local-dev overlap of the two, that's the job lpm does: a live pane per service plus start/stop lifecycle, in one Mac app.",
+  },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "tmux Alternative for Mac — Run Dev Stacks Without Config",
+    title: "lpm vs tmux — Pane-per-Service Dev Stacks, No Config",
     description:
-      "tmux-level visibility, one-command start, no config. An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
+      "Get tmux's pane-per-service layout without writing config — one command starts your whole stack. An honest look at when tmux still wins, and when lpm does.",
     path: PATH,
   }),
   breadcrumbJsonLd([

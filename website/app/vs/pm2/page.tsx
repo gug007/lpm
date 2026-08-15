@@ -22,9 +22,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("pm2");
 
 export const metadata: Metadata = {
-  title: { absolute: "PM2 Alternative for Local Development — lpm vs PM2" },
+  title: { absolute: "lpm vs PM2 — A PM2 Alternative for Local Development" },
   description:
-    "PM2 is a production-first daemon with local watch mode. Compare it with lpm's Mac workspace, per-service panes, project switching, and agent copies.",
+    "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
   keywords: [
     "pm2 alternative dev",
     "pm2 vs lpm",
@@ -34,18 +34,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "PM2 Alternative for Local Development — lpm vs PM2",
+    title: "lpm vs PM2 — A PM2 Alternative for Local Development",
     description:
-      "PM2 is production-first and also supports local watch mode. lpm adds a Mac workspace, per-service panes, project switching, and agent copies.",
+      "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PM2 Alternative for Local Development — lpm vs PM2",
+    title: "lpm vs PM2 — A PM2 Alternative for Local Development",
     description:
-      "PM2 is production-first with local watch mode. lpm specializes in an interactive, multi-project Mac workspace.",
+      "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
   },
 };
 
@@ -186,13 +186,18 @@ const FAQ_ITEMS: FaqItem[] = [
     answer:
       "Yes. Keep ecosystem.config.js and PM2 in your deployment workflow, then add an lpm config for the local commands you actively develop against. That avoids nesting two process supervisors while preserving PM2's production behavior and giving local development lpm's service panes, project switcher, and parallel-agent copies.",
   },
+  {
+    question: "PM2 vs tmux — which one for local development?",
+    answer:
+      "They do different jobs. PM2 is a restart-on-crash process daemon: it keeps processes alive in the background and brings them back when they die. tmux is persistent interactive sessions and panes: terminals you can watch, scroll, and type into. Neither covers the whole local-dev job alone, and some people run both — tmux for the interactive session, PM2 for supervision. lpm covers that overlap in one Mac app: a live pane per service you can read and interact with, plus start/stop lifecycle per project.",
+  },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "PM2 Alternative for Local Development — lpm vs PM2",
+    title: "lpm vs PM2 — A PM2 Alternative for Local Development",
     description:
-      "PM2 is a production-first daemon with local watch mode. Compare it with lpm's Mac workspace, per-service panes, project switching, and agent copies.",
+      "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
     path: PATH,
   }),
   breadcrumbJsonLd([

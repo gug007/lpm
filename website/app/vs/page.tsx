@@ -3,15 +3,15 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Cta } from "@/components/vs/cta";
 import { SectionHeader } from "@/components/section-header";
-import { VS_BASE_PATH, vsPath, type VsSlug } from "@/lib/links";
+import { AI_AGENTS_PATH, VS_BASE_PATH, vsPath, type VsSlug } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
+    absolute: "lpm vs iTerm2, tmux, PM2, Overmind & More — Comparisons",
   },
   description:
-    "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
+    "Side-by-side comparisons of lpm with iTerm2, tmux, PM2, Foreman, Overmind, Docker Compose, and cmux — what each does better and which fits your workflow.",
   keywords: [
     "lpm alternatives",
     "tmux alternative",
@@ -23,18 +23,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: VS_BASE_PATH },
   openGraph: {
-    title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
+    title: "lpm vs iTerm2, tmux, PM2, Overmind & More — Comparisons",
     description:
-      "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
+      "Side-by-side comparisons of lpm with iTerm2, tmux, PM2, Foreman, Overmind, Docker Compose, and cmux — what each does better and which fits your workflow.",
     type: "website",
     url: VS_BASE_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
+    title: "lpm vs iTerm2, tmux, PM2, Overmind & More — Comparisons",
     description:
-      "Honest side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
+      "Side-by-side comparisons of lpm with iTerm2, tmux, PM2, Foreman, Overmind, Docker Compose, and cmux — what each does better and which fits your workflow.",
   },
 };
 
@@ -79,7 +79,7 @@ const ENTRIES: Entry[] = [
     slug: "overmind",
     name: "Overmind",
     tagline:
-      "Tmux-based Procfile runner. lpm gives the same per-process control — without needing tmux.",
+      "Tmux-based Procfile runner. lpm gives the same per-process control — without touching tmux yourself.",
   },
   {
     slug: "pm2",
@@ -91,9 +91,9 @@ const ENTRIES: Entry[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm Alternatives & Comparisons — iTerm2, tmux, PM2 & More",
+    title: "lpm vs iTerm2, tmux, PM2, Overmind & More — Comparisons",
     description:
-      "Side-by-side comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux — honest, per-workflow, no marketing fluff.",
+      "Side-by-side comparisons of lpm with iTerm2, tmux, PM2, Foreman, Overmind, Docker Compose, and cmux — what each does better and which fits your workflow.",
     path: VS_BASE_PATH,
   }),
   breadcrumbJsonLd([
@@ -115,7 +115,7 @@ export default function ComparisonsHubPage() {
             Comparisons
           </p>
           <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-            Compare lpm with iTerm2, tmux, cmux, and more.
+            Compare lpm with iTerm2, tmux, PM2, Overmind, and more.
           </h1>
           <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
             Honest, per-workflow comparisons — not vague superiority claims.
@@ -149,6 +149,16 @@ export default function ComparisonsHubPage() {
               </li>
             ))}
           </ul>
+          <p className="mt-6 text-sm text-gray-500 dark:text-gray-400 text-center">
+            Here for the AI-agent workflow? See our guide to the{" "}
+            <Link
+              href={AI_AGENTS_PATH}
+              className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+            >
+              best terminal for Claude Code and Codex
+            </Link>
+            .
+          </p>
         </div>
       </section>
 

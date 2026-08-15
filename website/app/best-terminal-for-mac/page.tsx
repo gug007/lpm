@@ -16,13 +16,14 @@ import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
+import Landscape from "./_components/landscape";
 import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Best Terminal for Mac — Native Apple Silicon",
+  title: "Best Terminal for Mac in 2026 — Native, No Electron",
   description:
-    "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
+    "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
   keywords: [
     "best terminal for mac",
     "best terminal for macos",
@@ -35,26 +36,26 @@ export const metadata: Metadata = {
     canonical: BEST_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Mac — Native Apple Silicon",
+    title: "Best Terminal for Mac in 2026 — Native, No Electron",
     description:
-      "A real Mac app, not an Electron shell. Native Apple Silicon build, instant launch, and a terminal that holds a whole project instead of one shell.",
+      "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
     type: "website",
     url: BEST_TERMINAL_MAC_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Mac — Native Apple Silicon",
+    title: "Best Terminal for Mac in 2026 — Native, No Electron",
     description:
-      "A real Mac app, not an Electron shell. Native Apple Silicon, instant launch, and a terminal built around projects rather than tabs.",
+      "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
   },
 };
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal for Mac — Native Apple Silicon",
+    title: "Best Terminal for Mac in 2026 — Native, No Electron",
     description:
-      "lpm is the best terminal for Mac — a native Apple Silicon app with live output per service, a visual project switcher, and no Electron bloat.",
+      "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
     path: BEST_TERMINAL_MAC_PATH,
   }),
   breadcrumbJsonLd([
@@ -90,6 +91,7 @@ export default function BestTerminalForMacPage() {
       <Benefits />
       <Workflows />
       <Comparison />
+      <Landscape />
       <Faq />
       <RelatedPages
         links={[

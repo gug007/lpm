@@ -34,25 +34,25 @@ import {
 } from "./examples";
 
 export const metadata: Metadata = {
-  title: "Configuration Reference",
+  title: { absolute: "lpm Config Reference — Services, Actions & Profiles" },
   description:
-    "Full configuration reference for lpm. Learn how to define services, actions, terminals, profiles, and global config.",
+    "Every key in an lpm project config file — services, actions, terminals, profiles, and global settings — with live YAML examples that update as you edit.",
   alternates: {
     canonical: CONFIG_PATH,
   },
   openGraph: {
-    title: "Configuration Reference",
+    title: "lpm Config Reference — Services, Actions & Profiles",
     description:
-      "Full configuration reference for lpm. Learn how to define services, actions, terminals, profiles, and global config.",
+      "Every key in an lpm project config file — services, actions, terminals, profiles, and global settings — with live YAML examples that update as you edit.",
     type: "website",
     url: CONFIG_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Configuration Reference",
+    title: "lpm Config Reference — Services, Actions & Profiles",
     description:
-      "Full configuration reference for lpm. Learn how to define services, actions, terminals, profiles, and global config.",
+      "Every key in an lpm project config file — services, actions, terminals, profiles, and global settings — with live YAML examples that update as you edit.",
   },
 };
 

@@ -19,9 +19,9 @@ import Setup from "./_components/setup";
 import Workflows from "./_components/workflows";
 
 export const metadata: Metadata = {
-  title: "Multiple Claude Code Accounts — One Per Project",
+  title: "Multiple Claude Code Accounts — No Logging Out",
   description:
-    "Run multiple Claude Code accounts on one Mac without logging out — lpm pins an account to each project, so work and personal stay signed in at once.",
+    "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.",
   keywords: [
     "claude code multiple accounts",
     "switch claude code accounts",
@@ -34,18 +34,18 @@ export const metadata: Metadata = {
     canonical: CLAUDE_ACCOUNTS_PATH,
   },
   openGraph: {
-    title: "Multiple Claude Code Accounts — One Per Project",
+    title: "Multiple Claude Code Accounts — No Logging Out",
     description:
-      "Pin a Claude account to each project. Work and personal accounts run in parallel on one Mac — no logout dance, no token copying.",
+      "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.",
     type: "website",
     url: CLAUDE_ACCOUNTS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Multiple Claude Code Accounts — One Per Project",
+    title: "Multiple Claude Code Accounts — No Logging Out",
     description:
-      "Pin a Claude account to each project. Work and personal accounts run in parallel on one Mac — no logout dance, no token copying.",
+      "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.",
   },
 };
 

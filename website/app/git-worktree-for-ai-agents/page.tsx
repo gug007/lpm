@@ -13,6 +13,7 @@ import {
   breadcrumbJsonLd,
   faqJsonLd,
   jsonLdString,
+  screenRecordingJsonLd,
   webPageJsonLd,
 } from "@/lib/structured-data";
 import Choose from "./_components/choose";
@@ -84,6 +85,7 @@ const structuredData = [
     { name: "Git Worktrees for AI Agents", path: WORKTREE_AGENTS_PATH },
   ]),
   faqJsonLd(FAQ_ITEMS),
+  screenRecordingJsonLd("agent-duplicate-fanout"),
 ];
 
 export default function GitWorktreeForAiAgentsPage() {

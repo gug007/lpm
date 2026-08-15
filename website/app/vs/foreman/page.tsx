@@ -22,9 +22,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("foreman");
 
 export const metadata: Metadata = {
-  title: { absolute: "Foreman Alternative for Mac — Per-Service Dev Processes" },
+  title: { absolute: "lpm vs Foreman — Procfile Dev with Per-Service Panes" },
   description:
-    "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
+    "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
   keywords: [
     "foreman alternative",
     "foreman vs lpm",
@@ -33,18 +33,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "Foreman Alternative for Mac — Per-Service Dev Processes",
+    title: "lpm vs Foreman — Procfile Dev with Per-Service Panes",
     description:
-      "Keep the Procfile-style ergonomics, get per-service panes, a desktop app, and multi-project support. Honest look at lpm versus Foreman.",
+      "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Foreman Alternative for Mac — Per-Service Dev Processes",
+    title: "lpm vs Foreman — Procfile Dev with Per-Service Panes",
     description:
-      "A modern Procfile experience with per-service panes, a desktop app, and multi-project switching.",
+      "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
   },
 };
 
@@ -177,9 +177,9 @@ const FAQ_ITEMS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "Foreman Alternative for Mac — Per-Service Dev Processes",
+    title: "lpm vs Foreman — Procfile Dev with Per-Service Panes",
     description:
-      "A modern Procfile experience for local dev: per-service panes, a desktop app, and multi-project switching. Honest comparison of lpm and Foreman.",
+      "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
     path: PATH,
   }),
   breadcrumbJsonLd([

@@ -11,6 +11,7 @@ import {
   breadcrumbJsonLd,
   faqJsonLd,
   jsonLdString,
+  screenRecordingJsonLd,
   webPageJsonLd,
 } from "@/lib/structured-data";
 import AgentWorkflow from "./_components/agent-workflow";
@@ -81,6 +82,7 @@ const structuredData = [
     },
   ]),
   faqJsonLd(FAQ_ITEMS),
+  screenRecordingJsonLd("duplicate-project"),
 ];
 
 export default function GitWorktreeAlternativePage() {

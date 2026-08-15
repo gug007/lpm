@@ -24,39 +24,10 @@ import {
   WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
+// Per-route git content dates; regenerate with `pnpm sitemap:dates`.
+import sitemapDates from "@/lib/sitemap-dates.json";
 
-// Real content-change dates, not deploy dates: /privacy and /terms mirror the
-// "Last updated" line each of those pages renders.
-const LAST_MODIFIED: Record<string, string> = {
-  "/": "2026-08-13",
-  [CONFIG_PATH]: "2026-08-13",
-  [AI_AGENTS_PATH]: "2026-08-13",
-  [CLAUDE_ACCOUNTS_PATH]: "2026-08-13",
-  [BEST_TERMINAL_MAC_PATH]: "2026-08-13",
-  [MAC_TERMINAL_DEVELOPERS_PATH]: "2026-08-13",
-  [GIT_TERMINAL_MAC_PATH]: "2026-08-13",
-  [SSH_TERMINAL_MAC_PATH]: "2026-08-13",
-  [PROJECT_SIDEBAR_PATH]: "2026-08-13",
-  [REVIEW_CHANGES_PATH]: "2026-08-13",
-  [CONNECT_AGENTS_PATH]: "2026-08-13",
-  [WORKTREE_ALTERNATIVE_PATH]: "2026-08-13",
-  [WORKTREE_AGENTS_PATH]: "2026-08-13",
-  [LINUX_HOST_PATH]: "2026-08-13",
-  [TOKEN_USAGE_PATH]: "2026-08-13",
-  [STATUSLINE_PATH]: "2026-08-13",
-  [MOBILE_PATH]: "2026-08-13",
-  [VS_BASE_PATH]: "2026-08-13",
-  [vsPath("foreman")]: "2026-08-13",
-  [vsPath("overmind")]: "2026-08-13",
-  [vsPath("docker-compose")]: "2026-08-13",
-  [vsPath("tmux")]: "2026-08-13",
-  [vsPath("pm2")]: "2026-08-13",
-  [vsPath("cmux")]: "2026-08-13",
-  [vsPath("iterm2")]: "2026-08-13",
-  [STATS_PATH]: "2026-08-13",
-  [PRIVACY_PATH]: "2026-08-13",
-  [TERMS_PATH]: "2026-04-17",
-};
+const LAST_MODIFIED: Record<string, string> = sitemapDates;
 
 const lastModified = (path: string): Date => {
   const date = LAST_MODIFIED[path];

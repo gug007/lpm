@@ -12,6 +12,7 @@ import {
   THEME_STORAGE_KEY,
 } from "@/lib/links";
 import { jsonLdString } from "@/lib/structured-data";
+import { fetchLatestVersion } from "@/lib/github-stats";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,11 +27,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "lpm — Run Claude Code & Codex in Parallel | Mac Dev Projects",
+    default: "lpm — Free Mac App for Dev Projects & AI Coding Agents",
     template: "%s — lpm",
   },
   description:
-    "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
+    "Start, stop, switch, and duplicate local dev projects on your Mac — and run Claude Code, Codex, and Gemini side by side in a built-in terminal. Free download.",
   keywords: [
     "run claude code in parallel",
     "claude code multiple projects",
@@ -43,18 +44,18 @@ export const metadata: Metadata = {
     "dev tools",
   ],
   openGraph: {
-    title: "lpm — Run Claude Code & Codex in Parallel | Mac Dev Projects",
+    title: "lpm — Free Mac App for Dev Projects & AI Coding Agents",
     description:
-      "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
+      "Start, stop, switch, and duplicate local dev projects on your Mac — and run Claude Code, Codex, and Gemini side by side in a built-in terminal. Free download.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Run Claude Code & Codex in Parallel | Mac Dev Projects",
+    title: "lpm — Free Mac App for Dev Projects & AI Coding Agents",
     description:
-      "Free, open-source macOS app to start, stop, switch, and duplicate local dev projects — and run Claude Code and Codex in parallel, each on its own copy.",
+      "Start, stop, switch, and duplicate local dev projects on your Mac — and run Claude Code, Codex, and Gemini side by side in a built-in terminal. Free download.",
   },
 };
 
@@ -77,7 +78,7 @@ const themeScript = `
 
 const PUBLISHER_ID = `${SITE_URL}/#publisher`;
 
-const structuredData = {
+const buildStructuredData = (softwareVersion: string | null) => ({
   "@context": "https://schema.org",
   "@graph": [
     {
@@ -103,6 +104,9 @@ const structuredData = {
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS",
       url: SITE_URL,
+      image: `${SITE_URL}/screenrecording/start-project-poster.jpg`,
+      screenshot: `${SITE_URL}/screenrecording/agent-parallel-tabs-poster.jpg`,
+      ...(softwareVersion ? { softwareVersion } : {}),
       downloadUrl: RELEASES_URL,
       softwareHelp: REPO_URL,
       author: { "@id": PUBLISHER_ID },
@@ -121,16 +125,18 @@ const structuredData = {
       publisher: { "@id": PUBLISHER_ID },
     },
   ],
-};
+});
 
 const GA_ID = "G-ZDCK654G10";
 const GOOGLE_ADS_ID = "AW-16987247563";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const softwareVersion = await fetchLatestVersion();
+
   return (
     <html
       lang="en"
@@ -143,7 +149,9 @@ export default function RootLayout({
         />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
+          dangerouslySetInnerHTML={{
+            __html: jsonLdString(buildStructuredData(softwareVersion)),
+          }}
         />
       </head>
       <body className="min-h-full flex flex-col bg-white text-gray-900 dark:bg-[#111] dark:text-gray-200 font-sans">
