@@ -723,11 +723,37 @@ fn send_cmd_with_sid(cmd: &str) -> String {
 /// it", empty when nothing is in flight. Non-empty -> re-assert Running and let
 /// the real Done land on the turn that ends with nothing pending.
 ///
-/// Unlike `send_cmd_with_sid` this needs TWO reads of the payload, so stdin is
-/// slurped once into `$p` instead of streamed through `sed`. Both extractions
+/// The one entry kind that is NOT a pause is a `teammate` (an in-process
+/// teammate agent): the harness leaves it registered with `status: "running"`
+/// for the whole session and tracks liveness in a separate `isIdle` flag that it
+/// never serializes into the hook payload, so an idle teammate is byte-identical
+/// to a working one. A turn that ends with nothing but teammates in flight is a
+/// real finish, and treating it as a pause pinned tabs on Running for hours —
+/// every later Stop re-reported the same value, which dedups away in status.rs
+/// and so never healed. Teammates are therefore the only type that can be
+/// downgraded, and only on POSITIVE evidence.
+///
+/// JSON escapes `"` inside strings but leaves `{`, `}` and `[`, `]` raw, so no
+/// check on the shape of a naively cut array body can tell "the array closed"
+/// from "a `description` mentioned a bracket" — a teammate description holding
+/// `}]` would cut the body mid-entry, balance its own braces, and hide a live
+/// workflow behind the cut. The scan therefore tokenizes before it slices:
+/// `s/\\./Z/g` collapses every escape, after which a `"` can only be a real
+/// string delimiter; the two `"type"` forms collapse to `T` (teammate) and `X`
+/// (anything else); and `s/"[^"]*"/Q/g` blanks what is left of every string. The
+/// survivors are pure structure, so `${f%%]*}` now cuts at the array's own close
+/// and the counts mean what they say: as many objects as `{`, as many `T` as
+/// objects, no `X`, no stray `[` (a nested array would cut early). A body that
+/// fails any of those — a foreign or future type, an unparsable shape — keeps
+/// Running, which is today's behavior.
+///
+/// Unlike `send_cmd_with_sid` this needs several reads of the payload, so stdin
+/// is slurped once into `$p` instead of streamed through `sed`. The extractions
 /// lean on a greedy `.*`, which anchors to the LAST occurrence: prose fields
 /// (`last_assistant_message`) serialize before `background_tasks` and so cannot
-/// hijack the branch by quoting it. A payload with no `background_tasks` at all
+/// hijack the branch by quoting it. Cutting at the array's close likewise keeps
+/// `session_crons` — which serializes after, and whose `prompt` is arbitrary
+/// user text — out of the type scan. A payload with no `background_tasks` at all
 /// (Claude older than the field) leaves `$bt` empty and reports Done — the
 /// pre-existing behavior, so the fix degrades to today rather than sticking on
 /// Running.
@@ -735,8 +761,11 @@ fn claude_stop_cmd() -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     let key = "claude_code_${sid:-$LPM_PANE_ID}";
+    let done = "Done --icon=checkmark --color=#4ade80";
+    let running = "Running --icon=bolt --color=#4C8DFF";
+    let ty = "\"type\"[[:space:]]*:[[:space:]]*";
     format!(
-        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"Done --icon=checkmark --color=#4ade80\"; [ \"$bt\" = \"{{\" ] && st=\"Running --icon=bolt --color=#4C8DFF\"; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2807,6 +2836,126 @@ mod tests {
         assert!(
             msg.contains("claude_code_s1 Done"),
             "quoted background_tasks in prose must not flip the status: {msg}"
+        );
+    }
+
+    /// An in-process teammate stays registered as `running` for the whole
+    /// session and its `isIdle` flag never reaches the hook, so a turn that ends
+    /// with nothing but teammates is a real finish. Every other type — and every
+    /// body the shell cannot parse cleanly — must stay Running.
+    #[test]
+    fn claude_stop_hook_treats_idle_teammates_as_finished() {
+        let cmd = claude_stop_cmd();
+        let base = r#"{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/p","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"MSG","background_tasks":TASKS,"session_crons":[]}"#;
+        let stop = |msg: &str, tasks: &str| {
+            let payload = base.replace("MSG", msg).replace("TASKS", tasks);
+            run_codex_hook(&cmd, &payload).unwrap()
+        };
+
+        let msg = stop(
+            "Done.",
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"Apply review fixes to conn changes"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "a lone registered teammate is not in-flight work: {msg}"
+        );
+
+        let msg = stop(
+            "Done.",
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"Apply review fixes"},{"id":"bt2","type":"teammate","status":"running","description":"Draft the release note"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "several idle-but-registered teammates are still a finish: {msg}"
+        );
+
+        let msg = stop(
+            "Kicking off the audit.",
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"x"},{"id":"bt2","type":"workflow","status":"running","description":"y","name":"audit"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a workflow alongside a teammate still pauses the turn: {msg}"
+        );
+
+        let msg = stop(
+            "Building in the background.",
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"x"},{"id":"bt2","type":"shell","status":"running","description":"npm run build","command":"npm run build"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a backgrounded shell alongside a teammate still pauses the turn: {msg}"
+        );
+
+        let msg = stop(
+            "Thinking it over.",
+            r#"[{"id":"bt1","type":"dream","status":"running","description":"x"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "an unrecognized task type must not be downgraded: {msg}"
+        );
+
+        // A teammate description is the first ~50 chars of its spawn prompt, so
+        // raw `{`, `}`, `[` and `]` land in it routinely — and JSON escapes none
+        // of them. Each of these hides a live non-teammate entry behind a `}]`
+        // that ends a truncated body on a balanced-looking brace.
+        for tasks in [
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"Fix the stray }] in package.json"},{"id":"bt2","type":"workflow","status":"running","description":"deploy","name":"release"}]"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"see }]}x"},{"id":"bt2","type":"shell","status":"running","description":"npm run build","command":"npm run build"}]"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"x}],y"},{"id":"bt2","type":"teammate","status":"running","description":"q"},{"id":"bt3","type":"workflow","status":"running","description":"w"}]"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"rerun step [2] of the plan"},{"id":"bt2","type":"workflow","status":"running","description":"y"}]"#,
+        ] {
+            let msg = stop("Working.", tasks);
+            assert!(
+                msg.contains("claude_code_s1 Running"),
+                "a bracket in a description must not hide in-flight work: {msg}"
+            );
+        }
+
+        // The same brackets in an all-teammate array are just text: blanking the
+        // strings before the slice keeps the downgrade working instead of
+        // silently falling back to Running.
+        for tasks in [
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"Fix [BUG-123] in parser"}]"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"Close the array with }] in schema.json"}]"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"say \"hi\" now"}]"#,
+        ] {
+            let msg = stop("Done.", tasks);
+            assert!(
+                msg.contains("claude_code_s1 Done"),
+                "punctuation in a teammate description is not in-flight work: {msg}"
+            );
+        }
+
+        // `session_crons` serializes after the array, and its `prompt` is
+        // arbitrary user text: the escaped type token cannot match the scan's
+        // patterns, and the cron object's own braces and brackets sit past the
+        // array's close, so neither reaches the counts.
+        let crons = base
+            .replace("MSG", "Done.")
+            .replace(
+                "TASKS",
+                r#"[{"id":"bt1","type":"teammate","status":"running","description":"x"}]"#,
+            )
+            .replace(
+                r#""session_crons":[]"#,
+                r#""session_crons":[{"id":"c1","schedule":"* * * * *","recurring":true,"prompt":"run the \"type\":\"workflow\" audit over [drafts] and {notes}"}]"#,
+            );
+        let msg = run_codex_hook(&cmd, &crons).unwrap();
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "a cron prompt quoting a task type must not be scanned: {msg}"
+        );
+
+        let msg = stop(
+            r#"I set \"background_tasks\":[{\"type\":\"workflow\"} in the config"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"x"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "a fake background_tasks in prose must not flip the status: {msg}"
         );
     }
 
