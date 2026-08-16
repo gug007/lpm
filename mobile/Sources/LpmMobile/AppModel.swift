@@ -344,14 +344,6 @@ final class AppModel {
     // Read at the top of pair()/pairViaApproval() — both of which reset the
     // session, which clears it — and cleared when the sheet is dismissed.
     @ObservationIgnored private var pendingRepairMacId: UUID?
-    // True while the in-flight pairing was started by "Pair Again", so the (often
-    // single, just-resolved) address it brings is folded into the saved record
-    // rather than replacing its list. Deliberately *not* gated on the address
-    // matching a saved one, unlike `replaces`: re-pairing a Mac whose address moved
-    // is exactly the case the fold exists for. Pairing a different Mac from the same
-    // sheet stays harmless — `handlePaired` only folds when the Mac's `serverId`
-    // matches the saved record, so an unrelated Mac lands as a plain new pairing.
-    @ObservationIgnored private var pendingPairIsRepair = false
 
     // Local-network discovery used only for automatic endpoint recovery: when the
     // active Mac's saved addresses stop responding, browse for it and reconnect on
@@ -453,6 +445,20 @@ final class AppModel {
             if isIPv4Literal(h) && !isCGNAT(h) { continue }
             out.append(h)
         }
+        return out
+    }
+
+    /// Fold a Mac's *advertised* addresses into a record's list without dropping
+    /// anything: the fresh ones lead, in the order the Mac ranked them, then every
+    /// address already saved. Unlike `mergedHosts` this prunes nothing — the Mac
+    /// advertises only what it can see about itself, so a host the phone was given
+    /// by hand (a port-forwarded WAN address, a second NIC, a VPN that isn't
+    /// Tailscale) never appears in `fresh` and may well be the one carrying this
+    /// very connection.
+    private static func unionHosts(existing: [String], fresh: [String]) -> [String] {
+        var out: [String] = []
+        for h in fresh where !h.isEmpty && !out.contains(h) { out.append(h) }
+        for h in existing where !out.contains(h) { out.append(h) }
         return out
     }
 
@@ -623,7 +629,6 @@ final class AppModel {
         let replaces = staleDeviceId(of: target, pairingAt: hosts)
         resetSessionState()
         pendingRepairMacId = target
-        pendingPairIsRepair = target != nil
         pendingPairHosts = hosts
         pendingPairPort = UInt16(clamping: port)
         pendingPairFingerprint = fingerprint
@@ -661,7 +666,6 @@ final class AppModel {
         let replaces = staleDeviceId(of: target, pairingAt: [host])
         resetSessionState()
         pendingRepairMacId = target
-        pendingPairIsRepair = target != nil
         pendingPairHosts = [host]
         pendingPairPort = UInt16(clamping: port)
         pendingPairFingerprint = nil
@@ -865,20 +869,24 @@ final class AppModel {
     /// record — or, when the Mac's `serverId` matches one we already have (a
     /// re-pair), refresh that record in place instead of duplicating it. Either
     /// way the paired Mac becomes active.
-    private func handlePaired(deviceId: String, token: String, serverId: String?, serverName: String?) {
-        let hosts = pendingPairHosts.isEmpty ? savedHosts() : pendingPairHosts
+    private func handlePaired(deviceId: String, token: String, serverId: String?, serverName: String?,
+                              advertisedHosts: [String]) {
+        // QR/pending hosts lead (the probe already proved one reachable); the
+        // Mac's advertised candidate list fills in what the QR didn't carry.
+        var hosts = pendingPairHosts.isEmpty ? savedHosts() : pendingPairHosts
+        for h in advertisedHosts where !h.isEmpty && !hosts.contains(h) { hosts.append(h) }
         let port = pendingPairPort
-        let isRepair = pendingPairIsRepair
         pendingPairHosts = []
-        pendingPairIsRepair = false
 
         let localId: UUID
         if let sid = serverId, !sid.isEmpty, let idx = macs.firstIndex(where: { $0.serverId == sid }) {
             localId = macs[idx].localId
-            // A re-pair often resolves only the one address it reached the Mac at
-            // (approve-on-Mac always does), so overwriting would drop the Tailscale
-            // address this phone needs away from home — fold the new ones in instead.
-            macs[idx].hosts = isRepair ? Self.mergedHosts(existing: macs[idx].hosts, fresh: hosts) : hosts
+            // Any pairing of an already-saved Mac often resolves only the one
+            // address it reached the Mac at (approve-on-Mac always does; a fresh
+            // "Add a Mac" scan carries only what its QR knew), so overwriting
+            // would drop the Tailscale + manually entered addresses this phone
+            // needs away from home — always fold the new ones in instead.
+            macs[idx].hosts = Self.unionHosts(existing: macs[idx].hosts, fresh: hosts)
             macs[idx].port = port
             if let name = serverName, !name.isEmpty { macs[idx].name = name }
         } else {
@@ -921,6 +929,20 @@ final class AppModel {
         if changed { persistMacs() }
     }
 
+    /// A `ready` frame advertised the Mac's current candidate addresses. Fold
+    /// them into the saved record matching the FRAME's serverId — never the
+    /// active record, which a pairing connection hasn't been assigned to yet
+    /// when its `ready` lands (the same stale-`activeMacId` trap the pin
+    /// persistence hit). Absent field / older Mac / unknown serverId: no-op.
+    private func mergeAdvertisedHosts(serverId: String?, hosts: [String]) {
+        guard !demoMode, let sid = serverId, !sid.isEmpty, !hosts.isEmpty,
+              let idx = macs.firstIndex(where: { $0.serverId == sid }) else { return }
+        let merged = Self.unionHosts(existing: macs[idx].hosts, fresh: hosts)
+        guard merged != macs[idx].hosts else { return }
+        macs[idx].hosts = merged
+        persistMacs()
+    }
+
     /// Trust-on-first-use: after a reconnect reaches `ready`, pin the observed
     /// leaf-cert fingerprint if this Mac has no pin yet (a fresh pair whose pin was
     /// already written by handlePaired is a no-op; a Mac paired before TLS gets
@@ -956,7 +978,6 @@ final class AppModel {
         // Consumed by pair()/pairViaApproval() before they reset, so a re-pair that
         // never started can't re-point a later pairing at the wrong saved Mac.
         pendingRepairMacId = nil
-        pendingPairIsRepair = false
 
         connection = .idle
         projects = []
@@ -2183,8 +2204,9 @@ final class AppModel {
                 }
             }
         }
-        c.onPaired = { [weak self] deviceId, token, serverId, serverName in
-            self?.handlePaired(deviceId: deviceId, token: token, serverId: serverId, serverName: serverName)
+        c.onPaired = { [weak self] deviceId, token, serverId, serverName, hosts in
+            self?.handlePaired(deviceId: deviceId, token: token, serverId: serverId,
+                               serverName: serverName, advertisedHosts: hosts)
         }
         c.onPairPending = { [weak self] matchCode in
             self?.approvalPairing = .waiting(matchCode: matchCode)
@@ -2193,12 +2215,17 @@ final class AppModel {
             guard let self else { return }
             switch reason {
             case "busy": self.approvalPairing = .denied(reason: "busy")
+            case LpmClient.badAddressReason:
+                self.approvalPairing = .denied(reason: LpmClient.badAddressReason)
             case "timeout": self.approvalPairing = .timedOut
             default: self.approvalPairing = .denied(reason: "declined")
             }
         }
         c.onIdentity = { [weak self] serverId, serverName in
             self?.learnIdentity(serverId: serverId, serverName: serverName)
+        }
+        c.onAdvertisedHosts = { [weak self] serverId, hosts in
+            self?.mergeAdvertisedHosts(serverId: serverId, hosts: hosts)
         }
         c.onApnsToken = { [weak self, weak c] ok in
             guard let self else { return }
@@ -2701,7 +2728,7 @@ final class AppModel {
 enum ApprovalPairingState: Equatable {
     case requesting
     case waiting(matchCode: String)
-    case denied(reason: String)   // "busy" | "declined"
+    case denied(reason: String)   // "busy" | "declined" | LpmClient.badAddressReason
     case timedOut
 }
 

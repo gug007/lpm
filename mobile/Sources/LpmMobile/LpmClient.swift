@@ -14,7 +14,7 @@ final class LpmClient: NSObject {
     struct Endpoint {
         var host: String
         var port: Int
-        var url: URL? { URL(string: "wss://\(host):\(port)/") }
+        var url: URL? { WssURL.make(host: host, port: port) }
     }
 
     // Callbacks are delivered on the main queue.
@@ -76,8 +76,9 @@ final class LpmClient: NSObject {
     var onGitChanged: ((_ project: String) -> Void)?
     // A fresh pairing succeeded: the new credential plus the Mac's advertised
     // identity. The model persists the credential (per-Mac Keychain) and creates
-    // or dedupes the saved-Mac record. serverId/serverName are absent on older Macs.
-    var onPaired: ((_ deviceId: String, _ token: String, _ serverId: String?, _ serverName: String?) -> Void)?
+    // or dedupes the saved-Mac record. serverId/serverName are absent on older
+    // Macs; `hosts` is the Mac's current candidate address list (empty on older Macs).
+    var onPaired: ((_ deviceId: String, _ token: String, _ serverId: String?, _ serverName: String?, _ hosts: [String]) -> Void)?
     // Approve-on-Mac pairing: the request was accepted (dialog up on the Mac,
     // carrying the match code to display), or refused with a reason.
     var onPairPending: ((_ matchCode: String) -> Void)?
@@ -85,6 +86,10 @@ final class LpmClient: NSObject {
     // A reconnect reached `ready` carrying the Mac's identity, so the active
     // record can learn/refresh its serverId and name. Absent on older Macs.
     var onIdentity: ((_ serverId: String?, _ serverName: String?) -> Void)?
+    // A `ready` frame carried the Mac's current candidate address list. Keyed by
+    // the frame's serverId — never the active record, which a pairing connection
+    // hasn't been assigned to yet when `ready` lands.
+    var onAdvertisedHosts: ((_ serverId: String?, _ hosts: [String]) -> Void)?
     // The desktop acknowledged (or rejected) an apnsToken registration.
     var onApnsToken: ((_ ok: Bool) -> Void)?
     // Composer parity replies.
@@ -207,9 +212,20 @@ final class LpmClient: NSObject {
     private var reconnectWork: DispatchWorkItem?
     private var connectWatchdog: DispatchWorkItem?
     private var heartbeat: DispatchSourceTimer?
+    private var heartbeatDeadline: DispatchWorkItem?
+    private var heartbeatArmedAt: Date?
     private var probeDeadline: DispatchWorkItem?
     private let connectTimeout: TimeInterval = 10
     private let heartbeatInterval: TimeInterval = 20
+    // Lenient (Tailscale over cellular can have multi-second RTT), but far
+    // shorter than the minutes a black-holed path leaves a ping completion
+    // unfired.
+    private let heartbeatPongTimeout: TimeInterval = 10
+    // Queued work doesn't run while the app is suspended, so a pong deadline can
+    // thaw arbitrarily late on resume with nothing wrong with the link. Overshoot
+    // past this much is read as "we were suspended", not "the pong never came" —
+    // a real dead link overshoots by milliseconds, not by 3x.
+    private var heartbeatSuspendSlack: TimeInterval { heartbeatPongTimeout * 3 }
     private let probeTimeout: TimeInterval = 4
     private let baseBackoff: TimeInterval = 1.5
     private let maxBackoff: TimeInterval = 20
@@ -234,6 +250,12 @@ final class LpmClient: NSObject {
     // (lpm not running, or a stale port after a dev/prod port change).
     static let secureFailedError = "secure-failed"
     static let refusedError = "connection-refused"
+
+    // Sentinel `onPairDenied` reason for an address the phone can't even form a
+    // URL from, alongside the wire reasons ("busy", "declined", "timeout"). Only
+    // an approve-on-Mac pairing can reach it: code pairing probes its addresses
+    // first, so an unusable one is already rejected there.
+    static let badAddressReason = "bad-address"
 
     // Sentinel for the Mac rejecting this device's credential: it no longer holds
     // a paired record for this phone, so retrying the same credential can never
@@ -351,7 +373,6 @@ final class LpmClient: NSObject {
     /// wants (a clean chance rather than continuing a long backoff).
     func connect() {
         if demoServer != nil { return connectDemo() }
-        guard endpoint.url != nil else { return fatal("bad host") }
         wantConnected = true
         cancelReconnect()
         startAttempt()
@@ -452,7 +473,17 @@ final class LpmClient: NSObject {
     // MARK: connection lifecycle
 
     private func startAttempt() {
-        guard let url = endpoint.url else { return fatal("bad host") }
+        // An unparseable host (e.g. an IPv6 literal a Mac advertised while this
+        // build can't form its URL) must fail like any unreachable candidate —
+        // retryable, so the model's stale-host repick tries the other saved
+        // addresses — not dead-end the state machine. During approve-on-Mac
+        // pairing there are no other addresses to fall back to, and routing it
+        // through `transientFailure` would report the address problem as the Mac
+        // never answering, so name it for what it is.
+        guard let url = endpoint.url else {
+            if pairRequestName != nil { return failPair(Self.badAddressReason) }
+            return transientFailure("bad host")
+        }
         teardownTask()
         set(.connecting)
         let task = session.webSocketTask(with: url)
@@ -599,11 +630,37 @@ final class LpmClient: NSObject {
         timer.schedule(deadline: .now() + heartbeatInterval, repeating: heartbeatInterval)
         timer.setEventHandler { [weak self] in
             guard let self, let t = self.task else { return }
+            // A ping still outstanding from the previous tick is already a dead
+            // link — fail now rather than stack a second ping onto it. Unless the
+            // whole app was suspended through the wait, in which case nothing was
+            // measured and the resume probe decides.
+            guard self.heartbeatDeadline == nil else {
+                if self.wasSuspendedSinceArming { self.deferToResumeProbe() } else {
+                    self.transientFailure("ping timeout")
+                }
+                return
+            }
+            // On a black-holed path (wedged tunnel, WiFi→cellular hop with no
+            // RST) the ping completion never fires at all, so a deadline — the
+            // `verifyNow` pattern — is what actually detects the drop.
+            let deadline = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                let suspended = self.wasSuspendedSinceArming
+                self.heartbeatDeadline = nil
+                self.heartbeatArmedAt = nil
+                guard t === self.task else { return }
+                if suspended { self.verifyNow() } else { self.transientFailure("ping timeout") }
+            }
+            self.heartbeatDeadline = deadline
+            self.heartbeatArmedAt = Date()
+            DispatchQueue.main.asyncAfter(deadline: .now() + self.heartbeatPongTimeout, execute: deadline)
             t.sendPing { [weak self] err in
-                guard err != nil else { return }
                 self?.main {
                     guard let self, t === self.task else { return }
-                    self.transientFailure("ping timeout", error: err)
+                    self.heartbeatDeadline?.cancel()
+                    self.heartbeatDeadline = nil
+                    self.heartbeatArmedAt = nil
+                    if let err { self.transientFailure("ping failed", error: err) }
                 }
             }
         }
@@ -611,9 +668,29 @@ final class LpmClient: NSObject {
         heartbeat = timer
     }
 
+    /// True when far more wall time passed since the outstanding ping was armed
+    /// than its deadline allows — the app was suspended through the wait, so the
+    /// missing pong measures nothing about the link.
+    private var wasSuspendedSinceArming: Bool {
+        guard let armed = heartbeatArmedAt else { return false }
+        return Date().timeIntervalSince(armed) > heartbeatSuspendSlack
+    }
+
+    /// Drop a ping whose wait was slept through and re-test the link with the
+    /// bounded resume probe instead of declaring a failure the wait never proved.
+    private func deferToResumeProbe() {
+        heartbeatDeadline?.cancel()
+        heartbeatDeadline = nil
+        heartbeatArmedAt = nil
+        verifyNow()
+    }
+
     private func stopHeartbeat() {
         heartbeat?.cancel()
         heartbeat = nil
+        heartbeatDeadline?.cancel()
+        heartbeatDeadline = nil
+        heartbeatArmedAt = nil
     }
 
     private func cancelReconnect() {
@@ -1017,7 +1094,7 @@ final class LpmClient: NSObject {
     /// Dispatch one parsed inbound frame. Always called on the main queue.
     private func dispatch(_ frame: Wire.Inbound) {
         switch frame {
-            case .paired(let deviceId, let token, let serverId, let serverName):
+            case .paired(let deviceId, let token, let serverId, let serverName, let hosts):
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 self.pairRequestName = nil
@@ -1027,13 +1104,13 @@ final class LpmClient: NSObject {
                 self.onConnected()
                 self.flushPending()
                 // The model owns the Keychain (per-Mac) and the saved-Mac record.
-                self.onPaired?(deviceId, token, serverId, serverName)
+                self.onPaired?(deviceId, token, serverId, serverName, hosts)
                 self.onProjectsChanged?()
             case .pairPending(let matchCode):
                 self.onPairPending?(matchCode)
             case .pairDenied(let reason):
                 self.failPair(reason)
-            case .ready(let serverId, let serverName):
+            case .ready(let serverId, let serverName, let hosts):
                 self.set(.ready)
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop,
@@ -1045,6 +1122,7 @@ final class LpmClient: NSObject {
                 for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p)) }
                 self.flushPending()
                 self.onIdentity?(serverId, serverName)
+                if !hosts.isEmpty { self.onAdvertisedHosts?(serverId, hosts) }
             case .error(let e):
                 // The Mac dropped this device's record: retrying the same
                 // credential is pointless, so stop and report it as the sentinel
@@ -1210,6 +1288,24 @@ final class LpmClient: NSObject {
 
     private func main(_ block: @escaping () -> Void) {
         DispatchQueue.main.async(execute: block)
+    }
+}
+
+/// Forms `wss://` URLs from any saved host form, shared by the live socket and
+/// the reachability probe. `URL(string:)` returns nil for a bare IPv6 literal —
+/// and a nil URL used to dead-end the connection state machine — so IPv6 hosts
+/// (kept deliberately as an away-from-home fallback) are bracketed here, with
+/// any zone id's `%` percent-encoded per RFC 6874. Hostnames, IPv4 literals,
+/// and already-bracketed input pass through unchanged.
+enum WssURL {
+    static func make(host: String, port: Int) -> URL? {
+        URL(string: "wss://\(urlHost(host)):\(port)/")
+    }
+
+    private static func urlHost(_ host: String) -> String {
+        let trimmed = host.trimmingCharacters(in: .whitespaces)
+        guard trimmed.contains(":"), !trimmed.hasPrefix("[") else { return trimmed }
+        return "[\(trimmed.replacingOccurrences(of: "%", with: "%25"))]"
     }
 }
 

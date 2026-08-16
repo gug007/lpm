@@ -84,7 +84,13 @@ pub(crate) struct RemoteConfig {
     pub(crate) enabled: bool,
     pub(crate) port: u16,            // 0 => DEFAULT_PORT
     pub(crate) pairing_code: String, // non-empty while an unused pairing code is outstanding
-    pub(crate) tailscale: bool,      // advertise this Mac's Tailscale address in the pairing QR
+    // Millis when pairing_code was armed. 0 means unstamped — a code armed before
+    // this field existed, or one an instance on an older release preserved while
+    // rewriting the file without it. remote.rs stamps it on first sight and runs
+    // the TTL from there.
+    #[serde(default)]
+    pub(crate) pairing_code_armed_at: i64,
+    pub(crate) tailscale: bool, // advertise this Mac's Tailscale address in the pairing QR
     pub(crate) push_relay: String, // override for the APNs relay URL (empty => DEFAULT_PUSH_RELAY)
     // Stable identity of this Mac, minted on first run and persisted. Sent to the
     // phone so it can distinguish and label multiple paired Macs, and mixed into
@@ -104,6 +110,7 @@ impl Default for RemoteConfig {
             enabled: false,
             port: 0,
             pairing_code: String::new(),
+            pairing_code_armed_at: 0,
             tailscale: true, // away-from-home works out of the box; the toggle opts out
             push_relay: String::new(),
             server_id: None,
@@ -311,9 +318,9 @@ static STORE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Re-base the settings this process owns onto the state we just read, so a
 /// second instance's toggles never spontaneously flip under a running server.
-/// `devices` and `pairing_code` deliberately stay as they are on disk: another
-/// instance's pairings must survive our write, and a code it already consumed
-/// must not come back to life.
+/// `devices` and `pairing_code` (with its armed-at timestamp) deliberately stay
+/// as they are on disk: another instance's pairings must survive our write, and
+/// a code it already consumed must not come back to life.
 fn rebase_owned_settings(next: &mut RemoteConfig, mem: &RemoteConfig) {
     next.enabled = mem.enabled;
     next.port = mem.port;

@@ -90,24 +90,41 @@ that the superseded record stays until it is revoked by hand.
 → on success the server replies and the code is consumed (single use):
 ```json
 { "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
-  "serverId": "<uuid>", "serverName": "My MacBook Pro" }
+  "serverId": "<uuid>", "serverName": "My MacBook Pro",
+  "hosts": ["192.168.1.23", "100.101.102.103"] }
 ```
 The phone stores `deviceId` + `token` in the Keychain. `serverId` is this Mac's
 stable identity (minted once, persisted in `remote.json`); `serverName` is its
 user-visible computer name (from `scutil --get ComputerName`, falling back to the
 hostname). Together they let a phone paired with **several Macs** tell them apart
-and label each one. On rejection:
+and label each one.
+
+`hosts` (**optional**) is the Mac's current candidate address list, most-preferred
+first — the same LAN-then-Tailscale list the pairing QR's repeated `h=` params
+carry (the Tailscale entry only while that toggle is on and a tailnet interface
+is up). It is **omitted** when the Mac has nothing usable to advertise (the QR's
+loopback fallback is never sent here). The phone **merges** these into the saved
+record for the frame's `serverId` — never replaces the list, and never applies
+them to any other Mac — so a phone paired by approval (no QR) still learns the
+Tailscale address, and an address that changed after pairing reaches every phone
+on its next connect. Older apps ignore the unknown field.
+
+The code is **single use and expires 10 minutes** after Settings arms it; the
+desktop clears an expired code rather than leaving it redeemable in
+`remote.json`. On rejection:
 ```json
 { "t": "error", "error": "pairing rejected" }
 { "t": "error", "error": "pairing unavailable" }
 ```
 `pairing rejected` means the **code** was wrong, already used, or expired — ask
-the Mac for a fresh one. `pairing unavailable` means the code was fine but the
-Mac **could not save** the new device (`remote.json` is unreadable, or another
-writer holds it), so a fresh code won't help either; lpm on the Mac shows what to
-fix. Both end the attempt and the connection. The strings stay readable sentences
-on purpose: a phone that predates `pairing unavailable` passes unknown error text
-straight to the user, so it still reads as an explanation rather than a code.
+the Mac for a fresh one (a wrong-code decline is also delayed ~500ms, and the
+connection closes after it, which bounds guessing). `pairing unavailable` means
+the code was fine but the Mac **could not save** the new device (`remote.json`
+is unreadable, or another writer holds it), so a fresh code won't help either;
+lpm on the Mac shows what to fix. Both end the attempt and the connection. The
+strings stay readable sentences on purpose: a phone that predates
+`pairing unavailable` passes unknown error text straight to the user, so it
+still reads as an explanation rather than a code.
 
 **Pair by approval** (first time, no typed code — for a phone that found this Mac
 via [Discovery](#discovery-bonjourmdns) and asks the user to approve on the Mac):
@@ -132,13 +149,15 @@ confirm the same device (the phone never sends it back — a human compares them
 Then, within a 30-second window, exactly one of:
 ```json
 { "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
-  "serverId": "<uuid>", "serverName": "My MacBook Pro" }
+  "serverId": "<uuid>", "serverName": "My MacBook Pro",
+  "hosts": ["192.168.1.23", "100.101.102.103"] }
 { "t": "pairDenied", "reason": "declined" }
 { "t": "pairDenied", "reason": "timeout" }
 ```
 `paired` (user tapped Allow) is byte-for-byte the same shape and meaning as the
-code-based `paired` above — same token/device minting, same post-pairing
-behavior. `declined` (user tapped Deny) and `timeout` (30s elapsed with no
+code-based `paired` above — same token/device minting, same optional `hosts`
+(this path had no QR, so it is how an approval-paired phone learns the Mac's
+Tailscale address at all), same post-pairing behavior. `declined` (user tapped Deny) and `timeout` (30s elapsed with no
 decision) are terminal; the server then closes the connection. If the phone
 disconnects while pending, the Mac cancels the request and dismisses its dialog.
 
@@ -146,11 +165,16 @@ disconnects while pending, the Mac cancels the request and dismisses its dialog.
 ```json
 { "t": "auth", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
 ```
-→ `{ "t": "ready", "serverId": "<uuid>", "serverName": "My MacBook Pro" }`
+→ `{ "t": "ready", "serverId": "<uuid>", "serverName": "My MacBook Pro",
+"hosts": ["192.168.1.23", "100.101.102.103"] }`
 on success, or `{ "t": "error", "error": "unauthorized" }`. `serverId` and
 `serverName` are the same stable identity + computer name returned by `paired`,
 re-sent on every resume so a phone paired with multiple Macs keeps them labeled
-and can route each connection to the right Mac.
+and can route each connection to the right Mac. `hosts` is the same optional
+candidate address list as on `paired` (merge into this `serverId`'s saved
+record; omitted when the Mac has nothing usable to advertise) — re-sent on every
+resume so a LAN or Tailscale address that changed since pairing propagates
+without re-pairing.
 
 The server stores only `sha256(token)`; the raw token never leaves the phone
 after pairing. Revoking a device in desktop Settings deletes its hash and drops
@@ -233,7 +257,7 @@ succeed, so the phone stops reconnecting and offers to pair again (sending
 | `{ "t": "start", "name": "<name>", "profile": "" }` | `{ "t": "start", "ok": true }` / `{ "ok": false, "error": "…" }`. The optional `profile` starts exactly that profile's services (empty = the project's active/default set); the phone offers a "Start with profile" variant when `ProjectInfo.profiles` is non-empty |
 | `{ "t": "stop", "name": "<name>" }` | `{ "t": "stop", "ok": … }` |
 | `{ "t": "toggleService", "name": "<name>", "service": "<svc>" }` | `{ "t": "toggleService", "ok": … }` |
-| `{ "t": "ping" }` | `{ "t": "pong" }` |
+| `{ "t": "ping" }` | `{ "t": "pong" }` — an app-level round trip the server answers; the iOS app doesn't use it (its keepalive is a **protocol-level** WebSocket Ping every ~20s, `URLSessionWebSocketTask.sendPing`, answered by tungstenite automatically). Liveness on the server keys off **any successful read** — a data frame, the phone's Ping, or a Pong: after ~30s of read silence the Mac sends a protocol-level Ping of its own (URLSession answers it with no app code involved), and after ~90s of silence it drops the connection — so a phone that vanished without a TCP reset can't leave a zombie session holding terminal control |
 
 ### Git review & ship
 

@@ -56,7 +56,7 @@ enum HostProbe {
     /// sent. lpm answers the WS upgrade before any auth, so a bare open proves the
     /// port is reachable; we tear the socket down as soon as either resolves.
     private static func open(_ host: String, port: Int, timeout: TimeInterval) async -> Outcome {
-        guard let url = URL(string: "wss://\(host):\(port)/") else {
+        guard let url = WssURL.make(host: host, port: port) else {
             return Outcome(host: host, reachable: false, detail: "bad address")
         }
         let gate = OpenGate()

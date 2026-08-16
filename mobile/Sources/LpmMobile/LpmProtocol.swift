@@ -410,14 +410,17 @@ enum Wire {
     // MARK: Inbound
 
     enum Inbound {
-        case paired(deviceId: String, token: String, serverId: String?, serverName: String?)
+        // `hosts` is the Mac's current candidate address list (empty from an
+        // older Mac that doesn't advertise one).
+        case paired(deviceId: String, token: String, serverId: String?, serverName: String?,
+                    hosts: [String])
         // Approve-on-Mac pairing: the Mac accepted the request and put up its Allow
         // dialog, showing the same match code both screens display.
         case pairPending(matchCode: String)
         // Approve-on-Mac pairing was refused: "busy" (another request in flight),
         // "declined" (user tapped Deny), or "timeout" (no answer, then server closes).
         case pairDenied(reason: String)
-        case ready(serverId: String?, serverName: String?)
+        case ready(serverId: String?, serverName: String?, hosts: [String])
         case error(String)
         case projects([Project])
         case sidebar(order: [String], groups: [ProjectFolder])
@@ -589,14 +592,16 @@ enum Wire {
                 return .paired(deviceId: obj["deviceId"] as? String ?? "",
                                token: obj["token"] as? String ?? "",
                                serverId: obj["serverId"] as? String,
-                               serverName: obj["serverName"] as? String)
+                               serverName: obj["serverName"] as? String,
+                               hosts: obj["hosts"] as? [String] ?? [])
             case "pairPending":
                 return .pairPending(matchCode: obj["matchCode"] as? String ?? "")
             case "pairDenied":
                 return .pairDenied(reason: obj["reason"] as? String ?? "declined")
             case "ready":
                 return .ready(serverId: obj["serverId"] as? String,
-                              serverName: obj["serverName"] as? String)
+                              serverName: obj["serverName"] as? String,
+                              hosts: obj["hosts"] as? [String] ?? [])
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
                 return .projects((obj["projects"] as? [[String: Any]] ?? []).map(Project.init))

@@ -19,13 +19,17 @@ struct ApprovalPairingSheet: View {
             case .waiting(let code):
                 waiting(code)
             case .denied(let reason):
-                failure(
-                    icon: reason == "busy" ? "hourglass" : "hand.raised.slash",
-                    title: reason == "busy" ? "Mac is busy" : "Pairing declined",
-                    message: reason == "busy"
-                        ? "\(macLabel) is busy with another pairing request. Try again in a moment."
-                        : "Pairing was declined on the Mac."
-                )
+                switch reason {
+                case "busy":
+                    failure(icon: "hourglass", title: "Mac is busy",
+                            message: "\(macLabel) is busy with another pairing request. Try again in a moment.")
+                case LpmClient.badAddressReason:
+                    failure(icon: "exclamationmark.triangle", title: "Address not usable",
+                            message: "This iPhone can't connect to the address found for \(macLabel). Enter the pairing details from your Mac instead.")
+                default:
+                    failure(icon: "hand.raised.slash", title: "Pairing declined",
+                            message: "Pairing was declined on the Mac.")
+                }
             case .timedOut:
                 failure(icon: "clock.badge.xmark", title: "No answer",
                         message: "No answer from \(macLabel). Make sure lpm is open on your Mac.")
