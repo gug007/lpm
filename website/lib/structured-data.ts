@@ -52,55 +52,55 @@ const SCREEN_RECORDINGS = {
     name: "Add a new project in lpm",
     description:
       "Adding a new project in the lpm desktop app: click + in the sidebar, browse to a directory, define services in the built-in editor, and save.",
-    uploadDate: "2026-06-12",
+    uploadDate: "2026-06-12T09:00:00+00:00",
   },
   "start-project": {
     name: "Start a project in lpm",
     description:
       "Starting a project in lpm: all services launch in parallel with live terminal output side by side.",
-    uploadDate: "2026-06-12",
+    uploadDate: "2026-06-12T09:00:00+00:00",
   },
   "add-action": {
     name: "Add an action in lpm",
     description:
       "Adding a one-shot action to a project in lpm — linters, test runners, or deploy scripts become buttons you trigger without leaving the app.",
-    uploadDate: "2026-06-12",
+    uploadDate: "2026-06-12T09:00:00+00:00",
   },
   "run-profile-project": {
     name: "Switch between profiles in lpm",
     description:
       "Running a project with multiple profiles in lpm and toggling between subsets of services with the profile switcher in the header.",
-    uploadDate: "2026-06-12",
+    uploadDate: "2026-06-12T09:00:00+00:00",
   },
   "start-project-claude": {
     name: "Launch Claude Code on a project in lpm",
     description:
       "Launching Claude Code on a project in lpm: one click opens a terminal with the agent already running in the right directory.",
-    uploadDate: "2026-06-12",
+    uploadDate: "2026-06-12T09:00:00+00:00",
   },
   "duplicate-project": {
     name: "Duplicate a project in lpm",
     description:
       "Duplicating a project in lpm to create an independent copy with its own services, terminals, and agents for parallel work.",
-    uploadDate: "2026-06-12",
+    uploadDate: "2026-06-12T09:00:00+00:00",
   },
   "agent-run-command": {
     name: "An agent runs a command in a new lpm terminal",
     description:
       "Claude Code uses the lpm CLI to run a git log command, and a fresh terminal tab opens in lpm with the output.",
-    uploadDate: "2026-07-11",
+    uploadDate: "2026-07-11T09:00:00+00:00",
   },
   "agent-parallel-tabs": {
     name: "An agent opens three parallel Claude tabs",
     description:
       "Claude Code drives the lpm CLI to open three Claude tabs in the same project, each already working on its prompt.",
-    uploadDate: "2026-07-11",
+    uploadDate: "2026-07-11T09:00:00+00:00",
   },
   "agent-duplicate-fanout": {
     name: "An agent fans out into three project copies",
     description:
       "Claude Code duplicates a project into three copies with lpm, each running its own Claude agent on the same prompt.",
-    uploadDate: "2026-07-11",
+    uploadDate: "2026-07-11T09:00:00+00:00",
   },
 } as const;
 
