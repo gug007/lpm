@@ -65,11 +65,19 @@ export function UsageView({ onClose }: UsageViewProps) {
       .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
   }, [enabled, map, accounts, statuses]);
 
+  // An account the user added but has not run yet still gets a panel, so a
+  // second account never looks like it went missing.
+  const waitingAccounts = useMemo(() => {
+    if (!enabled) return [];
+    const reported = new Set(claudeCards.map((c) => c.data.accountId).filter(Boolean));
+    return accounts.filter((a) => !reported.has(a.id));
+  }, [enabled, claudeCards, accounts]);
+
   const spentToday = useMemo(() => tokensToday(todayStats), [todayStats]);
 
   const codex = pickProvider(map, "codex");
   const showClaudeEnable = claudeCards.length === 0 && !enabled;
-  const showClaudeWaiting = claudeCards.length === 0 && enabled;
+  const showClaudeWaiting = claudeCards.length === 0 && waitingAccounts.length === 0 && enabled;
   const hasSnapshot = Object.keys(map).length > 0;
 
   // Persist only after the backend actually applied the change, so a failed
@@ -156,6 +164,20 @@ export function UsageView({ onClose }: UsageViewProps) {
                   title={c.title}
                   subtitle={c.subtitle}
                 />
+              ))}
+
+              {waitingAccounts.map((account) => (
+                <UsageEmptyPanel
+                  key={account.id}
+                  dot={providerMeta("claude").dot}
+                  dim
+                  name={account.label}
+                >
+                  <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">
+                    Waiting for a Claude session on this account. Its usage appears here as soon as
+                    you run Claude in a project pinned to it.
+                  </p>
+                </UsageEmptyPanel>
               ))}
 
               {showClaudeEnable && (

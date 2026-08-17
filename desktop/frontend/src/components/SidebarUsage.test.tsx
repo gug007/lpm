@@ -11,11 +11,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../bridge/commands", () => ({
   AgentUsageStats: mocks.agentUsageStats,
   AgentLimits: mocks.agentLimits,
+  LoadClaudeAccounts: vi.fn(async () => ({ accounts: [] })),
+  SaveClaudeAccounts: vi.fn(),
+  RemoveClaudeAccount: vi.fn(),
+  ClaudeAccountsStatus: vi.fn(async () => ({ statuses: [] })),
+  ClaudeAccountUsage: vi.fn(async () => ({ usage: {} })),
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
 }));
 
+import { useAccountsStore } from "../store/accounts";
 import { useSettingsStore } from "../store/settings";
 import { SidebarUsage } from "./SidebarUsage";
 
@@ -78,6 +84,7 @@ beforeEach(() => {
     usageSidebarTools: undefined,
     usageSidebarWindow: undefined,
   });
+  useAccountsStore.setState({ accounts: [], statuses: {}, usage: {} });
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -111,6 +118,37 @@ describe("SidebarUsage", () => {
 
     const [claude] = [...container.querySelectorAll("button")];
     expect(claude.textContent).toContain("2h");
+  });
+
+  it("gives each Claude account its own row", async () => {
+    mocks.agentLimits.mockResolvedValue({
+      "claude:acc-work": {
+        provider: "claude",
+        accountId: "acc-work",
+        weekly: { usedPercent: 91, resetsAt: IN_TWO_HOURS + 86_400 },
+        updatedAt: Date.now(),
+      },
+      "claude:acc-home": {
+        provider: "claude",
+        accountId: "acc-home",
+        weekly: { usedPercent: 12, resetsAt: IN_TWO_HOURS + 86_400 },
+        updatedAt: Date.now() - 120_000,
+      },
+    });
+    useAccountsStore.setState({
+      accounts: [
+        { id: "acc-work", label: "Work" },
+        { id: "acc-home", label: "Home" },
+      ],
+    });
+    await render();
+
+    const rows = [...container.querySelectorAll("button")];
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain("Work");
+    expect(rows[0].textContent).toContain("91%");
+    expect(rows[1].textContent).toContain("Home");
+    expect(rows[1].textContent).toContain("12%");
   });
 
   it("hides a tool the user turned off", async () => {

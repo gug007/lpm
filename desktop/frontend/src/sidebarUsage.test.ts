@@ -162,6 +162,106 @@ describe("usageRows", () => {
     expect(row.percentText).toBe("");
     expect(row.detail).toBe("2.0M today");
   });
+
+  it("drops a window that is already past its reset", () => {
+    const past: AgentLimitsMap = {
+      "claude:default": {
+        provider: "claude",
+        accountId: "default",
+        fiveHour: { usedPercent: 55, resetsAt: Math.floor(NOW / 1000) - 60 },
+        weekly: { usedPercent: 20, resetsAt: IN_TWO_HOURS },
+        updatedAt: NOW,
+      },
+    };
+    const [row] = usageRows(past, null, NOW, { window: "fiveHour" });
+    expect(row.windowLabel).toBe("weekly");
+    expect(row.percent).toBe(20);
+
+    const onlyExpired = { "claude:default": { ...past["claude:default"], weekly: undefined } };
+    expect(usageRows(onlyExpired, null, NOW)).toEqual([]);
+  });
+});
+
+describe("usageRows with several Claude accounts", () => {
+  const accounts = [
+    { id: "acc-work", label: "Work", email: "work@example.com" },
+    { id: "acc-home", label: "Home" },
+  ];
+
+  const twoAccounts: AgentLimitsMap = {
+    "claude:acc-work": {
+      provider: "claude",
+      accountId: "acc-work",
+      weekly: { usedPercent: 91, resetsAt: IN_TWO_HOURS },
+      updatedAt: NOW - 1_000,
+    },
+    "claude:acc-home": {
+      provider: "claude",
+      accountId: "acc-home",
+      weekly: { usedPercent: 12, resetsAt: IN_TWO_HOURS },
+      updatedAt: NOW - 120_000,
+    },
+  };
+
+  it("gives every account its own row instead of the newest reading winning", () => {
+    const rows = usageRows(twoAccounts, null, NOW, { accounts });
+    expect(rows.map((r) => r.label)).toEqual(["Work", "Home"]);
+    expect(rows.map((r) => r.percent)).toEqual([91, 12]);
+    expect(rows.map((r) => r.id)).toEqual(["claude:acc-work", "claude:acc-home"]);
+    expect(rows.every((r) => r.provider === "claude")).toBe(true);
+  });
+
+  it("keeps a row for an account that has not run yet", () => {
+    const oneReported = { "claude:acc-work": twoAccounts["claude:acc-work"] };
+    const rows = usageRows(oneReported, null, NOW, { accounts });
+    expect(rows.map((r) => r.label)).toEqual(["Work", "Home"]);
+    expect(rows[1].detail).toBe("—");
+    expect(rows[1].percentText).toBe("");
+    expect(rows[1].fraction).toBe(0);
+    expect(rows[1].data).toBeUndefined();
+  });
+
+  it("carries the account's email for the hover card", () => {
+    const [work, home] = usageRows(twoAccounts, null, NOW, { accounts });
+    expect(work.subtitle).toBe("work@example.com");
+    expect(home.subtitle).toBeUndefined();
+  });
+
+  it("names the unpinned login after the tool and sorts unregistered ids last", () => {
+    const withDefault: AgentLimitsMap = {
+      ...twoAccounts,
+      "claude:default": {
+        provider: "claude",
+        accountId: "default",
+        weekly: { usedPercent: 5, resetsAt: IN_TWO_HOURS },
+        updatedAt: NOW,
+      },
+    };
+    expect(usageRows(withDefault, null, NOW, { accounts }).map((r) => r.label)).toEqual([
+      "Work",
+      "Home",
+      "Claude",
+    ]);
+  });
+
+  it("keeps the tool's name when only one account is in play", () => {
+    const single = { "claude:acc-work": twoAccounts["claude:acc-work"] };
+    const [row] = usageRows(single, null, NOW, { accounts: [accounts[0]] });
+    expect(row.label).toBe("Claude");
+  });
+
+  it("does not credit one account with the whole tool's spend", () => {
+    const rows = usageRows(twoAccounts, stats([["claude", 2_000_000, 4]]), NOW, { accounts });
+    expect(rows.map((r) => r.tokens)).toEqual([0, 0]);
+    expect(rows.map((r) => r.sessions)).toEqual([0, 0]);
+  });
+
+  it("stays a single row until a Claude window has been reported", () => {
+    const rows = usageRows({}, stats([["claude", 2_000_000]]), NOW, { accounts });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].label).toBe("Claude");
+    expect(rows[0].detail).toBe("2.0M today");
+  });
 });
 
 describe("tokensToday", () => {
