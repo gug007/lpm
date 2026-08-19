@@ -23,8 +23,9 @@ interface SidebarHeaderShellProps {
   /** The second line, which costs 16px and so only renders when the header has
    *  something to say that its rows are not already saying. */
   line2?: ReactNode;
-  /** Sits at the end of line 1, and only while line 2 is silent — the line says
-   *  it better than a numeral does. */
+  /** Parks at the row's edge, and only while line 2 is silent — the line says
+   *  it better than a numeral does. Steps aside for the ⋮ under the cursor,
+   *  the way a peer row's trailing mark does. */
   trailing?: ReactNode;
   active: boolean;
   isContextTarget: boolean;
@@ -66,7 +67,9 @@ export function SidebarHeaderShell({
         // have, and an expanded folder holds the chevron at rest — so keyboard
         // focus needs a mark of its own.
         className={`group/hdr flex w-full select-none gap-2 rounded-md px-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent-cyan)]/60 ${
-          twoLine ? "items-start py-1" : "h-[26px] items-center"
+          // One line stands 36px, the height `py-2` gives a project row, so a
+          // header keeps the same rhythm as the rows around and under it.
+          twoLine ? "items-start py-1" : "h-9 items-center"
         } ${active ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"} ${
           isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""
         }`}
@@ -102,16 +105,25 @@ export function SidebarHeaderShell({
         <span className="flex min-w-0 flex-1 flex-col">
           {/* The ⋮ reserve lives here rather than on the button, so line 2 gets
               the full width. */}
-          <span className="flex min-w-0 items-baseline pr-7">
-            {line1}
-            {!twoLine && trailing}
-          </span>
+          <span className="flex min-w-0 items-baseline pr-7">{line1}</span>
           {line2 && (
             <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
               {line2}
             </span>
           )}
         </span>
+        {!twoLine && trailing && (
+          <span
+            // The name's line metrics, so this box's strut is the name's and
+            // the smaller digits inside stand on the same baseline — a box
+            // centred on its own puts them a couple of pixels adrift.
+            className={`absolute top-1/2 -translate-y-1/2 text-[13px] leading-5 transition-[right] ${
+              isContextTarget ? "right-9" : "right-2 group-hover/hdr:right-9"
+            }`}
+          >
+            {trailing}
+          </span>
+        )}
       </button>
       {showMore && (
         <button

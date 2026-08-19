@@ -54,9 +54,7 @@ export function SidebarGroupRow({
         // Plain: the numeral only ever shows when there is nothing to report,
         // because any state worth a tint has already claimed the second line.
         count > 0 ? (
-          <span className="ml-auto shrink-0 pl-2 text-[11px] tabular-nums text-[var(--text-muted)]">
-            {count}
-          </span>
+          <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{count}</span>
         ) : undefined
       }
       active={containsSelected}

@@ -1029,7 +1029,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // block's height: a member showing its agents is taller than its row, and the
   // elbow still has to point at the row.
   // Only an expanded folder draws a trunk, and an expanded header is always the
-  // one-line 26px form, so the two-line header height never enters this math.
+  // one-line 36px form, so the two-line header height never enters this math.
   // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
   // — it doesn't react to row/folder hover.
   const TRUNK_BG = "bg-[var(--accent-sky)]/55";
@@ -1050,13 +1050,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     // drag is active; it reappears on drop.
     const showConnectors = !activeId;
     return (
-      <div key={groupToken(groupItem.group.id)} className="mt-1 first:mt-0">
+      <div key={groupToken(groupItem.group.id)}>
         <div className="relative">
           {renderRow(groupItem)}
           {hasProjects && showConnectors && (
             <span
               aria-hidden
-              className={`pointer-events-none absolute ${TREE_X} top-[21px] bottom-0 z-10 w-px ${TRUNK_BG}`}
+              className={`pointer-events-none absolute ${TREE_X} top-[26px] bottom-0 z-10 w-px ${TRUNK_BG}`}
             />
           )}
         </div>

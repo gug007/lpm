@@ -200,9 +200,7 @@ export function SidebarPeerSection({
       line2={line2}
       trailing={
         collapsed && rowCount > 0 ? (
-          <span className="ml-auto shrink-0 pl-2 text-[11px] tabular-nums text-[var(--text-muted)]">
-            {rowCount}
-          </span>
+          <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{rowCount}</span>
         ) : undefined
       }
       active={holdsSelection}

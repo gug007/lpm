@@ -49,7 +49,7 @@ afterEach(() => {
 describe("SidebarGroupRow", () => {
   it("stays one line and keeps its count when the fold hides nothing worth saying", () => {
     const header = render({ segments: [] });
-    expect(header.className).toContain("h-[26px]");
+    expect(header.className).toContain("h-9");
     expect(header.className).not.toContain("items-start");
     expect(header.textContent).toContain("8");
   });
@@ -57,7 +57,7 @@ describe("SidebarGroupRow", () => {
   it("grows a second line and drops the count when the fold hides something", () => {
     const header = render({ segments: WAITING });
     expect(header.className).toContain("items-start");
-    expect(header.className).not.toContain("h-[26px]");
+    expect(header.className).not.toContain("h-9");
     expect(header.textContent).toContain("1 needs you");
     // The line says it better than the numeral does, so they never both show.
     expect(header.textContent).not.toContain("8");
@@ -65,7 +65,7 @@ describe("SidebarGroupRow", () => {
 
   it("stays one line while expanded, however busy its members are", () => {
     const header = render({ collapsed: false, segments: WAITING });
-    expect(header.className).toContain("h-[26px]");
+    expect(header.className).toContain("h-9");
     expect(header.textContent).not.toContain("needs you");
   });
 
