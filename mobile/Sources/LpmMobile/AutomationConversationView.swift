@@ -80,6 +80,12 @@ struct AutomationConversationView: View {
         .navigationTitle(job?.displayName ?? "Automation chat")
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            // Opening a run reads it, and everything under it. Arriving on the
+            // automation's page reads nothing, so its list keeps pointing at what
+            // still hasn't been looked at.
+            if let job, let thread, automationThreadUnread(thread) {
+                model.markAutomationSeen(job, upTo: thread.tail.at)
+            }
             model.loadAutomationHistory(project: project, jobId: jobId)
             model.loadAutomationLiveOutput(project: project, jobId: jobId)
         }

@@ -211,14 +211,6 @@ struct AutomationDetailView: View {
                                              previews: job?.runKind == "prompt",
                                              unread: automationThreadUnread(thread))
                     }
-                    // Opening a run reads it, and everything under it. Arriving on
-                    // this page reads nothing, so the list keeps pointing at what
-                    // still hasn't been looked at.
-                    .simultaneousGesture(TapGesture().onEnded {
-                        if let job, automationThreadUnread(thread) {
-                            model.markAutomationSeen(job, upTo: thread.tail.at)
-                        }
-                    })
                 }
                 if all.count > shown.count {
                     Button("Show all \(all.count) runs") {
