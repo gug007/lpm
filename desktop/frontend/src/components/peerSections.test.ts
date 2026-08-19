@@ -132,6 +132,21 @@ describe("buildPeerSections", () => {
     const { sections } = buildPeerSections([], new Map(), [peer({ connected: false })]);
     expect(sections).toEqual([]);
   });
+
+  it("carries the machine's platform and state for its header", () => {
+    const { sections } = buildPeerSections([], new Map(), [peer({ platform: "linux" })]);
+    expect(sections[0].linuxHost).toBe(true);
+    expect(sections[0].status).toEqual({ tone: "live", text: "Connected", detail: "" });
+  });
+
+  it("reads an unknown platform as a Mac, and a failure as an error", () => {
+    const { sections } = buildPeerSections([copy], follows(follow("lpm-sync", REMOTE_ROOT)), [
+      peer({ connected: false, lastError: "Connection refused (os error 61)" }),
+    ]);
+    expect(sections[0].linuxHost).toBe(false);
+    expect(sections[0].status.tone).toBe("error");
+    expect(sections[0].status.text).toBe("Refused the connection — lpm may not be running there");
+  });
 });
 
 describe("followForRow", () => {

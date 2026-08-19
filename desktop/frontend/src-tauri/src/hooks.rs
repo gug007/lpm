@@ -723,15 +723,20 @@ fn send_cmd_with_sid(cmd: &str) -> String {
 /// it", empty when nothing is in flight. Non-empty -> re-assert Running and let
 /// the real Done land on the turn that ends with nothing pending.
 ///
-/// The one entry kind that is NOT a pause is a `teammate` (an in-process
-/// teammate agent): the harness leaves it registered with `status: "running"`
-/// for the whole session and tracks liveness in a separate `isIdle` flag that it
-/// never serializes into the hook payload, so an idle teammate is byte-identical
-/// to a working one. A turn that ends with nothing but teammates in flight is a
-/// real finish, and treating it as a pause pinned tabs on Running for hours —
-/// every later Stop re-reported the same value, which dedups away in status.rs
-/// and so never healed. Teammates are therefore the only type that can be
-/// downgraded, and only on POSITIVE evidence.
+/// Two entry kinds are NOT a pause. A `teammate` (an in-process teammate
+/// agent): the harness leaves it registered with `status: "running"` for the
+/// whole session and tracks liveness in a separate `isIdle` flag that it never
+/// serializes into the hook payload, so an idle teammate is byte-identical to a
+/// working one. And a `monitor` (a wake-on-event watch): publishing an Artifact
+/// auto-arms a persistent ambient comment watcher (`timeout_ms: 0`, status
+/// `running` forever) that rides in every later Stop payload, so any session
+/// that published an artifact would otherwise pin on Running for good; a
+/// deliberate Monitor watch is a wake-later signal like `session_crons`, which
+/// have never held Running either. A turn that ends with nothing but teammates
+/// and monitors in flight is a real finish, and treating it as a pause pinned
+/// tabs on Running for hours — every later Stop re-reported the same value,
+/// which dedups away in status.rs and so never healed. These are therefore the
+/// only types that can be downgraded, and only on POSITIVE evidence.
 ///
 /// JSON escapes `"` inside strings but leaves `{`, `}` and `[`, `]` raw, so no
 /// check on the shape of a naively cut array body can tell "the array closed"
@@ -739,8 +744,9 @@ fn send_cmd_with_sid(cmd: &str) -> String {
 /// `}]` would cut the body mid-entry, balance its own braces, and hide a live
 /// workflow behind the cut. The scan therefore tokenizes before it slices:
 /// `s/\\./Z/g` collapses every escape, after which a `"` can only be a real
-/// string delimiter; the two `"type"` forms collapse to `T` (teammate) and `X`
-/// (anything else); and `s/"[^"]*"/Q/g` blanks what is left of every string. The
+/// string delimiter; the ignorable `"type"` forms (`teammate`, `monitor`)
+/// collapse to `T` and every other type to `X`; and `s/"[^"]*"/Q/g` blanks what
+/// is left of every string. The
 /// survivors are pure structure, so `${f%%]*}` now cuts at the array's own close
 /// and the counts mean what they say: as many objects as `{`, as many `T` as
 /// objects, no `X`, no stray `[` (a nested array would cut early). A body that
@@ -765,7 +771,7 @@ fn claude_stop_cmd() -> String {
     let running = "Running --icon=bolt --color=#4C8DFF";
     let ty = "\"type\"[[:space:]]*:[[:space:]]*";
     format!(
-        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2956,6 +2962,75 @@ mod tests {
         assert!(
             msg.contains("claude_code_s1 Done"),
             "a fake background_tasks in prose must not flip the status: {msg}"
+        );
+    }
+
+    /// Publishing an Artifact auto-arms a persistent ambient comment watcher
+    /// that stays registered as a `running` `monitor` task forever, so it is a
+    /// wake-on-event signal, not in-flight work — same as `session_crons`,
+    /// which have never held Running. Monitors join teammates in the ignorable
+    /// set; every other type, and near-miss type names, must still pause.
+    #[test]
+    fn claude_stop_hook_treats_monitors_as_finished() {
+        let cmd = claude_stop_cmd();
+        let base = r#"{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/p","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"MSG","background_tasks":TASKS,"session_crons":[]}"#;
+        let stop = |msg: &str, tasks: &str| {
+            let payload = base.replace("MSG", msg).replace("TASKS", tasks);
+            run_codex_hook(&cmd, &payload).unwrap()
+        };
+
+        let msg = stop(
+            "Published the artifact.",
+            r#"[{"id":"bt1","type":"monitor","status":"running","description":"Artifact comment watch (auto-armed on publish)"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "a lone artifact watch is not in-flight work: {msg}"
+        );
+
+        let msg = stop(
+            "Done.",
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"Fix v-06 calendar dates"},{"id":"bt2","type":"monitor","status":"running","description":"Artifact comment watch (auto-armed on publish)"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "an idle teammate plus an artifact watch is still a finish: {msg}"
+        );
+
+        let msg = stop(
+            "Watching CI.",
+            r#"[{"id":"bt1","type":"monitor","status":"running","description":"watch the CI run","server":"github","tool":"get_workflow_run"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "an MCP monitor with server/tool fields is a wake-later signal: {msg}"
+        );
+
+        let msg = stop(
+            "Kicking off the audit.",
+            r#"[{"id":"bt1","type":"monitor","status":"running","description":"x"},{"id":"bt2","type":"workflow","status":"running","description":"y","name":"audit"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a workflow alongside a monitor still pauses the turn: {msg}"
+        );
+
+        let msg = stop(
+            "Thinking.",
+            r#"[{"id":"bt1","type":"monitors","status":"running","description":"x"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a near-miss type name must not be downgraded: {msg}"
+        );
+
+        let msg = stop(
+            "Building.",
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"set \"type\":\"monitor\" in config.json","command":"npm run build"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a description quoting the monitor type must not hide a live shell: {msg}"
         );
     }
 

@@ -1,4 +1,6 @@
 import { parsePeerMarker, peerSlugOf, stripMarker } from "../peer/markers";
+import { isLinuxHost } from "../peer/platform";
+import { peerStatus, type PeerStatus } from "../peer/peerStatus";
 import type { FollowState } from "../followApi";
 import type { PeerClient } from "../peer/usePeerState";
 import type { ProjectInfo } from "../types";
@@ -25,7 +27,14 @@ export interface MirrorRow {
 export interface PeerSection {
   slug: string;
   alias: string;
+  /// The address behind the alias. Two machines can be named alike, so the
+  /// header keeps this in its tooltip rather than spending a line on it.
+  host: string;
   connected: boolean;
+  /// Which machine this is, for the header's glyph.
+  linuxHost: boolean;
+  /// How it is doing, resolved here so the header never reaches for the store.
+  status: PeerStatus;
   /// The Mac's own project rows; empty while it is away.
   projects: ProjectInfo[];
   /// The Mac's folder path over there → the local copy of it, for the row's mark.
@@ -59,7 +68,10 @@ export function buildPeerSections(
   const sections: PeerSection[] = peers.map((peer) => ({
     slug: peer.slug,
     alias: peer.alias || peer.host,
+    host: peer.host,
     connected: Boolean(peer.connected),
+    linuxHost: isLinuxHost(peer),
+    status: peerStatus(peer),
     projects: peer.connected ? (byPeer.get(peer.slug) ?? []) : [],
     mirrors: new Map(),
     strays: [],

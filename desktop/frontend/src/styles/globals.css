@@ -270,6 +270,12 @@ body {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-waiting {
+    animation: none;
+  }
+}
+
 @keyframes gradient-spin {
   0% {
     --gradient-angle: 0deg;

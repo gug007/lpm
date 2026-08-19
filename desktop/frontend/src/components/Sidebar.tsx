@@ -20,13 +20,13 @@ import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
-import { agentAmbient, agentStateOf, computeProjectStatus } from "../agentStatus";
+import { agentAmbient, computeProjectStatus } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { useCollapsedAgents } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
-import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, TerminalIcon } from "./icons";
+import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon, TerminalIcon } from "./icons";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
@@ -49,7 +49,11 @@ import {
   resolveSidebarDrop,
   syncPeerTokens,
 } from "./sidebarLayout";
-import { SidebarGroupRow, type GroupTone } from "./SidebarGroupRow";
+import { SidebarGroupRow } from "./SidebarGroupRow";
+import { HEADER_PLATE_CLASS } from "./SidebarHeaderShell";
+import { rollupSegments, type RollupSegment } from "./sidebarRollup";
+import { peerPlateClass } from "./peerPlate";
+import { LaptopIcon } from "./connections/LaptopIcon";
 import { GroupContextMenu } from "./GroupContextMenu";
 import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
@@ -106,30 +110,6 @@ const UNTAME_DOM_ID = /[^a-zA-Z0-9_-]/g;
 const projectRowDomId = (name: string) =>
   `sidebar-project-${name.replace(UNTAME_DOM_ID, "_")}`;
 
-function groupRollupTone(
-  members: ProjectInfo[],
-  childrenByParent: Map<string, ProjectInfo[]>,
-): GroupTone | null {
-  let waiting = false;
-  let running = false;
-  const scan = (project: ProjectInfo) => {
-    for (const entry of project.statusEntries ?? []) {
-      const state = agentStateOf(entry.value);
-      if (state === "error") return true;
-      if (state === "needs-you") waiting = true;
-    }
-    running ||= project.running;
-    return false;
-  };
-  for (const member of members) {
-    if (scan(member)) return "error";
-    for (const child of childrenByParent.get(member.name) ?? []) {
-      if (scan(child)) return "error";
-    }
-  }
-  return waiting ? "waiting" : running ? "running" : null;
-}
-
 interface SidebarProps {
   projects: ProjectInfo[];
   groups: ProjectGroup[];
@@ -184,7 +164,14 @@ type TreeItem =
   // `count` is the members that resolve to a live project, not members.length:
   // a folder can hold a name whose project isn't in the current list, and the
   // header must count what the folder actually shows.
-  | { kind: "group"; group: ProjectGroup; count: number; tone: GroupTone | null }
+  | {
+      kind: "group";
+      group: ProjectGroup;
+      count: number;
+      // What a collapsed folder is hiding, said in words. Rolled up here so the
+      // members are scanned once per render rather than once per header.
+      segments: RollupSegment[];
+    }
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection };
@@ -384,8 +371,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       const members = g.members
         .map((n) => byName.get(n))
         .filter((p): p is ProjectInfo => !!p);
-      const tone = g.collapsed ? groupRollupTone(members, childrenByParent) : null;
-      out.push({ kind: "group", group: g, count: members.length, tone });
+      const segments = g.collapsed
+        ? rollupSegments(members.flatMap((m) => [m, ...(childrenByParent.get(m.name) ?? [])]))
+        : [];
+      out.push({ kind: "group", group: g, count: members.length, segments });
       ids.push(groupToken(g.id));
       if (!g.collapsed) {
         if (members.length === 0) out.push({ kind: "empty", group: g });
@@ -933,7 +922,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           group={item.group}
           collapsed={!!item.group.collapsed}
           count={item.count}
-          tone={item.tone}
+          segments={item.segments}
           containsSelected={containsSelected}
           selectMode={selectMode}
           isContextTarget={groupMenu?.id === item.group.id}
@@ -960,7 +949,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           sortableId={selectMode ? undefined : peerToken(section.slug)}
           slug={section.slug}
           alias={section.alias}
+          host={section.host}
           connected={section.connected}
+          linuxHost={section.linuxHost}
+          status={section.status}
           projects={section.projects}
           mirrors={section.mirrors}
           strays={section.strays}
@@ -1007,7 +999,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const slug = peerSlugOfToken(activeId);
     if (slug !== null) {
       const section = peerSections.find((s) => s.slug === slug);
-      return section ? <span className="truncate font-medium">{section.alias}</span> : null;
+      if (!section) return null;
+      return (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className={`${HEADER_PLATE_CLASS} ${peerPlateClass(section.status.tone)}`}>
+            {section.linuxHost ? <ServerIcon /> : <LaptopIcon size={11} />}
+          </span>
+          <span className="truncate font-medium">{section.alias}</span>
+        </span>
+      );
     }
     const rowName = peerRowNameOf(activeId);
     if (rowName !== null) {
@@ -1028,12 +1028,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // costs no name width. Elbows meet the row at ROW_HALF rather than half the
   // block's height: a member showing its agents is taller than its row, and the
   // elbow still has to point at the row.
+  // Only an expanded folder draws a trunk, and an expanded header is always the
+  // one-line 26px form, so the two-line header height never enters this math.
   // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
   // — it doesn't react to row/folder hover.
   const TRUNK_BG = "bg-[var(--accent-sky)]/55";
   const ELBOW_BORDER = "border-[var(--accent-sky)]/55";
-  // Under the folder chevron: `px-2` (8px) plus half of the 14px icon.
-  const TREE_X = "left-[15px]";
+  // Under the folder's plate: `px-2` (8px) plus half of the 16px plate.
+  const TREE_X = "left-[16px]";
   const renderFolderBlock = (
     groupItem: Extract<TreeItem, { kind: "group" }>,
     body: TreeItem[],
@@ -1054,7 +1056,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           {hasProjects && showConnectors && (
             <span
               aria-hidden
-              className={`pointer-events-none absolute ${TREE_X} top-[25px] bottom-0 z-10 w-px ${TRUNK_BG}`}
+              className={`pointer-events-none absolute ${TREE_X} top-[21px] bottom-0 z-10 w-px ${TRUNK_BG}`}
             />
           )}
         </div>
@@ -1068,7 +1070,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                       <span
                         aria-hidden
                         style={{ height: ROW_HALF }}
-                        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 w-[12px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
+                        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 w-[11px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
                       />
                       {i !== lastProjectIndex && (
                         <span
