@@ -133,7 +133,12 @@ export function SidebarPeerSection({
   // colour utilities at once is settled by stylesheet order rather than intent —
   // which is how a muted tail ends up the same colour as its head.
   const nameMetrics = "truncate text-[13px] font-medium leading-5 tabular-nums";
-  const headTone = collapsed ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]";
+  // Rests at the same tone every other sidebar name does — a folded section is
+  // not news — and brightens only the way a row would: under the cursor, or
+  // while it is the selection's only trace.
+  const headTone = holdsSelection
+    ? "text-[var(--text-primary)]"
+    : "text-[var(--text-secondary)]";
   const line1 = (
     // Bounded and elastic as a pair, so the name gives way to the row count
     // rather than pushing it out from under the reserve the ⋮ sits in.

@@ -38,8 +38,11 @@ export function SidebarGroupRow({
       expanded={!collapsed}
       line1={
         <span
+          // Rests at the sidebar's shared tone whether folded or not, and
+          // brightens the way a row would: under the cursor, or while the fold
+          // is the selection's only trace.
           className={`min-w-0 truncate text-[13px] font-medium leading-5 group-hover/hdr:text-[var(--text-primary)] ${
-            collapsed ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
+            containsSelected ? "text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
           title={group.name}
         >
