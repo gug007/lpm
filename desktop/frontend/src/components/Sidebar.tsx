@@ -1030,10 +1030,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // elbow still has to point at the row.
   // Only an expanded folder draws a trunk, and an expanded header is always the
   // one-line 36px form, so the two-line header height never enters this math.
-  // Same sky blue as the composer's image chip (IMAGE_CHIP_CLASS); constant color
-  // — it doesn't react to row/folder hover.
-  const TRUNK_BG = "bg-[var(--accent-sky)]/55";
-  const ELBOW_BORDER = "border-[var(--accent-sky)]/55";
+  // A neutral hairline: the connector is structure, so it stays behind the names
+  // rather than competing with them. Constant color — it doesn't react to
+  // row/folder hover.
+  const TRUNK_BG = "bg-[var(--text-muted)]/35";
+  const ELBOW_BORDER = "border-[var(--text-muted)]/35";
   // Under the folder's plate: `px-2` (8px) plus half of the 16px plate.
   const TREE_X = "left-[16px]";
   const renderFolderBlock = (
