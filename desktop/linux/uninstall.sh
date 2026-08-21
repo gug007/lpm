@@ -87,18 +87,20 @@ elif command -v ps >/dev/null 2>&1; then
     done
 fi
 
-# The app is deliberately not the parent of the work it starts: services are tmux
-# panes and scheduled job agents `setsid` away, both of which survive the unit
-# stopping (KillMode=process, so a restart doesn't end them). That is right for a
-# restart and wrong for a removal — it would leave dev servers and agents running
-# on a machine with nothing left to manage them, and no UI to find them from.
+# The app is deliberately not the parent of the work it starts: services live in
+# lpm's session daemon and scheduled job agents `setsid` away, both of which
+# survive the unit stopping (KillMode=process, so a restart doesn't end them).
+# That is right for a restart and wrong for a removal — it would leave dev
+# servers and agents running on a machine with nothing left to manage them, and
+# no UI to find them from.
 #
-# Scoped to the service account's own tmux server, which on a host that exists to
-# run lpm is lpm's. A root tmux session started by hand for something else would
-# go with it; that is the cost of not leaving orphans behind.
-if command -v tmux >/dev/null 2>&1; then
+# The binary about to be removed is what ends its own work: --stop-sessions
+# reaches the daemon, tears every session down, waits for the processes, and
+# retires it. Scoped to the service account, so a session belonging to someone
+# else on this machine is not lpm's to end.
+if [ -x "$PREFIX/lpm-desktop" ]; then
     echo "==> Stopping services and agents"
-    HOME="$SERVICE_HOME" tmux kill-server >/dev/null 2>&1 || true
+    HOME="$SERVICE_HOME" "$PREFIX/lpm-desktop" --stop-sessions >/dev/null 2>&1 || true
 fi
 
 echo "==> Removing units and binaries"

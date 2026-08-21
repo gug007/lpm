@@ -1,6 +1,6 @@
 //! lpm — command-line companion for the lpm desktop app.
 //!
-//! Reads project config from `~/.lpm` and live state from tmux + the app's
+//! Reads project config from `~/.lpm` and live state from the session daemon + the app's
 //! status socket, plus control verbs (start/stop/service/set-status) that it
 //! delegates to the running app over the status socket. It never writes to
 //! `~/.lpm` or the repo configs directly — all mutation flows through the app.
@@ -26,7 +26,7 @@ mod statussock;
 mod stop;
 mod style;
 mod terminals;
-mod tmux;
+mod sessions;
 mod util;
 mod wait;
 
@@ -48,7 +48,7 @@ const VERSION: &str = match option_env!("LPM_CLI_VERSION") {
     version = VERSION,
     about = "Inspect and control lpm projects from the command line",
     long_about = "lpm is the command-line companion to the lpm desktop app. It reads project \
-configuration from ~/.lpm and live state from tmux and the app's status socket, and can \
+configuration from ~/.lpm and live state from the session daemon and the app's status socket, and can \
 control projects — start, stop, restart services, set agent status — by asking the running \
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \

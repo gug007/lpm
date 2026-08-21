@@ -140,7 +140,6 @@ interface AppState {
   // The Usage dashboard is an overlay, not a main-area view — a detached window
   // can request it via FocusMainWindow("usage"), so it lives in the store.
   usageOpen: boolean;
-  tmuxReady: boolean | null;
   visited: Set<string>;
   // Most-recently-selected project names, most-recent-first. Drives the
   // Ctrl+Tab MRU switcher. Session-only; not persisted.
@@ -176,7 +175,6 @@ interface AppState {
   setSidebarCollapsed: (next: boolean | ((prev: boolean) => boolean)) => void;
   setFeedbackOpen: (open: boolean) => void;
   setUsageOpen: (open: boolean) => void;
-  setTmuxReady: (ready: boolean | null) => void;
 
   selectProject: (name: string) => void;
   clearSelection: () => void;
@@ -849,7 +847,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarCollapsed: false,
   feedbackOpen: false,
   usageOpen: false,
-  tmuxReady: null,
   visited: new Set<string>(),
   mruProjects: [],
   duplicatingNames: [],
@@ -883,8 +880,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setFeedbackOpen: (feedbackOpen) => set({ feedbackOpen }),
 
   setUsageOpen: (usageOpen) => set({ usageOpen }),
-
-  setTmuxReady: (tmuxReady) => set({ tmuxReady }),
 
   selectProject: (name) =>
     set((s) => ({

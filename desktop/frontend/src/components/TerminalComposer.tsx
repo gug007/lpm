@@ -1560,7 +1560,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editorRef.current?.focus();
   };
 
-  // Capture the service's current pane output (an async tmux grab) and inject it.
+  // Capture the service's current pane output (an async grab) and inject it.
   const insertServiceLog = async (editor: HTMLDivElement, item: MentionItem) => {
     let body = "";
     try {
@@ -2229,7 +2229,7 @@ function blobToBase64(blob: Blob): Promise<string | null> {
   });
 }
 
-// Tidy a raw tmux pane capture for the prompt: drop trailing spaces each line
+// Tidy a raw pane capture for the prompt: drop trailing spaces each line
 // keeps, then strip blank lines that bookend the grab (a full-height pane pads
 // the bottom), leaving the meaningful run intact.
 function trimLogBody(raw: string): string {

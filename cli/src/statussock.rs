@@ -30,7 +30,7 @@ pub struct StatusEntry {
 }
 
 /// Timeout for a control round-trip. Longer than `ping`/`list_status`'s 2s
-/// fast-fail because a verb like `start_project` waits for tmux to spawn panes
+/// fast-fail because a verb like `start_project` waits for the panes to spawn
 /// before the app replies.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 

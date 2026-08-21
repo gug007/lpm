@@ -1573,7 +1573,6 @@ fn is_denied(cmd: &str) -> bool {
             // updater / installers
             | "check_for_update"
             | "install_update"
-            | "install_tmux"
             | "install_kokoro"
             | "uninstall_kokoro"
             | "install_cli"

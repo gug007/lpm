@@ -11,7 +11,7 @@
 #
 # It brings up the virtual display, the window manager and the app, restarts the
 # app if it dies, and on stop takes down exactly its own three processes.
-# Services and scheduled job agents survive: the tmux server daemonizes into its
+# Services and scheduled job agents survive: lpm's session daemon forks into its
 # own session and job agents `setsid` away, so neither is in this process group.
 # That is the same lifetime split KillMode=process gives the unit.
 #
@@ -251,8 +251,8 @@ DISPLAY_NOTED=
 # The app's own `ssh -N` forwards are spawned with null stdio, so nothing ever
 # ends them on a broken pipe and there is no SIGTERM handler in the app to reap
 # them. Under systemd a cgroup sweep does this; here the process group is the
-# same boundary and needs no cgroup v2 — the tmux server and the job agents
-# left this group when they daemonized and setsid'd, so they are not touched.
+# same boundary and needs no cgroup v2 — the session daemon and the job agents
+# left this group when they forked away and setsid'd, so they are not touched.
 sweep_forwards() {
     mine=$(pgid_of $$)
     [ -n "$mine" ] || return 0
@@ -496,8 +496,8 @@ do_stop() {
     if alive "$pid"; then
         # The supervisor's own handler is the precise way to do this, so this
         # only runs when it never got there. Its group holds the display, the
-        # window manager and the app; the tmux server and the job agents left it
-        # when they daemonized. Only if it leads that group, though — started
+        # window manager and the app; the session daemon and the job agents left
+        # it when they forked away. Only if it leads that group, though — started
         # without setsid it shares the group of whoever ran the install, and
         # killing that group ends the shell asking for the stop, along with the
         # SSH session it very likely arrived on.

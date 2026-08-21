@@ -45,11 +45,12 @@ const HOSTING_POLL: Duration = Duration::from_secs(2);
 /// installer apt-gets these plus iproute2, which is not checked here because the
 /// app falls back to lsof without it.
 ///
-/// Only tmux is fatal — the app will not render a project at all without it — so
-/// it is the only one that blocks pairing. git missing is a host that works and
-/// has no diffs, which is not worth refusing to connect to.
-const REQUIRED_TOOLS: [&str; 2] = ["tmux", "git"];
-const FATAL_TOOL: &str = "tmux";
+/// Nothing on this list is fatal any more. tmux used to be — services were tmux
+/// panes and the app would not render a project without it — but a host now
+/// runs its services in lpm's own session daemon, which ships inside the same
+/// binary. A host missing git works and has no diffs, which was never worth
+/// refusing to connect to, so the check reports and pairs anyway.
+const REQUIRED_TOOLS: [&str; 1] = ["git"];
 
 /// The probe answers in sentinel lines rather than bare names: `ssh_capture`
 /// takes whatever the login shell wrote to stdout, and an rc file or motd that
@@ -165,12 +166,9 @@ fn explain_install_failure(err: String) -> String {
     err
 }
 
-/// Tools the host needs before it can do anything, whether or not lpm itself is
-/// installed. Services are tmux panes and the app refuses to render at all
-/// without tmux on PATH, so a host missing it pairs successfully and then starts
-/// nothing — with the Mac reporting its *own* tmux, which makes the UI look
-/// healthy. Hosts installed before these joined the installer's dependency list
-/// are in exactly that state, so check rather than assume.
+/// Tools the host shells out to, whether or not lpm itself is installed. Hosts
+/// set up before these joined the installer's dependency list can be missing
+/// them, so check rather than assume.
 fn tools_probe() -> String {
     REQUIRED_TOOLS
         .iter()
@@ -194,12 +192,6 @@ fn parse_missing(out: &str) -> Vec<String> {
         .filter(|name| REQUIRED_TOOLS.contains(name))
         .map(str::to_string)
         .collect()
-}
-
-/// Only tmux stops a host from working at all. Refusing to pair over anything
-/// else would lock out machines that are running fine today.
-fn blocks_pairing(missing: &[String]) -> bool {
-    missing.iter().any(|tool| tool == FATAL_TOOL)
 }
 
 fn missing_tools_error(missing: &[String]) -> String {
@@ -526,11 +518,11 @@ pub fn add_host(
     // Checked after the install rather than before it: a fresh install has just
     // apt-got these, so this only ever fires for a host that was set up earlier.
     // The probe reads the *login* user's PATH, which is not the one the app
-    // resolves tools through, so it is the weaker evidence of the two — another
-    // reason only the fatal one gets to stop us here.
+    // resolves tools through, so it is the weaker evidence of the two — which is
+    // why a gap is reported and pairing continues rather than being refused.
     let missing = missing_tools(target);
-    if blocks_pairing(&missing) {
-        return Err(missing_tools_error(&missing));
+    if !missing.is_empty() {
+        eprintln!("warning: {}", missing_tools_error(&missing));
     }
     let invite = request_invite(target).map_err(|e| explain_unreachable_app(target, e))?;
     ensure_hosting(target, invite.port)?;
@@ -875,21 +867,10 @@ mod tests {
     // a missing program.
     #[test]
     fn only_sentinel_lines_count_as_missing() {
-        let noisy = "Welcome to Ubuntu\ngit\n  LPM_MISSING:tmux  \nrun git pull\n";
-        assert_eq!(parse_missing(noisy), vec!["tmux".to_string()]);
+        let noisy = "Welcome to Ubuntu\ngit\n  LPM_MISSING:git  \nrun git pull\n";
+        assert_eq!(parse_missing(noisy), vec!["git".to_string()]);
         assert!(parse_missing("LPM_MISSING:sudo").is_empty());
         assert!(parse_missing("tmux\ngit\n").is_empty());
-    }
-
-    // Only tmux stops a host from working at all. Refusing to pair over a missing
-    // git would lock out hosts that are running fine today.
-    #[test]
-    fn only_a_missing_tmux_blocks_pairing() {
-        let names = |tools: &[&str]| tools.iter().map(|t| t.to_string()).collect::<Vec<_>>();
-        assert!(blocks_pairing(&names(&["tmux"])));
-        assert!(blocks_pairing(&names(&["tmux", "git"])));
-        assert!(!blocks_pairing(&names(&["git"])));
-        assert!(!blocks_pairing(&[]));
     }
 
     // Each tool has to answer for itself, under the sentinel the reader expects.
@@ -904,9 +885,9 @@ mod tests {
 
     #[test]
     fn the_missing_tool_error_is_actionable() {
-        let err = missing_tools_error(&["tmux".to_string(), "git".to_string()]);
-        assert!(err.contains("tmux and git"), "{err}");
-        assert!(err.contains("apt-get install -y tmux git"), "{err}");
+        let err = missing_tools_error(&["git".to_string()]);
+        assert!(err.contains("missing git"), "{err}");
+        assert!(err.contains("apt-get install -y git"), "{err}");
     }
 
     // BatchMode keeps a password prompt from hanging a background command with no

@@ -1,5 +1,5 @@
 //! Shared plumbing for the control verbs (start / stop / service / set-status).
-//! Control never touches `~/.lpm` or tmux directly — it asks the running app
+//! Control never touches `~/.lpm` or the session daemon directly — it asks the running app
 //! over the unix socket, so the app stays the single owner of run-state.
 
 use crate::config::Ctx;

@@ -20,6 +20,7 @@ mod config_edit;
 mod configclassify;
 mod configwatch;
 mod control;
+mod daemonize;
 mod detached;
 mod dockmenu;
 mod files;
@@ -57,6 +58,7 @@ mod peertunnel;
 mod portforward;
 mod ports;
 mod portsprobe;
+mod procinfo;
 mod proctree;
 mod projects_crud;
 mod pty;
@@ -67,6 +69,11 @@ mod remote_notes;
 mod remotestore;
 mod remotetls;
 mod services;
+mod sessionclient;
+mod sessiond;
+mod sessionpane;
+mod sessionproto;
+mod sessions;
 mod session_memory;
 mod session_memory_files;
 mod session_memory_scope;
@@ -86,8 +93,10 @@ mod syncstate;
 mod syncsurface;
 mod sys;
 mod templates;
+mod termgrid;
+mod termvt;
 mod textinput;
-mod tmux;
+mod tmuxmigrate;
 mod transfer;
 mod openaitts;
 mod secrets;
@@ -165,10 +174,38 @@ use updates::*;
 use upload::*;
 use voicetotext::*;
 
+/// The argument that turns this binary into the session daemon (sessiond.rs)
+/// rather than the app. main.rs checks for it before anything else starts.
+pub use crate::sessiond::DAEMON_ARG;
+
+/// Become the session daemon and never return. See sessiond.rs for why the
+/// daemon is this binary re-exec'd rather than a separate one.
+pub fn run_session_daemon() -> ! {
+    sessiond::run()
+}
+
+/// The argument that stops every service and retires the daemon. For uninstall,
+/// which is the one moment lpm is supposed to end the work it started.
+pub const STOP_SESSIONS_ARG: &str = "--stop-sessions";
+
+/// Stop every service on this machine and exit. Prints nothing on success so it
+/// composes in a shell script; a real failure goes to stderr with status 1.
+pub fn stop_sessions_and_exit() -> ! {
+    match sessions::shutdown_daemon() {
+        Ok(()) => std::process::exit(0),
+        Err(error) => {
+            eprintln!("lpm: could not stop services: {error}");
+            std::process::exit(1)
+        }
+    }
+}
+
+// The attribute belongs to `run` — it is the app's entry point. Anything added
+// above must stay above this line.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Finder-launched apps have a minimal PATH; restore Homebrew locations so
-    // tmux/ssh/git/gh lookups work (matches the Go app's tmux.init()).
+    // ssh/git/gh lookups work (matches the Go app's tmux.init()).
     sys::ensure_path();
 
     // Turn off macOS smart substitutions before any webview is created so the
@@ -315,10 +352,14 @@ pub fn run() {
 
             // Backgrounded startup chores: reap stale clipboard image temp files,
             // drop sync caches for deleted projects, and resume port pollers for
-            // remote projects whose tmux session is still alive. All touch the
-            // filesystem/tmux, so off the main thread.
+            // remote projects whose session is still alive. All touch the
+            // filesystem or the session daemon, so off the main thread.
             let h2 = handle.clone();
             std::thread::spawn(move || {
+                // Before anything else on this thread: services left running by
+                // the tmux-era build are invisible to this one, and a start
+                // would collide with the ports they still hold.
+                tmuxmigrate::run_once();
                 clipboard::reap_stale_clipboard_images();
                 sshsync::prune_orphan_sync_dirs(&config::project_names().into_iter().collect());
                 portforward::resume_port_pollers(&h2);
@@ -331,7 +372,7 @@ pub fn run() {
         .run(|app, event| match event {
             tauri::RunEvent::Exit => {
                 mainwindow::persist_now(app); // capture the final window bounds before teardown
-                pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (tmux projects stay up)
+                pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (services stay up)
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 statusfwd::stop_all(app); // kill ssh -R status forwards

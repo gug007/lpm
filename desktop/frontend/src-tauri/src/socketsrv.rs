@@ -34,7 +34,7 @@
 // delegate to `services::*` and duplicate/remove/run to `projects_crud::*` +
 // `remote-run-task` (the app stays the single owner of run-state, port forwards,
 // and UI events) and reply OK / ERROR: <msg>. std::thread (no tokio), matching
-// the pty/tmux house style.
+// the pty/session house style.
 use crate::status::{now_millis, StatusEntry, StatusStore};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};

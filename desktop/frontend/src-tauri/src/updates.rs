@@ -1,4 +1,4 @@
-// Self-updater + tmux installer — port of desktop/updates.go + app.go InstallTmux.
+// Self-updater — port of desktop/updates.go.
 //
 // CheckForUpdate hits the GitHub releases API and stashes the matching
 // macos-<arch>.dmg download URL. InstallUpdate re-runs that check so it always
@@ -397,8 +397,9 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
 
     // process::exit skips the RunEvent::Exit handler, so mirror its cleanup
     // here: reap in-app terminal trees and remove the socket (the relaunched
-    // instance also clears a stale socket before binding). tmux sessions are
-    // intentionally left running so projects survive the restart.
+    // instance also clears a stale socket before binding). Service sessions
+    // live in the session daemon and are intentionally left running, so
+    // projects survive the restart.
     crate::pty::kill_all_trees(&app.state::<crate::pty::PtyState>());
     let _ = std::fs::remove_file(crate::config::socket_path());
     std::thread::sleep(Duration::from_millis(300));
@@ -460,65 +461,6 @@ pub(crate) fn spawn_detached_bash(script: &str) -> Result<(), String> {
 
 pub(crate) fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
-}
-
-// ---- tmux install ----------------------------------------------------------
-
-// tmux is load-bearing (services run as tmux panes), so this stays a real
-// command everywhere — only the way to get it differs. Homebrew is a macOS
-// assumption; a Linux host has a package manager lpm shouldn't guess at.
-#[cfg(not(target_os = "macos"))]
-#[tauri::command(async)]
-pub fn install_tmux(_app: AppHandle) -> Result<(), String> {
-    Err(
-        "tmux isn't installed. Install it with this host's package manager, then relaunch lpm."
-            .into(),
-    )
-}
-
-#[cfg(target_os = "macos")]
-#[tauri::command(async)]
-pub fn install_tmux(app: AppHandle) -> Result<(), String> {
-    let brew = look_path("brew").ok_or(
-        "Homebrew is required to install tmux.\n\nInstall it from https://brew.sh and relaunch the app.",
-    )?;
-    let _ = app.emit("tmux-install-output", "==> Installing tmux via Homebrew…");
-
-    let mut child = Command::new(brew)
-        .args(["install", "tmux"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("failed to start installation: {e}"))?;
-    // Merge stderr into stdout ordering by reading stdout; brew writes progress
-    // to stderr too, so also drain it. Simplest faithful approach: read stdout
-    // lines (brew's user-facing output goes there) and emit each.
-    if let Some(out) = child.stdout.take() {
-        use std::io::BufRead;
-        for line in std::io::BufReader::new(out).lines().map_while(Result::ok) {
-            let _ = app.emit("tmux-install-output", line);
-        }
-    }
-    let status = child.wait().map_err(|e| e.to_string())?;
-    if !status.success() {
-        return Err("installation failed".into());
-    }
-    Ok(())
-}
-
-/// Resolve a binary on PATH to its absolute path (exec.LookPath equivalent).
-fn look_path(bin: &str) -> Option<String> {
-    let path = std::env::var("PATH").ok()?;
-    for dir in path.split(':').filter(|d| !d.is_empty()) {
-        let cand = Path::new(dir).join(bin);
-        if let Ok(meta) = std::fs::metadata(&cand) {
-            use std::os::unix::fs::PermissionsExt;
-            if meta.is_file() && meta.permissions().mode() & 0o111 != 0 {
-                return Some(cand.to_string_lossy().into_owned());
-            }
-        }
-    }
-    None
 }
 
 #[cfg(test)]

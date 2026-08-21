@@ -15,7 +15,6 @@ import { CommitInstructionsEditor } from "./components/CommitInstructionsEditor"
 import { PRInstructionsEditor } from "./components/PRInstructionsEditor";
 import { BranchNameInstructionsEditor } from "./components/BranchNameInstructionsEditor";
 import { EmptyState, EmptyStateNoProjects } from "./components/EmptyState";
-import { TmuxInstaller } from "./components/TmuxInstaller";
 import { FeedbackModal } from "./components/FeedbackModal";
 import { NewProjectPicker } from "./components/NewProjectPicker";
 import { AddSSHProjectModal } from "./components/AddSSHProjectModal";
@@ -47,8 +46,6 @@ import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 
-import { InstallTmux, TmuxInstalled } from "../bridge/commands";
-
 export default function App() {
   const projects = useAppStore((s) => s.projects);
   const groups = useAppStore((s) => s.groups);
@@ -57,7 +54,6 @@ export default function App() {
   const view = useAppStore((s) => s.view);
   const usageOpen = useAppStore((s) => s.usageOpen);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
-  const tmuxReady = useAppStore((s) => s.tmuxReady);
   const visited = useAppStore((s) => s.visited);
   const detached = useAppStore((s) => s.detached);
   const mruProjects = useAppStore((s) => s.mruProjects);
@@ -73,7 +69,6 @@ export default function App() {
   const setUsageOpen = useAppStore((s) => s.setUsageOpen);
   const setFeedbackOpen = useAppStore((s) => s.setFeedbackOpen);
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
-  const setTmuxReady = useAppStore((s) => s.setTmuxReady);
   const selectProject = useAppStore((s) => s.selectProject);
   const openProjectDetailView = useAppStore((s) => s.openProjectDetailView);
   const clearSelection = useAppStore((s) => s.clearSelection);
@@ -168,10 +163,6 @@ export default function App() {
     [bulkDuplicate],
   );
 
-  useEffect(() => {
-    TmuxInstalled().then(setTmuxReady);
-  }, [setTmuxReady]);
-
   useKeyboardShortcut({ key: "b", meta: true }, () => {
     setSidebarCollapsed((v) => !v);
   });
@@ -239,23 +230,6 @@ export default function App() {
   const visitedProjects = projects.filter(
     (p) => detached.has(p.name) || p.name === selected || visited.has(p.name),
   );
-
-  if (tmuxReady === null) {
-    return (
-      <div className="flex h-screen bg-[var(--bg-primary)]">
-        <div className="app-drag absolute inset-x-0 top-0 h-10" />
-      </div>
-    );
-  }
-
-  if (tmuxReady === false) {
-    return (
-      <TmuxInstaller
-        installTmux={InstallTmux}
-        onInstalled={() => setTmuxReady(true)}
-      />
-    );
-  }
 
   return (
     <div className="flex h-screen">

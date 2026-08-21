@@ -6,7 +6,7 @@
 // backs the "/lpm-memory <session-id>" argument completion. Most kinds insert literal "@<insert>" text the AI agent
 // resolves itself; "service-log" and "terminal-log" are the exceptions — lpm
 // captures the live output at pick time and injects it inline, since the agent
-// can't read lpm's in-memory tmux pane buffer or xterm's scrollback.
+// can't read lpm's in-memory service pane buffer or xterm's scrollback.
 
 import { basename } from "./path";
 
@@ -34,7 +34,7 @@ export interface MentionItem {
   // Secondary, dimmed text (a project's root path, or a service's command);
   // omitted otherwise.
   detail?: string;
-  // For a "service-log", the index of the service's tmux pane to capture
+  // For a "service-log", the index of the service's pane to capture
   // (its position in the project's running-services list).
   paneIndex?: number;
   // For a "terminal-log", the id of the terminal tab whose xterm scrollback to

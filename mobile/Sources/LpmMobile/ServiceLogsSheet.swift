@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A service's recent pane output, polled from the Mac every 3s while the service
-/// runs (tmux pane capture via `serviceLogs` — the mobile counterpart of the
+/// runs (service pane capture via `serviceLogs` — the mobile counterpart of the
 /// desktop's service pane). The toolbar carries the service's Start/Stop toggle.
 struct ServiceLogsSheet: View {
     @Environment(AppModel.self) private var model

@@ -1095,7 +1095,7 @@ fn wrap_as_login_shell(script: &str) -> String {
     format!("bash -ilc {}", shell_quote(script))
 }
 
-/// Local cwd for the ssh client / tmux spawn ($HOME preferred, else root).
+/// Local cwd for the ssh client / pane spawn ($HOME preferred, else root).
 pub fn remote_local_spawn_dir(root: &str) -> String {
     match dirs::home_dir() {
         Some(h) if !h.as_os_str().is_empty() => h.to_string_lossy().into_owned(),
@@ -1121,7 +1121,7 @@ pub fn ssh_command_argv(
 }
 
 /// Same as ssh_command_argv but as one shell line (the wrapped script quoted
-/// again) for tmux send-keys, which re-parses the line into argv.
+/// again) to be typed into a pane's shell, which re-parses the line into argv.
 pub fn ssh_command_line(
     ssh: &SshSettings,
     cwd: &str,
@@ -1867,7 +1867,7 @@ fn to_project_info(
     merge_repo_services_profiles(&root, is_remote, &mut services, &mut yaml.profiles);
     let all_names: Vec<String> = services.keys().cloned().collect();
     let recovered_state = if running {
-        crate::services::run_state_from_tmux(&session, services.keys())
+        crate::services::run_state_from_session(&session, services.keys())
     } else {
         None
     };
@@ -2128,7 +2128,7 @@ fn group_duplicates_after_parents(projects: Vec<Value>) -> Vec<Value> {
 }
 
 pub fn list_projects(run: &HashMap<String, RunState>) -> Result<Vec<Value>, String> {
-    let running = crate::tmux::running_sessions();
+    let running = crate::sessions::running_sessions();
     // Fails rather than reporting an empty list when ~/.lpm/projects is
     // unreadable: the frontend prunes sidebar folders against this list.
     let projects: Vec<Value> = try_project_names()?
@@ -2145,7 +2145,7 @@ pub fn get_project(name: &str, run: &HashMap<String, RunState>) -> Result<Option
     if !project_names().iter().any(|n| n == name) {
         return Ok(None);
     }
-    let running = crate::tmux::running_sessions();
+    let running = crate::sessions::running_sessions();
     Ok(Some(read_project(name, &running, run)))
 }
 

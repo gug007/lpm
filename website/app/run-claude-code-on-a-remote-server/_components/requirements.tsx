@@ -20,7 +20,7 @@ const ROWS = [
   },
   {
     label: "Still yours to install",
-    body: "Your toolchain — git, Node, tmux, the agent CLIs, whatever your project builds with. lpm sets itself up, not your stack, and it does not guess at what you build with.",
+    body: "Your toolchain — git, Node, the agent CLIs, whatever your project builds with. lpm sets itself up, not your stack, and it does not guess at what you build with.",
   },
   {
     label: "Signing in there",

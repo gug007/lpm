@@ -2,7 +2,7 @@
 // poller thread captures each pane every 500ms and emits a `log-update` event
 // when a pane's content changes. Keyed by project FILE name. Uses a std thread
 // + AtomicBool cancel flag (PTY-style; no tokio).
-use crate::{config, tmux};
+use crate::{config, sessions};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -44,8 +44,8 @@ impl Default for LogState {
 
 /// Capture each pane once and emit any that changed since `prev`.
 fn emit_changed(app: &AppHandle, project: &str, session: &str, prev: &mut HashMap<usize, String>) {
-    for (i, pane_id) in tmux::list_pane_ids(session).iter().enumerate() {
-        let content = tmux::capture_pane(pane_id, CAPTURE_LINES).unwrap_or_default();
+    for (i, pane_id) in sessions::list_pane_ids(session).iter().enumerate() {
+        let content = sessions::capture_pane(pane_id, CAPTURE_LINES).unwrap_or_default();
         if prev.get(&i) != Some(&content) {
             prev.insert(i, content.clone());
             let _ = app.emit(
@@ -146,9 +146,9 @@ pub fn get_service_logs(
 ) -> Result<String, String> {
     let info = config::spawn_info(&project_name)?;
     let idx = usize::try_from(pane_index).map_err(|_| "invalid pane index".to_string())?;
-    let pane_id = tmux::list_pane_ids(&info.session)
+    let pane_id = sessions::list_pane_ids(&info.session)
         .into_iter()
         .nth(idx)
         .ok_or_else(|| format!("pane index {idx} out of range"))?;
-    tmux::capture_pane(&pane_id, lines)
+    sessions::capture_pane(&pane_id, lines)
 }

@@ -6,7 +6,7 @@ use crate::service::service_status;
 use crate::statussock::{self, StatusEntry};
 use crate::style::Style;
 use crate::terminals::{self, HistoryEntry};
-use crate::tmux::{self, Pane};
+use crate::sessions::{self, Pane};
 use crate::util::{now_millis, print_json, relative};
 use serde_json::{json, Value};
 use std::io::IsTerminal;
@@ -21,9 +21,9 @@ pub fn run(ctx: &Ctx, name: Option<&str>, as_json: bool, full: bool) -> Result<(
     let project = config::resolve_project(ctx, &file_name).map_err(RunError::Internal)?;
 
     // Live state.
-    let session_running = tmux::session_exists(&project.session);
+    let session_running = sessions::session_exists(&project.session);
     let panes = if session_running {
-        tmux::list_panes(&project.session)
+        sessions::list_panes(&project.session)
     } else {
         Vec::new()
     };
@@ -299,7 +299,7 @@ fn render_human(
         if st.source == "session" {
             o.push_str(&format!(
                 "      {}\n",
-                s.dim("(no port declared — inferred from tmux session)")
+                s.dim("(no port declared — inferred from the running session)")
             ));
         }
     }

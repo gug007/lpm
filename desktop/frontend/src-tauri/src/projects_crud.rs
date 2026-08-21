@@ -1188,7 +1188,7 @@ pub fn move_project_root(
         );
     }
 
-    if crate::tmux::session_exists(&name)
+    if crate::sessions::session_exists(&name)
         || crate::pty::project_has_live_sessions(pty.inner(), &name)
     {
         return Err("Stop this project and close its terminals before moving its folder.".into());
@@ -1320,7 +1320,7 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
 
     // Stop the running session before deleting files (session name == file name
     // for created projects), then tear down port forwards/poller + sync mirror.
-    let _ = crate::tmux::kill_session(name);
+    let _ = crate::sessions::kill_session(name);
     crate::portforward::stop_project_forwards(app, name); // tunnels + poller + suggestions
     crate::sshsync::remove_project_sync(app, name); // watcher + local cache dir
 

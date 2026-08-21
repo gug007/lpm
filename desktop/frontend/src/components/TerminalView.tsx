@@ -595,7 +595,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   useEffect(() => {
     setOutputs(new Array(stableServices.length).fill(""));
 
-    // Without services there's nothing to stream — skip the backend tmux poll.
+    // Without services there's nothing to stream — skip the backend log poll.
     if (stableServices.length === 0) return;
 
     let eventCleanup: (() => void) | null = null;

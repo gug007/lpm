@@ -55,7 +55,6 @@ The skill guides the agent to prepare correct lpm YAML and apply it through a re
 ## Prerequisites
 
 - [lpm](https://lpm.cx) installed: download the macOS app from [lpm.cx](https://lpm.cx)
-- [tmux](https://github.com/tmux/tmux): `brew install tmux`
 
 ## Compatible agents
 

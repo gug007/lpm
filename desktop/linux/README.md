@@ -38,9 +38,9 @@ sudo ./install.sh
 It installs the runtime dependencies (`apt`), puts the binaries in `/opt/lpm`,
 links the CLI onto `PATH`, enables the three units — or the supervisor, on a
 machine with no service manager — and waits for the app to answer. Pass `--no-deps` to skip the apt step on a machine where the runtime is
-already present — in which case make sure `tmux` and `git` are installed too.
-They are not conveniences: services on a host are tmux panes, and the app refuses
-to render at all without tmux on `PATH`.
+already present — in which case make sure `git` is installed too, since the app
+shells out to it for diffs and syncing. Services need nothing installed: they run
+in lpm's own session daemon, which is part of the `lpm-desktop` binary.
 
 The installer does *not* wait for the peer server, because there isn't one yet:
 hosting stays off until you pair, below.
@@ -76,10 +76,10 @@ lpm-host restart
 
 It keeps the same lifetimes the units do. The app is restarted if it dies and
 left alone if it exits cleanly (`Restart=on-failure`), and a stop takes down only
-the display, the window manager and the app — the tmux server carrying this
-machine's services daemonizes into its own session and scheduled job agents
-`setsid` away, so neither is in the supervisor's process group, which is the same
-split `KillMode=process` gives the unit.
+the display, the window manager and the app — the session daemon carrying this
+machine's services forks into its own session and scheduled job agents `setsid`
+away, so neither is in the supervisor's process group, which is the same split
+`KillMode=process` gives the unit.
 
 **Nothing here survives the container restarting.** There is no boot to hook
 into, so a restarted container comes back with no lpm on it and the Mac sees a
@@ -231,8 +231,8 @@ listener on a host you haven't paired yet is the normal state and says nothing
 about whether the app is healthy. `libEGL warning: DRI3 error` in the log is
 expected — there's no GPU.
 
-One consequence of the app and the tmux server having separate lifetimes: the
-tmux server captures its environment when it starts, so editing
-`/etc/lpm/host.env` and restarting `lpm` no longer reaches the panes that were
-already running. `tmux kill-server` (which stops the services) is what picks up
-the new environment.
+One consequence of the app and the session daemon having separate lifetimes: the
+daemon captures its environment when it starts, so editing `/etc/lpm/host.env`
+and restarting `lpm` no longer reaches the panes that were already running.
+`/opt/lpm/lpm-desktop --stop-sessions` (which stops the services and retires the
+daemon) is what picks up the new environment.

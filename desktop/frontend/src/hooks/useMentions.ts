@@ -174,7 +174,7 @@ export function useMentions(
     }));
   }, [projects]);
 
-  // One entry per running service. Only a running project has live tmux panes,
+  // One entry per running service. Only a running project has live panes,
   // and a service's index here is the pane index GetServiceLogs captures by — the
   // same `project.services` list TerminalView streams from, so the two stay
   // aligned. Empty (no rows) when the project is stopped.

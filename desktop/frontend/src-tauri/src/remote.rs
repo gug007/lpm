@@ -3432,8 +3432,8 @@ fn handle_msg(
             }
         }
         // Service discovery: the project's services with their pane index (for
-        // serviceLogs) and running state. Runs on a worker thread — spawn_info +
-        // tmux session listing are subprocess work. When the project isn't running,
+        // serviceLogs) and running state. Runs on a worker thread — spawn_info
+        // reads the filesystem. When the project isn't running,
         // every declared service is reported with running:false and no pane index.
         "services" => {
             let project = str_field("project").unwrap_or_default();
@@ -3442,9 +3442,9 @@ fn handle_msg(
             std::thread::spawn(move || {
                 let reply = match config::spawn_info(&project) {
                     Ok(info) => {
-                        let running = crate::tmux::running_sessions().contains(&info.session);
+                        let running = crate::sessions::running_sessions().contains(&info.session);
                         let run_state = if running {
-                            services::run_state_from_tmux(&info.session, info.services.keys())
+                            services::run_state_from_session(&info.session, info.services.keys())
                                 .unwrap_or(run_state)
                         } else {
                             run_state
@@ -3473,8 +3473,8 @@ fn handle_msg(
                 let _ = out.try_send(reply.to_string());
             });
         }
-        // Capture a running service pane's recent output, reusing get_service_logs
-        // (tmux pane capture). Subprocess work, so it runs on a worker thread and
+        // Capture a running service pane's recent output, reusing
+        // get_service_logs. Off-thread work, so it runs on a worker thread and
         // replies via the outbound queue. Lines are capped at 200.
         "serviceLogs" => {
             let project = str_field("project").unwrap_or_default();

@@ -62,9 +62,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Tauri 2's Linux backend is WebKitGTK; tmux is load-bearing for the
-      # services tests, and iproute2 supplies the `ss` the port probe shells out
-      # to on this platform.
+      # Tauri 2's Linux backend is WebKitGTK; iproute2 supplies the `ss` the
+      # port probe shells out to on this platform. The session tests need no
+      # extra package — they open ptys and run $SHELL.
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -75,7 +75,7 @@ jobs:
             librsvg2-dev \
             libsoup-3.0-dev \
             build-essential curl wget file pkg-config \
-            tmux iproute2
+            iproute2
 
       - uses: dtolnay/rust-toolchain@stable
         with:

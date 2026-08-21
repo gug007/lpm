@@ -8,12 +8,11 @@
 # the Mac that will drive this machine.
 set -eu
 
-# tmux and git are not optional extras: every service on a host runs as a tmux
-# pane, and the app refuses to render at all without tmux on PATH — leaving them
-# out made a host that installed cleanly and then started nothing. iproute2 is
-# softer: it provides `ss`, which the app's port detection prefers before falling
-# back to lsof.
-DEPS="xvfb matchbox-window-manager x11-utils libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 tmux git iproute2"
+# git is what the app shells out to for diffs and syncing. Services need nothing
+# installed: they run in lpm's own session daemon, which is part of the
+# lpm-desktop binary. iproute2 is softer still: it provides `ss`, which the app's
+# port detection prefers before falling back to lsof.
+DEPS="xvfb matchbox-window-manager x11-utils libwebkit2gtk-4.1-0 libgtk-3-0 libayatana-appindicator3-1 git iproute2"
 PREFIX=/opt/lpm
 UNIT_DIR=/etc/systemd/system
 ENV_FILE=/etc/lpm/host.env
@@ -123,16 +122,6 @@ if [ "$SKIP_DEPS" = "0" ]; then
         exit 1
     }
 fi
-
-# tmux is the one dependency whose absence is fatal rather than degrading: the app
-# will not render a project at all without it. Check it even when the apt step was
-# skipped, here, where a person can act on it — the alternative is a host that
-# installs, starts, answers, pairs, and then does nothing.
-command -v tmux >/dev/null 2>&1 || {
-    echo "tmux is required and isn't installed (services on a host are tmux panes)." >&2
-    echo "Install it and re-run:  sudo apt-get install -y tmux git" >&2
-    exit 1
-}
 
 echo "==> Installing binaries into $PREFIX"
 install -d "$PREFIX"

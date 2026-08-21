@@ -18,13 +18,13 @@ WorkingDirectory=%h
 EnvironmentFile=-/etc/lpm/host.env
 ExecStart=/opt/lpm/lpm-desktop
 
-# Kill the app, and only the app. Services on this host are tmux panes, and the
-# tmux server stays in this unit's cgroup — it forks and daemonizes away to PID 1,
-# but cgroup membership is inherited across fork and unaffected by setsid, so the
-# default KillMode=control-group took it down with the app, which is the one thing
-# tmux is used for here. Scheduled job agents are in the same position: they
-# `setsid` precisely so they outlive the app, and that doesn't leave the cgroup
-# either. `process` signals the main process alone, so `systemctl restart lpm`
+# Kill the app, and only the app. Services on this host are panes of lpm's
+# session daemon, and that daemon stays in this unit's cgroup — it forks away to
+# PID 1, but cgroup membership is inherited across fork and unaffected by setsid,
+# so the default KillMode=control-group would take it down with the app, which is
+# the one thing it exists to survive. Scheduled job agents are in the same
+# position: they `setsid` precisely so they outlive the app, and that doesn't
+# leave the cgroup either. `process` signals the main process alone, so `systemctl restart lpm`
 # (which the installer does on every update) stops being an event that ends the
 # work on this box.
 KillMode=process

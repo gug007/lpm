@@ -56,6 +56,21 @@ impl Ctx {
             .clone()
             .unwrap_or_else(|| self.lpm_dir.join("lpm.sock"))
     }
+
+    /// The session daemon's socket: the status socket's name with `-sessions`
+    /// before the extension (`lpm.sock` -> `lpm-sessions.sock`, `lpm-dev.sock`
+    /// -> `lpm-dev-sessions.sock`). Deriving it rather than naming it keeps an
+    /// lpm-spawned terminal whose LPM_SOCKET_PATH points at a dev build reading
+    /// that build's sessions too.
+    pub fn sessions_socket_path(&self) -> PathBuf {
+        let status = self.socket_path();
+        let stem = status
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        status.with_file_name(format!("{stem}-sessions.sock"))
+    }
 }
 
 /// Mirrors `config.ExpandHome`: a leading `~` resolves to the home directory.
@@ -725,7 +740,7 @@ pub struct ResolvedAction {
 
 pub struct ResolvedProject {
     pub file_name: String,
-    /// tmux session name == `name:` field, or the file stem when unset.
+    /// Session name == `name:` field, or the file stem when unset.
     pub session: String,
     pub root: String,
     pub label: String,

@@ -117,7 +117,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does lpm use tmux under the hood?",
     answer:
-      "What matters is the behavior: your services run in persistent sessions that survive app and terminal restarts, and each one gets its own scrollable pane in the desktop app. There's nothing for you to set up, configure, or attach to — no .tmux.conf to edit, no keybindings to memorize, no windows to attach to by name. You get the persistence and per-service visibility you'd normally build with tmux, without setting any of it up.",
+      "No. lpm runs its own session layer, built into the app — tmux does not have to be installed for anything lpm does. What you'd want from it is still there: your services run in persistent sessions that survive app and terminal restarts, and each one gets its own scrollable pane in the desktop app. There's nothing for you to set up, configure, or attach to — no .tmux.conf to edit, no keybindings to memorize, no windows to attach to by name.",
   },
   {
     question: "What about my remote / SSH workflow?",

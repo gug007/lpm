@@ -39,13 +39,6 @@ pub fn get_platform() -> String {
 }
 
 #[tauri::command]
-pub fn tmux_installed() -> bool {
-    // Gates the entire app render (App.tsx: tmuxReady === null shows a blank
-    // loading view), so it must return a real boolean, not the stub null.
-    crate::sys::which("tmux")
-}
-
-#[tauri::command]
 pub fn load_settings() -> Value {
     config::load_settings()
 }
@@ -185,9 +178,10 @@ pub fn save_composer_actions(actions: Value) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
-// (async): config::list_projects shells out to `tmux list-sessions` (blocking),
-// and this runs on a hot path (mount + 10s poll + every projects/status event),
-// so it must stay off the main thread or the UI beachballs on each refresh.
+// (async): config::list_projects reads every project file and asks the session
+// daemon what is running (both blocking), and this runs on a hot path (mount +
+// 10s poll + every projects/status event), so it must stay off the main thread
+// or the UI beachballs on each refresh.
 #[tauri::command(async)]
 pub fn list_projects(
     svc: State<'_, ServiceState>,
@@ -213,8 +207,8 @@ pub fn list_projects(
     Ok(projects)
 }
 
-// (async): config::get_project can shell out to `tmux list-sessions` (blocking)
-// for a real project name, so keep it off the main thread like list_projects.
+// (async): config::get_project can query the session daemon (blocking) for a
+// real project name, so keep it off the main thread like list_projects.
 #[tauri::command(async)]
 pub fn get_project(
     svc: State<'_, ServiceState>,

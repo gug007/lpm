@@ -10,7 +10,7 @@ use crate::error::{resolve_or_infer, RunError};
 use crate::service::{port_listening, service_status};
 use crate::statussock::{self, StatusEntry};
 use crate::style::{status_value, Style};
-use crate::tmux;
+use crate::sessions;
 use serde_json::{json, Value};
 use std::io::IsTerminal;
 use std::time::{Duration, Instant};
@@ -50,10 +50,10 @@ impl Target {
         match self {
             Target::Port(p) => port_listening(*p).unwrap_or(false),
             Target::Service { session, port, .. } => {
-                service_status(*port, tmux::session_exists(session)).running
+                service_status(*port, sessions::session_exists(session)).running
             }
             Target::Ready { session, ports } => {
-                tmux::session_exists(session)
+                sessions::session_exists(session)
                     && ports.iter().all(|p| port_listening(*p).unwrap_or(false))
             }
         }
@@ -61,7 +61,7 @@ impl Target {
 }
 
 /// Decide what to wait on from the flags + the resolved project. Pure: takes
-/// already-resolved data so it is unit-testable without tmux or a socket.
+/// already-resolved data so it is unit-testable without a session daemon or a socket.
 /// `services` is the declared (name, port) list in declaration order.
 fn select_target(
     port: Option<i64>,

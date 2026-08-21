@@ -110,7 +110,7 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// list_projects runs off the main thread (it shells out to tmux) while peer_state
+// list_projects runs off the main thread (it queries the session daemon) while peer_state
 // runs on it, so at page load — a cold start and, far more visibly, every webview
 // reload — the local listing routinely lands before the registry knows a peer
 // exists. Fanning out at that moment returns a local-only list: every remote

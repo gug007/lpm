@@ -7,7 +7,7 @@ use crate::error::RunError;
 use crate::service::service_status;
 use crate::statussock::{self, StatusEntry};
 use crate::style::Style;
-use crate::tmux;
+use crate::sessions;
 use crate::util::{print_json, shorten_home};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -39,7 +39,7 @@ fn count_by_value(entries: &[StatusEntry]) -> BTreeMap<String, usize> {
 
 pub fn run(ctx: &Ctx, as_json: bool) -> Result<(), RunError> {
     let names = config::project_names(ctx);
-    let sessions = tmux::running_sessions();
+    let sessions = sessions::running_sessions();
 
     let mut rows = Vec::with_capacity(names.len());
     for name in &names {

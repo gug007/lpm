@@ -1,9 +1,11 @@
 // Service lifecycle — port of desktop/projects.go's start/stop/toggle commands.
-// Services run as tmux panes (see tmux.rs). Run-state (active profile + which
-// services) is tracked per project FILE name. Remote projects run each pane
+// Services run as panes of lpm's session daemon (see sessions.rs). Run-state
+// (active profile + which services) is tracked per project FILE name, but the
+// daemon is the source of truth: it outlives the app, so the recorded state is
+// rebuilt from the panes' service labels on every read. Remote projects run each pane
 // through ssh (see config::ssh_command_line). Deferred to Phase 4b: port
 // pollers/forwards and the unix-socket status server.
-use crate::{config, tmux};
+use crate::{config, sessions};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
@@ -18,7 +20,7 @@ pub struct RunState {
 
 #[derive(Default)]
 pub struct ServiceState {
-    // keyed by project FILE name (not the tmux session name)
+    // keyed by project FILE name (not the session name)
     pub running: Mutex<HashMap<String, RunState>>,
     ops: Mutex<HashMap<String, Arc<Mutex<()>>>>,
 }
@@ -51,7 +53,7 @@ impl ServiceState {
         self.running.lock().unwrap().get(name).cloned()
     }
     pub fn get_for_project(&self, name: &str, info: &config::SpawnInfo) -> RunState {
-        if let Some(state) = run_state_from_tmux(&info.session, info.services.keys()) {
+        if let Some(state) = run_state_from_session(&info.session, info.services.keys()) {
             self.running
                 .lock()
                 .unwrap()
@@ -73,7 +75,7 @@ impl ServiceState {
 }
 
 /// Build (cmd, cwd, env) tuples for the given service names, in order.
-fn tuples_for(info: &config::SpawnInfo, names: &[String]) -> Vec<tmux::ServiceTuple> {
+fn tuples_for(info: &config::SpawnInfo, names: &[String]) -> Vec<sessions::ServiceTuple> {
     names
         .iter()
         .map(|n| {
@@ -83,12 +85,12 @@ fn tuples_for(info: &config::SpawnInfo, names: &[String]) -> Vec<tmux::ServiceTu
         .collect()
 }
 
-pub fn run_state_from_tmux<'a>(
+pub fn run_state_from_session<'a>(
     session: &str,
     configured_services: impl Iterator<Item = &'a String>,
 ) -> Option<RunState> {
     let configured: HashSet<&str> = configured_services.map(String::as_str).collect();
-    let panes = tmux::list_service_panes(session)?;
+    let panes = sessions::list_service_panes(session)?;
     let services: Vec<String> = panes.into_iter().map(|pane| pane.service).collect();
     let unique: HashSet<&str> = services.iter().map(String::as_str).collect();
     if unique.len() != services.len()
@@ -124,17 +126,22 @@ fn service_pane_id(
     pane_index: usize,
     running_len: usize,
 ) -> PaneLookup {
-    let Some(panes) = tmux::list_service_panes(session) else {
-        let ids = tmux::list_pane_ids(session);
-        if ids.len() != running_len {
-            return PaneLookup::Unidentifiable;
-        }
-        return match ids.into_iter().nth(pane_index) {
-            Some(id) => PaneLookup::Found(id),
+    // One round trip answers both halves: the labels when every pane carries
+    // one, and the creation-order fallback when they don't.
+    let panes = sessions::panes_of(session);
+    // Labelled resolution needs a non-empty list where EVERY pane carries a
+    // label — the same condition list_service_panes used to encode as `None`.
+    let labelled = !panes.is_empty() && panes.iter().all(|pane| !pane.service.is_empty());
+    if labelled {
+        return match panes.into_iter().find(|pane| pane.service == service) {
+            Some(pane) => PaneLookup::Found(pane.id),
             None => PaneLookup::Gone,
         };
-    };
-    match panes.into_iter().find(|pane| pane.service == service) {
+    }
+    if panes.len() != running_len {
+        return PaneLookup::Unidentifiable;
+    }
+    match panes.into_iter().nth(pane_index) {
         Some(pane) => PaneLookup::Found(pane.id),
         None => PaneLookup::Gone,
     }
@@ -156,7 +163,7 @@ fn stop_running_service(
 ) -> Result<Vec<String>, String> {
     if let Some(idx) = running.iter().position(|s| s == service) {
         match service_pane_id(session, service, idx, running.len()) {
-            PaneLookup::Found(pane_id) => tmux::kill_pane(&pane_id)?,
+            PaneLookup::Found(pane_id) => sessions::kill_pane(&pane_id)?,
             PaneLookup::Gone => {}
             PaneLookup::Unidentifiable => return Err(unidentifiable_pane_error(service)),
         }
@@ -188,7 +195,7 @@ fn do_start_with_services(
         }
     }
     let services = config::expand_service_deps(&info.services, &services)?;
-    if let Err(e) = tmux::start_project_services(
+    if let Err(e) = sessions::start_project_services(
         &info.session,
         &info.root,
         &tuples_for(&info, &services),
@@ -212,19 +219,21 @@ fn do_start_with_services(
     Ok(())
 }
 
-/// Tear down a project's tmux session, reaping its process trees before
-/// returning so a follow-up start's port-conflict check cannot race the dying
-/// server. A session that is already gone is the desired end state, not a
-/// failure — only a tmux that still reports the session alive after a failed
-/// kill is a real error.
+/// Tear down a project's session, reaping its process trees before returning so
+/// a follow-up start's port-conflict check cannot race the dying processes. A
+/// session that is already gone is the desired end state, not a failure — only a
+/// daemon that still reports the session alive after a failed kill is a real
+/// error.
 fn kill_project_session(session: &str) -> Result<(), String> {
-    if !tmux::session_exists(session) {
+    if !sessions::session_exists(session) {
         return Ok(());
     }
-    match tmux::kill_session_wait(session) {
+    match sessions::kill_session_wait(session) {
         Ok(()) => Ok(()),
-        Err(_) if !tmux::session_exists(session) => Ok(()),
-        Err(_) => Err(format!("could not stop {session:?} — tmux did not respond")),
+        Err(_) if !sessions::session_exists(session) => Ok(()),
+        Err(_) => Err(format!(
+            "could not stop {session:?} — the session daemon did not respond"
+        )),
     }
 }
 
@@ -273,7 +282,7 @@ pub fn start_project(
         return Err(format!("no services to start for profile {profile:?}"));
     }
     let services = config::expand_service_deps(&info.services, &services)?;
-    if let Err(e) = tmux::start_project_services(
+    if let Err(e) = sessions::start_project_services(
         &info.session,
         &info.root,
         &tuples_for(&info, &services),
@@ -323,17 +332,17 @@ pub fn stop_project(
 #[tauri::command(async)]
 pub fn stop_all(app: AppHandle, state: State<'_, ServiceState>) -> Result<(), String> {
     // Uninstall-time sweep. The in-memory map is empty after a relaunch, so the
-    // kill list is every configured project whose session is live in tmux —
+    // kill list is every configured project whose session is live —
     // and uninstall must not return before those sessions' processes are dead.
     // Best-effort per project: one failure must not abort the sweep.
-    let live = tmux::running_sessions();
+    let live = sessions::running_sessions();
     let mut failures: Vec<String> = Vec::new();
     for name in config::project_names() {
         let op = state.op_lock(&name);
         let _op = op.lock().unwrap();
         if let Ok(info) = config::spawn_info(&name) {
             if live.contains(&info.session) {
-                if let Err(e) = tmux::kill_session_wait(&info.session) {
+                if let Err(e) = sessions::kill_session_wait(&info.session) {
                     failures.push(format!("{name}: {e}"));
                 }
             }
@@ -342,6 +351,11 @@ pub fn stop_all(app: AppHandle, state: State<'_, ServiceState>) -> Result<(), St
     }
     // Recorded names whose config is gone still need their state dropped.
     state.running.lock().unwrap().clear();
+    // And so does a session whose project file was deleted: the loop above can
+    // only reach configured projects, but the daemon still holds that session.
+    // This is also what the Linux uninstall's --stop-sessions does, so both
+    // platforms end in the same place.
+    let _ = sessions::shutdown_daemon();
     crate::portforward::stop_all_forwards(&app);
     if failures.is_empty() {
         Ok(())
@@ -384,7 +398,7 @@ fn do_set_service_running(
         ));
     }
 
-    if !tmux::session_exists(&info.session) {
+    if !sessions::session_exists(&info.session) {
         return if on {
             do_start_with_services(app, state, name, vec![service_name.to_string()])
         } else {
@@ -403,7 +417,7 @@ fn do_set_service_running(
         // splitting a pane for each in dependency order (the target last).
         let want = config::expand_service_deps(&info.services, &[service_name.to_string()])?;
         let missing: Vec<String> = want.into_iter().filter(|s| !running.contains(s)).collect();
-        tmux::split_session_services(
+        sessions::split_session_services(
             &info.session,
             &info.root,
             &tuples_for(&info, &missing),
@@ -440,7 +454,7 @@ pub fn toggle_project_service(
     let op = state.op_lock(&name);
     let _op = op.lock().unwrap();
     let info = config::spawn_info(&name)?;
-    let currently_on = tmux::session_exists(&info.session)
+    let currently_on = sessions::session_exists(&info.session)
         && config::resolve_running_services(&info, &state.get_for_project(&name, &info))
             .iter()
             .any(|s| s == &service_name);
@@ -463,8 +477,8 @@ fn restart_service_at(
         PaneLookup::Gone => return Err(format!("service {svc_name:?} is not running")),
         PaneLookup::Unidentifiable => return Err(unidentifiable_pane_error(svc_name)),
     };
-    // build_command lives in tmux; reuse split's command form via a fresh send.
-    tmux::restart_service_pane(
+    // build_command lives in sessions; reuse split's command form via a fresh send.
+    sessions::restart_service_pane(
         &pane_id,
         &info.root,
         &svc.cwd,
@@ -530,7 +544,7 @@ pub fn stop_service(
         return Ok(()); // nothing recorded at that slot — already stopped
     };
     match service_pane_id(&info.session, &service, idx, running.len()) {
-        PaneLookup::Found(pane_id) => tmux::stop_service_pane(&pane_id),
+        PaneLookup::Found(pane_id) => sessions::stop_service_pane(&pane_id),
         PaneLookup::Gone => {
             // No live pane: the service already stopped behind our back, so drop
             // it from the run state instead of failing the stop.
@@ -553,32 +567,38 @@ mod stop_reconcile_tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    struct SessionGuard(String, std::sync::MutexGuard<'static, ()>);
+    struct SessionGuard(String);
 
     impl SessionGuard {
         fn new() -> Self {
-            let lock = tmux::test_server_lock();
             let nonce = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_nanos();
-            Self(format!("lpm-test-{}-{nonce}", std::process::id()), lock)
+            Self(format!("lpm-test-{}-{nonce}", std::process::id()))
         }
     }
 
     impl Drop for SessionGuard {
         fn drop(&mut self) {
-            let _ = tmux::kill_session(&self.0);
+            let _ = sessions::kill_session(&self.0);
         }
     }
 
-    fn service(name: &str) -> tmux::ServiceTuple {
+    fn service(name: &str) -> sessions::ServiceTuple {
         (
             name.to_string(),
             "sleep 30".to_string(),
             String::new(),
             std::collections::BTreeMap::new(),
         )
+    }
+
+    /// A pane with no service label. lpm labels every pane it opens, so this
+    /// stands in for a session that isn't ours to reason about — the case the
+    /// `Unidentifiable` guard exists for.
+    fn unlabelled() -> sessions::ServiceTuple {
+        service("")
     }
 
     fn names(list: &[&str]) -> Vec<String> {
@@ -588,13 +608,13 @@ mod stop_reconcile_tests {
     #[test]
     fn stopping_a_service_kills_its_labelled_pane() {
         let session = SessionGuard::new();
-        tmux::start_project_services(&session.0, ".", &[service("db"), service("web")], None)
+        sessions::start_project_services(&session.0, ".", &[service("db"), service("web")], None)
             .unwrap();
 
         let next = stop_running_service(&session.0, names(&["db", "web"]), "web").unwrap();
 
         assert_eq!(next, ["db"]);
-        let live: Vec<String> = tmux::list_service_panes(&session.0)
+        let live: Vec<String> = sessions::list_service_panes(&session.0)
             .unwrap()
             .into_iter()
             .map(|pane| pane.service)
@@ -605,13 +625,13 @@ mod stop_reconcile_tests {
     #[test]
     fn stopping_a_service_whose_pane_is_gone_reconciles_instead_of_failing() {
         let session = SessionGuard::new();
-        tmux::start_project_services(&session.0, ".", &[service("db"), service("web")], None)
+        sessions::start_project_services(&session.0, ".", &[service("db"), service("web")], None)
             .unwrap();
         let web = match service_pane_id(&session.0, "web", 1, 2) {
             PaneLookup::Found(id) => id,
             other => panic!("expected a live pane, got {other:?}"),
         };
-        tmux::kill_pane(&web).unwrap();
+        sessions::kill_pane(&web).unwrap();
 
         assert_eq!(service_pane_id(&session.0, "web", 1, 2), PaneLookup::Gone);
         let next = stop_running_service(&session.0, names(&["db", "web"]), "web").unwrap();
@@ -621,14 +641,11 @@ mod stop_reconcile_tests {
     #[test]
     fn unlabelled_panes_with_a_count_mismatch_refuse_instead_of_guessing() {
         let session = SessionGuard::new();
-        // A session whose panes carry no service label (e.g. recreated outside
-        // lpm): list_service_panes yields None, so resolution falls back to the
-        // pane ordinal.
-        tmux::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
-        let pane = tmux::list_pane_ids(&session.0).remove(0);
-        tmux::run_for_test(&["set-option", "-pu", "-t", &pane, "@lpm_service"]).unwrap();
-        assert_eq!(tmux::list_service_panes(&session.0), None);
-        assert_eq!(tmux::list_pane_ids(&session.0).len(), 1);
+        // A session whose panes carry no service label: list_service_panes
+        // yields None, so resolution falls back to the pane ordinal.
+        sessions::start_project_services(&session.0, ".", &[unlabelled()], None).unwrap();
+        assert_eq!(sessions::list_service_panes(&session.0), None);
+        assert_eq!(sessions::list_pane_ids(&session.0).len(), 1);
 
         // Run state says two services, but the session only has one pane: the
         // survivor could be either service, so guessing would record a live
@@ -638,7 +655,7 @@ mod stop_reconcile_tests {
             PaneLookup::Unidentifiable
         );
         assert!(stop_running_service(&session.0, names(&["db", "web"]), "web").is_err());
-        assert_eq!(tmux::list_pane_ids(&session.0).len(), 1);
+        assert_eq!(sessions::list_pane_ids(&session.0).len(), 1);
 
         // With matching counts the ordinal fallback still resolves.
         assert!(matches!(
@@ -650,14 +667,11 @@ mod stop_reconcile_tests {
     #[test]
     fn an_extra_unlabelled_pane_never_takes_the_kill_meant_for_a_service() {
         let session = SessionGuard::new();
-        tmux::start_project_services(&session.0, ".", &[service("db"), service("web")], None)
-            .unwrap();
-        // A pane lpm does not own (stand-in for the user's own shell) sits
-        // before the target with no service label, which voids labelled
+        // An unlabelled pane sits before the target, which voids labelled
         // resolution for the whole session.
-        let shell = tmux::list_pane_ids(&session.0).remove(0);
-        tmux::run_for_test(&["set-option", "-pu", "-t", &shell, "@lpm_service"]).unwrap();
-        assert_eq!(tmux::list_service_panes(&session.0), None);
+        sessions::start_project_services(&session.0, ".", &[unlabelled(), service("web")], None)
+            .unwrap();
+        assert_eq!(sessions::list_service_panes(&session.0), None);
 
         // The recorded run state knows only "web": indexing it into live pane
         // order would hit the shell pane, so resolution must refuse — with an
@@ -668,26 +682,25 @@ mod stop_reconcile_tests {
             PaneLookup::Unidentifiable
         );
         assert!(stop_running_service(&session.0, names(&["web"]), "web").is_err());
-        assert_eq!(tmux::list_pane_ids(&session.0).len(), 2);
+        assert_eq!(sessions::list_pane_ids(&session.0).len(), 2);
     }
 
     #[test]
     fn stopping_a_project_kills_its_session() {
         let session = SessionGuard::new();
-        tmux::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
+        sessions::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
 
         assert_eq!(kill_project_session(&session.0), Ok(()));
-        assert!(!tmux::session_exists(&session.0));
+        assert!(!sessions::session_exists(&session.0));
     }
 
     #[test]
     fn stopping_a_project_whose_session_is_already_gone_succeeds() {
         let session = SessionGuard::new();
-        tmux::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
-        // Something outside lpm tore the session down. The tests share one tmux
-        // server, so assert the precondition rather than this kill's result.
-        let _ = tmux::kill_session(&session.0);
-        assert!(!tmux::session_exists(&session.0));
+        sessions::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
+        // Something outside lpm tore the session down.
+        let _ = sessions::kill_session(&session.0);
+        assert!(!sessions::session_exists(&session.0));
 
         assert_eq!(kill_project_session(&session.0), Ok(()));
     }
@@ -702,7 +715,7 @@ mod stop_reconcile_tests {
     #[test]
     fn stopping_the_last_service_clears_the_projects_run_state() {
         let session = SessionGuard::new();
-        tmux::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
+        sessions::start_project_services(&session.0, ".", &[service("db")], None).unwrap();
         let state = ServiceState::default();
         state.set(
             "demo",
@@ -711,11 +724,11 @@ mod stop_reconcile_tests {
                 services: names(&["db"]),
             },
         );
-        let _ = tmux::kill_session(&session.0);
-        assert!(!tmux::session_exists(&session.0));
+        let _ = sessions::kill_session(&session.0);
+        assert!(!sessions::session_exists(&session.0));
 
         // The ordering do_stop_project relies on: state is cleared regardless of
-        // what tmux reports, and a dead session is not an error.
+        // what the daemon reports, and a dead session is not an error.
         state.clear("demo");
         assert_eq!(kill_project_session(&session.0), Ok(()));
         assert!(state.get_known("demo").is_none());

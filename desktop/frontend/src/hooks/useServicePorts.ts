@@ -26,7 +26,7 @@ export function useServicePorts(
         if (cancelled) return;
         setPorts((prev) => (samePorts(prev, next) ? prev : next));
       } catch {
-        // Detection is best-effort; a transient lsof/tmux failure just keeps
+        // Detection is best-effort; a transient lsof or daemon failure just keeps
         // the last known ports until the next tick.
       }
     };

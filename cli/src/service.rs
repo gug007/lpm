@@ -1,5 +1,5 @@
 //! Shared running-state inference for a single service: a listen probe when a
-//! port is declared, otherwise the tmux session's liveness.
+//! port is declared, otherwise the session's liveness.
 
 use std::net::TcpListener;
 
@@ -24,7 +24,7 @@ pub fn port_listening(port: i64) -> Option<bool> {
 pub struct ServiceStatus {
     pub running: bool,
     /// "port" (from a listen probe), "session" (portless, inferred from the
-    /// tmux session), or "stopped".
+    /// session), or "stopped".
     pub source: &'static str,
     pub port_listening: Option<bool>,
 }

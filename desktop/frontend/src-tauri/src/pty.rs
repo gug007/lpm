@@ -243,7 +243,7 @@ fn event_safe(s: &str) -> String {
 /// text. True when none of the standard locale vars are set, so we can seed a
 /// UTF-8 default — same fallback Terminal.app applies, mirrors the LC_CTYPE
 /// override in clipboard.rs. Any inherited locale is left untouched.
-fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I) -> bool {
+pub(crate) fn env_lacks_locale<I: IntoIterator<Item = (String, String)>>(vars: I) -> bool {
     !vars
         .into_iter()
         .any(|(k, _)| k == "LANG" || k == "LC_ALL" || k == "LC_CTYPE")
@@ -313,8 +313,8 @@ fn start_internal(
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
-        // The app may itself descend from a tmux pane (services run in tmux;
-        // dev runs launched from one), but these terminals are not tmux panes —
+        // The app may itself descend from a tmux pane (a dev run launched from
+        // one), but these terminals are not tmux panes —
         // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
         builder.env_remove("TMUX");
         builder.env_remove("TMUX_PANE");
@@ -340,8 +340,8 @@ fn start_internal(
         for (k, v) in std::env::vars() {
             builder.env(k, v);
         }
-        // The app may itself descend from a tmux pane (services run in tmux;
-        // dev runs launched from one), but these terminals are not tmux panes —
+        // The app may itself descend from a tmux pane (a dev run launched from
+        // one), but these terminals are not tmux panes —
         // a leaked TMUX makes TUIs like Claude Code disable their mouse UX.
         builder.env_remove("TMUX");
         builder.env_remove("TMUX_PANE");
@@ -715,7 +715,7 @@ pub fn stop_terminal(app: AppHandle, state: State<'_, PtyState>, id: String) -> 
 /// down everything else and never touch the pty sessions, so HUP-ignoring or
 /// setsid'd grandchildren (dev servers spawned by agent CLIs) survived quit and
 /// kept their ports. One aggregated kill_pids call over all roots bounds the
-/// wait at a single grace period, not one per pane. tmux sessions are
+/// wait at a single grace period, not one per pane. Service sessions are
 /// deliberately untouched — projects keep running across quit by design.
 pub fn kill_all_trees(state: &PtyState) {
     let roots: Vec<i32> = state

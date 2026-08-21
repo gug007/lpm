@@ -68,32 +68,26 @@ fn probe(port: i64) -> (Holder, bool) {
     (Holder::default(), false)
 }
 
-// ---- classify a holder pid -> lpm project (via tmux pane ancestry) ----------
+// ---- classify a holder pid -> lpm project (via pane ancestry) --------------
 
+/// pane shell pid -> owning project, across every session the daemon holds.
+/// Only lpm's own panes are in there, so a project can no longer be blamed for
+/// a port held by a session that merely shares its name.
 fn lpm_pane_index() -> HashMap<i64, String> {
-    let mut idx = HashMap::new();
-    let out = Command::new("tmux")
-        .args(["list-panes", "-a", "-F", "#{pane_pid} #{session_name}"])
-        .output();
-    let Ok(o) = out else { return idx };
-    if !o.status.success() {
-        return idx;
-    }
     let mut session_to_project = HashMap::new();
     for name in config::project_names() {
         if let Ok(info) = config::spawn_info(&name) {
             session_to_project.insert(info.session, name);
         }
     }
-    for line in String::from_utf8_lossy(&o.stdout).trim().split('\n') {
-        let mut f = line.split_whitespace();
-        if let (Some(pid), Some(sess)) = (f.next(), f.next()) {
-            if let (Ok(pid), Some(proj)) = (pid.parse::<i64>(), session_to_project.get(sess)) {
-                idx.insert(pid, proj.clone());
-            }
-        }
-    }
-    idx
+    crate::sessions::all_panes()
+        .into_iter()
+        .filter_map(|pane| {
+            session_to_project
+                .get(&pane.session)
+                .map(|project| (pane.pid, project.clone()))
+        })
+        .collect()
 }
 
 fn process_parents() -> HashMap<i64, i64> {
@@ -294,7 +288,7 @@ pub fn check_action_port_conflict(
 /// Live ports each running service is listening on, in running-service order.
 /// Local-only: remote services listen on the remote host where this lsof can't
 /// see them, so remote projects report no ports. Attribution walks each
-/// listening pid up to the tmux pane that owns it (pane N == service N).
+/// listening pid up to the pane that owns it, which names its own service.
 #[tauri::command(async)]
 pub fn detect_service_ports(
     state: State<'_, ServiceState>,
@@ -307,11 +301,14 @@ pub fn detect_service_ports(
     // those services just fall through with no detected ports.
     let mut by_service: HashMap<String, Vec<i64>> = HashMap::new();
     if !info.is_remote && !running.is_empty() {
-        let pane_pids = crate::tmux::list_pane_pids(&info.session);
-        let pane_map: HashMap<i64, String> = running
-            .iter()
-            .enumerate()
-            .filter_map(|(i, svc)| pane_pids.get(i).map(|&pid| (pid, svc.clone())))
+        // Attribute by the pane's own service label, never by position: a
+        // pane list and a resolved running list can legitimately differ in
+        // length, and zipping them would hand one service's ports to another —
+        // which then feeds free_port's offer to stop the wrong project.
+        let pane_map: HashMap<i64, String> = crate::sessions::panes_of(&info.session)
+            .into_iter()
+            .filter(|pane| !pane.service.is_empty())
+            .map(|pane| (pane.pid, pane.service))
             .collect();
         let parents = process_parents();
         for (pid, port) in listening_ports() {

@@ -15,7 +15,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Do I need tmux to keep an agent alive over SSH?",
     answer:
-      "Not for agent terminals. A terminal you start on a Linux host is owned by lpm on that server, not by your SSH connection, so it survives your Mac disconnecting, sleeping, or quitting — you do not have to remember a multiplexer before every long run. lpm does use tmux for a project's services, so install it on the server if you want to run those there.",
+      "No. A terminal you start on a Linux host is owned by lpm on that server, not by your SSH connection, so it survives your Mac disconnecting, sleeping, or quitting — you do not have to remember a multiplexer before every long run. A project's services work the same way: lpm keeps them in its own persistent sessions on the server, so there is no multiplexer to install and nothing to attach to by hand.",
   },
   {
     question:
@@ -31,7 +31,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Do I have to install anything on the server myself?",
     answer:
-      "lpm installs itself, including the system packages it needs and a service that restarts it on boot. Your own toolchain is still yours: tmux, git, Node, and the agent CLIs you want to run there are not installed for you, because lpm does not guess at your stack. Install them once on the server and every project on it can use them.",
+      "lpm installs itself, including the system packages it needs and a service that restarts it on boot. Your own toolchain is still yours: git, Node, and the agent CLIs you want to run there are not installed for you, because lpm does not guess at your stack. Install them once on the server and every project on it can use them.",
   },
   {
     question:

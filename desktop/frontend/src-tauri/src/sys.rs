@@ -1,7 +1,6 @@
-// System/PATH helpers. Mirrors internal/tmux's init(): a Finder-launched .app
-// gets a minimal PATH without Homebrew or user-local bins, so subprocess lookups
-// (tmux, ssh, git, gh, the AI CLIs, …) fail unless we prepend the usual
-// locations. Run once at startup.
+// System/PATH helpers. A Finder-launched .app gets a minimal PATH without
+// Homebrew or user-local bins, so subprocess lookups (ssh, git, gh, the AI CLIs,
+// …) fail unless we prepend the usual locations. Run once at startup.
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;

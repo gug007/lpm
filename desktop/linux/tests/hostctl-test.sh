@@ -50,7 +50,7 @@ while :; do sleep 0.2; done
 EOF
 
 # The app: records the environment it was handed, spawns an untracked child that
-# stands in for the tmux server, then behaves as $STATE/app-mode says.
+# stands in for the session daemon, then behaves as $STATE/app-mode says.
 cat > "$BIN/lpm-desktop" <<EOF
 #!/bin/sh
 echo "\$\$" >> "$STATE/app.pids"
@@ -58,7 +58,7 @@ echo "\$\$" >> "$STATE/app.pids"
   echo "PWD=\$PWD"; echo "DMABUF=\${WEBKIT_DISABLE_DMABUF_RENDERER:-}";
   echo "A11Y=\${NO_AT_BRIDGE:-}"; echo "MARK=\${LPM_TEST_MARK:-}"; } > "$STATE/app.env"
 if [ ! -f "$STATE/escapee.pid" ]; then
-    # Stands in for the tmux server: started by the app, not tracked by the
+    # Stands in for the session daemon: started by the app, not tracked by the
     # supervisor, and expected to outlive the stop.
     sh -c 'echo \$\$ > "'"$STATE"'/escapee.pid"; while :; do sleep 0.2; done' &
 fi
@@ -155,7 +155,7 @@ alive "$SUP" && no "supervisor still alive after stop" || ok "supervisor is gone
 alive "$APP" && no "app still alive after stop" || ok "app is gone"
 alive "$XVFB" && no "display still alive after stop" || ok "display is gone"
 alive "$WM" && no "window manager still alive after stop" || ok "window manager is gone"
-alive "$ESCAPEE" && ok "a process the app detached survives (tmux, agents)" ||
+alive "$ESCAPEE" && ok "a process the app detached survives (session daemon, agents)" ||
     no "stop killed a detached process it does not own"
 [ -f "$ROOT/run/host.pid" ] && no "pid file left behind" || ok "pid file removed"
 ctl status > "$ROOT/out" 2>&1

@@ -1,9 +1,9 @@
 // Process-tree termination (macOS). Both stop paths — terminal close (pty.rs)
-// and tmux service kill (tmux.rs) — used to signal a single pid. A killed shell
-// can't forward the signal to a dev server it launched, so node/next-server
-// grandchildren reparent to launchd and keep burning CPU. We instead reap the
-// whole tree: signal the leader's process group (portable-pty and tmux both
-// setsid the pane shell, so the group leader == the shell pid) plus a ps-ppid
+// and service-pane kill (sessionpane.rs) — used to signal a single pid. A shell
+// killed alone can't forward the signal to a dev server it launched, so
+// node/next-server grandchildren reparent to launchd and keep burning CPU. We
+// instead reap the whole tree: signal the leader's process group (portable-pty
+// setsids the pane shell, so the group leader == the shell pid) plus a ps-ppid
 // descendant walk as a backstop for grandchildren that started their own group.
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
@@ -82,7 +82,7 @@ pub(crate) fn kill_pids(pids: &[i32]) {
     let deadline = Instant::now() + Duration::from_millis(TERM_TIMEOUT_MS);
     loop {
         // kill(pid, 0) probes liveness without signalling; a zombie reads dead
-        // as soon as its parent reaps it (pty flush thread / tmux / launchd).
+        // as soon as its parent reaps it (pty flush thread / daemon / launchd).
         survivors.retain(|&p| unsafe { libc::kill(p, 0) == 0 });
         if survivors.is_empty() {
             return;
@@ -96,7 +96,7 @@ pub(crate) fn kill_pids(pids: &[i32]) {
 }
 
 /// Reap an already-snapshotted set of pids on a background thread. Callers that
-/// must snapshot before an external teardown (tmux kill-session reparents the
+/// must snapshot before an external teardown (a session kill reparents the
 /// children synchronously) capture `trees(..)` first, then hand it here.
 pub(crate) fn kill_pids_async(pids: Vec<i32>) {
     if pids.is_empty() {

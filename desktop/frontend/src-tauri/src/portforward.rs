@@ -549,12 +549,12 @@ pub fn start_port_poller(app: &AppHandle, project: &str) {
     std::thread::spawn(move || run_poller(app, project, session, ssh, declared, stop));
 }
 
-/// On startup, resume pollers for remote projects whose tmux session is still
+/// On startup, resume pollers for remote projects whose session is still
 /// alive (so suggestions repopulate without a Stop/Start cycle).
 pub fn resume_port_pollers(app: &AppHandle) {
     for name in config::project_names() {
         if let Ok(info) = config::spawn_info(&name) {
-            if info.is_remote && crate::tmux::session_exists(&info.session) {
+            if info.is_remote && crate::sessions::session_exists(&info.session) {
                 start_port_poller(app, &name);
             }
         }
@@ -571,7 +571,7 @@ fn run_poller(
 ) {
     let mut first = true;
     while !stop.load(Ordering::Relaxed) {
-        if !crate::tmux::session_exists(&session) {
+        if !crate::sessions::session_exists(&session) {
             // Session gone without an explicit Stop (panes exited, killed
             // externally): tear down as Stop would instead of probing forever.
             stop_project_forwards(&app, &project);

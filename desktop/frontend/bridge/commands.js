@@ -311,9 +311,6 @@ export function AgentSkillStatus() {
 export function InstallAgentSkill() {
   return invoke("install_agent_skill");
 }
-export function InstallTmux() {
-  return invoke("install_tmux");
-}
 export function InstallUpdate() {
   return invoke("install_update");
 }
@@ -778,9 +775,6 @@ export function StopTTS() {
 }
 export function StopWatchingProject() {
   return invoke("stop_watching_project");
-}
-export function TmuxInstalled() {
-  return invoke("tmux_installed");
 }
 export function ToggleProjectService(name, serviceName) {
   return invoke("toggle_project_service", { name, serviceName });

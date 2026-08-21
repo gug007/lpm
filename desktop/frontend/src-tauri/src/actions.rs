@@ -2,7 +2,7 @@
 //
 // One-shot (non-terminal) local actions run through the user's interactive login
 // shell (`$SHELL -ilc`) in the action's cwd, so shell init (nvm, version
-// managers, PATH tweaks) is loaded — matching the terminal and tmux service
+// managers, PATH tweaks) is loaded — matching the terminal and the service
 // panes. A GUI launch otherwise inherits launchd's minimal PATH and would pick
 // up the wrong toolchain. Remote actions keep `/bin/sh -c`: the ssh command line
 // resolves its environment on the far side.

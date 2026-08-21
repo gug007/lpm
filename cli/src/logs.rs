@@ -5,7 +5,7 @@
 
 use crate::config::{self, Ctx};
 use crate::error::{resolve_or_infer, RunError};
-use crate::tmux;
+use crate::sessions;
 use serde_json::json;
 
 const MAX_LINES: i64 = 10_000;
@@ -75,12 +75,12 @@ pub fn run(
     let file_name = resolve_or_infer(ctx, project)?;
     let p = config::resolve_project(ctx, &file_name).map_err(RunError::Internal)?;
 
-    if !tmux::session_exists(&p.session) {
+    if !sessions::session_exists(&p.session) {
         return Err(RunError::NotFound(format!(
             "project {file_name:?} is not running"
         )));
     }
-    let panes = tmux::list_panes(&p.session);
+    let panes = sessions::list_panes(&p.session);
 
     let (idx, service_name) = match pane {
         Some(i) => (i, None),
@@ -107,7 +107,7 @@ the service-to-pane mapping may be off",
     };
 
     let lines = lines.clamp(1, MAX_LINES);
-    let text = tmux::capture_pane(&target.id, lines).map_err(RunError::Internal)?;
+    let text = sessions::capture_pane(&target.id, lines).map_err(RunError::Internal)?;
     let text = tail_lines(&text, lines);
 
     if as_json {
