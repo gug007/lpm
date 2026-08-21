@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BeforeAfter } from "@/components/home/before-after";
 import { ConfigExample } from "@/components/home/config-example";
 import { CtaBand } from "@/components/home/cta-band";
 import { DemoSection } from "@/components/home/demo";
@@ -43,6 +44,7 @@ export default function HomePage() {
       />
       <Hero />
       <DemoSection />
+      <BeforeAfter />
       <HowItWorks />
       <CtaBand />
       <Features />

@@ -9,6 +9,7 @@ import {
   Wifi,
 } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { gap, line, s, TerminalLine, type Line } from "@/components/terminal-line";
 import { MOBILE_PATH } from "@/lib/links";
 
 const ORANGE = "text-[#d97757]";
@@ -21,17 +22,8 @@ const GREEN = "text-emerald-400";
 const RED = "text-red-400";
 const CYAN = "text-cyan-400";
 
-type Span = { t: string; c?: string };
-// gap = blank line above, matching the real CLIs' block spacing;
-// band = codex's tinted full-width user row, bubble = claude's gray
-// content-width user bubble
-type Line = { spans: Span[]; gap?: boolean; band?: string; bubble?: string };
 // preamble = launch-header lines already on screen when the tab activates
 type Session = { key: string; label: string; preamble: number; lines: Line[] };
-
-const s = (t: string, c?: string): Span => ({ t, c });
-const line = (...spans: Span[]): Line => ({ spans });
-const gap = (...spans: Span[]): Line => ({ spans, gap: true });
 
 // Captured from the real CLIs in a PTY (claude 2.1.214, codex 0.144.5):
 // glyphs, logo art, box drawing, and per-segment colors mirror that output.
@@ -159,23 +151,6 @@ const PROJECTS = [
 // "take control" beat.
 const CONTROL_INDEX = 12;
 const CONTROL_TEXT = "yes — commit & open the PR";
-
-function TerminalLine({ line, size }: { line: Line; size: string }) {
-  const spans = line.spans.map((span, i) => (
-    <span key={i} className={span.c ?? LIGHT}>
-      {span.t}
-    </span>
-  ));
-  return (
-    <div
-      className={`whitespace-pre tabular-nums ${size}${line.gap ? " mt-5" : ""}${
-        line.band ? ` ${line.band}` : ""
-      }`}
-    >
-      {line.bubble ? <span className={line.bubble}>{spans}</span> : spans}
-    </div>
-  );
-}
 
 type Step = { wait: number; apply: () => void };
 
@@ -459,6 +434,7 @@ export function PairedDevices({
                           key={i}
                           line={l}
                           size="text-[9px] sm:text-[10.5px]"
+                          fallback={LIGHT}
                         />
                       ))}
                       {status}
@@ -623,7 +599,7 @@ export function PairedDevices({
                       mirror clips long lines gracefully. */}
                   <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-3 pb-2 font-mono text-[10px] leading-5 [mask-image:linear-gradient(to_right,#000_84%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_84%,transparent)]">
                     {visible.map((l, i) => (
-                      <TerminalLine key={i} line={l} size="text-[10px]" />
+                      <TerminalLine key={i} line={l} size="text-[10px]" fallback={LIGHT} />
                     ))}
                     {status}
                   </div>
