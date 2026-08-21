@@ -1035,8 +1035,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // row/folder hover.
   const TRUNK_BG = "bg-[var(--text-muted)]/35";
   const ELBOW_BORDER = "border-[var(--text-muted)]/35";
-  // Under the folder's plate: `px-2` (8px) plus half of the 16px plate.
-  const TREE_X = "left-[16px]";
+  // On the folder chevron's axis: `px-2` (8px) plus half the 16px plate centres
+  // the plate at 16px, and the 1px line has to start a pixel back to sit under
+  // the arrow rather than half a pixel to its right.
+  const TREE_X = "left-[15px]";
+  // From TREE_X out to the member's status dot at 27px.
+  const ELBOW_W = "w-[12px]";
   const renderFolderBlock = (
     groupItem: Extract<TreeItem, { kind: "group" }>,
     body: TreeItem[],
@@ -1071,7 +1075,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                       <span
                         aria-hidden
                         style={{ height: ROW_HALF }}
-                        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 w-[11px] rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
+                        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 ${ELBOW_W} rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
                       />
                       {i !== lastProjectIndex && (
                         <span
