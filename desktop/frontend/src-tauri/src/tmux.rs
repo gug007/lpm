@@ -63,9 +63,23 @@ fn run(args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+/// tmux resolves `-t name` by prefix when no exact match exists, so a target
+/// for a gone session silently hits a duplicate ("{name}-x1y2z3"). `=name`
+/// anchors session targets exactly.
+fn exact_session(name: &str) -> String {
+    format!("={name}")
+}
+
+/// Window/pane-target commands (list-panes, split-window, select-layout) drop
+/// the exact flag when a bare `=name` falls through to their session lookup;
+/// the trailing colon forces the name to parse as a session, keeping `=` live.
+fn exact_window(name: &str) -> String {
+    format!("={name}:")
+}
+
 pub fn session_exists(name: &str) -> bool {
     tmux_command()
-        .args(["has-session", "-t", name])
+        .args(["has-session", "-t", &exact_session(name)])
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
@@ -74,7 +88,7 @@ pub fn session_exists(name: &str) -> bool {
 /// One field per pane for a session in creation order. Empty lines and errors
 /// drop out, so callers get a clean list aligned to pane order. Empty on error.
 fn list_pane_field(session: &str, field: &str) -> Vec<String> {
-    match run(&["list-panes", "-t", session, "-F", field]) {
+    match run(&["list-panes", "-t", &exact_window(session), "-F", field]) {
         Ok(out) => out
             .lines()
             .map(|l| l.trim().to_string())
@@ -111,7 +125,7 @@ pub fn list_service_panes(session: &str) -> Option<Vec<ServicePane>> {
     let output = run(&[
         "list-panes",
         "-t",
-        session,
+        &exact_window(session),
         "-F",
         "#{pane_id}\t#{@lpm_service}",
     ])
@@ -144,11 +158,24 @@ pub fn kill_session(name: &str) -> Result<(), String> {
     // Snapshot every pane's process tree BEFORE the panes go away: tmux only hangs
     // up the pane shell, leaving detached dev-server/agent grandchildren orphaned.
     // Capture first, kill-session, then reap the trees in the background.
-    let roots: Vec<i32> = list_pane_pids(name).into_iter().map(|p| p as i32).collect();
-    let victims = crate::proctree::trees(&roots);
-    let r = run(&["kill-session", "-t", name]);
+    let (victims, r) = kill_session_inner(name);
     crate::proctree::kill_pids_async(victims);
     r.map(|_| ())
+}
+
+/// Like `kill_session`, but reaps the pane process trees synchronously so a
+/// stop/restart cannot race the teardown.
+pub fn kill_session_wait(name: &str) -> Result<(), String> {
+    let (victims, r) = kill_session_inner(name);
+    crate::proctree::kill_pids(&victims);
+    r.map(|_| ())
+}
+
+fn kill_session_inner(name: &str) -> (Vec<i32>, Result<String, String>) {
+    let roots: Vec<i32> = list_pane_pids(name).into_iter().map(|p| p as i32).collect();
+    let victims = crate::proctree::trees(&roots);
+    let r = run(&["kill-session", "-t", &exact_session(name)]);
+    (victims, r)
 }
 
 pub fn kill_pane(pane_id: &str) -> Result<(), String> {
@@ -255,7 +282,10 @@ pub fn start_project_services(
     if ssh.is_some() {
         config::ensure_ssh_control_dir()?;
     }
-    let _ = kill_session(session); // ignore — matches Go
+    // Ignore the result (matches Go), but reap synchronously: spawning
+    // replacement services while the old trees are still dying in the
+    // background hands the new servers a still-bound port.
+    let _ = kill_session_wait(session);
     let Some((name0, cmd0, cwd0, env0)) = services.first() else {
         return Err("no services to start".into());
     };
@@ -270,6 +300,9 @@ pub fn start_project_services(
             let split = if i > 0 { "-v" } else { "-h" };
             let dir = pane_spawn_dir(root, cwd, ssh);
             let pane = split_window_in(split, session, &dir)?;
+            // Re-tile after every split: repeated splits of an untiled window
+            // run out of space at the 6th pane even at 200x50.
+            let _ = run(&["select-layout", "-t", &exact_window(session), "tiled"]);
             set_pane_service(&pane, name)?;
             send_keys(&pane, &build_command(root, cwd, env, cmd, ssh))?;
         }
@@ -302,7 +335,7 @@ pub fn split_session_pane(
     {
         return Err(rollback_error(error, kill_pane(&pane)));
     }
-    let _ = run(&["select-layout", "-t", session, "tiled"]);
+    let _ = run(&["select-layout", "-t", &exact_window(session), "tiled"]);
     Ok(pane)
 }
 
@@ -323,8 +356,22 @@ pub fn split_session_services(
 }
 
 fn new_session_in(session: &str, dir: &str) -> Result<String, String> {
+    // Detached sessions default to 80x24 — too small to tile many panes into;
+    // start roomy so per-split re-tiling has headroom.
     let out = tmux_command()
-        .args(["new-session", "-d", "-s", session, "-P", "-F", "#{pane_id}"])
+        .args([
+            "new-session",
+            "-d",
+            "-x",
+            "200",
+            "-y",
+            "50",
+            "-s",
+            session,
+            "-P",
+            "-F",
+            "#{pane_id}",
+        ])
         .current_dir(spawn_dir_or_root(dir))
         .output()
         .map_err(|e| format!("failed to create tmux session: {e}"))?;
@@ -338,11 +385,12 @@ fn new_session_in(session: &str, dir: &str) -> Result<String, String> {
 }
 
 fn split_window_in(split: &str, session: &str, dir: &str) -> Result<String, String> {
+    let target = exact_window(session);
     let mut args = vec!["split-window"];
     if !split.is_empty() {
         args.push(split);
     }
-    args.extend_from_slice(&["-t", session, "-P", "-F", "#{pane_id}"]);
+    args.extend_from_slice(&["-t", &target, "-P", "-F", "#{pane_id}"]);
     let out = tmux_command()
         .args(&args)
         .current_dir(spawn_dir_or_root(dir))
@@ -410,6 +458,16 @@ mod tests {
         }
     }
 
+    /// A second session cleaned up on drop; the server lock is held by the
+    /// accompanying SessionGuard.
+    struct ExtraSession(String);
+
+    impl Drop for ExtraSession {
+        fn drop(&mut self) {
+            let _ = kill_session(&self.0);
+        }
+    }
+
     fn service(name: &str, command: String) -> ServiceTuple {
         (name.to_string(), command, String::new(), BTreeMap::new())
     }
@@ -459,6 +517,36 @@ mod tests {
         assert!(
             crate::services::run_state_from_tmux(&session.0, incomplete_config.iter()).is_none()
         );
+    }
+
+    #[test]
+    fn session_name_targets_never_prefix_match() {
+        let session = SessionGuard::new();
+        let longer = ExtraSession(format!("{}-longer", session.0));
+        run_for_test(&["new-session", "-d", "-s", &longer.0]).unwrap();
+        assert!(session_exists(&longer.0));
+        assert!(!session_exists(&session.0));
+        assert!(list_pane_ids(&session.0).is_empty());
+        assert!(kill_session(&session.0).is_err());
+        assert!(session_exists(&longer.0));
+    }
+
+    #[test]
+    fn starts_eight_services_in_one_session() {
+        let session = SessionGuard::new();
+        let services: Vec<ServiceTuple> = (0..8)
+            .map(|i| service(&format!("svc{i}"), "sleep 30".into()))
+            .collect();
+        start_project_services(&session.0, ".", &services, None).unwrap();
+        assert_eq!(list_pane_ids(&session.0).len(), 8);
+    }
+
+    #[test]
+    fn kill_session_wait_removes_the_session() {
+        let session = SessionGuard::new();
+        start_project_services(&session.0, ".", &[service("db", "sleep 30".into())], None).unwrap();
+        kill_session_wait(&session.0).unwrap();
+        assert!(!session_exists(&session.0));
     }
 
     #[test]

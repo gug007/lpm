@@ -524,8 +524,8 @@ export function NotesListMessages(project, chatID, limit, beforeID) {
 export function NotesReadAttachment(project, hash) {
   return invoke("notes_read_attachment", { project, hash });
 }
-export function NotesReadFileAsInput(path) {
-  return invoke("notes_read_file_as_input", { path });
+export function NotesReadFileAsInput(path, maxBytes) {
+  return invoke("notes_read_file_as_input", { path, maxBytes });
 }
 export function NotesRenameChat(project, chatID, title) {
   return invoke("notes_rename_chat", { project, chatId: chatID, title });

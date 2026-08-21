@@ -20,6 +20,11 @@
 //   set_resume <project> <pane_id> <session_id> [--provider=codex|claude]
 //   list_jobs <project>
 //   run_job <project> <job_id>
+// Any option may also arrive as `--<name>-hex=<hex of UTF-8>`: the option layer
+// decodes it into option <name>, winning over a plain `--<name>`. This is the
+// transport the CLI uses for free text (prompts, commands, status values) that
+// shell_split quoting and the one-command-per-line framing cannot carry;
+// set_status/clear_status accept `--key`/`--value` options for the same reason.
 // Each line gets a single-line reply, EXCEPT the duplicate verbs, which stream
 // zero or more `PROGRESS <done> <total> <copy-name>` lines and then a final JSON
 // line (`{"ok":true,"names":[...]}` / `{"ok":false,"error":...}`) — cloning N
@@ -234,11 +239,16 @@ struct ConfigApplyPayload {
 
 fn decode_config_payload<T: serde::de::DeserializeOwned>(args: &[String]) -> Result<T, String> {
     let (_, options) = parse_options(args);
-    let encoded = options
-        .get("payload-hex")
-        .ok_or_else(|| "missing --payload-hex".to_string())?;
-    let payload = hex_decode(encoded).ok_or_else(|| "invalid payload encoding".to_string())?;
-    serde_json::from_str(&payload).map_err(|e| format!("invalid config payload: {e}"))
+    // The generic hex layer already decoded --payload-hex into "payload"; a
+    // leftover "payload-hex" key means the hex itself was malformed.
+    let payload = match options.get("payload") {
+        Some(payload) => payload,
+        None if options.contains_key("payload-hex") => {
+            return Err("invalid payload encoding".to_string())
+        }
+        None => return Err("missing --payload-hex".to_string()),
+    };
+    serde_json::from_str(payload).map_err(|e| format!("invalid config payload: {e}"))
 }
 
 fn config_error(error: String) -> String {
@@ -774,14 +784,14 @@ fn cmd_send_job_followup(args: &[String], app: &AppHandle) -> String {
         return serde_json::json!({ "ok": false, "error": "at must be a unix timestamp" })
             .to_string();
     };
-    let message = match options.get("message-hex") {
-        Some(value) => match hex_decode(value) {
-            Some(message) => message,
-            None => {
-                return serde_json::json!({ "ok": false, "error": "message-hex is invalid" })
-                    .to_string()
-            }
-        },
+    // --message-hex rides the generic hex layer into "message"; a leftover
+    // "message-hex" key means the hex itself was malformed.
+    let message = match options.get("message") {
+        Some(message) => message.clone(),
+        None if options.contains_key("message-hex") => {
+            return serde_json::json!({ "ok": false, "error": "message-hex is invalid" })
+                .to_string()
+        }
         None => positional.get(3).cloned().unwrap_or_default(),
     };
     if let Err(error) = ensure_job_exists(&positional[0], &positional[1]) {
@@ -815,16 +825,31 @@ fn hex_decode(value: &str) -> Option<String> {
     String::from_utf8(bytes?).ok()
 }
 
+/// Resolve an argument that may arrive as a decoded option (the CLI sends
+/// `--key-hex`/`--value-hex` so quotes and newlines survive shell_split) or as
+/// a classic positional from older clients and the pane hooks.
+fn opt_or_positional(
+    options: &HashMap<String, String>,
+    name: &str,
+    positional: &[String],
+    index: usize,
+) -> Option<String> {
+    options
+        .get(name)
+        .cloned()
+        .or_else(|| positional.get(index).cloned())
+}
+
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
-    if positional.len() < 3 {
+    let key = opt_or_positional(&options, "key", &positional, 1);
+    let value = opt_or_positional(&options, "value", &positional, 2);
+    let (Some(project), Some(key), Some(value)) = (positional.first(), key, value) else {
         return "ERROR: usage: set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]".into();
-    }
-    let project = &positional[0];
-    let value = positional[2].clone();
+    };
     let pane_id = options.get("pane").cloned().unwrap_or_default();
     let entry = StatusEntry {
-        key: positional[1].clone(),
+        key,
         value: value.clone(),
         icon: options.get("icon").cloned().unwrap_or_default(),
         color: options.get("color").cloned().unwrap_or_default(),
@@ -856,12 +881,13 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
 }
 
 fn cmd_clear_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
-    let (positional, _) = parse_options(args);
-    if positional.len() < 2 {
+    let (positional, options) = parse_options(args);
+    let key = opt_or_positional(&options, "key", &positional, 1);
+    let (Some(project), Some(key)) = (positional.first(), key) else {
         return "ERROR: usage: clear_status <project> <key>".into();
-    }
-    if store.clear(&positional[0], &positional[1]) {
-        let _ = app.emit("status-changed", &positional[0]);
+    };
+    if store.clear(project, &key) {
+        let _ = app.emit("status-changed", project);
     }
     "OK".into()
 }
@@ -903,7 +929,8 @@ fn shell_split(s: &str) -> Vec<String> {
 }
 
 /// Handles --key=value and --key value forms; everything else is positional
-/// (order preserved). Mirrors socket.go parseOptions.
+/// (order preserved). Mirrors socket.go parseOptions, then resolves the
+/// `--<name>-hex` transport (see [`decode_hex_options`]) so every verb gets it.
 fn parse_options(args: &[String]) -> (Vec<String>, HashMap<String, String>) {
     let mut positional = Vec::new();
     let mut options = HashMap::new();
@@ -924,7 +951,27 @@ fn parse_options(args: &[String]) -> (Vec<String>, HashMap<String, String>) {
         }
         i += 1;
     }
+    decode_hex_options(&mut options);
     (positional, options)
+}
+
+/// Any `--<name>-hex=<hex of UTF-8>` option decodes into option `<name>`,
+/// winning over a plain `--<name>` twin: hex is the transport for free text
+/// that shell_split quoting and the line framing cannot carry. Malformed hex
+/// leaves the raw `<name>-hex` entry so a verb can report it explicitly.
+fn decode_hex_options(options: &mut HashMap<String, String>) {
+    let hex_keys: Vec<String> = options
+        .keys()
+        .filter(|k| k.len() > 4 && k.ends_with("-hex"))
+        .cloned()
+        .collect();
+    for key in hex_keys {
+        let Some(decoded) = options.get(&key).and_then(|v| hex_decode(v)) else {
+            continue;
+        };
+        options.remove(&key);
+        options.insert(key[..key.len() - 4].to_string(), decoded);
+    }
 }
 
 #[cfg(test)]
@@ -1092,6 +1139,80 @@ mod tests {
     fn followup_hex_preserves_message_text() {
         assert_eq!(hex_decode("646f6e2774").as_deref(), Some("don't"));
         assert!(hex_decode("xyz").is_none());
+    }
+
+    fn hex(s: &str) -> String {
+        s.as_bytes().iter().map(|b| format!("{b:02x}")).collect()
+    }
+
+    // The CLI ships free text as --<name>-hex; a prompt full of quotes and
+    // newlines must come out of shell_split + parse_options byte-for-byte —
+    // including a line that would otherwise dispatch as its own verb.
+    #[test]
+    fn any_option_decodes_from_its_hex_twin() {
+        let prompt = "fix 'this' and \"that\"\nstop_project other\n";
+        let line = format!("run_task 'proj' --prompt-hex={}", hex(prompt));
+        assert!(!line.contains('\n'));
+        let parts = shell_split(&line);
+        let (pos, opts) = parse_options(&parts[1..]);
+        assert_eq!(pos, ["proj"]);
+        assert_eq!(opts.get("prompt").unwrap(), prompt);
+        assert!(!opts.contains_key("prompt-hex"));
+    }
+
+    #[test]
+    fn hex_option_wins_over_its_plain_twin() {
+        let args = vec![
+            "--prompt=flattened copy for old apps".to_string(),
+            format!("--prompt-hex={}", hex("exact\ntext")),
+        ];
+        let (_, opts) = parse_options(&args);
+        assert_eq!(opts.get("prompt").unwrap(), "exact\ntext");
+    }
+
+    #[test]
+    fn malformed_hex_option_is_left_raw_for_the_verb_to_report() {
+        let args = vec!["--message-hex=zz".to_string()];
+        let (_, opts) = parse_options(&args);
+        assert_eq!(opts.get("message-hex").unwrap(), "zz");
+        assert!(!opts.contains_key("message"));
+    }
+
+    // The CLI's quote_arg renders an embedded single quote as `'"'"'`; adjacent
+    // quoted spans must merge back into one token.
+    #[test]
+    fn concatenated_quote_spans_rejoin_into_one_token() {
+        assert_eq!(
+            shell_split(r#"set_status 'my proj' 'it'"'"'s' 'Done'"#),
+            ["set_status", "my proj", "it's", "Done"]
+        );
+    }
+
+    #[test]
+    fn status_key_and_value_accept_option_and_positional_forms() {
+        let option_form: Vec<String> = vec![
+            "proj".into(),
+            format!("--key-hex={}", hex("agent key")),
+            format!("--value-hex={}", hex("it's \"done\"\nnext")),
+        ];
+        let (pos, opts) = parse_options(&option_form);
+        assert_eq!(
+            opt_or_positional(&opts, "key", &pos, 1).as_deref(),
+            Some("agent key")
+        );
+        assert_eq!(
+            opt_or_positional(&opts, "value", &pos, 2).as_deref(),
+            Some("it's \"done\"\nnext")
+        );
+
+        let positional_form: Vec<String> = vec!["proj".into(), "k".into(), "Running".into()];
+        let (pos, opts) = parse_options(&positional_form);
+        assert_eq!(opt_or_positional(&opts, "key", &pos, 1).as_deref(), Some("k"));
+        assert_eq!(
+            opt_or_positional(&opts, "value", &pos, 2).as_deref(),
+            Some("Running")
+        );
+        assert_eq!(opt_or_positional(&opts, "value", &pos, 9), None);
     }
 
     #[test]

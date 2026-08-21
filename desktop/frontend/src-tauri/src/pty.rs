@@ -710,6 +710,24 @@ pub fn stop_terminal(app: AppHandle, state: State<'_, PtyState>, id: String) -> 
     Ok(())
 }
 
+/// Reap every live terminal's process tree, synchronously. RunEvent::Exit calls
+/// this: tab close reaps via stop_terminal, but quitting the app used to tear
+/// down everything else and never touch the pty sessions, so HUP-ignoring or
+/// setsid'd grandchildren (dev servers spawned by agent CLIs) survived quit and
+/// kept their ports. One aggregated kill_pids call over all roots bounds the
+/// wait at a single grace period, not one per pane. tmux sessions are
+/// deliberately untouched — projects keep running across quit by design.
+pub fn kill_all_trees(state: &PtyState) {
+    let roots: Vec<i32> = state
+        .sessions
+        .lock()
+        .unwrap()
+        .values()
+        .filter_map(|s| s.child.lock().unwrap().process_id().map(|p| p as i32))
+        .collect();
+    crate::proctree::kill_pids(&crate::proctree::trees(&roots));
+}
+
 /// Whether `id` still names a live session. A local pty dies with the app, so
 /// this is only ever interesting across the peer proxy: the other machine keeps
 /// its terminals (and their output rings) running while we are closed, and

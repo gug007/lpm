@@ -70,6 +70,9 @@ pub struct PortFwdState {
     counter: AtomicU64,
     // project -> stop flag for its running poller thread (None == not polling)
     pollers: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    // project -> teardown generation; a stop bumps it so an in-flight
+    // forward_impl aborts instead of registering a tunnel after teardown
+    epochs: Mutex<HashMap<String, u64>>,
 }
 
 /// `ssh -N -L 127.0.0.1:L:127.0.0.1:R <conn args, minus -t>`. Reuses the shared
@@ -107,7 +110,21 @@ pub fn add_port_forward(
     remote_port: i64,
     local_port: i64,
 ) -> Result<PortForward, String> {
-    forward_impl(&app, &state, &project, remote_port, local_port)
+    let epoch = armed_epoch(&state, &project);
+    forward_impl(&app, &state, &project, remote_port, local_port, epoch)
+}
+
+/// The project's teardown generation at the moment a forward is decided on.
+/// Captured at DECISION time (command entry / port observation), not inside
+/// forward_impl: a stop can complete between the decision and the spawn, and
+/// only a pre-stop capture makes the registration re-check catch that.
+fn armed_epoch(state: &PortFwdState, project: &str) -> u64 {
+    *state
+        .epochs
+        .lock()
+        .unwrap()
+        .entry(project.to_string())
+        .or_insert(0)
 }
 
 /// Core forwarding logic shared by the `add_port_forward` command and the
@@ -119,6 +136,7 @@ fn forward_impl(
     project: &str,
     remote_port: i64,
     local_port: i64,
+    epoch: u64,
 ) -> Result<PortForward, String> {
     if !(1..=65535).contains(&remote_port) {
         return Err(format!("invalid remote port: {remote_port}"));
@@ -208,42 +226,72 @@ fn forward_impl(
     }
 
     let id = state.counter.fetch_add(1, Ordering::SeqCst);
-    state
-        .forwards
-        .lock()
-        .unwrap()
-        .entry(project.to_string())
-        .or_default()
-        .push(Forward {
-            id,
-            local_port,
-            remote_port,
-            pid,
-        });
+    {
+        // Register + mark under the epochs lock (lock order: epochs before
+        // forwards/suggestions, nothing locks the other way): a stop that
+        // bumped the epoch during the listener wait aborts here, and a stop
+        // that lands after finds the pid in the map to kill.
+        let epochs = state.epochs.lock().unwrap();
+        if epochs.get(project).copied().unwrap_or(0) != epoch {
+            drop(epochs);
+            unsafe { libc::kill(pid, libc::SIGKILL) };
+            wait_done(&done);
+            // Retire the mark that armed this forward so a later observation
+            // of a genuinely live listener can suggest/forward it again.
+            unmark_port_suggested(&state.suggestions, project, remote_port);
+            return Err(format!("project {project:?} stopped during forward setup"));
+        }
+        state
+            .forwards
+            .lock()
+            .unwrap()
+            .entry(project.to_string())
+            .or_default()
+            .push(Forward {
+                id,
+                local_port,
+                remote_port,
+                pid,
+            });
+        mark_port_suggested(&state.suggestions, project, remote_port);
+    }
 
     // Lifecycle: when the ssh child dies, drop the entry and refetch the UI.
     {
-        let (done, forwards, app2, project2) = (
+        let (done, forwards, suggestions, app2, project2) = (
             done.clone(),
             state.forwards.clone(),
+            state.suggestions.clone(),
             app.clone(),
             project.to_string(),
         );
         std::thread::spawn(move || {
             wait_done(&done);
-            let mut f = forwards.lock().unwrap();
-            if let Some(v) = f.get_mut(&project2) {
-                v.retain(|e| e.id != id);
-                if v.is_empty() {
-                    f.remove(&project2);
+            let removed = {
+                let mut f = forwards.lock().unwrap();
+                match f.get_mut(&project2) {
+                    Some(v) => {
+                        let before = v.len();
+                        v.retain(|e| e.id != id);
+                        let removed = v.len() != before;
+                        if v.is_empty() {
+                            f.remove(&project2);
+                        }
+                        removed
+                    }
+                    None => false,
                 }
+            };
+            // Entry still present == the tunnel died on its own (not manual
+            // removal or project teardown, which drain the map first): un-mark
+            // so the next poll can re-suggest / re-forward the port.
+            if removed {
+                unmark_port_suggested(&suggestions, &project2, remote_port);
             }
-            drop(f);
             let _ = app2.emit("ports-changed", &project2);
         });
     }
 
-    mark_port_suggested(&state.suggestions, project, remote_port);
     let _ = app.emit("ports-changed", project);
     Ok(PortForward {
         local_port,
@@ -406,6 +454,16 @@ fn mark_port_suggested(suggestions: &Arc<Mutex<SuggestionState>>, project: &str,
         .insert(port);
 }
 
+fn unmark_port_suggested(suggestions: &Arc<Mutex<SuggestionState>>, project: &str, port: u16) {
+    let mut s = suggestions.lock().unwrap();
+    if let Some(set) = s.suggested.get_mut(project) {
+        set.remove(&port);
+        if set.is_empty() {
+            s.suggested.remove(project);
+        }
+    }
+}
+
 // ---- lifecycle teardown (called from services.rs / lib.rs via app.state) ----
 
 /// Stop a project's forwards + poller + wipe its suggestion state (Go
@@ -413,6 +471,14 @@ fn mark_port_suggested(suggestions: &Arc<Mutex<SuggestionState>>, project: &str,
 pub fn stop_project_forwards(app: &AppHandle, project: &str) {
     let state = app.state::<PortFwdState>();
     stop_poller(&state, project);
+    // Bump before draining: an in-flight forward_impl either registered
+    // already (drained below) or sees the new epoch and aborts.
+    *state
+        .epochs
+        .lock()
+        .unwrap()
+        .entry(project.to_string())
+        .or_insert(0) += 1;
     let pids: Vec<i32> = {
         let mut f = state.forwards.lock().unwrap();
         f.remove(project)
@@ -436,6 +502,11 @@ pub fn stop_all_forwards(app: &AppHandle) {
     let state = app.state::<PortFwdState>();
     for stop in state.pollers.lock().unwrap().drain().map(|(_, s)| s) {
         stop.store(true, Ordering::Relaxed);
+    }
+    // Every in-flight forward_impl created its project's epoch entry before
+    // spawning, so bumping the existing entries reaches all of them.
+    for e in state.epochs.lock().unwrap().values_mut() {
+        *e += 1;
     }
     let all: HashMap<String, Vec<Forward>> = std::mem::take(&mut state.forwards.lock().unwrap());
     for (_, v) in all {
@@ -472,9 +543,10 @@ pub fn start_port_poller(app: &AppHandle, project: &str) {
     };
     let app = app.clone();
     let project = project.to_string();
+    let session = info.session.clone();
     let ssh = info.ssh.clone();
     let declared = config::declared_service_ports_of(&info);
-    std::thread::spawn(move || run_poller(app, project, ssh, declared, stop));
+    std::thread::spawn(move || run_poller(app, project, session, ssh, declared, stop));
 }
 
 /// On startup, resume pollers for remote projects whose tmux session is still
@@ -492,12 +564,19 @@ pub fn resume_port_pollers(app: &AppHandle) {
 fn run_poller(
     app: AppHandle,
     project: String,
+    session: String,
     ssh: config::SshSettings,
     declared: HashSet<u16>,
     stop: Arc<AtomicBool>,
 ) {
     let mut first = true;
     while !stop.load(Ordering::Relaxed) {
+        if !crate::tmux::session_exists(&session) {
+            // Session gone without an explicit Stop (panes exited, killed
+            // externally): tear down as Stop would instead of probing forever.
+            stop_project_forwards(&app, &project);
+            return;
+        }
         let ports = fetch_listening_ports(&ssh, &declared);
         if stop.load(Ordering::Relaxed) {
             break;
@@ -654,11 +733,12 @@ fn observe_port(
             }
         }
     }
+    let epoch = armed_epoch(state, project);
     if !mark_if_new(&state.suggestions, project, port) {
         return; // dismissed, or already suggested
     }
     if declared.contains(&port) {
-        auto_forward(app, project, port);
+        auto_forward(app, project, port, epoch);
     } else {
         let _ = app.emit("ports-changed", project);
     }
@@ -667,12 +747,12 @@ fn observe_port(
 /// Forward a declared port automatically; emit success/failure for the toast.
 /// Runs on its own thread — forward_impl blocks up to 4s on the listener probe,
 /// and the caller (poller / PTY flush thread) must not stall on that.
-fn auto_forward(app: &AppHandle, project: &str, remote_port: u16) {
+fn auto_forward(app: &AppHandle, project: &str, remote_port: u16, epoch: u64) {
     let app = app.clone();
     let project = project.to_string();
     std::thread::spawn(move || {
         let state = app.state::<PortFwdState>();
-        match forward_impl(&app, &state, &project, remote_port as i64, 0) {
+        match forward_impl(&app, &state, &project, remote_port as i64, 0, epoch) {
             Ok(pf) => {
                 let _ = app.emit(
                     "port-auto-forwarded",

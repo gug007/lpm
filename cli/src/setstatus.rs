@@ -4,7 +4,7 @@
 use crate::config::Ctx;
 use crate::control;
 use crate::error::{resolve_or_infer, RunError};
-use crate::statussock::quote_arg;
+use crate::statussock::{checked_arg, hex_encode, legacy_text, text_opt};
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_set(
@@ -20,23 +20,33 @@ pub fn run_set(
     control::require_app(ctx)?;
     let file_name = resolve_or_infer(ctx, project)?;
 
+    // key/value ride positionally for pre-hex apps (flattened, lossy only
+    // across newlines) and as byte-exact hex options that win on current apps.
     let mut line = format!(
-        "set_status {} {} {}",
-        quote_arg(&file_name),
-        quote_arg(key),
-        quote_arg(value)
+        "set_status {} {} {} --key-hex={} --value-hex={}",
+        checked_arg("project name", &file_name).map_err(RunError::NotFound)?,
+        legacy_text(key),
+        legacy_text(value),
+        hex_encode(key),
+        hex_encode(value)
     );
     if let Some(v) = icon {
-        line.push_str(&format!(" --icon={}", quote_arg(v)));
+        line.push_str(&text_opt("icon", v));
     }
     if let Some(v) = color {
-        line.push_str(&format!(" --color={}", quote_arg(v)));
+        line.push_str(&format!(
+            " --color={}",
+            checked_arg("color", v).map_err(RunError::NotFound)?
+        ));
     }
     if let Some(v) = priority {
         line.push_str(&format!(" --priority={v}"));
     }
     if let Some(v) = pane {
-        line.push_str(&format!(" --pane={}", quote_arg(v)));
+        line.push_str(&format!(
+            " --pane={}",
+            checked_arg("pane id", v).map_err(RunError::NotFound)?
+        ));
     }
 
     control::send_command(ctx, &line)?;
@@ -50,7 +60,12 @@ pub fn run_clear(ctx: &Ctx, key: &str, project: Option<&str>) -> Result<(), RunE
 
     control::send_command(
         ctx,
-        &format!("clear_status {} {}", quote_arg(&file_name), quote_arg(key)),
+        &format!(
+            "clear_status {} {} --key-hex={}",
+            checked_arg("project name", &file_name).map_err(RunError::NotFound)?,
+            legacy_text(key),
+            hex_encode(key)
+        ),
     )?;
     println!("cleared {key} on {file_name}");
     Ok(())

@@ -294,8 +294,12 @@ pub async fn notes_save_attachment(
 }
 
 #[tauri::command(async)]
-pub fn notes_read_file_as_input(path: String) -> Result<NotesAttachmentInput, String> {
-    let p = Path::new(&path);
+pub fn notes_read_file_as_input(
+    path: String,
+    max_bytes: Option<u64>,
+) -> Result<NotesAttachmentInput, String> {
+    let expanded = config::expand_home(&path);
+    let p = Path::new(&expanded);
     let meta = std::fs::metadata(p).map_err(|e| e.to_string())?;
     let name = p
         .file_name()
@@ -304,10 +308,13 @@ pub fn notes_read_file_as_input(path: String) -> Result<NotesAttachmentInput, St
     if meta.is_dir() {
         return Err(format!("{name} is a directory"));
     }
-    if meta.len() > MAX_DROPPED_ATTACHMENT_BYTES {
-        return Err(format!("{name} exceeds 100MB limit"));
+    let cap = max_bytes
+        .unwrap_or(MAX_DROPPED_ATTACHMENT_BYTES)
+        .min(MAX_DROPPED_ATTACHMENT_BYTES);
+    if meta.len() > cap {
+        return Err(format!("{name} exceeds {}MB limit", cap / (1024 * 1024)));
     }
-    let data = read_file_capped(p, MAX_DROPPED_ATTACHMENT_BYTES)?;
+    let data = read_file_capped(p, cap)?;
     let mime_type = mime_for(p, &data);
     Ok(NotesAttachmentInput {
         name,

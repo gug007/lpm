@@ -7,7 +7,7 @@
 use crate::config::{self, Ctx};
 use crate::control;
 use crate::error::{resolve_or_infer, RunError};
-use crate::statussock::{self, quote_arg};
+use crate::statussock::{self, checked_arg, quote_arg, text_opt};
 use serde_json::{json, Value};
 
 fn duplicate_command(worktree: bool) -> &'static str {
@@ -61,14 +61,17 @@ pub fn run(
     };
 
     let command = duplicate_command(worktree);
-    let mut line = format!("{command} {} --count={count}", quote_arg(&file_name));
+    let mut line = format!(
+        "{command} {} --count={count}",
+        checked_arg("project name", &file_name).map_err(RunError::NotFound)?
+    );
     if let Some(flag) = labels_flag(labels)
         .map_err(|e| RunError::Internal(format!("could not encode labels: {e}")))?
     {
         line.push_str(&flag);
     }
     if let Some(g) = group.filter(|g| !g.is_empty()) {
-        line.push_str(&format!(" --group={}", quote_arg(g)));
+        line.push_str(&text_opt("group", g));
     }
     if let Some(flag) = exclude_uncommitted_flag(exclude_uncommitted) {
         line.push_str(flag);
@@ -80,13 +83,16 @@ pub fn run(
         line.push_str(" --pull-latest=false");
     }
     if let Some(a) = &resolved_action {
-        line.push_str(&format!(" --run-action={}", quote_arg(a)));
+        line.push_str(&format!(
+            " --run-action={}",
+            checked_arg("action name", a).map_err(RunError::NotFound)?
+        ));
     }
     if let Some(c) = run_command {
-        line.push_str(&format!(" --run-command={}", quote_arg(c)));
+        line.push_str(&text_opt("run-command", c));
     }
     if let Some(p) = prompt {
-        line.push_str(&format!(" --prompt={}", quote_arg(p)));
+        line.push_str(&text_opt("prompt", p));
     }
 
     let final_line = statussock::request_lines(&ctx.socket_path(), &line, |payload| {

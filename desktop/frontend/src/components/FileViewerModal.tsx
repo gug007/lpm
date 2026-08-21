@@ -10,12 +10,25 @@ import { useContentZoom } from "../hooks/useContentZoom";
 import { ZoomControl } from "./ui/ZoomControl";
 import { MonacoEditor } from "./MonacoEditor";
 import { OpenFileWithDropdown } from "./OpenFileWithDropdown";
+import { SegmentedControl } from "./ui/SegmentedControl";
+import { isImagePath } from "../composerValue";
+import { ImageFileView } from "./ImageFileView";
+import { useImagePreview } from "./imagePreview";
 
 // Inner width above which a diff renders in two columns. Below this we fall
 // back to a single column with del-then-add stacking.
 const SIDE_BY_SIDE_MIN_PX = 1100;
 
 const BASE_FONT_PX = 12;
+
+// SVG is the one image extension that is also reviewable, editable source, so
+// it keeps a way back to the diff instead of only ever being rasterised.
+const SOURCE_IMAGE_RE = /\.svg$/i;
+
+const VIEW_OPTIONS = [
+  { value: "preview", label: "Preview" },
+  { value: "source", label: "Source" },
+] as const;
 
 type CellKind = "context" | "add" | "del" | "empty";
 
@@ -196,10 +209,18 @@ export function FileViewerModal({
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [showSource, setShowSource] = useState(false);
   const wide = useIsWide(SIDE_BY_SIDE_MIN_PX);
+  const renderable = isImagePath(absPath);
+  const canViewSource = renderable && SOURCE_IMAGE_RE.test(absPath);
+  const isImage = renderable && !showSource;
   // Monaco owns the zoom gestures inside its own surface, so stand down while
   // editing.
-  const zoom = useContentZoom(open && !editing);
+  const textZoom = useContentZoom(open && !editing && !isImage);
+  const preview = useImagePreview(absPath, open && isImage);
+  // Two controllers so an image opens at fit regardless of the reader zoom the
+  // text pane was left at; only one is ever enabled.
+  const zoom = isImage ? preview.zoom : textZoom;
 
   // Capture phase on window so we beat xterm's keydown handler — xterm calls
   // stopPropagation on keys it consumes, which would otherwise eat Escape
@@ -221,16 +242,21 @@ export function FileViewerModal({
     setEditing(false);
     setEditValue("");
     setSaving(false);
+    setShowSource(false);
   }, [absPath]);
 
   useEffect(() => {
     if (!open || !absPath) return;
-    let cancelled = false;
-    setLoading(true);
     setError(null);
     setDiffRows(null);
     setContentLines(null);
     setRawContent("");
+    if (isImage) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
 
     (async () => {
       const lang = getLang(absPath);
@@ -276,11 +302,11 @@ export function FileViewerModal({
     return () => {
       cancelled = true;
     };
-  }, [open, absPath, projectRoot, reloadKey]);
+  }, [open, absPath, projectRoot, reloadKey, isImage]);
 
   const hasDiff = diffRows !== null;
   const headerLabel = projectRoot ? relTo(absPath, projectRoot) : absPath;
-  const canEdit = !loading && !error;
+  const canEdit = !isImage && !loading && !error;
   const dirty = editing && editValue !== rawContent;
 
   const startEdit = () => {
@@ -320,10 +346,15 @@ export function FileViewerModal({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-[15px] font-semibold text-[var(--text-primary)]">
               <span className="truncate">{basename(absPath)}</span>
-              {line > 0 && (
+              {!isImage && line > 0 && (
                 <span className="rounded bg-[var(--bg-hover)] px-1.5 py-0.5 font-mono text-[11px] font-normal text-[var(--text-secondary)]">
                   :{line}
                   {col > 0 ? `:${col}` : ""}
+                </span>
+              )}
+              {isImage && preview.meta && (
+                <span className="rounded bg-[var(--bg-hover)] px-1.5 py-0.5 font-mono text-[11px] font-normal text-[var(--text-secondary)]">
+                  {preview.meta}
                 </span>
               )}
               {hasDiff && (
@@ -358,6 +389,15 @@ export function FileViewerModal({
               </>
             ) : (
               <>
+                {canViewSource && (
+                  <SegmentedControl
+                    value={showSource ? "source" : "preview"}
+                    options={VIEW_OPTIONS}
+                    onChange={(v) => setShowSource(v === "source")}
+                    variant="subtle"
+                    ariaLabel="View mode"
+                  />
+                )}
                 <ZoomControl
                   percent={zoom.percent}
                   onZoomIn={zoom.zoomIn}
@@ -392,7 +432,11 @@ export function FileViewerModal({
         <div
           ref={zoom.surfaceRef}
           className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono leading-[1.55]"
-          style={editing ? undefined : { fontSize: `${BASE_FONT_PX * zoom.zoom}px` }}
+          style={
+            editing || isImage
+              ? undefined
+              : { fontSize: `${BASE_FONT_PX * zoom.zoom}px` }
+          }
         >
           {editing ? (
             <MonacoEditor
@@ -402,6 +446,8 @@ export function FileViewerModal({
               modelUri={`lpm-file://${absPath}`}
               onSave={() => void saveEdit()}
             />
+          ) : isImage ? (
+            <ImageFileView preview={preview} />
           ) : (
             <>
               {loading && (

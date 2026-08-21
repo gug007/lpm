@@ -39,11 +39,25 @@ pub fn running_sessions() -> HashSet<String> {
     }
 }
 
+/// tmux resolves `-t name` by prefix when no exact match exists, so a target
+/// for a gone session silently hits a duplicate ("{name}-x1y2z3"). `=name`
+/// anchors session targets exactly.
+fn exact_session(name: &str) -> String {
+    format!("={name}")
+}
+
+/// Window/pane-target commands (list-panes) drop the exact flag when a bare
+/// `=name` falls through to their session lookup; the trailing colon forces
+/// the name to parse as a session, keeping `=` live.
+fn exact_window(name: &str) -> String {
+    format!("={name}:")
+}
+
 pub fn session_exists(name: &str) -> bool {
     // `.output()` (not `.status()`) so tmux's "can't find session" note on a
     // missing session is captured rather than leaking to our stderr.
     Command::new("tmux")
-        .args(["has-session", "-t", name])
+        .args(["has-session", "-t", exact_session(name).as_str()])
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
@@ -64,7 +78,13 @@ pub fn list_panes(session: &str) -> Vec<Pane> {
     let fmt =
         "#{pane_id}\t#{pane_pid}\t#{pane_current_command}\t#{pane_current_path}\t#{pane_title}";
     let out = match Command::new("tmux")
-        .args(["list-panes", "-t", session, "-F", fmt])
+        .args([
+            "list-panes",
+            "-t",
+            exact_window(session).as_str(),
+            "-F",
+            fmt,
+        ])
         .output()
     {
         Ok(o) if o.status.success() => o.stdout,

@@ -338,16 +338,44 @@ pub fn resolve_port_conflict(
     svc: State<'_, ServiceState>,
     c: PortConflictInfo,
 ) -> Result<(), String> {
-    free_port(&app, &svc, c.port)
+    free_port(&app, &svc, &c)
 }
 
-fn free_port(app: &AppHandle, svc: &State<'_, ServiceState>, port: i64) -> Result<(), String> {
+/// The approval dialog can sit open indefinitely, so by the time the user
+/// confirms, the port may be held by something other than what they approved.
+/// None when the current holder is still the approved one; otherwise the error
+/// to surface instead of killing an innocent process.
+fn approved_holder_mismatch(
+    c: &PortConflictInfo,
+    holder: &Holder,
+    project: &str,
+) -> Option<String> {
+    // A project-attributed approval consents to stopping that PROJECT, so a
+    // churned pid inside the same project (a respawned dev server) still
+    // matches; pid equality is required only for bare-process approvals.
+    let same_project = !c.lpm_project.is_empty() && project == c.lpm_project;
+    if same_project || (holder.pid == c.pid && c.lpm_project.is_empty()) {
+        return None;
+    }
+    Some(format!(
+        "port {} is now held by {}, not the process you approved — retry",
+        c.port,
+        holder_phrase(holder, project)
+    ))
+}
+
+fn free_port(
+    app: &AppHandle,
+    svc: &State<'_, ServiceState>,
+    c: &PortConflictInfo,
+) -> Result<(), String> {
+    let port = c.port;
     if port <= 0 {
         return Ok(());
     }
     let (holder, taken) = probe(port);
     if !taken {
-        return Ok(());
+        return Ok(()); // the approved holder released the port on its own
     }
     let self_pid = std::process::id() as i64;
     if holder.pid == self_pid {
@@ -356,6 +384,9 @@ fn free_port(app: &AppHandle, svc: &State<'_, ServiceState>, port: i64) -> Resul
     let pane_idx = lpm_pane_index();
     let parents = process_parents();
     let project = walk_to_project(holder.pid, &pane_idx, &parents);
+    if let Some(err) = approved_holder_mismatch(c, &holder, &project) {
+        return Err(err);
+    }
     // Tearing down a whole project to free a port is only right for a different,
     // separately-running project. When the holder belongs to the project that
     // also hosts this running lpm process (self-hosted dev, where `npm run tauri
@@ -393,4 +424,60 @@ fn wait_bindable(port: i64, timeout: Duration) -> Result<(), String> {
         std::thread::sleep(Duration::from_millis(500));
     }
     Err(format!("port {port} is still in use"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn holder(pid: i64, command: &str) -> Holder {
+        Holder {
+            pid,
+            command: command.into(),
+        }
+    }
+
+    fn approved(pid: i64, command: &str, project: &str) -> PortConflictInfo {
+        to_info("web", 3000, &holder(pid, command), project, "")
+    }
+
+    #[test]
+    fn same_pid_still_matches() {
+        let c = approved(1234, "node", "");
+        assert!(approved_holder_mismatch(&c, &holder(1234, "node"), "").is_none());
+    }
+
+    #[test]
+    fn same_pid_and_project_still_matches() {
+        let c = approved(1234, "node", "foo");
+        assert!(approved_holder_mismatch(&c, &holder(1234, "node"), "foo").is_none());
+    }
+
+    #[test]
+    fn different_pid_is_a_mismatch() {
+        let c = approved(1234, "node", "");
+        let err = approved_holder_mismatch(&c, &holder(5678, "postgres"), "").unwrap();
+        assert!(err.contains("postgres (PID 5678)"), "{err}");
+        assert!(err.contains("port 3000"), "{err}");
+    }
+
+    #[test]
+    fn churned_pid_in_the_approved_project_still_matches() {
+        let c = approved(1234, "node", "foo");
+        assert!(approved_holder_mismatch(&c, &holder(5678, "node"), "foo").is_none());
+    }
+
+    #[test]
+    fn same_pid_different_project_is_a_mismatch() {
+        let c = approved(1234, "node", "foo");
+        let err = approved_holder_mismatch(&c, &holder(1234, "node"), "bar").unwrap();
+        assert!(err.contains("lpm project \"bar\""), "{err}");
+    }
+
+    #[test]
+    fn now_unidentifiable_holder_is_a_mismatch() {
+        let c = approved(1234, "node", "");
+        let err = approved_holder_mismatch(&c, &Holder::default(), "").unwrap();
+        assert!(err.contains("an unknown local process"), "{err}");
+    }
 }

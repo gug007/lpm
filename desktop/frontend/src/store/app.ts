@@ -627,6 +627,15 @@ let remoteRequestNonce = 0;
 // gets silently dropped — the same hazard `remoteRequestNonce` guards against.
 let spawnTaskNonce = 0;
 
+// Monotonic ids for the list refreshes. Overlapping calls (the 10s poll,
+// debounced events, post-invoke refreshes) can resolve out of order, and
+// whichever resolved last would win the set — letting a slow stale response
+// overwrite newer state. A response only lands while its call is still the
+// latest started; otherwise it is dropped and the newer in-flight call lands.
+let projectsRefreshSeq = 0;
+let templatesRefreshSeq = 0;
+let detachedRefreshSeq = 0;
+
 // Rejected from a remote clone wait when the peer drops mid-clone, so the caller
 // can distinguish "connection lost" (toast) from a clone failure (modal error).
 class LostPeerError extends Error {
@@ -900,8 +909,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   refreshProjects: async () => {
+    const seq = ++projectsRefreshSeq;
     try {
       const list = await ListProjects();
+      if (seq !== projectsRefreshSeq) return;
       // A non-array means the listing failed (the backend errors rather than
       // reporting an empty ~/.lpm/projects it couldn't read) — keep the last
       // known list instead of treating every project as gone.
@@ -966,8 +977,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   refreshTemplates: async () => {
+    const seq = ++templatesRefreshSeq;
     try {
       const list = (await ListTemplates()) || [];
+      if (seq !== templatesRefreshSeq) return;
       set((s) => (templatesEqual(s.templates, list) ? s : { templates: list }));
     } catch (err) {
       reportError("templates.refresh_failed", err);
@@ -1764,8 +1777,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   refreshDetached: async () => {
+    const seq = ++detachedRefreshSeq;
     try {
       const raw = (await ListDetachedProjects()) as string[] | null;
+      if (seq !== detachedRefreshSeq) return;
       const next = new Set<string>(raw ?? []);
       // Every detached project must stay marked visited so the main window (the
       // terminals' owner) keeps its ProjectDetail mounted even when unselected.

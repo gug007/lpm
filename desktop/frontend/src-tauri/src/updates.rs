@@ -395,9 +395,11 @@ pub fn install_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<(
     );
     spawn_detached_bash(&script)?;
 
-    // process::exit skips the RunEvent::Exit handler, so remove the socket here
-    // (the relaunched instance also clears a stale socket before binding). tmux
-    // sessions are intentionally left running so projects survive the restart.
+    // process::exit skips the RunEvent::Exit handler, so mirror its cleanup
+    // here: reap in-app terminal trees and remove the socket (the relaunched
+    // instance also clears a stale socket before binding). tmux sessions are
+    // intentionally left running so projects survive the restart.
+    crate::pty::kill_all_trees(&app.state::<crate::pty::PtyState>());
     let _ = std::fs::remove_file(crate::config::socket_path());
     std::thread::sleep(Duration::from_millis(300));
     std::process::exit(0);

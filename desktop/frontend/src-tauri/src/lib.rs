@@ -331,6 +331,7 @@ pub fn run() {
         .run(|app, event| match event {
             tauri::RunEvent::Exit => {
                 mainwindow::persist_now(app); // capture the final window bounds before teardown
+                pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (tmux projects stay up)
                 tts::stop_on_exit(app); // kill any suspended python TTS child
                 portforward::stop_all_forwards(app); // kill ssh -L tunnels + pollers
                 statusfwd::stop_all(app); // kill ssh -R status forwards

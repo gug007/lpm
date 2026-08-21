@@ -8,9 +8,10 @@
 use std::collections::{HashMap, HashSet};
 use std::process::Command;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-const GRACE_MS: u64 = 200;
+const POLL_MS: u64 = 50;
+const TERM_TIMEOUT_MS: u64 = 3000;
 
 /// pid -> its direct children for every process on the machine, from one `ps`
 /// scan. Empty when ps is unavailable — callers then reap only the roots.
@@ -66,16 +67,32 @@ fn signal_all(pids: &[i32], sig: i32) {
     }
 }
 
-/// SIGTERM the pids (and their groups), give them a brief grace period to exit
-/// cleanly, then SIGKILL the survivors. Blocking — reached only via the *_async
-/// entry points, which run it off the caller's thread.
-fn kill_pids(pids: Vec<i32>) {
-    if pids.is_empty() {
+/// SIGTERM the pids (and their groups), poll until they exit, and SIGKILL only
+/// the survivors. A fixed short grace forced TERM->KILL onto stateful services
+/// (postgres/mysql/redis) in ~200ms — a crash + recovery on every project stop.
+/// Polling instead means well-behaved processes are confirmed dead in <100ms
+/// and only TERM-ignoring trees wait out the full timeout. Blocking — callers
+/// that must not stall use the *_async entry points.
+pub(crate) fn kill_pids(pids: &[i32]) {
+    let mut survivors: Vec<i32> = pids.iter().copied().filter(|&p| p > 1).collect();
+    if survivors.is_empty() {
         return;
     }
-    signal_all(&pids, libc::SIGTERM);
-    thread::sleep(Duration::from_millis(GRACE_MS));
-    signal_all(&pids, libc::SIGKILL);
+    signal_all(&survivors, libc::SIGTERM);
+    let deadline = Instant::now() + Duration::from_millis(TERM_TIMEOUT_MS);
+    loop {
+        // kill(pid, 0) probes liveness without signalling; a zombie reads dead
+        // as soon as its parent reaps it (pty flush thread / tmux / launchd).
+        survivors.retain(|&p| unsafe { libc::kill(p, 0) == 0 });
+        if survivors.is_empty() {
+            return;
+        }
+        if Instant::now() >= deadline {
+            break;
+        }
+        thread::sleep(Duration::from_millis(POLL_MS));
+    }
+    signal_all(&survivors, libc::SIGKILL);
 }
 
 /// Reap an already-snapshotted set of pids on a background thread. Callers that
@@ -85,7 +102,7 @@ pub(crate) fn kill_pids_async(pids: Vec<i32>) {
     if pids.is_empty() {
         return;
     }
-    thread::spawn(move || kill_pids(pids));
+    thread::spawn(move || kill_pids(&pids));
 }
 
 /// Snapshot `pid`'s tree and reap it, all on a background thread. For callers
@@ -95,5 +112,5 @@ pub(crate) fn kill_tree_async(pid: i32) {
     if pid <= 1 {
         return;
     }
-    thread::spawn(move || kill_pids(trees(&[pid])));
+    thread::spawn(move || kill_pids(&trees(&[pid])));
 }

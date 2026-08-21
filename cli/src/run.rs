@@ -5,7 +5,7 @@
 use crate::config::{self, Ctx, ResolvedAction, ResolvedProject};
 use crate::control;
 use crate::error::{resolve_or_infer, RunError};
-use crate::statussock::quote_arg;
+use crate::statussock::{checked_arg, text_opt};
 use serde_json::json;
 
 /// A runnable target: composite id (`parent:child`, colon-joined path) plus its
@@ -141,7 +141,10 @@ pub fn run(
     let file_name = resolve_or_infer(ctx, project)?;
     let p = config::resolve_project(ctx, &file_name).map_err(RunError::Internal)?;
 
-    let mut line = format!("run_task {}", quote_arg(&file_name));
+    let mut line = format!(
+        "run_task {}",
+        checked_arg("project name", &file_name).map_err(RunError::NotFound)?
+    );
     let mut action_name: Option<String> = None;
     let mut command_str: Option<String> = None;
     match (action, command) {
@@ -158,16 +161,19 @@ pub fn run(
         (Some(a), None) => {
             let targets = collect_run_targets(&p);
             let resolved = resolve_run_target(&targets, a).map_err(RunError::NotFound)?;
-            line.push_str(&format!(" --action={}", quote_arg(&resolved)));
+            line.push_str(&format!(
+                " --action={}",
+                checked_arg("action name", &resolved).map_err(RunError::NotFound)?
+            ));
             action_name = Some(resolved);
         }
         (None, Some(c)) => {
-            line.push_str(&format!(" --command={}", quote_arg(c)));
+            line.push_str(&text_opt("command", c));
             command_str = Some(c.to_string());
         }
     }
     if let Some(pr) = prompt.filter(|p| !p.trim().is_empty()) {
-        line.push_str(&format!(" --prompt={}", quote_arg(pr)));
+        line.push_str(&text_opt("prompt", pr));
     }
 
     control::send_command(ctx, &line)?;
