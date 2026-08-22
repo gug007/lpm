@@ -13,6 +13,23 @@ use serde_json::{json, Map, Value};
 use std::path::{Path, PathBuf};
 
 const MARKER: &str = "# lpm-hook";
+/// Who is reporting, in the only terms the socket can check: the pid the hook
+/// ran under. A pane's whole process tree inherits its LPM_* identity and the
+/// hooks are installed for every agent on the machine, so an agent the tab's
+/// agent launched reports under the tab's pane id and would show up as a second
+/// agent on it. The pid places the reporter in the tree, where the two are
+/// distinguishable (agentnest.rs). `$PPID` in the hook shell is the agent — or,
+/// if the harness wraps its hooks in a shell, something under it, which lands in
+/// the same place.
+///
+/// Deliberately NOT `--pid`, which the socket stores as `StatusEntry.agent_pid`
+/// for a liveness sweep that reaps entries whose process is gone (status.rs).
+/// That sweep judges pids against THIS machine's process table, so a remote
+/// pane's reporter — a pid in the SSH host's namespace — would read as long dead
+/// and take the badge with it; and a wrapper shell's pid dies seconds after the
+/// hook that ran in it. Placing a reporter in a tree and watching an agent live
+/// are different questions about different processes.
+const REPORTER_PID_OPT: &str = " --reporter-pid=$PPID";
 const STATUSLINE_MARKER: &str = "# lpm-statusline:";
 
 // Status line scripts (presets and the user's Custom line) are generated from a
@@ -684,7 +701,7 @@ fn send_cmd(cmd: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "[ -t 0 ] || cat >/dev/null 2>&1; {recover} m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "[ -t 0 ] || cat >/dev/null 2>&1; {recover} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -703,7 +720,7 @@ fn send_cmd_with_sid(cmd: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"{cmd}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -771,7 +788,7 @@ fn claude_stop_cmd() -> String {
     let running = "Running --icon=bolt --color=#4C8DFF";
     let ty = "\"type\"[[:space:]]*:[[:space:]]*";
     format!(
-        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -795,7 +812,7 @@ fn capture_resume_cmd(provider: &str) -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid --provider={provider}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} sid=$(sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); m=\"set_resume '$LPM_PROJECT_NAME' $LPM_PANE_ID $sid --provider={provider}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && [ -n \"$sid\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -821,7 +838,7 @@ fn codex_permission_request_cmd() -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; if [ -f \"$tp\" ]; then tc=\"\"; for n in 1048576 16777216 0; do if [ \"$n\" = 0 ]; then tc=$(grep -a '\"type\":\"turn_context\"' \"$tp\" 2>/dev/null | tail -n 1); else tc=$(tail -c \"$n\" \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1); fi; [ -n \"$tc\" ] && break; done; auto=$(printf '%s\\n' \"$tc\" | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); fi; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} tp=$(sed -n 's/.*\"transcript_path\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\"[[:space:]]*,[[:space:]]*\"cwd\".*/\\1/p' | head -n1); auto=\"\"; if [ -f \"$tp\" ]; then tc=\"\"; for n in 1048576 16777216 0; do if [ \"$n\" = 0 ]; then tc=$(grep -a '\"type\":\"turn_context\"' \"$tp\" 2>/dev/null | tail -n 1); else tc=$(tail -c \"$n\" \"$tp\" 2>/dev/null | grep -a '\"type\":\"turn_context\"' | tail -n 1); fi; [ -n \"$tc\" ] && break; done; auto=$(printf '%s\\n' \"$tc\" | grep -E '\"approval_policy\":(\"on-request\"|\\{{\"granular\")' | grep -F '\"approvals_reviewer\":\"auto_review\"'); fi; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Waiting --icon=bell --color=#f59e0b --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -z \"$auto\" ] && [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -835,7 +852,7 @@ fn codex_pre_tool_use_cmd() -> String {
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} tn=$(sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} tn=$(sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2269,6 +2286,54 @@ mod tests {
         }
     }
 
+    /// A per-session key alone can't tell the tab's agent from one it launched:
+    /// both report the same pane. The reporting pid is what places them in the
+    /// process tree, so every hook that speaks for an agent must carry one.
+    #[test]
+    fn every_agent_hook_reports_the_pid_it_ran_under() {
+        let dir = tempfile::tempdir().unwrap();
+        let claude = settings_at(dir.path(), "{}");
+        install_claude_hooks_at(&claude).unwrap();
+        let v: Value = serde_json::from_slice(&std::fs::read(&claude).unwrap()).unwrap();
+        for (ev, entries) in v["hooks"].as_object().unwrap() {
+            for e in entries.as_array().unwrap() {
+                let cmd = e["hooks"][0]["command"].as_str().unwrap();
+                assert!(
+                    cmd.contains(" --reporter-pid=$PPID\""),
+                    "claude {ev}: {cmd}"
+                );
+            }
+        }
+        let codex = merge_codex_hooks(b"{}").unwrap();
+        let v: Value = serde_json::from_slice(&codex).unwrap();
+        for (ev, entries) in v["hooks"].as_object().unwrap() {
+            for e in entries.as_array().unwrap() {
+                let cmd = e["hooks"][0]["command"].as_str().unwrap();
+                assert!(cmd.contains(" --reporter-pid=$PPID\""), "codex {ev}: {cmd}");
+            }
+        }
+    }
+
+    /// `$PPID` has to expand in the hook's own shell — the process the agent
+    /// spawned — so it must be staged into `m`, never sent single-quoted.
+    #[test]
+    fn pid_option_expands_at_staging_time() {
+        for cmd in [
+            send_cmd("set_status 'p' k Running"),
+            send_cmd_with_sid("set_status 'p' k Running"),
+            claude_stop_cmd(),
+            capture_resume_cmd("claude"),
+            codex_pre_tool_use_cmd(),
+            codex_permission_request_cmd(),
+        ] {
+            let stage = cmd.find("m=\"").expect("message staged");
+            let pid = cmd
+                .find(" --reporter-pid=$PPID\"")
+                .expect("pid option staged");
+            assert!(stage < pid, "pid rides inside the staged message: {cmd}");
+        }
+    }
+
     #[test]
     fn reinstall_migrates_stale_shared_key_and_preserves_user_hooks() {
         let dir = tempfile::tempdir().unwrap();
@@ -2405,7 +2470,7 @@ mod tests {
             .find("tmux showenv -g LPM_SOCKET_PATH")
             .expect("recovery preamble");
         let stage = s
-            .find(r#"m="clear_status 'x' k""#)
+            .find(r#"m="clear_status 'x' k --reporter-pid=$PPID""#)
             .expect("message staged in m");
         assert!(recover < stage, "recovery must precede staging: {s}");
         // Gate: live socket AND known project AND known pane, so a socket-only

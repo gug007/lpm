@@ -27,6 +27,8 @@ const agent = (over: Partial<SidebarAgentRow> = {}): SidebarAgentRow => ({
   state: "needs-you",
   title: "Rebalance worker",
   provider: "Claude Code",
+  shared: 0,
+  holdsError: false,
   terminalId: "%1",
   since: Date.now() - (4 * 60 + 5) * 1000,
   ...over,

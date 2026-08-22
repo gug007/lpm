@@ -102,6 +102,19 @@ pub fn session_exists(state: &PtyState, id: &str) -> bool {
     state.sessions.lock().unwrap().contains_key(id)
 }
 
+/// The shell pid of a LOCAL pane — the root every process the tab runs sits
+/// under, which is what tells the tab's own agent apart from one it launched
+/// (agentnest.rs). None for a remote pane: the child here is the ssh client,
+/// and the agent reporting lives in another machine's process table.
+pub fn local_session_pid(state: &PtyState, id: &str) -> Option<i32> {
+    let sess = state.sessions.lock().unwrap().get(id).cloned()?;
+    if sess.remote {
+        return None;
+    }
+    let pid = sess.child.lock().unwrap().process_id();
+    pid.map(|p| p as i32)
+}
+
 fn lookup(state: &State<'_, PtyState>, id: &str) -> Result<Arc<PtySession>, String> {
     state
         .sessions

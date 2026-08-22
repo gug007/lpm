@@ -32,6 +32,8 @@ function row(
     project: identity(id.split(":")[1] ?? "app", projectLabel),
     title,
     tabTitle: null,
+    shared: 0,
+    holdsError: false,
     state: "working",
     statusKey: kind === "agent" ? id : null,
     statusValue: kind === "agent" ? "Running" : null,

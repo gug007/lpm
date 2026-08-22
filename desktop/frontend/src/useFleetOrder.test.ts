@@ -19,6 +19,8 @@ function row(id: string, state: AgentState, stateSince = T0): FleetRow {
     },
     title: "Claude Code",
     tabTitle: null,
+    shared: 0,
+    holdsError: false,
     state,
     statusKey: id,
     statusValue: "Running",

@@ -1,4 +1,5 @@
 import { AGENT_STATE_LABEL, AGENT_STATE_RANK, agentStateOf } from "../agentStatus";
+import { byUrgency, foldByPane } from "../statusByPane";
 import type { ProjectInfo } from "../types";
 
 /** What a collapsed container is allowed to speak up about.
@@ -60,7 +61,9 @@ export function rollupSegments(projects: ProjectInfo[]): RollupSegment[] {
     running: 0,
   };
   for (const project of projects) {
-    for (const entry of project.statusEntries ?? []) {
+    // Counted per tab, the same unit the rows underneath are listed in, so a
+    // collapsed header never claims more agents than expanding it shows.
+    for (const { entry } of foldByPane([...(project.statusEntries ?? [])].sort(byUrgency))) {
       const state = agentStateOf(entry.value);
       if (state === "needs-you" || state === "error" || state === "working") counts[state]++;
     }

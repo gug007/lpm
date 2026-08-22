@@ -3,7 +3,8 @@
 // Agents inside panes (via installed Claude/Codex hooks) and the `lpm` CLI
 // connect to ~/.lpm/lpm.sock and send shell-quoted text commands:
 //   ping
-//   set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N] [--pane=X]
+//   set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]
+//               [--pane=X] [--reporter-pid=N]
 //   clear_status <project> <key>
 //   list_status <project>
 //   start_project <project> [--profile=X]
@@ -17,7 +18,7 @@
 //                     [--prompt=TEXT]
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
-//   set_resume <project> <pane_id> <session_id> [--provider=codex|claude]
+//   set_resume <project> <pane_id> <session_id> [--provider=codex|claude] [--reporter-pid=N]
 //   list_jobs <project>
 //   run_job <project> <job_id>
 // Any option may also arrive as `--<name>-hex=<hex of UTF-8>`: the option layer
@@ -602,9 +603,19 @@ fn cmd_agent_limits(args: &[String], app: &AppHandle) -> String {
     )
 }
 
+/// A tab follows the session id its agent reports at SessionStart, which is what
+/// makes Resume and Fork reopen the right conversation. An agent the tab's agent
+/// launched reports one too, and the tab would follow that one instead — pointing
+/// Resume at a throwaway run and dropping the name the tab was carrying. Only the
+/// tab's own agent gets to say. `/clear`, a compaction and a fork all mint a new
+/// id from the SAME process, so the legitimate retag still lands.
 fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
     match parse_resume_args(args) {
         Ok(a) => {
+            let (_, options) = parse_options(args);
+            if nested_agent_report(app, &a.pane_id, &options) {
+                return "OK".into();
+            }
             let _ = app.emit(
                 "agent-session",
                 serde_json::json!({
@@ -840,6 +851,43 @@ fn opt_or_positional(
         .or_else(|| positional.get(index).cloned())
 }
 
+/// The keys the agent hooks report under (hooks.rs). A key outside these is a
+/// caller's own — `lpm set-status` — and speaks for whatever it likes.
+fn is_agent_key(key: &str) -> bool {
+    key.starts_with("claude_code_") || key.starts_with("codex_")
+}
+
+/// A key naming the pane rather than a session is one the tab's own agent
+/// reports under too: every codex hook keys that way, and the claude hooks fall
+/// back to it for a payload carrying no session id. Retiring such an entry
+/// because a launched agent reported under it would take the tab's own row.
+fn key_names_the_pane(key: &str, pane_id: &str) -> bool {
+    !pane_id.is_empty()
+        && (key.strip_prefix("codex_") == Some(pane_id)
+            || key.strip_prefix("claude_code_") == Some(pane_id))
+}
+
+/// Whether this frame came from an agent that the pane's own agent launched.
+/// Every hook reports `--reporter-pid`, so a frame without one is an older
+/// install or a hand-rolled caller and is taken at its word, as is any pane whose
+/// shell pid is not knowable here (a remote pane, a pane already gone).
+fn nested_agent_report(app: &AppHandle, pane_id: &str, options: &HashMap<String, String>) -> bool {
+    if pane_id.is_empty() {
+        return false;
+    }
+    let Some(pid) = options
+        .get("reporter-pid")
+        .and_then(|p| p.parse::<i32>().ok())
+    else {
+        return false;
+    };
+    let state = app.state::<crate::pty::PtyState>();
+    let Some(shell) = crate::pty::local_session_pid(&state, pane_id) else {
+        return false;
+    };
+    crate::agentnest::is_nested_agent(pid, shell)
+}
+
 fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> String {
     let (positional, options) = parse_options(args);
     let key = opt_or_positional(&options, "key", &positional, 1);
@@ -870,6 +918,17 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     if !entry.pane_id.is_empty()
         && !crate::pty::session_exists(&app.state::<crate::pty::PtyState>(), &entry.pane_id)
     {
+        return "OK".into();
+    }
+    // An agent the tab's agent launched borrows the tab's pane id but is nobody's
+    // tab: its own row would wear this tab's name, ring its own chime and push its
+    // own "done". Retire anything it managed to store before its process tree was
+    // visible, so a dropped frame can't leave a row nothing will ever clear —
+    // unless the key is the tab's own, in which case that entry is the tab's.
+    if is_agent_key(&entry.key) && nested_agent_report(app, &entry.pane_id, &options) {
+        if !key_names_the_pane(&entry.key, &entry.pane_id) && store.clear(project, &entry.key) {
+            let _ = app.emit("status-changed", project);
+        }
         return "OK".into();
     }
     if store.set(project, entry) {
@@ -1075,6 +1134,30 @@ mod tests {
     }
 
     #[test]
+    fn a_pane_keyed_entry_belongs_to_the_tab_not_to_what_it_launched() {
+        // Every codex hook keys on the pane, so a codex a codex tab shelled out
+        // to reports under the tab's own key — dropping its frame must not take
+        // the tab's status with it.
+        assert!(key_names_the_pane("codex_pty-3", "pty-3"));
+        assert!(key_names_the_pane("claude_code_pty-3", "pty-3"));
+        // A session-keyed entry can only be the reporter's own.
+        assert!(!key_names_the_pane("claude_code_9a15513b", "pty-3"));
+        assert!(!key_names_the_pane("codex_pty-30", "pty-3"));
+        assert!(!key_names_the_pane("codex_", ""));
+    }
+
+    #[test]
+    fn agent_keys_are_the_ones_the_hooks_report_under() {
+        assert!(is_agent_key("claude_code_9a15513b-e4a3"));
+        assert!(is_agent_key("codex_pty-3"));
+        // A caller's own key: `lpm set-status` names whatever it likes, and the
+        // nested-agent rule has no business second-guessing it.
+        assert!(!is_agent_key("deploy"));
+        assert!(!is_agent_key("claude"));
+        assert!(!is_agent_key("my_codex_run"));
+    }
+
+    #[test]
     fn set_resume_requires_three_positionals() {
         let mk = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert!(parse_resume_args(&mk(&["proj", "pane-1"])).is_err());
@@ -1207,7 +1290,10 @@ mod tests {
 
         let positional_form: Vec<String> = vec!["proj".into(), "k".into(), "Running".into()];
         let (pos, opts) = parse_options(&positional_form);
-        assert_eq!(opt_or_positional(&opts, "key", &pos, 1).as_deref(), Some("k"));
+        assert_eq!(
+            opt_or_positional(&opts, "key", &pos, 1).as_deref(),
+            Some("k")
+        );
         assert_eq!(
             opt_or_positional(&opts, "value", &pos, 2).as_deref(),
             Some("Running")

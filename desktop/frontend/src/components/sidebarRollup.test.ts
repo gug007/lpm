@@ -40,6 +40,31 @@ function withStatus(name: string, ...values: string[]): ProjectInfo {
 }
 
 describe("rollupSegments", () => {
+  it("counts a terminal once, however many agents report on it", () => {
+    // The header sits above rows that are terminals, so it must not claim more
+    // than expanding it shows. Agents naming no terminal stay separate.
+    const shared = (key: string, value: string, paneID?: string): StatusEntry => ({
+      key,
+      value,
+      priority: 0,
+      timestamp: 0,
+      ...(paneID ? { paneID } : {}),
+    });
+    const segments = rollupSegments([
+      project({
+        name: "app",
+        statusEntries: [
+          shared("claude_code_a", STATUS_WAITING, "pty-1"),
+          shared("claude_code_b", STATUS_WAITING, "pty-1"),
+          shared("claude_code_c", STATUS_WAITING, "pty-2"),
+          shared("deploy", STATUS_WAITING),
+        ],
+      }),
+    ]);
+    expect(segments.map((s) => s.text)).toEqual(["3 needs you"]);
+  });
+
+
   it("orders segments by urgency, with running last", () => {
     const segments = rollupSegments([
       project({ name: "up", running: true }),

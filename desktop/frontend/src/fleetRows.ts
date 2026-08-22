@@ -6,6 +6,7 @@ import {
   statusProvider,
   type AgentState,
 } from "./agentStatus";
+import { byUrgency, foldByPane, paneHoldsError, type PaneAgents } from "./statusByPane";
 import { applyFleetFilter, type FleetFilter } from "./fleetFilter";
 import {
   fleetIdentityOf,
@@ -31,6 +32,12 @@ export interface FleetRow {
   /** What the terminal tab is called — the agent's session title once it names
    *  one. Null when the tab has no name of its own beyond the agent. */
   tabTitle: string | null;
+  /** How many further agents report on this row's tab, folded into it. Zero for
+   *  the ordinary tab, which runs a single agent. */
+  shared: number;
+  /** Whether this tab holds a problem, its own or one folded behind it — a
+   *  question outranks a problem, so `state` alone would lose it. */
+  holdsError: boolean;
   state: AgentState;
   statusKey: string | null;
   statusValue: string | null;
@@ -110,17 +117,24 @@ function stateSinceOf(stamped: number | undefined, now: number): number {
 
 function agentRow(
   project: FleetProjectIdentity,
-  entry: StatusEntry,
+  held: PaneAgents,
   now: number,
   tabTitles: Record<string, string>,
 ): FleetRow {
+  const { entry, folded } = held;
   const title = providerMeta(statusProvider(entry.key)).label;
   const tab = tabTitles[entry.paneID ?? ""];
   return {
-    id: `agent:${project.name}:${entry.key}`,
+    // The row is the terminal, so its identity is the terminal's: which of the
+    // agents in it currently speaks changes as they trade urgency, and an id
+    // that moved with them would drop the user's selection mid-keystroke and
+    // unfreeze the list order (useFleetOrder).
+    id: `agent:${project.name}:${entry.paneID || entry.key}`,
     kind: "agent",
     project,
     title,
+    shared: folded.length,
+    holdsError: paneHoldsError(held),
     // An untitled tab is named after its agent, which the row already says.
     tabTitle: tab && tab !== title ? tab : null,
     state: agentStateOf(entry.value),
@@ -162,6 +176,8 @@ function automationRow(
     project,
     title: job.label || job.id,
     tabTitle: null,
+    shared: 0,
+    holdsError: false,
     state: "working",
     statusKey: null,
     statusValue: null,
@@ -180,14 +196,7 @@ function automationRow(
   };
 }
 
-// Clearing a status wipes every entry on that terminal holding that value, so
-// rows sharing (project, terminal, value) would vanish together.
-function dismissKey(row: FleetRow): string | null {
-  if (row.kind !== "agent" || !row.terminalId || !row.statusValue) return null;
-  return `${row.project.name} ${row.terminalId} ${row.statusValue}`;
-}
-
-function dismissBlockedReason(row: FleetRow, isShared: boolean): string | null {
+function dismissBlockedReason(row: FleetRow): string | null {
   if (row.kind === "automation") {
     return "This automation clears itself when the run finishes.";
   }
@@ -202,20 +211,16 @@ function dismissBlockedReason(row: FleetRow, isShared: boolean): string | null {
   if (!row.terminalId || !row.statusValue) {
     return "This isn't tied to an open terminal, so there is nothing to clear.";
   }
-  return isShared
-    ? "Another agent shares this terminal — clear it from the terminal so only one goes."
-    : null;
+  return null;
 }
 
+// Dismissing clears every entry on the terminal holding that value. A terminal
+// has one row (see foldByPane), so that reaches nothing the row doesn't speak
+// for: an agent folded into it that holds a DIFFERENT value keeps its status,
+// and the row simply reads as that one afterwards.
 function markDismissable(rows: FleetRow[]): void {
-  const shared = new Map<string, number>();
   for (const row of rows) {
-    const key = dismissKey(row);
-    if (key) shared.set(key, (shared.get(key) ?? 0) + 1);
-  }
-  for (const row of rows) {
-    const key = dismissKey(row);
-    const blocked = dismissBlockedReason(row, key !== null && shared.get(key) !== 1);
+    const blocked = dismissBlockedReason(row);
     row.dismissable = blocked === null;
     row.dismissBlocked = blocked;
   }
@@ -306,8 +311,10 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
   for (const project of projects) {
     const identity = identities.get(project.name) as FleetProjectIdentity;
     const tabTitles = terminalTitles[project.name] ?? {};
-    for (const entry of project.statusEntries ?? []) {
-      rows.push(agentRow(identity, entry, now, tabTitles));
+    // One row per tab, the same fold the sidebar applies — see foldByPane.
+    const sorted = [...(project.statusEntries ?? [])].sort(byUrgency);
+    for (const held of foldByPane(sorted)) {
+      rows.push(agentRow(identity, held, now, tabTitles));
       busy.add(project.name);
     }
     const group = serviceGroup(project, identity);
@@ -331,9 +338,11 @@ export function buildFleet(snapshot: FleetSnapshot): Fleet {
   let quietProjectCount = 0;
   for (const row of rows) {
     if (row.state === "needs-you") counts.needsYou++;
-    else if (row.state === "error") counts.error++;
     else if (row.state === "working") counts.working++;
     else if (row.state === "done") counts.done++;
+    // Counted off `holdsError`, not off the state: a terminal answering a
+    // question can hold a problem behind it, and that problem is still one.
+    if (row.holdsError) counts.error++;
   }
   for (const project of projects) {
     if (!busy.has(project.name)) quietProjectCount++;

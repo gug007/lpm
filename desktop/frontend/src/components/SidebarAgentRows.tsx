@@ -73,6 +73,17 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           >
             {agent.title}
           </span>
+          {/* A tab running more than one agent says so rather than quietly
+              showing the loudest of them: the line is the tab, and this is how
+              many others are in there with it. */}
+          {agent.shared > 0 && (
+            <span
+              className="shrink-0 text-[10px] tabular-nums text-[var(--text-muted)]"
+              title={`${agent.shared + 1} agents in this tab`}
+            >
+              +{agent.shared}
+            </span>
+          )}
           <AgentStateIcon state={agent.state} />
           <SidebarAgentElapsed agent={agent} />
         </button>

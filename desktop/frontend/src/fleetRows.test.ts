@@ -105,10 +105,7 @@ describe("attention ordering", () => {
       ],
     });
 
-    expect(ids(fleet.rows)).toEqual([
-      "agent:app:claude_code_old",
-      "agent:app:claude_code_new",
-    ]);
+    expect(ids(fleet.rows)).toEqual(["agent:app:pty-1", "agent:app:pty-2"]);
     expect(fleet.rows[0].stateSince).toBe(T0);
     expect(fleet.rows[1].stateSince).toBe(T0 + 110_000);
   });
@@ -163,8 +160,8 @@ describe("attention ordering", () => {
       ],
     });
     expect(ids(fleet.rows)).toEqual([
-      "agent:app:claude_code_here",
-      "agent:peer-abcdef12-app:claude_code_ahead",
+      "agent:app:pty-2",
+      "agent:peer-abcdef12-app:pty-1",
     ]);
   });
 
@@ -195,10 +192,7 @@ describe("attention ordering", () => {
         }),
       ],
     });
-    expect(ids(fleet.rows)).toEqual([
-      "agent:app:claude_code_z",
-      "agent:app:claude_code_a",
-    ]);
+    expect(ids(fleet.rows)).toEqual(["agent:app:pty-2", "agent:app:pty-1"]);
   });
 
   it("breaks equal timestamps on the stable id, in either input order", () => {
@@ -216,9 +210,9 @@ describe("attention ordering", () => {
       projects: [project({ name: "app", statusEntries: [...entries].reverse() })],
     });
     expect(ids(forward.rows)).toEqual([
-      "agent:app:claude_code_a",
-      "agent:app:claude_code_b",
-      "agent:app:claude_code_c",
+      "agent:app:pty-1",
+      "agent:app:pty-2",
+      "agent:app:pty-3",
     ]);
     expect(ids(reversed.rows)).toEqual(ids(forward.rows));
   });
@@ -243,10 +237,7 @@ describe("attention ordering", () => {
         }),
       ],
     });
-    expect(ids(fleet.rows)).toEqual([
-      "automation:app:nightly",
-      "agent:app:claude_code_run",
-    ]);
+    expect(ids(fleet.rows)).toEqual(["automation:app:nightly", "agent:app:pty-1"]);
   });
 });
 
@@ -265,7 +256,9 @@ describe("dismissable rule", () => {
     expect(fleet.rows[0].dismissBlocked).toBeNull();
   });
 
-  it("blocks both rows when two share a terminal and a value", () => {
+  it("dismisses a terminal's row even with agents folded into it", () => {
+    // The row is the terminal, and clearing wipes that terminal's entries
+    // holding that value — exactly the agents the row speaks for.
     const fleet = build({
       now: T0,
       projects: [
@@ -278,11 +271,11 @@ describe("dismissable rule", () => {
         }),
       ],
     });
-    expect(fleet.rows.map((r) => r.dismissable)).toEqual([false, false]);
-    expect(fleet.rows[0].dismissBlocked).toContain("shares this terminal");
+    expect(fleet.rows).toHaveLength(1);
+    expect(fleet.rows[0]).toMatchObject({ shared: 1, dismissable: true, dismissBlocked: null });
   });
 
-  it("keeps rows dismissable when they share a terminal but not a value", () => {
+  it("leaves a folded agent holding another value alone", () => {
     const fleet = build({
       now: T0,
       projects: [
@@ -295,7 +288,10 @@ describe("dismissable rule", () => {
         }),
       ],
     });
-    expect(fleet.rows.every((r) => r.dismissable)).toBe(true);
+    // The problem outranks the finish, so that is what the terminal reads as —
+    // and dismissing it clears the Error, leaving the Done to surface.
+    expect(fleet.rows).toHaveLength(1);
+    expect(fleet.rows[0]).toMatchObject({ statusValue: STATUS_ERROR, dismissable: true });
   });
 
   it("treats the same value on different projects as separate", () => {
@@ -508,9 +504,9 @@ describe("titles", () => {
       ],
     });
     const byId = new Map(fleet.rows.map((r) => [r.id, r.title]));
-    expect(byId.get("agent:app:claude_code_a")).toBe("Claude Code");
-    expect(byId.get("agent:app:codex_b")).toBe("Codex");
-    expect(byId.get("agent:app:something_else")).toBe("Agent");
+    expect(byId.get("agent:app:pty-1")).toBe("Claude Code");
+    expect(byId.get("agent:app:pty-2")).toBe("Codex");
+    expect(byId.get("agent:app:pty-3")).toBe("Agent");
   });
 
   it("titles an automation with its own name", () => {
@@ -710,6 +706,89 @@ describe("tab titles", () => {
       ],
     });
     expect(fleet.rows[0].tabTitle).toBeNull();
+  });
+});
+
+describe("agents sharing a tab", () => {
+  it("gives a tab one row and counts the agents folded into it", () => {
+    // An agent that shells out to another borrows its tab's pane id; two rows
+    // would name the same tab twice.
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          statusEntries: [
+            entry("claude_code_main", STATUS_RUNNING, "pty-1", T0 - 90_000),
+            entry("claude_code_nested", STATUS_DONE, "pty-1", T0 - 5_000),
+            entry("codex_pty-2", STATUS_RUNNING, "pty-2"),
+          ],
+        }),
+      ],
+      terminalTitles: { app: { "pty-1": "Ultracode" } },
+    });
+    expect(ids(fleet.rows)).toEqual(["agent:app:pty-1", "agent:app:pty-2"]);
+    expect(fleet.rows.map((r) => r.shared)).toEqual([1, 0]);
+  });
+
+  it("holds the row's identity to the terminal as its agents trade urgency", () => {
+    // The id tracks selection and freezes list order (FleetView, useFleetOrder).
+    // Whichever agent currently speaks for the tab must not change what the row
+    // IS, or an arrow-key selection is dropped mid-keystroke.
+    const rowsFor = (winner: string) =>
+      build({
+        now: T0,
+        projects: [
+          project({
+            name: "app",
+            statusEntries: [
+              entry("claude_code_main", winner === "main" ? STATUS_WAITING : STATUS_RUNNING, "pty-1"),
+              entry("claude_code_other", winner === "main" ? STATUS_RUNNING : STATUS_WAITING, "pty-1"),
+            ],
+          }),
+        ],
+      }).rows;
+    expect(ids(rowsFor("main"))).toEqual(["agent:app:pty-1"]);
+    expect(ids(rowsFor("other"))).toEqual(["agent:app:pty-1"]);
+    // The dismiss path still names the agent that actually holds the status.
+    expect(rowsFor("main")[0].statusKey).toBe("claude_code_main");
+    expect(rowsFor("other")[0].statusKey).toBe("claude_code_other");
+  });
+
+  it("still counts a problem folded behind a question", () => {
+    // needs-you outranks error, so the Error loses the fold — but a problem the
+    // header stopped counting is a problem the user never hears about.
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          statusEntries: [
+            entry("claude_code_waiting", STATUS_WAITING, "pty-1"),
+            entry("claude_code_broken", STATUS_ERROR, "pty-1"),
+          ],
+        }),
+      ],
+    });
+    expect(fleet.rows).toHaveLength(1);
+    expect(fleet.rows[0]).toMatchObject({ state: "needs-you", holdsError: true });
+    expect(fleet.counts).toMatchObject({ needsYou: 1, error: 1 });
+  });
+
+  it("counts the tab once in the header, not once per agent in it", () => {
+    const fleet = build({
+      now: T0,
+      projects: [
+        project({
+          name: "app",
+          statusEntries: [
+            entry("claude_code_main", STATUS_WAITING, "pty-1"),
+            entry("claude_code_nested", STATUS_WAITING, "pty-1"),
+          ],
+        }),
+      ],
+    });
+    expect(fleet.counts.needsYou).toBe(1);
   });
 });
 

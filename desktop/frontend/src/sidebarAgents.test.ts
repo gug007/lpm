@@ -129,6 +129,50 @@ describe("projectAgentRows", () => {
     expect(agents[0].since).toBe(NOW);
   });
 
+  it("gives a tab one line however many agents report on it, and counts the rest", () => {
+    // An agent that shells out to another one borrows its tab's pane id, so the
+    // second agent would otherwise open a second line under the same tab name.
+    const shared = (key: string, value: string, ago = 0): StatusEntry => ({
+      ...entry(key, value, ago),
+      paneID: "%1",
+    });
+    const agents = projectAgentRows(
+      project({
+        statusEntries: [
+          shared("claude_code_main", STATUS_RUNNING, 90_000),
+          shared("claude_code_nested", STATUS_DONE, 5_000),
+          entry("codex_1", STATUS_RUNNING, 60_000),
+        ],
+      }),
+      NOW,
+      { "%1": "Ultracode", "%codex_1": "Rebalance" },
+    );
+    expect(agents.map((a: SidebarAgentRow) => [a.title, a.shared])).toEqual([
+      ["Ultracode", 1],
+      ["Rebalance", 0],
+    ]);
+    // The tab reads as its most urgent agent, not as whichever reported last.
+    expect(agents[0].key).toBe("claude_code_main");
+  });
+
+  it("keeps a line for every agent that names no tab", () => {
+    // `lpm set-status` leaves --pane optional; those are nobody's duplicate.
+    const paneless = (key: string, value: string): StatusEntry => ({
+      key,
+      value,
+      priority: 0,
+      timestamp: NOW,
+    });
+    const agents = projectAgentRows(
+      project({
+        statusEntries: [paneless("deploy", STATUS_RUNNING), paneless("backup", STATUS_RUNNING)],
+      }),
+      NOW,
+    );
+    expect(agents).toHaveLength(2);
+    expect(agents.every((a: SidebarAgentRow) => a.shared === 0)).toBe(true);
+  });
+
   it("has no rows for a project no agent has reported on", () => {
     expect(projectAgentRows(project(), NOW)).toEqual([]);
     // A status nothing acts on is still an agent sitting in a terminal.
@@ -149,6 +193,22 @@ describe("sidebarProjectAlert", () => {
       NOW,
     );
     expect(sidebarProjectAlert(both)?.key).toBe("codex_1");
+
+    // A problem folded behind a question on the same tab still gets its word:
+    // needs-you outranks error, so the row reads as the wait, and the project
+    // row above would otherwise fall silent about the problem entirely.
+    const folded = projectAgentRows(
+      project({
+        statusEntries: [
+          { ...entry("claude_code_wait", STATUS_WAITING), paneID: "%1" },
+          { ...entry("claude_code_broken", STATUS_ERROR), paneID: "%1" },
+        ],
+      }),
+      NOW,
+    );
+    expect(folded).toHaveLength(1);
+    expect(folded[0].state).toBe("needs-you");
+    expect(sidebarProjectAlert(folded)?.key).toBe("claude_code_wait");
 
     // Everything else says its piece in the rows underneath.
     for (const value of [STATUS_WAITING, STATUS_RUNNING, STATUS_DONE, "Compacting"]) {
