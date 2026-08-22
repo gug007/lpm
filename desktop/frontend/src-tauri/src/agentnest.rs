@@ -79,6 +79,14 @@ fn parse_table(out: &str) -> Table {
 
 /// pid -> (ppid, comm) for every process on the machine. Empty when `ps` is
 /// unavailable, which reads as "nothing known" and so accepts every report.
+///
+/// `comm=` is the expensive half of this scan — 20ms against 12ms without it,
+/// because macOS recovers argv[0] per process to produce it — and it is NOT
+/// interchangeable with the cheap `ucomm=`. `ucomm` is `p_comm`, the basename of
+/// the EXECUTABLE, and claude's executable is its version directory: a live
+/// claude reports `ucomm=2.1.238` where `comm=claude`. Swapping them stops every
+/// Claude agent being recognised as one, silently. The same applies to libproc's
+/// `PROC_PIDT_SHORTBSDINFO`, which returns that same `p_comm`.
 fn scan() -> Table {
     let Ok(out) = Command::new("ps")
         .args(["-e", "-o", "pid=,ppid=,comm="])
@@ -112,30 +120,66 @@ fn is_agent(comm: &str) -> bool {
     AGENT_COMMS.contains(&name)
 }
 
-/// Whether `reporter` sits under an agent that itself sits under `pane_shell`.
-/// Split from [`is_nested_agent`] so the walk is testable against a fixed table.
-fn nested_in_table(table: &Table, reporter: i32, pane_shell: i32) -> bool {
-    if reporter <= 1 || pane_shell <= 1 {
-        return false;
+/// Agent processes on the path from `pid` up to `pane_shell`, counting `pid`
+/// itself. None when the shell is not on that path at all — a pane inside tmux
+/// hangs off the server, not off the tab's shell — or when the walk runs out of
+/// table before reaching it.
+///
+/// One number answers both questions this module asks: the pane's own agent has
+/// exactly one agent on its path, and anything it launched has at least two.
+fn agents_up_to(table: &Table, pid: i32, pane_shell: i32) -> Option<usize> {
+    if pid <= 1 || pane_shell <= 1 {
+        return None;
     }
-    let mut pid = reporter;
+    let mut at = pid;
     let mut agents = 0;
     for _ in 0..MAX_DEPTH {
-        if pid == pane_shell {
-            return agents >= 2;
+        if at == pane_shell {
+            return Some(agents);
         }
-        let Some(proc) = table.get(&pid) else {
-            return false;
-        };
+        let proc = table.get(&at)?;
         if is_agent(&proc.comm) {
             agents += 1;
         }
         if proc.ppid <= 1 {
-            return false;
+            return None;
         }
-        pid = proc.ppid;
+        at = proc.ppid;
     }
-    false
+    None
+}
+
+/// Whether `reporter` sits under an agent that itself sits under `pane_shell`.
+/// Split from [`is_nested_agent`] so the walk is testable against a fixed table.
+fn nested_in_table(table: &Table, reporter: i32, pane_shell: i32) -> bool {
+    agents_up_to(table, reporter, pane_shell).is_some_and(|agents| agents >= 2)
+}
+
+/// The agent process a pane is running, if exactly one is unambiguously ITS
+/// agent — the one whose path to the shell holds only itself. Split from
+/// [`pane_agent_pid`] so it is testable against a fixed table.
+///
+/// None when the pane runs no agent, and also when two of them qualify: a split
+/// running two agents has no single process that speaks for the tab, and a
+/// caller reading one of their lifetimes would be reading the wrong one.
+fn pane_agent_in_table(table: &Table, pane_shell: i32) -> Option<i32> {
+    let mut found = None;
+    for (&pid, proc) in table {
+        if !is_agent(&proc.comm) || agents_up_to(table, pid, pane_shell) != Some(1) {
+            continue;
+        }
+        if found.is_some() {
+            return None;
+        }
+        found = Some(pid);
+    }
+    found
+}
+
+/// The agent process this pane is running. Its pid is how the agent's own live
+/// state is found on disk (agentstop.rs) — Claude keys that file by pid.
+pub fn pane_agent_pid(pane_shell: i32) -> Option<i32> {
+    pane_agent_in_table(&process_table(false), pane_shell)
 }
 
 /// True when the process that reported is an agent another agent in the same
@@ -279,6 +323,48 @@ mod tests {
         );
         assert_eq!(t[&100].ppid, 24);
         assert!(is_agent(&t[&100].comm));
+    }
+
+    /// shell -> claude: the one process that speaks for the tab.
+    #[test]
+    fn finds_the_pane_agent() {
+        let t = table(&[(10, 1, "-zsh"), (20, 10, "claude"), (99, 1, "claude")]);
+        assert_eq!(pane_agent_in_table(&t, 10), Some(20));
+    }
+
+    /// The agent a pane's agent launched is not the pane's agent, and must not
+    /// be mistaken for it — its lifetime says nothing about the tab.
+    #[test]
+    fn ignores_an_agent_the_pane_agent_launched() {
+        let t = table(&[
+            (10, 1, "-zsh"),
+            (20, 10, "claude"),
+            (30, 20, "zsh"),
+            (40, 30, "claude"),
+        ]);
+        assert_eq!(pane_agent_in_table(&t, 10), Some(20));
+    }
+
+    /// A split running two agents has no single process that speaks for the tab.
+    #[test]
+    fn declines_when_two_agents_both_answer_to_the_pane() {
+        let t = table(&[(10, 1, "-zsh"), (20, 10, "claude"), (21, 10, "codex")]);
+        assert_eq!(pane_agent_in_table(&t, 10), None);
+    }
+
+    #[test]
+    fn finds_nothing_in_a_pane_running_no_agent() {
+        let t = table(&[(10, 1, "-zsh"), (20, 10, "vim"), (99, 1, "claude")]);
+        assert_eq!(pane_agent_in_table(&t, 10), None);
+        assert_eq!(pane_agent_in_table(&t, 0), None);
+    }
+
+    /// A shell between the pane and the agent (a wrapper, `script`, `env`)
+    /// still leaves the agent the pane's own.
+    #[test]
+    fn reaches_an_agent_a_level_down() {
+        let t = table(&[(10, 1, "-zsh"), (15, 10, "sh"), (20, 15, "claude")]);
+        assert_eq!(pane_agent_in_table(&t, 10), Some(20));
     }
 
     /// The launching agent's own report primes the cache moments before the
