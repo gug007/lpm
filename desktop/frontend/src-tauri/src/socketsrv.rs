@@ -5,7 +5,7 @@
 //   ping
 //   set_status <project> <key> <value> [--icon=X] [--color=X] [--priority=N] [--pid=N]
 //               [--pane=X] [--reporter-pid=N]
-//   clear_status <project> <key>
+//   clear_status <project> <key> [--pane=X] [--reporter-pid=N]
 //   list_status <project>
 //   start_project <project> [--profile=X]
 //   stop_project <project>
@@ -616,6 +616,14 @@ fn cmd_set_resume(args: &[String], app: &AppHandle) -> String {
             if nested_agent_report(app, &a.pane_id, &options) {
                 return "OK".into();
             }
+            // Remembered so a Codex pane can be matched to the rollout it is
+            // writing, which is where an interrupted turn is recorded. Claude
+            // needs no entry: its record is keyed by pid, which the process tree
+            // already answers.
+            if a.provider == "codex" {
+                app.state::<Arc<crate::agentstop::PaneSessions>>()
+                    .set(&a.pane_id, &a.session_id);
+            }
             let _ = app.emit(
                 "agent-session",
                 serde_json::json!({
@@ -851,22 +859,6 @@ fn opt_or_positional(
         .or_else(|| positional.get(index).cloned())
 }
 
-/// The keys the agent hooks report under (hooks.rs). A key outside these is a
-/// caller's own — `lpm set-status` — and speaks for whatever it likes.
-fn is_agent_key(key: &str) -> bool {
-    key.starts_with("claude_code_") || key.starts_with("codex_")
-}
-
-/// A key naming the pane rather than a session is one the tab's own agent
-/// reports under too: every codex hook keys that way, and the claude hooks fall
-/// back to it for a payload carrying no session id. Retiring such an entry
-/// because a launched agent reported under it would take the tab's own row.
-fn key_names_the_pane(key: &str, pane_id: &str) -> bool {
-    !pane_id.is_empty()
-        && (key.strip_prefix("codex_") == Some(pane_id)
-            || key.strip_prefix("claude_code_") == Some(pane_id))
-}
-
 /// Whether this frame came from an agent that the pane's own agent launched.
 /// Every hook reports `--reporter-pid`, so a frame without one is an older
 /// install or a hand-rolled caller and is taken at its word, as is any pane whose
@@ -925,8 +917,12 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     // own "done". Retire anything it managed to store before its process tree was
     // visible, so a dropped frame can't leave a row nothing will ever clear —
     // unless the key is the tab's own, in which case that entry is the tab's.
-    if is_agent_key(&entry.key) && nested_agent_report(app, &entry.pane_id, &options) {
-        if !key_names_the_pane(&entry.key, &entry.pane_id) && store.clear(project, &entry.key) {
+    if crate::status::key_provider(&entry.key).is_some()
+        && nested_agent_report(app, &entry.pane_id, &options)
+    {
+        if !crate::status::key_names_pane(&entry.key, &entry.pane_id)
+            && store.clear(project, &entry.key)
+        {
             let _ = app.emit("status-changed", project);
         }
         return "OK".into();
@@ -945,6 +941,15 @@ fn cmd_clear_status(args: &[String], store: &StatusStore, app: &AppHandle) -> St
     let (Some(project), Some(key)) = (positional.first(), key) else {
         return "ERROR: usage: clear_status <project> <key>".into();
     };
+    // A key naming the pane is the tab's own, and an agent the tab's agent
+    // launched shares it — its SessionEnd would otherwise retire the tab's
+    // status on the way out. A session-keyed clear needs no such guard: it can
+    // only reach the reporter's own entry.
+    let pane_id = options.get("pane").cloned().unwrap_or_default();
+    if crate::status::key_names_pane(&key, &pane_id) && nested_agent_report(app, &pane_id, &options)
+    {
+        return "OK".into();
+    }
     if store.clear(project, &key) {
         let _ = app.emit("status-changed", project);
     }
@@ -1131,30 +1136,6 @@ mod tests {
                 "{bad} must be refused on the remote socket"
             );
         }
-    }
-
-    #[test]
-    fn a_pane_keyed_entry_belongs_to_the_tab_not_to_what_it_launched() {
-        // Every codex hook keys on the pane, so a codex a codex tab shelled out
-        // to reports under the tab's own key — dropping its frame must not take
-        // the tab's status with it.
-        assert!(key_names_the_pane("codex_pty-3", "pty-3"));
-        assert!(key_names_the_pane("claude_code_pty-3", "pty-3"));
-        // A session-keyed entry can only be the reporter's own.
-        assert!(!key_names_the_pane("claude_code_9a15513b", "pty-3"));
-        assert!(!key_names_the_pane("codex_pty-30", "pty-3"));
-        assert!(!key_names_the_pane("codex_", ""));
-    }
-
-    #[test]
-    fn agent_keys_are_the_ones_the_hooks_report_under() {
-        assert!(is_agent_key("claude_code_9a15513b-e4a3"));
-        assert!(is_agent_key("codex_pty-3"));
-        // A caller's own key: `lpm set-status` names whatever it likes, and the
-        // nested-agent rule has no business second-guessing it.
-        assert!(!is_agent_key("deploy"));
-        assert!(!is_agent_key("claude"));
-        assert!(!is_agent_key("my_codex_run"));
     }
 
     #[test]

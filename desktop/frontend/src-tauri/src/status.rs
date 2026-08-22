@@ -10,11 +10,45 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
-#[allow(dead_code)] // agents send "Running"; kept for the full StatusKind set
 pub const STATUS_RUNNING: &str = "Running";
 pub const STATUS_DONE: &str = "Done";
 pub const STATUS_WAITING: &str = "Waiting";
 pub const STATUS_ERROR: &str = "Error";
+
+/// Which agent a status key belongs to. The hooks key every report by provider
+/// (hooks.rs), and several readers need to know which one wrote an entry — keep
+/// that knowledge here, beside the values, rather than re-spelling the prefixes
+/// at each of them.
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub enum KeyProvider {
+    Claude,
+    Codex,
+}
+
+const CLAUDE_KEY_PREFIX: &str = "claude_code_";
+const CODEX_KEY_PREFIX: &str = "codex_";
+
+/// The agent that reports under `key`, or None for a key nobody's hooks write —
+/// `lpm set-status` names whatever it likes and speaks for itself.
+pub fn key_provider(key: &str) -> Option<KeyProvider> {
+    if key.starts_with(CLAUDE_KEY_PREFIX) {
+        Some(KeyProvider::Claude)
+    } else if key.starts_with(CODEX_KEY_PREFIX) {
+        Some(KeyProvider::Codex)
+    } else {
+        None
+    }
+}
+
+/// Whether `key` names the pane rather than a session within it. Every codex
+/// hook keys that way, and the claude hooks fall back to it for a payload
+/// carrying no session id — so such an entry belongs to the tab itself, and an
+/// agent the tab's agent launched reports under the very same name.
+pub fn key_names_pane(key: &str, pane_id: &str) -> bool {
+    !pane_id.is_empty()
+        && (key.strip_prefix(CODEX_KEY_PREFIX) == Some(pane_id)
+            || key.strip_prefix(CLAUDE_KEY_PREFIX) == Some(pane_id))
+}
 
 fn is_zero(v: &i64) -> bool {
     *v == 0
@@ -130,6 +164,13 @@ impl StatusStore {
         true
     }
 
+    /// Remove `key` only while it still holds `value`. The reconcile that reads
+    /// an agent's own liveness (agentstop.rs) decides on a snapshot, and a real
+    /// report can land in between — that report is the better answer, so it wins.
+    pub fn clear_if_value(&self, project: &str, key: &str, value: &str) -> bool {
+        self.retain_where(project, |e| e.key == key && e.value == value)
+    }
+
     /// Drop every entry of `project` for which `drop` returns true, removing the
     /// project bucket once it empties. Returns whether anything was removed.
     fn retain_where<F: Fn(&StatusEntry) -> bool>(&self, project: &str, drop: F) -> bool {
@@ -219,18 +260,32 @@ impl StatusStore {
         out
     }
 
+    /// Every entry `pick` says yes to, addressed by (project, key) and carrying
+    /// whatever `pick` pulled off it. The background reconcilers all want the
+    /// same thing — a snapshot they can act on without holding the lock.
+    fn candidates<T>(&self, pick: impl Fn(&StatusEntry) -> Option<T>) -> Vec<(String, String, T)> {
+        let m = self.entries.read().unwrap();
+        m.iter()
+            .flat_map(|(project, bucket)| {
+                bucket
+                    .iter()
+                    .filter_map(|(key, e)| pick(e).map(|held| (project.clone(), key.clone(), held)))
+            })
+            .collect()
+    }
+
+    /// (project, key, pane) for every entry still reporting Running against a
+    /// pane. The only entries worth reconciling against an agent's own liveness:
+    /// a turn that ended any other way already said so.
+    pub fn running_agents(&self) -> Vec<(String, String, String)> {
+        self.candidates(|e| {
+            (e.value == STATUS_RUNNING && !e.pane_id.is_empty()).then(|| e.pane_id.clone())
+        })
+    }
+
     /// (project, key, pid) for every entry carrying a live agent PID — feeds the sweep.
     fn pid_candidates(&self) -> Vec<(String, String, i64)> {
-        let m = self.entries.read().unwrap();
-        let mut out = Vec::new();
-        for (project, bucket) in m.iter() {
-            for (key, e) in bucket {
-                if e.agent_pid > 0 {
-                    out.push((project.clone(), key.clone(), e.agent_pid));
-                }
-            }
-        }
-        out
+        self.candidates(|e| (e.agent_pid > 0).then_some(e.agent_pid))
     }
 }
 
@@ -432,6 +487,59 @@ mod tests {
             !s.clear_by_pane_value("p", "p-1", "Done"),
             "second clear is a no-op"
         );
+    }
+
+    #[test]
+    fn key_provider_reads_the_prefixes_the_hooks_write() {
+        assert_eq!(
+            key_provider("claude_code_9a15513b-e4a3"),
+            Some(KeyProvider::Claude)
+        );
+        assert_eq!(key_provider("codex_pty-3"), Some(KeyProvider::Codex));
+        // A caller's own key: `lpm set-status` names whatever it likes, and the
+        // agent rules have no business second-guessing it.
+        assert_eq!(key_provider("deploy"), None);
+        assert_eq!(key_provider("claude"), None);
+        assert_eq!(key_provider("my_codex_run"), None);
+    }
+
+    #[test]
+    fn a_pane_keyed_entry_belongs_to_the_tab_not_to_what_it_launched() {
+        // Every codex hook keys on the pane, so a codex a codex tab shelled out
+        // to reports under the tab's own key.
+        assert!(key_names_pane("codex_pty-3", "pty-3"));
+        assert!(key_names_pane("claude_code_pty-3", "pty-3"));
+        // A session-keyed entry can only be the reporter's own.
+        assert!(!key_names_pane("claude_code_9a15513b", "pty-3"));
+        assert!(!key_names_pane("codex_pty-30", "pty-3"));
+        assert!(!key_names_pane("codex_", ""));
+    }
+
+    #[test]
+    fn clear_if_value_yields_to_a_report_that_landed_first() {
+        let s = StatusStore::new();
+        s.set("p", entry("k", "Running", 0, 1, "p-1"));
+        // A Done landing between the reconcile's read and its write is the
+        // better answer, and keeps its entry.
+        s.set("p", entry("k", "Done", 0, 2, "p-1"));
+        assert!(!s.clear_if_value("p", "k", "Running"));
+        assert_eq!(s.list("p").len(), 1);
+        assert!(s.clear_if_value("p", "k", "Done"));
+        assert!(s.list("p").is_empty());
+        assert!(!s.clear_if_value("p", "k", "Done"), "already gone");
+        assert!(!s.clear_if_value("missing", "k", "Done"));
+    }
+
+    #[test]
+    fn running_agents_lists_only_running_entries_with_a_pane() {
+        let s = StatusStore::new();
+        s.set("p", entry("run", "Running", 0, 1, "p-1"));
+        s.set("p", entry("done", "Done", 0, 1, "p-2"));
+        s.set("p", entry("wait", "Waiting", 0, 1, "p-3"));
+        s.set("p", entry("paneless", "Running", 0, 1, ""));
+        let mut got: Vec<String> = s.running_agents().into_iter().map(|(_, k, _)| k).collect();
+        got.sort();
+        assert_eq!(got, vec!["run".to_string()]);
     }
 
     #[test]

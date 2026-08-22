@@ -334,7 +334,11 @@ fn ensure_claude_account_dir(id: &str) -> Result<(), String> {
 /// (deleted accounts fall back to the default login). Claude Code keys its
 /// credential store off the literal CLAUDE_CONFIG_DIR string, so the value
 /// must be derived from the id in this one place and nowhere else.
-pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
+/// Where a pinned account's config lives, resolved and nothing more. Split from
+/// [`claude_config_dir_for_account`] so a caller that only READS from the dir
+/// can ask without triggering the re-link — a background probe must not be
+/// creating directories and symlinks every few seconds.
+fn claude_account_dir_of(id: &str) -> Option<String> {
     if !valid_claude_account_id(id) {
         return None;
     }
@@ -344,10 +348,15 @@ pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
     {
         return None;
     }
+    Some(claude_account_dir(id).to_string_lossy().into_owned())
+}
+
+pub fn claude_config_dir_for_account(id: &str) -> Option<String> {
+    let dir = claude_account_dir_of(id)?;
     // Re-link on every resolve so assets added to ~/.claude after the account
     // was created still reach it.
     let _ = ensure_claude_account_dir(id);
-    Some(claude_account_dir(id).to_string_lossy().into_owned())
+    Some(dir)
 }
 
 /// How a spawned child should treat `CLAUDE_CONFIG_DIR`. `Scrub` is distinct
@@ -418,10 +427,27 @@ fn effective_claude_account(y: &ProjectYaml) -> Option<String> {
 }
 
 pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
+    claude_env_of(name, claude_config_dir_for_account)
+}
+
+/// The same answer for a caller that only READS from the resolved dir. Skips the
+/// re-link that [`claude_config_dir_for_account`] performs, which belongs to
+/// spawning an agent and not to a probe that runs on a timer.
+pub fn claude_env_for_project_readonly(name: &str) -> ClaudeEnv {
+    claude_env_of(name, claude_account_dir_of)
+}
+
+fn claude_env_of(name: &str, resolve: impl Fn(&str) -> Option<String>) -> ClaudeEnv {
     let Ok(y) = parse_project_yaml(name) else {
         return ClaudeEnv::Inherit;
     };
-    claude_env_for_account(effective_claude_account(&y).as_deref())
+    match effective_claude_account(&y).as_deref() {
+        None => ClaudeEnv::Inherit,
+        Some(id) => match resolve(id) {
+            Some(dir) => ClaudeEnv::Dir(dir),
+            None => ClaudeEnv::Scrub,
+        },
+    }
 }
 
 /// Remove an account and its isolated Claude config dir. The id is validated
@@ -2382,7 +2408,8 @@ mod service_deps_tests {
     fn depends_on_alias_parses() {
         let svc: ServiceFull = serde_norway::from_str("cmd: go run .\ndepends_on: [db]\n").unwrap();
         assert_eq!(svc.depends_on, req(&["db"]));
-        let camel: ServiceFull = serde_norway::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
+        let camel: ServiceFull =
+            serde_norway::from_str("cmd: go run .\ndependsOn: [db]\n").unwrap();
         assert_eq!(camel.depends_on, req(&["db"]));
     }
 }
