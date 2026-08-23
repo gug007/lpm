@@ -255,12 +255,19 @@ fn resolve_action_command(
             on_exit: None,
         })
     } else {
+        let claude_env = config::claude_env_for_account(info.claude_account.as_deref());
+        if let config::ClaudeEnv::Dir(dir) = &claude_env {
+            // Trust and tool grants live per config dir; without the seed a
+            // background action on a fresh account waits forever on a trust
+            // prompt nobody can see.
+            crate::claude_seed::seed(std::path::Path::new(dir), &info.root);
+        }
         Ok(ActionPlan {
             cmd_str: config::build_local_script(&a.env, &a.cmd),
             cwd: config::resolve_cwd(&info.root, &a.cwd),
             ports: a.ports,
             login_shell: true,
-            claude_env: config::claude_env_for_account(info.claude_account.as_deref()),
+            claude_env,
             on_exit: None,
         })
     }

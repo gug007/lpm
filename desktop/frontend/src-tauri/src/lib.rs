@@ -11,6 +11,8 @@ mod aigen;
 mod autosync;
 mod bounds;
 mod browser;
+mod claude_pool;
+mod claude_seed;
 mod cli_install;
 mod clipboard;
 mod codex_statusline;

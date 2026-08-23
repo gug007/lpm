@@ -8,6 +8,7 @@
 // .await, so the reader uses two std threads (read -> bounded channel ->
 // flush) mirroring pty.go's two goroutines, and commands are sync fns.
 use crate::config;
+use crate::{claude_pool, claude_seed};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -495,12 +496,28 @@ fn resolve_restore_cmds(cmd: &str) -> (String, String) {
 
 // --- commands ----------------------------------------------------------------
 
-fn resolve_spawn(project_name: &str) -> Result<SpawnTarget, String> {
+/// Live PTY sessions per project — what keeps a pool assignment sticky while
+/// any of a project's terminals are still running.
+fn live_project_counts(state: &PtyState) -> HashMap<String, usize> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for sess in state.sessions.lock().unwrap().values() {
+        *counts.entry(sess.project_name.clone()).or_default() += 1;
+    }
+    counts
+}
+
+fn resolve_spawn(state: &PtyState, project_name: &str) -> Result<SpawnTarget, String> {
+    // (Re-)assign the balanced pool before spawn_info resolves the account —
+    // a no-op for pinned or remote projects.
+    claude_pool::claim(project_name, &live_project_counts(state));
     let info = config::spawn_info(project_name)?;
     // Resolve the env decision here at spawn time — this is where the accounts
     // validation + symlink ensure side-effects belong, not in the polling paths
     // that also call spawn_info.
     let claude_env = config::claude_env_for_account(info.claude_account.as_deref());
+    if let config::ClaudeEnv::Dir(dir) = &claude_env {
+        claude_seed::seed(std::path::Path::new(dir), &info.root);
+    }
     let ssh = if info.is_remote { Some(info.ssh) } else { None };
     Ok(SpawnTarget {
         root: info.root,
@@ -528,7 +545,7 @@ pub fn start_terminal(
     state: State<'_, PtyState>,
     project_name: String,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&state, &project_name)?;
     start_internal(&app, &state, &project_name, &target, "", &BTreeMap::new())
 }
 
@@ -540,7 +557,7 @@ pub fn start_terminal_with_cwd_env(
     cwd: String,
     env: HashMap<String, String>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&state, &project_name)?;
     let env: BTreeMap<String, String> = env.into_iter().collect();
     start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
@@ -552,7 +569,7 @@ pub fn start_terminal_for_restore(
     project_name: String,
     terminal_name: String,
 ) -> Result<String, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&state, &project_name)?;
     let (cwd, env, _) = resolve_terminal_spawn(&project_name, &terminal_name)?;
     start_internal(&app, &state, &project_name, &target, &cwd, &env)
 }
@@ -564,7 +581,7 @@ pub fn start_terminal_for_config(
     project_name: String,
     terminal_name: String,
 ) -> Result<TerminalLaunch, String> {
-    let target = resolve_spawn(&project_name)?;
+    let target = resolve_spawn(&state, &project_name)?;
     // On the plain-shell fallback `cmd` is empty, so startCmd is empty and the
     // frontend injects nothing.
     let (cwd, env, cmd) = resolve_terminal_spawn(&project_name, &terminal_name)?;

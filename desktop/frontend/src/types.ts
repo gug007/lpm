@@ -471,8 +471,10 @@ export interface GeneratorsConfig {
 
 // A named Claude login. Projects reference the id (claudeAccount in their
 // YAML); terminals of a pinned project run against that account instead of
-// the main Claude login.
+// the main Claude login. `pooled` accounts additionally form the balanced
+// pool that projects without a pin spread across.
 export interface ClaudeAccount {
   id: string;
   label: string;
+  pooled?: boolean;
 }

@@ -18,7 +18,7 @@ function normalizeAccounts(raw: unknown): ClaudeAccount[] {
   if (!Array.isArray(list)) return [];
   return list
     .filter((a): a is ClaudeAccount => typeof a?.id === "string" && typeof a?.label === "string")
-    .map((a) => ({ id: a.id, label: a.label }));
+    .map((a) => ({ id: a.id, label: a.label, pooled: a.pooled === true }));
 }
 
 function normalizeStatuses(raw: unknown): Record<string, ClaudeAccountStatus> {
@@ -55,6 +55,7 @@ interface AccountsState {
   refreshStatuses: () => Promise<void>;
   add: (label: string) => Promise<void>;
   rename: (id: string, label: string) => Promise<void>;
+  setPooled: (id: string, pooled: boolean) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
@@ -104,6 +105,9 @@ export const useAccountsStore = create<AccountsState>((set, get) => {
 
     rename: async (id, label) =>
       persist(get().accounts.map((a) => (a.id === id ? { ...a, label } : a))),
+
+    setPooled: async (id, pooled) =>
+      persist(get().accounts.map((a) => (a.id === id ? { ...a, pooled } : a))),
 
     remove: async (id) => {
       // The command deletes the account's isolated credential dir server-side,

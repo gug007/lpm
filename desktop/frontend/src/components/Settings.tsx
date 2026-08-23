@@ -269,6 +269,7 @@ export function Settings({
   const accountUsage = useAccountsStore((s) => s.usage);
   const addAccount = useAccountsStore((s) => s.add);
   const renameAccount = useAccountsStore((s) => s.rename);
+  const setAccountPooled = useAccountsStore((s) => s.setPooled);
   const removeAccount = useAccountsStore((s) => s.remove);
   const refreshAccountStatuses = useAccountsStore((s) => s.refreshStatuses);
   const [addingAccount, setAddingAccount] = useState(false);
@@ -886,7 +887,7 @@ export function Settings({
             <SettingsSection
               id="ai.accounts"
               title="Claude accounts"
-              description="Keep each project signed in to the right Claude account."
+              description="Keep each project signed in to the right Claude account, or mark accounts as balanced to spread unpinned projects across them."
               collapsible
               collapsed={accountsCollapsed}
               onToggle={() => setAccountsCollapsed((c) => !c)}
@@ -908,12 +909,18 @@ export function Settings({
                   label={acc.label}
                   status={accountStatuses[acc.id]}
                   usage={accountUsage[acc.id] ?? []}
+                  pooled={acc.pooled === true}
                   onRename={(label) =>
                     renameAccount(acc.id, label).catch((err) =>
                       toast.error(`Failed to rename account: ${err}`),
                     )
                   }
                   onSignIn={() => setLoginAccount(acc)}
+                  onTogglePooled={() =>
+                    setAccountPooled(acc.id, !(acc.pooled === true)).catch((err) =>
+                      toast.error(`Failed to update account: ${err}`),
+                    )
+                  }
                   onDelete={() => setConfirmDeleteAccount(acc)}
                 />
               ))}

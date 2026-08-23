@@ -11,7 +11,7 @@
 // A change to any provider emits `agent-limits-changed` with the full snapshot,
 // suppressing no-op re-emits like status.rs's should_replace.
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
@@ -24,7 +24,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 const CODEX_TAIL_BYTES: u64 = 1 << 20; // read at most the last 1 MiB of a rollout
 const WATCH_SETTLE: Duration = Duration::from_millis(500);
 
-#[derive(Serialize, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LimitWindow {
     pub used_percent: f64,
@@ -34,7 +34,7 @@ pub struct LimitWindow {
 /// One provider's latest limits. `provider` is "claude" or "codex"; `account_id`
 /// is set for Claude (per CLAUDE_CONFIG_DIR account) and absent for Codex.
 /// `updated_at` is unix millis, used by the UI to dim stale meters.
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderLimits {
     pub provider: String,
@@ -144,6 +144,44 @@ impl AgentLimitsStore {
 
     pub fn snapshot(&self) -> HashMap<String, ProviderLimits> {
         self.entries.read().unwrap().clone()
+    }
+
+    /// Load the persisted snapshot once at startup. Live readings always beat
+    /// persisted ones, so only absent keys are filled in.
+    pub fn seed(&self, entries: HashMap<String, ProviderLimits>) {
+        let mut m = self.entries.write().unwrap();
+        for (k, v) in entries {
+            m.entry(k).or_insert(v);
+        }
+    }
+}
+
+// The store itself is in-memory, but the weekly window spans days — losing it
+// on every app restart would leave the account pool ranking on nothing. The
+// snapshot is mirrored to disk on every meaningful change and seeded back at
+// startup; `updated_at` survives the round-trip so stale meters still dim.
+fn persist_path() -> PathBuf {
+    crate::config::lpm_dir().join("agent-limits.json")
+}
+
+pub fn load_persisted() -> HashMap<String, ProviderLimits> {
+    load_persisted_from(&persist_path())
+}
+
+fn load_persisted_from(path: &Path) -> HashMap<String, ProviderLimits> {
+    std::fs::read(path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+fn persist_snapshot(store: &AgentLimitsStore) {
+    let path = persist_path();
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(data) = serde_json::to_vec_pretty(&store.snapshot()) {
+        let _ = crate::fsatomic::write(&path, &data, crate::fsatomic::Mode::Preserve(0o644));
     }
 }
 
@@ -314,6 +352,7 @@ fn refresh_codex(app: &AppHandle, store: &AgentLimitsStore) {
         return;
     };
     if store.set("codex", limits, now) {
+        persist_snapshot(store);
         emit_snapshot(app, store);
     }
 }
@@ -323,6 +362,7 @@ fn refresh_codex(app: &AppHandle, store: &AgentLimitsStore) {
 /// filesystem work runs off the UI thread.
 pub fn start(app: AppHandle) {
     let store = app.state::<Arc<AgentLimitsStore>>().inner().clone();
+    store.seed(load_persisted());
 
     let dir = codex_sessions_dir();
     if !dir.exists() {
@@ -445,6 +485,7 @@ pub fn ingest_from_socket(
     };
     if let Some(limits) = parse_claude_payload(account_id, &payload, now_millis()) {
         if store.set(&claude_store_key(account_id), limits, now_secs()) {
+            persist_snapshot(store);
             emit_snapshot(app, store);
         }
     }
@@ -455,6 +496,56 @@ pub fn ingest_from_socket(
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn persisted_snapshot_round_trips_and_seed_never_overwrites() {
+        let store = AgentLimitsStore::new();
+        store.set(
+            "claude:work",
+            ProviderLimits {
+                provider: "claude".into(),
+                account_id: Some("work".into()),
+                five_hour: Some(LimitWindow {
+                    used_percent: 42.0,
+                    resets_at: 2_000,
+                }),
+                weekly: Some(LimitWindow {
+                    used_percent: 7.5,
+                    resets_at: 9_000,
+                }),
+                updated_at: 123,
+                ..Default::default()
+            },
+            1_000,
+        );
+        let data = serde_json::to_vec(&store.snapshot()).unwrap();
+        let loaded: HashMap<String, ProviderLimits> = serde_json::from_slice(&data).unwrap();
+        let restored = AgentLimitsStore::new();
+        restored.seed(loaded.clone());
+        let got = restored.snapshot();
+        let w = got["claude:work"].weekly.as_ref().unwrap();
+        assert_eq!((w.used_percent, w.resets_at), (7.5, 9_000));
+        assert_eq!(got["claude:work"].updated_at, 123);
+        // A live reading present before seeding must win over the disk copy.
+        let live = AgentLimitsStore::new();
+        live.set(
+            "claude:work",
+            ProviderLimits {
+                provider: "claude".into(),
+                account_id: Some("work".into()),
+                five_hour: Some(LimitWindow {
+                    used_percent: 60.0,
+                    resets_at: 3_000,
+                }),
+                updated_at: 456,
+                ..Default::default()
+            },
+            1_500,
+        );
+        live.seed(loaded);
+        let fh = live.snapshot()["claude:work"].five_hour.clone().unwrap();
+        assert_eq!(fh.used_percent, 60.0);
+    }
 
     #[test]
     fn codex_maps_windows_by_duration_not_position() {

@@ -9,8 +9,10 @@ interface ClaudeAccountRowProps {
   label: string;
   status?: ClaudeAccountStatus;
   usage: string[];
+  pooled: boolean;
   onRename: (label: string) => void;
   onSignIn: () => void;
+  onTogglePooled: () => void;
   onDelete: () => void;
 }
 
@@ -19,8 +21,10 @@ export function ClaudeAccountRow({
   label,
   status,
   usage,
+  pooled,
   onRename,
   onSignIn,
+  onTogglePooled,
   onDelete,
 }: ClaudeAccountRowProps) {
   const [renaming, setRenaming] = useState(false);
@@ -84,6 +88,22 @@ export function ClaudeAccountRow({
           Sign in
         </button>
       )}
+      <button
+        onClick={onTogglePooled}
+        className={`shrink-0 rounded-full px-2 py-1 text-[10px] transition-colors ${
+          pooled
+            ? "bg-[var(--accent-cyan)]/15 text-[var(--accent-cyan)]"
+            : "bg-[var(--bg-active)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+        }`}
+        title={
+          pooled
+            ? "Balanced — projects without a pinned account spread across balanced accounts. Click to exclude."
+            : "Click to balance — projects without a pinned account spread across balanced accounts."
+        }
+        aria-pressed={pooled}
+      >
+        {pooled ? "Balanced" : "Balance"}
+      </button>
       <span
         className="shrink-0 rounded-full bg-[var(--bg-active)] px-2 py-1 text-[10px] text-[var(--text-muted)]"
         title={usage.length > 0 ? `Used by ${usage.join(", ")}` : "Not assigned to any project"}

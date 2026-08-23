@@ -49,7 +49,7 @@ pub fn message_history_path() -> PathBuf {
     lpm_dir().join("message-history.db")
 }
 
-const RESERVED_PROJECT_NAME: &str = "__global__";
+pub(crate) const RESERVED_PROJECT_NAME: &str = "__global__";
 
 /// Mirrors config.EnsureDirs: create the projects + templates dirs.
 pub fn ensure_dirs() -> Result<(), String> {
@@ -268,7 +268,7 @@ pub fn load_claude_accounts() -> Value {
     }
 }
 
-fn claude_account_ids(v: &Value) -> Vec<String> {
+pub(crate) fn claude_account_ids(v: &Value) -> Vec<String> {
     v.get("accounts")
         .and_then(Value::as_array)
         .map(|list| {
@@ -409,19 +409,39 @@ fn claude_account_of(y: &ProjectYaml) -> Option<String> {
 
 /// The effective account for spawning, `None` for remote projects (which run on
 /// the far side and never get a local `CLAUDE_CONFIG_DIR`). Shared by
-/// `spawn_info` and `claude_env_for_project` so both resolve identically.
-fn effective_claude_account(y: &ProjectYaml) -> Option<String> {
+/// `spawn_info` and `claude_env_for_project` so both resolve identically. A
+/// project with no pin anywhere falls through to the balanced pool's persisted
+/// assignment (a pure read — the pool only reassigns at spawn time via
+/// `claude_pool::claim`), so read paths resolve the same dir the terminal was
+/// launched under.
+fn effective_claude_account(name: &str, y: &ProjectYaml) -> Option<String> {
     if y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false) {
         return None;
     }
-    claude_account_of(y)
+    claude_account_of(y).or_else(|| crate::claude_pool::assigned(name))
+}
+
+/// Whether the pool may assign for this project: local, and no `claudeAccount`
+/// anywhere in its inheritance chain — an explicit pin (even the empty
+/// "default login" one) always wins over the pool.
+pub(crate) fn project_uses_pool(name: &str) -> bool {
+    if name == RESERVED_PROJECT_NAME {
+        return true;
+    }
+    match parse_project_yaml(name) {
+        Ok(y) => {
+            !y.ssh.as_ref().map(|s| s.is_remote()).unwrap_or(false)
+                && claude_account_of(&y).is_none()
+        }
+        Err(_) => false,
+    }
 }
 
 pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
     let Ok(y) = parse_project_yaml(name) else {
         return ClaudeEnv::Inherit;
     };
-    claude_env_for_account(effective_claude_account(&y).as_deref())
+    claude_env_for_account(effective_claude_account(name, &y).as_deref())
 }
 
 /// Remove an account and its isolated Claude config dir. The id is validated
@@ -439,7 +459,9 @@ pub fn remove_claude_account(id: &str) -> Result<(), String> {
     if let Some(list) = v.get_mut("accounts").and_then(Value::as_array_mut) {
         list.retain(|a| a.get("id").and_then(Value::as_str) != Some(id));
     }
-    save_claude_accounts(&v)
+    save_claude_accounts(&v)?;
+    crate::claude_pool::forget_account(id);
+    Ok(())
 }
 
 /// Whether an account is signed in and, if so, its email — derived from a
@@ -463,7 +485,7 @@ fn claude_status_from_json(v: &Value) -> (bool, String) {
 /// Read-only sign-in probe for one account. Missing dir/file/field all read as
 /// "not signed in"; never creates or re-links the account dir (unlike the spawn
 /// path) so status polling stays side-effect free.
-fn account_signin_status(id: &str) -> (bool, String) {
+pub(crate) fn account_signin_status(id: &str) -> (bool, String) {
     let path = claude_account_dir(id).join(".claude.json");
     match std::fs::read(&path) {
         Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
@@ -476,10 +498,10 @@ fn account_signin_status(id: &str) -> (bool, String) {
 /// Sign-in status of the ambient `~/.claude` login, reported under the id
 /// "default" so surfaces like the Usage page can label it with an email.
 fn default_signin_status() -> (bool, String) {
-    let path = dirs::home_dir()
-        .unwrap_or_default()
-        .join(".claude")
-        .join(".claude.json");
+    // The ambient login's file sits at ~/.claude.json — next to ~/.claude/, not
+    // inside it; Claude Code only relocates it into the config dir when
+    // CLAUDE_CONFIG_DIR is set.
+    let path = dirs::home_dir().unwrap_or_default().join(".claude.json");
     match std::fs::read(&path) {
         Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
             .map(|v| claude_status_from_json(&v))
@@ -508,16 +530,17 @@ pub fn claude_accounts_status() -> Value {
 /// Which projects effectively resolve to each account id, as
 /// `{"usage": {"<id>": ["projA", ...]}}`. Uses the same tri-state + parent
 /// inheritance the spawn path does (via `effective_claude_account`), so a
-/// duplicate that inherits its parent's pin is counted. Only non-empty pinned
-/// ids appear (explicit-default and inherit-ambient projects are omitted);
-/// project display names are used so the UI can list them verbatim.
+/// duplicate that inherits its parent's pin is counted, as is a project the
+/// balanced pool currently assigns. Only non-empty ids appear (explicit-default
+/// and inherit-ambient projects are omitted); project display names are used so
+/// the UI can list them verbatim.
 pub fn claude_account_usage() -> Value {
     let mut usage: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for file in project_names() {
         let Ok(y) = parse_project_yaml(&file) else {
             continue;
         };
-        if let Some(id) = effective_claude_account(&y) {
+        if let Some(id) = effective_claude_account(&file, &y) {
             if !id.is_empty() {
                 let display = if y.name.is_empty() {
                     file.clone()
@@ -2215,7 +2238,9 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
             ssh: SshSettings::default(),
             services: BTreeMap::new(),
             profiles: BTreeMap::new(),
-            claude_account: None,
+            // The global terminal has no YAML to pin with, but it must not
+            // diverge from every project terminal when the pool is on.
+            claude_account: crate::claude_pool::assigned(RESERVED_PROJECT_NAME),
         });
     }
     let y = parse_project_yaml(name)?;
@@ -2227,7 +2252,7 @@ pub fn spawn_info(name: &str) -> Result<SpawnInfo, String> {
     let ssh = y.ssh.clone().unwrap_or_default();
     let is_remote = ssh.is_remote();
     let root = expand_home(&y.root);
-    let claude_account = effective_claude_account(&y);
+    let claude_account = effective_claude_account(name, &y);
     let mut services: BTreeMap<String, ServiceFull> = y
         .services
         .into_iter()
