@@ -744,14 +744,21 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [isRemotePeer, uploadPeerImage, registerImagePath],
   );
 
+  // Bracketed in two undo steps (commitUndo touches only refs, so the stale
+  // closure is safe): programmatic insertion fires no input event, and without
+  // its own step a paste that is then cut nets back to the undo base and ⌘Z
+  // has nothing to restore.
   const insertItems = useCallback(
     (items: Array<HTMLElement | string>, separate = true) => {
       const editor = editorRef.current;
       if (!editor || items.length === 0) return;
+      commitUndo();
       insertItemsAtCaret(editor, items, separate);
       histIdx.current = -1;
       syncState();
+      commitUndo();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- commitUndo is ref-only
     [syncState],
   );
 
@@ -1291,7 +1298,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   // Arrow Up/Down through the sent-message ring. The cursor is advanced before
   // the field is rewritten so applyHistoryEntry's syncState parks the new
-  // position (and stash) with the draft it belongs to.
+  // position (and stash) with the draft it belongs to. The rewrite is bracketed
+  // in two undo steps (like applyRewrite) so ⌘Z restores whatever the recall
+  // replaced — an accidental ArrowUp must not lose the typed draft.
   const recall = (delta: 1 | -1): boolean => {
     const editor = editorRef.current;
     if (!editor) return false;
@@ -1300,21 +1309,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       images: Object.fromEntries(imagePaths.current),
     });
     if (!step) return false;
+    commitUndo();
     histIdx.current = step.index;
     histStash.current = step.stash;
     applyHistoryEntry(editor, step.entry);
     highlightCommand(editor, isSlashCommand, memorySessionIds);
-    resetUndo();
+    commitUndo();
     return true;
   };
 
   // Load a message chosen from the history popover, replacing the current draft.
+  // Bracketed in undo steps so ⌘Z brings the replaced draft back.
   const loadFromHistory = (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
     if (!editor || transforming.current) return;
+    commitUndo();
     applyHistoryEntry(editor, { text, images });
-    resetUndo();
     histIdx.current = -1;
+    commitUndo();
     editor.focus();
   };
 
@@ -1690,10 +1702,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     endTransform();
   };
 
+  // Bracketed in undo steps — chip removal fires no input event, so without an
+  // explicit step ⌘Z couldn't bring the deleted image back.
   const deleteImageChip = (chip: HTMLElement) => {
+    commitUndo();
     imagePaths.current.delete(Number(chip.dataset.img));
     removeChip(chip);
     syncState();
+    commitUndo();
   };
 
   // Cut/Copy of a selection holding attachment chips writes the serialized text
@@ -1715,9 +1731,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (!cut) return;
     const chip = selectedChip(editor);
     if (chip) {
+      commitUndo();
       removeChip(chip);
       histIdx.current = -1;
       syncState(false);
+      commitUndo();
     } else {
       document.execCommand("delete");
     }
