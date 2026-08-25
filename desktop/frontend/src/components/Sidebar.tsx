@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy, type SortingStrategy } from "@dnd-kit/sortable";
 import { StatusDot, dotKind } from "./StatusDot";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
@@ -46,6 +46,7 @@ import {
   peerSlugOfToken,
   peerToken,
   rangeBetween,
+  resolveDuplicateDrop,
   resolveSidebarDrop,
   syncPeerTokens,
 } from "./sidebarLayout";
@@ -136,6 +137,7 @@ interface SidebarProps {
   onRenameProject: (name: string, label: string) => void;
   onMoveProjectRoot: (name: string, newRoot: string) => Promise<void>;
   onApplySidebarLayout: (layout: SidebarLayout) => void;
+  onReorderDuplicate: (name: string, overName: string) => void;
   onCreateGroup: (name: string, opts?: { initialMembers?: string[] }) => void;
   onRenameGroup: (id: string, name: string) => void;
   onDeleteGroup: (id: string) => void;
@@ -175,7 +177,7 @@ type TreeItem =
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -334,7 +336,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // interleaved order. Duplicates ride immediately after their parent;
   // brand-new projects not yet in the persisted order are appended loose so
   // they never vanish.
-  const { items, sortableIds, projectByName, memberOf } = useMemo(() => {
+  const { items, sortableIds, projectByName, memberOf, childrenOf, childOf } = useMemo(() => {
     const byName = new Map<string, ProjectInfo>();
     for (const p of localProjects) byName.set(p.name, p);
     const sectionBySlug = new Map(peerSections.map((s) => [s.slug, s]));
@@ -360,6 +362,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       rendered.add(p.name);
       for (const child of childrenByParent.get(p.name) ?? []) {
         out.push({ kind: "project", project: child, isChild: true, folderId });
+        ids.push(child.name);
         rendered.add(child.name);
       }
     };
@@ -421,7 +424,22 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       if (membership.has(p.name)) continue;
       pushProject(p);
     }
-    return { items: out, sortableIds: ids, projectByName: byName, memberOf: membership };
+    // Sibling sets for the duplicate drag: the names under each parent, and the
+    // way back from a duplicate to that parent.
+    const childrenOf = new Map<string, string[]>();
+    const childOf = new Map<string, string>();
+    for (const [parent, children] of childrenByParent) {
+      childrenOf.set(parent, children.map((c) => c.name));
+      for (const child of children) childOf.set(child.name, parent);
+    }
+    return {
+      items: out,
+      sortableIds: ids,
+      projectByName: byName,
+      memberOf: membership,
+      childrenOf,
+      childOf,
+    };
   }, [localProjects, groups, order, peerSections]);
 
   // Project names in rendered top-to-bottom order — the axis a shift-click
@@ -734,17 +752,48 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     );
   };
 
+  // A nested duplicate only ever changes places with its siblings, so freeze
+  // every other row while one is dragged: the default strategy shifts the whole
+  // list below the pointer, which reads as if other folders were about to move.
+  const draggedDuplicateParent = activeId ? childOf.get(activeId) : undefined;
+  const sortingStrategy = useMemo<SortingStrategy>(() => {
+    if (!draggedDuplicateParent) return verticalListSortingStrategy;
+    const siblings = childrenOf.get(draggedDuplicateParent) ?? [];
+    const first = sortableIds.indexOf(siblings[0]);
+    const last = sortableIds.indexOf(siblings[siblings.length - 1]);
+    // The parent sits right above its first child, and dropping on it is a move
+    // to the top of the siblings — so it counts as an in-range target.
+    return (args) =>
+      args.index < first ||
+      args.index > last ||
+      args.overIndex < first - 1 ||
+      args.overIndex > last
+        ? null
+        : verticalListSortingStrategy(args);
+  }, [draggedDuplicateParent, childrenOf, sortableIds]);
+
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const onDragCancel = () => setActiveId(null);
   const onDragEnd = (e: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
-    if (isPeerRowId(String(active.id))) {
-      reorderPeerRow(String(active.id), String(over.id));
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (isPeerRowId(activeId)) {
+      reorderPeerRow(activeId, overId);
       return;
     }
-    const next = resolveSidebarDrop(layoutRef.current, String(active.id), String(over.id));
+    // A nested duplicate has no slot of its own: dragging one only sorts it
+    // among its siblings.
+    const parentName = childOf.get(activeId);
+    if (parentName) {
+      const target = resolveDuplicateDrop(childrenOf, parentName, activeId, overId);
+      if (target) onReorderDuplicate(activeId, target);
+      return;
+    }
+    // Dropping onto a nested duplicate targets the slot its parent occupies.
+    const next = resolveSidebarDrop(layoutRef.current, activeId, childOf.get(overId) ?? overId);
     if (next) onApplySidebarLayout(next);
   };
 
@@ -907,7 +956,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     );
   };
 
-  const renderRow = (item: TreeItem) => {
+  const renderRow = (item: TreeItem, connector?: React.ReactNode) => {
     if (item.kind === "group") {
       const selectedProject =
         item.group.collapsed && selected !== null ? projectByName.get(selected) : undefined;
@@ -929,10 +978,18 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           onMore={(x, y) => setGroupMenu({ id: item.group.id, x, y })}
         />
       );
-      if (selectMode) return <div key={groupToken(item.group.id)}>{header}</div>;
+      if (selectMode) {
+        return (
+          <div key={groupToken(item.group.id)} className="relative">
+            {connector}
+            {header}
+          </div>
+        );
+      }
       return (
         <SortableItem key={groupToken(item.group.id)} id={groupToken(item.group.id)}>
           <div className="relative">
+            {connector}
             {header}
             <FolderDropZone id={folderNestId(item.group.id)} overlay />
           </div>
@@ -976,14 +1033,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       );
     }
 
-    const { project, isChild } = item;
+    const { project } = item;
     const row = renderProjectRow(project, item.folderId !== undefined);
-    if (isChild || selectMode) {
-      return <div key={project.name}>{row}</div>;
+    const body = connector ? <div className="relative">{connector}{row}</div> : row;
+    if (selectMode) {
+      return <div key={project.name}>{body}</div>;
     }
     return (
       <SortableItem key={project.name} id={project.name}>
-        {row}
+        {body}
       </SortableItem>
     );
   };
@@ -1040,6 +1098,31 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const TREE_X = "left-[15px]";
   // From TREE_X out to the member's status dot at 27px.
   const ELBOW_W = "w-[12px]";
+  // Each row carries its own piece of the tree inside its sortable box, so a
+  // live drag moves the lines with the rows instead of stranding them — no
+  // folder loses its connector just because a drag is in progress.
+  const folderConnector = (
+    <span
+      aria-hidden
+      className={`pointer-events-none absolute ${TREE_X} top-[26px] bottom-0 z-10 w-px ${TRUNK_BG}`}
+    />
+  );
+  const rowConnector = (isLast: boolean) => (
+    <>
+      <span
+        aria-hidden
+        style={{ height: ROW_HALF }}
+        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 ${ELBOW_W} rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
+      />
+      {!isLast && (
+        <span
+          aria-hidden
+          style={{ top: ROW_HALF }}
+          className={`pointer-events-none absolute ${TREE_X} bottom-0 z-10 w-px ${TRUNK_BG}`}
+        />
+      )}
+    </>
+  );
   const renderFolderBlock = (
     groupItem: Extract<TreeItem, { kind: "group" }>,
     body: TreeItem[],
@@ -1049,49 +1132,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       if (it.kind === "project") lastProjectIndex = i;
     });
     const hasProjects = lastProjectIndex !== -1;
-    // Connectors are absolute siblings of the sortable rows, so a live drag's
-    // row transform would leave them stranded — hide the whole tree while any
-    // drag is active; it reappears on drop.
-    const showConnectors = !activeId;
     return (
       <div key={groupToken(groupItem.group.id)}>
-        <div className="relative">
-          {renderRow(groupItem)}
-          {hasProjects && showConnectors && (
-            <span
-              aria-hidden
-              className={`pointer-events-none absolute ${TREE_X} top-[26px] bottom-0 z-10 w-px ${TRUNK_BG}`}
-            />
-          )}
-        </div>
-        {body.length > 0 && (
-          <div className="relative">
-            {body.map((it, i) =>
-              it.kind === "project" ? (
-                <div key={it.project.name} className="relative">
-                  {showConnectors && (
-                    <>
-                      <span
-                        aria-hidden
-                        style={{ height: ROW_HALF }}
-                        className={`pointer-events-none absolute ${TREE_X} top-0 z-10 ${ELBOW_W} rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
-                      />
-                      {i !== lastProjectIndex && (
-                        <span
-                          aria-hidden
-                          style={{ top: ROW_HALF }}
-                          className={`pointer-events-none absolute ${TREE_X} bottom-0 z-10 w-px ${TRUNK_BG}`}
-                        />
-                      )}
-                    </>
-                  )}
-                  {renderRow(it)}
-                </div>
-              ) : (
-                renderRow(it)
-              ),
-            )}
-          </div>
+        {renderRow(groupItem, hasProjects ? folderConnector : undefined)}
+        {body.map((it, i) =>
+          it.kind === "project" ? renderRow(it, rowConnector(i === lastProjectIndex)) : renderRow(it),
         )}
       </div>
     );
@@ -1179,7 +1224,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onDragEnd={onDragEnd}
             onDragCancel={onDragCancel}
           >
-            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+            <SortableContext items={sortableIds} strategy={sortingStrategy}>
               {navItems}
             </SortableContext>
             <DragOverlay className="pointer-events-none">

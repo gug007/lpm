@@ -330,6 +330,8 @@ interface AppState {
   moveProjectsToGroup: (names: string[], groupId: string | null) => Promise<void>;
   // Commit a full sidebar layout (on DnD drop): persists folders + order.
   applySidebarLayout: (layout: SidebarLayout) => Promise<void>;
+  // Move a nested duplicate to another slot among the siblings under its parent.
+  reorderDuplicate: (name: string, overName: string) => Promise<void>;
   // Re-place duplicates + append new projects after a project list refresh.
   // Never drops a name it can't see — only `forgetProjects` does that.
   reconcileSidebarLayout: (projects: ProjectInfo[]) => void;
@@ -808,6 +810,7 @@ async function persistSidebarLayout(
   layout: SidebarLayout,
   base: SidebarLayout,
   known: Set<string>,
+  projects: ProjectInfo[],
 ): Promise<SidebarLayout> {
   let merged = layout;
   try {
@@ -821,7 +824,7 @@ async function persistSidebarLayout(
     saveGroups({ groups: merged.groups }),
     saveSettings({
       sidebarOrder: merged.order,
-      projectOrder: flattenForProjectOrder(merged),
+      projectOrder: flattenForProjectOrder(merged, projects),
     }),
   ]);
   return merged;
@@ -939,7 +942,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
     if (layoutsEqual(before, after)) return;
     set({ sidebarOrder: after.order, groups: after.groups });
-    persistSidebarLayout(after, before, layoutNames(projects))
+    persistSidebarLayout(after, before, layoutNames(projects), projects)
       .then((merged) => get().adoptSidebarLayout(merged))
       .catch(() => undefined);
   },
@@ -1685,12 +1688,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     // update state but skip the persist.
     if (layoutsEqual(prev, next)) return;
     try {
-      get().adoptSidebarLayout(await persistSidebarLayout(next, prev, layoutNames(projects)));
+      get().adoptSidebarLayout(
+        await persistSidebarLayout(next, prev, layoutNames(projects), projects),
+      );
     } catch (err) {
       toast.error(`Failed to save folders: ${err}`);
       const cfg = await loadGroups();
       const fresh = await loadSettings();
       set({ groups: cfg.groups, sidebarOrder: fresh.sidebarOrder ?? [] });
+    }
+  },
+
+  // A nested duplicate has no slot in the sidebar layout — it rides with its
+  // parent, in project-list order. So its within-parent order lives in the
+  // project list itself: move it there, then re-persist the flattened
+  // projectOrder the backend reads that order back from.
+  reorderDuplicate: async (name, overName) => {
+    const projects = get().projects;
+    const from = projects.findIndex((p) => p.name === name);
+    const to = projects.findIndex((p) => p.name === overName);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = projects.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    set({ projects: next });
+    const layout: SidebarLayout = { order: get().sidebarOrder, groups: get().groups };
+    try {
+      await saveSettings({ projectOrder: flattenForProjectOrder(layout, next) });
+    } catch (err) {
+      toast.error(`Failed to save order: ${err}`);
+      set({ projects });
     }
   },
 
