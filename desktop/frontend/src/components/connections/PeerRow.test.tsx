@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../../bridge/commands", () => ({
   PeerReconnect: mocks.reconnect,
+  PeerSetAlias: vi.fn(() => Promise.resolve()),
   PeerSetEnabled: mocks.setEnabled,
   PeerUpdateHost: mocks.updateHost,
 }));

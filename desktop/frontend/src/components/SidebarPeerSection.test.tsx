@@ -5,12 +5,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PeerStatus } from "../peer/peerStatus";
 import type { ProjectInfo } from "../types";
 
-const mocks = vi.hoisted(() => ({ clearSelection: vi.fn(), addProjectForPeer: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  clearSelection: vi.fn(),
+  addProjectForPeer: vi.fn(),
+  setAlias: vi.fn(() => Promise.resolve()),
+}));
 
 vi.mock("../store/app", () => ({
   useAppStore: (select: (state: unknown) => unknown) => select(mocks),
 }));
-vi.mock("../../bridge/commands", () => ({ PeerRemove: vi.fn(), PeerReconnect: vi.fn() }));
+vi.mock("../../bridge/commands", () => ({
+  PeerRemove: vi.fn(),
+  PeerReconnect: vi.fn(),
+  PeerSetAlias: mocks.setAlias,
+}));
 
 import { SidebarPeerSection } from "./SidebarPeerSection";
 
@@ -142,6 +150,34 @@ describe("SidebarPeerSection header", () => {
   it("wears the active background when folded over the open project", () => {
     localStorage.setItem("lpm-peer-sections-collapsed", JSON.stringify({ aabbccdd: true }));
     expect(render({ selected: "glimpse2" }).className).toContain("bg-[var(--bg-active)]");
+  });
+
+  it("renames the machine from its own menu, without touching the address", () => {
+    render();
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    const rename = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Rename",
+    );
+    expect(rename).toBeTruthy();
+    act(() => rename!.click());
+    const input = document.querySelector("input") as HTMLInputElement;
+    // Pre-filled with the name on screen, so a tweak doesn't mean retyping it.
+    expect(input.value).toBe("GURGENS-MACBOOK-PRO");
+    const form = input.closest("form") as HTMLFormElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        input,
+        "Studio",
+      );
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    act(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(mocks.setAlias).toHaveBeenCalledWith("aabbccdd", "Studio");
   });
 
   it("stays plain when folded over a project that is not the open one", () => {

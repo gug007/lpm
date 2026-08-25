@@ -2254,6 +2254,33 @@ pub async fn peer_remove(hub: State<'_, PeerClientHub>, slug: String) -> Result<
     Ok(hub.peers_state())
 }
 
+/// Rename a paired machine. The alias is this Mac's own label for it — taken at
+/// pairing from what the machine calls itself, and changed here — so a hostname
+/// nobody chose need not be the name the sidebar lives with. It stays local:
+/// peer.json is off the sync surface. Blank falls back to the address, the way an
+/// entry that never had an alias already displays.
+#[tauri::command]
+pub async fn peer_set_alias(
+    hub: State<'_, PeerClientHub>,
+    slug: String,
+    alias: String,
+) -> Result<Value, String> {
+    {
+        let mut cfg = hub.inner.config.lock().unwrap();
+        let entry = cfg
+            .peers
+            .iter_mut()
+            .find(|p| p.slug == slug)
+            .ok_or_else(|| "that peer is no longer configured".to_string())?;
+        entry.alias = alias.trim().to_string();
+        let snapshot = cfg.clone();
+        drop(cfg);
+        peer::save_config(&snapshot)?;
+    }
+    emit_state_changed(&hub);
+    Ok(hub.peers_state())
+}
+
 #[tauri::command]
 pub async fn peer_set_enabled(
     hub: State<'_, PeerClientHub>,

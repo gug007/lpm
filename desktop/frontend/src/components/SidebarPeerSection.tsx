@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ServerIcon } from "./icons";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { RenameModal } from "./RenameModal";
 import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { SidebarPeerRow } from "./SidebarPeerRow";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
@@ -16,7 +17,7 @@ import type { MirrorRow } from "./peerSections";
 import type { PeerStatus } from "../peer/peerStatus";
 import type { FollowState } from "../followApi";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
-import { PeerReconnect, PeerRemove } from "../../bridge/commands";
+import { PeerReconnect, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { ProjectInfo } from "../types";
 
@@ -96,6 +97,7 @@ export function SidebarPeerSection({
   const addProjectForPeer = useAppStore((s) => s.addProjectForPeer);
   const [collapsed, setCollapsed] = useState(() => isPeerSectionCollapsed(slug));
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   const toggle = () => {
@@ -273,6 +275,7 @@ export function SidebarPeerSection({
           connected={connected}
           canReconnect={status.tone === "error"}
           onAddProject={() => addProjectForPeer(slug, alias)}
+          onRename={() => setRenameOpen(true)}
           onReconnect={() => void PeerReconnect(slug)}
           onDisconnect={() => setConfirmOpen(true)}
           onClose={() => setMenu(null)}
@@ -293,6 +296,15 @@ export function SidebarPeerSection({
         }
         onCancel={() => setConfirmOpen(false)}
         onConfirm={confirmRemove}
+      />
+
+      <RenameModal
+        open={renameOpen}
+        title={linuxHost ? "Rename server" : "Rename Mac"}
+        description="The name this Mac lists it under. Nothing changes on the machine itself."
+        initialValue={alias}
+        onClose={() => setRenameOpen(false)}
+        onSubmit={(value) => void PeerSetAlias(slug, value)}
       />
     </div>
   );

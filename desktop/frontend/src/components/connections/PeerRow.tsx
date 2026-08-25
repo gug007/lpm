@@ -3,6 +3,7 @@ import { Server } from "lucide-react";
 import {
   PeerInvoke,
   PeerReconnect,
+  PeerSetAlias,
   PeerSetEnabled,
   PeerUninstallHost,
   PeerUpdateHost,
@@ -15,6 +16,7 @@ import { LaptopIcon } from "./LaptopIcon";
 import { StatusLine } from "./StatusLine";
 import { RowMenu } from "./RowMenu";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { RenameModal } from "../RenameModal";
 import { isLinuxHost } from "../../peer/platform";
 import { isHostBehind } from "../../peer/hostVersion";
 import {
@@ -51,6 +53,7 @@ export function PeerRow({
   // one of these can be in flight at a time.
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const [confirmingRemoval, setConfirmingRemoval] = useState(false);
   // Deleting the host's ~/.lpm is a separate decision from removing the install,
   // and it is not one to carry over from a dialog someone already cancelled.
@@ -265,6 +268,7 @@ export function PeerRow({
                   },
                 ]
               : []),
+            { label: "Rename…", onClick: () => setRenaming(true) },
             { label: "Disconnect…", destructive: true, onClick: () => onRemove(peer) },
             // Only for a machine we can reach: taking lpm off someone else's Mac
             // isn't ours to do, and there is no way to do it there anyway.
@@ -343,6 +347,14 @@ export function PeerRow({
           setConfirmingRemoval(false);
           void uninstall(purgeData);
         }}
+      />
+      <RenameModal
+        open={renaming}
+        title={isLinuxHost(peer) ? "Rename server" : "Rename Mac"}
+        description="The name this Mac lists it under. Nothing changes on the machine itself."
+        initialValue={name}
+        onClose={() => setRenaming(false)}
+        onSubmit={(value) => void PeerSetAlias(peer.slug, value).then(refresh)}
       />
     </>
   );

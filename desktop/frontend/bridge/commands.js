@@ -908,6 +908,9 @@ export function PeerRemove(slug) {
 export function PeerSetEnabled(slug, enabled) {
   return invoke("peer_set_enabled", { slug, enabled });
 }
+export function PeerSetAlias(slug, alias) {
+  return invoke("peer_set_alias", { slug, alias });
+}
 export function PeerReconnect(slug) {
   return invoke("peer_reconnect", { slug });
 }

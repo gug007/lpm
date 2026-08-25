@@ -213,6 +213,7 @@ macro_rules! all_command_handlers {
             peer_uninstall_host,
             peer_remove,
             peer_set_enabled,
+            peer_set_alias,
             peer_reconnect,
             peer_set_auto_sync,
             peer_invoke,

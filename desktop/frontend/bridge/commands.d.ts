@@ -295,6 +295,7 @@ export function PeerUpdateHost(...args: any[]): Promise<any>;
 export function PeerUninstallHost(...args: any[]): Promise<any>;
 export function PeerRemove(...args: any[]): Promise<any>;
 export function PeerSetEnabled(...args: any[]): Promise<any>;
+export function PeerSetAlias(...args: any[]): Promise<any>;
 export function PeerReconnect(...args: any[]): Promise<any>;
 export function PeerSetAutoSync(...args: any[]): Promise<any>;
 export function PeerInvoke(...args: any[]): Promise<any>;

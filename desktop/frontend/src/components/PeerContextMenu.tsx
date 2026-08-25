@@ -1,4 +1,4 @@
-import { PlusIcon, RefreshIcon, XIcon } from "./icons";
+import { PencilIcon, PlusIcon, RefreshIcon, XIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -10,6 +10,7 @@ interface PeerContextMenuProps {
   connected: boolean;
   canReconnect: boolean;
   onAddProject: () => void;
+  onRename: () => void;
   onReconnect: () => void;
   onDisconnect: () => void;
   onClose: () => void;
@@ -22,6 +23,7 @@ export function PeerContextMenu({
   connected,
   canReconnect,
   onAddProject,
+  onRename,
   onReconnect,
   onDisconnect,
   onClose,
@@ -42,7 +44,8 @@ export function PeerContextMenu({
       {canReconnect && (
         <ContextMenuItem label="Reconnect" icon={<RefreshIcon />} onClick={close(onReconnect)} />
       )}
-      {(connected || canReconnect) && <ContextMenuSeparator />}
+      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
+      <ContextMenuSeparator />
       <ContextMenuItem
         destructive
         label="Disconnect…"
