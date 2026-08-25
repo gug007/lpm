@@ -43,6 +43,7 @@ mod jobs;
 mod log_streaming;
 mod mainwindow;
 mod mdns;
+mod mediaproto;
 mod menu;
 mod message_history;
 mod notes_blobs;
@@ -222,6 +223,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .register_asynchronous_uri_scheme_protocol(mediaproto::SCHEME, mediaproto::handle)
         .manage(pty::PtyState::default())
         .manage(services::ServiceState::default())
         .manage(log_streaming::LogState::default())
