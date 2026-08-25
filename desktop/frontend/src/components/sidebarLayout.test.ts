@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { ProjectGroup } from "../types";
+import type { ProjectGroup, ProjectInfo } from "../types";
 import {
   type SidebarLayout,
   groupToken,
@@ -17,6 +17,8 @@ import {
   renameGroup,
   setGroupCollapsed,
   flattenForProjectOrder,
+  nestedDuplicates,
+  resolveDuplicateDrop,
   reconcile,
   forgetProjects,
   layoutsEqual,
@@ -31,6 +33,10 @@ import {
 
 function g(id: string, members: string[], extra: Partial<ProjectGroup> = {}): ProjectGroup {
   return { id, name: id, members, ...extra };
+}
+
+function p(name: string, parentName?: string): ProjectInfo {
+  return { name, parentName } as ProjectInfo;
 }
 
 // api, [Front: web, admin], scripts, [Exp: e1, e2], landing
@@ -179,9 +185,82 @@ describe("renameGroup / setGroupCollapsed", () => {
   });
 });
 
+describe("nestedDuplicates", () => {
+  it("groups duplicates under their parent in project-list order", () => {
+    const projects = [p("api"), p("api-2", "api"), p("api-1", "api"), p("web")];
+    expect(nestedDuplicates([], projects)).toEqual(new Map([["api", ["api-2", "api-1"]]]));
+  });
+
+  it("leaves out a duplicate that is an explicit folder member", () => {
+    const projects = [p("api"), p("api-1", "api"), p("api-2", "api")];
+    expect(nestedDuplicates([g("Front", ["api-2"])], projects)).toEqual(
+      new Map([["api", ["api-1"]]]),
+    );
+  });
+
+  it("ignores a project whose parent is gone", () => {
+    expect(nestedDuplicates([], [p("api-1", "api")])).toEqual(new Map());
+  });
+});
+
+describe("resolveDuplicateDrop", () => {
+  const nested = new Map([["api", ["api-1", "api-2", "api-3"]]]);
+
+  it("takes the sibling slot it was dropped on", () => {
+    expect(resolveDuplicateDrop(nested, "api", "api-3", "api-1")).toBe("api-1");
+  });
+
+  it("goes to the top of the siblings when dropped on the parent", () => {
+    expect(resolveDuplicateDrop(nested, "api", "api-3", "api")).toBe("api-1");
+  });
+
+  it("stays put when dropped on itself or outside its siblings", () => {
+    expect(resolveDuplicateDrop(nested, "api", "api-2", "api-2")).toBeNull();
+    expect(resolveDuplicateDrop(nested, "api", "api-1", "api")).toBeNull();
+    expect(resolveDuplicateDrop(nested, "api", "api-2", "web")).toBeNull();
+    expect(resolveDuplicateDrop(nested, "api", "api-2", groupToken("Front"))).toBeNull();
+  });
+});
+
 describe("flattenForProjectOrder", () => {
+  it("trails every project with its nested duplicates", () => {
+    const projects = [
+      p("api"),
+      p("api-2", "api"),
+      p("api-1", "api"),
+      p("web"),
+      p("web-1", "web"),
+      p("admin"),
+      p("scripts"),
+      p("e1"),
+      p("e2"),
+      p("landing"),
+    ];
+    expect(flattenForProjectOrder(sample(), projects)).toEqual([
+      "api",
+      "api-2",
+      "api-1",
+      "web",
+      "web-1",
+      "admin",
+      "scripts",
+      "e1",
+      "e2",
+      "landing",
+    ]);
+  });
+
+  it("keeps a folder-member duplicate at its own slot", () => {
+    const layout: SidebarLayout = {
+      order: [groupToken("Front")],
+      groups: [g("Front", ["web-1", "web"])],
+    };
+    const projects = [p("web"), p("web-1", "web"), p("web-2", "web")];
+    expect(flattenForProjectOrder(layout, projects)).toEqual(["web-1", "web", "web-2"]);
+  });
+
   it("expands folders into their members in display order", () => {
-    expect(flattenForProjectOrder(sample())).toEqual([
+    expect(flattenForProjectOrder(sample(), [])).toEqual([
       "api",
       "web",
       "admin",
@@ -301,7 +380,7 @@ describe("peer slots in the layout", () => {
   });
 
   it("stays out of the flattened project order", () => {
-    expect(flattenForProjectOrder(layout())).toEqual(["api", "web", "admin", "scripts"]);
+    expect(flattenForProjectOrder(layout(), [])).toEqual(["api", "web", "admin", "scripts"]);
   });
 
   it("survives reconcile, which can't see the pairing list", () => {

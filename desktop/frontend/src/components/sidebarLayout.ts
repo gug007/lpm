@@ -1,4 +1,4 @@
-import type { ProjectGroup, ProjectInfo } from "../types";
+import { isDuplicate, type ProjectGroup, type ProjectInfo } from "../types";
 import { arrayEq } from "./actionsDndLayout";
 
 // Pure model + move math for the sidebar's interleaved folders/projects list.
@@ -274,21 +274,64 @@ export function setGroupCollapsed(
   };
 }
 
+// parent name -> its nested duplicates, in project-list order. A duplicate
+// explicitly placed in a folder is excluded: it renders as a member on the
+// folder's level instead of under its parent.
+export function nestedDuplicates(
+  groups: ProjectGroup[],
+  projects: ProjectInfo[],
+): Map<string, string[]> {
+  const byName = new Map(projects.map((p) => [p.name, p]));
+  const claimed = membershipMap(groups);
+  const out = new Map<string, string[]>();
+  for (const p of projects) {
+    if (!isDuplicate(p, byName) || claimed.has(p.name)) continue;
+    const siblings = out.get(p.parentName!);
+    if (siblings) siblings.push(p.name);
+    else out.set(p.parentName!, [p.name]);
+  }
+  return out;
+}
+
+// The sibling slot a dragged nested duplicate should take, or null when the drop
+// leaves it where it is. Dropping it on its parent row sends it to the top of
+// the siblings; anything outside the sibling set is a no-op, since a duplicate
+// can only leave its parent's nesting by joining a folder.
+export function resolveDuplicateDrop(
+  nested: Map<string, string[]>,
+  parentName: string,
+  activeId: string,
+  overId: string,
+): string | null {
+  const siblings = nested.get(parentName) ?? [];
+  const over = overId === parentName ? siblings[0] : overId;
+  return over !== activeId && siblings.includes(over) ? over : null;
+}
+
 // The flat all-projects order written to settings.projectOrder for the backend.
 // Walk top-level order, expanding each folder into its members and skipping peer
-// slots (a Mac's projects are listed by that Mac, not here). A folder member may
-// be a duplicate; the backend re-groups every duplicate after its parent on its
-// own, so a duplicate's position here is only advisory.
-export function flattenForProjectOrder(layout: SidebarLayout): string[] {
+// slots (a Mac's projects are listed by that Mac, not here), and trail every
+// project with its nested duplicates. Those have no slot of their own, so this
+// is where their within-parent order is kept: the backend regroups duplicates
+// after their parent but preserves the relative order it reads here.
+export function flattenForProjectOrder(
+  layout: SidebarLayout,
+  projects: ProjectInfo[],
+): string[] {
   const byId = new Map(layout.groups.map((g) => [g.id, g]));
+  const nested = nestedDuplicates(layout.groups, projects);
   const out: string[] = [];
+  const push = (name: string) => {
+    out.push(name);
+    out.push(...(nested.get(name) ?? []));
+  };
   for (const token of layout.order) {
     const gid = groupIdOf(token);
     if (gid) {
       const g = byId.get(gid);
-      if (g) out.push(...g.members);
+      if (g) g.members.forEach(push);
     } else if (!isPeerToken(token)) {
-      out.push(token);
+      push(token);
     }
   }
   return out;

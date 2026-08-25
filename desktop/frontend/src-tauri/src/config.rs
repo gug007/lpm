@@ -2927,3 +2927,43 @@ mod action_input_tests {
         assert_eq!(build_input_infos(&map)[0].kind, "text");
     }
 }
+
+#[cfg(test)]
+mod project_order_tests {
+    use super::*;
+
+    fn names(projects: Vec<Value>) -> Vec<String> {
+        projects.iter().map(|p| name_of(p).to_string()).collect()
+    }
+
+    fn ordered(order: &[&str], projects: Vec<Value>) -> Vec<String> {
+        let order: Vec<String> = order.iter().map(|s| s.to_string()).collect();
+        names(apply_project_order(projects, &order))
+    }
+
+    /// The sidebar sorts a duplicate by writing its slot into `projectOrder`;
+    /// regrouping must not shuffle the siblings back.
+    #[test]
+    fn duplicates_keep_their_saved_order_under_the_parent() {
+        let projects = vec![
+            json!({"name": "api"}),
+            json!({"name": "api-1", "parentName": "api"}),
+            json!({"name": "api-2", "parentName": "api"}),
+            json!({"name": "web"}),
+        ];
+        assert_eq!(
+            ordered(&["api", "api-2", "api-1", "web"], projects),
+            ["api", "api-2", "api-1", "web"],
+        );
+    }
+
+    #[test]
+    fn an_unordered_duplicate_still_follows_its_parent() {
+        let projects = vec![
+            json!({"name": "api-1", "parentName": "api"}),
+            json!({"name": "web"}),
+            json!({"name": "api"}),
+        ];
+        assert_eq!(ordered(&[], projects), ["web", "api", "api-1"]);
+    }
+}
