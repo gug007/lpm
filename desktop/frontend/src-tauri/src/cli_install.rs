@@ -141,13 +141,19 @@ fn applescript_escape(s: &str) -> String {
 
 /// Try to create/replace the symlink directly (works when /usr/local/bin is
 /// user-writable, e.g. Homebrew setups). Returns Err with the io::Error so the
-/// caller can decide whether to escalate on PermissionDenied.
+/// caller can decide whether to escalate. A refused unlink propagates rather
+/// than being swallowed: letting it fall through to `symlink` would report the
+/// leftover entry (EEXIST) instead of the permission problem that caused it.
 fn symlink_direct(expected: &Path, link: &Path, replace: bool) -> std::io::Result<()> {
     if let Some(parent) = link.parent() {
         std::fs::create_dir_all(parent)?;
     }
     if replace {
-        let _ = std::fs::remove_file(link);
+        match std::fs::remove_file(link) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
     }
     std::os::unix::fs::symlink(expected, link)
 }
@@ -191,12 +197,21 @@ fn symlink_escalated(expected: &Path, link: &Path) -> Result<(), String> {
     )
 }
 
+/// Whether a failed direct attempt is worth retrying through the admin prompt.
+/// A replace can also land on AlreadyExists — the entry we meant to remove is
+/// still there because something else recreated it — and forcing is safe since
+/// foreign occupants were rejected before we got here. A fresh create hitting
+/// AlreadyExists raced with an occupant we never classified, so it stays an
+/// error.
+fn should_escalate(kind: std::io::ErrorKind, replace: bool) -> bool {
+    kind == std::io::ErrorKind::PermissionDenied
+        || (replace && kind == std::io::ErrorKind::AlreadyExists)
+}
+
 fn do_install(expected: &Path, link: &Path, replace: bool) -> Result<(), String> {
     match symlink_direct(expected, link, replace) {
         Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-            symlink_escalated(expected, link)
-        }
+        Err(e) if should_escalate(e.kind(), replace) => symlink_escalated(expected, link),
         Err(e) => Err(format!("failed to create symlink: {e}")),
     }
 }
@@ -638,5 +653,46 @@ mod tests {
         std::fs::write(&expected, b"x").unwrap();
         repair_at(&expected, &link);
         assert_eq!(std::fs::read(&link).unwrap(), b"foreign");
+    }
+
+    #[test]
+    fn escalation_covers_refused_replace() {
+        assert!(should_escalate(std::io::ErrorKind::PermissionDenied, false));
+        assert!(should_escalate(std::io::ErrorKind::PermissionDenied, true));
+        assert!(should_escalate(std::io::ErrorKind::AlreadyExists, true));
+        // A fresh create racing with an unclassified occupant is not ours to force.
+        assert!(!should_escalate(std::io::ErrorKind::AlreadyExists, false));
+        assert!(!should_escalate(std::io::ErrorKind::NotFound, true));
+    }
+
+    #[test]
+    fn replace_in_unwritable_dir_reports_permission_denied() {
+        // The real /usr/local/bin case: our root-owned link is stale, the dir is
+        // not user-writable, and the unlink is refused. macOS resolves the
+        // existing name before checking write permission, so a swallowed unlink
+        // error would resurface as EEXIST and skip the admin prompt.
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        let link = bin.join("lpm");
+        let stale = dir.path().join("old").join("lpm-cli");
+        std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+        std::fs::write(&stale, b"old").unwrap();
+        symlink_direct(&stale, &link, false).unwrap();
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        // Root ignores the mode bits, leaving nothing to assert.
+        if std::fs::File::create(bin.join(".probe")).is_err() {
+            let expected = dir.path().join("new").join("lpm-cli");
+            std::fs::create_dir_all(expected.parent().unwrap()).unwrap();
+            std::fs::write(&expected, b"new").unwrap();
+            let err = symlink_direct(&expected, &link, true).unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+            assert!(should_escalate(err.kind(), true));
+            assert_eq!(std::fs::read_link(&link).unwrap(), stale);
+        }
+
+        std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
 }
