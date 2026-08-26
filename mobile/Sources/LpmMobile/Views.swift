@@ -131,6 +131,8 @@ struct PairingView: View {
     /// Tap a nearby Mac: resolve its address and start approve-on-Mac pairing (the
     /// user confirms on the Mac, no code typed). The resolved address is remembered
     /// so the waiting sheet can retry or fall back to entering the code manually.
+    /// A machine that can't show the approval dialog (a headless host) skips
+    /// straight to the manual fields with its address filled in.
     private func selectNearby(_ mac: MacDiscovery.DiscoveredMac) {
         resolvingNearbyId = mac.id
         Task {
@@ -145,7 +147,13 @@ struct PairingView: View {
             // "Enter code instead") — not during the approval flow.
             lastResolvedNearbyId = mac.id
             lastResolvedNearbyHost = resolved.host
-            model.pairViaApproval(host: resolved.host, port: Int(resolved.port))
+            if mac.requestPair {
+                model.pairViaApproval(host: resolved.host, port: Int(resolved.port))
+            } else {
+                host = resolved.host
+                port = String(resolved.port)
+                scannedHosts = []
+            }
         }
     }
 

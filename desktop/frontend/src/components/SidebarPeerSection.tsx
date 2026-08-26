@@ -3,6 +3,7 @@ import { ServerIcon } from "./icons";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { RenameModal } from "./RenameModal";
+import { PairingModal, type Pairing } from "./PairingModal";
 import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { SidebarPeerRow } from "./SidebarPeerRow";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
@@ -17,7 +18,7 @@ import type { MirrorRow } from "./peerSections";
 import type { PeerStatus } from "../peer/peerStatus";
 import type { FollowState } from "../followApi";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
-import { PeerReconnect, PeerRemove, PeerSetAlias } from "../../bridge/commands";
+import { PeerReconnect, PeerRemotePair, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import type { ProjectInfo } from "../types";
 
@@ -99,6 +100,22 @@ export function SidebarPeerSection({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // The QR minted by this machine for a phone to scan, and why one couldn't be.
+  const [phonePairing, setPhonePairing] = useState<Pairing | null>(null);
+  const [phonePairError, setPhonePairError] = useState<string | null>(null);
+  const [phonePairBusy, setPhonePairBusy] = useState(false);
+
+  const pairPhone = async () => {
+    if (phonePairBusy) return;
+    setPhonePairBusy(true);
+    try {
+      setPhonePairing((await PeerRemotePair(slug)) as Pairing);
+    } catch (err) {
+      setPhonePairError(String(err));
+    } finally {
+      setPhonePairBusy(false);
+    }
+  };
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -275,6 +292,7 @@ export function SidebarPeerSection({
           connected={connected}
           canReconnect={status.tone === "error"}
           onAddProject={() => addProjectForPeer(slug, alias)}
+          onPairPhone={() => void pairPhone()}
           onRename={() => setRenameOpen(true)}
           onReconnect={() => void PeerReconnect(slug)}
           onDisconnect={() => setConfirmOpen(true)}
@@ -305,6 +323,29 @@ export function SidebarPeerSection({
         initialValue={alias}
         onClose={() => setRenameOpen(false)}
         onSubmit={(value) => void PeerSetAlias(slug, value)}
+      />
+
+      <PairingModal
+        pairing={phonePairing}
+        machine={alias}
+        onClose={() => setPhonePairing(null)}
+      />
+
+      <ConfirmDialog
+        open={phonePairError !== null}
+        title="Couldn't get a pairing code"
+        confirmLabel="Try Again"
+        body={
+          <>
+            <span className="font-medium text-[var(--text-primary)]">{alias}</span> didn&#39;t hand
+            back a pairing code — {phonePairError}
+          </>
+        }
+        onCancel={() => setPhonePairError(null)}
+        onConfirm={() => {
+          setPhonePairError(null);
+          void pairPhone();
+        }}
       />
     </div>
   );

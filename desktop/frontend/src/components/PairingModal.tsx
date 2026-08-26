@@ -11,9 +11,13 @@ export interface Pairing {
 
 export function PairingModal({
   pairing,
+  machine,
   onClose,
 }: {
   pairing: Pairing | null;
+  // Names the machine the QR pairs with when it isn't this Mac (a connected
+  // host minted the code; the phone will talk to it directly).
+  machine?: string;
   onClose: () => void;
 }) {
   return (
@@ -25,10 +29,13 @@ export function PairingModal({
     >
       {pairing && (
         <>
-          <h3 className="text-base font-semibold text-[var(--text-primary)]">Pair a device</h3>
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
+            {machine ? `Pair a device with ${machine}` : "Pair a device"}
+          </h3>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             In the lpm mobile app, tap Add device and scan this code. It works once and expires
             after a device pairs.
+            {machine ? " The phone connects straight to that machine, so it keeps working while this Mac is off." : ""}
           </p>
           <div className="mt-4 flex flex-col items-center gap-3">
             {pairing.svg ? (

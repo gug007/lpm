@@ -360,8 +360,9 @@ final class AppModel {
         memory.model = self
         notes.model = self
         usage.model = self
-        pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName in
-            self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName)
+        pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
+            self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
+                                platform: platform)
         }
     }
 
@@ -870,7 +871,7 @@ final class AppModel {
     /// re-pair), refresh that record in place instead of duplicating it. Either
     /// way the paired Mac becomes active.
     private func handlePaired(deviceId: String, token: String, serverId: String?, serverName: String?,
-                              advertisedHosts: [String]) {
+                              advertisedHosts: [String], platform: String?) {
         // QR/pending hosts lead (the probe already proved one reachable); the
         // Mac's advertised candidate list fills in what the QR didn't carry.
         var hosts = pendingPairHosts.isEmpty ? savedHosts() : pendingPairHosts
@@ -889,10 +890,12 @@ final class AppModel {
             macs[idx].hosts = Self.unionHosts(existing: macs[idx].hosts, fresh: hosts)
             macs[idx].port = port
             if let name = serverName, !name.isEmpty { macs[idx].name = name }
+            if let p = platform?.trimmedNonEmpty { macs[idx].platform = p }
         } else {
             let record = MacRecord(localId: UUID(), serverId: serverId,
                                    name: serverName?.trimmedNonEmpty ?? hosts.first ?? "My Mac",
-                                   hosts: hosts, port: port)
+                                   hosts: hosts, port: port,
+                                   platform: platform?.trimmedNonEmpty)
             macs.append(record)
             localId = record.localId
         }
@@ -914,8 +917,8 @@ final class AppModel {
     }
 
     /// A reconnect reached `ready` carrying identity: learn/refresh the active
-    /// record's serverId and name.
-    private func learnIdentity(serverId: String?, serverName: String?) {
+    /// record's serverId, name, and platform.
+    private func learnIdentity(serverId: String?, serverName: String?, platform: String?) {
         guard let id = activeMacId, let idx = macs.firstIndex(where: { $0.localId == id }) else { return }
         var changed = false
         if let sid = serverId, !sid.isEmpty, macs[idx].serverId != sid {
@@ -924,6 +927,10 @@ final class AppModel {
         }
         if let name = serverName?.trimmedNonEmpty, macs[idx].name != name {
             macs[idx].name = name
+            changed = true
+        }
+        if let p = platform?.trimmedNonEmpty, macs[idx].platform != p {
+            macs[idx].platform = p
             changed = true
         }
         if changed { persistMacs() }
@@ -1178,7 +1185,7 @@ final class AppModel {
     /// A sweep connection learned a Mac's identity. Same effect as `learnIdentity`
     /// for the live session, but for any saved record — a Mac whose `serverId` the
     /// phone has never learned can't be resolved when its notification is tapped.
-    private func learnIdentity(of localId: UUID, serverId: String?, serverName: String?) {
+    private func learnIdentity(of localId: UUID, serverId: String?, serverName: String?, platform: String?) {
         guard let idx = macs.firstIndex(where: { $0.localId == localId }) else { return }
         var changed = false
         if let sid = serverId, !sid.isEmpty, macs[idx].serverId != sid {
@@ -1187,6 +1194,10 @@ final class AppModel {
         }
         if let name = serverName?.trimmedNonEmpty, macs[idx].name != name {
             macs[idx].name = name
+            changed = true
+        }
+        if let p = platform?.trimmedNonEmpty, macs[idx].platform != p {
+            macs[idx].platform = p
             changed = true
         }
         if changed { persistMacs() }
@@ -2057,6 +2068,23 @@ final class AppModel {
         return out
     }
 
+    /// How connection copy names the machine this session targets: the saved
+    /// record's real name when it has one, else a platform-appropriate generic.
+    /// While pairing a new machine the active record is still the previous one,
+    /// so a failure there never borrows an unrelated machine's name.
+    private var machineLabel: String {
+        guard !addingMac, let rec = activeRecord else { return "your Mac" }
+        if !rec.isAddressName { return rec.displayName }
+        return rec.isLinuxHost ? "your Linux host" : "your Mac"
+    }
+
+    /// `machineLabel` at the start of a sentence ("your Mac" → "Your Mac";
+    /// a real machine name is left exactly as saved).
+    private var machineLabelSentence: String {
+        let label = machineLabel
+        return label.hasPrefix("your ") ? "Your " + label.dropFirst(5) : label
+    }
+
     /// Turn a raw client failure into something the pairing screen can act on:
     /// the generic offline hint becomes the exact addresses tried (LAN vs
     /// Tailscale), and a server-side code rejection reads as a code problem — so
@@ -2065,28 +2093,28 @@ final class AppModel {
         guard case .failed(let msg) = s else { return s }
         if msg == LpmClient.offlineHint { return .failed(unreachableMessage(attemptHosts)) }
         if msg == "pairing rejected" {
-            return .failed("Pairing code rejected. On your Mac, tap Add device for a fresh code, then scan again.")
+            return .failed("Pairing code rejected — codes work once. Get a fresh code from the machine you're adding, then scan or type it again.")
         }
         if msg == "pairing unavailable" {
-            return .failed("Your Mac couldn't save this pairing, so there's nothing wrong with the code. Open lpm on the Mac — it shows what needs fixing — then pair again.")
+            return .failed("lpm couldn't save this pairing on the other machine, so there's nothing wrong with the code. Its Mobile settings show what needs fixing — then pair again.")
         }
         if msg == LpmClient.identityChangedError {
-            return .failed("This Mac's security identity has changed since you paired. Trust the new identity to reconnect, or re-pair from your Mac.")
+            return .failed("\(machineLabelSentence)'s security identity has changed since you paired. Trust the new identity to reconnect, or pair it again.")
         }
         if msg == LpmClient.pairMismatchError {
-            return .failed("This Mac's security identity doesn't match its QR code. The code may be stale — on your Mac, tap Add device for a fresh code, then scan again.")
+            return .failed("This machine's security identity doesn't match its QR code. The code may be stale — get a fresh one, then scan again.")
         }
         if msg == LpmClient.secureFailedError {
             let code = (client?.lastTransportErrorChain).map { " (error \($0))" } ?? ""
             let probes = lastProbeOutcomes.isEmpty ? "" :
                 " Probe: " + lastProbeOutcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ") + "."
-            return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made\(code).\(probes) This usually means lpm on the Mac or this app is out of date, or the Mac's security identity was reset — update both, then re-pair from your Mac.")
+            return .failed("\(machineLabelSentence) answered\(currentHost.map { " at \($0)" } ?? ""), but a secure connection couldn't be made\(code).\(probes) This usually means lpm there or this app is out of date, or its security identity was reset — update both, then pair again.")
         }
         if msg == LpmClient.unauthorizedError {
-            return .failed("This Mac no longer recognizes this device. Pair with it again to restore access.")
+            return .failed("\(machineLabelSentence) no longer recognizes this device. Pair with it again to restore access.")
         }
         if msg == LpmClient.refusedError {
-            return .failed("Your Mac answered\(currentHost.map { " at \($0)" } ?? ""), but nothing is listening on port \(savedPort()). Make sure lpm is running on the Mac — if it is, its port may have changed; re-pair or fix it under Edit Address.")
+            return .failed("\(machineLabelSentence) answered\(currentHost.map { " at \($0)" } ?? ""), but nothing is listening on port \(savedPort()). Make sure lpm is running there — if it is, its port may have changed; re-pair or fix it under Edit Address.")
         }
         return s
     }
@@ -2098,10 +2126,10 @@ final class AppModel {
         let failures = lastProbeOutcomes.filter { !$0.reachable }
         if !failures.isEmpty {
             let detail = failures.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
-            return "Couldn't reach your Mac — \(detail). On cellular, open the Tailscale app and make sure it's connected on both devices."
+            return "Couldn't reach \(machineLabel) — \(detail). On cellular, open the Tailscale app and make sure it's connected on both devices."
         }
         let list = hosts.filter { !$0.isEmpty }.joined(separator: ", ")
-        let target = list.isEmpty ? "your Mac" : "your Mac at \(list)"
+        let target = list.isEmpty ? machineLabel : "\(machineLabel) at \(list)"
         return "Couldn't reach \(target) — none of its addresses responded. On cellular, open the Tailscale app and make sure it's connected on both devices."
     }
 
@@ -2112,7 +2140,7 @@ final class AppModel {
         let detail = outcomes.isEmpty
             ? hosts.filter { !$0.isEmpty }.joined(separator: ", ")
             : outcomes.map { "\($0.host): \($0.detail)" }.joined(separator: " · ")
-        return "Couldn't reach your Mac — \(detail). On cellular, open the Tailscale app and confirm it's connected on both devices."
+        return "Couldn't reach \(machineLabel) — \(detail). On cellular, open the Tailscale app and confirm it's connected on both devices."
     }
 
     /// Foreground backstop for notification withdrawal: iOS drops background clear
@@ -2204,25 +2232,25 @@ final class AppModel {
                 }
             }
         }
-        c.onPaired = { [weak self] deviceId, token, serverId, serverName, hosts in
+        c.onPaired = { [weak self] deviceId, token, serverId, serverName, hosts, platform in
             self?.handlePaired(deviceId: deviceId, token: token, serverId: serverId,
-                               serverName: serverName, advertisedHosts: hosts)
+                               serverName: serverName, advertisedHosts: hosts, platform: platform)
         }
         c.onPairPending = { [weak self] matchCode in
             self?.approvalPairing = .waiting(matchCode: matchCode)
         }
-        c.onPairDenied = { [weak self] reason in
+        c.onPairDenied = { [weak self] reason, message in
             guard let self else { return }
             switch reason {
-            case "busy": self.approvalPairing = .denied(reason: "busy")
+            case "busy": self.approvalPairing = .denied(reason: "busy", message: nil)
             case LpmClient.badAddressReason:
-                self.approvalPairing = .denied(reason: LpmClient.badAddressReason)
+                self.approvalPairing = .denied(reason: LpmClient.badAddressReason, message: nil)
             case "timeout": self.approvalPairing = .timedOut
-            default: self.approvalPairing = .denied(reason: "declined")
+            default: self.approvalPairing = .denied(reason: "declined", message: message)
             }
         }
-        c.onIdentity = { [weak self] serverId, serverName in
-            self?.learnIdentity(serverId: serverId, serverName: serverName)
+        c.onIdentity = { [weak self] serverId, serverName, platform in
+            self?.learnIdentity(serverId: serverId, serverName: serverName, platform: platform)
         }
         c.onAdvertisedHosts = { [weak self] serverId, hosts in
             self?.mergeAdvertisedHosts(serverId: serverId, hosts: hosts)
@@ -2728,7 +2756,9 @@ final class AppModel {
 enum ApprovalPairingState: Equatable {
     case requesting
     case waiting(matchCode: String)
-    case denied(reason: String)   // "busy" | "declined" | LpmClient.badAddressReason
+    // "busy" | "declined" | LpmClient.badAddressReason; `message` is the server's
+    // own sentence for a decline (a headless host explains to use its code).
+    case denied(reason: String, message: String?)
     case timedOut
 }
 

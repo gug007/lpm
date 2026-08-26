@@ -78,14 +78,14 @@ final class LpmClient: NSObject {
     // identity. The model persists the credential (per-Mac Keychain) and creates
     // or dedupes the saved-Mac record. serverId/serverName are absent on older
     // Macs; `hosts` is the Mac's current candidate address list (empty on older Macs).
-    var onPaired: ((_ deviceId: String, _ token: String, _ serverId: String?, _ serverName: String?, _ hosts: [String]) -> Void)?
+    var onPaired: ((_ deviceId: String, _ token: String, _ serverId: String?, _ serverName: String?, _ hosts: [String], _ platform: String?) -> Void)?
     // Approve-on-Mac pairing: the request was accepted (dialog up on the Mac,
     // carrying the match code to display), or refused with a reason.
     var onPairPending: ((_ matchCode: String) -> Void)?
-    var onPairDenied: ((_ reason: String) -> Void)?
+    var onPairDenied: ((_ reason: String, _ message: String?) -> Void)?
     // A reconnect reached `ready` carrying the Mac's identity, so the active
     // record can learn/refresh its serverId and name. Absent on older Macs.
-    var onIdentity: ((_ serverId: String?, _ serverName: String?) -> Void)?
+    var onIdentity: ((_ serverId: String?, _ serverName: String?, _ platform: String?) -> Void)?
     // A `ready` frame carried the Mac's current candidate address list. Keyed by
     // the frame's serverId — never the active record, which a pairing connection
     // hasn't been assigned to yet when `ready` lands.
@@ -528,7 +528,7 @@ final class LpmClient: NSObject {
 
     /// End an in-flight approve-on-Mac pairing without success: stop retrying, tear
     /// the socket down, and report the reason.
-    private func failPair(_ reason: String) {
+    private func failPair(_ reason: String, message: String? = nil) {
         pairRequestName = nil
         replacesDeviceId = nil
         pairGuard?.cancel(); pairGuard = nil
@@ -537,7 +537,7 @@ final class LpmClient: NSObject {
         teardownTask()
         pendingSends.removeAll()
         set(.idle)
-        onPairDenied?(reason)
+        onPairDenied?(reason, message)
     }
 
     /// Reached `ready` (or `paired`): the link is live. Clear backoff and start
@@ -1094,7 +1094,7 @@ final class LpmClient: NSObject {
     /// Dispatch one parsed inbound frame. Always called on the main queue.
     private func dispatch(_ frame: Wire.Inbound) {
         switch frame {
-            case .paired(let deviceId, let token, let serverId, let serverName, let hosts):
+            case .paired(let deviceId, let token, let serverId, let serverName, let hosts, let platform):
                 self.credential = Credential(deviceId: deviceId, token: token)
                 self.pairingCode = nil
                 self.pairRequestName = nil
@@ -1104,13 +1104,13 @@ final class LpmClient: NSObject {
                 self.onConnected()
                 self.flushPending()
                 // The model owns the Keychain (per-Mac) and the saved-Mac record.
-                self.onPaired?(deviceId, token, serverId, serverName, hosts)
+                self.onPaired?(deviceId, token, serverId, serverName, hosts, platform)
                 self.onProjectsChanged?()
             case .pairPending(let matchCode):
                 self.onPairPending?(matchCode)
-            case .pairDenied(let reason):
-                self.failPair(reason)
-            case .ready(let serverId, let serverName, let hosts):
+            case .pairDenied(let reason, let message):
+                self.failPair(reason, message: message)
+            case .ready(let serverId, let serverName, let hosts, let platform):
                 self.set(.ready)
                 self.onConnected()
                 // Re-subscribe to any terminals we were watching before a drop,
@@ -1121,7 +1121,7 @@ final class LpmClient: NSObject {
                 // Re-watch git for any review screen that was open before a drop.
                 for p in self.watchedProjects { self.sendLive(Wire.gitWatch(project: p)) }
                 self.flushPending()
-                self.onIdentity?(serverId, serverName)
+                self.onIdentity?(serverId, serverName, platform)
                 if !hosts.isEmpty { self.onAdvertisedHosts?(serverId, hosts) }
             case .error(let e):
                 // The Mac dropped this device's record: retrying the same

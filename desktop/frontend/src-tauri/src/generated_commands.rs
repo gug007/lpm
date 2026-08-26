@@ -223,6 +223,7 @@ macro_rules! all_command_handlers {
             peer_discovery_stop,
             peer_sync_status,
             peer_sync_run,
+            peer_remote_pair,
             peer_term_attach,
             peer_term_detach,
             sync_project_start,

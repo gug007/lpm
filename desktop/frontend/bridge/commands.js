@@ -926,6 +926,9 @@ export function PeerSyncStatus(slug) {
 export function PeerSyncRun(slug, items) {
   return invoke("peer_sync_run", { slug, items });
 }
+export function PeerRemotePair(slug) {
+  return invoke("peer_remote_pair", { slug });
+}
 export function PeerTermAttach(prefixedId, resume) {
   return invoke("peer_term_attach", { id: prefixedId, resume });
 }

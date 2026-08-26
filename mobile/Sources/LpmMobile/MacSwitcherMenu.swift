@@ -23,7 +23,8 @@ struct MacSwitcherMenu: View {
                         if mac.localId == model.activeMacId {
                             Label(mac.displayName, systemImage: "checkmark")
                         } else {
-                            Text(mac.displayName)
+                            Label(mac.displayName,
+                                  systemImage: mac.isLinuxHost ? "server.rack" : "desktopcomputer")
                         }
                     }
                 }
@@ -31,7 +32,7 @@ struct MacSwitcherMenu: View {
                 Button {
                     model.beginAddMac()
                 } label: {
-                    Label("Add a Mac…", systemImage: "plus")
+                    Label("Add a machine…", systemImage: "plus")
                 }
             }
         } label: {

@@ -44,6 +44,23 @@ const OUT_QUEUE: usize = 1024; // per-client outbound depth; overflow drops (cli
 const DISPATCH_TIMEOUT: Duration = Duration::from_secs(30); // webview-dispatch reply deadline
 const REPAINT_NUDGE: Duration = Duration::from_millis(80); // grace for a TUI to act on the nudge
 
+/// Advertised in `ready`: this host answers `remotePair` with its own phone
+/// pairing payload. A host that predates it never sends the frame's reply, so the
+/// client checks for this rather than waiting out a timeout.
+pub(crate) const REMOTE_PAIR_FEATURE: &str = "remotePair";
+
+/// Every dedicated frame this host answers, sent in `ready`. A client only sends
+/// a frame it sees here, so dropping one from this list silently turns that
+/// feature off for every peer.
+const HOST_FEATURES: &[&str] = &[
+    crate::peersync::SYNC_FEATURE,
+    crate::peersync::SYNC_FEATURE2,
+    crate::gitbringhost::GIT_BRING_FEATURE,
+    crate::gitbringhost::GIT_FOLLOW_FEATURE,
+    crate::gitwatchhost::GIT_WATCH_FEATURE,
+    REMOTE_PAIR_FEATURE,
+];
+
 /// Global events forwarded verbatim to every authed peer as `{t:"evt", …}`. The
 /// client re-emits each locally (with identifier translation) so the mirrored
 /// ProjectDetail refreshes exactly as it would on the host.
@@ -906,10 +923,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
                         "hostPlatform": platform_id(), "hostVersion": crate::commands_real::get_version(),
-                        "features": [crate::peersync::SYNC_FEATURE, crate::peersync::SYNC_FEATURE2,
-                            crate::gitbringhost::GIT_BRING_FEATURE,
-                            crate::gitbringhost::GIT_FOLLOW_FEATURE,
-                            crate::gitwatchhost::GIT_WATCH_FEATURE] })
+                        "features": HOST_FEATURES })
                     .to_string(),
                 ));
                 Some(id.to_string())
@@ -1240,6 +1254,14 @@ fn handle_msg(
         // gitBring feature so an older host simply ignores them.
         "gitBringPrepare" | "gitBringState" | "gitBringStates" | "gitBringChunk"
         | "gitBringDone" => crate::gitbringhost::handle_bring(out, t, &v),
+        // Arm this host's own phone pairing and hand back the QR payload, so the
+        // asking Mac can show the code for a machine that has no screen to show it
+        // on. A dedicated frame, not an `invoke`: every `remote_*` command is
+        // denied there, and this runs in Rust here rather than in a host webview a
+        // headless machine may not have.
+        "remotePair" => handle_remote_pair(out, &v, || {
+            crate::remote::remote_start_pairing(app.clone(), app.state())
+        }),
         // Not a request/reply: the follower states which folders it follows, and
         // this Mac pushes their changes until it says otherwise or goes away.
         "gitFollowWatch" => {
@@ -1258,6 +1280,22 @@ fn handle_msg(
         _ => {}
     }
     Ok(())
+}
+
+/// Answer one `remotePair` request: run the host's pairing and reply over the
+/// out-queue with the QR payload. `pair` is the work itself so a test can drive
+/// the frame plumbing without an app handle.
+fn handle_remote_pair(
+    out: &SyncSender<String>,
+    v: &Value,
+    pair: impl FnOnce() -> Result<Value, String>,
+) {
+    let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+    let frame = match pair() {
+        Ok(value) => result_frame(&req_id, true, value),
+        Err(e) => result_frame(&req_id, false, Value::String(e)),
+    };
+    let _ = out.try_send(frame);
 }
 
 /// Answer one config-sync request from a client. Digest/fetch are read-only;
@@ -2118,6 +2156,12 @@ mod tests {
     fn denylist_blocks_meta_and_role_commands_allows_project_ops() {
         assert!(is_denied("peer_add"));
         assert!(is_denied("remote_state"));
+        // The `remotePair` frame exists precisely so this stays shut: a peer gets
+        // the one pairing call it needs through a dedicated, Rust-side path, and
+        // never a way to drive the rest of the mobile server.
+        assert!(is_denied("remote_start_pairing"));
+        assert!(is_denied("remote_revoke_device"));
+        assert!(is_denied("remote_set_config"));
         assert!(is_denied("save_settings"));
         assert!(is_denied("install_update"));
         assert!(is_denied("open_browser"));
@@ -2224,6 +2268,99 @@ mod tests {
         let text = reply.to_text().unwrap();
         assert!(text.contains("paired"), "expected paired, got: {text}");
         assert!(text.contains("slug"), "paired reply must carry a slug");
+    }
+
+    // A Mac asking a host to show its phone-pairing QR. The host arms the code
+    // itself — its addresses and its certificate are what the phone must reach and
+    // pin — and answers on the ordinary out-queue, so the reply is a plain
+    // `result` the client's pending map already resolves.
+    #[test]
+    fn remote_pair_answers_with_the_hosts_qr_payload() {
+        let _guard = crate::remotestore::TEST_CONFIG_PATH_GUARD
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        *crate::remotestore::TEST_CONFIG_PATH.lock().unwrap() =
+            Some(dir.path().join("remote.json"));
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut ws = accept_ws(stream).expect("server handshake");
+            let txt = loop {
+                match ws.read() {
+                    Ok(m) if m.is_text() => break m.to_text().unwrap().to_string(),
+                    Ok(_) => continue,
+                    Err(_) => return,
+                }
+            };
+            let v: Value = serde_json::from_str(&txt).unwrap();
+            let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
+            let hub = crate::remote::RemoteHub::default();
+            handle_remote_pair(&tx, &v, || crate::remote::arm_pairing_payload(&hub));
+            let _ = ws.send(Message::text(rx.recv().expect("no reply queued")));
+        });
+
+        let (mut c, _) = tungstenite::connect(format!("ws://{addr}/")).expect("client connect");
+        c.send(Message::text(
+            json!({ "t": "remotePair", "reqId": 7 }).to_string(),
+        ))
+        .unwrap();
+        let reply = c.read().expect("no reply frame");
+        let joined = server.join();
+
+        *crate::remotestore::TEST_CONFIG_PATH.lock().unwrap() = None;
+        joined.expect("host thread panicked");
+
+        let v: Value = serde_json::from_str(reply.to_text().unwrap()).unwrap();
+        assert_eq!(v.get("t").and_then(Value::as_str), Some("result"));
+        assert_eq!(v.get("reqId").and_then(Value::as_u64), Some(7));
+        assert_eq!(v.get("ok").and_then(Value::as_bool), Some(true), "{v}");
+        let value = v.get("value").expect("no value");
+        let code = value
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let url = value.get("url").and_then(Value::as_str).unwrap_or_default();
+        assert!(!code.is_empty(), "no pairing code in {value}");
+        assert!(
+            url.starts_with("lpm://pair?"),
+            "expected a pairing url, got: {url}"
+        );
+        assert!(
+            url.contains(&format!("c={code}")),
+            "the url must carry the code that was armed: {url}"
+        );
+        assert!(
+            value.get("hosts").and_then(Value::as_array).is_some(),
+            "the phone needs the host's own addresses: {value}"
+        );
+    }
+
+    // The frame is the whole reason `remote_*` can stay denied on the generic
+    // invoke path, so a failure has to arrive as a failed result rather than
+    // nothing at all — a client that hears nothing just waits out its timeout.
+    #[test]
+    fn a_failed_remote_pair_still_answers() {
+        let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
+        handle_remote_pair(&tx, &json!({ "t": "remotePair", "reqId": 3 }), || {
+            Err("the mobile settings were not saved".into())
+        });
+        let v: Value = serde_json::from_str(&rx.recv().expect("no reply queued")).unwrap();
+        assert_eq!(v.get("ok").and_then(Value::as_bool), Some(false));
+        assert_eq!(v.get("reqId").and_then(Value::as_u64), Some(3));
+        assert_eq!(
+            v.get("value").and_then(Value::as_str),
+            Some("the mobile settings were not saved")
+        );
+    }
+
+    // Off this list the client never sends the frame, and the Mac asking for a
+    // headless host's QR is told to update lpm on a host that is already current.
+    #[test]
+    fn remote_pair_is_advertised_in_ready() {
+        assert!(HOST_FEATURES.contains(&REMOTE_PAIR_FEATURE));
     }
 
     #[test]

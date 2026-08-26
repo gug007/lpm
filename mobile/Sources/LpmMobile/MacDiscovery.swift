@@ -17,6 +17,9 @@ final class MacDiscovery {
         let serverId: String?
         let name: String
         let isDev: Bool
+        // Whether the machine can show the approve-on-Mac dialog. A headless host
+        // (Linux) advertises `rp=0`; absent means an older Mac — treat as true.
+        let requestPair: Bool
         let endpoint: NWEndpoint
 
         var id: String { serverId ?? String(describing: endpoint) }
@@ -33,6 +36,7 @@ final class MacDiscovery {
         static func == (lhs: DiscoveredMac, rhs: DiscoveredMac) -> Bool {
             lhs.id == rhs.id && lhs.serverId == rhs.serverId
                 && lhs.name == rhs.name && lhs.isDev == rhs.isDev
+                && lhs.requestPair == rhs.requestPair
         }
     }
 
@@ -84,13 +88,16 @@ final class MacDiscovery {
             var serverId: String?
             var name = ""
             var isDev = false
+            var requestPair = true
             if case .bonjour(let txt) = result.metadata {
                 serverId = txt.string("id")
                 name = txt.string("name") ?? ""
                 isDev = txt.string("dev") == "1"
+                requestPair = txt.string("rp") != "0"
             }
             if name.isEmpty { name = serviceName }
-            macs.append(DiscoveredMac(serverId: serverId, name: name, isDev: isDev, endpoint: result.endpoint))
+            macs.append(DiscoveredMac(serverId: serverId, name: name, isDev: isDev,
+                                      requestPair: requestPair, endpoint: result.endpoint))
         }
         macs.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         guard macs != found else { return }

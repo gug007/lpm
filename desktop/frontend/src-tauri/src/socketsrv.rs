@@ -203,6 +203,9 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "send_job_followup" => cmd_send_job_followup(args, app),
         "peer_pair" => cmd_peer_pair(args, app),
         "peer_state" => cmd_peer_state(app),
+        "remote_pair" => cmd_remote_pair(args, app),
+        "remote_state" => cmd_remote_state(app),
+        "remote_revoke" => cmd_remote_revoke(args, app),
         _ => "ERROR: unknown command".into(),
     }
 }
@@ -676,6 +679,72 @@ fn cmd_peer_state(app: &AppHandle) -> String {
     crate::peer::state_value(&hub, &client).to_string()
 }
 
+/// `remote_pair [--cancel]` → mint the single-use code the iOS companion scans,
+/// or withdraw the outstanding one. The phone-facing counterpart to `peer_pair`,
+/// and the same primitive Settings → Mobile devices calls, so a host with no
+/// window to click still mints a real invite rather than a hand-written one.
+fn cmd_remote_pair(args: &[String], app: &AppHandle) -> String {
+    let (_, options) = parse_options(args);
+    let hub = app.state::<crate::remote::RemoteHub>();
+    if options.contains_key("cancel") {
+        // The Mobile pane has no cancel of its own — closing it leaves the code
+        // armed until it is used or expires — so this clears the field directly.
+        return match hub.try_update_config(|cfg| {
+            cfg.pairing_code.clear();
+            cfg.pairing_code_armed_at = 0;
+        }) {
+            Ok(()) => {
+                let _ = app.emit("remote-devices-changed", ());
+                serde_json::json!({ "ok": true }).to_string()
+            }
+            Err(e) => format!("ERROR: {e}"),
+        };
+    }
+    match crate::remote::remote_start_pairing(app.clone(), app.state()) {
+        Ok(pairing) => {
+            // An open pane is showing a code this mint just replaced.
+            let _ = app.emit("remote-devices-changed", ());
+            pairing_reply(pairing).to_string()
+        }
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
+/// The pairing invite as it goes over the socket: everything the pane gets except
+/// the `svg` it renders into an `<img>`. Nothing reachable through this socket can
+/// display an SVG, and it is by far the largest field — the terminal draws its own
+/// QR from `url`.
+fn pairing_reply(mut pairing: serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = pairing.as_object_mut() {
+        obj.remove("svg");
+    }
+    pairing
+}
+
+/// `remote_state` → the same snapshot the Mobile devices pane renders: whether
+/// the phone server is listening, on which address, and which phones are paired.
+fn cmd_remote_state(app: &AppHandle) -> String {
+    let hub = app.state::<crate::remote::RemoteHub>();
+    crate::remote::state_value(&hub).to_string()
+}
+
+/// `remote_revoke <device-id>` → unpair one phone, replying with the state
+/// snapshot so a caller sees the shortened list without a second round trip.
+fn cmd_remote_revoke(args: &[String], app: &AppHandle) -> String {
+    let (positional, _) = parse_options(args);
+    if positional.is_empty() {
+        return "ERROR: usage: remote_revoke <device-id>".into();
+    }
+    let hub = app.state::<crate::remote::RemoteHub>();
+    match crate::remote::remote_revoke_device(hub, positional[0].clone()) {
+        Ok(state) => {
+            let _ = app.emit("remote-devices-changed", ());
+            state.to_string()
+        }
+        Err(e) => format!("ERROR: {e}"),
+    }
+}
+
 fn cmd_list_jobs(args: &[String]) -> String {
     let (positional, _) = parse_options(args);
     if positional.is_empty() {
@@ -1124,6 +1193,13 @@ mod tests {
             "job_history",
             "job_live_output",
             "send_job_followup",
+            // Pairing from the socket a remote host reaches would let that host
+            // hand itself, or a phone it owns, a way in.
+            "peer_pair",
+            "peer_state",
+            "remote_pair",
+            "remote_state",
+            "remote_revoke",
             "unknown",
         ] {
             assert!(
@@ -1131,6 +1207,28 @@ mod tests {
                 "{bad} must be refused on the remote socket"
             );
         }
+    }
+
+    #[test]
+    fn pairing_reply_drops_the_svg_and_keeps_what_the_terminal_draws_from() {
+        let reply = pairing_reply(serde_json::json!({
+            "code": "AB12-CD34",
+            "url": "lpm://pair?p=8765&c=AB12-CD34&h=10.0.0.2&f=ab",
+            "svg": "<svg>…</svg>",
+            "host": "10.0.0.2",
+            "hosts": ["10.0.0.2"],
+            "port": 8765,
+        }));
+        assert!(reply.get("svg").is_none());
+        assert_eq!(reply["code"], "AB12-CD34");
+        assert_eq!(reply["url"], "lpm://pair?p=8765&c=AB12-CD34&h=10.0.0.2&f=ab");
+        assert_eq!(reply["hosts"], serde_json::json!(["10.0.0.2"]));
+        assert_eq!(reply["port"], 8765);
+    }
+
+    #[test]
+    fn a_pairing_reply_that_is_not_an_object_passes_through() {
+        assert_eq!(pairing_reply(serde_json::json!("x")), "x");
     }
 
     #[test]

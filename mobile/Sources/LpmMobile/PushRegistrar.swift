@@ -45,7 +45,7 @@ final class PushRegistrar {
     /// A Mac's identity learned from a sweep connection, so a Mac that has never
     /// been live on this phone can still be resolved from a notification's
     /// `serverId` (which is what routes a tap to the right Mac).
-    var onIdentity: ((_ localId: UUID, _ serverId: String?, _ serverName: String?) -> Void)?
+    var onIdentity: ((_ localId: UUID, _ serverId: String?, _ serverName: String?, _ platform: String?) -> Void)?
 
     // A burst of requests (each notification toggle fires one) collapses into a
     // single sweep this long after the last one.
@@ -191,12 +191,12 @@ final class PushRegistrar {
 @MainActor
 private final class Attempt {
     private let deviceName: String
-    private let onIdentity: ((UUID, String?, String?) -> Void)?
+    private let onIdentity: ((UUID, String?, String?, String?) -> Void)?
     private var client: LpmClient?
     private var watchdog: DispatchWorkItem?
     private var completion: ((Bool) -> Void)?
 
-    init(deviceName: String, onIdentity: ((UUID, String?, String?) -> Void)?) {
+    init(deviceName: String, onIdentity: ((UUID, String?, String?, String?) -> Void)?) {
         self.deviceName = deviceName
         self.onIdentity = onIdentity
     }
@@ -219,8 +219,8 @@ private final class Attempt {
             }
         }
         c.onApnsToken = { [weak self] ok in self?.finish(ok) }
-        c.onIdentity = { [weak self] serverId, serverName in
-            self?.onIdentity?(localId, serverId, serverName)
+        c.onIdentity = { [weak self] serverId, serverName, platform in
+            self?.onIdentity?(localId, serverId, serverName, platform)
         }
         let w = DispatchWorkItem { [weak self] in self?.finish(false) }
         watchdog = w

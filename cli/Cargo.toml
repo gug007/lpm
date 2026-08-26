@@ -1,6 +1,6 @@
 [package]
 name = "lpm-cli"
-version = "0.18.0"
+version = "0.19.0"
 edition = "2021"
 description = "Command-line companion for the lpm desktop app"
 
@@ -14,6 +14,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_norway = "0.9"
 dirs = "6"
+# Only the unicode renderer is used (`lpm mobile pair` draws the invite in the
+# terminal); the image/svg/pic renderers would pull in a decoder stack for output
+# nothing here can display.
+qrcode = { version = "0.14", default-features = false }
 
 [dev-dependencies]
 tempfile = "3"

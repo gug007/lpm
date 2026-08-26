@@ -3,11 +3,13 @@
 // for other Macs' peer servers so the Connections pane can list nearby Macs.
 //
 // A phone browses for `_lpm._tcp` and matches the TXT `id` to re-find a saved Mac
-// whose address changed. A Mac browses for `_lpm-peer._tcp` to discover peers to
-// pair with. Advertising is active only while a server is running and bound to the
-// LAN (0.0.0.0); a loopback-only server is never advertised. Each `advertise*` is
-// idempotent per service type — it drops any prior instance and registers with the
-// current port/name — so the server lifecycle drives it directly.
+// whose address changed; that record's TXT `rp` says whether this machine can
+// present a pair-by-approval dialog at all. A Mac browses for `_lpm-peer._tcp` to
+// discover peers to pair with. Advertising is active only while a server is
+// running and bound to the LAN (0.0.0.0); a loopback-only server is never
+// advertised. Each `advertise*` is idempotent per service type — it drops any
+// prior instance and registers with the current port/name — so the server
+// lifecycle drives it directly.
 //
 // A single long-lived `ServiceDaemon` (created lazily) backs every call. register/
 // unregister/browse/stop_browse only enqueue a command on the daemon's channel and
@@ -125,6 +127,19 @@ fn register(daemon: &ServiceDaemon, service_type: &str, p: &AdParams) -> Result<
         ("name", p.server_name.as_str()),
         ("v", "1"),
     ];
+    if service_type == SERVICE_TYPE {
+        // Whether a phone that found this machine here can ask to pair by
+        // approval. A headless host has nobody at it to tap Allow, so the phone
+        // offers its QR instead of an affordance that can only be refused.
+        txt.push((
+            "rp",
+            if crate::remote::pair_requests_supported() {
+                "1"
+            } else {
+                "0"
+            },
+        ));
+    }
     if p.dev {
         txt.push(("dev", "1"));
     }

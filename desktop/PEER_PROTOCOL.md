@@ -146,8 +146,10 @@ re-pair.
 
 `features` advertises optional capabilities the client keys behavior on (unknown
 entries ignored). `configSync` = the config-sync frames below exist at all;
-`configSync2` = the revision-aware variant (see **Config sync**). A host missing a
-feature simply never receives frames that depend on it.
+`configSync2` = the revision-aware variant (see **Config sync**); `remotePair` =
+the host will hand back its own phone-pairing QR (see **Commands**). A host
+missing a feature simply never receives frames that depend on it. The full list
+is `HOST_FEATURES` in `peer.rs`.
 
 Codes are compared case-insensitively with separators stripped, in constant time.
 Tokens are compared as `sha256` hex in constant time.
@@ -186,6 +188,19 @@ settings + config import/export, updater/installers, account/login, host-local
 audio/voice, the host browser overlay, and vault key material. Project-scoped
 operations are allowed. The client router carries the same guard (defense in
 depth). See `is_denied` in `peer.rs`.
+
+**Phone pairing** (`remotePair` feature). The one thing a client needs from the
+host's mobile server gets a dedicated frame rather than a hole in that denylist:
+
+- client → `{ "t": "remotePair", "reqId" }`
+- host → `{ "t": "result", "reqId", "ok", "value" }` — `value` is the QR payload
+  (`code`, `url`, `svg`, `host`, `hosts`, `port`) the phone scans.
+
+The host arms the code and computes the payload itself: the addresses and the
+leaf certificate the phone must reach and pin are the host's, and neither is
+knowable from the client. It runs entirely in host Rust — no webview dispatch —
+so a headless host with no UI answers it like any other. The asking Mac displays
+the QR, which is how a phone pairs with a machine that has no screen of its own.
 
 ## Terminal streaming
 

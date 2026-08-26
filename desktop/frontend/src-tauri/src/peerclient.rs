@@ -32,6 +32,8 @@ const SYNC_TIMEOUT: Duration = Duration::from_secs(60); // digest / fetch round-
 const SYNC_APPLY_TIMEOUT: Duration = Duration::from_secs(180); // host snapshots ~/.lpm first
 const SYNC_UNSUPPORTED: &str = "the other Mac needs to update lpm to sync config";
 const GIT_BRING_UNSUPPORTED: &str = "the other Mac needs to update lpm to send its changes";
+const REMOTE_PAIR_TIMEOUT: Duration = Duration::from_secs(20); // arm a code + render its QR
+const REMOTE_PAIR_UNSUPPORTED: &str = "this host needs to update lpm to show its pairing code";
 /// A reachability failure rather than a refusal — a follower retries these with
 /// backoff instead of pausing.
 pub(crate) const PEER_NOT_CONNECTED: &str = "peer not connected";
@@ -88,6 +90,7 @@ struct PeerConn {
     supports_git_bring: AtomicBool, // host can hand over its working state as a packfile
     supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
     supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
+    supports_remote_pair: AtomicBool, // host can arm its own phone pairing and hand back the QR
     generation: AtomicU64,     // bump to retire the current connection thread
     // Present only for a peer reached over SSH. Owned here so the forward is torn
     // down with the connection rather than outliving it as a stray ssh process.
@@ -131,6 +134,7 @@ impl PeerConn {
             supports_git_bring: AtomicBool::new(false),
             supports_git_follow: AtomicBool::new(false),
             supports_git_watch: AtomicBool::new(false),
+            supports_remote_pair: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -720,6 +724,31 @@ impl PeerClientHub {
         drop(guard);
         conn.pending.lock().unwrap().remove(&req);
         result.unwrap_or_else(|| Err(PEER_REQUEST_TIMED_OUT.to_string()))
+    }
+
+    /// Ask a host to arm its own phone pairing and hand back the QR payload. The
+    /// host computes it — its addresses and certificate are the ones the phone
+    /// has to reach and pin, and neither is knowable from here.
+    fn remote_pair_blocking(&self, slug: &str) -> Result<Value, String> {
+        let conn = self
+            .inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .cloned()
+            .ok_or_else(|| "unknown peer".to_string())?;
+        if !conn.connected.load(Ordering::Relaxed) {
+            return Err(PEER_NOT_CONNECTED.to_string());
+        }
+        if !conn.supports_remote_pair.load(Ordering::Relaxed) {
+            return Err(REMOTE_PAIR_UNSUPPORTED.to_string());
+        }
+        self.request_blocking(
+            slug,
+            REMOTE_PAIR_TIMEOUT,
+            |req| json!({ "t": "remotePair", "reqId": req }),
+        )
     }
 
     /// Guard: the peer must be connected and its host must speak "bring changes".
@@ -1704,6 +1733,10 @@ fn connect_session(
         has_feature(crate::gitwatchhost::GIT_WATCH_FEATURE),
         Ordering::Relaxed,
     );
+    conn.supports_remote_pair.store(
+        has_feature(crate::peer::REMOTE_PAIR_FEATURE),
+        Ordering::Relaxed,
+    );
 
     let (tx, rx) = mpsc::sync_channel::<String>(OUT_QUEUE);
     *conn.out.lock().unwrap() = Some(tx);
@@ -2364,6 +2397,21 @@ pub async fn peer_invoke(
 ) -> Result<Value, String> {
     let hub = hub.inner().clone();
     tauri::async_runtime::spawn_blocking(move || hub.invoke_blocking(&slug, &cmd, args))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Arm a phone pairing on one of this Mac's hosts and return that host's QR
+/// payload (`code`, `url`, `svg`, `hosts`, `port`) for display here — the only
+/// way to pair a phone with a machine that has no screen of its own. Off the UI
+/// thread: it does blocking WS IO.
+#[tauri::command]
+pub async fn peer_remote_pair(
+    hub: State<'_, PeerClientHub>,
+    slug: String,
+) -> Result<Value, String> {
+    let hub = hub.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || hub.remote_pair_blocking(&slug))
         .await
         .map_err(|e| e.to_string())?
 }

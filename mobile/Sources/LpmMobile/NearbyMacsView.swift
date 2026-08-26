@@ -55,7 +55,7 @@ private struct NearbyMacRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "desktopcomputer")
+            Image(systemName: mac.requestPair ? "desktopcomputer" : "server.rack")
                 .font(.system(size: 23, weight: .medium))
                 .foregroundStyle(.white)
                 .frame(width: 42, height: 42)
@@ -70,6 +70,11 @@ private struct NearbyMacRow: View {
                     .truncationMode(.tail)
                 if mac.isDev {
                     Text("Development build")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else if !mac.requestPair {
+                    Text("Pairs with a code")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

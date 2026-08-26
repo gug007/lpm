@@ -411,16 +411,18 @@ enum Wire {
 
     enum Inbound {
         // `hosts` is the Mac's current candidate address list (empty from an
-        // older Mac that doesn't advertise one).
+        // older Mac that doesn't advertise one). `platform` is what the server
+        // runs on ("macos"/"linux"; nil from an older build — treat as a Mac).
         case paired(deviceId: String, token: String, serverId: String?, serverName: String?,
-                    hosts: [String])
+                    hosts: [String], platform: String?)
         // Approve-on-Mac pairing: the Mac accepted the request and put up its Allow
         // dialog, showing the same match code both screens display.
         case pairPending(matchCode: String)
         // Approve-on-Mac pairing was refused: "busy" (another request in flight),
-        // "declined" (user tapped Deny), or "timeout" (no answer, then server closes).
-        case pairDenied(reason: String)
-        case ready(serverId: String?, serverName: String?, hosts: [String])
+        // "declined" (user tapped Deny — or, with a `message`, a headless host
+        // that can't show the dialog at all), or "timeout" (no answer).
+        case pairDenied(reason: String, message: String?)
+        case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?)
         case error(String)
         case projects([Project])
         case sidebar(order: [String], groups: [ProjectFolder])
@@ -593,15 +595,18 @@ enum Wire {
                                token: obj["token"] as? String ?? "",
                                serverId: obj["serverId"] as? String,
                                serverName: obj["serverName"] as? String,
-                               hosts: obj["hosts"] as? [String] ?? [])
+                               hosts: obj["hosts"] as? [String] ?? [],
+                               platform: obj["platform"] as? String)
             case "pairPending":
                 return .pairPending(matchCode: obj["matchCode"] as? String ?? "")
             case "pairDenied":
-                return .pairDenied(reason: obj["reason"] as? String ?? "declined")
+                return .pairDenied(reason: obj["reason"] as? String ?? "declined",
+                                   message: obj["message"] as? String)
             case "ready":
                 return .ready(serverId: obj["serverId"] as? String,
                               serverName: obj["serverName"] as? String,
-                              hosts: obj["hosts"] as? [String] ?? [])
+                              hosts: obj["hosts"] as? [String] ?? [],
+                              platform: obj["platform"] as? String)
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
                 return .projects((obj["projects"] as? [[String: Any]] ?? []).map(Project.init))

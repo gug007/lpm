@@ -56,6 +56,13 @@ matching the stable `serverId` in the TXT record rather than a remembered addres
     `paired`/`ready`).
   - `name` — the user-visible `serverName` (same value as `paired`/`ready`).
   - `v` — protocol version, currently `"1"`.
+  - `rp` — `"1"` when this machine can show a **pair-by-approval** dialog, `"0"`
+    when it cannot (a headless host: nobody is at it to tap Allow, so a
+    `pairRequest` there is refused on the spot — see
+    [Pair by approval](#handshake-first-frame-required-within-20s)). The phone
+    should hide the "ask to pair" affordance on a `"0"` record and offer the
+    machine's pairing code instead. **Absent** on a desktop that predates the
+    key; treat a missing `rp` as `"1"` (every such build is a Mac).
   - `dev` — present and `"1"` **only** on a dev build; absent on release. Lets the
     phone distinguish a dev and a prod instance running on the same Mac (which
     also have distinct `serverId`s and ports).
@@ -90,7 +97,7 @@ that the superseded record stays until it is revoked by hand.
 → on success the server replies and the code is consumed (single use):
 ```json
 { "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
-  "serverId": "<uuid>", "serverName": "My MacBook Pro",
+  "serverId": "<uuid>", "serverName": "My MacBook Pro", "platform": "macos",
   "hosts": ["192.168.1.23", "100.101.102.103"] }
 ```
 The phone stores `deviceId` + `token` in the Keychain. `serverId` is this Mac's
@@ -98,6 +105,14 @@ stable identity (minted once, persisted in `remote.json`); `serverName` is its
 user-visible computer name (from `scutil --get ComputerName`, falling back to the
 hostname). Together they let a phone paired with **several Macs** tell them apart
 and label each one.
+
+`platform` is the operating system of the machine that answered, spelled as Rust's
+`std::env::consts::OS` — `"macos"` for a Mac, `"linux"` for a headless host a Mac
+installed lpm on. It rides `paired` **and** `ready` (see below) so a phone learns
+it on the pairing and re-learns it on every resume. A phone talking to a Linux
+host should not offer what only a Mac has: pair-by-approval, or anything that
+assumes someone is sitting in front of the machine. **Absent** from a desktop that
+predates the field; treat a missing `platform` as `"macos"`.
 
 `hosts` (**optional**) is the Mac's current candidate address list, most-preferred
 first — the same LAN-then-Tailscale list the pairing QR's repeated `h=` params
@@ -139,6 +154,7 @@ The server replies immediately with one of:
 ```json
 { "t": "pairPending", "matchCode": "1234" }
 { "t": "pairDenied", "reason": "busy" }
+{ "t": "pairDenied", "reason": "declined", "message": "<why, in a sentence>" }
 ```
 `pairPending` means the Mac is now showing an approval dialog; `matchCode` is 4
 random digits the Mac displays and the phone should show too, so the user can
@@ -146,10 +162,18 @@ confirm the same device (the phone never sends it back — a human compares them
 `busy` means another request is already pending or one was shown too recently
 (the Mac spaces prompts out) — the phone may retry shortly.
 
+An immediate `declined` means this machine cannot present the dialog at all — a
+headless host has nobody at it to tap Allow — and it carries an **optional**
+`message`, a sentence to show the user pointing them at the machine's pairing
+code instead. It is `declined` rather than a new reason so a phone that predates
+the field still reads it as the terminal refusal it is. This is the same thing
+the `rp` TXT key advertises ahead of time, so a phone that reads `rp` should
+never get here.
+
 Then, within a 30-second window, exactly one of:
 ```json
 { "t": "paired", "deviceId": "<uuid>", "token": "<base64 bearer token>",
-  "serverId": "<uuid>", "serverName": "My MacBook Pro",
+  "serverId": "<uuid>", "serverName": "My MacBook Pro", "platform": "macos",
   "hosts": ["192.168.1.23", "100.101.102.103"] }
 { "t": "pairDenied", "reason": "declined" }
 { "t": "pairDenied", "reason": "timeout" }
@@ -166,11 +190,13 @@ disconnects while pending, the Mac cancels the request and dismisses its dialog.
 { "t": "auth", "deviceId": "<uuid>", "token": "<base64 bearer token>" }
 ```
 → `{ "t": "ready", "serverId": "<uuid>", "serverName": "My MacBook Pro",
-"hosts": ["192.168.1.23", "100.101.102.103"] }`
+"platform": "macos", "hosts": ["192.168.1.23", "100.101.102.103"] }`
 on success, or `{ "t": "error", "error": "unauthorized" }`. `serverId` and
 `serverName` are the same stable identity + computer name returned by `paired`,
 re-sent on every resume so a phone paired with multiple Macs keeps them labeled
-and can route each connection to the right Mac. `hosts` is the same optional
+and can route each connection to the right Mac. `platform` is the same OS name as
+on `paired`, re-sent for the same reason — a phone that paired before the field
+existed learns it on its next connect. `hosts` is the same optional
 candidate address list as on `paired` (merge into this `serverId`'s saved
 record; omitted when the Mac has nothing usable to advertise) — re-sent on every
 resume so a LAN or Tailscale address that changed since pairing propagates

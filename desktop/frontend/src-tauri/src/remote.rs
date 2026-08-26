@@ -350,7 +350,10 @@ impl RemoteHub {
     }
 
     /// `update_config` for the callers that surface a save failure to the UI.
-    fn try_update_config<T>(&self, f: impl FnOnce(&mut RemoteConfig) -> T) -> Result<T, String> {
+    pub(crate) fn try_update_config<T>(
+        &self,
+        f: impl FnOnce(&mut RemoteConfig) -> T,
+    ) -> Result<T, String> {
         self.note_store(update(&self.inner.config, |cfg| Some(f(cfg))))?
             .ok_or_else(|| "the mobile settings were not saved".to_string())
     }
@@ -1152,6 +1155,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                                 "token": token,
                                 "serverId": hub.server_id(),
                                 "serverName": server_name(),
+                                "platform": crate::peer::platform_id(),
                             }),
                         )
                         .to_string(),
@@ -1188,6 +1192,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
                             "t": "ready",
                             "serverId": hub.server_id(),
                             "serverName": server_name(),
+                            "platform": crate::peer::platform_id(),
                         }),
                     )
                     .to_string(),
@@ -1202,6 +1207,29 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
         }
         _ => FirstFrame::Done(None),
     }
+}
+
+/// Whether this machine can present the approve-on-Mac dialog at all. A host
+/// running headless has a window server nobody is looking at, so the request
+/// would sit unanswered for its whole window and then time out.
+pub(crate) fn pair_requests_supported() -> bool {
+    cfg!(target_os = "macos")
+}
+
+/// The immediate refusal for a pair-by-approval request on a machine that can't
+/// present one, or `None` when it can and the normal flow should run.
+fn pair_request_refusal(supported: bool) -> Option<Value> {
+    if supported {
+        return None;
+    }
+    // `declined` (not a new reason) so phones that predate this read it as the
+    // terminal refusal it is instead of retrying.
+    Some(json!({
+        "t": "pairDenied",
+        "reason": "declined",
+        "message": "Pairing this way needs someone at that machine to approve it. \
+                    Scan its pairing code instead.",
+    }))
 }
 
 /// How an approve-on-Mac request ended, driving the reply frame.
@@ -1224,6 +1252,10 @@ fn handle_pair_request(
     name: &str,
     replaces: Option<String>,
 ) -> Option<AuthOutcome> {
+    if let Some(frame) = pair_request_refusal(pair_requests_supported()) {
+        let _ = ws.send(Message::text(frame.to_string()));
+        return None;
+    }
     let Some((request_id, match_code, rx)) = hub.begin_pair_request() else {
         let _ = ws.send(Message::text(
             json!({ "t": "pairDenied", "reason": "busy" }).to_string(),
@@ -1299,6 +1331,7 @@ fn handle_pair_request(
                         "token": token,
                         "serverId": hub.server_id(),
                         "serverName": server_name(),
+                        "platform": crate::peer::platform_id(),
                     }),
                 )
                 .to_string(),
@@ -5381,7 +5414,7 @@ fn pairing_qr_svg(payload: &str) -> Option<String> {
     )
 }
 
-fn state_value(hub: &RemoteHub) -> Value {
+pub(crate) fn state_value(hub: &RemoteHub) -> Value {
     let cfg = hub.config();
     let devices: Vec<Value> = cfg
         .devices
@@ -5516,10 +5549,11 @@ pub fn remote_set_config(
     Ok(state_value(&hub))
 }
 
-/// Start (or refresh) a single-use pairing code, auto-enabling the server, and
-/// return the QR payload the phone scans.
-#[tauri::command(async)]
-pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result<Value, String> {
+/// Arm a fresh single-use pairing code and build the QR payload the phone scans.
+/// Split from the command because it needs no `AppHandle`: it is the whole
+/// answer a caller wants, and the listener the code is useless without is the
+/// command's other half.
+pub(crate) fn arm_pairing_payload(hub: &RemoteHub) -> Result<Value, String> {
     let code = gen_pairing_code();
     let (tailscale, port) = hub.try_update_config(|cfg| {
         cfg.pairing_code = code.clone();
@@ -5528,9 +5562,8 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
         (cfg.tailscale, effective_port(cfg.port))
     })?;
     let hosts = candidate_hosts(tailscale);
-    apply(&hub, &app); // ensure the listener is up so the phone can connect
-                       // Every candidate address as a repeated `h=` param; the phone tries each and
-                       // keeps the one it can reach (LAN at home, Tailscale away from home).
+    // Every candidate address as a repeated `h=` param; the phone tries each and
+    // keeps the one it can reach (LAN at home, Tailscale away from home).
     let host_params: String = hosts.iter().map(|h| format!("&h={h}")).collect();
     // `f=` is the wss:// leaf-cert fingerprint (lowercase hex sha256 of the DER)
     // so a QR pair can verify the certificate it pins.
@@ -5544,6 +5577,15 @@ pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result
         "hosts": hosts,
         "port": port,
     }))
+}
+
+/// Start (or refresh) a single-use pairing code, auto-enabling the server, and
+/// return the QR payload the phone scans.
+#[tauri::command(async)]
+pub fn remote_start_pairing(app: AppHandle, hub: State<'_, RemoteHub>) -> Result<Value, String> {
+    let payload = arm_pairing_payload(&hub)?;
+    apply(&hub, &app); // ensure the listener is up so the phone can connect
+    Ok(payload)
 }
 
 #[tauri::command(async)]
@@ -5725,6 +5767,90 @@ mod tests {
             reply.to_text().unwrap().contains("paired"),
             "expected paired, got: {reply:?}"
         );
+    }
+
+    /// Drive `authenticate` over a real websocket with one first frame and hand
+    /// back the reply the phone would see.
+    fn first_frame_reply(hub: &RemoteHub, frame: Value) -> Value {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let hub = hub.clone();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut ws = accept_ws(stream).expect("server handshake");
+            authenticate(&mut ws, &hub)
+        });
+        let tcp = TcpStream::connect(addr).expect("tcp connect");
+        let (mut c, _) = tungstenite::client(format!("ws://{addr}/"), tcp).expect("client connect");
+        c.send(Message::text(frame.to_string())).unwrap();
+        let reply = c.read().expect("no reply frame");
+        let _ = server.join();
+        serde_json::from_str(reply.to_text().unwrap()).unwrap()
+    }
+
+    // A phone can now be driving a headless Linux host rather than a Mac, and the
+    // two differ in what they can offer it — so every frame that hands over an
+    // identity says which kind of machine it came from.
+    #[test]
+    fn paired_and_ready_say_which_platform_answered() {
+        let _cfg = TestConfig::new();
+        let hub = RemoteHub::default();
+        arm(&mut hub.inner.config.lock().unwrap(), "AAAA-BBBB");
+
+        let paired = first_frame_reply(
+            &hub,
+            json!({ "t": "pair", "code": "AAAA-BBBB", "name": "iPhone" }),
+        );
+        assert_eq!(paired.get("t").and_then(Value::as_str), Some("paired"));
+        assert_eq!(
+            paired.get("platform").and_then(Value::as_str),
+            Some(std::env::consts::OS),
+            "paired must name the platform: {paired}"
+        );
+
+        let ready = first_frame_reply(
+            &hub,
+            json!({ "t": "auth", "deviceId": paired["deviceId"], "token": paired["token"] }),
+        );
+        assert_eq!(
+            ready.get("t").and_then(Value::as_str),
+            Some("ready"),
+            "{ready}"
+        );
+        assert_eq!(
+            ready.get("platform").and_then(Value::as_str),
+            Some(std::env::consts::OS),
+            "ready must name the platform too — a phone that resumes never sees `paired`: {ready}"
+        );
+    }
+
+    // Nobody is at a headless host to tap Allow, so the request is refused on the
+    // spot. Waiting out the approval window instead would leave the phone showing
+    // a match code for 30 seconds against a dialog that does not exist.
+    #[test]
+    fn a_machine_that_cannot_ask_declines_pair_requests_at_once() {
+        assert!(pair_request_refusal(true).is_none(), "a Mac still asks");
+
+        let frame = pair_request_refusal(false).expect("a headless host must refuse");
+        assert_eq!(frame.get("t").and_then(Value::as_str), Some("pairDenied"));
+        assert_eq!(
+            frame.get("reason").and_then(Value::as_str),
+            Some("declined"),
+            "a phone that predates the message still has to read this as terminal"
+        );
+        let message = frame
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        assert!(
+            message.contains("pairing code"),
+            "the refusal has to point at the way that does work: {message}"
+        );
+    }
+
+    #[test]
+    fn only_macos_presents_the_approval_dialog() {
+        assert_eq!(pair_requests_supported(), cfg!(target_os = "macos"));
     }
 
     // The user-visible bug this whole store exists for: the release app and a

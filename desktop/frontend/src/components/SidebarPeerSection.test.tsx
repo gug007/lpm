@@ -9,6 +9,16 @@ const mocks = vi.hoisted(() => ({
   clearSelection: vi.fn(),
   addProjectForPeer: vi.fn(),
   setAlias: vi.fn(() => Promise.resolve()),
+  remotePair: vi.fn(() =>
+    Promise.resolve({
+      code: "AB12-CD34",
+      url: "lpm://pair?p=8765&c=AB12-CD34&h=10.0.0.2&f=ab",
+      svg: "<svg></svg>",
+      host: "10.0.0.2",
+      hosts: ["10.0.0.2"],
+      port: 8765,
+    }),
+  ),
 }));
 
 vi.mock("../store/app", () => ({
@@ -18,6 +28,7 @@ vi.mock("../../bridge/commands", () => ({
   PeerRemove: vi.fn(),
   PeerReconnect: vi.fn(),
   PeerSetAlias: mocks.setAlias,
+  PeerRemotePair: mocks.remotePair,
 }));
 
 import { SidebarPeerSection } from "./SidebarPeerSection";
@@ -183,5 +194,35 @@ describe("SidebarPeerSection header", () => {
   it("stays plain when folded over a project that is not the open one", () => {
     localStorage.setItem("lpm-peer-sections-collapsed", JSON.stringify({ aabbccdd: true }));
     expect(render({ selected: "something-else" }).className).not.toContain("bg-[var(--bg-active)]");
+  });
+
+  it("pairs a phone from its own menu, showing that machine's QR", async () => {
+    render();
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    const pair = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Pair a phone…",
+    );
+    expect(pair).toBeTruthy();
+    await act(async () => pair!.click());
+    // The host mints the code — its addresses and certificate are the ones the
+    // phone must reach — so the QR and code shown are what IT handed back.
+    expect(mocks.remotePair).toHaveBeenCalledWith("aabbccdd");
+    expect(document.body.textContent).toContain("Pair a device with GURGENS-MACBOOK-PRO");
+    expect(document.body.textContent).toContain("AB12-CD34");
+  });
+
+  it("offers phone pairing only while the machine is reachable", () => {
+    render({ connected: false, status: OFF });
+    const more = container.querySelector(
+      '[aria-label="Options for GURGENS-MACBOOK-PRO"]',
+    ) as HTMLButtonElement;
+    act(() => more.click());
+    const pair = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "Pair a phone…",
+    );
+    expect(pair).toBeUndefined();
   });
 });

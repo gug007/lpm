@@ -18,7 +18,7 @@ struct ApprovalPairingSheet: View {
             switch model.approvalPairing {
             case .waiting(let code):
                 waiting(code)
-            case .denied(let reason):
+            case .denied(let reason, let message):
                 switch reason {
                 case "busy":
                     failure(icon: "hourglass", title: "Mac is busy",
@@ -28,7 +28,7 @@ struct ApprovalPairingSheet: View {
                             message: "This iPhone can't connect to the address found for \(macLabel). Enter the pairing details from your Mac instead.")
                 default:
                     failure(icon: "hand.raised.slash", title: "Pairing declined",
-                            message: "Pairing was declined on the Mac.")
+                            message: message ?? "Pairing was declined on the Mac.")
                 }
             case .timedOut:
                 failure(icon: "clock.badge.xmark", title: "No answer",

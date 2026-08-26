@@ -18,8 +18,13 @@ struct MacRecord: Codable, Identifiable, Equatable {
     var customName: String? = nil
     var hosts: [String]
     var port: UInt16
+    // What the machine runs on ("macos"/"linux"), learned on every connect like
+    // `name`. nil until a build that reports it is reached — treat as a Mac.
+    var platform: String? = nil
 
     var id: UUID { localId }
+
+    var isLinuxHost: Bool { platform == "linux" }
 
     /// What to show wherever this Mac is named: the user's custom name if set,
     /// otherwise the learned name (which may still be a raw address).

@@ -13,6 +13,7 @@ mod error;
 mod job;
 mod list;
 mod logs;
+mod mobile;
 mod project;
 mod remove;
 mod run;
@@ -54,7 +55,8 @@ app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
 `start`, `stop`, `service`, `set-status`, `clear-status`, `duplicate`, `worktree`, `remove`, `run`, `automations`. \
-Connection commands (for a machine with no UI in front of it): `pair`, `connections`. \
+Connection commands (for a machine with no UI in front of it): `pair`, `connections`, \
+and `mobile` for the iOS companion app. \
 `wait` polls client-side, except its `--agent` mode which queries the app. Inside an lpm \
 terminal or a project directory the project name \
 may be omitted — it is inferred from LPM_PROJECT_NAME or the current directory.\n\n\
@@ -219,6 +221,11 @@ enum Commands {
         /// Emit a single machine-readable JSON object.
         #[arg(long)]
         json: bool,
+    },
+    /// Pair a phone with this machine, and manage the phones already paired.
+    Mobile {
+        #[command(subcommand)]
+        command: mobile::Command,
     },
     /// Clear an agent-status key on a project (via the running app).
     ClearStatus {
@@ -411,6 +418,7 @@ fn main() -> ExitCode {
             pair::run(&ctx, cancel, lan, bind.as_deref(), json)
         }
         Commands::Connections { json } => pair::run_connections(&ctx, json),
+        Commands::Mobile { command } => mobile::run(&ctx, command),
         Commands::ClearStatus { key, project } => {
             setstatus::run_clear(&ctx, &key, project.as_deref())
         }

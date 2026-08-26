@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PlusIcon, SmartphoneIcon } from "./icons";
+import { PlusIcon, ServerIcon, SmartphoneIcon } from "./icons";
 import { PairingModal, type Pairing } from "./PairingModal";
 import { RemoteNotice } from "./RemoteNotice";
+import { usePeerState } from "../peer/usePeerState";
 import {
   RemoteState,
   RemoteSetConfig,
   RemoteStartPairing,
   RemoteRevokeDevice,
+  PeerRemotePair,
 } from "../../bridge/commands";
 import { EventsOn, BrowserOpenURL } from "../../bridge/runtime";
 import {
@@ -115,6 +117,14 @@ export function MobileSettingsPane() {
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
   const [failure, setFailure] = useState<RemoteFailure | null>(null);
+  // Pairing minted by a connected peer machine: the phone scans this Mac's
+  // screen but connects straight to that machine.
+  const { state: peerState } = usePeerState();
+  const [hostPairing, setHostPairing] = useState<{ machine: string; pairing: Pairing } | null>(
+    null,
+  );
+  const [hostPairingBusy, setHostPairingBusy] = useState<string | null>(null);
+  const [hostFailure, setHostFailure] = useState<string | null>(null);
   const reports = useRef(0);
 
   const refresh = useCallback(async (): Promise<RemoteStateShape | null> => {
@@ -198,6 +208,19 @@ export function MobileSettingsPane() {
       setPairingBusy(false);
     }
   }, [refresh, reportFailure]);
+
+  const startHostPairing = useCallback(async (slug: string, machine: string) => {
+    setHostPairingBusy(slug);
+    setHostFailure(null);
+    try {
+      const p = (await PeerRemotePair(slug)) as Pairing;
+      setHostPairing({ machine, pairing: p });
+    } catch (err) {
+      setHostFailure(`Couldn't get a pairing code from ${machine} — ${String(err)}`);
+    } finally {
+      setHostPairingBusy(null);
+    }
+  }, []);
 
   const revoke = useCallback(
     async (id: string) => {
@@ -365,6 +388,44 @@ export function MobileSettingsPane() {
         )}
       </div>
 
+      {peerState.peers.length > 0 && (
+        <div className="mt-8">
+          <SectionLabel>Devices on other machines</SectionLabel>
+          <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+            <div className="divide-y divide-[var(--border)]">
+              {peerState.peers.map((p) => {
+                const name = p.alias || p.host || "another machine";
+                return (
+                  <div key={p.slug} className="flex items-center gap-3 px-4 py-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-muted)]">
+                      <ServerIcon />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                        {name}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-muted)]">
+                        {p.connected
+                          ? "A device paired here connects straight to this machine, so it keeps working while this Mac is off."
+                          : "Not connected — reconnect it under Connections to pair a device."}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => startHostPairing(p.slug, name)}
+                      disabled={!p.connected || hostPairingBusy !== null}
+                      className="shrink-0 rounded-md px-2.5 py-1 text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50 disabled:hover:bg-transparent"
+                    >
+                      {hostPairingBusy === p.slug ? "Preparing…" : "Add a device"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          {hostFailure && <RemoteNotice tone={problemTone}>{hostFailure}</RemoteNotice>}
+        </div>
+      )}
+
       <div className="mt-8">
         <SectionLabel>Using lpm away from home</SectionLabel>
         <div className="overflow-hidden rounded-xl border border-[var(--border)]">
@@ -401,6 +462,11 @@ export function MobileSettingsPane() {
       </div>
 
       <PairingModal pairing={pairing} onClose={() => setPairing(null)} />
+      <PairingModal
+        pairing={hostPairing?.pairing ?? null}
+        machine={hostPairing?.machine}
+        onClose={() => setHostPairing(null)}
+      />
     </>
   );
 }

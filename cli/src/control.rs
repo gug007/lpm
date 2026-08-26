@@ -5,6 +5,7 @@
 use crate::config::Ctx;
 use crate::error::RunError;
 use crate::statussock;
+use serde_json::Value;
 
 /// Require the app to be reachable. A control verb is a no-op without it, so a
 /// missing app is a usage error (exit 2) rather than an internal failure.
@@ -36,9 +37,22 @@ pub fn send_command(ctx: &Ctx, line: &str) -> Result<String, RunError> {
     Ok(reply)
 }
 
+/// Read the reply of a verb that answers in JSON. Such a verb has no `OK` form,
+/// so anything unparseable means the app answered with something this build
+/// doesn't understand — an internal failure, not a usage error.
+pub fn parse_json(reply: &str) -> Result<Value, RunError> {
+    serde_json::from_str(reply)
+        .map_err(|e| RunError::Internal(format!("could not read the app's reply: {e}")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_non_json_reply_is_an_error_not_a_panic() {
+        assert!(parse_json("OK").is_err());
+    }
     use std::io::{BufRead, BufReader, Write};
     use std::os::unix::net::UnixListener;
 

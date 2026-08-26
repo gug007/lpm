@@ -12,11 +12,6 @@ use crate::error::RunError;
 use crate::statussock::quote_arg;
 use serde_json::Value;
 
-fn parse_reply(reply: &str) -> Result<Value, RunError> {
-    serde_json::from_str(reply)
-        .map_err(|e| RunError::Internal(format!("could not read the app's reply: {e}")))
-}
-
 /// Mint a single-use invite (or withdraw the outstanding one). Printing the
 /// invite string is the whole point: it carries address, port, code, and the TLS
 /// fingerprint as one token to paste into the other machine's Connections pane.
@@ -38,7 +33,7 @@ pub fn run(
         "peer_pair".to_string()
     };
     let reply = control::send_command(ctx, &command)?;
-    let value = parse_reply(&reply)?;
+    let value = control::parse_json(&reply)?;
 
     if json {
         println!("{value}");
@@ -91,7 +86,7 @@ pub fn run(
 /// What this machine hosts and what it connects to — the Connections pane as text.
 pub fn run_connections(ctx: &Ctx, json: bool) -> Result<(), RunError> {
     control::require_app(ctx)?;
-    let value = parse_reply(&control::send_command(ctx, "peer_state")?)?;
+    let value = control::parse_json(&control::send_command(ctx, "peer_state")?)?;
 
     if json {
         println!("{value}");
@@ -194,10 +189,5 @@ mod tests {
         assert_eq!(platform_suffix(&serde_json::json!({"platform": "macos"})), "");
         // Paired before hosts reported a platform: say nothing rather than guess.
         assert_eq!(platform_suffix(&serde_json::json!({})), "");
-    }
-
-    #[test]
-    fn a_non_json_reply_is_an_error_not_a_panic() {
-        assert!(parse_reply("OK").is_err());
     }
 }
