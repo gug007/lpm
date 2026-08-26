@@ -26,8 +26,8 @@ import { useCollapsedAgents } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
-import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon, TerminalIcon } from "./icons";
-import { SidebarFooterMore } from "./SidebarFooterMore";
+import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
+import { SidebarFooterNav } from "./SidebarFooterNav";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
 import { SidebarUsage } from "./SidebarUsage";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -76,7 +76,6 @@ import { SelectionContextMenu } from "./SelectionContextMenu";
 import { RemovalSummary } from "./RemovalSummary";
 import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
-import { Tooltip } from "./ui/Tooltip";
 import { SpinnerIcon } from "./project-detail/icons";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
@@ -1495,44 +1494,25 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
       <SidebarUsage onOpen={onUsage} />
 
-      <div className="flex flex-col p-2">
-        <Tooltip
-          content="Quick shells for scripts, system commands, and anything not tied to a project."
-          side="right"
-          wide
-          delay={500}
-          triggerClassName="flex w-full"
-        >
-          <button
-            onClick={onTerminals}
-            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
-              showTerminals
-                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <TerminalIcon />
-            Terminals
-          </button>
-        </Tooltip>
-        <SidebarFooterMore
-          showActivity={showFleet}
-          onActivity={onFleet}
-          needsYou={ambient.needsYou}
-          hasError={ambient.hasError}
-          showScheduled={showScheduled}
-          onScheduled={onScheduled}
-          showUsage={showUsage}
-          onUsage={onUsage}
-          showStats={showStats}
-          onStats={onStats}
-          showMobile={showMobile}
-          onMobile={onMobile}
-          showSettings={showSettings}
-          onSettings={onSettings}
-          onFeedback={onFeedback}
-        />
-      </div>
+      <SidebarFooterNav
+        showTerminals={showTerminals}
+        onTerminals={onTerminals}
+        showActivity={showFleet}
+        onActivity={onFleet}
+        needsYou={ambient.needsYou}
+        hasError={ambient.hasError}
+        showScheduled={showScheduled}
+        onScheduled={onScheduled}
+        showUsage={showUsage}
+        onUsage={onUsage}
+        showStats={showStats}
+        onStats={onStats}
+        showMobile={showMobile}
+        onMobile={onMobile}
+        showSettings={showSettings}
+        onSettings={onSettings}
+        onFeedback={onFeedback}
+      />
       <div
         onMouseDown={handleResizeStart}
         className="absolute inset-y-0 -right-2 w-4 cursor-col-resize before:absolute before:inset-y-0 before:left-1/2 before:-translate-x-1/2 before:w-1 hover:before:bg-[var(--accent-cyan)]/20 active:before:bg-[var(--accent-cyan)]/30"

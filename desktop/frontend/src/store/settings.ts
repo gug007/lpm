@@ -13,6 +13,7 @@ import {
 } from "../gitOptions";
 import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
 import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
+import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
 import type { PeerRowOrder } from "../components/peerRowOrder";
 
 export interface DetachedWindowState {
@@ -44,6 +45,9 @@ export interface Settings {
   windowWidth?: number;
   windowHeight?: number;
   sidebarWidth?: number;
+  // Which footer nav items sit in the sidebar itself; the rest are in the More
+  // menu. Unset means the default layout.
+  sidebarNavInSidebar?: NavItemId[];
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
   claudeLimitsEnabled?: boolean;
@@ -125,6 +129,7 @@ function normalize(s: main.Settings): Settings {
     windowWidth: s.windowWidth,
     windowHeight: s.windowHeight,
     sidebarWidth: s.sidebarWidth,
+    sidebarNavInSidebar: normalizeSidebarNav(s.sidebarNavInSidebar),
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,
     claudeLimitsEnabled: s.claudeLimitsEnabled,
