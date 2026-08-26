@@ -35,7 +35,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile
-        MARKETING_VERSION: "1.22"
+        MARKETING_VERSION: "1.24"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -92,12 +92,14 @@ targets:
         NSLocalNetworkUsageDescription: Connect to lpm running on your Mac.
         NSBonjourServices:
           - _lpm._tcp
-        # ATS treats Tailscale addresses as non-local, so allow the trust delegate
-        # to validate the desktop's pinned self-signed wss:// certificate.
+        # ATS only implicitly exempts local/CGNAT addresses, so a Linux host on a
+        # public IP fails ATS's system trust check before our pinning delegate is
+        # ever consulted ("ATS failed system trust", error -1200) — exception
+        # domains can't name IPs, so the global opt-out is the only plist lever.
+        # Transport security still holds: every connection is wss:// and the app
+        # pins each machine's certificate (TOFU) in the trust delegate.
         NSAppTransportSecurity:
-          NSExceptionDomains:
-            "100.64.0.0/10":
-              NSExceptionAllowsInsecureHTTPLoads: true
+          NSAllowsArbitraryLoads: true
 
   # Notification service extension: decrypts a push payload on-device and rewrites
   # the notification with the real project/terminal/status. Its bundle id must be
@@ -111,7 +113,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cx.lpm.mobile.notificationservice
-        MARKETING_VERSION: "1.22"
+        MARKETING_VERSION: "1.24"
         CURRENT_PROJECT_VERSION: "1"
         SWIFT_VERSION: "5.9"
         TARGETED_DEVICE_FAMILY: "1,2"
