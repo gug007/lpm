@@ -7,6 +7,7 @@ mod agent_sessions_codex;
 mod agent_usage;
 mod agent_caps;
 mod agentnest;
+mod agentstop;
 mod aigen;
 mod autosync;
 mod bounds;
@@ -234,6 +235,7 @@ pub fn run() {
         .manage(message_history::MessageHistoryState::default())
         .manage(std::sync::Arc::new(status::StatusStore::new()))
         .manage(std::sync::Arc::new(agent_limits::AgentLimitsStore::new()))
+        .manage(std::sync::Arc::new(agentstop::PaneSessions::default()))
         .manage(updates::UpdateState::default())
         .manage(tts::TtsState::default())
         .manage(portforward::PortFwdState::default())
@@ -286,7 +288,10 @@ pub fn run() {
                 handle.clone(),
                 true,
             );
-            status::start_pid_sweep(store, handle.clone());
+            status::start_pid_sweep(store.clone(), handle.clone());
+            // A turn the user interrupts ends with no hook to say so; this reads
+            // the agent's own liveness and retires the badge it left behind.
+            agentstop::start(handle.clone(), store);
             // Keep each SSH host's `ssh -R` status forward alive for as long as it
             // has a live pane — without it a dropped forward silently ends remote
             // agent status (and its sound) for the rest of the session.

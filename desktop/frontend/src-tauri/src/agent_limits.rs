@@ -173,11 +173,11 @@ fn emit_snapshot(app: &AppHandle, store: &AgentLimitsStore) {
 
 // ---- Codex ------------------------------------------------------------------
 
-fn codex_sessions_dir() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_default()
-        .join(".codex")
-        .join("sessions")
+/// Codex's session archive. Built on the same `codex_home` the rest of the tree
+/// resolves through, so a user with `CODEX_HOME` set is not silently looked up
+/// in an empty `~/.codex`.
+pub(crate) fn codex_sessions_dir() -> PathBuf {
+    crate::agent_session_titles::codex_home().join("sessions")
 }
 
 /// One rate-limit window from Codex's `primary`/`secondary` object. Accepts both
@@ -256,7 +256,7 @@ fn parse_codex_file(path: &Path, now: i64, updated_at: i64) -> Option<ProviderLi
 
 /// Read at most the last `max_bytes` of a file as UTF-8 (lossy), dropping a
 /// leading partial line so callers only see whole lines.
-fn read_tail(path: &Path, max_bytes: u64) -> Option<String> {
+pub(crate) fn read_tail(path: &Path, max_bytes: u64) -> Option<String> {
     let mut f = std::fs::File::open(path).ok()?;
     let len = f.metadata().ok()?.len();
     let start = len.saturating_sub(max_bytes);

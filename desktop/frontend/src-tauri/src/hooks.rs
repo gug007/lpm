@@ -207,6 +207,12 @@ fn claude_sessions_root(project: &str) -> PathBuf {
     claude_sessions_root_of(crate::config::claude_env_for_project(project))
 }
 
+/// Where claude keeps its live per-process session records — one
+/// `<pid>.json` per running agent, carrying that agent's `status`.
+pub(crate) fn claude_records_dir(env: crate::config::ClaudeEnv) -> PathBuf {
+    claude_sessions_root_of(env).join("sessions")
+}
+
 /// Where claude keeps a project's transcripts — one `<session id>.jsonl` per
 /// conversation.
 pub(crate) fn claude_sessions_dir(env: crate::config::ClaudeEnv, project_root: &str) -> PathBuf {
@@ -632,25 +638,31 @@ fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
     let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
     let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
     let set_resume = capture_resume_cmd("codex");
+    // `--pane` carries no meaning to clear_status itself; it is what lets the
+    // socket tell this frame apart from one a nested codex sent under the same
+    // pane-keyed name (socketsrv::nested_agent_report).
+    let clear = send_cmd("clear_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID --pane=$LPM_PANE_ID");
     let pre_tool = codex_pre_tool_use_cmd();
     let permission = codex_permission_request_cmd();
 
-    // Each event maps to its ordered list of hook entries. SessionStart carries
-    // two: the status ping plus the resume-capture hook that reports Codex's
-    // real session id back to the socket (Codex has no --session-id-at-launch).
-    // PostToolUse flips Waiting back to Running once a tool (or an answered
-    // request_user_input) completes, so approval/question badges don't stay
-    // pinned for the rest of a long turn.
+    // Each event maps to its ordered list of hook entries.
     let new_events: Vec<(&str, Vec<Value>)> = vec![
-        (
-            "SessionStart",
-            vec![codex_entry(&set_running), codex_entry(&set_resume)],
-        ),
+        // Captures the session id and nothing else (Codex has no
+        // --session-id-at-launch). Deliberately not Running: starting or
+        // resuming a session is not a turn, and the shimmer belongs to work in
+        // flight — UserPromptSubmit lights it when there is any.
+        ("SessionStart", vec![codex_entry(&set_resume)]),
         ("UserPromptSubmit", vec![codex_entry(&set_running)]),
         ("PreToolUse", vec![codex_entry(&pre_tool)]),
+        // Flips Waiting back to Running once a tool (or an answered
+        // request_user_input) completes, so an approval badge doesn't stay
+        // pinned for the rest of a long turn.
         ("PostToolUse", vec![codex_entry(&set_running)]),
         ("PermissionRequest", vec![codex_entry(&permission)]),
         ("Stop", vec![codex_entry(&set_done)]),
+        // Retires the badge with the session that earned it — including a
+        // Running an interrupt left behind, which no Stop ever came to clear.
+        ("SessionEnd", vec![codex_entry(&clear)]),
     ];
 
     let original = serde_json::from_slice::<Value>(data).ok();
@@ -2600,6 +2612,7 @@ mod tests {
             "PostToolUse",
             "PermissionRequest",
             "Stop",
+            "SessionEnd",
         ] {
             assert!(hooks.contains_key(ev), "missing {ev}");
         }
@@ -2610,18 +2623,27 @@ mod tests {
             waiting.contains("codex_$LPM_PANE_ID Waiting"),
             "PermissionRequest must set Waiting: {waiting}"
         );
-        // SessionStart holds the status ping AND the resume-capture hook.
         let start = v["hooks"]["SessionStart"].as_array().unwrap();
-        assert_eq!(start.len(), 2, "SessionStart should carry two lpm hooks");
-        let has_resume = start.iter().any(|e| {
-            e["hooks"][0]["command"]
-                .as_str()
-                .map(|c| c.contains("set_resume") && c.contains("session_id"))
-                .unwrap_or(false)
-        });
+        assert_eq!(start.len(), 1, "SessionStart should carry one lpm hook");
+        let cmd = start[0]["hooks"][0]["command"].as_str().unwrap();
         assert!(
-            has_resume,
-            "SessionStart missing set_resume hook: {start:?}"
+            cmd.contains("set_resume") && cmd.contains("session_id"),
+            "SessionStart missing set_resume hook: {cmd}"
+        );
+        assert!(
+            !cmd.contains("Running"),
+            "SessionStart must not report Running: {cmd}"
+        );
+        let end = v["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap();
+        assert!(
+            end.contains("clear_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID"),
+            "SessionEnd must clear the pane's status: {end}"
+        );
+        assert!(
+            end.contains("--pane=$LPM_PANE_ID"),
+            "SessionEnd clear must carry its pane: {end}"
         );
         assert!(has_marker(&v["hooks"]));
     }
