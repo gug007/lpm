@@ -31,10 +31,10 @@ import {
 } from "../hooks/useTerminalFont";
 import { useMonospaceFonts } from "../hooks/useMonospaceFonts";
 import { TerminalFontSelect } from "./TerminalFontSelect";
+import { TerminalThemeSelect } from "./TerminalThemeSelect";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import {
   type TerminalThemeName,
-  terminalThemeNames,
   getTerminalThemeColors,
 } from "../terminal-themes";
 import { ProgressBar } from "./ui/ProgressBar";
@@ -236,6 +236,7 @@ export function Settings({
   const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
     useTerminalFontSize();
   const { theme: terminalTheme, setTheme: setTerminalTheme } = useTerminalTheme();
+  const [themePreview, setThemePreview] = useState<TerminalThemeName | null>(null);
   const {
     family: terminalFontFamily,
     fontFamily: terminalFontStack,
@@ -776,21 +777,15 @@ export function Settings({
               </SettingsRow>
               <div>
                 <SettingsRow {...rowProps("terminal.theme")}>
-                  <SettingsSelect
+                  <TerminalThemeSelect
                     value={terminalTheme}
-                    onChange={(e) => setTerminalTheme(e.target.value as TerminalThemeName)}
-                    aria-label="Terminal theme"
-                  >
-                    {terminalThemeNames.map((name) => (
-                      <option key={name} value={name}>
-                        {name === "default" ? "Default" : name}
-                      </option>
-                    ))}
-                  </SettingsSelect>
+                    onChange={setTerminalTheme}
+                    onHighlightChange={setThemePreview}
+                  />
                 </SettingsRow>
                 <div className="px-4 pb-3">
                   <TerminalThemePreview
-                    theme={terminalTheme}
+                    theme={themePreview ?? terminalTheme}
                     fontSize={terminalFontSize}
                     fontFamily={terminalFontStack}
                     lineHeight={terminalLineHeight}
