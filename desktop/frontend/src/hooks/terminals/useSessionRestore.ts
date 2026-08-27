@@ -97,26 +97,37 @@ export function useSessionRestore({
 
     (async () => {
       const dropped: PersistedTab[] = [];
+      const discarded: PersistedTab[] = [];
       const restored = await reifyTreeWithFreshPtys(
         persistedTree,
         projectName,
         allStartedIds,
         dropped,
+        discarded,
       );
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
         if (!cancelled) {
-          // Nothing came back. Keep the saved tabs on disk so a transient
-          // failure doesn't erase them, and file their sessions in history so
-          // they stay reachable from "Resume session" meanwhile.
-          holdPersistedPanes();
-          void rememberLostSessions(projectName, collectPersistedTabs(persistedTree));
+          // Nothing came back. When every tab was a parked peer tab whose pty is
+          // gone, that's a clean outcome, not a failure: write the empty tree so
+          // the dead entries stop coming back on every mount. Otherwise hold the
+          // saved tabs on disk, so a transient failure (root moved, SSH host
+          // down) doesn't erase them for good.
+          const cleanlyEmpty = dropped.length === 0 && discarded.length > 0;
+          if (cleanlyEmpty) persist(null);
+          else holdPersistedPanes();
+          // Either way the sessions left the tree, so file them in history to
+          // stay reachable from "Resume session".
+          void rememberLostSessions(
+            projectName,
+            cleanlyEmpty ? discarded : collectPersistedTabs(persistedTree),
+          );
           onCountRef.current?.(0);
         }
         settle();
         return;
       }
-      if (dropped.length > 0) void rememberLostSessions(projectName, dropped);
+      void rememberLostSessions(projectName, [...dropped, ...discarded]);
       setTree(restored);
       // Sync the ref now: a create awaiting `restoreSettled` resumes in a
       // microtask, before the re-render updates treeRef, and must append to
@@ -128,19 +139,16 @@ export function useSessionRestore({
       const focused = savedFocusedLeaf?.id ?? firstPaneId(restored);
       setFocusedPaneId(focused);
       focusedRef.current = focused;
-      // Write the tree we actually ended up with. Restore mints ids — a local pty
-      // always, a peer pty whenever the saved one was genuinely gone — and until
-      // now none of them reached disk, because persist() is only reached from
-      // applyTree/schedulePersist and restore used the raw setters. The saved id
-      // therefore stayed frozen at the first one ever minted, so every later
-      // launch asked about a dead id, got a truthful "no", and started yet another
-      // terminal on the host while the previous one kept running with nothing
-      // attached. A single pane with a single tab never repairs itself either:
-      // focusPane and focusTerminal both early-return before they persist.
+      // Write the tree we actually ended up with. Restore mints ids but reaches
+      // disk through nothing else (persist() runs from applyTree/schedulePersist,
+      // and restore uses the raw setters), so without this the saved id stays
+      // frozen at the first one ever minted and every later launch asks about a
+      // dead pty — starting another terminal beside one still running.
       //
-      // Only for a complete restore. A partial one has already dropped tabs into
-      // `dropped`, and writing that would delete them from disk — the erasure
-      // holdPersistedPanes() exists to prevent.
+      // Only when nothing failed. Discards are fine to write out — erasing them
+      // is the point — but a `dropped` tab still has a live session behind it,
+      // and writing the tree without it is the erasure holdPersistedPanes()
+      // exists to prevent.
       if (dropped.length === 0) persist(restored);
       const all = collectTerminals(restored);
       onCountRef.current?.(all.length);

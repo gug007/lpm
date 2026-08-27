@@ -41,6 +41,10 @@ export interface TerminalInstance {
   // Accent color tinting the tab label. Inherited from the action that
   // launched the terminal (a named accent or any CSS color).
   color?: string;
+  // This tab wraps a pty owned by a peer machine, which outlives this app. Its
+  // `id` therefore has to persist: restore re-adopts the running session instead
+  // of relaunching it, and a close arriving from the peer can still find the tab.
+  peerAdopted?: boolean;
   // Absent == terminal; "browser" tabs render an in-pane web browser, "review"
   // tabs render the git diff review pane. Neither has a PTY.
   kind?: "terminal" | "browser" | "review" | "memory" | "toolkit";
@@ -94,6 +98,7 @@ export function makeTerminal(
     color?: string;
     historyKey?: string;
     memory?: TerminalMemoryRef;
+    peerAdopted?: boolean;
   },
 ): TerminalInstance {
   return {
@@ -111,6 +116,7 @@ export function makeTerminal(
     ...(opts?.pinned ? { pinned: true } : {}),
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
     ...(opts?.color ? { color: opts.color } : {}),
+    ...(opts?.peerAdopted ? { peerAdopted: true } : {}),
   };
 }
 

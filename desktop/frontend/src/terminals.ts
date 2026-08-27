@@ -1,6 +1,7 @@
 import { LoadTerminals, SaveTerminals } from "../bridge/commands";
 import { main } from "../bridge/models";
 import type { SessionTitleSource } from "./paneTree";
+import { disambiguateLabelAgainst } from "./terminalLabels";
 import type { TerminalMemoryRef } from "./terminalMemory";
 
 export interface PersistedTab {
@@ -18,13 +19,13 @@ export interface PersistedTab {
   pinned?: boolean;
   emoji?: string;
   color?: string;
-  // Live pty id. Two cases store it:
-  //   - a peer-adopted tab parked while its project is unmounted (host side),
-  //     so a later peer-close can find and drop it — an unmarked local id;
+  // Live pty id. Two cases store it, both a pty a peer owns rather than us:
+  //   - a peer-adopted tab on this host — an unmarked local id — so restore can
+  //     re-adopt the running pty and a later peer-close can find and drop it;
   //   - a PEER terminal (client side), whose pty lives on the other machine and
   //     survives our restart, so restore can adopt the running session instead
   //     of relaunching it — a peer-marked id.
-  // Local ids are never persisted: they die with the app.
+  // Our own local ids are never persisted: they die with the app.
   id?: string;
 }
 
@@ -169,16 +170,34 @@ function appendTabToPersistedTree(
   return { ...node, a: appendTabToPersistedTree(node.a, tab) };
 }
 
+// The smallest free "Terminal N" over the parked tabs — the persisted-tree twin
+// of pickTerminalLabel. Counting instead would reuse a number left in place by
+// an earlier removal, putting two "Terminal 33" tabs in one project.
+function pickParkedTerminalLabel(tabs: PersistedTab[]): string {
+  const used = new Set<number>();
+  for (const t of tabs) {
+    const match = /^Terminal (\d+)$/.exec(t.label);
+    if (match) used.add(parseInt(match[1], 10));
+  }
+  let n = 1;
+  while (used.has(n)) n++;
+  return `Terminal ${n}`;
+}
+
 // Park a tab in a project's persisted tree while it isn't mounted, so it shows
-// up when the host opens the project. A generic label is filled in from the tab
-// count when none is given. The tab keeps its pty `id` so a peer-close can find
-// it (opening the project relaunches with a fresh pty either way).
+// up when the host opens the project. The label is made unique against the tabs
+// already parked there, and a generic one is filled in when none is given. The
+// tab keeps its pty `id`: the pty belongs to the peer and outlives the park, so
+// opening the project re-adopts it and a peer-close can still find it.
 export async function appendPersistedTab(
   projectName: string,
   tab: PersistedTab,
 ): Promise<void> {
   const state = getProjectTerminals(projectName);
-  const label = tab.label || `Terminal ${countPersistedTabs(state.panes) + 1}`;
+  const existing = collectPersistedTabs(state.panes);
+  const label = tab.label
+    ? disambiguateLabelAgainst(tab.label, existing.map((t) => t.label))
+    : pickParkedTerminalLabel(existing);
   const panes = appendTabToPersistedTree(state.panes, { ...tab, label });
   await saveProjectTerminals(projectName, { ...state, panes, terminals: undefined });
 }

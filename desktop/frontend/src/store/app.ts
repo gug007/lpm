@@ -1306,11 +1306,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingRemoveTerminal: null,
 
   removeRemoteTerminal: (id) => {
-    // A parked (unmounted) tab lives in the persisted cache tagged with its pty
-    // id — drop it there. If nothing matched, a mounted project may hold it live,
-    // so broadcast a remove op the mounted ProjectDetail(s) resolve against their
-    // tree (unknown ids no-op there).
-    if (removePersistedTabById(id)) return;
+    // The tab may be parked in the persisted cache (project unmounted) or live
+    // in a mounted tree — and since a mounted project's persisted snapshot also
+    // carries adopted-tab ids, the two overlap. Do both: unknown ids no-op on
+    // either path, and skipping the broadcast would let the mounted tree
+    // persist the entry right back.
+    removePersistedTabById(id);
     set({ pendingRemoveTerminal: { id, nonce: ++remoteRequestNonce } });
   },
 

@@ -194,16 +194,75 @@ describe("reifyTreeWithFreshPtys", () => {
     }
   });
 
-  // A local id is always stale after a restart; only peer ids are adoptable.
-  it("never adopts an unmarked local id", async () => {
-    h.startTerminal.mockResolvedValue("pty-fresh");
+  // An unmarked id on disk is a pty a peer spawned here while the project was
+  // unmounted. It's still running, so relaunching would leave the peer's live
+  // session with nothing attached and put a duplicate tab beside it.
+  it("adopts a parked peer tab whose pty is still alive", async () => {
+    h.terminalExists.mockResolvedValue(true);
+    const started: string[] = [];
 
     const pane = asLeaf(
-      await reifyTreeWithFreshPtys(leaf([{ label: "Terminal 1", id: "project-7" }]), "demo", []),
+      await reifyTreeWithFreshPtys(
+        leaf([{ label: "Terminal 1", id: "project-7" }]),
+        "demo",
+        started,
+      ),
     );
 
-    expect(h.terminalExists).not.toHaveBeenCalled();
-    expect(pane.tabs[0].id).toBe("pty-fresh");
+    expect(pane.tabs[0].id).toBe("project-7");
+    expect(pane.tabs[0].peerAdopted).toBe(true);
+    expect(h.startTerminal).not.toHaveBeenCalled();
+    expect(h.startForRestore).not.toHaveBeenCalled();
+    expect(started).toEqual([]);
+  });
+
+  // The park is bookkeeping for the peer's pty, not a request for a terminal of
+  // our own. Once that pty is gone, launching a shell in its place resurrects the
+  // entry as a zombie — the amplifier that turned 6 tabs into 81 on a headless host.
+  it("discards a parked peer tab whose pty is gone", async () => {
+    h.terminalExists.mockResolvedValue(false);
+    h.startTerminal.mockResolvedValue("pty-fresh");
+    const started: string[] = [];
+    const dropped: PersistedTab[] = [];
+    const discarded: PersistedTab[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([
+          { label: "Parked", id: "project-7" },
+          { label: "Mine", startCmd: "npm run dev" },
+        ]),
+        "demo",
+        started,
+        dropped,
+        discarded,
+      ),
+    );
+
+    expect(pane.tabs.map((t) => t.label)).toEqual(["Mine"]);
+    expect(discarded.map((t) => t.label)).toEqual(["Parked"]);
+    expect(dropped).toEqual([]);
+    expect(h.startTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  // "Couldn't ask" about a LOCAL id is not the peer-link race the retry loop
+  // covers — the backend is right here. Treat it as gone rather than relaunching.
+  it("discards a parked peer tab when the existence check throws", async () => {
+    h.terminalExists.mockRejectedValue(new Error("no such terminal"));
+    h.startTerminal.mockResolvedValue("pty-fresh");
+    const discarded: PersistedTab[] = [];
+
+    const tree = await reifyTreeWithFreshPtys(
+      leaf([{ label: "Parked", id: "project-7" }]),
+      "demo",
+      [],
+      [],
+      discarded,
+    );
+
+    expect(tree).toBeNull();
+    expect(discarded.map((t) => t.label)).toEqual(["Parked"]);
+    expect(h.startTerminal).not.toHaveBeenCalled();
   });
 
   it("keeps the tabs that started when one fails, and reports the loss", async () => {
@@ -435,18 +494,21 @@ describe("reifyTreeWithFreshPtys", () => {
   });
 
   // The id is the one thing that makes adoption possible, and it's only
-  // meaningful for a pty on the other machine.
-  it("keeps a peer terminal's id and drops a local one", () => {
+  // meaningful for a pty a peer owns — on the other machine, or spawned here on
+  // the peer's behalf. Our own pty dies with the app, so its id is noise.
+  it("keeps the id of a peer-owned terminal and drops a local one", () => {
     const persisted = treeToPersisted({
       kind: "leaf",
       id: "pane",
       activeTabIdx: 0,
       tabs: [
         { id: "peer-a1b2c3d4-project-7", label: "Remote" },
+        { id: "project-9", label: "Adopted", peerAdopted: true },
         { id: "project-7", label: "Local" },
       ],
     });
     expect(persisted.tabs?.[0].id).toBe("peer-a1b2c3d4-project-7");
-    expect(persisted.tabs?.[1].id).toBeUndefined();
+    expect(persisted.tabs?.[1].id).toBe("project-9");
+    expect(persisted.tabs?.[2].id).toBeUndefined();
   });
 });

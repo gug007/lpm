@@ -85,13 +85,16 @@ describe("removeRemoteTerminal", () => {
     h.removePersistedTabById.mockReturnValue(false);
   });
 
-  it("drops a parked tab from the persisted cache without broadcasting an op", () => {
+  // A mounted project's persisted snapshot carries adopted-tab ids too, so a
+  // persisted match doesn't rule out a live tab — the op must fire either way,
+  // or the mounted tree persists the entry right back.
+  it("drops a parked tab from the persisted cache and still broadcasts the op", () => {
     h.removePersistedTabById.mockReturnValue(true);
 
     useAppStore.getState().removeRemoteTerminal("proj-3");
 
     expect(h.removePersistedTabById).toHaveBeenCalledWith("proj-3");
-    expect(useAppStore.getState().pendingRemoveTerminal).toBeNull();
+    expect(useAppStore.getState().pendingRemoveTerminal?.id).toBe("proj-3");
   });
 
   it("broadcasts a remove op for mounted trees when nothing was persisted", () => {

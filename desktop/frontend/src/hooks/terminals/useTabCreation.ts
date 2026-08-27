@@ -126,7 +126,12 @@ export function useTabCreation({
       const current = treeRef.current;
       // Idempotent: a re-fired op must not add a second tab for the same pty.
       if (current && collectTerminals(current).some((t) => t.id === id)) return;
-      addTerminal(makeTerminal(id, label || pickTerminalLabel(current), opts));
+      addTerminal(
+        makeTerminal(id, label || pickTerminalLabel(current), {
+          ...opts,
+          peerAdopted: true,
+        }),
+      );
     },
     [addTerminal],
   );

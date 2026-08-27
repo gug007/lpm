@@ -34,14 +34,19 @@ import { nextId } from "./util";
  * action was renamed or one SSH host is unreachable would strand whole
  * sessions. Returns null only when nothing at all could be restored; the
  * caller stops the PTYs launched so far via `startedIds`.
+ *
+ * `discarded` is the other, non-failure exit: a parked peer tab whose pty is
+ * gone has nothing to relaunch, so it leaves the tree without counting as a
+ * loss and the caller is free to erase it from disk.
  */
 export async function reifyTreeWithFreshPtys(
   node: PersistedPaneNode,
   projectName: string,
   startedIds: string[],
   dropped: PersistedTab[] = [],
+  discarded: PersistedTab[] = [],
 ): Promise<PaneNode | null> {
-  const restored = await reifyTree(node, projectName, startedIds, dropped);
+  const restored = await reifyTree(node, projectName, startedIds, dropped, discarded);
   return restored ? disambiguateRestoredSessionTitles(restored) : null;
 }
 
@@ -81,22 +86,37 @@ async function shouldAdoptPeerTerminal(id: string): Promise<boolean> {
 }
 
 /**
- * The pty backing a restored tab: an existing one when this is a peer terminal
- * that outlived us, else a freshly started pty.
+ * The pty backing a restored tab: an existing one when the tab wraps a pty
+ * someone else owns, a freshly started one otherwise, and null when the tab has
+ * nothing left to back it and should go away.
  *
- * A local pty dies with the app, so its persisted id is always stale. A peer
- * terminal does not — it belongs to the other machine, which kept it running
- * (along with its scrollback ring) while we were closed. Relaunching that would
- * strand the live session and any agent inside it, and hand back an empty pane;
- * adopting the id instead lets the normal attach path replay the host's
- * scrollback.
+ * A local pty dies with the app, so its persisted id is always stale. Two kinds
+ * of tab persist an id because their pty isn't ours:
+ *
+ *   - a PEER terminal (client side, marked id): it belongs to the other machine,
+ *     which kept it running along with its scrollback ring. Relaunching would
+ *     strand the live session and any agent inside it and hand back an empty
+ *     pane; adopting lets the normal attach path replay the host's scrollback.
+ *   - a parked peer tab (host side, unmarked local id): a peer spawned this pty
+ *     here while the project was unmounted. Ours to ask about directly — one
+ *     local call, no waiting on a peer link. If it's gone the tab is bookkeeping
+ *     for a dead session: launching a shell in its place would resurrect it as a
+ *     zombie, and the peer that owns the tab never asked for a new one.
  */
 async function reifyTab(
   t: PersistedTab,
   projectName: string,
-): Promise<{ id: string; adopted: boolean }> {
-  if (t.id && isPeerMarked(t.id)) {
-    if (await shouldAdoptPeerTerminal(t.id)) return { id: t.id, adopted: true };
+): Promise<{ id: string; adopted: boolean } | null> {
+  if (t.id) {
+    if (isPeerMarked(t.id)) {
+      if (await shouldAdoptPeerTerminal(t.id)) return { id: t.id, adopted: true };
+    } else {
+      try {
+        return (await TerminalExists(t.id)) ? { id: t.id, adopted: true } : null;
+      } catch {
+        return null;
+      }
+    }
   }
   const id = await (t.actionName
     ? StartTerminalForRestore(projectName, t.actionName)
@@ -109,6 +129,7 @@ async function reifyTree(
   projectName: string,
   startedIds: string[],
   dropped: PersistedTab[],
+  discarded: PersistedTab[],
 ): Promise<PaneNode | null> {
   if (node.kind === "leaf") {
     const persistedTabs = node.tabs ?? [];
@@ -125,6 +146,11 @@ async function reifyTree(
       if (result.status !== "fulfilled") {
         newIdx.push(-1);
         dropped.push(t);
+        return;
+      }
+      if (!result.value) {
+        newIdx.push(-1);
+        discarded.push(t);
         return;
       }
       const { id, adopted } = result.value;
@@ -146,6 +172,7 @@ async function reifyTree(
           pinned: t.pinned,
           emoji: t.emoji,
           color: t.color,
+          peerAdopted: adopted && !isPeerMarked(id),
         }),
       );
     });
@@ -159,8 +186,8 @@ async function reifyTree(
   }
   if (!node.a || !node.b) return null;
   const [a, b] = await Promise.all([
-    reifyTree(node.a, projectName, startedIds, dropped),
-    reifyTree(node.b, projectName, startedIds, dropped),
+    reifyTree(node.a, projectName, startedIds, dropped, discarded),
+    reifyTree(node.b, projectName, startedIds, dropped, discarded),
   ]);
   if (!a || !b) return a ?? b;
   return {
@@ -204,11 +231,11 @@ function disambiguateRestoredSessionTitles(node: PaneNode): PaneNode {
  * id won't be valid after a restart. label/startCmd/resumeCmd are kept so
  * restore can re-inject them.
  *
- * A PEER terminal's id is the exception worth keeping: it names a pty on the
- * other machine, which keeps running while we're closed, so the id is still
- * good when we come back and `reifyTab` can adopt the live session instead of
- * stranding it. (The host side also parks an id here for adopted tabs while a
- * project is unmounted; those are unmarked local ids, so the two never collide.)
+ * A tab whose pty a peer owns is the exception worth keeping: whether the pty
+ * lives on the other machine (peer-marked id) or here on behalf of a peer
+ * (`peerAdopted`, an unmarked local id), it keeps running while we're closed, so
+ * the id is still good when we come back — `reifyTab` re-adopts the live session
+ * instead of stranding it, and a close arriving from the peer can still name it.
  */
 export function treeToPersisted(node: PaneNode): PersistedPaneNode {
   if (node.kind === "leaf") {
@@ -222,7 +249,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
         .filter(isTerminalTab)
         .map((t) => ({
           label: t.label,
-          ...(isPeerMarked(t.id) ? { id: t.id } : {}),
+          ...(isPeerMarked(t.id) || t.peerAdopted ? { id: t.id } : {}),
           ...(t.sessionTitle ? { sessionTitle: t.sessionTitle } : {}),
           ...(t.sessionTitleId ? { sessionTitleId: t.sessionTitleId } : {}),
           ...(t.sessionTitleSource ? { sessionTitleSource: t.sessionTitleSource } : {}),

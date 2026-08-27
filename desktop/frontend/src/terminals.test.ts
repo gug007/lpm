@@ -26,6 +26,7 @@ vi.mock("../bridge/models", () => ({
 }));
 
 import {
+  appendPersistedTab,
   collectPersistedTabs,
   getProjectTerminals,
   loadTerminals,
@@ -158,6 +159,38 @@ describe("subscribeTerminalsChanged", () => {
     updateProjectTerminalsCache("proj", { detailView: "terminal" });
 
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("appendPersistedTab", () => {
+  // Numbering off the tab count reuses a number a removal left in place, so a
+  // project ends up showing two tabs called "Terminal 2".
+  it("skips a Terminal number still parked in the tree", async () => {
+    await seed({
+      detailView: "terminal",
+      panes: {
+        kind: "leaf",
+        activeTabIdx: 0,
+        tabs: [{ label: "Terminal 1" }, { label: "Terminal 2" }, { label: "Terminal 4" }],
+      },
+    });
+
+    await appendPersistedTab("proj", { id: "project-9", label: "" });
+
+    const labels = collectPersistedTabs(getProjectTerminals("proj").panes).map((t) => t.label);
+    expect(labels).toEqual(["Terminal 1", "Terminal 2", "Terminal 4", "Terminal 3"]);
+  });
+
+  it("suffixes a provided label that is already parked", async () => {
+    await seed({
+      detailView: "terminal",
+      panes: { kind: "leaf", activeTabIdx: 0, tabs: [{ label: "Ultracode" }] },
+    });
+
+    await appendPersistedTab("proj", { id: "project-9", label: "Ultracode" });
+
+    const labels = collectPersistedTabs(getProjectTerminals("proj").panes).map((t) => t.label);
+    expect(labels).toEqual(["Ultracode", "Ultracode 2"]);
   });
 });
 
