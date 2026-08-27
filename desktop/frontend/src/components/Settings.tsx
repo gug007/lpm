@@ -30,6 +30,7 @@ import {
   useTerminalFont,
 } from "../hooks/useTerminalFont";
 import { useMonospaceFonts } from "../hooks/useMonospaceFonts";
+import { TerminalFontSelect } from "./TerminalFontSelect";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import {
   type TerminalThemeName,
@@ -721,20 +722,11 @@ export function Settings({
           {activeTab === "terminal" && (
             <SettingsSection>
               <SettingsRow {...rowProps("terminal.fontFamily")}>
-                <SettingsSelect
-                  value={terminalFontFamily ?? ""}
-                  onChange={(e) =>
-                    updateSettings({ terminalFontFamily: e.target.value || undefined })
-                  }
-                  aria-label="Terminal font"
-                >
-                  <option value="">Default</option>
-                  {terminalFontOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </SettingsSelect>
+                <TerminalFontSelect
+                  value={terminalFontFamily}
+                  options={terminalFontOptions}
+                  onChange={(family) => updateSettings({ terminalFontFamily: family })}
+                />
               </SettingsRow>
               <SettingsRow {...rowProps("terminal.fontSize")}>
                 <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-0.5">
