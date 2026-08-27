@@ -195,6 +195,14 @@ export const ROWS = {
     description: "Display Claude Code running progress in sidebar",
     keywords: ["progress", "sidebar", "claude"],
   },
+  "terminal.fontFamily": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.fontFamily",
+    label: "Font",
+    description: "Font family for the built-in terminal",
+    keywords: ["font", "typeface", "monospace", "font family"],
+  },
   "terminal.fontSize": {
     kind: "row",
     tab: "terminal",
@@ -202,6 +210,14 @@ export const ROWS = {
     label: "Font size",
     description: "Used by the built-in terminal",
     keywords: ["zoom", "text size"],
+  },
+  "terminal.lineHeight": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.lineHeight",
+    label: "Line height",
+    description: "Vertical spacing between terminal lines",
+    keywords: ["spacing", "leading"],
   },
   "terminal.theme": {
     kind: "row",

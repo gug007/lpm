@@ -123,6 +123,7 @@ export function JobLiveOutput(...args: any[]): Promise<any>;
 export function TestJobCheck(...args: any[]): Promise<any>;
 export function DrainPendingJobTasks(...args: any[]): Promise<any>;
 export function ListSSHHosts(...args: any[]): Promise<any>;
+export function ListMonospaceFonts(...args: any[]): Promise<any>;
 export function ListSystemSounds(...args: any[]): Promise<any>;
 export function ListTemplates(...args: any[]): Promise<any>;
 export function LoadGroups(...args: any[]): Promise<any>;

@@ -147,6 +147,7 @@ macro_rules! all_command_handlers {
             list_port_forwards,
             list_projects,
             list_ssh_hosts,
+            list_monospace_fonts,
             list_system_sounds,
             list_templates,
             load_claude_accounts,

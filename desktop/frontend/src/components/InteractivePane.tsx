@@ -42,6 +42,7 @@ import { stripAnsi } from "./terminal/filterLines";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { registerFileDropHandler } from "../fileDrop";
+import { useTerminalFont } from "../hooks/useTerminalFont";
 import { logDiagnostic } from "../diagnostics";
 import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
 import { reclaimPeerSession } from "../peer/retainedSessions";
@@ -518,8 +519,8 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   host.setAttribute("data-terminal-id", terminalId);
   host.setAttribute("data-file-drop-target", "");
 
-  // fontSize and theme are placeholders — the React mount sets the real
-  // values from props before the session is ever attached.
+  // fontSize, font and theme are placeholders — the React mount sets the real
+  // values from props and settings before the session is ever attached.
   const term = new Terminal({
     fontSize: 12,
     fontFamily: TERMINAL_FONT_FAMILY,
@@ -1312,7 +1313,10 @@ export function InteractivePane({
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<InteractiveSession | null>(null);
   const filterRef = useRef<FilterMirror | null>(null);
+  const { fontFamily, lineHeight } = useTerminalFont();
   const fontSizeRef = useRef(fontSize);
+  const fontFamilyRef = useRef(fontFamily);
+  const lineHeightRef = useRef(lineHeight);
   const scrollCallbackRef = useRef(onScrollStateChange);
   const themeOverrideRef = useRef(themeOverride);
   const onExitRef = useRef(onExit);
@@ -1320,6 +1324,8 @@ export function InteractivePane({
   const [atBottom, setAtBottom] = useState(true);
   const atBottomRef = useRef(true);
   fontSizeRef.current = fontSize;
+  fontFamilyRef.current = fontFamily;
+  lineHeightRef.current = lineHeight;
   scrollCallbackRef.current = onScrollStateChange;
   themeOverrideRef.current = themeOverride;
   onExitRef.current = onExit;
@@ -1369,6 +1375,10 @@ export function InteractivePane({
         session,
         () => themeOverrideRef.current ?? getTerminalTheme(el),
         () => fontSizeRef.current,
+        () => ({
+          fontFamily: fontFamilyRef.current,
+          lineHeight: lineHeightRef.current,
+        }),
         query,
         onCount,
       );
@@ -1527,6 +1537,8 @@ export function InteractivePane({
     sessionRef.current = session;
 
     session.term.options.fontSize = fontSize;
+    session.term.options.fontFamily = fontFamilyRef.current;
+    session.term.options.lineHeight = lineHeightRef.current;
     session.term.options.theme =
       themeOverrideRef.current ?? getTerminalTheme(el);
     session.themeOverride = themeOverrideRef.current ?? null;
@@ -1598,6 +1610,15 @@ export function InteractivePane({
     filterRef.current?.setFontSize(fontSize);
     reconcileGeometry(session, terminalId);
   }, [fontSize]);
+
+  useEffect(() => {
+    const session = sessionRef.current;
+    if (!session) return;
+    session.term.options.fontFamily = fontFamily;
+    session.term.options.lineHeight = lineHeight;
+    filterRef.current?.setFont(fontFamily, lineHeight);
+    reconcileGeometry(session, terminalId);
+  }, [fontFamily, lineHeight]);
 
   useEffect(() => {
     const session = sessionRef.current;

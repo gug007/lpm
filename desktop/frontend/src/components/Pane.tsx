@@ -10,6 +10,7 @@ import { copyTerminalSelection, handleCopyShortcut, handleNativeCopy, handleSele
 import { applyFilterQuery, FilterMirror } from "./terminal/FilterMirror";
 import { registerPathLinkProvider } from "./terminal/pathLinkProvider";
 import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
+import { useTerminalFont } from "../hooks/useTerminalFont";
 import { ChevronRightIcon } from "./icons";
 import { ConsoleContextMenu } from "./terminal/ConsoleContextMenu";
 import "@xterm/xterm/css/xterm.css";
@@ -37,13 +38,20 @@ interface PaneSession {
 
 const paneSessions = new Map<string, PaneSession>();
 
-function createPaneSession(opts: { fontSize: number; theme: ITheme; cwd: string }): PaneSession {
+function createPaneSession(opts: {
+  fontSize: number;
+  fontFamily: string;
+  lineHeight: number;
+  theme: ITheme;
+  cwd: string;
+}): PaneSession {
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";
 
   const term = new Terminal({
     fontSize: opts.fontSize,
-    fontFamily: "'SF Mono', Menlo, Monaco, 'Courier New', monospace",
+    fontFamily: opts.fontFamily,
+    lineHeight: opts.lineHeight,
     cursorBlink: false,
     disableStdin: true,
     convertEol: true,
@@ -155,10 +163,15 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
     const containerRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<PaneSession | null>(null);
     const filterRef = useRef<FilterMirror | null>(null);
+    const { fontFamily, lineHeight } = useTerminalFont();
     const fontSizeRef = useRef(fontSize);
+    const fontFamilyRef = useRef(fontFamily);
+    const lineHeightRef = useRef(lineHeight);
     const scrollCallbackRef = useRef(onScrollStateChange);
     const themeOverrideRef = useRef(themeOverride);
     fontSizeRef.current = fontSize;
+    fontFamilyRef.current = fontFamily;
+    lineHeightRef.current = lineHeight;
     scrollCallbackRef.current = onScrollStateChange;
     themeOverrideRef.current = themeOverride;
     const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -188,6 +201,10 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
           session,
           () => themeOverrideRef.current ?? getTerminalTheme(el),
           () => fontSizeRef.current,
+          () => ({
+            fontFamily: fontFamilyRef.current,
+            lineHeight: lineHeightRef.current,
+          }),
           query,
           onCount,
         );
@@ -216,18 +233,32 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
         if (cached) {
           session = cached;
         } else {
-          session = createPaneSession({ fontSize, theme: initialTheme, cwd });
+          session = createPaneSession({
+            fontSize,
+            fontFamily: fontFamilyRef.current,
+            lineHeight: lineHeightRef.current,
+            theme: initialTheme,
+            cwd,
+          });
           paneSessions.set(sessionKey, session);
         }
       } else {
-        session = createPaneSession({ fontSize, theme: initialTheme, cwd });
+        session = createPaneSession({
+          fontSize,
+          fontFamily: fontFamilyRef.current,
+          lineHeight: lineHeightRef.current,
+          theme: initialTheme,
+          cwd,
+        });
       }
 
       sessionRef.current = session;
 
       // A cached session may have been created earlier with different theme,
-      // fontSize, or cwd — push the current values before attaching.
+      // font, or cwd — push the current values before attaching.
       session.term.options.fontSize = fontSize;
+      session.term.options.fontFamily = fontFamilyRef.current;
+      session.term.options.lineHeight = lineHeightRef.current;
       session.term.options.theme = initialTheme;
       session.cwd = cwd;
 
@@ -305,6 +336,15 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       filterRef.current?.setFontSize(fontSize);
       fitPaneSession(session);
     }, [fontSize]);
+
+    useEffect(() => {
+      const session = sessionRef.current;
+      if (!session) return;
+      session.term.options.fontFamily = fontFamily;
+      session.term.options.lineHeight = lineHeight;
+      filterRef.current?.setFont(fontFamily, lineHeight);
+      fitPaneSession(session);
+    }, [fontFamily, lineHeight]);
 
     useEffect(() => {
       const session = sessionRef.current;

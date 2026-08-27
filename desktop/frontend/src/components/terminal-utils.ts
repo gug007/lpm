@@ -9,6 +9,14 @@ export const openTerminalLink = (_e: MouseEvent, uri: string) => BrowserOpenURL(
 export const TERMINAL_FONT_FAMILY =
   "'SF Mono', Menlo, Monaco, 'Courier New', 'Segoe UI Emoji', 'Noto Color Emoji', monospace";
 
+// A chosen font always keeps the default stack behind it, so a missing family
+// still renders and the emoji fallbacks stay reachable for glyphs it lacks.
+export function terminalFontStack(family?: string): string {
+  const name = family?.trim().replace(/'/g, "");
+  if (!name) return TERMINAL_FONT_FAMILY;
+  return `'${name}', ${TERMINAL_FONT_FAMILY}`;
+}
+
 // Fitting while the host is collapsed (hidden tab, mid-layout flex transition)
 // would shrink the terminal to xterm's 2-col minimum and garble everything
 // written after; skip and let the ResizeObserver refit once the host reaches a

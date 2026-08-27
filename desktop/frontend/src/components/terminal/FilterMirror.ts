@@ -2,7 +2,6 @@ import { Terminal, type IDisposable, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import type { SerializeAddon } from "@xterm/addon-serialize";
-import { TERMINAL_FONT_FAMILY } from "../terminal-utils";
 import { handleCopyShortcut, handleNativeCopy } from "./copySelection";
 import { filterLines, stripAnsi } from "./filterLines";
 
@@ -21,6 +20,11 @@ const RESIZE_DEBOUNCE_MS = 200;
 export interface FilterMirrorSource {
   term: Terminal;
   serialize: SerializeAddon | null;
+}
+
+export interface FilterMirrorFont {
+  fontFamily: string;
+  lineHeight: number;
 }
 
 // Read-only xterm overlay that mirrors only the lines of `source` matching the
@@ -45,6 +49,7 @@ export class FilterMirror {
     private readonly source: FilterMirrorSource,
     private readonly getTheme: () => ITheme,
     private readonly getFontSize: () => number,
+    private readonly getFont: () => FilterMirrorFont,
   ) {}
 
   setQuery(query: string | null, onCount?: (count: number) => void): void {
@@ -91,6 +96,13 @@ export class FilterMirror {
     this.scheduleFit();
   }
 
+  setFont(fontFamily: string, lineHeight: number): void {
+    if (!this.mirror) return;
+    this.mirror.options.fontFamily = fontFamily;
+    this.mirror.options.lineHeight = lineHeight;
+    this.scheduleFit();
+  }
+
   dispose(): void {
     this.active = false;
     if (this.resizeTimer) clearTimeout(this.resizeTimer);
@@ -117,9 +129,11 @@ export class FilterMirror {
     this.container.appendChild(host);
     this.host = host;
 
+    const font = this.getFont();
     const term = new Terminal({
       fontSize: this.getFontSize(),
-      fontFamily: TERMINAL_FONT_FAMILY,
+      fontFamily: font.fontFamily,
+      lineHeight: font.lineHeight,
       cursorBlink: false,
       disableStdin: true,
       convertEol: false,
@@ -247,13 +261,20 @@ export function applyFilterQuery(
   source: FilterMirrorHost,
   getTheme: () => ITheme,
   getFontSize: () => number,
+  getFont: () => FilterMirrorFont,
   query: string | null,
   onCount?: (count: number) => void,
 ): void {
   if (!query && !filterRef.current) return;
   source.search?.clearDecorations();
   if (!filterRef.current) {
-    filterRef.current = new FilterMirror(container, source, getTheme, getFontSize);
+    filterRef.current = new FilterMirror(
+      container,
+      source,
+      getTheme,
+      getFontSize,
+      getFont,
+    );
   }
   filterRef.current.setQuery(query, onCount);
 }

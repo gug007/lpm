@@ -383,6 +383,9 @@ export function MarkAllJobsSeen() {
 export function ListSSHHosts() {
   return invoke("list_ssh_hosts");
 }
+export function ListMonospaceFonts() {
+  return invoke("list_monospace_fonts");
+}
 export function ListSystemSounds() {
   return invoke("list_system_sounds");
 }

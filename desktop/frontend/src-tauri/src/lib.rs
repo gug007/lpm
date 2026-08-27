@@ -25,6 +25,7 @@ mod daemonize;
 mod detached;
 mod dockmenu;
 mod files;
+mod fonts;
 mod fsatomic;
 mod generated_commands;
 mod git;
@@ -133,6 +134,7 @@ use config_cmds::*;
 use control::*;
 use detached::*;
 use files::*;
+use fonts::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 use git::*;

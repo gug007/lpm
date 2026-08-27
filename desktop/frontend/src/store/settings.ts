@@ -40,6 +40,8 @@ export interface Settings {
   peerProjectOrder?: PeerRowOrder;
   terminalTheme?: string;
   terminalFontSize?: number;
+  terminalFontFamily?: string;
+  terminalLineHeight?: number;
   terminalOpenInDefaultApp?: boolean;
   editorFontSize?: number;
   windowWidth?: number;
@@ -124,6 +126,8 @@ function normalize(s: main.Settings): Settings {
     peerProjectOrder: s.peerProjectOrder,
     terminalTheme: s.terminalTheme,
     terminalFontSize: s.terminalFontSize,
+    terminalFontFamily: s.terminalFontFamily || undefined,
+    terminalLineHeight: s.terminalLineHeight,
     terminalOpenInDefaultApp: s.terminalOpenInDefaultApp,
     editorFontSize: s.editorFontSize,
     windowWidth: s.windowWidth,

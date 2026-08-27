@@ -24,6 +24,12 @@ import {
   MAX_TERMINAL_FONT_SIZE,
   useTerminalFontSize,
 } from "../hooks/useTerminalFontSize";
+import {
+  MIN_TERMINAL_LINE_HEIGHT,
+  MAX_TERMINAL_LINE_HEIGHT,
+  useTerminalFont,
+} from "../hooks/useTerminalFont";
+import { useMonospaceFonts } from "../hooks/useMonospaceFonts";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import {
   type TerminalThemeName,
@@ -229,6 +235,29 @@ export function Settings({
   const { fontSize: terminalFontSize, zoomIn: terminalZoomIn, zoomOut: terminalZoomOut } =
     useTerminalFontSize();
   const { theme: terminalTheme, setTheme: setTerminalTheme } = useTerminalTheme();
+  const {
+    family: terminalFontFamily,
+    fontFamily: terminalFontStack,
+    lineHeight: terminalLineHeight,
+  } = useTerminalFont();
+  const monospaceFonts = useMonospaceFonts();
+  const terminalFontOptions = useMemo(
+    () =>
+      terminalFontFamily && !monospaceFonts.includes(terminalFontFamily)
+        ? [terminalFontFamily, ...monospaceFonts]
+        : monospaceFonts,
+    [monospaceFonts, terminalFontFamily],
+  );
+  const stepTerminalLineHeight = (delta: number) => {
+    const next = Math.min(
+      MAX_TERMINAL_LINE_HEIGHT,
+      Math.max(
+        MIN_TERMINAL_LINE_HEIGHT,
+        Math.round((terminalLineHeight + delta) * 10) / 10,
+      ),
+    );
+    if (next !== terminalLineHeight) void updateSettings({ terminalLineHeight: next });
+  };
 
   useEffect(() => {
     ListSystemSounds()
@@ -691,6 +720,22 @@ export function Settings({
 
           {activeTab === "terminal" && (
             <SettingsSection>
+              <SettingsRow {...rowProps("terminal.fontFamily")}>
+                <SettingsSelect
+                  value={terminalFontFamily ?? ""}
+                  onChange={(e) =>
+                    updateSettings({ terminalFontFamily: e.target.value || undefined })
+                  }
+                  aria-label="Terminal font"
+                >
+                  <option value="">Default</option>
+                  {terminalFontOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </SettingsSelect>
+              </SettingsRow>
               <SettingsRow {...rowProps("terminal.fontSize")}>
                 <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-0.5">
                   <button
@@ -714,6 +759,29 @@ export function Settings({
                   </button>
                 </div>
               </SettingsRow>
+              <SettingsRow {...rowProps("terminal.lineHeight")}>
+                <div className="flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-0.5">
+                  <button
+                    onClick={() => stepTerminalLineHeight(-0.1)}
+                    disabled={terminalLineHeight <= MIN_TERMINAL_LINE_HEIGHT}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[15px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    aria-label="Decrease terminal line height"
+                  >
+                    −
+                  </button>
+                  <span className="min-w-[1.75rem] text-center font-mono text-xs tabular-nums text-[var(--text-primary)]">
+                    {terminalLineHeight.toFixed(1)}
+                  </span>
+                  <button
+                    onClick={() => stepTerminalLineHeight(0.1)}
+                    disabled={terminalLineHeight >= MAX_TERMINAL_LINE_HEIGHT}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[15px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
+                    aria-label="Increase terminal line height"
+                  >
+                    +
+                  </button>
+                </div>
+              </SettingsRow>
               <div>
                 <SettingsRow {...rowProps("terminal.theme")}>
                   <SettingsSelect
@@ -729,7 +797,12 @@ export function Settings({
                   </SettingsSelect>
                 </SettingsRow>
                 <div className="px-4 pb-3">
-                  <TerminalThemePreview theme={terminalTheme} fontSize={terminalFontSize} />
+                  <TerminalThemePreview
+                    theme={terminalTheme}
+                    fontSize={terminalFontSize}
+                    fontFamily={terminalFontStack}
+                    lineHeight={terminalLineHeight}
+                  />
                 </div>
               </div>
               <SettingsRow {...rowProps("terminal.openInDefaultApp")}>
@@ -1503,7 +1576,17 @@ function RemovingOverlay() {
   );
 }
 
-function TerminalThemePreview({ theme, fontSize }: { theme: TerminalThemeName; fontSize: number }) {
+function TerminalThemePreview({
+  theme,
+  fontSize,
+  fontFamily,
+  lineHeight,
+}: {
+  theme: TerminalThemeName;
+  fontSize: number;
+  fontFamily?: string;
+  lineHeight?: number;
+}) {
   const colors = getTerminalThemeColors(theme);
   const bg = colors?.bg ?? "var(--terminal-bg)";
   const fg = colors?.fg ?? "var(--terminal-fg)";
@@ -1515,7 +1598,7 @@ function TerminalThemePreview({ theme, fontSize }: { theme: TerminalThemeName; f
   return (
     <div
       className="w-full overflow-hidden rounded-md border border-[var(--border)] font-mono shadow-sm"
-      style={{ background: bg, color: fg }}
+      style={{ background: bg, color: fg, fontFamily }}
     >
       <div
         className="flex items-center gap-1.5 px-2 py-1.5"
@@ -1524,7 +1607,10 @@ function TerminalThemePreview({ theme, fontSize }: { theme: TerminalThemeName; f
         <TrafficLights />
         <span className="ml-1 truncate text-[10px] leading-none">terminal</span>
       </div>
-      <div className="px-2 py-1.5 leading-tight" style={{ fontSize: `${bodyFontSize}px` }}>
+      <div
+        className="px-2 py-1.5 leading-tight"
+        style={{ fontSize: `${bodyFontSize}px`, lineHeight }}
+      >
         <div>$ npm run dev</div>
         <div style={{ opacity: 0.7 }}>✓ ready on :3000</div>
         <div className="flex items-center">
