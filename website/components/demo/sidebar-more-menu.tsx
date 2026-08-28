@@ -12,6 +12,7 @@ import {
   Zap,
 } from "lucide-react";
 import { TELEGRAM_URL } from "@/lib/links";
+import { FOCUS_RING, PRESS } from "./ui";
 import type { DemoView } from "./views";
 
 type MoreMenuProps = {
@@ -72,17 +73,17 @@ export function SidebarMoreMenu({
         aria-label="More"
         aria-expanded={open}
         aria-haspopup="menu"
-        className={`flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+        className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm ${PRESS} ${FOCUS_RING} ${
           open || inMenu
             ? "bg-[#333333] text-[#e5e5e5]"
             : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
         }`}
       >
-        <span className="shrink-0 text-[#919191]">
-          <MoreHorizontal className="h-3.5 w-3.5" strokeWidth={1.75} />
+        <span className="shrink-0">
+          <MoreHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
         </span>
         <span className="truncate">More</span>
-        <span className="ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex items-center gap-2">
           <ErrorSignal hasError={hasError} />
           {runningAutomations > 0 ? (
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22d3ee]" />
@@ -95,17 +96,17 @@ export function SidebarMoreMenu({
       {open && (
         <div
           role="menu"
-          className="absolute bottom-full left-0 z-40 mb-1.5 w-full min-w-[11.5rem] rounded-lg border border-[#2e2e2e] bg-[#1e1e1e] py-1 shadow-xl shadow-black/50"
+          className="menu-pop absolute bottom-full left-0 z-40 mb-1.5 w-full min-w-[12rem] rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] px-1 py-1 shadow-lg"
         >
           <MenuRow
-            icon={<Layers className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            icon={<Layers className="h-3.5 w-3.5" strokeWidth={1.5} />}
             label="Activity"
             active={activeView === "activity"}
             onClick={pick("activity")}
             trailing={<ErrorSignal hasError={hasError} />}
           />
           <MenuRow
-            icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            icon={<History className="h-3.5 w-3.5" strokeWidth={1.5} />}
             label="Automations"
             active={activeView === "automations"}
             onClick={pick("automations")}
@@ -121,26 +122,26 @@ export function SidebarMoreMenu({
             }
           />
           <MenuRow
-            icon={<Zap className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            icon={<Zap className="h-3.5 w-3.5" strokeWidth={1.5} />}
             label="Usage"
             active={activeView === "usage"}
             onClick={pick("usage")}
           />
           <MenuRow
-            icon={<BarChart3 className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            icon={<BarChart3 className="h-3.5 w-3.5" strokeWidth={1.5} />}
             label="Stats"
             active={activeView === "stats"}
             onClick={pick("stats")}
           />
           <MenuRow
-            icon={<Smartphone className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            icon={<Smartphone className="h-3.5 w-3.5" strokeWidth={1.5} />}
             label="Mobile app"
             active={activeView === "mobile"}
             onClick={pick("mobile")}
           />
           <div className="my-1 h-px bg-[#2e2e2e]" />
           <MenuRow
-            icon={<Settings className="h-3.5 w-3.5" strokeWidth={1.75} />}
+            icon={<Settings className="h-3.5 w-3.5" strokeWidth={1.5} />}
             label="Settings"
             active={activeView === "settings"}
             onClick={pick("settings")}
@@ -151,10 +152,10 @@ export function SidebarMoreMenu({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}
-            className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-[12px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+            className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING}`}
           >
-            <span className="shrink-0 text-[#919191]">
-              <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.75} />
+            <span className="shrink-0">
+              <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.5} />
             </span>
             <span className="truncate">Support &amp; Feedback</span>
           </a>
@@ -182,15 +183,15 @@ function MenuRow({
       type="button"
       role="menuitem"
       onClick={onClick}
-      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+      className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${FOCUS_RING} ${
         active
           ? "bg-[#333333] text-[#e5e5e5]"
           : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
       }`}
     >
-      <span className="shrink-0 text-[#919191]">{icon}</span>
+      <span className="shrink-0">{icon}</span>
       <span className="truncate">{label}</span>
-      {trailing && <span className="ml-auto flex shrink-0 items-center gap-1.5">{trailing}</span>}
+      {trailing && <span className="ml-auto flex shrink-0 items-center gap-2 pl-2">{trailing}</span>}
     </button>
   );
 }

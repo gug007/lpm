@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 export const FOCUS_RING =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70";
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#60a5fa]";
+
+export const PRESS = "transition-all duration-100 active:scale-[0.97]";
 
 export function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);

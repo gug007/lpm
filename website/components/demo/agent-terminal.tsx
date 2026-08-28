@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { NO_AUTOFILL } from "./no-autofill";
+import { useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "./use-stick-to-bottom";
-import { History, Mic, Plus, Send, Sparkles, Square } from "lucide-react";
 import type { ReplyContext } from "./projects";
-import { FOCUS_RING } from "./ui";
+import { FOCUS_RING, PRESS } from "./ui";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
+import { AgentComposer } from "./agent-composer";
 import { AgentTurn } from "./agent-turn";
 import {
   BRAND,
@@ -23,7 +22,7 @@ import {
   type ReplyIntent,
 } from "./agent-script";
 
-export type AgentStatus = "running" | "done";
+export type AgentStatus = "running" | "waiting" | "done" | "error";
 
 type HistoryItem = {
   id: number;
@@ -34,6 +33,9 @@ type HistoryItem = {
   startedAt: number;
   doneMs: number;
   keepBusy?: boolean;
+  // The reply ends on a question, so the landed turn is waiting on you rather
+  // than done with you.
+  asks?: boolean;
 };
 
 const MAX_HISTORY = 30;
@@ -89,9 +91,11 @@ export function AgentTerminal({
     opts?: { steps?: Step[]; keepBusy?: boolean },
   ) => {
     let steps = opts?.steps;
+    let asks = false;
     if (!steps) {
       const reply = buildReply(text, agent, ctx, pendingRef.current);
       steps = reply.steps;
+      asks = reply.intent !== undefined;
       pendingRef.current = reply.intent;
     }
     if (steps.length === 0) return;
@@ -109,6 +113,7 @@ export function AgentTerminal({
           startedAt: Date.now(),
           doneMs: 0,
           keepBusy: opts?.keepBusy,
+          asks,
         },
       ];
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
@@ -137,7 +142,7 @@ export function AgentTerminal({
         revealed: x.steps.length + (closing ? 1 : 0),
       }));
       setBusy(false);
-      onStatusRef.current?.("done");
+      onStatusRef.current?.(item.asks ? "waiting" : "done");
     };
 
     const after = (ms: number, fn: () => void) => {
@@ -208,7 +213,13 @@ export function AgentTerminal({
       h.map((item) =>
         item.finished
           ? item
-          : { ...item, finished: true, doneMs: Date.now() - item.startedAt },
+          : {
+              ...item,
+              finished: true,
+              // Cut off before the question landed, so nothing is waiting on you.
+              asks: false,
+              doneMs: Date.now() - item.startedAt,
+            },
       ),
     );
     setBusy(false);
@@ -225,7 +236,8 @@ export function AgentTerminal({
     runQuery(text);
   };
 
-  const lastQuery = history.length ? history[history.length - 1].query : "";
+  const last = history.length ? history[history.length - 1] : undefined;
+  const lastQuery = last ? last.query : "";
 
   const fillInput = (text: string) => {
     setInput(text);
@@ -249,14 +261,14 @@ export function AgentTerminal({
         ref={scrollRef}
         onScroll={onScroll}
         onClick={() => inputRef.current?.focus()}
-        className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-100"
+        className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[12px] leading-[1.3] text-[#cccccc]"
       >
-        <div className="text-emerald-400">$ {b.cmd}</div>
+        <div className="text-[#00c200]">$ {b.cmd}</div>
         <div className="h-2" />
         <AgentBanner agent={agent} cwd={cwd} />
         <div className="h-2" />
-        <div className="text-gray-500">
-          <span className="font-semibold text-gray-400">
+        <div className="text-[#686868]">
+          <span className="font-semibold text-[#919191]">
             {agent === "claude" ? "※ Tip:" : "Tip:"}
           </span>{" "}
           lpm launched {agent === "claude" ? "Claude" : "Codex"} in this
@@ -292,7 +304,18 @@ export function AgentTerminal({
         ))}
       </div>
       <AgentStatusLine agent={agent} project={project} work={work} />
-      <div className="shrink-0 border-t border-[#2e2e2e] px-3 py-2">
+      <AgentComposer
+        value={input}
+        onChange={setInput}
+        onSubmit={onSubmit}
+        onStop={stop}
+        busy={busy}
+        placeholder={busy ? "Working… press Stop to interrupt" : `Send to ${b.name}…`}
+        inputRef={inputRef}
+        onSuggest={() => fillInput(SUGGESTIONS[0])}
+        onRecall={() => fillInput(lastQuery)}
+        canRecall={!!lastQuery}
+      >
         {history.length === 0 && !busy && (
           <div className="mb-2 flex flex-wrap gap-1.5">
             {SUGGESTIONS.map((suggestion) => (
@@ -303,77 +326,14 @@ export function AgentTerminal({
                   setInput("");
                   runQuery(suggestion);
                 }}
-                className={`rounded-full border border-[#2e2e2e] bg-[#202020] px-2.5 py-1 text-[10px] transition-colors hover:bg-[#2a2a2a] ${b.color} ${FOCUS_RING}`}
+                className={`rounded-full border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] hover:bg-[#2a2a2a] ${b.color} ${PRESS} ${FOCUS_RING}`}
               >
                 {suggestion}
               </button>
             ))}
           </div>
         )}
-        <form onSubmit={onSubmit} autoComplete="off">
-          <div className="rounded-lg border border-[#2e2e2e] bg-[#202020] px-2.5 py-2 transition-colors focus-within:border-cyan-500">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                busy ? "Working… press Stop to interrupt" : `Send to ${b.name}…`
-              }
-              {...NO_AUTOFILL}
-              className="w-full bg-transparent text-[12px] text-gray-100 outline-none placeholder:text-gray-600 caret-gray-100"
-            />
-            <div className="mt-1.5 flex items-center justify-end gap-0.5">
-              <span
-                aria-hidden="true"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-gray-600"
-              >
-                <Mic className="h-3.5 w-3.5" />
-              </span>
-              <ComposerIcon
-                title="Suggest a prompt"
-                onClick={() => fillInput(SUGGESTIONS[0])}
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-              </ComposerIcon>
-              <ComposerIcon
-                title="New input"
-                onClick={() => inputRef.current?.focus()}
-              >
-                <Plus className="h-4 w-4" />
-              </ComposerIcon>
-              <ComposerIcon
-                title="Message history"
-                disabled={!lastQuery}
-                onClick={() => fillInput(lastQuery)}
-              >
-                <History className="h-3.5 w-3.5" />
-              </ComposerIcon>
-              {busy ? (
-                <button
-                  type="button"
-                  onClick={stop}
-                  aria-label="Stop"
-                  title="Stop"
-                  className={`ml-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#f87171] text-[#1a1a1a] transition-opacity hover:opacity-85 ${FOCUS_RING}`}
-                >
-                  <Square className="h-3 w-3" fill="currentColor" strokeWidth={2} />
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  disabled={!input.trim()}
-                  aria-label="Send"
-                  title="Send"
-                  className={`ml-0.5 flex h-7 w-7 items-center justify-center rounded-md bg-[#60a5fa] text-[#1a1a1a] transition-opacity hover:opacity-85 disabled:opacity-40 ${FOCUS_RING}`}
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
-      </div>
+      </AgentComposer>
     </div>
   );
 }
@@ -386,29 +346,4 @@ function tokensFor(item: HistoryItem): number {
     if (step.kind === "text") return total + Math.ceil(step.text.length / 3);
     return total + 120;
   }, 280);
-}
-
-function ComposerIcon({
-  title,
-  onClick,
-  disabled,
-  children,
-}: {
-  title: string;
-  onClick: () => void;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white/[0.06] hover:text-gray-200 disabled:pointer-events-none disabled:opacity-40 ${FOCUS_RING}`}
-    >
-      {children}
-    </button>
-  );
 }

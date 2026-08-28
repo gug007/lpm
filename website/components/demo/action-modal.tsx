@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { StreamingOutput } from "./terminal-pane";
+import {
+  DIALOG_PANEL_CLASS,
+  DangerButton,
+  PrimaryButton,
+  SecondaryButton,
+} from "./ui-kit";
 import type { DemoAction } from "./projects";
 
 type Phase = "idle" | "running" | "result";
@@ -58,7 +64,7 @@ export function DemoActionModal({
         type="button"
         aria-label="Close"
         onClick={phase === "running" ? undefined : onClose}
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
       />
       {phase === "idle" ? (
         <div
@@ -66,32 +72,23 @@ export function DemoActionModal({
           role="dialog"
           tabIndex={-1}
           aria-labelledby="demo-action-confirm-title"
-          className="relative w-72 rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl"
+          className={`relative w-72 ${DIALOG_PANEL_CLASS}`}
         >
           <div id="demo-action-confirm-title" className="text-sm text-[#b3b3b3]">
             Run <span className="font-medium text-[#e5e5e5]">{action.label}</span>
             ?
           </div>
           <div className="mt-4 flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-            >
-              Cancel
-            </button>
-            <button
-              ref={primaryRef}
-              type="button"
-              onClick={() => setPhase("running")}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${
-                action.confirm
-                  ? "bg-red-500 text-white"
-                  : "bg-white text-gray-900"
-              }`}
-            >
-              Run
-            </button>
+            <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+            {action.confirm ? (
+              <DangerButton ref={primaryRef} onClick={() => setPhase("running")}>
+                Run
+              </DangerButton>
+            ) : (
+              <PrimaryButton ref={primaryRef} onClick={() => setPhase("running")}>
+                Run
+              </PrimaryButton>
+            )}
           </div>
         </div>
       ) : (
@@ -100,7 +97,7 @@ export function DemoActionModal({
           role="dialog"
           tabIndex={-1}
           aria-labelledby="demo-action-title"
-          className="relative w-[28rem] max-w-[calc(100%-2rem)] rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl"
+          className={`relative w-[460px] max-w-[calc(100%-2rem)] ${DIALOG_PANEL_CLASS}`}
         >
           <div className="flex items-center justify-between gap-2">
             <div
@@ -110,7 +107,7 @@ export function DemoActionModal({
               {phase === "result" ? `${action.label} finished` : `Running ${action.label}`}
             </div>
             {phase === "result" ? (
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#4ade80]/10 px-2 py-0.5 text-[11px] font-medium text-[#4ade80]">
                 <Check className="w-3 h-3" />
                 success
               </span>
@@ -125,15 +122,13 @@ export function DemoActionModal({
             <span className="font-mono text-[10px] text-[#919191]">
               {phase === "result" ? `exit 0 · ${durationMs}ms` : " "}
             </span>
-            <button
+            <PrimaryButton
               ref={primaryRef}
-              type="button"
               onClick={onClose}
               disabled={phase === "running"}
-              className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:opacity-40"
             >
               Close
-            </button>
+            </PrimaryButton>
           </div>
         </div>
       )}

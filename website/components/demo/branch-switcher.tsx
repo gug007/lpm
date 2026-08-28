@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ConfirmDialog } from "./confirm-dialog";
+import { GitActionsMenu, type PullStrategy } from "./git-actions-menu";
 import { NO_AUTOFILL } from "./no-autofill";
 import type { DemoBranch, DemoGit } from "./projects";
+import { RemoteBadge } from "./remote-badge";
+import { FOCUS_RING, PRESS } from "./ui";
+import {
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  PrimaryButton,
+  SecondaryButton,
+} from "./ui-kit";
 
 const ICON_PROPS = {
   width: 14,
@@ -14,6 +25,10 @@ const ICON_PROPS = {
   strokeLinecap: "round" as const,
   strokeLinejoin: "round" as const,
 };
+
+// The app's git buttons sit on the terminal footer, so they take the composer
+// border rather than the app-chrome one.
+const FOOTER_BORDER = "border-[#cccccc]/[0.18]";
 
 const AI_BRANCH_SUGGESTIONS = [
   "feature/rotate-jwt-keys",
@@ -67,26 +82,17 @@ function TrashIcon({ size = 12 }: { size?: number } = {}) {
   );
 }
 
-function UndoIcon() {
+function CheckIcon({ size = 12 }: { size?: number } = {}) {
   return (
-    <svg {...ICON_PROPS} width={12} height={12}>
-      <path d="M3 7v6h6" />
-      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 2.7L3 13" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
+    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2.5}>
       <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
 
-function PlusIcon() {
+function PlusIcon({ size = 12 }: { size?: number } = {}) {
   return (
-    <svg {...ICON_PROPS} width={12} height={12}>
+    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
@@ -95,16 +101,8 @@ function PlusIcon() {
 
 function ChevronDownIcon() {
   return (
-    <svg {...ICON_PROPS} width={10} height={10} strokeWidth={2.5}>
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
-
-function ChevronLeftIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12}>
-      <polyline points="15 18 9 12 15 6" />
+    <svg {...ICON_PROPS}>
+      <path d="m6 9 6 6 6-6" />
     </svg>
   );
 }
@@ -119,61 +117,9 @@ function CommitIcon() {
   );
 }
 
-function PRIcon() {
+function CloudOffIcon({ size = 12 }: { size?: number } = {}) {
   return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
-      <circle cx="18" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-      <line x1="6" y1="9" x2="6" y2="21" />
-    </svg>
-  );
-}
-
-function PullIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
-      <path d="M12 4v11" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="5" y1="20" x2="19" y2="20" />
-    </svg>
-  );
-}
-
-function PushIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
-  );
-}
-
-function FetchIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
-      <polyline points="23 4 23 10 17 10" />
-      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-    </svg>
-  );
-}
-
-function MergeIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
-      <circle cx="18" cy="18" r="3" />
-      <circle cx="6" cy="6" r="3" />
-      <circle cx="6" cy="18" r="3" />
-      <path d="M6 9v6" />
-      <path d="M6 21a12 12 0 0 0 12-12" />
-    </svg>
-  );
-}
-
-function CloudOffIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
+    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
       <path d="m2 2 20 20" />
       <path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" />
       <path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07" />
@@ -196,14 +142,6 @@ function SyncIcon({ spinning }: { spinning: boolean }) {
     </svg>
   );
 }
-
-type PullStrategy = "ff" | "ff-only" | "rebase";
-
-const PULL_STRATEGIES: { value: PullStrategy; label: string }[] = [
-  { value: "ff", label: "Pull (ff if possible)" },
-  { value: "ff-only", label: "Pull (ff-only)" },
-  { value: "rebase", label: "Pull (rebase)" },
-];
 
 type BranchSwitcherProps = {
   git: DemoGit;
@@ -244,7 +182,6 @@ export function DemoBranchSwitcher({
 }: BranchSwitcherProps) {
   const [branchOpen, setBranchOpen] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
-  const [pullMenuOpen, setPullMenuOpen] = useState(false);
   const [pullStrategy, setPullStrategy] = useState<PullStrategy>("ff");
   const [mergePicker, setMergePicker] = useState(false);
   const [query, setQuery] = useState("");
@@ -260,7 +197,6 @@ export function DemoBranchSwitcher({
   const commitRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newBranchRef = useRef<HTMLInputElement>(null);
-  const pullCloseTimer = useRef<number | null>(null);
   const genTimer = useRef<number | null>(null);
   const genIdxRef = useRef(0);
 
@@ -301,7 +237,6 @@ export function DemoBranchSwitcher({
       }
       if (commitMenuOpen && commitRef.current && !commitRef.current.contains(target)) {
         setCommitMenuOpen(false);
-        setPullMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", onClick);
@@ -314,22 +249,8 @@ export function DemoBranchSwitcher({
   }, [branchOpen, creating]);
 
   useEffect(() => () => {
-    if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
     if (genTimer.current) window.clearTimeout(genTimer.current);
   }, []);
-
-  const openPullMenu = () => {
-    if (pullCloseTimer.current) {
-      window.clearTimeout(pullCloseTimer.current);
-      pullCloseTimer.current = null;
-    }
-    setPullMenuOpen(true);
-  };
-
-  const schedulePullClose = () => {
-    if (pullCloseTimer.current) window.clearTimeout(pullCloseTimer.current);
-    pullCloseTimer.current = window.setTimeout(() => setPullMenuOpen(false), 120);
-  };
 
   const needsSync = git.ahead > 0 || git.behind > 0;
 
@@ -369,12 +290,8 @@ export function DemoBranchSwitcher({
   const handlePull = (strategy: PullStrategy) => {
     setPullStrategy(strategy);
     setCommitMenuOpen(false);
-    setPullMenuOpen(false);
     onPull(strategy);
   };
-
-  const currentPullLabel =
-    PULL_STRATEGIES.find((s) => s.value === pullStrategy)?.label ?? "Pull";
 
   return (
     <div className="flex items-center gap-1.5">
@@ -385,7 +302,7 @@ export function DemoBranchSwitcher({
           disabled={busy}
           aria-label={busy ? "Syncing" : `Sync: pull ${git.behind}, push ${git.ahead}`}
           title={busy ? "Syncing…" : `Pull ${git.behind}, push ${git.ahead}`}
-          className="flex items-center gap-1 rounded-md border border-[#2e2e2e] bg-[#242424] px-2 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+          className={`flex items-center gap-1 rounded-md border ${FOOTER_BORDER} bg-[#262626] px-2.5 py-1 text-[11px] font-medium text-[#b3b3b3] hover:bg-white/[0.06] hover:text-[#e5e5e5] disabled:opacity-40 ${PRESS} ${FOCUS_RING}`}
         >
           <SyncIcon spinning={busy} />
           {git.behind > 0 && (
@@ -410,7 +327,11 @@ export function DemoBranchSwitcher({
           aria-expanded={branchOpen}
           aria-haspopup="menu"
           title={busy ? "Switching branch…" : "Switch branch"}
-          className="flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+          className={`flex items-center gap-1.5 rounded-md border ${FOOTER_BORDER} px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 ${PRESS} ${FOCUS_RING} ${
+            branchOpen
+              ? "bg-white/[0.06] text-[#e5e5e5]"
+              : "bg-[#262626] text-[#b3b3b3] hover:bg-white/[0.06] hover:text-[#e5e5e5]"
+          }`}
         >
           <BranchIcon />
           <span className="max-w-[160px] truncate font-mono">{git.branch}</span>
@@ -424,7 +345,7 @@ export function DemoBranchSwitcher({
         </button>
 
         {branchOpen && (
-          <div className="absolute bottom-full right-0 z-50 mb-1 w-96 overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] shadow-xl">
+          <div className="switcher-in absolute bottom-full right-0 z-50 mb-2 w-[520px] origin-bottom-right overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] shadow-2xl">
             <div className="border-b border-[#2e2e2e] p-2">
               <input
                 ref={searchRef}
@@ -432,15 +353,15 @@ export function DemoBranchSwitcher({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search branches"
                 {...NO_AUTOFILL}
-                className="w-full rounded-md bg-[#1a1a1a] px-2 py-1 text-[11px] text-[#e5e5e5] placeholder:text-[#919191] outline-none border border-transparent focus:border-[#3a3a3a]"
+                className="w-full rounded-lg bg-transparent px-3 py-2 text-[13px] text-[#e5e5e5] placeholder:text-[#919191] focus:outline-none"
               />
             </div>
-            <div className="max-h-[250px] overflow-y-auto py-1">
-              <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[#919191]">
+            <div className="max-h-[300px] overflow-y-auto py-1.5">
+              <div className="px-4 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#919191]">
                 Branches
               </div>
               {filtered.length === 0 && (
-                <div className="px-3 py-2 text-[11px] text-[#919191]">
+                <div className="px-4 py-3 text-[13px] text-[#919191]">
                   No matches
                 </div>
               )}
@@ -456,8 +377,8 @@ export function DemoBranchSwitcher({
                     className="group relative flex w-full items-center transition-colors hover:bg-[#2a2a2a]"
                   >
                     {isRenaming ? (
-                      <div className="flex w-full items-center gap-2 px-3 py-1.5 text-[11px]">
-                        <BranchIcon />
+                      <div className="flex w-full items-center gap-2.5 px-4 py-2 text-[13px]">
+                        <BranchIcon size={14} />
                         <input
                           autoFocus
                           {...NO_AUTOFILL}
@@ -474,7 +395,7 @@ export function DemoBranchSwitcher({
                             }
                           }}
                           onBlur={() => setRenamingKey(null)}
-                          className="min-w-0 flex-1 rounded border border-[#3a3a3a] bg-[#1a1a1a] px-1 py-0.5 text-[11px] text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
+                          className="min-w-0 flex-1 rounded border border-[#2e2e2e] bg-[#1a1a1a] px-1.5 py-0.5 text-[13px] text-[#e5e5e5] outline-none focus:border-[#22d3ee]"
                         />
                         <button
                           type="button"
@@ -482,9 +403,9 @@ export function DemoBranchSwitcher({
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => submitRename(b)}
                           disabled={!renameValue.trim() || renameValue.trim() === b.name}
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333333] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
                         >
-                          <CheckIcon />
+                          <CheckIcon size={14} />
                         </button>
                       </div>
                     ) : (
@@ -501,35 +422,35 @@ export function DemoBranchSwitcher({
                               ? `Create local tracking branch from ${b.remote}/${b.name}`
                               : undefined
                           }
-                          className={`flex min-w-0 flex-1 items-start gap-2 px-3 py-1.5 text-left text-[11px] disabled:opacity-50 ${
+                          className={`flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2 text-left text-[13px] disabled:opacity-50 ${
                             isCurrent ? "text-[#60a5fa]" : "text-[#b3b3b3]"
                           }`}
                         >
-                          {b.remote ? <CloudBranchIcon /> : <BranchIcon />}
+                          {b.remote ? (
+                            <CloudBranchIcon size={14} />
+                          ) : (
+                            <BranchIcon size={14} />
+                          )}
                           <span className="flex min-w-0 flex-1 flex-col">
                             <span className="flex min-w-0 items-center gap-1.5">
                               <span className="truncate">{b.name}</span>
-                              {b.remote && (
-                                <span className="rounded bg-[#1f1f1f] px-1 py-px text-[9px] font-medium uppercase tracking-wide text-[#919191]">
-                                  {b.remote}
-                                </span>
-                              )}
+                              {b.remote && <RemoteBadge remote={b.remote} />}
                             </span>
                             {isCurrent && git.uncommitted > 0 && (
-                              <span className="text-[10px] text-[#919191]">
+                              <span className="text-[11px] text-[#919191]">
                                 Uncommitted: {git.uncommitted} file
                                 {git.uncommitted === 1 ? "" : "s"}
                               </span>
                             )}
                           </span>
                         </button>
-                        <div className="flex shrink-0 items-center gap-1 pr-3">
-                          <div className="hidden items-center gap-0.5 pr-1 group-hover:flex">
+                        <div className="flex shrink-0 items-center gap-1 pr-4">
+                          <div className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                             <BranchActionButton
                               title="Copy branch name"
                               onClick={() => onCopyBranchName(b.name)}
                             >
-                              <CopyIcon />
+                              <CopyIcon size={13} />
                             </BranchActionButton>
                             {canRename && (
                               <BranchActionButton
@@ -539,7 +460,7 @@ export function DemoBranchSwitcher({
                                   setRenameValue(b.name);
                                 }}
                               >
-                                <PencilIcon />
+                                <PencilIcon size={13} />
                               </BranchActionButton>
                             )}
                             {canDelete && (
@@ -548,7 +469,7 @@ export function DemoBranchSwitcher({
                                 danger
                                 onClick={() => setConfirmDelete(b)}
                               >
-                                <TrashIcon />
+                                <TrashIcon size={13} />
                               </BranchActionButton>
                             )}
                             {b.remote && (
@@ -556,12 +477,12 @@ export function DemoBranchSwitcher({
                                 title="Remove from list"
                                 onClick={() => setRemovingRemote(b)}
                               >
-                                <CloudOffIcon />
+                                <CloudOffIcon size={13} />
                               </BranchActionButton>
                             )}
                           </div>
                           {b.age && (
-                            <span className="text-[10px] text-[#919191] tabular-nums">
+                            <span className="text-[11px] text-[#919191] tabular-nums">
                               {b.age}
                             </span>
                           )}
@@ -574,9 +495,9 @@ export function DemoBranchSwitcher({
             </div>
             <div className="border-t border-[#2e2e2e]">
               {creating ? (
-                <div className="px-3 py-1.5">
-                  <div className="flex items-center gap-2">
-                    <PlusIcon />
+                <div className="px-4 py-2">
+                  <div className="flex items-center gap-2.5">
+                    <PlusIcon size={14} />
                     <input
                       ref={newBranchRef}
                       value={newBranchName}
@@ -593,7 +514,7 @@ export function DemoBranchSwitcher({
                           setNewBranchName("");
                         }
                       }}
-                      className="min-w-0 flex-1 rounded border border-[#3a3a3a] bg-[#1a1a1a] px-1 py-0.5 text-[11px] font-mono text-[#e5e5e5] outline-none focus:border-[#5a5a5a]"
+                      className="min-w-0 flex-1 rounded border border-[#2e2e2e] bg-[#1a1a1a] px-1.5 py-0.5 font-mono text-[13px] text-[#e5e5e5] outline-none focus:border-[#22d3ee]"
                     />
                     <button
                       type="button"
@@ -601,30 +522,42 @@ export function DemoBranchSwitcher({
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={submitCreate}
                       disabled={!newBranchName.trim()}
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333] disabled:cursor-not-allowed disabled:opacity-40"
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-[#60a5fa] transition-colors hover:bg-[#333333] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
                     >
-                      <CheckIcon />
+                      <CheckIcon size={14} />
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={generateBranchName}
-                    disabled={generatingName}
-                    className="mt-1.5 flex items-center gap-1.5 rounded px-1 py-0.5 text-[10px] text-[#b3b3b3] transition-colors hover:text-[#e5e5e5] disabled:opacity-70"
-                  >
-                    <SparkleGlyph />
-                    {generatingName ? "Generating…" : "Generate with AI"}
-                  </button>
+                  <div className="mt-2 flex justify-end">
+                    <span
+                      className={`magic-ring group inline-flex rounded-full p-px shadow-sm ${PRESS} ${
+                        generatingName
+                          ? "animate-[gradient-spin_2.5s_linear_infinite]"
+                          : ""
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={generateBranchName}
+                        disabled={generatingName}
+                        className={`inline-flex items-center gap-1.5 rounded-full bg-[#1a1a1a] px-3 py-1 text-xs font-medium text-[#e5e5e5] transition-colors group-hover:bg-transparent group-hover:text-white disabled:opacity-70 ${FOCUS_RING}`}
+                      >
+                        <span className={generatingName ? "animate-spin" : ""}>
+                          <SparkleGlyph />
+                        </span>
+                        {generatingName ? "Generating…" : "Generate with AI"}
+                      </button>
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => setCreating(true)}
                   disabled={busy}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50"
+                  className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50 ${FOCUS_RING}`}
                 >
-                  <PlusIcon />
+                  <PlusIcon size={14} />
                   <span>Create and checkout new branch…</span>
                 </button>
               )}
@@ -633,7 +566,10 @@ export function DemoBranchSwitcher({
         )}
       </div>
 
-      <div ref={commitRef} className="relative flex">
+      <div
+        ref={commitRef}
+        className={`relative flex rounded-md border ${FOOTER_BORDER} bg-[#262626]`}
+      >
         <button
           type="button"
           onClick={onCommit}
@@ -641,7 +577,7 @@ export function DemoBranchSwitcher({
           title={
             git.uncommitted > 0 ? "Commit changes" : "No changes to commit"
           }
-          className="flex items-center gap-1 rounded-l-md border border-r-0 border-[#2e2e2e] bg-[#242424] px-2 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40"
+          className={`flex items-center gap-1 rounded-l-md px-2.5 py-1 text-[11px] font-medium text-[#b3b3b3] hover:bg-white/[0.06] hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40 ${PRESS} ${FOCUS_RING}`}
         >
           <CommitIcon />
           <span>Commit</span>
@@ -657,91 +593,47 @@ export function DemoBranchSwitcher({
           }}
           disabled={busy}
           title="More git actions"
-          className="flex items-center rounded-r-md border border-[#2e2e2e] bg-[#242424] px-1 py-1 text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-50"
+          aria-expanded={commitMenuOpen}
+          aria-haspopup="menu"
+          className={`flex items-center rounded-r-md border-l ${FOOTER_BORDER} px-1.5 py-1 hover:bg-white/[0.06] hover:text-[#e5e5e5] disabled:opacity-40 ${PRESS} ${FOCUS_RING} ${
+            commitMenuOpen ? "bg-white/[0.06] text-[#e5e5e5]" : "text-[#b3b3b3]"
+          }`}
         >
           <ChevronDownIcon />
         </button>
 
         {commitMenuOpen && (
-          <div className="absolute bottom-full right-0 z-50 mb-1 w-56 rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl">
-            <button
-              type="button"
-              onClick={() => {
-                setCommitMenuOpen(false);
-                onCommit();
-              }}
-              disabled={git.uncommitted === 0}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <CommitIcon />
-              Commit
-            </button>
-            <PullSubMenu
-              currentStrategy={pullStrategy}
-              currentLabel={currentPullLabel}
-              open={pullMenuOpen}
-              onOpen={openPullMenu}
-              onScheduleClose={schedulePullClose}
-              onPull={handlePull}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setCommitMenuOpen(false);
-                onPush();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-            >
-              <PushIcon />
-              Push
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCommitMenuOpen(false);
-                onFetch();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-            >
-              <FetchIcon />
-              Fetch
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCommitMenuOpen(false);
-                onCreatePR();
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-            >
-              <PRIcon />
-              Create PR
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCommitMenuOpen(false);
-                setMergePicker(true);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-            >
-              <MergeIcon />
-              Merge
-            </button>
-            <div className="my-1 border-t border-[#2e2e2e]" />
-            <button
-              type="button"
-              onClick={() => {
-                setCommitMenuOpen(false);
-                setConfirmDiscard(true);
-              }}
-              disabled={git.uncommitted === 0}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-red-400 transition-colors hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <UndoIcon />
-              Discard all changes
-            </button>
-          </div>
+          <GitActionsMenu
+            busy={busy}
+            uncommitted={git.uncommitted}
+            pullStrategy={pullStrategy}
+            onSelectPullStrategy={setPullStrategy}
+            onCommit={() => {
+              setCommitMenuOpen(false);
+              onCommit();
+            }}
+            onPull={handlePull}
+            onPush={() => {
+              setCommitMenuOpen(false);
+              onPush();
+            }}
+            onFetch={() => {
+              setCommitMenuOpen(false);
+              onFetch();
+            }}
+            onCreatePR={() => {
+              setCommitMenuOpen(false);
+              onCreatePR();
+            }}
+            onMerge={() => {
+              setCommitMenuOpen(false);
+              setMergePicker(true);
+            }}
+            onDiscard={() => {
+              setCommitMenuOpen(false);
+              setConfirmDiscard(true);
+            }}
+          />
         )}
       </div>
 
@@ -847,12 +739,16 @@ function MergeDialog({
         onClick={onCancel}
         className="absolute inset-0 bg-black/50"
       />
-      <div className="relative w-80 rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl">
-        <div className="text-sm font-medium text-[#e5e5e5]">Merge</div>
-        <p className="mt-2 text-[12px] leading-relaxed text-[#b3b3b3]">
-          Merge another branch into{" "}
-          <span className="font-mono text-[#e5e5e5]">{currentBranch}</span>.
-        </p>
+      <DialogPanel className="relative">
+        <DialogHeader
+          title="Merge"
+          description={
+            <>
+              Merge another branch into{" "}
+              <span className="font-mono text-[#e5e5e5]">{currentBranch}</span>.
+            </>
+          }
+        />
         <div className="mt-4">
           <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#919191]">
             Branch to merge
@@ -862,19 +758,21 @@ function MergeDialog({
               type="button"
               onClick={() => setPickerOpen((v) => !v)}
               disabled={!selected}
-              className="flex w-full items-center gap-2 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-1.5 text-left text-[12px] text-[#e5e5e5] transition-colors hover:border-[#5a5a5a] disabled:opacity-50"
+              aria-expanded={pickerOpen}
+              aria-haspopup="listbox"
+              className={`flex w-full items-center gap-2.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-2 text-left text-[13px] text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] disabled:opacity-40 ${FOCUS_RING} ${PRESS}`}
             >
               {selected ? (
                 <BranchOption b={selected} />
               ) : (
-                <span className="flex-1 text-[#8a8a8a]">No other branches</span>
+                <span className="flex-1 text-[#919191]">No other branches</span>
               )}
               <span className="shrink-0 text-[#919191]">
                 <ChevronDownIcon />
               </span>
             </button>
             {pickerOpen && (
-              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-md border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl">
+              <div className="menu-pop absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#2e2e2e] bg-[#1a1a1a] py-1 shadow-2xl">
                 {mergeable.map((b) => {
                   const active = selected && labelOf(b) === labelOf(selected);
                   return (
@@ -885,10 +783,8 @@ function MergeDialog({
                         setSelected(b);
                         setPickerOpen(false);
                       }}
-                      className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px] transition-colors ${
-                        active
-                          ? "bg-[#2f2f2f] text-[#e5e5e5]"
-                          : "text-[#b3b3b3] hover:bg-[#2a2a2a]"
+                      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[#2a2a2a] ${
+                        active ? "text-[#e5e5e5]" : "text-[#b3b3b3]"
                       }`}
                     >
                       <BranchOption b={b} />
@@ -899,28 +795,22 @@ function MergeDialog({
             )}
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-1.5 rounded-md border border-[#2e2e2e] bg-[#242424] px-2.5 py-2 text-[11px] text-[#919191]">
-          <SparkleGlyph />
+        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-2 text-[11px] text-[#919191]">
+          <span className="text-[#c084fc]">
+            <SparkleGlyph />
+          </span>
           Conflicts? lpm can resolve them with AI.
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
+        <DialogFooter>
+          <SecondaryButton onClick={onCancel}>Cancel</SecondaryButton>
+          <PrimaryButton
             onClick={() => selected && onMerge(labelOf(selected))}
             disabled={!selected}
-            className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Merge
-          </button>
-        </div>
-      </div>
+          </PrimaryButton>
+        </DialogFooter>
+      </DialogPanel>
     </div>
   );
 }
@@ -928,17 +818,13 @@ function MergeDialog({
 function BranchOption({ b }: { b: DemoBranch }) {
   return (
     <>
-      <span className="shrink-0 text-[#8e8e8e]">
-        {b.remote ? <CloudBranchIcon /> : <BranchIcon />}
+      <span className="shrink-0 text-[#919191]">
+        {b.remote ? <CloudBranchIcon size={14} /> : <BranchIcon size={14} />}
       </span>
       <span className="min-w-0 flex-1 truncate font-mono">{b.name}</span>
-      {b.remote && (
-        <span className="shrink-0 rounded bg-[#333] px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-[#919191]">
-          {b.remote}
-        </span>
-      )}
+      {b.remote && <RemoteBadge remote={b.remote} />}
       {b.age && (
-        <span className="shrink-0 text-[10px] tabular-nums text-[#919191]">
+        <span className="shrink-0 text-[11px] tabular-nums text-[#919191]">
           {b.age}
         </span>
       )}
@@ -953,7 +839,7 @@ function SparkleGlyph() {
       width={12}
       height={12}
       fill="none"
-      stroke="#c084fc"
+      stroke="currentColor"
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -961,64 +847,6 @@ function SparkleGlyph() {
     >
       <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2" />
     </svg>
-  );
-}
-
-function PullSubMenu({
-  currentStrategy,
-  currentLabel,
-  open,
-  onOpen,
-  onScheduleClose,
-  onPull,
-}: {
-  currentStrategy: PullStrategy;
-  currentLabel: string;
-  open: boolean;
-  onOpen: () => void;
-  onScheduleClose: () => void;
-  onPull: (strategy: PullStrategy) => void;
-}) {
-  return (
-    <div
-      className="relative"
-      onMouseEnter={onOpen}
-      onMouseLeave={onScheduleClose}
-    >
-      <button
-        type="button"
-        onClick={() => onPull(currentStrategy)}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-      >
-        <PullIcon />
-        {currentLabel}
-        <span className="ml-auto flex text-[#919191]">
-          <ChevronLeftIcon />
-        </span>
-      </button>
-      {open && (
-        <div
-          onMouseEnter={onOpen}
-          onMouseLeave={onScheduleClose}
-          className="absolute right-full bottom-0 w-44 rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
-        >
-          {PULL_STRATEGIES.map((opt) => {
-            const active = currentStrategy === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => onPull(opt.value)}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-              >
-                <span className="w-3 shrink-0">{active && <CheckIcon />}</span>
-                <span className={active ? "text-[#e5e5e5]" : ""}>{opt.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1041,60 +869,11 @@ function BranchActionButton({
         e.stopPropagation();
         onClick();
       }}
-      className={`flex h-5 w-5 items-center justify-center rounded text-[#919191] transition-colors hover:bg-[#333] ${
-        danger ? "hover:text-red-400" : "hover:text-[#e5e5e5]"
+      className={`flex h-5 w-5 items-center justify-center rounded text-[#919191] transition-colors hover:bg-[#333333] ${FOCUS_RING} ${
+        danger ? "hover:text-[#f87171]" : "hover:text-[#e5e5e5]"
       }`}
     >
       {children}
     </button>
-  );
-}
-
-function ConfirmDialog({
-  title,
-  body,
-  confirmLabel,
-  danger,
-  onCancel,
-  onConfirm,
-}: {
-  title: string;
-  body: React.ReactNode;
-  confirmLabel: string;
-  danger?: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <div className="absolute inset-0 z-[60] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onCancel}
-        className="absolute inset-0 bg-black/50"
-      />
-      <div className="relative w-80 rounded-xl border border-[#2e2e2e] bg-[#1f1f1f] p-5 shadow-xl">
-        <div className="text-sm font-medium text-[#e5e5e5]">{title}</div>
-        <div className="mt-2 text-[12px] text-[#b3b3b3] leading-relaxed">{body}</div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all hover:opacity-85 ${
-              danger ? "bg-red-500 text-white" : "bg-white text-gray-900"
-            }`}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

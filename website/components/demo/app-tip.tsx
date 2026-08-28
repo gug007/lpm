@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { useReducedMotion } from "./ui";
 
@@ -18,31 +18,53 @@ const TIPS: TipPart[][] = [
 
 const ROTATE_MS = 9000;
 
+const MODIFIERS = new Set(["⌘", "⇧", "⌥", "⌃"]);
+
+// Each modifier glyph gets its own cap; the rest of the combo is one key, so
+// "⌘T" reads as ⌘ + T the way the app renders it.
+function splitKeys(label: string): string[] {
+  const keys: string[] = [];
+  let buf = "";
+  for (const ch of label) {
+    if (!MODIFIERS.has(ch)) {
+      buf += ch;
+      continue;
+    }
+    if (buf) {
+      keys.push(buf);
+      buf = "";
+    }
+    keys.push(ch);
+  }
+  if (buf) keys.push(buf);
+  return keys;
+}
+
 export function AppTip() {
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (reducedMotion) return;
-    const id = window.setInterval(
+    if (reducedMotion || paused) return;
+    const id = window.setTimeout(
       () => setIndex((i) => (i + 1) % TIPS.length),
       ROTATE_MS,
     );
-    return () => window.clearInterval(id);
-  }, [reducedMotion]);
+    return () => window.clearTimeout(id);
+  }, [reducedMotion, paused, index]);
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-[#919191]">
-      <Lightbulb className="h-3.5 w-3.5 shrink-0 text-[#f59e0b]" strokeWidth={1.75} />
-      <span className="flex min-w-0 items-center gap-1 truncate">
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      className="flex h-6 min-w-0 flex-1 select-none items-center gap-2"
+    >
+      <Lightbulb className="h-3.5 w-3.5 shrink-0 text-[#fbbf24]" strokeWidth={1.75} />
+      <span className="flex min-w-0 items-center gap-1 truncate text-[12px] text-[#8e8e8e]">
         {TIPS[index].map((part, i) =>
           "key" in part ? (
-            <kbd
-              key={i}
-              className="rounded border border-[#2e2e2e] bg-[#242424] px-1 py-px font-mono text-[10px] text-[#b3b3b3]"
-            >
-              {part.key}
-            </kbd>
+            <Combo key={i} label={part.key} />
           ) : (
             <span key={i} className="truncate">
               {part.text}
@@ -51,5 +73,20 @@ export function AppTip() {
         )}
       </span>
     </div>
+  );
+}
+
+function Combo({ label }: { label: string }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1">
+      {splitKeys(label).map((key, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="text-[9px] text-[#8e8e8e]">+</span>}
+          <kbd className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[5px] bg-[#333333] px-1.5 text-[11px] font-medium leading-none text-[#b3b3b3]">
+            {key}
+          </kbd>
+        </Fragment>
+      ))}
+    </span>
   );
 }

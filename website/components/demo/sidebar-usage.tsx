@@ -1,5 +1,6 @@
 "use client";
 
+import { FOCUS_RING } from "./ui";
 import { sidebarUsageRows, type UsageSidebarSettings } from "./usage-data";
 
 // Live plan usage in the sidebar footer: one line per agent CLI with when its
@@ -23,19 +24,21 @@ export function SidebarUsage({
           onClick={onOpen}
           title={`${row.label} — ${row.percentText} of the ${row.windowLabel} window used, resets in ${row.detail}`}
           aria-label={`${row.label}, ${row.percentText} of the ${row.windowLabel} window used, resets in ${row.detail}`}
-          className="flex w-full flex-col gap-1 rounded-md px-3 py-1 text-left transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+          className={`flex w-full flex-col gap-1 rounded-md px-3 py-1 text-left transition-colors hover:bg-[#2a2a2a] ${FOCUS_RING}`}
         >
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-2">
             <span
               aria-hidden="true"
               className="h-1.5 w-1.5 shrink-0 rounded-full"
               style={{ backgroundColor: row.color }}
             />
-            <span className="w-[42px] shrink-0 text-[11px] text-[#b3b3b3]">{row.label}</span>
+            <span className="min-w-[42px] max-w-[96px] shrink-0 truncate text-[11px] text-[#b3b3b3]">
+              {row.label}
+            </span>
             <span className="ml-auto min-w-0 truncate text-[10px] tabular-nums text-[#919191]">
               {row.detail}
             </span>
-            <span className="w-7 shrink-0 text-right text-[11px] tabular-nums text-[#b3b3b3]">
+            <span className="w-8 shrink-0 text-right text-[11px] tabular-nums text-[#b3b3b3]">
               {row.percentText}
             </span>
           </span>

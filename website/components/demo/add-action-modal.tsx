@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
 import { Play, Terminal as TerminalIcon } from "lucide-react";
 import { EmojiPickerField } from "./tab-controls";
+import { FOCUS_RING } from "./ui";
+import {
+  DialogHeader,
+  DialogPanel,
+  FIELD_CLASS,
+  FieldLabel,
+  PrimaryButton,
+  SecondaryButton,
+  Switch,
+} from "./ui-kit";
 
 export type NewActionRunMode = "once" | "terminal";
 
@@ -49,8 +59,7 @@ function AddActionForm({
 
   const canSubmit = name.trim().length > 0 && cmd.trim().length > 0;
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
+  const create = () => {
     if (!canSubmit) return;
     onCreate({
       name: name.trim(),
@@ -61,107 +70,117 @@ function AddActionForm({
     });
   };
 
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    create();
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      create();
+    }
+  };
+
   return (
     <div className="absolute inset-0 z-[60] flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="absolute inset-0 bg-black/50"
-              />
-      <form
-        onSubmit={submit}
-        autoComplete="off"
-        className="relative w-[400px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] p-5 shadow-2xl"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+      />
+      <DialogPanel
+        className="relative max-w-[calc(100%-2rem)]"
+        aria-label="New action"
       >
-        <div className="text-[13px] font-semibold text-[#e5e5e5]">New action</div>
-        <p className="mt-1 text-[11px] leading-relaxed text-[#919191]">
-          A one-click shortcut for a command you run all the time — tests, builds,
-          deploys, migrations.
-        </p>
+        <form onSubmit={submit} onKeyDown={onKeyDown} autoComplete="off">
+          <DialogHeader
+            title="New action"
+            description="A one-click shortcut for a command you run all the time — tests, builds, deploys, migrations."
+            onClose={onClose}
+          />
 
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-              Name
-            </span>
-            <EmojiPickerField emoji={emoji} onChange={setEmoji} inputRef={nameRef}>
+          <div className="mt-4 flex flex-col gap-3">
+            <div>
+              <FieldLabel>Name</FieldLabel>
+              <EmojiPickerField emoji={emoji} onChange={setEmoji} inputRef={nameRef}>
+                <input
+                  ref={nameRef}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Run Tests"
+                  {...NO_AUTOFILL}
+                  className={`${FIELD_CLASS} pl-12`}
+                />
+              </EmojiPickerField>
+            </div>
+
+            <div>
+              <FieldLabel>Command</FieldLabel>
               <input
-                ref={nameRef}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Run Tests"
+                value={cmd}
+                onChange={(e) => setCmd(e.target.value)}
+                placeholder="pnpm test"
                 {...NO_AUTOFILL}
-                className="w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 pl-12 pr-3 text-sm text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500"
+                className={`${FIELD_CLASS} font-mono`}
               />
-            </EmojiPickerField>
-          </div>
+            </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-              Command
-            </span>
-            <input
-              value={cmd}
-              onChange={(e) => setCmd(e.target.value)}
-              placeholder="pnpm test"
-              {...NO_AUTOFILL}
-              className="rounded-lg border border-[#2e2e2e] bg-transparent px-3 py-2.5 font-mono text-[13px] text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500"
-            />
-          </label>
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span className="text-[12px] font-medium text-[#b3b3b3]">
+                  When run
+                </span>
+                <span className="text-[12px] text-[#919191]">
+                  {runMode === "terminal"
+                    ? "Good for servers & long tasks."
+                    : "Shows output in a pop-up."}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-[#242424] p-1">
+                <ModeOption
+                  active={runMode === "terminal"}
+                  onClick={() => setRunMode("terminal")}
+                  icon={<TerminalIcon className="h-3.5 w-3.5" />}
+                  label="Open terminal"
+                />
+                <ModeOption
+                  active={runMode === "once"}
+                  onClick={() => setRunMode("once")}
+                  icon={<Play className="h-3.5 w-3.5" />}
+                  label="Run once"
+                />
+              </div>
+            </div>
 
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-              When run
-            </span>
-            <div className="grid grid-cols-2 gap-1.5">
-              <ModeOption
-                active={runMode === "terminal"}
-                onClick={() => setRunMode("terminal")}
-                icon={<TerminalIcon className="h-3.5 w-3.5"
-              />}
-                label="Open terminal"
-                desc="Good for servers & long tasks"
-              />
-              <ModeOption
-                active={runMode === "once"}
-                onClick={() => setRunMode("once")}
-                icon={<Play className="h-3.5 w-3.5"
-              />}
-                label="Run once"
-                desc="Shows output in a pop-up"
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[12px] font-medium text-[#b3b3b3]">
+                Ask for confirmation before running
+              </span>
+              <Switch
+                checked={confirm}
+                onChange={setConfirm}
+                aria-label="Ask for confirmation before running"
               />
             </div>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-[12px] text-[#b3b3b3]">
-            <input
-              type="checkbox"
-              checked={confirm}
-              onChange={(e) => setConfirm(e.target.checked)}
-              className="h-3.5 w-3.5 accent-cyan-500"
-              />
-            Ask for confirmation before running
-          </label>
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#919191] transition-colors hover:text-[#e5e5e5]"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-gray-900 transition-opacity hover:opacity-85 disabled:opacity-30"
-          >
-            Add action
-          </button>
-        </div>
-      </form>
+          <div className="mt-5 flex items-center justify-end gap-2 border-t border-[#2e2e2e] pt-4">
+            <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
+            <PrimaryButton
+              type="submit"
+              disabled={!canSubmit}
+              className="inline-flex items-center gap-2"
+            >
+              Add action
+              <kbd className="font-sans text-[11px] font-normal opacity-50">
+                ⌘↵
+              </kbd>
+            </PrimaryButton>
+          </div>
+        </form>
+      </DialogPanel>
     </div>
   );
 }
@@ -171,29 +190,25 @@ function ModeOption({
   onClick,
   icon,
   label,
-  desc,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
-  desc: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left transition-colors ${
+      aria-pressed={active}
+      className={`flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors ${FOCUS_RING} ${
         active
-          ? "border-cyan-500/60 bg-cyan-500/10"
-          : "border-[#2e2e2e] bg-[#242424] hover:bg-[#2a2a2a]"
+          ? "bg-[#1a1a1a] text-[#e5e5e5] shadow-sm"
+          : "text-[#919191] hover:text-[#b3b3b3]"
       }`}
     >
-      <span className="flex items-center gap-1.5 text-[12px] font-medium text-[#e5e5e5]">
-        <span className={active ? "text-cyan-400" : "text-[#919191]"}>{icon}</span>
-        {label}
-      </span>
-      <span className="text-[10px] text-[#919191]">{desc}</span>
+      <span className={active ? "" : "opacity-80"}>{icon}</span>
+      {label}
     </button>
   );
 }

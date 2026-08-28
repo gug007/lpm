@@ -23,13 +23,13 @@ function ClaudeBanner({ cwd }: { cwd: string }) {
       </div>
       <div className="space-y-[2px]">
         <div>
-          <span className="font-semibold text-gray-100">{b.name}</span>{" "}
-          <span className="text-gray-500">{b.version}</span>
+          <span className="font-semibold text-[#cccccc]">{b.name}</span>{" "}
+          <span className="text-[#686868]">{b.version}</span>
         </div>
-        <div className="text-gray-400">
+        <div className="text-[#919191]">
           {b.model} · {b.account}
         </div>
-        <div className="text-gray-400">{cwd}</div>
+        <div className="text-[#919191]">{cwd}</div>
       </div>
     </div>
   );
@@ -38,21 +38,21 @@ function ClaudeBanner({ cwd }: { cwd: string }) {
 function CodexBanner({ cwd }: { cwd: string }) {
   const b = BRAND.codex;
   return (
-    <div className="inline-block rounded-md border border-[#3d3d3d] px-2.5 py-1.5">
+    <div className="inline-block rounded-md border border-[#2e2e2e] px-2.5 py-1.5">
       <div>
-        <span className="text-gray-500">&gt;_</span>{" "}
-        <span className="font-semibold text-gray-100">OpenAI Codex</span>{" "}
-        <span className="text-gray-500">({b.version})</span>
+        <span className="text-[#686868]">&gt;_</span>{" "}
+        <span className="font-semibold text-[#cccccc]">OpenAI Codex</span>{" "}
+        <span className="text-[#686868]">({b.version})</span>
       </div>
       <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3">
-        <span className="text-gray-500">model:</span>
-        <span className="text-gray-300">
+        <span className="text-[#686868]">model:</span>
+        <span className="text-[#c7c7c7]">
           {b.model}
-          <span className="ml-3 text-cyan-400">/model</span>
-          <span className="text-gray-500"> to change</span>
+          <span className="ml-3 text-[#00c5c7]">/model</span>
+          <span className="text-[#686868]"> to change</span>
         </span>
-        <span className="text-gray-500">directory:</span>
-        <span className="text-gray-300">{cwd}</span>
+        <span className="text-[#686868]">directory:</span>
+        <span className="text-[#c7c7c7]">{cwd}</span>
       </div>
     </div>
   );
@@ -85,9 +85,9 @@ function ClaudeWorkingLine({
   const elapsed = useElapsed(startedAt);
   const star = useStar();
   return (
-    <div className="text-gray-500">
+    <div className="text-[#686868]">
       <span className={`inline-block w-3 ${BRAND.claude.color}`}>{star}</span>
-      <span className="ml-1 text-gray-200">{workingVerb(seed)}…</span>
+      <span className="ml-1 text-[#e5e5e5]">{workingVerb(seed)}…</span>
       <span className="ml-1.5">
         ({elapsed}s · ↓ {formatTokens(tokens)} tokens · esc to interrupt)
       </span>
@@ -98,9 +98,9 @@ function ClaudeWorkingLine({
 function CodexWorkingLine({ startedAt }: { startedAt: number }) {
   const elapsed = useElapsed(startedAt);
   return (
-    <div className="text-gray-500">
+    <div className="text-[#686868]">
       <span>{BRAND.codex.bullet}</span>
-      <span className="ml-1.5 text-gray-200">Working</span>
+      <span className="ml-1.5 text-[#e5e5e5]">Working</span>
       <span className="ml-1.5">({elapsed}s • esc to interrupt)</span>
     </div>
   );
@@ -109,7 +109,7 @@ function CodexWorkingLine({ startedAt }: { startedAt: number }) {
 /** Claude Code closes a landed turn with `✻ Cogitated for 9s`. */
 export function TurnFooter({ seed, seconds }: { seed: number; seconds: number }) {
   return (
-    <div className="mt-1 text-gray-500">
+    <div className="mt-1 text-[#686868]">
       <span className="inline-block w-3">✻</span>
       <span className="ml-1">
         {settledVerb(seed)} for {seconds}s
@@ -127,12 +127,12 @@ export function AgentStatusLine({
   project: string;
   work: number;
 }) {
-  const dot = <span className="text-gray-600"> · </span>;
+  const dot = <span className="text-[#686868]"> · </span>;
 
   if (agent === "codex") {
     const context = Math.max(41, 100 - work * 2);
     return (
-      <div className="shrink-0 px-3 pb-1.5 font-mono text-[11px] text-gray-400">
+      <div className="shrink-0 px-3 pb-1.5 font-mono text-[12px] text-[#919191]">
         <span className="text-[#f6e2b7]">{BRAND.codex.model}</span>
         {dot}
         <span className="text-[#f2b590]">Context {context}% left</span>
@@ -147,12 +147,12 @@ export function AgentStatusLine({
   const context = Math.max(38, 92 - work * 2);
   const cost = (0.01 + work * 0.008).toFixed(2);
   return (
-    <div className="shrink-0 px-3 pb-1.5 font-mono text-[11px] text-gray-400">
+    <div className="shrink-0 px-3 pb-1.5 font-mono text-[12px] text-[#919191]">
       <span>{project}</span>
       {dot}
       <span className="text-[#d78787]">{BRAND.claude.model}</span>
       {dot}
-      <span className="text-gray-600">ctx </span>
+      <span className="text-[#686868]">ctx </span>
       <span>{context}%</span>
       {dot}
       <span className="text-[#c7c400]">${cost}</span>

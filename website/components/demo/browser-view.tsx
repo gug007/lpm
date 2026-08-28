@@ -14,6 +14,7 @@ import {
   Sun,
 } from "lucide-react";
 import type { DemoProject, DemoService } from "./projects";
+import { FOCUS_RING, PRESS } from "./ui";
 
 // Mirrors the desktop app's address resolution:
 // explicit scheme → localhost (http) → domain-shaped (https) → Google search.
@@ -111,7 +112,7 @@ const LIGHT: Palette = {
 };
 
 const NAV_BTN =
-  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#919191]";
+  `flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#919191] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#919191] ${FOCUS_RING} ${PRESS}`;
 
 export function BrowserView({
   project,
@@ -202,7 +203,7 @@ export function BrowserView({
           <RotateCw className="h-4 w-4" />
         </button>
         <form onSubmit={go} autoComplete="off" className="relative flex-1">
-          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#7e7e7e]">
+          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[#919191]">
             {url ? (
               secure ? (
                 <Lock className="h-3 w-3" />
@@ -219,7 +220,7 @@ export function BrowserView({
             onChange={(e) => setAddress(e.target.value)}
             {...NO_AUTOFILL}
             placeholder="Search Google or enter a URL…"
-            className="h-7 w-full rounded-md border border-[#2e2e2e] bg-[#1a1a1a] pl-7 pr-2.5 text-xs text-[#e5e5e5] outline-none placeholder:text-[#7e7e7e] focus:border-[#5a5a5a]"
+            className="h-7 w-full rounded-md border border-[#2e2e2e] bg-[#1a1a1a] pl-7 pr-2.5 text-xs text-[#e5e5e5] outline-none transition-colors placeholder:text-[#919191] focus:border-[#919191]/60"
           />
         </form>
         <button

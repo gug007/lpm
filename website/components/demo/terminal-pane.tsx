@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Code,
   Columns2,
+  Eraser,
   Globe,
   Pin,
   Rows2,
@@ -16,25 +17,33 @@ import type { LineColor, OutputLine } from "./projects";
 import type { AgentStatus } from "./agent-terminal";
 import { useStickToBottom } from "./use-stick-to-bottom";
 import { AddTabSplitButton } from "./tab-controls";
+import { IconBtn } from "./icon-btn";
+import { Tooltip } from "./tooltip";
 import { FOCUS_RING } from "./ui";
 
 
+// Partial so a status added to AgentStatus can't break the header; "waiting" is
+// listed ahead of that because the app's HeaderTab already styles it.
 const STATUS_LABEL_CLASS: Record<AgentStatus, string> = {
   running: "sidebar-shimmer",
+  waiting: "sidebar-waiting",
   done: "text-[#60a5fa]",
+  error: "text-[#f87171]",
 };
 
 const MAX_LINES = 140;
 const LOOP_START_DELAY_MS = 800;
 
+// The bright half of the xterm palette the app ships (terminal-colors.ts), on
+// the app's #cccccc default foreground.
 const COLOR_CLASS: Record<LineColor, string> = {
-  default: "text-gray-100",
-  muted: "text-gray-400",
-  green: "text-emerald-400",
-  cyan: "text-cyan-300",
-  yellow: "text-amber-300",
-  red: "text-red-400",
-  magenta: "text-fuchsia-300",
+  default: "text-[#cccccc]",
+  muted: "text-[#8e8e8e]",
+  green: "text-[#5ffa68]",
+  cyan: "text-[#60fdff]",
+  yellow: "text-[#fffc67]",
+  red: "text-[#ff6e67]",
+  magenta: "text-[#ff77ff]",
 };
 
 export type TabInfo = {
@@ -52,6 +61,7 @@ export type TabInfo = {
 type PaneHeaderProps = {
   tabs: TabInfo[];
   activeIdx: number;
+  focused?: boolean;
   onSelectTab: (idx: number) => void;
   onCloseTab: (idx: number) => void;
   onNewTab?: () => void;
@@ -60,12 +70,15 @@ type PaneHeaderProps = {
   onOpenPort: (port: number) => void;
   onSplitRight?: () => void;
   onSplitDown?: () => void;
+  onClear?: () => void;
+  onClosePane?: () => void;
   onTabContextMenu?: (idx: number, x: number, y: number) => void;
 };
 
 export function PaneHeader({
   tabs,
   activeIdx,
+  focused = true,
   onSelectTab,
   onCloseTab,
   onNewTab,
@@ -74,107 +87,135 @@ export function PaneHeader({
   onOpenPort,
   onSplitRight,
   onSplitDown,
+  onClear,
+  onClosePane,
   onTabContextMenu,
 }: PaneHeaderProps) {
+  // Only a split tree has a pane worth singling out, so the cyan focus edge
+  // rides on the close control the split also brings.
+  const canClose = !!onClosePane;
   return (
-    <div className="flex-shrink-0 flex items-center gap-0.5 bg-[#2d2d2d] px-1.5 py-1">
+    <div
+      className={`flex-shrink-0 flex items-center gap-0.5 border-b bg-[#2d2d2d] px-2 py-1 ${
+        focused && canClose
+          ? "border-b-[#22d3ee]"
+          : "border-b-[rgba(255,255,255,0.06)]"
+      }`}
+    >
       <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
           const port = tab.port;
-          const closable = tab.closable !== false;
+          const pinned = tab.pinned === true;
+          const closable = tab.closable !== false && !pinned;
           const canContext = tab.type !== "service" && tab.type !== "all";
           const onContext = (e: MouseEvent) => {
             if (!canContext || !onTabContextMenu) return;
             e.preventDefault();
             onTabContextMenu(i, e.clientX, e.clientY);
           };
-          // The close control is revealed on hover, and on the active tab so it
-          // stays reachable without a pointer that can hover (touch).
-          const revealFlex = active ? "flex" : "hidden group-hover:flex";
-          const revealBlock = active ? "block" : "hidden group-hover:block";
+          // The tab icon gives way to the close (or pin) affordance on hover
+          // rather than sitting beside it, so the pill never changes width.
+          const hasHoverIcon = closable || pinned;
           return (
             <div
               key={tab.key}
+              // The app's pill is a single <button>; here it stays a div so the
+              // close and port controls inside it remain real buttons.
+              role="button"
+              tabIndex={0}
+              aria-current={active ? "true" : undefined}
               onClick={() => onSelectTab(i)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" && e.key !== " ") return;
+                e.preventDefault();
+                onSelectTab(i);
+              }}
               onContextMenu={onContext}
-              className={`group flex min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors ${
+              className={`group flex h-6 max-w-[150px] min-w-0 cursor-pointer select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${FOCUS_RING} ${
                 active
-                  ? "bg-white/[0.1] text-[#d4d4d4]"
-                  : "text-[#a0a0a0] hover:bg-white/[0.04] hover:text-[#d4d4d4]"
+                  ? "bg-[#3c3c3c] text-[#e5e5e5] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09),0_1px_2px_rgba(0,0,0,0.25)]"
+                  : "text-[#8e8e8e] hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5]"
               }`}
             >
-              <span className="flex shrink-0 items-center justify-center gap-1">
+              <span className="flex shrink-0 items-center">
                 <span
                   aria-hidden="true"
-                  className={`items-center justify-center ${
-                    active || !closable ? "flex" : "flex group-hover:hidden"
-                  }`}
+                  className={`flex items-center transition-opacity ${
+                    active ? "opacity-90" : "opacity-60 group-hover:opacity-80"
+                  } ${hasHoverIcon ? "group-hover:hidden" : ""}`}
                 >
                   {tab.type === "all" ? (
-                    <Columns2 className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                    <Columns2 className="h-3.5 w-3.5" />
                   ) : tab.type === "service" ? (
                     <Zap
-                      className={`w-3 h-3 ${tab.running ? "text-emerald-400" : "text-[#8e8e8e]"}`}
+                      className={`h-3.5 w-3.5 ${tab.running ? "text-[#4ade80]" : ""}`}
                       strokeWidth={2}
                       fill={tab.running ? "currentColor" : "none"}
                     />
                   ) : tab.type === "browser" ? (
-                    <Globe className="w-3.5 h-3.5 text-[#8e8e8e]" />
+                    <Globe className="h-3.5 w-3.5" />
                   ) : tab.type === "review" ? (
-                    <Code className="w-3 h-3 text-[#8e8e8e]" />
+                    <Code className="h-3.5 w-3.5" />
                   ) : tab.emoji ? (
                     <span className="text-[12px] leading-none">{tab.emoji}</span>
                   ) : (
-                    <TerminalIcon className="w-3 h-3 text-[#8e8e8e]" />
+                    <TerminalIcon className="h-3.5 w-3.5" />
                   )}
                 </span>
-                {!closable ? null : tab.pinned ? (
-                  <Pin
-                    aria-hidden="true"
-                    className={`w-3 h-3 text-[#8e8e8e] ${revealBlock}`}
-                    fill="currentColor"
-                  />
-                ) : (
+                {pinned ? (
+                  <Tooltip
+                    content="Pinned (right-click to unpin)"
+                    side="bottom"
+                    triggerClassName="hidden group-hover:inline-flex"
+                  >
+                    <Pin aria-hidden="true" className="h-3.5 w-3.5" fill="currentColor" />
+                  </Tooltip>
+                ) : closable ? (
+                  <Tooltip
+                    content="Close  ·  ⌘W"
+                    side="bottom"
+                    triggerClassName="hidden group-hover:inline-flex"
+                  >
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseTab(i);
+                      }}
+                      aria-label={`Close ${tab.label}`}
+                      className={`flex items-center rounded transition-colors hover:text-[#f87171] ${FOCUS_RING}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </Tooltip>
+                ) : null}
+              </span>
+              <span
+                className={`min-w-0 truncate ${
+                  (tab.status && STATUS_LABEL_CLASS[tab.status]) || ""
+                }`}
+              >
+                {tab.label}
+              </span>
+              {port !== undefined && (
+                <Tooltip
+                  content={`Preview localhost:${port}`}
+                  side="bottom"
+                  triggerClassName="inline-flex shrink-0"
+                >
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onCloseTab(i);
+                      onOpenPort(port);
                     }}
-                    aria-label={`Close ${tab.label}`}
-                    title="Close (⌘W)"
-                    className={`items-center justify-center rounded text-[#8e8e8e] transition-colors hover:text-gray-100 ${revealFlex} ${FOCUS_RING}`}
+                    aria-label={`Preview localhost:${port} in a browser tab`}
+                    className={`rounded font-mono text-[10px] tabular-nums opacity-60 transition-opacity hover:opacity-100 ${FOCUS_RING}`}
                   >
-                    <X className="w-3 h-3" />
+                    :{port}
                   </button>
-                )}
-              </span>
-              <button
-                type="button"
-                aria-current={active ? "true" : undefined}
-                className={`flex min-w-0 items-center gap-1.5 rounded-sm text-left ${FOCUS_RING}`}
-              >
-                <span
-                  className={`font-mono text-[11px] font-medium truncate ${
-                    tab.status ? STATUS_LABEL_CLASS[tab.status] : ""
-                  }`}
-                >
-                  {tab.label}
-                </span>
-              </button>
-              {port !== undefined && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenPort(port);
-                  }}
-                  title={`Preview localhost:${port} in a browser tab`}
-                  className={`shrink-0 rounded font-mono text-[10px] tabular-nums text-[#8e8e8e] transition-colors hover:text-cyan-300 ${FOCUS_RING}`}
-                >
-                  :{port}
-                </button>
+                </Tooltip>
               )}
             </div>
           );
@@ -187,28 +228,36 @@ export function PaneHeader({
           />
         )}
       </div>
-      {onSplitRight && (
-        <button
-          type="button"
-          onClick={onSplitRight}
-          aria-label="Split right"
-          title="Split right"
-          className="hidden sm:inline-flex rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-        >
-          <Columns2 className="w-3 h-3" />
-        </button>
-      )}
-      {onSplitDown && (
-        <button
-          type="button"
-          onClick={onSplitDown}
-          aria-label="Split down"
-          title="Split down"
-          className="hidden sm:inline-flex rounded-md px-1.5 py-0.5 text-[#8e8e8e] hover:bg-white/[0.08] hover:text-gray-100 transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-        >
-          <Rows2 className="w-3 h-3" />
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-0.5">
+        {onSplitRight && (
+          <Tooltip content="Split right  ·  ⌘D" side="bottom">
+            <IconBtn onClick={onSplitRight} ariaLabel="Split right">
+              <Columns2 />
+            </IconBtn>
+          </Tooltip>
+        )}
+        {onSplitDown && (
+          <Tooltip content="Split down  ·  ⌘⇧D" side="bottom">
+            <IconBtn onClick={onSplitDown} ariaLabel="Split down">
+              <Rows2 />
+            </IconBtn>
+          </Tooltip>
+        )}
+        {onClear && (
+          <Tooltip content="Clear  ·  ⌘K" side="bottom">
+            <IconBtn onClick={onClear} ariaLabel="Clear">
+              <Eraser />
+            </IconBtn>
+          </Tooltip>
+        )}
+        {onClosePane && (
+          <Tooltip content="Close pane" side="bottom">
+            <IconBtn onClick={onClosePane} ariaLabel="Close pane">
+              <X />
+            </IconBtn>
+          </Tooltip>
+        )}
+      </div>
     </div>
   );
 }
@@ -223,15 +272,22 @@ export function ServiceLabelBar({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={`Open ${label} tab`}
-      className={`group flex shrink-0 items-center gap-1 border-b border-[#2e2e2e] bg-[#2d2d2d] px-3 py-0.5 text-left font-mono text-[10px] font-medium text-[#8e8e8e] transition-colors hover:text-[#d4d4d4] ${FOCUS_RING}`}
-    >
-      <span className="truncate">{label}</span>
-      <ChevronRight className="w-3 h-3 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
-    </button>
+    <div className="flex shrink-0 items-center justify-between gap-1 border-b border-[rgba(255,255,255,0.06)] bg-[#2d2d2d] px-3 py-0.5 font-mono text-[10px] font-medium text-[#8e8e8e]">
+      <Tooltip
+        content={`Open ${label} tab`}
+        side="bottom"
+        triggerClassName="flex min-w-0 flex-1"
+      >
+        <button
+          type="button"
+          onClick={onClick}
+          className={`group -ml-1 flex min-w-0 flex-1 items-center gap-1 rounded px-1 text-left transition-colors hover:text-[#e5e5e5] ${FOCUS_RING}`}
+        >
+          <span className="truncate">{label}</span>
+          <ChevronRight className="h-3 w-3 shrink-0 opacity-50 transition-opacity group-hover:opacity-100" />
+        </button>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -279,7 +335,7 @@ export function StreamingOutput({ output, loop }: StreamingOutputProps) {
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-[#1a1a1a]"
+      className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[12px] leading-[1.3] bg-[#1a1a1a]"
     >
       {lines.map((line, i) => (
         <div
@@ -289,9 +345,9 @@ export function StreamingOutput({ output, loop }: StreamingOutputProps) {
           {line.text || " "}
         </div>
       ))}
-      <div className="flex items-center text-gray-100">
-        <span className="text-gray-500 mr-1">&gt;</span>
-        <span className="inline-block w-[7px] h-3.5 bg-gray-100 animate-pulse" />
+      <div className="flex items-center text-[#cccccc]">
+        <span className="mr-1 text-[#8e8e8e]">&gt;</span>
+        <span className="inline-block h-3.5 w-[7px] animate-pulse bg-[#cccccc]" />
       </div>
     </div>
   );

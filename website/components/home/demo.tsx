@@ -8,7 +8,14 @@ import { AutoVideo } from "@/components/auto-video";
 import { useInView } from "@/components/config/playground/hooks";
 import { MOBILE_PATH } from "@/lib/links";
 
-const DEMO_HEIGHT_DESKTOP = "min(560px, 70vh)";
+// A real lpm window is 960×640; the stage is capped at 1040px wide (see
+// DemoStage) so the demo keeps the app's 3:2 proportions instead of squatting.
+const DEMO_HEIGHT_DESKTOP = "min(694px, 76vh)";
+
+// Same recipe as the macOS windows in before-after-window.tsx: the edge comes
+// from a ring, the depth from a layered shadow.
+const WINDOW_FRAME =
+  "overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/[0.16] shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)]";
 
 const DemoApp = dynamic(
   () => import("@/components/demo/demo-app").then((m) => m.DemoApp),
@@ -21,7 +28,7 @@ const DemoApp = dynamic(
 function DemoPlaceholder() {
   return (
     <div
-      className="relative overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] bg-[#1a1a1a] h-[var(--demo-h)]"
+      className={`relative h-[var(--demo-h)] ${WINDOW_FRAME}`}
       style={{ "--demo-h": DEMO_HEIGHT_DESKTOP } as React.CSSProperties}
     >
       <Image
@@ -29,10 +36,13 @@ function DemoPlaceholder() {
         alt="lpm project view on macOS: a sidebar of projects, one-click agent buttons in the header, and a Claude Code session running in a terminal tab"
         width={1224}
         height={754}
-        className="h-full w-full object-cover"
+        // contain, not cover: the frame's 3:2 is narrower than the 1224x754
+        // screenshot, and cropping it takes the traffic lights and the sidebar
+        // labels off the sides — the two things that say "this is a Mac app".
+        className="h-full w-full object-contain"
       />
       <div className="absolute inset-x-0 bottom-0 flex justify-center pb-3">
-        <span className="rounded-full bg-black/60 px-3 py-1 text-[11px] text-gray-300">
+        <span className="rounded-full bg-black/60 px-3 py-1 text-[11px] text-[#b3b3b3]">
           Loading demo…
         </span>
       </div>
@@ -42,10 +52,7 @@ function DemoPlaceholder() {
 
 function DesktopOnlyPrompt() {
   return (
-    <div
-      data-on-dark
-      className="overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] bg-[#1a1a1a] shadow-2xl shadow-gray-200/60 dark:shadow-black/60"
-    >
+    <div data-on-dark className={WINDOW_FRAME}>
       <AutoVideo
         src="/screenrecording/start-project-claude.mp4"
         poster="/screenrecording/start-project-claude-poster.jpg"
@@ -59,7 +66,7 @@ function DesktopOnlyPrompt() {
         </p>
         <Link
           href="/#download"
-          className="rounded-lg bg-white px-4 py-2 text-[13px] font-medium text-gray-900 transition-opacity hover:opacity-85"
+          className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]"
         >
           Get lpm for Mac
         </Link>
@@ -109,7 +116,7 @@ function DemoStage() {
   }, []);
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className="mx-auto max-w-[1040px]">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
           <DesktopOnlyPrompt />

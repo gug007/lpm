@@ -29,7 +29,7 @@ export const ACTIVITY_STATE_STYLE: Record<ActivityState, { dot: string; text: st
   error: { dot: "bg-[#f87171]", text: "text-[#f87171]" },
   working: { dot: "bg-[#22d3ee]", text: "text-[#22d3ee]" },
   done: { dot: "bg-[#60a5fa]", text: "text-[#60a5fa]" },
-  idle: { dot: "bg-[#6b6b6b]", text: "text-[#919191]" },
+  idle: { dot: "bg-[#919191]", text: "text-[#919191]" },
 };
 
 const STATE_ORDER: ActivityState[] = ["needs-you", "error", "working", "done", "idle"];
@@ -37,6 +37,7 @@ const STATE_ORDER: ActivityState[] = ["needs-you", "error", "working", "done", "
 function agentState(status: AiStatus | AgentStatus): ActivityState {
   if (status === "running") return "working";
   if (status === "error") return "error";
+  if (status === "waiting") return "needs-you";
   return "done";
 }
 

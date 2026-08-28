@@ -59,6 +59,10 @@ const EMPTY_SERVICES: ReadonlySet<string> = new Set<string>();
 const EMPTY_ACTIONS: ActionTerminalMap = {};
 const EMPTY_STATUS: Record<string, AgentTabState> = {};
 
+// What a project's row reports when its tabs disagree: a problem outranks a
+// question, which outranks work still in flight.
+const ROLLUP_ORDER: AiStatus[] = ["error", "waiting", "running", "done"];
+
 type AutoCursorState =
   | { phase: "hidden" }
   | { phase: "travel"; x: number; y: number }
@@ -71,6 +75,14 @@ function initialGitState(projects: DemoProject[]): Record<string, DemoGit> {
     if (p.git) out[p.name] = { ...p.git, branches: [...p.git.branches] };
   }
   return out;
+}
+
+// A visitor's first frame has to be the product, not an empty room: every
+// project boots the way its owner left it — default profile up, agent open.
+function initialRunningState(
+  projects: DemoProject[],
+): Record<string, Set<string>> {
+  return Object.fromEntries(projects.map((p) => [p.name, new Set<string>()]));
 }
 
 function initialTreeState(
@@ -184,7 +196,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [selected, setSelected] = useState<string>(INITIAL_PROJECTS[0].name);
   const [runningByProject, setRunningByProject] = useState<
     Record<string, Set<string>>
-  >(() => Object.fromEntries(INITIAL_PROJECTS.map((p) => [p.name, new Set()])));
+  >(() => initialRunningState(INITIAL_PROJECTS));
   const [gitByProject, setGitByProject] = useState<Record<string, DemoGit>>(
     () => initialGitState(INITIAL_PROJECTS),
   );
@@ -211,10 +223,10 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [autoCursor, setAutoCursor] = useState<AutoCursorState>({
     phase: "hidden",
   });
-  const [ringPulseOn, setRingPulseOn] = useState(false);
   const [hint, setHint] = useState<HintStage>("invite");
   const [isInView, setIsInView] = useState(false);
   const [glowActive, setGlowActive] = useState(false);
+  const [ringPulseOn, setRingPulseOn] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startButtonRef = useRef<HTMLButtonElement | null>(null);
   const agentButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -223,7 +235,6 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
 
   const markInteracted = () => {
     setAutoCursor({ phase: "hidden" });
-    setRingPulseOn(false);
     setHint("hidden");
   };
 
@@ -435,9 +446,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     for (const p of projects) {
       const tabs = Object.values(agentTabStatusByProject[p.name] ?? {});
       if (tabs.length) {
-        out[p.name] = tabs.some((t) => t.status === "running")
-          ? "running"
-          : "done";
+        out[p.name] =
+          ROLLUP_ORDER.find((s) => tabs.some((t) => t.status === s)) ?? "done";
       } else if (aiStatusByProject[p.name]) {
         out[p.name] = aiStatusByProject[p.name];
       }
@@ -446,6 +456,29 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       sidebarStatus: out,
       hasAgentError: Object.values(out).includes("error"),
     };
+  }, [projects, agentTabStatusByProject, aiStatusByProject]);
+
+  // The real sidebar lists every project's agents, not just the open one's —
+  // that overview is the point of it. A project this visit has never opened has
+  // no live tabs to read, so its seeded status stands in for the session it
+  // would be holding.
+  const sidebarAgentTabs = useMemo(() => {
+    const out: Record<string, Record<string, AgentTabState>> = {};
+    for (const p of projects) {
+      const live = agentTabStatusByProject[p.name];
+      if (live && Object.keys(live).length) {
+        out[p.name] = live;
+        continue;
+      }
+      const seeded = aiStatusByProject[p.name];
+      const action = p.actions.find((a) => a.name === p.autoStart);
+      if (seeded && action) {
+        out[p.name] = {
+          [`${action.name}-seed`]: { label: action.label, status: seeded },
+        };
+      }
+    }
+    return out;
   }, [projects, agentTabStatusByProject, aiStatusByProject]);
 
   // Every visited project stays mounted, so its handlers must bind to a name
@@ -597,12 +630,17 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     setAdding(false);
   };
 
-  // A pill that never leaves reads as chrome rather than a prompt.
+  // A pill that never leaves reads as chrome rather than a prompt. The clock
+  // only runs while the frame is on screen, so a visitor who scrolls past and
+  // comes back still gets the hint.
   useEffect(() => {
-    if (hint !== "next") return;
-    const id = window.setTimeout(() => setHint("hidden"), 24000);
+    if (hint === "hidden" || !isInView) return;
+    const id = window.setTimeout(
+      () => setHint("hidden"),
+      hint === "next" ? 8000 : 12000,
+    );
     return () => window.clearTimeout(id);
-  }, [hint]);
+  }, [hint, isInView]);
 
   const hidden = hint === "hidden" || !isInView;
 
@@ -612,8 +650,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       data-on-dark
       onPointerDownCapture={markInteracted}
       onKeyDownCapture={markInteracted}
-      className={`replica-ui relative flex overflow-hidden rounded-xl border border-gray-200 dark:border-[#2e2e2e] shadow-2xl shadow-gray-200/60 dark:shadow-black/60 bg-[#1a1a1a] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
-        glowActive ? "ring-2 ring-emerald-500/30" : "ring-0 ring-transparent"
+      className={`replica-ui relative flex overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
+        glowActive ? "ring-[#4ade80]/40" : "ring-white/[0.16]"
       }`}
       style={
         {
@@ -630,6 +668,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         onSelect={selectProject}
         runningByProject={runningByProject}
         aiStatusByProject={sidebarStatus}
+        agentTabStatusByProject={sidebarAgentTabs}
         onAddProject={() => setAdding(true)}
         onOpenView={setView}
         usageSettings={usageSettings}
@@ -697,7 +736,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
                   onAddAction={(input) => handleAddAction(p.name, input)}
                   startButtonRef={active ? startButtonRef : undefined}
                   agentButtonRef={active ? agentButtonRef : undefined}
-                  startRingPulse={active && ringPulseOn}                />
+                  startRingPulse={active && ringPulseOn}
+                />
               </div>
             );
           })}
@@ -726,12 +766,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         >
           <div className="relative">
             {autoCursor.phase === "tap" && (
-              <span className="auto-cursor-tap absolute -left-2 -top-2 h-9 w-9 rounded-full border-2 border-indigo-300/70 bg-indigo-300/20" />
+              <span className="auto-cursor-tap absolute -left-2 -top-2 h-9 w-9 rounded-full border-2 border-[#60a5fa]/70 bg-[#60a5fa]/20" />
             )}
             <MousePointer2
-              className="relative h-5 w-5 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+              className="relative h-5 w-5 text-[#e5e5e5] drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
               strokeWidth={1.75}
-              fill="white"
+              fill="#e5e5e5"
             />
           </div>
         </div>
@@ -741,23 +781,20 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         role="status"
         aria-live="polite"
         aria-hidden={hidden}
-        className={`pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3 sm:pb-6 transition-all duration-500 ${
-          hidden
-            ? "translate-y-2 opacity-0"
-            : "translate-y-0 opacity-100 motion-safe:animate-bounce-soft"
+        className={`pointer-events-none absolute right-3 top-16 z-30 max-w-[260px] transition-all duration-500 ${
+          hidden ? "-translate-y-1 opacity-0" : "translate-y-0 opacity-100"
         }`}
       >
-        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/75 px-3.5 py-1.5 text-[11px] sm:text-[12px] font-medium text-white shadow-2xl backdrop-blur-md">
+        <div className="flex items-start gap-2 rounded-2xl border border-white/15 bg-black/75 px-3.5 py-1.5 text-[11px] sm:text-[12px] font-medium leading-snug text-[#e5e5e5] shadow-2xl backdrop-blur-md">
           <MousePointer2
-            className="h-3.5 w-3.5 text-indigo-300 shrink-0"
+            className="h-3.5 w-3.5 text-[#60a5fa] shrink-0"
             strokeWidth={2.25}
           />
           {hint === "next" ? (
             <>
               <span className="sm:hidden">Claude is working — tap around</span>
               <span className="hidden sm:inline">
-                Claude keeps working while you switch projects — try
-                auth-service.
+                Claude keeps working — try auth-service.
               </span>
             </>
           ) : (

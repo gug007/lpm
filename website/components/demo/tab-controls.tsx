@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
+import { Tooltip } from "./tooltip";
+import { FOCUS_RING, PRESS } from "./ui";
 import {
   ChevronDown,
   Code,
@@ -19,6 +21,9 @@ export const SUGGESTED_EMOJIS = [
   "🎯", "🏆", "📈", "🧪", "🚢", "🔨", "🗄️", "🌐",
   "📦", "🛠️", "💻", "🎨", "⭐", "💡", "📁", "📊",
 ];
+
+const MENU_PANEL_CLASS =
+  "menu-pop fixed z-[70] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] py-1 shadow-lg";
 
 /** The "+" new-tab control, now a split button: terminal by default, with a
  *  dropdown for opening an in-pane browser. Mirrors the desktop app. */
@@ -43,42 +48,43 @@ export function AddTabSplitButton({
     if (r) setMenu({ x: r.left, y: r.bottom + 4 });
   };
 
-  const half =
-    "flex items-center py-0.5 text-[#a0a0a0] transition-colors hover:bg-white/[0.08] hover:text-gray-100";
+  const half = `flex h-6 items-center justify-center rounded-md text-[#8e8e8e] hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`;
 
   return (
-    <div
-      ref={ref}
-      className="ml-1 flex shrink-0 items-center rounded-md bg-white/[0.04]"
-    >
-      <button
-        type="button"
-        onClick={onAddTerminal}
-        title="New terminal"
-        aria-label="New terminal"
-        className={`${half} rounded-l-md pl-2 pr-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70`}
-      >
-        <Plus className="h-3 w-3" />
-      </button>
-      <span className="h-3 w-px self-center bg-white/15" />
-      <button
-        type="button"
-        onClick={toggle}
-        title="More options"
-        aria-haspopup="menu"
-        aria-expanded={!!menu}
-        className={`${half} rounded-r-md px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
-          menu ? "bg-white/[0.1] text-gray-100" : "opacity-70 hover:opacity-100"
-        }`}
-      >
-        <ChevronDown className="h-2.5 w-2.5" />
-      </button>
+    <div ref={ref} className="ml-1.5 flex shrink-0 items-center gap-px">
+      <Tooltip content="New terminal  ·  ⌘T" side="bottom">
+        <button
+          type="button"
+          onClick={onAddTerminal}
+          aria-label="New terminal"
+          className={`${half} px-1.5`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </Tooltip>
+      <span className="h-3 w-px shrink-0 bg-[rgba(255,255,255,0.09)]" />
+      <Tooltip content="More options" side="bottom">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label="More options"
+          aria-haspopup="menu"
+          aria-expanded={!!menu}
+          className={`${half} px-1 ${
+            menu
+              ? "bg-[rgba(255,255,255,0.1)] text-[#e5e5e5]"
+              : "opacity-70 hover:opacity-100"
+          }`}
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </Tooltip>
       {menu && (
         <MenuLayer onClose={() => setMenu(null)}>
           <div
             role="menu"
-            style={{ left: menu.x, top: menu.y }}
-            className="fixed z-[70] min-w-[180px] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
+            style={{ left: menu.x, top: menu.y, minWidth: 180 }}
+            className={MENU_PANEL_CLASS}
           >
             <MenuButton
               icon={<Code className="h-3.5 w-3.5" />}
@@ -111,6 +117,7 @@ export function TabContextMenu({
   onRename,
   onTogglePin,
   onCloseTab,
+  onCloseOthers,
   onDismiss,
 }: {
   x: number;
@@ -119,6 +126,7 @@ export function TabContextMenu({
   onRename: () => void;
   onTogglePin: () => void;
   onCloseTab: () => void;
+  onCloseOthers?: () => void;
   onDismiss: () => void;
 }) {
   const run = (fn: () => void) => () => {
@@ -129,8 +137,8 @@ export function TabContextMenu({
     <MenuLayer onClose={onDismiss}>
       <div
         role="menu"
-        style={{ left: x, top: y }}
-        className="fixed z-[70] min-w-[150px] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
+        style={{ left: x, top: y, minWidth: 160 }}
+        className={MENU_PANEL_CLASS}
       >
         <MenuButton
           icon={<Pencil className="h-3.5 w-3.5" />}
@@ -145,9 +153,18 @@ export function TabContextMenu({
         <MenuButton
           icon={<X className="h-3.5 w-3.5" />}
           label="Close"
+          hint="⌘W"
           danger
           onClick={run(onCloseTab)}
         />
+        {onCloseOthers && (
+          <MenuButton
+            icon={<X className="h-3.5 w-3.5" />}
+            label="Close Other Tabs"
+            danger
+            onClick={run(onCloseOthers)}
+          />
+        )}
       </div>
     </MenuLayer>
   );
@@ -248,7 +265,7 @@ function TabRenameForm({
               onChange={(e) => setValue(e.target.value)}
               aria-label="Tab name"
               {...NO_AUTOFILL}
-              className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-cyan-500 ${
+              className={`w-full rounded-lg border border-[#2e2e2e] bg-transparent py-2.5 text-base text-[#e5e5e5] outline-none transition-colors placeholder:text-[#919191] focus:border-[#22d3ee] ${
                 withEmoji ? "pl-12 pr-3" : "px-3"
               }`}
             />
@@ -271,14 +288,14 @@ function TabRenameForm({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#919191] transition-colors hover:text-[#e5e5e5]"
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium text-[#919191] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!canSubmit}
-            className="rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-gray-900 transition-opacity hover:opacity-85 disabled:opacity-30"
+            className={`rounded-lg bg-[#e5e5e5] px-4 py-1.5 text-sm font-medium text-[#1a1a1a] hover:opacity-85 disabled:opacity-30 ${PRESS} ${FOCUS_RING}`}
           >
             Save
           </button>
@@ -366,22 +383,22 @@ export function EmojiPickerField({
       <button
         type="button"
         onClick={() => setPicking((v) => !v)}
-        title="Pick an icon"
-        className="absolute left-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#2e2e2e] bg-[#242424] text-[15px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a]"
+        aria-label="Pick an icon"
+        className={`absolute left-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg border border-[#2e2e2e] bg-[#242424] text-[15px] text-[#b3b3b3] hover:bg-[#2a2a2a] ${PRESS} ${FOCUS_RING}`}
       >
         {emoji || <TerminalIcon className="h-4 w-4" />}
       </button>
       {children}
       {picking && (
-        <div className="absolute left-0 top-full z-10 mt-1.5 w-full rounded-xl border border-[#2e2e2e] bg-[#242424] p-2 shadow-xl">
+        <div className="menu-pop absolute left-0 top-full z-10 mt-1.5 w-full rounded-xl border border-[#2e2e2e] bg-[#242424] p-2 shadow-2xl">
           <div className="grid grid-cols-8 gap-0.5">
             {SUGGESTED_EMOJIS.map((em) => (
               <button
                 key={em}
                 type="button"
                 onClick={() => pick(em)}
-                className={`flex aspect-square items-center justify-center rounded-md text-lg transition-colors hover:bg-[#2f2f2f] ${
-                  emoji === em ? "bg-[#2f2f2f]" : ""
+                className={`flex aspect-square items-center justify-center rounded-md text-lg transition-colors hover:bg-[#2a2a2a] ${
+                  emoji === em ? "bg-[#2a2a2a]" : ""
                 }`}
               >
                 {em}
@@ -422,13 +439,13 @@ function MenuButton({
       role="menuitem"
       onClick={onClick}
       className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[#2a2a2a] ${
-        danger ? "text-red-400 hover:text-red-300" : "text-[#b3b3b3] hover:text-[#e5e5e5]"
+        danger ? "text-[#f87171]" : "text-[#b3b3b3] hover:text-[#e5e5e5]"
       }`}
     >
       <span className="shrink-0 text-[#919191]">{icon}</span>
       <span className="flex-1 truncate">{label}</span>
       {hint && (
-        <span className="shrink-0 font-mono text-[10px] text-[#8a8a8a]">{hint}</span>
+        <span className="shrink-0 font-mono text-[10px] text-[#919191]">{hint}</span>
       )}
     </button>
   );

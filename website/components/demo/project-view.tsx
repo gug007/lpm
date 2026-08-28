@@ -9,18 +9,12 @@ import {
 } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
 import { useStickToBottom } from "./use-stick-to-bottom";
-import {
-  ChevronDown,
-  Globe,
-  Plus,
-  Terminal,
-} from "lucide-react";
+import { Globe, Terminal } from "lucide-react";
 import type {
   DemoAction,
   DemoBranch,
   DemoGit,
   DemoProject,
-  DemoService,
 } from "./projects";
 import {
   PaneHeader,
@@ -37,6 +31,10 @@ import { TabContextMenu, TabRenameModal } from "./tab-controls";
 import { AppTip } from "./app-tip";
 import { OpenInDropdown } from "./open-in-dropdown";
 import { ReviewView } from "./review-view";
+import { actionButtonStyle } from "./action-colors";
+import { CreateActionButton } from "./create-action-button";
+import { StartControl } from "./start-control";
+import { FOCUS_RING, PRESS } from "./ui";
 import {
   type LeafContent,
   type PaneLeaf,
@@ -54,6 +52,7 @@ import {
   newBrowserContent,
   newReviewContent,
   newShellContent,
+  removeLeaf,
   setActiveTab,
   setRatioAtPath,
   splitAtLeaf,
@@ -121,8 +120,10 @@ type ProjectViewProps = {
   onGitDeleteBranch: (name: string) => void;
   onGitRemoveRemote: (branch: DemoBranch) => void;
   onAddAction: (input: NewActionInput) => void;
+  // The opening tour mimes clicks on Start and then on the agent action, so it
+  // needs a handle on both buttons; only the visible project gets them.
   startButtonRef?: React.Ref<HTMLButtonElement>;
-  agentButtonRef?: React.Ref<HTMLButtonElement>;
+  agentButtonRef?: React.RefObject<HTMLButtonElement | null>;
   startRingPulse?: boolean;
 };
 
@@ -179,6 +180,8 @@ export function DemoProjectView({
     leafId: string;
     tabIdx: number;
   } | null>(null);
+  const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
+  const closeStart = useCallback(() => setStartOpen(false), []);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -332,11 +335,10 @@ export function DemoProjectView({
   };
 
   const handleSplit = (paneId: string, direction: SplitDirection) => {
-    setTree((prev) =>
-      prev
-        ? splitAtLeaf(prev, paneId, direction, makeLeaf(newShellContent(prev)))
-        : prev,
-    );
+    if (!tree) return;
+    const leaf = makeLeaf(newShellContent(tree));
+    setFocusedLeafId(leaf.id);
+    setTree((prev) => (prev ? splitAtLeaf(prev, paneId, direction, leaf) : prev));
   };
 
   // Keeps the tab strip and the running set in step: the service tabs are
@@ -384,6 +386,11 @@ export function DemoProjectView({
     setTree((prev) => (prev ? closeTabInLeaf(prev, leafId, tabIdx) : prev));
   };
 
+  const handleClosePane = (leafId: string) => {
+    setTree((prev) => (prev ? removeLeaf(prev, leafId) : prev));
+    setFocusedLeafId((id) => (id === leafId ? null : id));
+  };
+
   const handleSelectTab = (leafId: string, tabIdx: number) => {
     setTree((prev) => (prev ? setActiveTab(prev, leafId, tabIdx) : prev));
   };
@@ -426,6 +433,11 @@ export function DemoProjectView({
     setStartOpen(false);
   };
 
+  // A pane only reads as "focused" once there is another pane to contrast it
+  // with, which is the same gate the app puts on its underline.
+  const leaves = collectLeaves(tree);
+  const focusedPaneId = leaves.length > 1 ? focusedLeafId ?? leaves[0].id : null;
+
   return (
     <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
       <Header
@@ -434,7 +446,7 @@ export function DemoProjectView({
         headerActions={headerActions}
         startOpen={startOpen}
         onToggleStart={() => setStartOpen((v) => !v)}
-        onCloseStart={() => setStartOpen(false)}
+        onCloseStart={closeStart}
         onStartStop={handleStartStop}
         onStartProfile={handleStartProfile}
         onToggleService={handleToggleService}
@@ -469,6 +481,9 @@ export function DemoProjectView({
             onResizeEnd={handleResizeEnd}
             agentTabStatus={agentTabStatus}
             onAgentTabStatus={handleAgentStatus}
+            focusedLeafId={focusedPaneId}
+            onFocusPane={setFocusedLeafId}
+            onClosePane={leaves.length > 1 ? handleClosePane : undefined}
           />
         </div>
       ) : (
@@ -585,6 +600,9 @@ type PaneLayoutProps = {
   onResizeEnd: () => void;
   agentTabStatus: Record<string, AgentTabState>;
   onAgentTabStatus: (tabKey: string, label: string, status: AgentStatus) => void;
+  focusedLeafId: string | null;
+  onFocusPane: (leafId: string) => void;
+  onClosePane?: (leafId: string) => void;
 };
 
 function PaneLayout(props: PaneLayoutProps) {
@@ -723,6 +741,9 @@ function Leaf({
   onTabContextMenu,
   agentTabStatus,
   onAgentTabStatus,
+  focusedLeafId,
+  onFocusPane,
+  onClosePane,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
   const ctx: LeafContext = {
     project,
@@ -738,8 +759,12 @@ function Leaf({
   const allActive = leaf.tabs[leaf.activeTabIdx]?.kind === "all";
   const servicesVisible = allActive || serviceIdxs.includes(leaf.activeTabIdx);
   return (
-    <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden">
+    <div
+      onMouseDownCapture={() => onFocusPane(leaf.id)}
+      className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden border-x border-t border-[#2e2e2e]"
+    >
       <PaneHeader
+        focused={focusedLeafId === leaf.id}
         tabs={resolved.map((r) => r.info)}
         activeIdx={leaf.activeTabIdx}
         onSelectTab={(i) => onSelectTab(leaf.id, i)}
@@ -753,6 +778,7 @@ function Leaf({
         onTabContextMenu={(i, x, y) => onTabContextMenu(leaf.id, i, x, y)}
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}
+        onClosePane={onClosePane ? () => onClosePane(leaf.id) : undefined}
       />
       <div className="relative flex-1 min-h-0">
         {serviceIdxs.length > 0 && (
@@ -873,8 +899,8 @@ function SplitView(
       <div
         onPointerDown={onDividerDown}
         style={{ touchAction: "none" }}
-        className={`shrink-0 bg-[#2d2d2d] hover:bg-[#4a4a4a] transition-colors ${
-          isRow ? "w-[3px] cursor-col-resize" : "h-[3px] cursor-row-resize"
+        className={`shrink-0 bg-[#1e1e1e] bg-clip-content transition-colors hover:bg-[#22d3ee] ${
+          isRow ? "w-[7px] px-[2px] cursor-col-resize" : "h-[7px] py-[2px] cursor-row-resize"
         }`}
       />
       <div
@@ -897,45 +923,50 @@ function EmptyState({
   onOpenBrowser: () => void;
 }) {
   return (
-    <div className="relative flex flex-1 min-h-0 flex-col items-center justify-center px-8">
+    <div className="relative flex flex-1 min-h-0 flex-col items-center justify-center overflow-hidden px-8">
       <div className="pointer-events-none absolute inset-0 empty-grid" aria-hidden />
-      <div className="relative flex max-w-md flex-col items-center gap-6 text-center">
-        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] animate-icon-glow">
-          <Terminal className="h-6 w-6" strokeWidth={1.5} />
-          <span
+      <div className="relative flex max-w-sm flex-col items-center gap-5 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#2e2e2e] bg-[#2a2a2a] text-[#919191] animate-icon-glow">
+          <svg
+            width={26}
+            height={26}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
             aria-hidden
-            className="absolute bottom-3.5 right-3.5 h-2 w-[3px] bg-[#e5e5e5] animate-caret-blink"
-          />
+          >
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
         </div>
-        <div className="flex flex-col items-center gap-2">
-          <div className="text-base font-semibold tracking-tight text-[#e5e5e5]">
-            Ready when you are,{" "}
-            <span className="font-mono text-[#e5e5e5]">{projectName}</span>
-          </div>
-          <p className="max-w-xs text-xs leading-relaxed text-[#919191]">
-            Hit{" "}
-            <span className="rounded-md border border-[#2e2e2e] bg-[#242424] px-1.5 py-px font-mono text-[10px] text-[#b3b3b3]">
-              Start
-            </span>{" "}
-            to spin up services, or open a terminal to poke around.
+        <div className="flex flex-col items-center gap-1.5">
+          <h3 className="text-sm font-medium text-[#e5e5e5]">No active terminals</h3>
+          <p className="text-xs leading-relaxed text-[#919191]">
+            Open a terminal to start working on{" "}
+            <span className="font-mono">{projectName}</span>, or open a browser
+            on a running service.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onOpenTerminal}
-            className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#242424] px-4 py-2 text-xs font-medium text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] animate-cta-breath focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+            className={`flex items-center gap-2 rounded-lg bg-[#e5e5e5] px-4 py-2 text-xs font-medium text-[#1a1a1a] hover:opacity-85 animate-cta-breath ${PRESS} ${FOCUS_RING}`}
           >
             <Terminal className="h-4 w-4" strokeWidth={1.75} />
-            <span>New terminal</span>
+            New Terminal
+            <kbd className="ml-1 text-[10px] opacity-70">⌘T</kbd>
           </button>
           <button
             type="button"
             onClick={onOpenBrowser}
-            className="flex items-center gap-2 rounded-lg border border-[#2e2e2e] bg-[#1d1d1d] px-4 py-2 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#242424] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+            className={`flex items-center gap-2 rounded-lg border border-[#2e2e2e] px-4 py-2 text-xs font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
           >
             <Globe className="h-4 w-4" strokeWidth={1.75} />
-            <span>Open browser</span>
+            Open browser
           </button>
         </div>
       </div>
@@ -1018,42 +1049,34 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
       className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-[#1a1a1a]"
       onClick={() => inputRef.current?.focus()}
     >
-      <div className="text-gray-400">
+      <div className="text-[#919191]">
         lpm demo · try{" "}
-        <span className="text-emerald-400">ls</span>,{" "}
-        <span className="text-emerald-400">git status</span>,{" "}
-        <span className="text-emerald-400">help</span>
+        <span className="text-[#4ade80]">ls</span>,{" "}
+        <span className="text-[#4ade80]">git status</span>,{" "}
+        <span className="text-[#4ade80]">help</span>
       </div>
       {history.map((h, i) => (
         <div key={i}>
-          <div className="text-gray-100 whitespace-pre-wrap break-all">
-            <span className="text-cyan-300">{h.prompt}</span>
+          <div className="text-[#cccccc] whitespace-pre-wrap break-all">
+            <span className="text-[#22d3ee]">{h.prompt}</span>
             {h.input}
           </div>
           {h.output && (
-            <div className="text-gray-300 whitespace-pre-wrap">{h.output}</div>
+            <div className="text-[#b3b3b3] whitespace-pre-wrap">{h.output}</div>
           )}
         </div>
       ))}
-      <form onSubmit={onSubmit} autoComplete="off" className="flex items-center text-gray-100">
-        <span className="text-cyan-300 whitespace-pre">{prompt}</span>
+      <form onSubmit={onSubmit} autoComplete="off" className="flex items-center text-[#cccccc]">
+        <span className="text-[#22d3ee] whitespace-pre">{prompt}</span>
         <input
           ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           {...NO_AUTOFILL}
-          className="flex-1 bg-transparent outline-none text-gray-100 font-mono caret-gray-100"
+          className="flex-1 bg-transparent outline-none text-[#cccccc] font-mono caret-[#cccccc]"
         />
       </form>
-    </div>
-  );
-}
-
-function DropdownSectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="px-3 pb-1 pt-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#919191]">
-      {children}
     </div>
   );
 }
@@ -1069,11 +1092,12 @@ function HeaderActionButton({
 }) {
   return (
     <button
-      type="button"
       ref={buttonRef}
+      type="button"
       onClick={onRun}
       title={action.label}
-      className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-2.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+      style={actionButtonStyle(action.color)}
+      className={`inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2e2e2e] bg-[var(--action-tint,#242424)] px-3.5 text-xs font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
     >
       {action.emoji && (
         <span className="text-[13px] leading-none">{action.emoji}</span>
@@ -1103,7 +1127,8 @@ function FooterActionButton({
       type="button"
       onClick={onRun}
       title={action.label}
-      className="flex shrink-0 items-center gap-1 rounded-md border border-[#2e2e2e] bg-[#242424] px-2 py-1 text-[10px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+      style={actionButtonStyle(action.color)}
+      className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[rgba(204,204,204,0.18)] bg-[var(--action-tint,#262626)] px-2.5 py-1 text-[11px] font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#cccccc] ${PRESS} ${FOCUS_RING}`}
     >
       {action.emoji && (
         <span className="text-[11px] leading-none">{action.emoji}</span>
@@ -1127,7 +1152,7 @@ type HeaderProps = {
   onOpenAction: (a: DemoAction) => void;
   onAddAction: () => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
-  agentButtonRef?: React.Ref<HTMLButtonElement>;
+  agentButtonRef?: React.RefObject<HTMLButtonElement | null>;
   startRingPulse?: boolean;
 };
 
@@ -1149,24 +1174,15 @@ function Header({
   startRingPulse,
 }: HeaderProps) {
   const agentAction = headerActions.find((a) => a.agent);
-  const hasServices = project.services.length > 0;
-  const startColor = anyRunning
-    ? "bg-[#f87171] text-white"
-    : "bg-[#e5e5e5] text-[#1a1a1a]";
-  const startChevronBorder = anyRunning
-    ? "border-white/20 bg-[#f87171] text-white"
-    : "border-[#1a1a1a]/20 bg-[#e5e5e5] text-[#1a1a1a]";
-  const chevronIdle =
-    "border-[#2e2e2e] bg-[#242424] text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]";
   // @container: action labels follow the pane's own width, which is far
   // narrower than the viewport when the demo is embedded in a page.
   return (
-    <div className="@container flex items-center gap-2 sm:gap-3 px-3 sm:px-4 h-12 shrink-0">
+    <div className="@container flex shrink-0 items-center gap-4 px-3 py-1">
       <div className="min-w-0 shrink-0 truncate pr-2 text-xl font-semibold tracking-tight text-[#e5e5e5]">
         {project.label ?? project.name}
       </div>
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
           {headerActions.map((a) => (
             <HeaderActionButton
               key={a.name}
@@ -1176,134 +1192,23 @@ function Header({
             />
           ))}
         </div>
-        <button
-          type="button"
-          onClick={onAddAction}
-          title="Create action"
-          aria-label="Create action"
-          className="inline-flex h-[30px] shrink-0 items-center gap-1 rounded-lg border border-dashed border-[#3a3a3a] px-2 text-xs font-medium text-[#919191] transition-colors hover:border-[#555] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Action</span>
-        </button>
-
+        <CreateActionButton onClick={onAddAction} />
         <OpenInDropdown />
-
-        <div className="relative flex shrink-0">
-          {hasServices && (
-            <button
-              ref={startButtonRef}
-              type="button"
-              onClick={onStartStop}
-              aria-label={anyRunning ? "Stop services" : "Start services"}
-              className={`rounded-l-lg px-3.5 py-1.5 text-xs font-medium transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${startColor} ${
-                startRingPulse && !anyRunning ? "start-ring-pulse" : ""
-              }`}
-            >
-              {anyRunning ? "Stop" : "Start"}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onToggleStart}
-            aria-label="Services and profiles"
-            aria-expanded={startOpen}
-            aria-haspopup="menu"
-            className={`${hasServices ? "rounded-r-lg border-l" : "rounded-lg border"} px-1.5 py-1.5 transition-all hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a1a] ${hasServices ? startChevronBorder : chevronIdle}`}
-          >
-            <ChevronDown className="w-3.5 h-3.5" strokeWidth={1.5} />
-          </button>
-          {startOpen && (
-            <div
-              className="absolute right-0 top-full z-40 mt-1.5 min-w-[240px] overflow-hidden rounded-xl border border-[#2e2e2e] bg-[#242424] shadow-xl"
-              onMouseLeave={onCloseStart}
-            >
-              {project.profiles.length > 0 && (
-                <>
-                  <DropdownSectionLabel>Profiles</DropdownSectionLabel>
-                  {project.profiles.map((p) => {
-                    const isActive =
-                      runningServices.size > 0 &&
-                      p.services.length === runningServices.size &&
-                      p.services.every((s) => runningServices.has(s));
-                    return (
-                      <button
-                        key={p.name}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => onStartProfile(p.name)}
-                        className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:bg-[#2a2a2a]"
-                      >
-                        <span className="mt-[5px] flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-                          {isActive && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )}
-                        </span>
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-[12px]">{p.name}</span>
-                          <span className="truncate text-[10px] text-[#919191] font-mono">
-                            {p.services.join(" · ")}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <div className="mx-3 border-t border-[#2e2e2e]" />
-                </>
-              )}
-              <DropdownSectionLabel>Services</DropdownSectionLabel>
-              <div className="pb-1.5">
-                {project.services.length > 0 ? (
-                  project.services.map((s) => (
-                    <ServiceMenuItem
-                      key={s.name}
-                      service={s}
-                      running={runningServices.has(s.name)}
-                      onClick={() => onToggleService(s.name)}
-                    />
-                  ))
-                ) : (
-                  <div className="px-3 py-1.5 text-[11px] italic text-[#919191]">
-                    No services yet
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
+        <StartControl
+          project={project}
+          running={anyRunning}
+          runningServices={runningServices}
+          open={startOpen}
+          onToggleMenu={onToggleStart}
+          onCloseMenu={onCloseStart}
+          onStartStop={onStartStop}
+          onStartProfile={onStartProfile}
+          onToggleService={onToggleService}
+          startButtonRef={startButtonRef}
+          ringPulse={startRingPulse}
+        />
       </div>
     </div>
   );
 }
 
-function ServiceMenuItem({
-  service,
-  running,
-  onClick,
-}: {
-  service: DemoService;
-  running: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitemcheckbox"
-      aria-checked={running}
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[#2a2a2a] focus-visible:outline-none focus-visible:bg-[#2a2a2a] ${
-        running ? "text-[#e5e5e5] font-medium" : "text-[#b3b3b3]"
-      }`}
-    >
-      <span aria-hidden="true" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-        {running && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
-      </span>
-      <span className="flex-1 truncate font-mono">{service.name}</span>
-      {service.port !== undefined && (
-        <span className="text-[10px] text-[#919191] tabular-nums">
-          :{service.port}
-        </span>
-      )}
-    </button>
-  );
-}

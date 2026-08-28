@@ -1,6 +1,8 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import type { DemoProject } from "./projects";
+import { FOCUS_RING, PRESS } from "./ui";
 
 type MobileProjectSwitcherProps = {
   projects: DemoProject[];
@@ -33,7 +35,7 @@ export function MobileProjectSwitcher({
             onClick={() => onSelect(project.name)}
             aria-current={isSelected ? "true" : undefined}
             aria-label={`${project.label ?? project.name}${isRunning ? ", running" : ""}`}
-            className={`flex shrink-0 select-none items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70 ${
+            className={`flex shrink-0 select-none items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] transition-colors ${FOCUS_RING} ${
               isSelected
                 ? "bg-[#333333] text-[#e5e5e5]"
                 : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
@@ -41,10 +43,8 @@ export function MobileProjectSwitcher({
           >
             <span
               aria-hidden="true"
-              className={`inline-block w-[6px] h-[6px] rounded-full shrink-0 ${
-                isRunning
-                  ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]"
-                  : "border border-[#454545]"
+              className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                isRunning ? "bg-[#4ade80]" : "border border-[#919191] bg-[#1a1a1a]"
               }`}
             />
             <span className="whitespace-nowrap">
@@ -58,9 +58,9 @@ export function MobileProjectSwitcher({
         onClick={onAddProject}
         title="Add project"
         aria-label="Add project"
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#919191] text-sm transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/70"
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[#919191] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
       >
-        +
+        <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
       </button>
     </nav>
   );

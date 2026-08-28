@@ -4,6 +4,8 @@ import { useState } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
 import { Plus, QrCode, Smartphone } from "lucide-react";
 import { APP_STORE_URL } from "@/lib/links";
+import { MobileToggle } from "./ui-kit";
+import { FOCUS_RING, PRESS } from "./ui";
 
 type Device = { id: string; name: string; paired: string };
 
@@ -35,7 +37,7 @@ export function MobileView() {
         </span>
         <div className="min-w-0">
           <div className="text-base font-semibold leading-tight text-[#e5e5e5]">Mobile app</div>
-          <div className="text-[10px] text-[#919191]">
+          <div className="text-[11px] text-[#919191]">
             Answer your agents from your phone — every command still runs on this Mac
           </div>
         </div>
@@ -43,13 +45,13 @@ export function MobileView() {
 
       <div className="min-h-0 flex-1 overflow-y-auto border-t border-[#2e2e2e] px-3 py-3 sm:px-4">
         <div className="mx-auto w-full max-w-[560px] space-y-3">
-          <div className="flex items-center gap-3 rounded-xl border border-[#2e2e2e] px-3.5 py-3">
+          <div className="flex items-center gap-3 rounded-xl border border-[#2e2e2e] px-4 py-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#2a2a2a] text-[#b3b3b3]">
               <AppleIcon />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-semibold text-[#e5e5e5]">lpm Link</div>
-              <div className="mt-0.5 text-[11px] text-[#919191]">
+              <div className="text-sm font-semibold text-[#e5e5e5]">lpm Link</div>
+              <div className="mt-0.5 text-[11px] leading-relaxed text-[#919191]">
                 The companion app for iPhone and iPad. Install it, then pair below.
               </div>
             </div>
@@ -57,13 +59,13 @@ export function MobileView() {
               href={APP_STORE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="shrink-0 rounded-lg border border-[#2e2e2e] px-2.5 py-1.5 text-[11px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+              className={`shrink-0 rounded-lg border border-[#2e2e2e] px-3 py-1.5 text-[12px] font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING} ${PRESS}`}
             >
               App Store
             </a>
           </div>
 
-          <div className="flex items-center gap-3 rounded-xl border border-[#2e2e2e] bg-[#1d1d1d] px-3.5 py-3">
+          <div className="flex items-center gap-3 rounded-xl border border-[#2e2e2e] bg-[#242424] px-4 py-3">
             <span
               className="grid h-10 w-10 shrink-0 place-items-center rounded-xl transition-colors"
               style={{
@@ -74,27 +76,27 @@ export function MobileView() {
               <Smartphone className="h-4 w-4" strokeWidth={1.75} />
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-semibold text-[#e5e5e5]">Remote control</div>
+              <div className="text-sm font-semibold text-[#e5e5e5]">Remote control</div>
               <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
                 <span
                   className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                    enabled ? "bg-[#4ade80]" : "bg-[#6b6b6b]"
+                    enabled ? "bg-[#4ade80]" : "bg-[#919191]"
                   }`}
                 />
                 <span className={enabled ? "text-[#4ade80]" : "text-[#919191]"}>
                   {enabled ? "Listening" : "Off"}
                 </span>
                 {enabled && (
-                  <span className="font-mono text-[10px] text-[#919191]">
+                  <span className="font-mono text-[11px] text-[#919191]">
                     this-mac.local:{port}
                   </span>
                 )}
               </div>
             </div>
-            <Toggle
-              on={enabled}
-              onToggle={() => setEnabled((v) => !v)}
-              label="Remote control"
+            <MobileToggle
+              checked={enabled}
+              onChange={setEnabled}
+              aria-label="Remote control"
             />
           </div>
 
@@ -104,11 +106,12 @@ export function MobileView() {
                 <input
                   type="number"
                   {...NO_AUTOFILL}
+                  aria-label="Port"
                   value={port}
                   min={1024}
                   max={65535}
                   onChange={(e) => setPort(Number(e.target.value) || 0)}
-                  className="w-20 rounded-lg border border-[#2e2e2e] bg-[#161616] px-2 py-1 text-[12px] tabular-nums text-[#e5e5e5] outline-none focus:border-[#454545]"
+                  className={`w-20 rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] px-2.5 py-1.5 text-[13px] tabular-nums text-[#e5e5e5] outline-none transition-colors focus:border-[#22d3ee] ${FOCUS_RING}`}
                 />
               </Row>
             </div>
@@ -118,28 +121,28 @@ export function MobileView() {
             <SectionLabel>Paired devices</SectionLabel>
             <div className="overflow-hidden rounded-xl border border-[#2e2e2e]">
               {devices.length === 0 ? (
-                <p className="px-3.5 py-4 text-center text-[11px] text-[#919191]">
+                <p className="px-4 py-4 text-center text-[12px] text-[#919191]">
                   No devices paired yet.
                 </p>
               ) : (
                 devices.map((device) => (
                   <div
                     key={device.id}
-                    className="flex items-center gap-3 border-b border-[#2e2e2e] px-3.5 py-2.5"
+                    className="flex items-center gap-3 border-b border-[#2e2e2e] px-4 py-3"
                   >
                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#2a2a2a] text-[#919191]">
-                      <Smartphone className="h-3.5 w-3.5" strokeWidth={1.75} />
+                      <Smartphone className="h-4 w-4" strokeWidth={1.75} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[12px] font-medium text-[#e5e5e5]">
+                      <div className="truncate text-[13px] font-medium text-[#e5e5e5]">
                         {device.name}
                       </div>
-                      <div className="text-[10px] text-[#919191]">{device.paired}</div>
+                      <div className="text-[11px] text-[#919191]">{device.paired}</div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setDevices((prev) => prev.filter((d) => d.id !== device.id))}
-                      className="shrink-0 rounded-md px-2 py-1 text-[11px] text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#f87171]"
+                      className={`shrink-0 rounded-md px-2 py-1 text-[12px] text-[#919191] hover:bg-[#2a2a2a] hover:text-[#f87171] ${FOCUS_RING} ${PRESS}`}
                     >
                       Revoke
                     </button>
@@ -150,14 +153,14 @@ export function MobileView() {
                 type="button"
                 onClick={() => setPairing((v) => !v)}
                 aria-expanded={pairing}
-                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-[#2a2a2a]"
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[#2a2a2a] ${FOCUS_RING}`}
               >
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-dashed border-[#3a3a3a] text-[#919191]">
-                  <Plus className="h-3.5 w-3.5" strokeWidth={2} />
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-dashed border-[#2e2e2e] text-[#919191]">
+                  <Plus className="h-4 w-4" strokeWidth={2} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-medium text-[#e5e5e5]">Add a device</div>
-                  <div className="text-[10px] text-[#919191]">
+                  <div className="text-[13px] font-medium text-[#e5e5e5]">Add a device</div>
+                  <div className="text-[11px] text-[#919191]">
                     Scan a one-time QR code from the mobile app.
                   </div>
                 </div>
@@ -166,26 +169,24 @@ export function MobileView() {
           </div>
 
           {pairing && (
-            <div className="flex items-center gap-3.5 rounded-xl border border-[#2e2e2e] bg-[#1d1d1d] p-3.5">
+            <div className="flex items-center gap-3.5 rounded-xl border border-[#2e2e2e] bg-[#242424] p-4">
               <span className="grid h-20 w-20 shrink-0 place-items-center rounded-lg bg-[#e5e5e5] text-[#1a1a1a]">
                 <QrCode className="h-14 w-14" strokeWidth={1.25} />
               </span>
               <div className="min-w-0 flex-1">
-                <div className="text-[12px] font-medium text-[#e5e5e5]">
-                  Scan this in lpm Link
-                </div>
+                <div className="text-[13px] font-medium text-[#e5e5e5]">Scan this in lpm Link</div>
                 <p className="mt-1 text-[11px] leading-relaxed text-[#919191]">
                   The code carries this Mac&apos;s address and a one-time key. It expires in 60
                   seconds and works once.
                 </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <code className="rounded bg-[#161616] px-2 py-1 font-mono text-[11px] tracking-[0.2em] text-[#b3b3b3]">
+                <div className="mt-2.5 flex items-center gap-2">
+                  <code className="rounded bg-[#1a1a1a] px-2 py-1 font-mono text-[12px] tracking-[0.2em] text-[#b3b3b3]">
                     418 902
                   </code>
                   <button
                     type="button"
                     onClick={addDevice}
-                    className="rounded-lg bg-[#e5e5e5] px-2.5 py-1 text-[11px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-90"
+                    className={`rounded-lg bg-[#e5e5e5] px-3 py-1.5 text-[12px] font-medium text-[#1a1a1a] hover:opacity-90 ${FOCUS_RING} ${PRESS}`}
                   >
                     Simulate scan
                   </button>
@@ -197,7 +198,7 @@ export function MobileView() {
           <div>
             <SectionLabel>Using lpm away from home</SectionLabel>
             <div className="overflow-hidden rounded-xl border border-[#2e2e2e]">
-              <p className="px-3.5 py-2.5 text-[11px] leading-relaxed text-[#919191]">
+              <p className="px-4 py-3 text-[12px] leading-relaxed text-[#919191]">
                 On the same Wi-Fi your phone connects straight to this Mac. To reach it over
                 cellular, put both devices on a{" "}
                 <span className="font-medium text-[#b3b3b3]">Tailscale</span> tailnet and include
@@ -208,17 +209,17 @@ export function MobileView() {
                   label="Add Tailscale address to QR"
                   desc="Advertises this Mac's tailnet address so scanning works from anywhere."
                 >
-                  <Toggle
-                    on={tailscale}
-                    onToggle={() => setTailscale((v) => !v)}
-                    label="Tailscale address in QR"
+                  <MobileToggle
+                    checked={tailscale}
+                    onChange={setTailscale}
+                    aria-label="Tailscale address in QR"
                   />
                 </Row>
               </div>
             </div>
           </div>
 
-          <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
+          <p className="text-[11px] leading-relaxed text-[#919191]">
             Nothing routes through a server of ours — the phone talks to your Mac directly.
           </p>
         </div>
@@ -237,10 +238,10 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-3.5 py-2.5">
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0 flex-1">
-        <div className="text-[12px] font-medium text-[#e5e5e5]">{label}</div>
-        <div className="text-[10px] leading-relaxed text-[#919191]">{desc}</div>
+        <div className="text-sm font-medium text-[#e5e5e5]">{label}</div>
+        <div className="text-[11px] leading-relaxed text-[#919191]">{desc}</div>
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -249,38 +250,9 @@ function Row({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#919191]">
+    <div className="mb-2 text-xs font-medium uppercase tracking-wider text-[#919191]">
       {children}
     </div>
-  );
-}
-
-function Toggle({
-  on,
-  onToggle,
-  label,
-}: {
-  on: boolean;
-  onToggle: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={onToggle}
-      className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${
-        on ? "bg-emerald-500" : "bg-[#3a3a3a]"
-      }`}
-    >
-      <span
-        className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-          on ? "translate-x-[16px]" : "translate-x-[2px]"
-        }`}
-      />
-    </button>
   );
 }
 

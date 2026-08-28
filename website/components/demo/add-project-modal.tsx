@@ -2,6 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
+import { FOCUS_RING, PRESS } from "./ui";
+import {
+  DialogHeader,
+  DialogPanel,
+  MenuCloseButton,
+  FIELD_CLASS,
+  FieldLabel,
+  HelpText,
+  PrimaryButton,
+  SecondaryButton,
+} from "./ui-kit";
 import {
   ChevronDown,
   ChevronLeft,
@@ -12,7 +23,6 @@ import {
   Home,
   Search,
   Server,
-  X,
 } from "lucide-react";
 
 function FilledFolder({ size = 13 }: { size?: number }) {
@@ -292,63 +302,66 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         type="button"
         aria-label="Close"
         onClick={handleClose}
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
       />
 
       {phase === "pick" && (
         <div
           role="dialog"
           aria-labelledby="add-project-title"
-          className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-2 pb-2 pt-5 shadow-2xl"
+          className="relative w-[360px] overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl"
         >
-          <div
-            id="add-project-title"
-            className="px-4 text-[13px] font-medium text-[#e5e5e5]"
-          >
-            Add a project
-          </div>
-          <div className="mt-3 flex flex-col">
-            <SourceOption
-              icon={<Folder size={22} strokeWidth={1.5} />}
-              color="#facc15"
-              label="Local Folder"
-              desc="A project on this machine — pick a folder on disk"
-              onClick={() => setPhase("local")}
-            />
-            <SourceOption
-              icon={<Cloud size={22} strokeWidth={1.5} />}
-              color="#a78bfa"
-              label="Clone Repository"
-              desc="Clone from a Git repo URL into a local folder"
-              onClick={() => setPhase("clone")}
-            />
-            <SourceOption
-              icon={<Server size={22} strokeWidth={1.5} />}
-              color="#22d3ee"
-              label="SSH Host"
-              desc="Connect to a remote machine over SSH"
-              onClick={() => setPhase("ssh")}
-            />
-            <button
-              type="button"
-              onClick={() => setPhase("template")}
-              className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a]"
+          <MenuCloseButton onClick={handleClose} />
+          <div className="px-2 pb-1 pt-3.5">
+            <h3
+              id="add-project-title"
+              className="px-4 text-[13px] font-medium text-[#e5e5e5]"
             >
-              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] text-[19px] leading-none transition-colors group-hover:bg-[#333333]">
-                ✨
-              </div>
-              <div className="min-w-0 flex-1 pt-0.5">
-                <div className="text-[13px] font-medium text-[#e5e5e5]">
-                  From template
+              Add a project
+            </h3>
+            <div className="mt-3 flex flex-col">
+              <SourceOption
+                icon={<Folder size={22} strokeWidth={1.5} />}
+                color="#facc15"
+                label="Local Folder"
+                desc="A project on this machine — pick a folder on disk"
+                onClick={() => setPhase("local")}
+              />
+              <SourceOption
+                icon={<Cloud size={22} strokeWidth={1.5} />}
+                color="#a78bfa"
+                label="Clone Repository"
+                desc="Clone from a Git repo URL into a local folder"
+                onClick={() => setPhase("clone")}
+              />
+              <SourceOption
+                icon={<Server size={22} strokeWidth={1.5} />}
+                color="#22d3ee"
+                label="SSH Host"
+                desc="Connect to a remote machine over SSH"
+                onClick={() => setPhase("ssh")}
+              />
+              <button
+                type="button"
+                onClick={() => setPhase("template")}
+                className={`group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
+              >
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] text-[19px] leading-none transition-colors group-hover:bg-[#333333]">
+                  ✨
                 </div>
-                <div className="mt-0.5 text-[11px] leading-relaxed text-[#919191]">
-                  Create a new project from a template
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="text-[13px] font-medium text-[#e5e5e5]">
+                    From template
+                  </div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[#b3b3b3]">
+                    Create a new project from a template
+                  </div>
                 </div>
-              </div>
-              <span className="mt-2 flex shrink-0 text-[#919191]">
-                <ChevronRight size={14} strokeWidth={1.5} />
-              </span>
-            </button>
+                <span className="mt-2 flex shrink-0 text-[#919191]">
+                  <ChevronRight size={14} strokeWidth={1.5} />
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -364,313 +377,248 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       )}
 
       {phase === "ssh" && (
-        <div
-          role="dialog"
-          aria-labelledby="ssh-host-title"
-          className="relative w-[360px] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-5 pb-5 pt-4 shadow-2xl"
+        <DialogPanel
+          className="relative max-w-[calc(100%-2rem)]"
+          aria-label="Connect to SSH host"
         >
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Close"
-            className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-          >
-            <X size={15} strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPhase("pick")}
-            className="mb-3 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
-          >
-            <ChevronLeft size={14} strokeWidth={1.5} />
-            Back
-          </button>
-          <div id="ssh-host-title" className="text-base font-semibold text-[#e5e5e5]">
-            Connect to SSH host
-          </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-[#919191]">
-            Creates a project that connects to a remote host. Services, actions,
-            and terminals will run over this SSH connection.
-          </p>
+          <BackButton onClick={() => setPhase("pick")} />
+          <DialogHeader
+            title="Connect to SSH host"
+            description="Creates a project that connects to a remote host. Services, actions, and terminals will run over this SSH connection."
+            onClose={handleClose}
+          />
 
           <form
             autoComplete="off"
-            className="mt-4 flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
               submitSsh();
             }}
           >
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Host
-              </span>
-              <input
-                ref={sshNameRef}
-                value={host}
-                onChange={(e) => setHost(e.target.value)}
-                placeholder="example.com or 10.0.0.5"
-                {...NO_AUTOFILL}
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
-              />
-            </label>
+            <div className="mt-4 grid grid-cols-[1fr_120px] gap-3">
+              <div className="col-span-2">
+                <FieldLabel>Host</FieldLabel>
+                <input
+                  ref={sshNameRef}
+                  value={host}
+                  onChange={(e) => setHost(e.target.value)}
+                  placeholder="example.com or 10.0.0.5"
+                  {...NO_AUTOFILL}
+                  className={FIELD_CLASS}
+                />
+              </div>
 
-            <div className="flex gap-3">
-              <label className="flex flex-1 flex-col gap-1.5">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                  User
-                </span>
+              <div>
+                <FieldLabel>User</FieldLabel>
                 <input
                   value={user}
                   onChange={(e) => setUser(e.target.value)}
                   placeholder="root"
                   {...NO_AUTOFILL}
-                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                  className={FIELD_CLASS}
                 />
-              </label>
-              <label className="flex w-24 flex-col gap-1.5">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                  Port
-                </span>
+              </div>
+
+              <div>
+                <FieldLabel>Port</FieldLabel>
                 <input
                   value={port}
                   onChange={(e) => setPort(e.target.value)}
                   placeholder="22"
                   inputMode="numeric"
                   {...NO_AUTOFILL}
-                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
+                  className={FIELD_CLASS}
                 />
-              </label>
+              </div>
+
+              <div className="col-span-2">
+                <FieldLabel>Project name</FieldLabel>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="my-server"
+                  {...NO_AUTOFILL}
+                  className={FIELD_CLASS}
+                />
+              </div>
             </div>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Project name
-              </span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="my-server"
-                {...NO_AUTOFILL}
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
-              />
-            </label>
-
-            <div className="mt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-              >
-                Cancel
-              </button>
-              <button
+            <div className="mt-5 flex justify-end gap-2">
+              <SecondaryButton onClick={handleClose}>Cancel</SecondaryButton>
+              <PrimaryButton
                 type="submit"
                 disabled={!name.trim() || !host.trim()}
-                className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Add project
-              </button>
+              </PrimaryButton>
             </div>
           </form>
-        </div>
+        </DialogPanel>
       )}
 
       {phase === "clone" && (
-        <div
-          role="dialog"
-          aria-labelledby="clone-repo-title"
-          className="relative w-[420px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-5 pb-5 pt-4 shadow-2xl"
+        <DialogPanel
+          className="relative max-w-[calc(100%-2rem)]"
+          aria-label="Clone repository"
         >
-          <button
-            type="button"
-            onClick={handleClose}
-            aria-label="Close"
-            className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-md text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-          >
-            <X size={15} strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPhase("pick")}
-            className="mb-3 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
-          >
-            <ChevronLeft size={14} strokeWidth={1.5} />
-            Back
-          </button>
-          <div id="clone-repo-title" className="text-base font-semibold text-[#e5e5e5]">
-            Clone repository
-          </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-[#919191]">
-            Clones a Git repo into a folder on this machine and adds it as a
-            project.
-          </p>
+          <BackButton onClick={() => setPhase("pick")} />
+          <DialogHeader
+            title="Clone repository"
+            description="Clones a Git repo into a folder on this machine and adds it as a project."
+            onClose={handleClose}
+          />
 
           <form
             autoComplete="off"
-            className="mt-4 flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
               submitClone();
             }}
           >
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Repository URL
-              </span>
-              <input
-                ref={cloneUrlRef}
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo.git"
-                {...NO_AUTOFILL}
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
-              />
-              <span className="text-[10px] text-[#8a8a8a]">
-                HTTPS or SSH URL. Uses your existing Git credentials.
-              </span>
-            </label>
-
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Destination folder
-              </span>
-              <div className="relative grid grid-cols-[1fr_auto] gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-3">
+              <div>
+                <FieldLabel>Repository URL</FieldLabel>
                 <input
-                  readOnly
-                  value={dest}
-                  className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] outline-none border border-[#2e2e2e]"
+                  ref={cloneUrlRef}
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repo.git"
+                  {...NO_AUTOFILL}
+                  className={FIELD_CLASS}
                 />
+                <HelpText>
+                  HTTPS or SSH URL. Uses your existing Git credentials.
+                </HelpText>
+              </div>
+
+              <div>
+                <FieldLabel>Destination folder</FieldLabel>
+                <div className="relative grid grid-cols-[1fr_auto] gap-2">
+                  <input readOnly value={dest} className={FIELD_CLASS} />
+                  <button
+                    type="button"
+                    onClick={() => setDestMenuOpen((v) => !v)}
+                    className={`shrink-0 rounded-md border border-[#2e2e2e] px-3 py-2 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING} ${PRESS}`}
+                  >
+                    Choose…
+                  </button>
+                  {destMenuOpen && (
+                    <div
+                      className="switcher-in absolute right-0 top-full z-10 mt-1 min-w-[180px] origin-top-right overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] py-1 shadow-lg"
+                      onMouseLeave={() => setDestMenuOpen(false)}
+                    >
+                      {DEST_FOLDERS.map((folder) => (
+                        <button
+                          key={folder}
+                          type="button"
+                          onClick={() => {
+                            setDest(folder);
+                            setDestMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+                        >
+                          <FilledFolder size={12} />
+                          {folder}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <HelpText>
+                  Repository will be cloned into a new subfolder here.
+                </HelpText>
+              </div>
+
+              <div>
+                <FieldLabel>Project name</FieldLabel>
+                <input
+                  value={cloneName}
+                  onChange={(e) => {
+                    setNameEdited(true);
+                    setName(e.target.value);
+                  }}
+                  placeholder="my-repo"
+                  {...NO_AUTOFILL}
+                  className={FIELD_CLASS}
+                />
+              </div>
+
+              <div>
                 <button
                   type="button"
-                  onClick={() => setDestMenuOpen((v) => !v)}
-                  className="shrink-0 rounded-md border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  aria-expanded={showAdvanced}
+                  className={`inline-flex items-center gap-1 rounded text-[11px] font-medium text-[#919191] transition-colors hover:text-[#b3b3b3] ${FOCUS_RING}`}
                 >
-                  Choose…
-                </button>
-                {destMenuOpen && (
-                  <div
-                    className="absolute right-0 top-full z-10 mt-1 min-w-[180px] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#242424] py-1 shadow-xl"
-                    onMouseLeave={() => setDestMenuOpen(false)}
+                  <span
+                    className={`inline-block transition-transform ${showAdvanced ? "rotate-90" : ""}`}
                   >
-                    {DEST_FOLDERS.map((folder) => (
-                      <button
-                        key={folder}
-                        type="button"
-                        onClick={() => {
-                          setDest(folder);
-                          setDestMenuOpen(false);
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] font-mono text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-                      >
-                        <FilledFolder size={12} />
-                        {folder}
-                      </button>
-                    ))}
+                    ›
+                  </span>
+                  Advanced
+                </button>
+                {showAdvanced && (
+                  <div className="mt-2">
+                    <FieldLabel>
+                      Branch{" "}
+                      <span className="font-normal text-[#919191]">
+                        (optional)
+                      </span>
+                    </FieldLabel>
+                    <input
+                      value={branch}
+                      onChange={(e) => setBranch(e.target.value)}
+                      placeholder="main"
+                      {...NO_AUTOFILL}
+                      className={FIELD_CLASS}
+                    />
+                    <HelpText>
+                      Leave blank to use the repository&apos;s default branch.
+                    </HelpText>
                   </div>
                 )}
               </div>
-              <span className="text-[10px] text-[#8a8a8a]">
-                Repository will be cloned into a new subfolder here.
-              </span>
             </div>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                Project name
-              </span>
-              <input
-                value={cloneName}
-                onChange={(e) => {
-                  setNameEdited(true);
-                  setName(e.target.value);
-                }}
-                placeholder="my-repo"
-                {...NO_AUTOFILL}
-                className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
-              />
-            </label>
-
-            <div>
-              <button
-                type="button"
-                onClick={() => setShowAdvanced((v) => !v)}
-                aria-expanded={showAdvanced}
-                className="inline-flex items-center gap-1 text-[10px] font-medium text-[#919191] transition-colors hover:text-[#e5e5e5]"
-              >
-                <span
-                  className={`inline-block transition-transform ${showAdvanced ? "rotate-90" : ""}`}
-                >
-                  ›
-                </span>
-                Advanced
-              </button>
-              {showAdvanced && (
-                <label className="mt-2 flex flex-col gap-1.5">
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-                    Branch <span className="lowercase text-[#8a8a8a]">(optional)</span>
-                  </span>
-                  <input
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                    placeholder="main"
-                    {...NO_AUTOFILL}
-                    className="rounded-md bg-[#242424] px-2.5 py-1.5 text-[12px] font-mono text-[#e5e5e5] placeholder:text-[#8a8a8a] outline-none border border-[#2e2e2e] focus:border-[#5a5a5a]"
-                  />
-                  <span className="text-[10px] text-[#8a8a8a]">
-                    Leave blank to use the repository&apos;s default branch.
-                  </span>
-                </label>
-              )}
-            </div>
-
-            <div className="mt-2 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-1.5 text-xs font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-              >
-                Cancel
-              </button>
-              <button
+            <div className="mt-5 flex justify-end gap-2">
+              <SecondaryButton onClick={handleClose}>Cancel</SecondaryButton>
+              <PrimaryButton
                 type="submit"
                 disabled={!cloneName.trim() || !url.trim()}
-                className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-gray-900 transition-all hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Clone repository
-              </button>
+              </PrimaryButton>
             </div>
           </form>
-        </div>
+        </DialogPanel>
       )}
 
       {phase === "template" && (
         <div
           role="dialog"
-          aria-labelledby="template-title"
-          className="relative w-[420px] max-w-[calc(100%-2rem)] rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] px-2 pb-2 pt-4 shadow-2xl"
+          aria-label="New from template"
+          className="relative w-[420px] max-w-[calc(100%-2rem)] overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl"
         >
+          <MenuCloseButton onClick={handleClose} />
           <button
             type="button"
             onClick={() => setPhase("pick")}
-            className="mb-2 ml-2 flex items-center gap-1 text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5]"
+            className={`mx-2 mb-1 flex items-center gap-1 rounded-lg py-1 pl-1 pr-2.5 text-left transition-colors hover:bg-[#2a2a2a] ${FOCUS_RING}`}
           >
-            <ChevronLeft size={14} strokeWidth={1.5} />
-            Back
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center text-[#b3b3b3]">
+              <ChevronLeft size={14} strokeWidth={1.5} />
+            </span>
+            <span className="min-w-0 truncate text-[12.5px] font-medium text-[#e5e5e5]">
+              New from template
+            </span>
           </button>
-          <div
-            id="template-title"
-            className="px-4 pb-1 text-[13px] font-medium text-[#e5e5e5]"
-          >
-            New from template
-          </div>
-          <div className="mt-1 flex flex-col">
+          <div className="flex flex-col px-2 pb-1">
             {TEMPLATES.map((template) => (
               <button
                 key={template.id}
                 type="button"
                 onClick={() => handlePickTemplate(template)}
-                className="group flex items-center gap-3 rounded-xl px-4 py-2.5 text-left transition-all hover:bg-[#2a2a2a]"
+                className={`group flex items-center gap-3 rounded-xl px-4 py-2.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
               >
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#242424] text-[15px] leading-none transition-colors group-hover:bg-[#333333]">
                   {template.icon}
@@ -679,7 +627,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                   <span className="block truncate text-[13px] font-medium text-[#e5e5e5]">
                     {template.label}
                   </span>
-                  <span className="mt-0.5 block truncate text-[11px] text-[#919191]">
+                  <span className="mt-0.5 block truncate text-[11px] text-[#b3b3b3]">
                     {template.desc}
                   </span>
                 </span>
@@ -689,6 +637,19 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`mb-3 flex items-center gap-1 rounded text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5] ${FOCUS_RING} ${PRESS}`}
+    >
+      <ChevronLeft size={14} strokeWidth={1.5} />
+      Back
+    </button>
   );
 }
 
@@ -709,7 +670,7 @@ function SourceOption({
     <button
       type="button"
       onClick={onClick}
-      className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a]"
+      className={`group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
     >
       <div
         className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2a2a2a] transition-colors group-hover:bg-[#333333]"
@@ -719,7 +680,7 @@ function SourceOption({
       </div>
       <div className="min-w-0 pt-0.5">
         <div className="text-[13px] font-medium text-[#e5e5e5]">{label}</div>
-        <div className="mt-0.5 text-[11px] leading-relaxed text-[#919191]">
+        <div className="mt-0.5 text-[11px] leading-relaxed text-[#b3b3b3]">
           {desc}
         </div>
       </div>

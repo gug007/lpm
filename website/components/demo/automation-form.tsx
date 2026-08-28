@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
+import {
+  FIELD_CLASS,
+  FieldLabel,
+  PrimaryButton,
+  SecondaryButton,
+  SelectField,
+} from "./ui-kit";
 import type { DemoJob } from "./automations";
 
 const SCHEDULES = [
@@ -46,7 +53,7 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
     <form
       onSubmit={submit}
       autoComplete="off"
-      className="mb-3 rounded-xl border border-[#2e2e2e] bg-[#1d1d1d] p-3.5"
+      className="mb-3 rounded-xl border border-[#2e2e2e] bg-[#1a1a1a] p-4"
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Name">
@@ -56,21 +63,20 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Morning triage"
-            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none placeholder:text-[#8a8a8a] focus:border-[#454545]"
+            className={FIELD_CLASS}
           />
         </Field>
         <Field label="Project">
-          <select
+          <SelectField
             value={project}
             onChange={(e) => setProject(e.target.value)}
-            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none focus:border-[#454545]"
           >
             {projects.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
             ))}
-          </select>
+          </SelectField>
         </Field>
         <Field label="What the agent should do">
           <input
@@ -78,37 +84,25 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Review open PRs and summarise what changed"
-            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none placeholder:text-[#8a8a8a] focus:border-[#454545]"
+            className={FIELD_CLASS}
           />
         </Field>
         <Field label="Schedule">
-          <select
+          <SelectField
             value={schedule}
             onChange={(e) => setSchedule(e.target.value)}
-            className="w-full rounded-lg border border-[#2e2e2e] bg-[#161616] px-2.5 py-1.5 text-[12px] text-[#e5e5e5] outline-none focus:border-[#454545]"
           >
             {SCHEDULES.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.value}
               </option>
             ))}
-          </select>
+          </SelectField>
         </Field>
       </div>
-      <div className="mt-3 flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg px-2.5 py-1.5 text-[12px] text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="rounded-lg bg-[#e5e5e5] px-3 py-1.5 text-[12px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-90"
-        >
-          Create job
-        </button>
+      <div className="mt-5 flex items-center justify-end gap-2">
+        <SecondaryButton onClick={onCancel}>Cancel</SecondaryButton>
+        <PrimaryButton type="submit">Create job</PrimaryButton>
       </div>
     </form>
   );
@@ -116,11 +110,9 @@ export function AutomationForm({ projects, onCreate, onCancel }: AutomationFormP
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-        {label}
-      </span>
+    <div>
+      <FieldLabel>{label}</FieldLabel>
       {children}
-    </label>
+    </div>
   );
 }

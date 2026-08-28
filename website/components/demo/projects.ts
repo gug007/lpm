@@ -39,6 +39,9 @@ export type DemoAction = {
   autoSteps?: AgentStep[];
   confirm?: boolean;
   durationMs?: number;
+  // Accent hex the button tints itself with, mirroring the app's `color:` field.
+  // Left off for actions that should show the neutral fallback.
+  color?: string;
   output: OutputLine[];
   loop?: { line: OutputLine; intervalMs: number };
 };
@@ -109,7 +112,7 @@ export type DemoProject = {
   replyContext?: ReplyContext;
 };
 
-export type AiStatus = "running" | "done" | "error";
+export type AiStatus = "running" | "done" | "error" | "waiting";
 
 const CLAUDE_ACTION: DemoAction = {
   name: "claude",
@@ -119,6 +122,7 @@ const CLAUDE_ACTION: DemoAction = {
   display: "header",
   type: "terminal",
   agent: "claude",
+  color: "#de8a68",
   output: [],
 };
 
@@ -130,6 +134,7 @@ const CODEX_ACTION: DemoAction = {
   display: "header",
   type: "terminal",
   agent: "codex",
+  color: "#a78bfa",
   output: [],
 };
 
@@ -246,6 +251,7 @@ const PROJECTS: DemoProject[] = [
         cmd: "pnpm test",
         display: "header",
         durationMs: 1200,
+        color: "#4ade80",
         output: [
           { text: "$ pnpm test", color: "green", delay: 50 },
           { text: "> vitest run", color: "muted", delay: 150 },
@@ -266,6 +272,7 @@ const PROJECTS: DemoProject[] = [
         display: "header",
         confirm: true,
         durationMs: 900,
+        color: "#60a5fa",
         output: [
           { text: "$ bin/rails db:migrate", color: "green", delay: 50 },
           { text: "== 20260423090100 AddIndexToUsers: migrating =======", color: "muted", delay: 200 },
@@ -282,6 +289,7 @@ const PROJECTS: DemoProject[] = [
         display: "footer",
         confirm: true,
         durationMs: 1400,
+        color: "#fb923c",
         output: [
           { text: "$ ./scripts/deploy.sh production", color: "green", delay: 50 },
           { text: "→ building release bundle", color: "muted", delay: 250 },
@@ -443,6 +451,7 @@ const PROJECTS: DemoProject[] = [
         cmd: "go test ./...",
         display: "header",
         durationMs: 1100,
+        color: "#4ade80",
         output: [
           { text: "$ go test ./...", color: "green", delay: 50 },
           { text: "ok   github.com/you/go-api/internal/auth   0.142s", color: "green", delay: 500 },
@@ -565,6 +574,7 @@ const PROJECTS: DemoProject[] = [
         display: "footer",
         confirm: true,
         durationMs: 1800,
+        color: "#fb923c",
         output: [
           { text: "$ vercel deploy --prod", color: "green", delay: 50 },
           { text: "Vercel CLI 38.0.0", color: "muted", delay: 200 },
@@ -733,6 +743,7 @@ const PROJECTS: DemoProject[] = [
         display: "header",
         confirm: true,
         durationMs: 2400,
+        color: "#fbbf24",
         output: [
           { text: "$ python -m pipeline.train --full", color: "green", delay: 50 },
           { text: "loading dataset: ./data/train.parquet (512MB)", color: "muted", delay: 300 },
@@ -750,6 +761,7 @@ const PROJECTS: DemoProject[] = [
         cmd: "python -m pipeline.eval --latest",
         display: "header",
         durationMs: 1800,
+        color: "#22d3ee",
         output: [
           { text: "$ python -m pipeline.eval --latest", color: "green", delay: 50 },
           { text: "loading checkpoint ./runs/latest.ckpt", color: "muted", delay: 300 },
@@ -832,12 +844,13 @@ const PROJECTS: DemoProject[] = [
 ];
 
 // Seeded so the sidebar shows lpm's per-project AI states at a glance: a
-// background agent still working (running shimmer) and one that just finished
-// (done). The selected project picks up live status when you launch Claude Code
-// or Codex in it.
+// background agent still working (running shimmer), one that just finished
+// (done), and one stopped on a question (waiting → "Needs you"). The selected
+// project picks up live status when you launch Claude Code or Codex in it.
 export const INITIAL_AI_STATUS: Record<string, AiStatus> = {
   "auth-service": "running",
   "docs-site": "done",
+  "ml-pipeline": "waiting",
 };
 
 export default PROJECTS;

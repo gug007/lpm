@@ -8,6 +8,7 @@ import {
   Sun,
 } from "lucide-react";
 import { FOCUS_RING } from "./ui";
+import { SettingsToggle } from "./ui-kit";
 
 const THEMES = [
   { id: "Light", icon: Sun },
@@ -32,19 +33,19 @@ export function SettingsView() {
         <div className="mx-auto w-full max-w-[520px] space-y-6">
           <Section title="Appearance">
             <Row label="Theme" desc="How lpm looks on this machine">
-              <div className="flex rounded-lg border border-[#2e2e2e] bg-[#242424] p-0.5">
+              <div className="flex rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] p-0.5">
                 {THEMES.map(({ id, icon: Icon }) => (
                   <button
                     key={id}
                     type="button"
                     onClick={() => setTheme(id)}
-                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${FOCUS_RING} ${
+                    className={`flex items-center gap-1.5 rounded-[7px] px-3 py-1.5 text-xs font-medium transition-colors ${FOCUS_RING} ${
                       theme === id
-                        ? "bg-[#333333] text-[#e5e5e5]"
-                        : "text-[#919191] hover:text-[#e5e5e5]"
+                        ? "bg-[#333333] text-[#e5e5e5] shadow-[0_1px_2px_rgba(0,0,0,0.08)]"
+                        : "text-[#919191] hover:text-[#b3b3b3]"
                     }`}
                   >
-                    <Icon className="h-3 w-3" strokeWidth={2} />
+                    <Icon className="h-3.5 w-3.5" strokeWidth={2} />
                     {id}
                   </button>
                 ))}
@@ -53,16 +54,21 @@ export function SettingsView() {
           </Section>
 
           <Section title="Behavior">
-            <ToggleRow
-              label="Double-click a project to start / stop"
-              on={doubleClick}
-              onToggle={() => setDoubleClick((v) => !v)}
-            />
+            <Row
+              label="Double-click to start/stop"
+              desc="Double-click a project in sidebar to toggle it"
+            >
+              <SettingsToggle
+                checked={doubleClick}
+                onChange={setDoubleClick}
+                aria-label="Double-click to start/stop"
+              />
+            </Row>
             <Row
               label="Default project directory"
               desc="Where new projects are created"
             >
-              <Value>~/Projects</Value>
+              <Value mono>~/Projects</Value>
             </Row>
           </Section>
 
@@ -75,7 +81,7 @@ export function SettingsView() {
             </Row>
           </Section>
 
-          <p className="text-[11px] leading-relaxed text-[#8a8a8a]">
+          <p className="text-[11px] leading-relaxed text-[#919191]">
             You&apos;re in the interactive demo — these preview lpm&apos;s real
             Settings. Download the app to save your own.
           </p>
@@ -87,11 +93,11 @@ export function SettingsView() {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#919191]">
+    <div className="space-y-2">
+      <h2 className="px-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[#919191]">
         {title}
-      </div>
-      <div className="overflow-hidden rounded-xl border border-[#2e2e2e] bg-[#1d1d1d]">
+      </h2>
+      <div className="divide-y divide-[#2e2e2e] overflow-hidden rounded-xl border border-[#2e2e2e] bg-[#242424]">
         {children}
       </div>
     </div>
@@ -108,47 +114,20 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#2e2e2e] px-3.5 py-3 last:border-b-0">
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
-        <div className="text-[13px] text-[#e5e5e5]">{label}</div>
-        {desc && <div className="mt-0.5 text-[11px] text-[#919191]">{desc}</div>}
+        <p className="text-sm font-medium text-[#e5e5e5]">{label}</p>
+        {desc && <p className="text-[11px] text-[#919191]">{desc}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
   );
 }
 
-function Value({ children }: { children: ReactNode }) {
-  return <span className="text-[12px] text-[#b3b3b3]">{children}</span>;
-}
-
-function ToggleRow({
-  label,
-  on,
-  onToggle,
-}: {
-  label: string;
-  on: boolean;
-  onToggle: () => void;
-}) {
+function Value({ children, mono }: { children: ReactNode; mono?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-[#2e2e2e] px-3.5 py-3 last:border-b-0">
-      <div className="text-[13px] text-[#e5e5e5]">{label}</div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={onToggle}
-        className={`inline-flex h-[18px] w-8 shrink-0 items-center rounded-full transition-colors ${FOCUS_RING} ${
-          on ? "bg-emerald-500" : "bg-[#3a3a3a]"
-        }`}
-      >
-        <span
-          className={`inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform ${
-            on ? "translate-x-[16px]" : "translate-x-[2px]"
-          }`}
-        />
-      </button>
-    </div>
+    <span className={`text-xs text-[#919191] ${mono ? "font-mono" : ""}`}>
+      {children}
+    </span>
   );
 }

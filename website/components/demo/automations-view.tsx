@@ -9,7 +9,8 @@ import {
   unreadJobCount,
   type DemoJob,
 } from "./automations";
-import { FOCUS_RING } from "./ui";
+import { Switch } from "./ui-kit";
+import { FOCUS_RING, PRESS } from "./ui";
 
 const RUN_MS = 2600;
 
@@ -74,7 +75,7 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
               </span>
             )}
           </div>
-          <div className="text-[10px] text-[#919191]">
+          <div className="text-[11px] text-[#919191]">
             {unread > 0
               ? `${unread} ${unread === 1 ? "job has" : "jobs have"} new messages since you last looked`
               : "Every scheduled job across your projects, in one place"}
@@ -85,7 +86,7 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
             <button
               type="button"
               onClick={() => setJobs((prev) => prev.map((job) => ({ ...job, unread: 0 })))}
-              className={`rounded-lg px-2 py-1.5 text-[11px] font-medium text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING}`}
+              className={`rounded-lg px-2.5 py-1.5 text-[12px] font-medium text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING} ${PRESS}`}
             >
               Mark all read
             </button>
@@ -93,9 +94,9 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}
-            className={`flex items-center gap-1 rounded-lg bg-[#e5e5e5] px-2.5 py-1.5 text-[11px] font-medium text-[#1a1a1a] transition-opacity hover:opacity-90 ${FOCUS_RING}`}
+            className={`flex items-center gap-1.5 rounded-lg bg-[#e5e5e5] px-3 py-1.5 text-[13px] font-medium text-[#1a1a1a] shadow-sm hover:opacity-90 ${FOCUS_RING} ${PRESS}`}
           >
-            <Plus className="h-3 w-3" strokeWidth={2.25} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.25} />
             New job
           </button>
         </div>
@@ -127,7 +128,7 @@ export function AutomationsView({ jobs, setJobs, projects }: AutomationsViewProp
             />
           ))}
         </div>
-        <p className="mt-4 text-[11px] leading-relaxed text-[#8a8a8a]">
+        <p className="mt-4 text-[11px] leading-relaxed text-[#919191]">
           Jobs run an agent in the project on your machine — on a schedule or on demand — and leave
           what they did here.
         </p>
@@ -153,7 +154,7 @@ function JobRow({
 }) {
   return (
     <div
-      className={`group rounded-lg px-1.5 py-2.5 transition-colors hover:bg-[#222222] ${
+      className={`group rounded-lg py-3 pl-2 pr-1 transition-colors hover:bg-[#2a2a2a] ${
         job.unread > 0 ? "bg-[#60a5fa]/[0.06]" : ""
       } ${job.enabled ? "" : "opacity-60"}`}
     >
@@ -163,7 +164,7 @@ function JobRow({
             <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#60a5fa]" />
           )}
         </span>
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[#2a2a2a] text-[13px]">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#2a2a2a] text-[15px]">
           {job.emoji}
         </span>
         <button
@@ -180,14 +181,14 @@ function JobRow({
             >
               {job.label}
             </span>
-            <span className="shrink-0 rounded border border-[#2e2e2e] px-1.5 py-px text-[9px] uppercase tracking-wide text-[#919191]">
+            <span className="shrink-0 rounded border border-[#2e2e2e] px-1.5 py-px text-[10px] uppercase tracking-wide text-[#919191]">
               {job.scope}
             </span>
           </span>
-          <span className="mt-1 line-clamp-2 block text-[11px] leading-snug text-[#b3b3b3]">
+          <span className="mt-1 line-clamp-2 block text-[12px] leading-snug text-[#b3b3b3]">
             {job.description}
           </span>
-          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-[#919191]">
+          <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] text-[#919191]">
             {job.running ? (
               <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[#22d3ee]" />
             ) : (
@@ -213,9 +214,9 @@ function JobRow({
             onClick={onStop}
             title="Stop"
             aria-label={`Stop ${job.label}`}
-            className={`shrink-0 rounded-md p-1.5 text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#f87171] ${FOCUS_RING}`}
+            className={`shrink-0 rounded-md p-2 text-[#919191] hover:bg-[#333333] hover:text-[#f87171] ${FOCUS_RING} ${PRESS}`}
           >
-            <Square className="h-3 w-3" strokeWidth={2} fill="currentColor" />
+            <Square className="h-3.5 w-3.5" strokeWidth={2} fill="currentColor" />
           </button>
         ) : (
           <button
@@ -223,39 +224,29 @@ function JobRow({
             onClick={onRunNow}
             title="Run now"
             aria-label={`Run ${job.label} now`}
-            className={`shrink-0 rounded-md p-1.5 text-[#919191] opacity-0 transition-opacity hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:opacity-100 group-hover:opacity-100 ${FOCUS_RING}`}
+            className={`shrink-0 rounded-md p-2 text-[#919191] opacity-0 hover:bg-[#333333] hover:text-[#e5e5e5] focus-visible:opacity-100 group-hover:opacity-100 ${FOCUS_RING} ${PRESS}`}
           >
-            <Play className="h-3 w-3" strokeWidth={2} fill="currentColor" />
+            <Play className="h-3.5 w-3.5" strokeWidth={2} fill="currentColor" />
           </button>
         )}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={job.enabled}
+        <Switch
+          checked={job.enabled}
+          onChange={onToggleEnabled}
           aria-label={`${job.enabled ? "Pause" : "Resume"} ${job.label}`}
-          onClick={onToggleEnabled}
-          className={`mt-1 inline-flex h-[16px] w-7 shrink-0 items-center rounded-full transition-colors ${FOCUS_RING} ${
-            job.enabled ? "bg-emerald-500" : "bg-[#3a3a3a]"
-          }`}
-        >
-          <span
-            className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
-              job.enabled ? "translate-x-[14px]" : "translate-x-[2px]"
-            }`}
-          />
-        </button>
+          className="mt-1.5"
+        />
       </div>
 
       {open && (
-        <div className="ml-[46px] mt-2 flex flex-col gap-1.5 border-l border-[#2e2e2e] pl-3">
+        <div className="ml-[50px] mt-2 flex flex-col gap-1.5 border-l border-[#2e2e2e] pl-3">
           {job.messages.length === 0 ? (
-            <span className="text-[11px] text-[#919191]">
+            <span className="text-[12px] text-[#919191]">
               No runs yet — hit play to run it once now.
             </span>
           ) : (
             job.messages.map((message, index) => (
-              <span key={index} className="flex gap-2 text-[11px] leading-snug text-[#b3b3b3]">
-                <span className="shrink-0 tabular-nums text-[#8a8a8a]">{message.at}</span>
+              <span key={index} className="flex gap-2 text-[12px] leading-snug text-[#b3b3b3]">
+                <span className="shrink-0 tabular-nums text-[#919191]">{message.at}</span>
                 <span className="min-w-0">{message.text}</span>
               </span>
             ))

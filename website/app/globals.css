@@ -30,6 +30,14 @@
   --focus-ring: #ffffff;
 }
 
+/* The desktop replica ships the app's own blue ring (FOCUS_RING in
+   components/demo/ui.ts). Pointing the base outline at the same color stops the
+   white one stacking on top of it on controls that carry the utility, and keeps
+   the ones that don't from looking like they belong to a different app. */
+.replica-ui[data-on-dark] {
+  --focus-ring: #60a5fa;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -83,6 +91,85 @@ html {
   }
 }
 
+/* The replica has to read as a native macOS window, not as this site, so it
+   swaps the page's Geist for the system stack the app actually renders in.
+   `@theme inline` bakes `var(--font-geist-mono)` straight into the `.font-mono`
+   utility, so redefining `--font-mono` here would do nothing — the mono faces
+   have to be reapplied by a rule that outranks the utility instead. */
+.replica-ui {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --demo-mono: "SF Mono", Menlo, Monaco, "Courier New", "Segoe UI Emoji",
+    "Noto Color Emoji", monospace;
+}
+.replica-ui :is(.font-mono, code, pre, kbd) {
+  font-family: var(--demo-mono);
+}
+
+/* The app's dark palette verbatim from desktop/frontend/src/styles/globals.css
+   so replica components can name a token instead of pasting a hex, and so the
+   two stay diffable. Scoped: the marketing page runs its own theme vars. */
+.replica-ui {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #242424;
+  --bg-sidebar: #1e1e1e;
+  --bg-hover: #2a2a2a;
+  --bg-active: #333333;
+  --border: #2e2e2e;
+  --text-primary: #e5e5e5;
+  --text-secondary: #b3b3b3;
+  --text-muted: #919191;
+  --accent-green: #4ade80;
+  --accent-red: #f87171;
+  --accent-cyan: #22d3ee;
+  --accent-blue: #60a5fa;
+  --accent-amber: #fbbf24;
+  --accent-orange: #fb923c;
+  --accent-violet: #a78bfa;
+  --accent-purple: #c084fc;
+  --accent-claude: #de8a68;
+  --terminal-bg: #1a1a1a;
+  --terminal-fg: #cccccc;
+  --terminal-header: #2d2d2d;
+  --terminal-header-text: #8e8e8e;
+  --terminal-header-hover: rgba(255, 255, 255, 0.06);
+  --terminal-header-active: rgba(255, 255, 255, 0.1);
+  --terminal-tab-active: #e5e5e5;
+  --terminal-tab-active-bg: #3c3c3c;
+  --terminal-tab-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09), 0 1px 2px rgba(0, 0, 0, 0.25);
+  --composer-surface: #262626;
+  --composer-border: rgba(204, 204, 204, 0.18);
+  --composer-border-focus: rgba(204, 204, 204, 0.4);
+  --composer-inert-bg: rgba(204, 204, 204, 0.12);
+}
+
+/* Scoped to the replica: the marketing page keeps native scrollbars, but the
+   app draws slim trackless thumbs, and the replica nests enough scrollers
+   (sidebar, transcript, tab strip, modal bodies) that stock bars read as
+   clutter. The 2px transparent border plus padding-box clip is what insets the
+   thumb inside the 8px gutter. */
+.replica-ui {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(127, 127, 127, 0.35) transparent;
+}
+.replica-ui ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.replica-ui ::-webkit-scrollbar-track,
+.replica-ui ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.replica-ui ::-webkit-scrollbar-thumb {
+  background-color: rgba(127, 127, 127, 0.35);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+.replica-ui ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(127, 127, 127, 0.5);
+}
+
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
@@ -132,24 +219,15 @@ html {
     0 10px 25px -5px rgba(0, 0, 0, 0.08);
 }
 
-@keyframes bounce-soft {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-.animate-bounce-soft {
-  animation: bounce-soft 2.2s ease-in-out infinite;
-}
-
+/* The opening tour rings the Start button before miming a click on it, then
+   ripples where the click lands — both are the tour's own furniture, so they
+   sit outside the .replica-ui token layer the app chrome uses. */
 @keyframes start-ring-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.55);
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.55);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(99, 102, 241, 0);
+    box-shadow: 0 0 0 6px rgba(96, 165, 250, 0);
   }
 }
 .start-ring-pulse {
@@ -268,6 +346,121 @@ html {
   }
 }
 
+/* Icon companion to .sidebar-shimmer: SVG strokes can't take background-clip:
+   text, so cycle currentColor through the same palette on the same 4s clock,
+   phase-advanced slightly so hues appear at the icon before sweeping the label. */
+.sidebar-shimmer-icon {
+  color: #60a5fa;
+  animation:
+    shimmer-icon 4s ease-in-out -0.3s infinite,
+    shimmer-glow 2s ease-in-out infinite;
+}
+
+@keyframes shimmer-icon {
+  0%,
+  100% {
+    color: #60a5fa;
+  }
+  20% {
+    color: #8b5cf6;
+  }
+  40% {
+    color: #ec4899;
+  }
+  60% {
+    color: #06b6d4;
+  }
+  80% {
+    color: #6366f1;
+  }
+}
+
+.sidebar-waiting {
+  color: #fbbf24;
+  animation: waiting-pulse 2s ease-in-out infinite;
+}
+
+@keyframes waiting-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes gradient-spin {
+  0% {
+    --gradient-angle: 0deg;
+  }
+  100% {
+    --gradient-angle: 360deg;
+  }
+}
+
+/* A conic gradient can only animate its angle if the angle is a registered
+   property; without this the ring jumps between keyframes instead of spinning. */
+@property --gradient-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* The AI conic palette muted toward the replica's border color, so a "magic"
+   ring reads as a faintly tinted border at rest and only wakes up on hover. */
+.magic-ring {
+  background: conic-gradient(
+    from var(--gradient-angle),
+    color-mix(in srgb, #6366f1 40%, #2e2e2e),
+    color-mix(in srgb, #a855f7 40%, #2e2e2e),
+    color-mix(in srgb, #ec4899 40%, #2e2e2e),
+    color-mix(in srgb, #06b6d4 40%, #2e2e2e),
+    color-mix(in srgb, #6366f1 40%, #2e2e2e)
+  );
+}
+.magic-ring:hover {
+  background: conic-gradient(
+    from var(--gradient-angle),
+    color-mix(in srgb, #6366f1 65%, #2e2e2e),
+    color-mix(in srgb, #a855f7 65%, #2e2e2e),
+    color-mix(in srgb, #ec4899 65%, #2e2e2e),
+    color-mix(in srgb, #06b6d4 65%, #2e2e2e),
+    color-mix(in srgb, #6366f1 65%, #2e2e2e)
+  );
+  animation: gradient-spin 2.5s linear infinite;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.18);
+}
+
+@keyframes switcher-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.switcher-in {
+  animation: switcher-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* Opacity-only: a context menu opens under the cursor, so any transform that
+   shifts its rows would slide them under the pointer and fire spurious
+   mouseenter — flickering a submenu open. A plain fade keeps it still. */
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.menu-pop {
+  animation: menu-pop 120ms ease-out both;
+}
+
 @keyframes pd-blink {
   0%, 49% {
     opacity: 1;
@@ -337,14 +530,17 @@ html {
   html {
     scroll-behavior: auto;
   }
-  .animate-bounce-soft,
   .animate-caret-blink,
   .animate-cta-breath,
-  .animate-icon-glow,
-  .animate-auto-cursor-tap,
-  .auto-cursor-tap,
   .start-ring-pulse,
+  .auto-cursor-tap,
+  .animate-icon-glow,
   .sidebar-shimmer,
+  .sidebar-shimmer-icon,
+  .sidebar-waiting,
+  .switcher-in,
+  .menu-pop,
+  .magic-ring:hover,
   [class*="pd-spine"],
   [class*="pd-blink"] {
     animation: none;
