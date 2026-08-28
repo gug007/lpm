@@ -5,15 +5,16 @@ import { KIND_LABELS, needsAttention, shortPath } from "../../toolkit";
 import { buildList, visibleItems as itemsOf } from "../../toolkitList";
 import { rowSummary } from "../../toolkitRowText";
 import { skillDestinations, skillName, skillSiblings } from "../../toolkitSkill";
+import { AIButton } from "../ui/AIButton";
 import { EmptyState } from "../ui/EmptyState";
-import { LayersIcon, PlusIcon } from "../icons";
+import { LayersIcon } from "../icons";
 import { ToolkitBudget } from "./ToolkitBudget";
 import { ToolkitCreate } from "./ToolkitCreate";
 import { ToolkitDetail } from "./ToolkitDetail";
 import { ToolkitHeader, type CliFilter } from "./ToolkitHeader";
 import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
-import { PRIMARY_BUTTON, SURFACE_TOKENS } from "./surfaces";
+import { SURFACE_TOKENS } from "./surfaces";
 
 // Sentinel for "every group open", used while a filter is live so a match can
 // never hide behind a folded heading.
@@ -334,14 +335,11 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
           icon={<LayersIcon />}
         >
           {canCreate && (
-            <button
-              type="button"
-              onClick={() => startCreate("")}
-              className={`${PRIMARY_BUTTON} mt-4`}
-            >
-              <PlusIcon />
-              New skill
-            </button>
+            <div className="mt-4">
+              <AIButton onClick={() => startCreate("")}>
+                New skill
+              </AIButton>
+            </div>
           )}
         </EmptyState>
       ) : (
@@ -361,14 +359,11 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
                 body="Nothing here matches that filter. Press esc to clear it."
               >
                 {canCreate && (
-                  <button
-                    type="button"
-                    onClick={() => startCreate(seedFromQuery)}
-                    className={`${PRIMARY_BUTTON} mt-4`}
-                  >
-                    <PlusIcon />
-                    {seedFromQuery ? `New skill "${seedFromQuery}"` : "New skill"}
-                  </button>
+                  <div className="mt-4">
+                    <AIButton onClick={() => startCreate(seedFromQuery)}>
+                      {seedFromQuery ? `New skill "${seedFromQuery}"` : "New skill"}
+                    </AIButton>
+                  </div>
                 )}
               </EmptyState>
             </div>

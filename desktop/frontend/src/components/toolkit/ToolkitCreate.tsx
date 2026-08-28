@@ -16,12 +16,11 @@ import {
   skillTemplate,
 } from "../../toolkitSkill";
 import { EMPTY_COMPOSER, composerValueToText, type ComposerValue } from "../../composerValue";
-import { draftLine, parseLine } from "../../toolkitSkillLine";
 import { ChevronLeftIcon } from "../icons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { ToolkitAiDraft, type SkillDraft } from "./ToolkitAiDraft";
-import { ToolkitSkillLine } from "./ToolkitSkillLine";
-import { SURFACE_TOKENS, TEXTAREA } from "./surfaces";
+import { ToolkitSkillOptions } from "./ToolkitSkillOptions";
+import { FIELD, SURFACE_TOKENS, TEXTAREA } from "./surfaces";
 
 const LABEL = "text-[11.5px] text-[var(--text-muted)]";
 
@@ -53,9 +52,9 @@ interface ToolkitCreateProps {
 }
 
 // A sub-view of the pane, not a dialog: the pane can sit at 300px beside a
-// terminal, and it already teaches list ⇄ detail ⇄ esc. The name, the folder
-// and who may run it share one line, so the two fields that decide whether the
-// skill is ever loaded — the description and its cost — start on screen.
+// terminal, and it already teaches list ⇄ detail ⇄ esc. The folder and who may
+// run it are cards under the name rather than a summary line: the folders are
+// told apart by the path they write to, and that is worth the height.
 export function ToolkitCreate({
   cwd,
   roots,
@@ -69,7 +68,7 @@ export function ToolkitCreate({
   onOpenExisting,
 }: ToolkitCreateProps) {
   const destinations = useMemo(() => skillDestinations(roots), [roots]);
-  const [line, setLine] = useState(() => skillNameDraft(seedName));
+  const [name, setName] = useState(() => skillNameDraft(seedName));
   const [description, setDescription] = useState("");
   const [manual, setManual] = useState(false);
   const [steps, setSteps] = useState("");
@@ -96,7 +95,7 @@ export function ToolkitCreate({
     setDestPath(defaultDestination(destinations, cli));
   }, [destinations, destPath, cli]);
 
-  const finalName = skillName(parseLine(line).name);
+  const finalName = skillName(name);
   const dest = destinations.find((d) => d.path === destPath) ?? null;
   const nameError = finalName ? skillNameError(finalName) : null;
   const descriptionError = skillDescriptionError(description);
@@ -114,7 +113,7 @@ export function ToolkitCreate({
   // Against the seed, not against empty: arriving from the "no matches" button
   // with the name already filled in is not an edit worth guarding.
   const dirty =
-    line !== skillNameDraft(seedName) ||
+    name !== skillNameDraft(seedName) ||
     Boolean(description) ||
     Boolean(steps) ||
     Boolean(composerValueToText(aiRequest).trim()) ||
@@ -170,7 +169,7 @@ export function ToolkitCreate({
   // and Create stays the only thing that writes. Drafted steps unfold with it —
   // a draft the user cannot see is not something they can review.
   const applyDraft = (draft: SkillDraft) => {
-    setLine(skillNameDraft(draft.name));
+    setName(skillNameDraft(draft.name));
     setDescription(draft.description);
     setSteps(draft.body);
     setStepsOpen(Boolean(draft.body.trim()));
@@ -219,20 +218,19 @@ export function ToolkitCreate({
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-1">
             <label className={LABEL} htmlFor="toolkit-skill-name">
-              Name <span className="opacity-70">— @ for the folder, / for who runs it</span>
+              Name
             </label>
-            <ToolkitSkillLine
-              value={line}
-              onValue={(next) => setLine(draftLine(next))}
-              destinations={destinations}
-              destPath={destPath}
-              onDest={setDestPath}
-              manual={manualOn}
-              manualAllowed={manualAllowed}
-              onManual={setManual}
-              slash={slash}
-              onSubmit={() => void submit()}
-              inputRef={nameRef}
+            <input
+              id="toolkit-skill-name"
+              ref={nameRef}
+              value={name}
+              onChange={(e) => setName(skillNameDraft(e.target.value))}
+              placeholder="deploy-web"
+              spellCheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+              className={`${FIELD} w-full`}
             />
             <p className="truncate font-mono text-[11.5px] text-[var(--text-muted)]">
               {finalName && dest
@@ -245,6 +243,16 @@ export function ToolkitCreate({
               </p>
             )}
           </div>
+
+          <ToolkitSkillOptions
+            destinations={destinations}
+            destPath={destPath}
+            onDest={setDestPath}
+            manual={manualOn}
+            manualAllowed={manualAllowed}
+            onManual={setManual}
+            slash={slash}
+          />
 
           <div className="flex flex-col gap-1">
             <label className={LABEL} htmlFor="toolkit-skill-description">

@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
-import { PlusIcon, SearchIcon, XIcon } from "../icons";
-import { FIELD, PRIMARY_BUTTON, QUIET_BUTTON } from "./surfaces";
+import { SearchIcon, XIcon } from "../icons";
+import { AIButton } from "../ui/AIButton";
+import { FIELD, QUIET_BUTTON } from "./surfaces";
 
 export type CliFilter = "all" | "claude" | "codex";
 
@@ -92,11 +93,16 @@ export function ToolkitHeader({
         {loading ? "Scanning…" : "Re-scan"}
       </button>
 
+      {/* The app's AI button, because the form behind it drafts the skill for
+          you. Wrapped rather than restyled: the row's other controls hold their
+          width and the filter absorbs the squeeze, so the pill must not shrink
+          into its own label. */}
       {canCreate && (
-        <button type="button" onClick={onCreate} className={PRIMARY_BUTTON}>
-          <PlusIcon />
-          New skill
-        </button>
+        <div className="shrink-0">
+          <AIButton onClick={onCreate}>
+            New skill
+          </AIButton>
+        </div>
       )}
     </div>
   );
