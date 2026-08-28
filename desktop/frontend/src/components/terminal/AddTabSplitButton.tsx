@@ -77,7 +77,7 @@ export function AddTabSplitButton({
             }}
           />
           <ContextMenuItem
-            label="Agent toolkit"
+            label="Skills & tools"
             icon={<LayersIcon />}
             shortcut="⌘⇧K"
             onClick={() => {

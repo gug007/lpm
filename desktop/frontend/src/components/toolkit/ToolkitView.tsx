@@ -325,7 +325,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       {!data ? (
         <EmptyState
           title={loading ? "Scanning…" : "Nothing scanned yet"}
-          body="Toolkit reads the skills, MCP servers and plugins the agent in this directory would load."
+          body="Skills & tools reads the skills, MCP servers and plugins the agent in this directory would load."
           icon={<LayersIcon />}
         />
       ) : all.length === 0 ? (

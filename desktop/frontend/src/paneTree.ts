@@ -187,7 +187,7 @@ export function makeMemory(id: string, label = "Memory"): TerminalInstance {
   return { id, label, kind: "memory" };
 }
 
-export function makeToolkit(id: string, label = "Toolkit"): TerminalInstance {
+export function makeToolkit(id: string, label = "Skills & tools"): TerminalInstance {
   return { id, label, kind: "toolkit" };
 }
 
