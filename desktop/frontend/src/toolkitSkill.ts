@@ -75,8 +75,9 @@ function yamlDescription(description: string): string {
 // vendor's validator or duplicates something the loader already knows. The
 // frontmatter name is the directory name by construction, since the directory
 // wins at load time in both CLIs and a drifting pair is a bug nobody sees.
-// `manual` adds the one other key Claude honours: the skill leaves the model's
-// context entirely and runs only when the user types /name.
+// `manual` adds the key Claude honours for that: the skill leaves the model's
+// context entirely and runs only when the user asks for it by name. Codex reads
+// a file beside this one instead, which the create command writes.
 export function skillTemplate(
   name: string,
   description: string,

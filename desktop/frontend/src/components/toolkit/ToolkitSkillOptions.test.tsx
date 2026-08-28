@@ -15,6 +15,7 @@ const DESTS: SkillDestination[] = [
     label: "Claude Code, in this project",
     exists: false,
   },
+  { path: "/h/.codex/skills", cli: "codex", scope: "user", label: "Codex", exists: true },
   {
     path: "/h/.agents/skills",
     cli: "codex",
@@ -24,13 +25,13 @@ const DESTS: SkillDestination[] = [
   },
 ];
 
-// The parent owns both choices the way ToolkitCreate does, including the rule
-// that moving to a Codex folder gives the opt-out back up.
+// The parent owns both choices the way ToolkitCreate does, down to the token
+// the chosen folder's CLI is invoked with.
 function Harness({ startDest = DESTS[0].path }: { startDest?: string }) {
   const [destPath, setDestPath] = useState(startDest);
   const [manual, setManual] = useState(false);
   const dest = DESTS.find((d) => d.path === destPath) ?? null;
-  const manualAllowed = dest?.cli === "claude";
+  const manualAllowed = dest?.cli === "claude" || dest?.cli === "codex";
   return (
     <ToolkitSkillOptions
       destinations={DESTS}
@@ -39,7 +40,7 @@ function Harness({ startDest = DESTS[0].path }: { startDest?: string }) {
       manual={manual && manualAllowed}
       manualAllowed={manualAllowed}
       onManual={setManual}
-      slash="/deploy-web"
+      invocation={`${dest?.cli === "codex" ? "$" : "/"}deploy-web`}
     />
   );
 }
@@ -64,6 +65,10 @@ function card(label: string, title: string): HTMLButtonElement {
   return found;
 }
 
+function mark(label: string, title: string): string | null {
+  return card(label, title).querySelector("[data-mark]")?.getAttribute("data-mark") ?? null;
+}
+
 function click(button: HTMLButtonElement) {
   act(() => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -84,7 +89,7 @@ afterEach(() => {
 describe("ToolkitSkillOptions", () => {
   it("offers one card per folder, with the path it writes to", () => {
     render();
-    expect(cards("Folder")).toHaveLength(3);
+    expect(cards("Folder")).toHaveLength(4);
     expect(card("Folder", "Claude Code").textContent).toContain("/h/.claude/skills");
     expect(card("Folder", "Codex, Gemini and OpenCode").textContent).toContain(
       "/h/.agents/skills",
@@ -117,24 +122,53 @@ describe("ToolkitSkillOptions", () => {
     expect(card("Who runs it", "Your agent").textContent).toContain("description matches");
   });
 
-  it("names the slash command that runs it", () => {
+  // The two CLIs are typed differently — Claude takes /name, Codex $name — and
+  // a card that names the wrong one teaches a keystroke that does nothing.
+  it("names the thing the user types, in the chosen CLI's own form", () => {
     render();
     expect(card("Who runs it", "Only you").textContent).toContain("/deploy-web");
+    click(card("Folder", "Codex"));
+    expect(card("Who runs it", "Only you").textContent).toContain("$deploy-web");
   });
 
-  it("keeps the opt-out visible under a Codex folder, and says why it is off", () => {
-    render({ startDest: DESTS[2].path });
+  it("offers the opt-out under a Codex folder too", () => {
+    render({ startDest: "/h/.codex/skills" });
     const only = card("Who runs it", "Only you");
-    expect(only.disabled).toBe(true);
-    expect(only.textContent).toContain("Only Claude Code skills can be kept from the agent.");
+    expect(only.disabled).toBe(false);
+    expect(only.textContent).toContain("agents never trigger it");
   });
 
-  it("gives the opt-out back up when the folder moves to Codex", () => {
+  // The shared folder is three CLIs' and only Codex honours the opt-out, so the
+  // card has to say so rather than promise the skill is held back everywhere.
+  it("says who still picks it up in the shared folder", () => {
+    render({ startDest: "/h/.agents/skills" });
+    const note = card("Who runs it", "Only you").textContent ?? "";
+    expect(note).toContain("only Codex holds it back");
+    expect(note).toContain("Gemini and OpenCode");
+  });
+
+  // The label runs out of room in two columns long before the mark does, and
+  // which CLI reads the folder is the thing the label cannot say twice.
+  it("marks every folder with the agent that reads it", () => {
+    render();
+    expect(mark("Folder", "Claude Code")).toBe("claude");
+    expect(mark("Folder", "Claude Code, in this project")).toBe("claude");
+    expect(mark("Folder", "Codex")).toBe("codex");
+    expect(mark("Folder", "Codex, Gemini and OpenCode")).toBe("shared");
+  });
+
+  it("carries the chosen folder's mark onto the agent card", () => {
+    render();
+    expect(mark("Who runs it", "Your agent")).toBe("claude");
+    expect(mark("Who runs it", "Only you")).toBe("prompt");
+    click(card("Folder", "Codex, Gemini and OpenCode"));
+    expect(mark("Who runs it", "Your agent")).toBe("shared");
+  });
+
+  it("keeps the opt-out when the folder moves to Codex", () => {
     render();
     click(card("Who runs it", "Only you"));
-    expect(card("Who runs it", "Only you").getAttribute("aria-checked")).toBe("true");
     click(card("Folder", "Codex, Gemini and OpenCode"));
-    expect(card("Who runs it", "Only you").getAttribute("aria-checked")).toBe("false");
-    expect(card("Who runs it", "Your agent").getAttribute("aria-checked")).toBe("true");
+    expect(card("Who runs it", "Only you").getAttribute("aria-checked")).toBe("true");
   });
 });

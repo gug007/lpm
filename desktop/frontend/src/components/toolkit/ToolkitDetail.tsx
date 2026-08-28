@@ -170,7 +170,8 @@ export function ToolkitDetail({
         )}
         {manualOnly(cap) ? (
           <span className="text-[10px] text-[var(--text-muted)]">
-            runs only when you type /{cap.name} — costs no context until then
+            runs only when you type {`${cap.cli === "codex" ? "$" : "/"}${cap.name}`} — costs no
+            context until then
           </span>
         ) : (
           upfront > 0 && (

@@ -19,6 +19,11 @@ const WALK_ENTRIES: u32 = 500;
 const WALK_DEPTH: u32 = 4;
 const EXTRAS_CAP: usize = 8;
 
+/// Codex's own opt-out, written to `<skill>/agents/openai.yaml`. Claude ignores
+/// the folder entirely, so it goes into every root: a skill created as manual
+/// stays manual if it is later copied into a Codex one.
+const CODEX_OPT_OUT: &str = "policy:\n  allow_implicit_invocation: false\n";
+
 const NOT_A_ROOT: &str = "That is not a folder an agent reads skills from.";
 const NOT_A_SKILL: &str = "This is not a skill folder lpm can remove.";
 const IS_A_LINK: &str =
@@ -186,6 +191,7 @@ pub fn create_agent_skill(
     root: String,
     name: String,
     content: String,
+    manual: bool,
 ) -> Result<String, String> {
     ensure_local(&cwd, "Create")?;
     let roots = skill_roots(&cwd);
@@ -216,6 +222,9 @@ pub fn create_agent_skill(
         }
     })?;
     write_skill_file(&dir, content.as_bytes())?;
+    if manual {
+        write_opt_out(&dir)?;
+    }
     Ok(skill_md.to_string_lossy().into_owned())
 }
 
@@ -229,6 +238,26 @@ fn write_skill_file(dir: &Path, content: &[u8]) -> Result<(), String> {
     {
         let _ = std::fs::remove_dir_all(dir);
         return Err(format!("cannot write {}: {e}", skill_md.display()));
+    }
+    Ok(())
+}
+
+/// The same rollback as `write_skill_file`, and for a sharper reason: a skill
+/// left without its opt-out is one the agent invokes on its own, which is
+/// exactly what the user asked it not to do.
+fn write_opt_out(dir: &Path) -> Result<(), String> {
+    let agents = dir.join("agents");
+    let path = agents.join("openai.yaml");
+    let written = std::fs::create_dir_all(&agents).and_then(|()| {
+        crate::fsatomic::write(
+            &path,
+            CODEX_OPT_OUT.as_bytes(),
+            crate::fsatomic::Mode::Preserve(0o644),
+        )
+    });
+    if let Err(e) = written {
+        let _ = std::fs::remove_dir_all(dir);
+        return Err(format!("cannot write {}: {e}", path.display()));
     }
     Ok(())
 }
@@ -496,11 +525,13 @@ mod tests {
             root_arg.clone(),
             "deploy".into(),
             "first".into(),
+            false,
         )
         .unwrap();
         assert_eq!(Path::new(&made), root.join("deploy/SKILL.md"));
 
-        let err = create_agent_skill(cwd, root_arg, "deploy".into(), "second".into()).unwrap_err();
+        let err =
+            create_agent_skill(cwd, root_arg, "deploy".into(), "second".into(), false).unwrap_err();
         assert_eq!(err, "A skill named deploy is already here.");
         assert_eq!(std::fs::read_to_string(&made).unwrap(), "first");
     }
@@ -511,8 +542,48 @@ mod tests {
         let (cwd, root_arg, root) = project_root(project.path());
         assert!(!root.exists());
 
-        create_agent_skill(cwd, root_arg, "deploy".into(), "body".into()).unwrap();
+        create_agent_skill(cwd, root_arg, "deploy".into(), "body".into(), false).unwrap();
         assert!(root.join("deploy/SKILL.md").is_file());
+    }
+
+    /// Codex reads a file beside SKILL.md rather than the frontmatter key, so a
+    /// skill the user kept to themselves has to carry both.
+    #[test]
+    fn a_manual_skill_carries_the_codex_opt_out() {
+        let project = tempdir().unwrap();
+        let (cwd, root_arg, root) = project_root(project.path());
+
+        create_agent_skill(
+            cwd.clone(),
+            root_arg.clone(),
+            "deploy".into(),
+            "body".into(),
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(root.join("deploy/agents/openai.yaml")).unwrap(),
+            "policy:\n  allow_implicit_invocation: false\n"
+        );
+
+        create_agent_skill(cwd, root_arg, "open".into(), "body".into(), false).unwrap();
+        assert!(!root.join("open/agents").exists());
+    }
+
+    /// A skill without its opt-out is one the agent runs on its own, so a
+    /// half-made one gives the name back rather than shipping the opposite of
+    /// what was asked for.
+    #[test]
+    fn a_failed_opt_out_takes_the_whole_skill_with_it() {
+        let project = tempdir().unwrap();
+        let dir = project.path().join(".claude/skills/deploy");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("SKILL.md"), "body").unwrap();
+        // A file where the folder must go: the sidecar cannot be written.
+        std::fs::write(dir.join("agents"), "").unwrap();
+
+        assert!(write_opt_out(&dir).is_err());
+        assert!(!dir.exists());
     }
 
     #[test]
@@ -524,6 +595,7 @@ mod tests {
             elsewhere.to_string_lossy().into_owned(),
             "deploy".into(),
             "body".into(),
+            false,
         )
         .unwrap_err();
         assert_eq!(err, NOT_A_ROOT);

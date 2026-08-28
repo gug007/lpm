@@ -6,6 +6,7 @@ import {
   costsContext,
   groupByKind,
   loads,
+  manualOnly,
   needsAttention,
   shortDescription,
   shortPath,
@@ -221,13 +222,12 @@ describe("upfrontBytes", () => {
     expect(upfrontBytes(agent)).toBe("rev".length + "Reviews".length);
   });
 
-  // `disable-model-invocation` removes even the description from Claude's
-  // context; Codex has no such key, so a copy carrying one still costs.
-  it("counts nothing for a manual-only skill, but only under Claude", () => {
+  // A manual-only skill is kept out of context description and all, whichever
+  // CLI is holding it back. Subagents have no such opt-out, so the flag on one
+  // means nothing.
+  it("counts nothing for a manual-only skill under either CLI", () => {
     expect(upfrontBytes(cap({ manual: true, bytes: 40000 }))).toBe(0);
-    expect(upfrontBytes(cap({ manual: true, cli: "codex" }))).toBe(
-      "deploy".length + "Ship it".length,
-    );
+    expect(upfrontBytes(cap({ manual: true, cli: "codex", bytes: 40000 }))).toBe(0);
     expect(upfrontBytes(cap({ kind: "subagent", manual: true }))).toBe(
       "deploy".length + "Ship it".length,
     );
@@ -246,6 +246,21 @@ describe("upfrontBytes", () => {
   it("costs nothing when the agent will not load it at all", () => {
     expect(upfrontBytes(cap({ kind: "instructions", bytes: 4096, enabled: false }))).toBe(0);
     expect(upfrontBytes(cap({ kind: "instructions", bytes: 4096, shadowedBy: "/x" }))).toBe(0);
+  });
+});
+
+// The scan already decided whether the opt-out the CLI honours is there, so
+// this side must not second-guess it by CLI — a Codex skill it wrongly reads as
+// auto-loading is one the row and the budget both describe wrongly.
+describe("manualOnly", () => {
+  it("takes the flag as the scan set it, under either CLI", () => {
+    expect(manualOnly(cap({ manual: true }))).toBe(true);
+    expect(manualOnly(cap({ manual: true, cli: "codex" }))).toBe(true);
+    expect(manualOnly(cap({ cli: "codex" }))).toBe(false);
+  });
+
+  it("means nothing on anything but a skill", () => {
+    expect(manualOnly(cap({ kind: "command", manual: true }))).toBe(false);
   });
 });
 

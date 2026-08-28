@@ -104,11 +104,9 @@ export function ToolkitCreate({
     [finalName, dest, items, truncated],
   );
 
-  // Only Claude honours the opt-out key; a Codex skill carrying it loads and
-  // runs like any other, which is worse than not offering the choice.
-  const manualAllowed = dest?.cli === "claude";
+  const manualAllowed = dest?.cli === "claude" || dest?.cli === "codex";
   const manualOn = manual && manualAllowed;
-  const slash = `/${finalName || "name"}`;
+  const invocation = `${dest?.cli === "codex" ? "$" : "/"}${finalName || "name"}`;
 
   // Against the seed, not against empty: arriving from the "no matches" button
   // with the name already filled in is not an edit worth guarding.
@@ -153,6 +151,7 @@ export function ToolkitCreate({
         dest.path,
         finalName,
         skillTemplate(finalName, description.trim(), manualOn, steps.trim()),
+        manualOn,
       )) as string;
       onCreated(path);
     } catch (err) {
@@ -251,7 +250,7 @@ export function ToolkitCreate({
             manual={manualOn}
             manualAllowed={manualAllowed}
             onManual={setManual}
-            slash={slash}
+            invocation={invocation}
           />
 
           <div className="flex flex-col gap-1">
@@ -268,7 +267,9 @@ export function ToolkitCreate({
             />
             <p className={LABEL}>
               {manualOn
-                ? `Shown beside ${slash} in the slash menu.`
+                ? `Shown beside ${invocation} in the ${
+                    dest?.cli === "codex" ? "skill" : "slash"
+                  } menu.`
                 : "This is the only part your agent reads before deciding to open the skill."}
             </p>
             <div className="flex items-baseline justify-between gap-3 text-[11px] tabular-nums text-[var(--text-muted)]">

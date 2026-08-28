@@ -102,7 +102,7 @@ describe("rowMeta", () => {
   // The estimate alone cannot explain a zero-cost skill; the word does.
   it("marks a skill only the user can run", () => {
     expect(rowMeta(own({ manual: true }))).toBe("manual");
-    expect(rowMeta(own({ manual: true, cli: "codex" }), true)).toBe("codex");
+    expect(rowMeta(own({ manual: true, cli: "codex" }), true)).toBe("manual · codex");
   });
 
   it("prints a figure only where the numbers actually differ", () => {

@@ -73,6 +73,34 @@ fn yaml_truthy(v: &serde_norway::Value) -> bool {
     v.as_i64() == Some(1)
 }
 
+/// The mirror of `yaml_truthy`, for a key whose default is true: only an
+/// explicit false holds a skill back.
+fn yaml_explicit_false(v: &serde_norway::Value) -> bool {
+    if let Some(b) = v.as_bool() {
+        return !b;
+    }
+    if let Some(s) = v.as_str() {
+        return matches!(
+            s.trim().to_ascii_lowercase().as_str(),
+            "false" | "no" | "off" | "0"
+        );
+    }
+    v.as_i64() == Some(0)
+}
+
+/// Codex's opt-out, which lives beside SKILL.md rather than in its frontmatter.
+fn codex_opted_out(dir: &Path) -> bool {
+    let Ok(content) = std::fs::read_to_string(dir.join("agents/openai.yaml")) else {
+        return false;
+    };
+    let Ok(val) = serde_norway::from_str::<serde_norway::Value>(&content) else {
+        return false;
+    };
+    val.get("policy")
+        .and_then(|p| p.get("allow_implicit_invocation"))
+        .is_some_and(yaml_explicit_false)
+}
+
 /// (description, manual).
 pub(super) fn describe_content(content: &str) -> (String, bool) {
     let (head, body) = crate::aigen::split_frontmatter(content);
@@ -119,7 +147,8 @@ fn skills_in(cli: &str, scope: &str, dir: &Path, owner: &str, out: &mut AgentCap
         return;
     };
     for entry in entries.filter_map(Result::ok) {
-        let skill_md = entry.path().join("SKILL.md");
+        let skill_dir = entry.path();
+        let skill_md = skill_dir.join("SKILL.md");
         if !skill_md.is_file() {
             continue;
         }
@@ -135,7 +164,14 @@ fn skills_in(cli: &str, scope: &str, dir: &Path, owner: &str, out: &mut AgentCap
         cap.path = skill_md.to_string_lossy().into_owned();
         cap.description = description;
         cap.bytes = bytes;
-        cap.manual = manual;
+        // Each CLI honours only its own opt-out: Codex ignores the frontmatter
+        // key, so crediting it here would zero out context the skill really
+        // costs, and Claude ignores the file, so reading it would do the same.
+        cap.manual = if cli == "codex" {
+            codex_opted_out(&skill_dir)
+        } else {
+            manual
+        };
         // A plugin's files are replaced wholesale on update, so an edit there
         // would be silently thrown away.
         cap.editable = owner.is_empty();
@@ -255,12 +291,40 @@ pub(super) fn codex(
 
 #[cfg(test)]
 mod tests {
+    use crate::agent_caps::AgentCapabilities;
+    use tempfile::tempdir;
+
+    const OPEN: &str = "---\ndescription: Ship it\n---\n\nBody.";
+    const HELD_BACK: &str =
+        "---\ndescription: Ship it\ndisable-model-invocation: true\n---\n\nBody.";
+    const OPT_OUT: &str = "policy:\n  allow_implicit_invocation: false\n";
+
     fn desc(content: &str) -> String {
         super::describe_content(content).0
     }
 
     fn manual(content: &str) -> bool {
         super::describe_content(content).1
+    }
+
+    /// Builds a one-skill root and reports what the scan makes of it.
+    fn scanned_manual(cli: &str, skill_md: &str, opt_out: Option<&str>) -> bool {
+        let root = tempdir().unwrap();
+        let dir = root.path().join("deploy");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("SKILL.md"), skill_md).unwrap();
+        if let Some(yaml) = opt_out {
+            std::fs::create_dir_all(dir.join("agents")).unwrap();
+            std::fs::write(dir.join("agents/openai.yaml"), yaml).unwrap();
+        }
+
+        let mut out = AgentCapabilities::default();
+        super::skills_in(cli, "user", root.path(), "", &mut out);
+        out.items
+            .iter()
+            .find(|c| c.name == "deploy")
+            .expect("the skill was not listed")
+            .manual
     }
 
     #[test]
@@ -311,6 +375,39 @@ mod tests {
         for value in ["false", "\"false\"", "no", "off", "Off", "0", "maybe"] {
             let doc = format!("---\ndisable-model-invocation: {value}\n---\n\nBody.");
             assert!(!manual(&doc), "{value} should not read as manual");
+        }
+    }
+
+    /// Neither CLI reads the other's opt-out, so the flag has to come from the
+    /// one that CLI honours. Crediting the wrong source either bills a skill for
+    /// context it never costs or hides context it does.
+    #[test]
+    fn each_cli_is_held_back_only_by_its_own_opt_out() {
+        assert!(scanned_manual("codex", OPEN, Some(OPT_OUT)));
+        assert!(!scanned_manual("codex", HELD_BACK, None));
+        assert!(scanned_manual("claude", HELD_BACK, None));
+        assert!(!scanned_manual("claude", OPEN, Some(OPT_OUT)));
+    }
+
+    /// Implicit invocation is the default, so anything short of an explicit
+    /// false leaves the skill open — including a file that fails to parse.
+    #[test]
+    fn only_an_explicit_false_holds_a_codex_skill_back() {
+        for yaml in [
+            "policy:\n  allow_implicit_invocation: no\n",
+            "policy:\n  allow_implicit_invocation: \"false\"\n",
+            "policy:\n  allow_implicit_invocation: 0\n",
+        ] {
+            assert!(scanned_manual("codex", OPEN, Some(yaml)), "{yaml:?}");
+        }
+        for yaml in [
+            "policy:\n  allow_implicit_invocation: true\n",
+            "policy: {}\n",
+            "allow_implicit_invocation: false\n",
+            "not: yaml: at: all\n",
+            "",
+        ] {
+            assert!(!scanned_manual("codex", OPEN, Some(yaml)), "{yaml:?}");
         }
     }
 

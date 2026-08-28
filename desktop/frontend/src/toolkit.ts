@@ -30,8 +30,8 @@ export interface AgentCapability {
   // ambiguous tie do not.
   blocking: boolean;
   bytes: number;
-  // Frontmatter `disable-model-invocation: true`: only the user can run it, as
-  // /name, and Claude keeps it out of the model's context entirely.
+  // Only the user can run it, by name, and the CLI keeps it out of the model's
+  // context entirely. Resolved per CLI: each honours a different opt-out.
   manual?: boolean;
 }
 
@@ -201,19 +201,18 @@ export function upfrontBytes(cap: AgentCapability): number {
   if (!costsContext(cap)) return 0;
   if (cap.kind === "instructions") return cap.bytes;
   if (cap.kind === "skill" || cap.kind === "subagent") {
-    // A manual-only skill never reaches the model's context: Claude drops even
-    // its description and only the user can invoke it. Claude-only — Codex has
-    // no such key, so a Codex copy carrying one still loads and still costs.
+    // A manual-only skill never reaches the model's context: the CLI drops even
+    // its description, and only the user can invoke it.
     if (manualOnly(cap)) return 0;
     return cap.name.length + cap.description.length;
   }
   return 0;
 }
 
-// The skill exists only as a user-typed /name: `disable-model-invocation` in
-// its frontmatter, honoured by Claude alone.
+// The skill exists only as something the user types. Each CLI has its own
+// opt-out and honours no other's, which the scan has already resolved.
 export function manualOnly(cap: AgentCapability): boolean {
-  return cap.kind === "skill" && cap.cli === "claude" && Boolean(cap.manual);
+  return cap.kind === "skill" && Boolean(cap.manual);
 }
 
 export function upfrontTotal(items: AgentCapability[]): number {
