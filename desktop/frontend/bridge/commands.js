@@ -590,6 +590,15 @@ export function ReadAgentCapability(path) {
 export function WriteAgentCapability(path, content, baseline) {
   return invoke("write_agent_capability", { path, content, baseline });
 }
+export function CreateAgentSkill(cwd, root, name, content) {
+  return invoke("create_agent_skill", { cwd, root, name, content });
+}
+export function PreviewAgentSkillDelete(cwd, path) {
+  return invoke("preview_agent_skill_delete", { cwd, path });
+}
+export function DeleteAgentSkill(cwd, path) {
+  return invoke("delete_agent_skill", { cwd, path });
+}
 export function ReadMemorySessions(project) {
   return invoke("read_memory_sessions", { project });
 }

@@ -30,6 +30,14 @@ fn writable_root(path: &Path) -> bool {
         return false;
     }
     let home = dirs::home_dir().unwrap_or_default();
+    // A plugin's files are replaced wholesale on update, so an edit there is
+    // silently thrown away. The scan already marks them uneditable; refuse here
+    // too, because the command must not depend on the UI to be safe. Anchored
+    // at the install directory rather than matched component-wise, or a
+    // checkout living under any `plugins/` folder would go read-only with it.
+    if path.starts_with(home.join(".claude/plugins")) {
+        return false;
+    }
     let roots: Vec<PathBuf> = vec![
         home.join(".claude"),
         home.join(".codex"),
@@ -142,6 +150,23 @@ mod tests {
         assert!(!is_editable(&home.join(".claude.json")));
         assert!(!is_editable(&home.join(".codex/config.toml")));
         assert!(!is_editable(Path::new("/repo/proj/.mcp.json")));
+    }
+
+    #[test]
+    fn a_plugin_owned_skill_is_not_editable() {
+        let home = dirs::home_dir().unwrap_or_default();
+        assert!(!is_editable(
+            &home.join(".claude/plugins/repos/o/r/skills/x/SKILL.md")
+        ));
+    }
+
+    /// "plugins" is an ordinary directory name in plenty of checkouts, and a
+    /// repo that happens to live under one still owns its own capability files.
+    #[test]
+    fn a_checkout_under_a_plugins_folder_is_still_editable() {
+        assert!(is_editable(Path::new(
+            "/repo/wordpress/plugins/acme/.claude/commands/deploy.md"
+        )));
     }
 
     #[test]

@@ -1,24 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToolkitCapabilities } from "../../hooks/useToolkitCapabilities";
 import type { AgentCapability, CapabilityKind } from "../../toolkit";
-import { KIND_LABELS, needsAttention } from "../../toolkit";
+import { KIND_LABELS, needsAttention, shortPath } from "../../toolkit";
 import { buildList, visibleItems as itemsOf } from "../../toolkitList";
 import { rowSummary } from "../../toolkitRowText";
+import { skillDestinations, skillName, skillSiblings } from "../../toolkitSkill";
 import { EmptyState } from "../ui/EmptyState";
-import { LayersIcon, SearchIcon, XIcon } from "../icons";
+import { LayersIcon, PlusIcon } from "../icons";
 import { ToolkitBudget } from "./ToolkitBudget";
+import { ToolkitCreate } from "./ToolkitCreate";
 import { ToolkitDetail } from "./ToolkitDetail";
+import { ToolkitHeader, type CliFilter } from "./ToolkitHeader";
 import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
-import { FIELD, QUIET_BUTTON, SURFACE_TOKENS } from "./surfaces";
-
-type CliFilter = "all" | "claude" | "codex";
-
-const CLI_OPTIONS: { value: CliFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "claude", label: "Claude" },
-  { value: "codex", label: "Codex" },
-];
+import { PANEL_BUTTON, SURFACE_TOKENS } from "./surfaces";
 
 // Sentinel for "every group open", used while a filter is live so a match can
 // never hide behind a folded heading.
@@ -51,7 +46,7 @@ interface ToolkitViewProps {
 // when two definitions share a name. Read-first — lpm resolves and diagnoses,
 // and only edits the markdown files it can author safely.
 export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
-  const { data, error, loading, refresh } = useToolkitCapabilities(cwd, visible);
+  const { data, error, loading, scannedAt, refresh } = useToolkitCapabilities(cwd, visible);
   const [cli, setCli] = useState<CliFilter>("all");
   const [kindFilter, setKindFilter] = useState<CapabilityKind | null>(null);
   const [query, setQuery] = useState("");
@@ -60,9 +55,17 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
   // Plugin blocks and the disabled pile start folded: one vendor shipping a
   // dozen skills should not bury everything the user installed themselves.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [creating, setCreating] = useState(false);
+  const [seedName, setSeedName] = useState("");
+  const [pending, setPending] = useState<{ path: string; after: number } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const all = useMemo(() => data?.items ?? [], [data]);
+
+  // Skills are the only kind lpm authors, and the remote scan registers no
+  // skill root, so there is nowhere to write one over SSH.
+  const destinations = useMemo(() => skillDestinations(data?.roots ?? []), [data]);
+  const canCreate = data !== null && !data.remote && destinations.length > 0;
 
   const forCli = useMemo(
     () => (cli === "all" ? all : all.filter((i) => i.cli === cli)),
@@ -108,6 +111,40 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     [all],
   );
 
+  const startCreate = useCallback((seed: string) => {
+    setSeedName(seed);
+    setCreating(true);
+  }, []);
+
+  const openByPath = useCallback(
+    (path: string) => {
+      const cap = all.find((i) => i.path === path);
+      if (!cap) return;
+      setCreating(false);
+      setSelected(cap);
+    },
+    [all],
+  );
+
+  const handleCreated = useCallback(
+    (path: string) => {
+      setCreating(false);
+      setPending({ path, after: scannedAt });
+      void refresh();
+    },
+    [refresh, scannedAt],
+  );
+
+  // The new skill opens once a scan that started after it was written lands.
+  // `refresh` keeps the previous listing on screen while it runs, so waiting on
+  // `data` alone would read the pre-create scan and give up immediately.
+  useEffect(() => {
+    if (!pending || !data || scannedAt <= pending.after) return;
+    const made = data.items.find((i) => i.path === pending.path);
+    setPending(null);
+    if (made) setSelected(made);
+  }, [data, scannedAt, pending]);
+
   const toggleGroup = useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -123,7 +160,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
 
   // Keyboard only while this pane has focus and no detail is open, so it never
   // competes with the terminal beside it.
-  const listActive = visible && focused && !selected;
+  const listActive = visible && focused && !selected && !creating;
   useEffect(() => {
     if (!listActive) return;
     const onKey = (e: KeyboardEvent) => {
@@ -158,6 +195,9 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         if (!cap) return;
         e.preventDefault();
         setSelected(cap);
+      } else if (e.key === "n" && !inField && canCreate) {
+        e.preventDefault();
+        startCreate("");
       } else if (e.key === "/" && !inField) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -170,20 +210,50 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [listActive, visibleItems, activeIndex, query, kindFilter]);
+  }, [listActive, visibleItems, activeIndex, query, kindFilter, canCreate, startCreate]);
+
+  if (creating) {
+    return (
+      <ToolkitCreate
+        cwd={cwd}
+        roots={data?.roots ?? []}
+        items={all}
+        truncated={data?.truncated ?? false}
+        cli={cli}
+        seedName={seedName}
+        active={visible && focused}
+        onBack={() => setCreating(false)}
+        onCreated={handleCreated}
+        onOpenExisting={openByPath}
+      />
+    );
+  }
 
   if (selected) {
     return (
       <ToolkitDetail
         cap={selected}
+        cwd={cwd}
+        // The folder, not its SKILL.md: the sentence reads "a copy is also in …".
+        siblingPaths={skillSiblings(selected, all).map((s) =>
+          shortPath(s.path.replace(/\/SKILL\.md$/, "")),
+        )}
+        deletable={!data?.remote}
         active={visible && focused}
         onBack={() => setSelected(null)}
         onSaved={refresh}
+        onDeleted={() => {
+          setSelected(null);
+          void refresh();
+        }}
       />
     );
   }
 
   const filtering = Boolean(query.trim()) || kindFilter !== null;
+  // What the user just looked for and did not find is usually what they are
+  // about to write.
+  const seedFromQuery = skillName(query);
   const attention = matched.filter(needsAttention).length;
   const pendingOnTrust = all.filter((i) => i.problem.includes("not trusted")).length;
 
@@ -192,58 +262,18 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       style={SURFACE_TOKENS}
       className="flex min-h-0 flex-1 flex-col gap-2 bg-[var(--bg-primary)] p-2"
     >
-      <div className="flex shrink-0 items-center gap-2">
-        <div
-          role="group"
-          aria-label="Agent CLI"
-          className="flex shrink-0 gap-0.5 rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] p-0.5"
-        >
-          {CLI_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setCli(option.value)}
-              aria-pressed={cli === option.value}
-              className={`rounded-[7px] px-2 py-[3px] text-[10.5px] transition-colors ${
-                cli === option.value
-                  ? "bg-[var(--tk-active)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-
-        <label className={`${FIELD} flex flex-1 items-center gap-1.5`}>
-          <span className="text-[var(--text-muted)] [&>svg]:h-3.5 [&>svg]:w-3.5">
-            <SearchIcon />
-          </span>
-          <input
-            ref={searchRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={forCli.length > 0 ? `Filter ${forCli.length} capabilities` : "Filter"}
-            spellCheck={false}
-            aria-label="Filter capabilities"
-            className="min-w-0 flex-1 bg-transparent text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Clear filter"
-              className="shrink-0 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] [&>svg]:h-3 [&>svg]:w-3"
-            >
-              <XIcon />
-            </button>
-          )}
-        </label>
-
-        <button onClick={refresh} disabled={loading} className={QUIET_BUTTON}>
-          {loading ? "Scanning…" : "Re-scan"}
-        </button>
-      </div>
+      <ToolkitHeader
+        cli={cli}
+        onCli={setCli}
+        query={query}
+        onQuery={setQuery}
+        count={forCli.length}
+        loading={loading}
+        onRescan={refresh}
+        canCreate={canCreate}
+        onCreate={() => startCreate("")}
+        searchRef={searchRef}
+      />
 
       {data && all.length > 0 && (
         <p className="shrink-0 truncate px-1 text-[10.5px] leading-[15px] tabular-nums text-[var(--text-muted)]">
@@ -302,7 +332,18 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
           title="No capabilities found"
           body="Nothing is installed for Claude Code or Codex in this directory or your home."
           icon={<LayersIcon />}
-        />
+        >
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => startCreate("")}
+              className={`${PANEL_BUTTON} mt-4`}
+            >
+              <PlusIcon />
+              New skill
+            </button>
+          )}
+        </EmptyState>
       ) : (
         <>
           {/* Only ever for one CLI: summing what Claude and Codex each load
@@ -318,7 +359,18 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
               <EmptyState
                 title="No matches"
                 body="Nothing here matches that filter. Press esc to clear it."
-              />
+              >
+                {canCreate && (
+                  <button
+                    type="button"
+                    onClick={() => startCreate(seedFromQuery)}
+                    className={`${PANEL_BUTTON} mt-4`}
+                  >
+                    <PlusIcon />
+                    {seedFromQuery ? `New skill "${seedFromQuery}"` : "New skill"}
+                  </button>
+                )}
+              </EmptyState>
             </div>
           ) : (
             <ToolkitList

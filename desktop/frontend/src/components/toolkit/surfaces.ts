@@ -33,8 +33,17 @@ export const FAULT_LABEL =
 export const ROW =
   "grid w-full grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] items-baseline gap-2.5 rounded-[var(--tk-radius-s)] px-2 py-[3px] text-left transition-colors";
 
+export const CHOICE =
+  "flex w-full items-center gap-2 rounded-[var(--tk-radius-s)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--tk-hover)]";
+
 export const FIELD =
   "h-[26px] min-w-0 rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] px-2.5 text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[-1px] focus-visible:outline-[var(--accent-blue)]";
 
+export const TEXTAREA =
+  "w-full resize-none rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] p-2.5 text-[11.5px] leading-[17px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[-1px] focus-visible:outline-[var(--accent-blue)]";
+
 export const QUIET_BUTTON =
   "shrink-0 rounded-[var(--tk-radius-s)] px-1.5 py-1 text-[10.5px] text-[var(--text-muted)] opacity-60 transition-opacity hover:opacity-100 disabled:opacity-40";
+
+export const PANEL_BUTTON =
+  "flex shrink-0 items-center gap-1 rounded-[var(--tk-radius-s)] bg-[var(--tk-active)] px-2 py-[3px] text-[10.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tk-hover)] disabled:opacity-40";

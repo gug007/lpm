@@ -12,10 +12,11 @@ import {
   splitFrontmatter,
   upfrontBytes,
 } from "../../toolkit";
-import { ChevronLeftIcon } from "../icons";
+import { ChevronLeftIcon, TrashIcon } from "../icons";
 import { MessageMarkdown } from "../MessageMarkdown";
 import { OpenFileWithDropdown } from "../OpenFileWithDropdown";
 import { SegmentedControl } from "../ui/SegmentedControl";
+import { ToolkitDeleteDialog } from "./ToolkitDeleteDialog";
 import { ToolkitFrontmatter } from "./ToolkitFrontmatter";
 import { ToolkitSource } from "./ToolkitSource";
 
@@ -26,18 +27,34 @@ type View = "doc" | "source";
 
 interface ToolkitDetailProps {
   cap: AgentCapability;
+  cwd: string;
+  // Short paths of same-named copies elsewhere, so the confirmation can say
+  // which ones survive. Computed by the list, which already holds every item.
+  siblingPaths: string[];
+  deletable: boolean;
   active: boolean;
   onBack: () => void;
   onSaved: () => void;
+  onDeleted: () => void;
 }
 
-export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailProps) {
+export function ToolkitDetail({
+  cap,
+  cwd,
+  siblingPaths,
+  deletable,
+  active,
+  onBack,
+  onSaved,
+  onDeleted,
+}: ToolkitDetailProps) {
   const [doc, setDoc] = useState<CapabilityDoc | null>(null);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   const [baseline, setBaseline] = useState("");
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<View>("doc");
+  const [confirming, setConfirming] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -64,7 +81,7 @@ export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailPro
   // rather than unmounted, so a capture-phase listener here would swallow
   // Escape for whatever the user is actually looking at.
   useEffect(() => {
-    if (!active || dirty) return;
+    if (!active || dirty || confirming) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
@@ -72,7 +89,7 @@ export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailPro
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [active, dirty, onBack]);
+  }, [active, dirty, confirming, onBack]);
 
   const save = async () => {
     setSaving(true);
@@ -97,6 +114,9 @@ export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailPro
   const upfront = upfrontBytes(cap);
   const issue = capabilityIssue(cap);
   const editable = Boolean(doc?.editable);
+  // `cap.editable` is already false for a plugin-owned skill, so plugins need
+  // no separate check here.
+  const canDelete = deletable && cap.kind === "skill" && cap.editable;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)]">
@@ -115,7 +135,18 @@ export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailPro
         {dirty && (
           <span className="shrink-0 text-[10px] text-[var(--accent-amber-text)]">unsaved</span>
         )}
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {canDelete && (
+            <button
+              onClick={() => setConfirming(true)}
+              disabled={dirty}
+              title={dirty ? "Save or revert your changes first" : "Delete this skill"}
+              aria-label="Delete this skill"
+              className="rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--accent-red)] disabled:opacity-40"
+            >
+              <TrashIcon />
+            </button>
+          )}
           <SegmentedControl
             value={view}
             options={[
@@ -184,6 +215,20 @@ export function ToolkitDetail({ cap, active, onBack, onSaved }: ToolkitDetailPro
             </p>
           )}
         </div>
+      )}
+
+      {canDelete && (
+        <ToolkitDeleteDialog
+          cwd={cwd}
+          cap={cap}
+          siblingPaths={siblingPaths}
+          open={confirming}
+          onCancel={() => setConfirming(false)}
+          onDeleted={() => {
+            setConfirming(false);
+            onDeleted();
+          }}
+        />
       )}
     </div>
   );

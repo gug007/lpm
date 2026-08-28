@@ -140,8 +140,11 @@ export function ToolkitList({
             node.type === "group" ? (
               <Group key={node.id} node={node} onToggle={() => onToggleGroup(node.id)} />
             ) : (
+              // Neither field is unique alone: the same skill in both Codex
+              // user roots shares an id, and every server or hook declared in
+              // one config file shares that file's path.
               <ToolkitRow
-                key={node.cap.id}
+                key={`${node.cap.id}|${node.cap.path}`}
                 cap={node.cap}
                 summary={summarise(node.cap)}
                 fault={panel.tone === "warn"}

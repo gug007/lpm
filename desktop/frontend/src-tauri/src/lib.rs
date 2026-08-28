@@ -101,6 +101,7 @@ mod termvt;
 mod textinput;
 mod tmuxmigrate;
 mod transfer;
+mod trash;
 mod openaitts;
 mod secrets;
 mod tts;
@@ -123,7 +124,10 @@ use agent_limits::*;
 use agent_session_titles::*;
 use agent_sessions::*;
 use agent_usage::*;
-use agent_caps::{list_agent_capabilities, read_agent_capability, write_agent_capability};
+use agent_caps::{
+    create_agent_skill, delete_agent_skill, list_agent_capabilities,
+    preview_agent_skill_delete, read_agent_capability, write_agent_capability,
+};
 use aigen::*;
 use browser::*;
 use cli_install::*;

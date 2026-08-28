@@ -10,8 +10,10 @@ mod plugins;
 mod remote;
 mod resolve;
 mod scan;
+mod skills;
 mod write;
 
+pub use skills::{create_agent_skill, delete_agent_skill, preview_agent_skill_delete};
 pub use write::{read_agent_capability, write_agent_capability};
 
 use serde::Serialize;
@@ -81,6 +83,9 @@ impl AgentCapability {
 pub struct CapabilityRoot {
     pub cli: String,
     pub scope: String,
+    /// Which kind of capability this directory holds, so the pane can offer to
+    /// add one. Empty for the MCP config files and instructions files.
+    pub kind: String,
     pub path: String,
     pub exists: bool,
 }

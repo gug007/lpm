@@ -182,6 +182,7 @@ fn claude_mcp(home: &Path, cwd: &str, root: Option<&Path>, out: &mut AgentCapabi
     out.roots.push(CapabilityRoot {
         cli: "claude".into(),
         scope: "project".into(),
+        kind: KIND_MCP.into(),
         path: mcp_json.to_string_lossy().into_owned(),
         exists: mcp_json.exists(),
     });
@@ -220,6 +221,7 @@ fn codex_mcp(home: &Path, out: &mut AgentCapabilities) {
     out.roots.push(CapabilityRoot {
         cli: "codex".into(),
         scope: "user".into(),
+        kind: KIND_MCP.into(),
         path: config.to_string_lossy().into_owned(),
         exists: config.exists(),
     });

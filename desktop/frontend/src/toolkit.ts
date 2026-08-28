@@ -35,6 +35,9 @@ export interface AgentCapability {
 export interface CapabilityRoot {
   cli: string;
   scope: string;
+  // Which kind of capability this directory holds, so the pane can offer to add
+  // one. Empty for the MCP config files and instructions files.
+  kind: string;
   path: string;
   exists: boolean;
 }

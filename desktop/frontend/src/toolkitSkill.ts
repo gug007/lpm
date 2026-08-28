@@ -1,0 +1,198 @@
+// Writing a new skill: the name the folder gets, the file it starts as, where
+// it may go, and which copy the agent will actually use once it is there.
+
+import type { AgentCapability, CapabilityRoot } from "./toolkit";
+import { CLI_LABELS, shortPath } from "./toolkit";
+
+export const SKILL_NAME_MAX = 64;
+export const SKILL_DESCRIPTION_MAX = 1024;
+
+// The folder Codex reads that Gemini and OpenCode read too, so a skill written
+// there is not a Codex skill.
+const SHARED_SKILLS_DIR = /\/\.agents\/skills\/?$/;
+
+// What the field shows while typing: lower-cased, non-alphanumeric runs
+// collapsed to hyphens, capped at 64. A trailing hyphen survives — stripping it
+// live makes the field collapse under the user's fingers halfway through
+// "deploy-web". `slugify` is not reused: it keeps `.` and `_`, which are legal
+// directory names but not skill names, and a leading `.` would hide the folder.
+export function skillNameDraft(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, SKILL_NAME_MAX);
+}
+
+// The value actually submitted.
+export function skillName(raw: string): string {
+  return skillNameDraft(raw).replace(/-+$/, "");
+}
+
+export function skillNameError(name: string): string | null {
+  if (!name) return "Give the skill a name.";
+  if (name.length > SKILL_NAME_MAX) return "Keep the name to 64 characters or fewer.";
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name)) {
+    return "Use lowercase letters, numbers and hyphens.";
+  }
+  return null;
+}
+
+export function skillDescriptionError(text: string): string | null {
+  if (!text.trim()) return "Say what it does and when to use it.";
+  if (text.length > SKILL_DESCRIPTION_MAX) return "That's longer than a description can be.";
+  // Both CLIs drop a skill whose description contains an angle bracket, and
+  // report only an aggregate count of what they skipped.
+  if (/[<>]/.test(text)) return "Skip the < and > characters here.";
+  return null;
+}
+
+export function titleCaseSkillName(name: string): string {
+  return name
+    .split("-")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+export function skillFilePath(root: string, name: string): string {
+  return `${root.replace(/\/+$/, "")}/${name}/SKILL.md`;
+}
+
+// A double-quoted scalar is what lpm's own bundled skills use: it round-trips
+// through any YAML parser and survives a naive line-based reader. Several lines
+// cannot be quoted that way, so they fold — each one re-indented, because an
+// extra-indented line inside a folded block keeps its own line breaks.
+function yamlDescription(description: string): string {
+  if (/\r?\n/.test(description)) {
+    const lines = description.split(/\r?\n/).map((line) => `  ${line.trim()}`.trimEnd());
+    return [">-", ...lines].join("\n");
+  }
+  return `"${description.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+// Only `name` and `description`: every other key either fails one vendor's
+// validator or duplicates something the loader already knows. The frontmatter
+// name is the directory name by construction, since the directory wins at load
+// time in both CLIs and a drifting pair is a bug nobody sees.
+export function skillTemplate(name: string, description: string): string {
+  return [
+    "---",
+    // Quoted, because `no`, `on`, `off`, `y` and `n` are all legal skill names
+    // and all read as booleans to a YAML 1.1 parser.
+    `name: "${name}"`,
+    `description: ${yamlDescription(description)}`,
+    "---",
+    "",
+    `# ${titleCaseSkillName(name)}`,
+    "",
+    "Write the steps the agent should follow here, in order.",
+    "",
+    "Keep this file short. Long reference material belongs in its own file beside",
+    "this one, linked from here, so it only loads when it is needed.",
+    "",
+  ].join("\n");
+}
+
+export interface SkillDestination {
+  path: string;
+  cli: string;
+  scope: string;
+  label: string;
+  exists: boolean;
+}
+
+function destinationLabel(root: CapabilityRoot): string {
+  const cli = CLI_LABELS[root.cli] ?? root.cli;
+  if (root.cli === "codex") {
+    return SHARED_SKILLS_DIR.test(root.path) ? "Codex, Gemini and OpenCode" : cli;
+  }
+  return root.scope === "project" ? `${cli}, in this project` : cli;
+}
+
+// The roots the scan says hold skills, in scan order. Empty over SSH, because
+// the remote scan registers no skill root.
+export function skillDestinations(roots: CapabilityRoot[]): SkillDestination[] {
+  return roots
+    .filter((root) => root.kind === "skill")
+    .map((root) => ({
+      path: root.path,
+      cli: root.cli,
+      scope: root.scope,
+      label: destinationLabel(root),
+      exists: root.exists,
+    }));
+}
+
+export function defaultDestination(
+  dests: SkillDestination[],
+  cli: "all" | "claude" | "codex",
+): string {
+  const pick =
+    cli === "codex"
+      ? (dests.find((d) => d.cli === "codex" && SHARED_SKILLS_DIR.test(d.path)) ??
+        dests.find((d) => d.cli === "codex"))
+      : dests.find((d) => d.cli === "claude" && d.scope === "user");
+  return (pick ?? dests[0])?.path ?? "";
+}
+
+export type SkillClash =
+  | { tone: "bad"; text: string; existingPath: string }
+  | { tone: "warn"; text: string };
+
+// The hard stop and the soft warnings. Skills resolve ["user", "project"], so
+// the personal copy wins — the opposite of subagents and commands. Nothing is
+// claimed from a listing that ran out of room: "no conflict" would be a guess.
+export function skillClash(
+  name: string,
+  dest: SkillDestination | null,
+  items: AgentCapability[],
+  truncated: boolean,
+): SkillClash | null {
+  if (!name || !dest || truncated) return null;
+
+  // Plugin copies are left out: they are ranked nowhere, so they never compete
+  // for the name. A copy under the other CLI is a separate skill entirely.
+  const rivals = items.filter(
+    (i) => i.kind === "skill" && i.name === name && i.cli === dest.cli && i.scope !== "plugin",
+  );
+  const here = rivals.find((i) => i.path === skillFilePath(dest.path, name));
+  if (here) {
+    return {
+      tone: "bad",
+      text: `A skill called ${name} is already in ${shortPath(dest.path)}.`,
+      existingPath: here.path,
+    };
+  }
+
+  const cli = CLI_LABELS[dest.cli] ?? dest.cli;
+  if (dest.scope === "user" && rivals.some((i) => i.scope === "project")) {
+    return { tone: "warn", text: `${cli} will use this one instead of the copy in this project.` };
+  }
+  if (dest.scope === "project" && rivals.some((i) => i.scope === "user")) {
+    return {
+      tone: "warn",
+      text: `You already have a personal copy of this name, and ${cli} uses that one. This copy will not load.`,
+    };
+  }
+  if (rivals.some((i) => i.scope === dest.scope)) {
+    return {
+      tone: "warn",
+      text: `${cli} already has a skill with this name. Which one it uses is not defined.`,
+    };
+  }
+  return null;
+}
+
+// Same-named copies elsewhere, for the delete confirmation. Across CLIs, since
+// ~/.claude/skills/x and ~/.agents/skills/x are one skill to the user.
+export function skillSiblings(
+  cap: AgentCapability,
+  items: AgentCapability[],
+): AgentCapability[] {
+  if (cap.kind !== "skill") return [];
+  return items.filter(
+    (i) =>
+      i.kind === "skill" && i.name === cap.name && i.path !== cap.path && i.scope !== "plugin",
+  );
+}

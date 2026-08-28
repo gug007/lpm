@@ -10,7 +10,7 @@
 
 use super::scan::describe_content;
 use super::{mcp, AgentCapabilities, AgentCapability, CapabilityRoot};
-use super::{KIND_COMMAND, KIND_INSTRUCTIONS, KIND_SKILL, KIND_SUBAGENT};
+use super::{KIND_COMMAND, KIND_INSTRUCTIONS, KIND_MCP, KIND_SKILL, KIND_SUBAGENT};
 
 const FILE_CAP: usize = 500;
 const BYTE_CAP: usize = 65536;
@@ -71,6 +71,7 @@ pub fn scan(ssh: &crate::config::SshSettings, dir: &str) -> AgentCapabilities {
     out.roots.push(CapabilityRoot {
         cli: "claude".into(),
         scope: "user".into(),
+        kind: KIND_MCP.into(),
         path: "~/.claude.json (not scanned over SSH)".into(),
         exists: false,
     });
