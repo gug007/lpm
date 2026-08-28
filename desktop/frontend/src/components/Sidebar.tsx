@@ -22,10 +22,14 @@ import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
 import { agentAmbient, computeProjectStatus } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
-import { useCollapsedAgents } from "../sidebarCollapsed";
+import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
+import { ChevronRightIcon } from "./icons";
+import { SidebarDeckRun } from "./SidebarDeckRun";
+import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
+import { SidebarRollupLine } from "./SidebarRollupLine";
 import { SidebarIcon, AlertCircleIcon, MoreVerticalIcon, DetachIcon, PlusIcon, ServerIcon } from "./icons";
 import { SidebarFooterNav } from "./SidebarFooterNav";
 import { SidebarAgentToolsPill } from "./SidebarAgentToolsPill";
@@ -91,8 +95,12 @@ import {
 import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 
-const ROW_BASE_CLASS =
-  "flex w-full select-none items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none transition-colors";
+const ROW_SHARED_CLASS =
+  "flex w-full select-none gap-3 rounded-md px-3 text-left text-sm outline-none transition-colors";
+const ROW_BASE_CLASS = `${ROW_SHARED_CLASS} items-center py-2`;
+// `py-1` around a 20px name and a 13px line: 42px, the rhythm SidebarHeaderShell
+// gives a folder with something to report.
+const ROW_TWO_LINE_CLASS = `${ROW_SHARED_CLASS} items-start py-1`;
 // One disclosure step: `px-3` (12px) plus 15px, applied to the rows inside an
 // expanded folder. Overrides ROW_BASE_CLASS's `px-3` the same way `pr-*` does.
 // The folder tree's elbows land on the status dot this leaves room for.
@@ -101,6 +109,8 @@ const ROW_INDENT_CLASS = "pl-[27px]";
 // row here, and a row showing its agents is taller than the block it sits in, so
 // this cannot be expressed as a fraction of that block.
 const ROW_HALF = "18px";
+// Line 1's midline on a two-line row, where `controlTop` also centres the arrow.
+const ROW_TWO_LINE_HALF = "14px";
 const MUTED_STYLE = { color: "var(--text-muted)" } as const;
 const DONE_STYLE = { color: "var(--accent-blue)" } as const;
 
@@ -174,6 +184,13 @@ type TreeItem =
       segments: RollupSegment[];
     }
   | { kind: "project"; project: ProjectInfo; isChild: boolean; folderId?: string }
+  | {
+      kind: "deck";
+      parent: ProjectInfo;
+      children: ProjectInfo[];
+      collapsed: boolean;
+      folderId?: string;
+    }
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection };
 
@@ -212,6 +229,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const [activeId, setActiveId] = useState<string | null>(null);
   const collapsedAgents = useCollapsedAgents((s) => s.collapsed);
   const toggleExpanded = useCollapsedAgents((s) => s.toggle);
+  const collapsedDecks = useCollapsedDecks((s) => s.collapsed);
+  const toggleDeck = useCollapsedDecks((s) => s.toggle);
   const { width, handleResizeStart } = useSidebarResize();
   const focusProjectTerminal = useAppStore((s) => s.focusProjectTerminal);
   // Only a project this window has open publishes its tab names; the rest fall
@@ -336,7 +355,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // interleaved order. Duplicates ride immediately after their parent;
   // brand-new projects not yet in the persisted order are appended loose so
   // they never vanish.
-  const { items, sortableIds, projectByName, memberOf, childrenOf, childOf } = useMemo(() => {
+  const { items, sortableIds, projectByName, memberOf, childrenOf, childProjectsOf, childOf } = useMemo(() => {
     const byName = new Map<string, ProjectInfo>();
     for (const p of localProjects) byName.set(p.name, p);
     const sectionBySlug = new Map(peerSections.map((s) => [s.slug, s]));
@@ -360,10 +379,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       out.push({ kind: "project", project: p, isChild: false, folderId });
       ids.push(p.name);
       rendered.add(p.name);
-      for (const child of childrenByParent.get(p.name) ?? []) {
-        out.push({ kind: "project", project: child, isChild: true, folderId });
-        ids.push(child.name);
+      const children = childrenByParent.get(p.name) ?? [];
+      if (children.length === 0) return;
+      // Select mode deals every deck out: the fold's control is the status dot,
+      // and that slot belongs to the checkbox while a selection is being made.
+      const collapsed = !selectMode && collapsedDecks.has(p.name);
+      out.push({ kind: "deck", parent: p, children, collapsed, folderId });
+      for (const child of children) {
         rendered.add(child.name);
+        if (!collapsed) ids.push(child.name);
       }
     };
 
@@ -438,15 +462,21 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       projectByName: byName,
       memberOf: membership,
       childrenOf,
+      childProjectsOf: childrenByParent,
       childOf,
     };
-  }, [localProjects, groups, order, peerSections]);
+  }, [localProjects, groups, order, peerSections, collapsedDecks, selectMode]);
 
   // Project names in rendered top-to-bottom order — the axis a shift-click
   // range is measured along. Collapsed-folder members aren't rendered, so they
   // fall outside any range, matching what the user can actually see.
   const visualProjectNames = useMemo(
-    () => items.flatMap((it) => (it.kind === "project" ? [it.project.name] : [])),
+    () =>
+      items.flatMap((it) => {
+        if (it.kind === "project") return [it.project.name];
+        if (it.kind === "deck") return it.collapsed ? [] : it.children.map((c) => c.name);
+        return [];
+      }),
     [items],
   );
 
@@ -829,16 +859,58 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
     const indentClass = indented ? ROW_INDENT_CLASS : "";
 
+    const deckChildren = childProjectsOf.get(project.name) ?? [];
+    const hasDeck = !selectMode && deckChildren.length > 0;
+    const deckCollapsed = hasDeck && collapsedDecks.has(project.name);
+    const deckSegments = deckCollapsed ? rollupSegments(deckChildren) : [];
+    const twoLine = deckCollapsed;
+    // Tints the parent instead: a folded deck is the only trace of a selected
+    // duplicate, which has no row of its own on screen.
+    const deckHoldsSelected =
+      deckCollapsed && selected !== null && deckChildren.some((c) => c.name === selected);
+    const controlTop = twoLine ? "top-[14px]" : "top-1/2";
+
+    const rowShape = twoLine ? ROW_TWO_LINE_CLASS : ROW_BASE_CLASS;
+
+    const identity = (
+      <>
+        <span
+          className="truncate"
+          style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
+          title={
+            project.configError ||
+            (project.parentName
+              ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
+              : projectDisplayName(project, parent))
+          }
+        >
+          {status.className ? <span className={status.className}>{name}</span> : name}
+        </span>
+        {isDetached && !isSelf && (
+          <span
+            className="shrink-0 text-[var(--text-muted)]"
+            title="Also open in a separate window"
+          >
+            <DetachIcon />
+          </span>
+        )}
+        {follow && (
+          <FollowIndicator follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
+        )}
+        {alert && <SidebarAgentSummary agent={alert} />}
+      </>
+    );
+
     const buttonClass = selectMode
       ? `${ROW_BASE_CLASS} ${indentClass} ${
           isChecked
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`
-      : `${ROW_BASE_CLASS} ${trailingPad} ${indentClass} ${
+      : `${rowShape} ${trailingPad} ${indentClass} ${
           isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""
         } ${
-          isSelected
+          isSelected || deckHoldsSelected
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`;
@@ -869,46 +941,69 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                   tone={project.running ? "green" : "blue"}
                 />
               </span>
-            ) : isBusy ? (
-              <span className="shrink-0 text-[var(--text-muted)]">
-                <SpinnerIcon />
-              </span>
-            ) : project.configError ? (
-              <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent-red)]" title="Config error" />
             ) : (
-              <StatusDot running={project.running} kind={dotKind(project)} />
-            )}
-            <span
-              className="truncate"
-              style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
-              title={
-                project.configError ||
-                (project.parentName
-                  ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
-                  : projectDisplayName(project, parent))
-              }
-            >
-              {status.className ? <span className={status.className}>{name}</span> : name}
-            </span>
-            {isDetached && !isSelf && (
+              // The fade belongs to the slot, not to the dot: the arrow replaces
+              // whichever mark is standing here, spinner included. `h-5` is line
+              // 1 of a two-line row, and a no-op inside a one-line row.
               <span
-                className="shrink-0 text-[var(--text-muted)]"
-                title="Also open in a separate window"
+                className={`flex h-5 shrink-0 items-center ${
+                  hasDeck ? "transition-opacity duration-100 group-hover:opacity-0" : ""
+                }`}
               >
-                <DetachIcon />
+                {isBusy ? (
+                  <span className="text-[var(--text-muted)]">
+                    <SpinnerIcon />
+                  </span>
+                ) : project.configError ? (
+                  <span className="h-2 w-2 rounded-full bg-[var(--accent-red)]" title="Config error" />
+                ) : (
+                  <StatusDot running={project.running} kind={dotKind(project)} />
+                )}
               </span>
             )}
-            {follow && (
-              <FollowIndicator
-                follow={follow}
-                macName={peerAlias(peerState.peers, follow.slug)}
-              />
+            {twoLine ? (
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="flex min-w-0 items-center gap-3">{identity}</span>
+                <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
+                  {deckSegments.length > 0 ? (
+                    <SidebarRollupLine segments={deckSegments} />
+                  ) : (
+                    `${deckChildren.length} ${deckKindLabel(deckChildren)}`
+                  )}
+                </span>
+              </span>
+            ) : (
+              identity
             )}
-            {alert && <SidebarAgentSummary agent={alert} />}
           </button>
+          {hasDeck && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleDeck(project.name);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              aria-expanded={!deckCollapsed}
+              aria-controls={deckRunDomId(project.name)}
+              aria-label={deckLabel(deckChildren, projectDisplayName(project, parent), deckCollapsed)}
+              // Centred on the dot it stands in for — 16px in, or 31px once a
+              // folder has stepped the row — so no name moves.
+              className={`absolute ${controlTop} flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--text-primary)] group-hover:opacity-100 focus-visible:opacity-100 ${
+                indented ? "left-[21px]" : "left-[6px]"
+              }`}
+            >
+              <span
+                className={`transition-transform duration-150 [&_svg]:h-3 [&_svg]:w-3 ${
+                  deckCollapsed ? "" : "rotate-90"
+                }`}
+              >
+                <ChevronRightIcon />
+              </span>
+            </button>
+          )}
           {canExpand && (
             <span
-              className={`absolute top-1/2 -translate-y-1/2 transition-[right] ${
+              className={`absolute ${controlTop} -translate-y-1/2 transition-[right] ${
                 isContextTarget ? "right-9" : "right-2 group-hover:right-9"
               }`}
             >
@@ -929,7 +1024,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 setContextMenu({ name: project.name, x: rect.left, y: rect.bottom + 4 });
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+              className={`absolute right-1.5 ${controlTop} flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[var(--text-muted)] transition-opacity hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
                 isContextTarget
                   ? "opacity-100"
                   : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
@@ -956,7 +1051,47 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     );
   };
 
+  // `connector` is supplied only inside a folder, where each row takes an elbow
+  // off the folder's trunk like any member.
+  const renderDeck = (
+    item: Extract<TreeItem, { kind: "deck" }>,
+    connector?: (isLast: boolean) => React.ReactNode,
+    endsBlock = false,
+  ) => {
+    const { parent, children, collapsed } = item;
+    const indented = item.folderId !== undefined;
+    const runId = deckRunDomId(parent.name);
+    const lastIndex = children.length - 1;
+
+    const rows = children.map((child, i) => {
+      const row = renderProjectRow(child, indented);
+      const body = connector ? (
+        <div className="relative">
+          {connector(endsBlock && i === lastIndex)}
+          {row}
+        </div>
+      ) : (
+        row
+      );
+      if (selectMode) return <div key={child.name}>{body}</div>;
+      return (
+        <SortableItem key={child.name} id={child.name}>
+          {body}
+        </SortableItem>
+      );
+    });
+
+    return (
+      <SidebarDeckRun key={`deck-${parent.name}`} runId={runId} collapsed={collapsed}>
+        {rows}
+      </SidebarDeckRun>
+    );
+  };
+
   const renderRow = (item: TreeItem, connector?: React.ReactNode) => {
+    if (item.kind === "deck") {
+      return renderDeck(item);
+    }
     if (item.kind === "group") {
       const selectedProject =
         item.group.collapsed && selected !== null ? projectByName.get(selected) : undefined;
@@ -1107,17 +1242,17 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       className={`pointer-events-none absolute ${TREE_X} top-[26px] bottom-0 z-10 w-px ${TRUNK_BG}`}
     />
   );
-  const rowConnector = (isLast: boolean) => (
+  const rowConnector = (isLast: boolean, twoLine = false) => (
     <>
       <span
         aria-hidden
-        style={{ height: ROW_HALF }}
+        style={{ height: twoLine ? ROW_TWO_LINE_HALF : ROW_HALF }}
         className={`pointer-events-none absolute ${TREE_X} top-0 z-10 ${ELBOW_W} rounded-bl-[6px] border-b border-l ${ELBOW_BORDER}`}
       />
       {!isLast && (
         <span
           aria-hidden
-          style={{ top: ROW_HALF }}
+          style={{ top: twoLine ? ROW_TWO_LINE_HALF : ROW_HALF }}
           className={`pointer-events-none absolute ${TREE_X} bottom-0 z-10 w-px ${TRUNK_BG}`}
         />
       )}
@@ -1129,15 +1264,22 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   ) => {
     let lastProjectIndex = -1;
     body.forEach((it, i) => {
-      if (it.kind === "project") lastProjectIndex = i;
+      // A folded deck renders nothing, so the trunk ends at the row above it.
+      if (it.kind === "project" || (it.kind === "deck" && !it.collapsed)) lastProjectIndex = i;
     });
     const hasProjects = lastProjectIndex !== -1;
     return (
       <div key={groupToken(groupItem.group.id)}>
         {renderRow(groupItem, hasProjects ? folderConnector : undefined)}
-        {body.map((it, i) =>
-          it.kind === "project" ? renderRow(it, rowConnector(i === lastProjectIndex)) : renderRow(it),
-        )}
+        {body.map((it, i) => {
+          if (it.kind === "deck") return renderDeck(it, rowConnector, i === lastProjectIndex);
+          if (it.kind !== "project") return renderRow(it);
+          // A member whose deck is folded stands two lines tall, so its elbow
+          // meets line 1. A deck always follows its parent in `items`.
+          const next = body[i + 1];
+          const twoLine = next?.kind === "deck" && next.collapsed;
+          return renderRow(it, rowConnector(i === lastProjectIndex, twoLine));
+        })}
       </div>
     );
   };
@@ -1156,6 +1298,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         const it = items[j];
         const belongs =
           (it.kind === "project" && it.folderId === gid) ||
+          (it.kind === "deck" && it.folderId === gid) ||
           (it.kind === "empty" && it.group.id === gid);
         if (!belongs) break;
         body.push(it);

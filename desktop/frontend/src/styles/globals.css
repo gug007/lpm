@@ -276,6 +276,35 @@ body {
   }
 }
 
+/* A row's place in the deal is `--deal-i`; the timings are shared with
+   sidebarDeck.ts, which holds the rows on screen until the last one lands. */
+.deck-deal-in {
+  animation: deck-deal 150ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation-delay: calc(var(--deal-i, 0) * 30ms);
+}
+.deck-deal-out {
+  animation: deck-deal 150ms ease-in both reverse;
+  animation-delay: calc(var(--deal-i, 0) * 30ms);
+}
+
+@keyframes deck-deal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -9px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deck-deal-in,
+  .deck-deal-out {
+    animation: none;
+  }
+}
+
 @keyframes gradient-spin {
   0% {
     --gradient-angle: 0deg;
