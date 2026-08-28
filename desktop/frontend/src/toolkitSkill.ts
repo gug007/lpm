@@ -71,26 +71,39 @@ function yamlDescription(description: string): string {
   return `"${description.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
-// Only `name` and `description`: every other key either fails one vendor's
-// validator or duplicates something the loader already knows. The frontmatter
-// name is the directory name by construction, since the directory wins at load
-// time in both CLIs and a drifting pair is a bug nobody sees.
-export function skillTemplate(name: string, description: string): string {
+// Only `name` and `description` by default: every other key either fails one
+// vendor's validator or duplicates something the loader already knows. The
+// frontmatter name is the directory name by construction, since the directory
+// wins at load time in both CLIs and a drifting pair is a bug nobody sees.
+// `manual` adds the one other key Claude honours: the skill leaves the model's
+// context entirely and runs only when the user types /name.
+export function skillTemplate(
+  name: string,
+  description: string,
+  manual = false,
+  steps = "",
+): string {
+  const body = steps
+    ? [steps, ""]
+    : [
+        "Write the steps the agent should follow here, in order.",
+        "",
+        "Keep this file short. Long reference material belongs in its own file beside",
+        "this one, linked from here, so it only loads when it is needed.",
+        "",
+      ];
   return [
     "---",
     // Quoted, because `no`, `on`, `off`, `y` and `n` are all legal skill names
     // and all read as booleans to a YAML 1.1 parser.
     `name: "${name}"`,
     `description: ${yamlDescription(description)}`,
+    ...(manual ? ["disable-model-invocation: true"] : []),
     "---",
     "",
     `# ${titleCaseSkillName(name)}`,
     "",
-    "Write the steps the agent should follow here, in order.",
-    "",
-    "Keep this file short. Long reference material belongs in its own file beside",
-    "this one, linked from here, so it only loads when it is needed.",
-    "",
+    ...body,
   ].join("\n");
 }
 
@@ -102,10 +115,14 @@ export interface SkillDestination {
   exists: boolean;
 }
 
+export function isSharedSkillsDir(path: string): boolean {
+  return SHARED_SKILLS_DIR.test(path);
+}
+
 function destinationLabel(root: CapabilityRoot): string {
   const cli = CLI_LABELS[root.cli] ?? root.cli;
   if (root.cli === "codex") {
-    return SHARED_SKILLS_DIR.test(root.path) ? "Codex, Gemini and OpenCode" : cli;
+    return isSharedSkillsDir(root.path) ? "Codex, Gemini and OpenCode" : cli;
   }
   return root.scope === "project" ? `${cli}, in this project` : cli;
 }
@@ -130,7 +147,7 @@ export function defaultDestination(
 ): string {
   const pick =
     cli === "codex"
-      ? (dests.find((d) => d.cli === "codex" && SHARED_SKILLS_DIR.test(d.path)) ??
+      ? (dests.find((d) => d.cli === "codex" && isSharedSkillsDir(d.path)) ??
         dests.find((d) => d.cli === "codex"))
       : dests.find((d) => d.cli === "claude" && d.scope === "user");
   return (pick ?? dests[0])?.path ?? "";

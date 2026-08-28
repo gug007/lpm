@@ -15,17 +15,20 @@ import {
   skillNameError,
   skillTemplate,
 } from "../../toolkitSkill";
+import { EMPTY_COMPOSER, composerValueToText, type ComposerValue } from "../../composerValue";
+import { draftLine, parseLine } from "../../toolkitSkillLine";
 import { ChevronLeftIcon } from "../icons";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
-import { ToolkitDestinations } from "./ToolkitDestinations";
-import { FIELD, SURFACE_TOKENS, TEXTAREA } from "./surfaces";
+import { ToolkitAiDraft, type SkillDraft } from "./ToolkitAiDraft";
+import { ToolkitSkillLine } from "./ToolkitSkillLine";
+import { SURFACE_TOKENS, TEXTAREA } from "./surfaces";
 
-const LABEL = "text-[10.5px] text-[var(--text-muted)]";
+const LABEL = "text-[11.5px] text-[var(--text-muted)]";
 
 function Notice({ tone, children }: { tone: "warn" | "bad"; children: ReactNode }) {
   return (
     <p
-      className={`shrink-0 rounded-[var(--tk-radius)] px-3 py-2 text-[10.5px] leading-snug ${
+      className={`shrink-0 rounded-[var(--tk-radius)] px-3 py-2.5 text-[11.5px] leading-snug ${
         tone === "bad"
           ? "bg-[color-mix(in_srgb,var(--accent-red)_12%,var(--bg-primary))] text-[var(--accent-red-text)]"
           : "bg-[var(--tk-fault)] text-[var(--accent-amber-text)]"
@@ -50,9 +53,9 @@ interface ToolkitCreateProps {
 }
 
 // A sub-view of the pane, not a dialog: the pane can sit at 300px beside a
-// terminal, and it already teaches list ⇄ detail ⇄ esc. Three fields, because
-// the description is the only part that costs context on every turn and the
-// only part that decides whether the agent ever opens the file.
+// terminal, and it already teaches list ⇄ detail ⇄ esc. The name, the folder
+// and who may run it share one line, so the two fields that decide whether the
+// skill is ever loaded — the description and its cost — start on screen.
 export function ToolkitCreate({
   cwd,
   roots,
@@ -66,12 +69,17 @@ export function ToolkitCreate({
   onOpenExisting,
 }: ToolkitCreateProps) {
   const destinations = useMemo(() => skillDestinations(roots), [roots]);
-  const [name, setName] = useState(() => skillNameDraft(seedName));
+  const [line, setLine] = useState(() => skillNameDraft(seedName));
   const [description, setDescription] = useState("");
+  const [manual, setManual] = useState(false);
+  const [steps, setSteps] = useState("");
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const [aiRequest, setAiRequest] = useState<ComposerValue>(EMPTY_COMPOSER);
   const [destPath, setDestPath] = useState(() => defaultDestination(destinations, cli));
   const [busy, setBusy] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
+  const stepsRef = useRef<HTMLTextAreaElement>(null);
 
   // The pane is still committing the sub-view when this mounts, so the focus
   // has to wait a beat to survive it.
@@ -88,7 +96,7 @@ export function ToolkitCreate({
     setDestPath(defaultDestination(destinations, cli));
   }, [destinations, destPath, cli]);
 
-  const finalName = skillName(name);
+  const finalName = skillName(parseLine(line).name);
   const dest = destinations.find((d) => d.path === destPath) ?? null;
   const nameError = finalName ? skillNameError(finalName) : null;
   const descriptionError = skillDescriptionError(description);
@@ -97,9 +105,20 @@ export function ToolkitCreate({
     [finalName, dest, items, truncated],
   );
 
+  // Only Claude honours the opt-out key; a Codex skill carrying it loads and
+  // runs like any other, which is worse than not offering the choice.
+  const manualAllowed = dest?.cli === "claude";
+  const manualOn = manual && manualAllowed;
+  const slash = `/${finalName || "name"}`;
+
   // Against the seed, not against empty: arriving from the "no matches" button
   // with the name already filled in is not an edit worth guarding.
-  const dirty = name !== skillNameDraft(seedName) || Boolean(description);
+  const dirty =
+    line !== skillNameDraft(seedName) ||
+    Boolean(description) ||
+    Boolean(steps) ||
+    Boolean(composerValueToText(aiRequest).trim()) ||
+    manual;
   const blocked =
     !dest ||
     !finalName ||
@@ -126,7 +145,7 @@ export function ToolkitCreate({
     return () => document.removeEventListener("keydown", onKey);
   }, [active, discarding, close]);
 
-  const submit = async () => {
+  const submit = useCallback(async () => {
     if (blocked || busy || !dest) return;
     setBusy(true);
     try {
@@ -134,7 +153,7 @@ export function ToolkitCreate({
         cwd,
         dest.path,
         finalName,
-        skillTemplate(finalName, description.trim()),
+        skillTemplate(finalName, description.trim(), manualOn, steps.trim()),
       )) as string;
       onCreated(path);
     } catch (err) {
@@ -142,10 +161,26 @@ export function ToolkitCreate({
     } finally {
       setBusy(false);
     }
-  };
+  }, [blocked, busy, dest, cwd, finalName, description, manualOn, steps, onCreated]);
 
   // Nothing until there is a name: an empty form is not a mistake yet.
   const hint = nameError ?? (finalName ? descriptionError : null);
+
+  // The draft lands in the fields, never in a file: review starts at the name,
+  // and Create stays the only thing that writes. Drafted steps unfold with it —
+  // a draft the user cannot see is not something they can review.
+  const applyDraft = (draft: SkillDraft) => {
+    setLine(skillNameDraft(draft.name));
+    setDescription(draft.description);
+    setSteps(draft.body);
+    setStepsOpen(Boolean(draft.body.trim()));
+    nameRef.current?.focus();
+  };
+
+  const openSteps = () => {
+    setStepsOpen(true);
+    requestAnimationFrame(() => stepsRef.current?.focus());
+  };
 
   return (
     // The sub-view replaces the pane's own root, so it has to carry the surface
@@ -165,7 +200,7 @@ export function ToolkitCreate({
         >
           <ChevronLeftIcon />
         </button>
-        <span className="truncate text-[13px] text-[var(--text-primary)]">New skill</span>
+        <span className="truncate text-[14px] text-[var(--text-primary)]">New skill</span>
       </div>
 
       <form
@@ -184,32 +219,26 @@ export function ToolkitCreate({
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
           <div className="flex flex-col gap-1">
             <label className={LABEL} htmlFor="toolkit-skill-name">
-              Name
+              Name <span className="opacity-70">— @ for the folder, / for who runs it</span>
             </label>
-            <input
-              id="toolkit-skill-name"
-              ref={nameRef}
-              value={name}
-              onChange={(e) => setName(skillNameDraft(e.target.value))}
-              spellCheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              className={`${FIELD} h-[30px] w-full`}
+            <ToolkitSkillLine
+              value={line}
+              onValue={(next) => setLine(draftLine(next))}
+              destinations={destinations}
+              destPath={destPath}
+              onDest={setDestPath}
+              manual={manualOn}
+              manualAllowed={manualAllowed}
+              onManual={setManual}
+              slash={slash}
+              onSubmit={() => void submit()}
+              inputRef={nameRef}
             />
-            <p className="truncate font-mono text-[10.5px] text-[var(--text-muted)]">
+            <p className="truncate font-mono text-[11.5px] text-[var(--text-muted)]">
               {finalName && dest
                 ? shortPath(skillFilePath(dest.path, finalName))
                 : "Name it and this is where it goes."}
             </p>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <span className={LABEL}>Where it goes</span>
-            <ToolkitDestinations
-              destinations={destinations}
-              value={destPath}
-              onChange={setDestPath}
-            />
             {dest?.scope === "project" && (
               <p className={LABEL}>
                 Saved with the project, so everyone working on it gets it.
@@ -225,20 +254,24 @@ export function ToolkitCreate({
               id="toolkit-skill-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={5}
+              rows={4}
               placeholder="Ship the site to staging. Use when asked to deploy, release or push the web app."
               className={TEXTAREA}
             />
             <p className={LABEL}>
-              This is the only part your agent reads before deciding to open the skill.
+              {manualOn
+                ? `Shown beside ${slash} in the slash menu.`
+                : "This is the only part your agent reads before deciding to open the skill."}
             </p>
-            <div className="flex items-baseline justify-between gap-3 text-[10px] tabular-nums text-[var(--text-muted)]">
+            <div className="flex items-baseline justify-between gap-3 text-[11px] tabular-nums text-[var(--text-muted)]">
               {/* The same bytes the pane counts for an installed skill: its
                   name and its description, and nothing else. */}
               <span>
-                {`Adds ~${formatTokenCount(
-                  estimateTokens(finalName.length + description.length),
-                )} tokens to every turn`}
+                {manualOn
+                  ? "Costs no context until you run it"
+                  : `Adds ~${formatTokenCount(
+                      estimateTokens(finalName.length + description.length),
+                    )} tokens to every turn`}
               </span>
               <span
                 className={
@@ -251,6 +284,39 @@ export function ToolkitCreate({
               </span>
             </div>
           </div>
+
+          <ToolkitAiDraft
+            cwd={cwd}
+            nameHint={finalName}
+            request={aiRequest}
+            onRequest={setAiRequest}
+            onDraft={applyDraft}
+          />
+
+          {stepsOpen ? (
+            <div className="flex flex-col gap-1">
+              <label className={LABEL} htmlFor="toolkit-skill-steps">
+                Steps <span className="opacity-70">— optional, the file opens after</span>
+              </label>
+              <textarea
+                id="toolkit-skill-steps"
+                ref={stepsRef}
+                value={steps}
+                onChange={(e) => setSteps(e.target.value)}
+                rows={4}
+                placeholder={"1. Build the site\n2. Run the deploy script\n3. Check staging came up"}
+                className={TEXTAREA}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openSteps}
+              className="self-start rounded-[var(--tk-radius-s)] px-1.5 py-1 text-[11.5px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+            >
+              + Steps — optional
+            </button>
+          )}
 
           {clash && (
             <Notice tone={clash.tone}>
@@ -272,20 +338,21 @@ export function ToolkitCreate({
         </div>
 
         <div className="flex shrink-0 items-center gap-2 border-t border-[var(--border)] px-3 py-2">
-          <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-muted)]">
-            {hint}
+          <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--text-muted)]">
+            {hint ?? (blocked ? "" : "↩ creates it and opens it")}
           </span>
           <button
             type="button"
             onClick={close}
-            className="rounded-md border border-[var(--border)] px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            className="rounded-md border border-[var(--border)] px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={blocked || busy}
-            className="rounded-md bg-[var(--text-primary)] px-2.5 py-1 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85 disabled:opacity-40"
+            title="⌘↩"
+            className="rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-[13px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85 disabled:opacity-40"
           >
             {busy ? "Creating…" : "Create skill"}
           </button>

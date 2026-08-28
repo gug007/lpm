@@ -539,7 +539,7 @@ pub fn list_agent_commands(cli: String, cwd: String) -> Result<Vec<AgentCommand>
 
 // ---- shared streaming run ---------------------------------------------------
 
-struct RunOptions {
+pub(crate) struct RunOptions {
     model: String,
     effort: String,
     fast: bool,
@@ -690,7 +690,7 @@ pub fn cancel_ai_generate(gen_id: String) -> bool {
 /// Spawn the CLI, stream stdout line-by-line emitting `event` progress chunks,
 /// and return the trimmed final text. claude parses stream-json events; the
 /// others accumulate raw stdout.
-fn run_ai(
+pub(crate) fn run_ai(
     app: &AppHandle,
     cli: &str,
     cwd: &str,
@@ -1386,7 +1386,7 @@ pub fn generate_project_config(
     Ok(yaml)
 }
 
-fn ropts(
+pub(crate) fn ropts(
     project_name: Option<&str>,
     model: String,
     effort: String,

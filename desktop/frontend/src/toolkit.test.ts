@@ -221,6 +221,18 @@ describe("upfrontBytes", () => {
     expect(upfrontBytes(agent)).toBe("rev".length + "Reviews".length);
   });
 
+  // `disable-model-invocation` removes even the description from Claude's
+  // context; Codex has no such key, so a copy carrying one still costs.
+  it("counts nothing for a manual-only skill, but only under Claude", () => {
+    expect(upfrontBytes(cap({ manual: true, bytes: 40000 }))).toBe(0);
+    expect(upfrontBytes(cap({ manual: true, cli: "codex" }))).toBe(
+      "deploy".length + "Ship it".length,
+    );
+    expect(upfrontBytes(cap({ kind: "subagent", manual: true }))).toBe(
+      "deploy".length + "Ship it".length,
+    );
+  });
+
   it("never counts an MCP config blob — the cost is tool schemas, not the file", () => {
     expect(upfrontBytes(cap({ kind: "mcp", bytes: 5000 }))).toBe(0);
   });

@@ -159,6 +159,23 @@ describe("skillTemplate", () => {
     expect(folded).toContain("description: >-\n  Ship it.\n  Use when asked to deploy.");
     expect(splitFrontmatter(folded).fields.map((f) => f.key)).toEqual(["name", "description"]);
   });
+
+  // The one key beyond name and description lpm will write, and only on request:
+  // the skill leaves the model's context and runs only as a user-typed /name.
+  it("adds the opt-out key only for a manual-only skill", () => {
+    const manual = skillTemplate("deploy", "Ship it.", true);
+    expect(splitFrontmatter(manual).fields).toContainEqual({
+      key: "disable-model-invocation",
+      value: "true",
+    });
+    expect(template).not.toContain("disable-model-invocation");
+  });
+
+  it("uses the steps as the body, and keeps the placeholder prose without them", () => {
+    const stepped = skillTemplate("deploy", "Ship it.", false, "1. Build\n2. Ship");
+    expect(splitFrontmatter(stepped).body).toBe("\n# Deploy\n\n1. Build\n2. Ship\n");
+    expect(template).toContain("Write the steps the agent should follow here, in order.");
+  });
 });
 
 describe("skillDestinations", () => {

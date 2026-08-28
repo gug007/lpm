@@ -40,10 +40,15 @@ export const FIELD =
   "h-[26px] min-w-0 rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] px-2.5 text-[11.5px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[-1px] focus-visible:outline-[var(--accent-blue)]";
 
 export const TEXTAREA =
-  "w-full resize-none rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] p-2.5 text-[11.5px] leading-[17px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[-1px] focus-visible:outline-[var(--accent-blue)]";
+  "w-full resize-none rounded-[var(--tk-radius-s)] bg-[var(--tk-panel)] p-3 text-[13px] leading-[19px] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[-1px] focus-visible:outline-[var(--accent-blue)]";
 
 export const QUIET_BUTTON =
   "shrink-0 rounded-[var(--tk-radius-s)] px-1.5 py-1 text-[10.5px] text-[var(--text-muted)] opacity-60 transition-opacity hover:opacity-100 disabled:opacity-40";
 
-export const PANEL_BUTTON =
-  "flex shrink-0 items-center gap-1 rounded-[var(--tk-radius-s)] bg-[var(--tk-active)] px-2 py-[3px] text-[10.5px] text-[var(--text-primary)] transition-colors hover:bg-[var(--tk-hover)] disabled:opacity-40";
+// The pane's one filled control, for the one thing the pane writes. Tonal
+// rather than accent-coloured: colour here is reserved for what is not loading,
+// so the button earns its emphasis from a lit top edge, a lift on hover and a
+// press that gives, instead of a hue that would read as a status.
+export const PRIMARY_BUTTON =
+  "flex shrink-0 items-center gap-1.5 rounded-full bg-[var(--tk-active)] px-2.5 py-[4px] text-[11px] font-medium text-[var(--text-primary)] shadow-[inset_0_1px_0_color-mix(in_srgb,var(--text-primary)_14%,transparent)] transition-[background-color,box-shadow,transform] duration-150 hover:bg-[color-mix(in_srgb,var(--text-primary)_15%,transparent)] hover:shadow-[var(--tk-lift),inset_0_1px_0_color-mix(in_srgb,var(--text-primary)_18%,transparent)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-70";
+

@@ -13,7 +13,7 @@ import { ToolkitDetail } from "./ToolkitDetail";
 import { ToolkitHeader, type CliFilter } from "./ToolkitHeader";
 import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
-import { PANEL_BUTTON, SURFACE_TOKENS } from "./surfaces";
+import { PRIMARY_BUTTON, SURFACE_TOKENS } from "./surfaces";
 
 // Sentinel for "every group open", used while a filter is live so a match can
 // never hide behind a folded heading.
@@ -337,7 +337,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
             <button
               type="button"
               onClick={() => startCreate("")}
-              className={`${PANEL_BUTTON} mt-4`}
+              className={`${PRIMARY_BUTTON} mt-4`}
             >
               <PlusIcon />
               New skill
@@ -364,7 +364,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
                   <button
                     type="button"
                     onClick={() => startCreate(seedFromQuery)}
-                    className={`${PANEL_BUTTON} mt-4`}
+                    className={`${PRIMARY_BUTTON} mt-4`}
                   >
                     <PlusIcon />
                     {seedFromQuery ? `New skill "${seedFromQuery}"` : "New skill"}

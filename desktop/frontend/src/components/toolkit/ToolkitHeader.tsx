@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { PlusIcon, SearchIcon, XIcon } from "../icons";
-import { FIELD, PANEL_BUTTON, QUIET_BUTTON } from "./surfaces";
+import { FIELD, PRIMARY_BUTTON, QUIET_BUTTON } from "./surfaces";
 
 export type CliFilter = "all" | "claude" | "codex";
 
@@ -93,7 +93,7 @@ export function ToolkitHeader({
       </button>
 
       {canCreate && (
-        <button type="button" onClick={onCreate} className={PANEL_BUTTON}>
+        <button type="button" onClick={onCreate} className={PRIMARY_BUTTON}>
           <PlusIcon />
           New skill
         </button>

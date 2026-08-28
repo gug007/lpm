@@ -7,6 +7,7 @@ import {
   KIND_LABELS,
   capabilityIssue,
   formatTokens,
+  manualOnly,
   scopeLabel,
   shortPath,
   splitFrontmatter,
@@ -167,10 +168,16 @@ export function ToolkitDetail({
         {cap.detail && cap.kind !== "mcp" && (
           <span className="text-[10px] text-[var(--text-muted)]">from {cap.detail}</span>
         )}
-        {upfront > 0 && (
-          <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
-            ~{formatTokens(upfront)} tokens always in context
+        {manualOnly(cap) ? (
+          <span className="text-[10px] text-[var(--text-muted)]">
+            runs only when you type /{cap.name} — costs no context until then
           </span>
+        ) : (
+          upfront > 0 && (
+            <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+              ~{formatTokens(upfront)} tokens always in context
+            </span>
+          )
         )}
         {cap.bytes > 0 && (
           <span className="text-[10px] tabular-nums text-[var(--text-muted)]">

@@ -99,6 +99,12 @@ describe("rowMeta", () => {
     expect(rowMeta(own({ cli: "codex" }), true)).toBe("codex");
   });
 
+  // The estimate alone cannot explain a zero-cost skill; the word does.
+  it("marks a skill only the user can run", () => {
+    expect(rowMeta(own({ manual: true }))).toBe("manual");
+    expect(rowMeta(own({ manual: true, cli: "codex" }), true)).toBe("codex");
+  });
+
   it("prints a figure only where the numbers actually differ", () => {
     const file = own({ kind: "instructions", name: "CLAUDE.md", bytes: 12800 });
     expect(rowMeta(file)).toBe("~3.2k est");

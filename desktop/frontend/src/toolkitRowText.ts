@@ -3,7 +3,7 @@
 // list, which is the only place that knows what a plugin shipped.
 
 import type { AgentCapability, CapabilityKind } from "./toolkit";
-import { formatTokens, scopeLabel, shortDescription, upfrontBytes } from "./toolkit";
+import { formatTokens, manualOnly, scopeLabel, shortDescription, upfrontBytes } from "./toolkit";
 
 const CONTRIBUTION_LABELS: Partial<Record<CapabilityKind, [string, string]>> = {
   skill: ["skill", "skills"],
@@ -58,6 +58,9 @@ export function rowMeta(cap: AgentCapability, showCli = false): string {
   const parts: string[] = [];
   if (cap.scope === "plugin" && cap.detail) parts.push(`${cap.detail} plugin`);
   else if (cap.scope !== "user") parts.push(scopeLabel(cap.scope));
+  // The one skill state the estimate cannot explain by itself: it costs
+  // nothing because only the user can run it.
+  if (manualOnly(cap)) parts.push("manual");
   // Claude Code is what the pane reads as by default, so tagging every one of
   // its forty rows says nothing. Only the other CLI's rows earn the word.
   if (showCli && cap.cli !== "claude") parts.push(cap.cli);

@@ -46,28 +46,51 @@ fn root_of(cli: &str, kind: &str, scope: &str, path: &Path, out: &mut AgentCapab
 
 // ---- markdown capability files ----------------------------------------------
 
-/// (description, size). A missing frontmatter description falls back to the
-/// first meaningful body line, matching how the CLIs surface these themselves.
-pub(super) fn describe(path: &Path) -> (String, u64) {
+/// (description, manual, size). A missing frontmatter description falls back to
+/// the first meaningful body line, matching how the CLIs surface these
+/// themselves.
+pub(super) fn describe(path: &Path) -> (String, bool, u64) {
     let bytes = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     let content = std::fs::read_to_string(path).unwrap_or_default();
-    (describe_content(&content), bytes)
+    let (description, manual) = describe_content(&content);
+    (description, manual, bytes)
 }
 
-pub(super) fn describe_content(content: &str) -> String {
+/// Claude honours the YAML 1.1 spellings of true here — `yes`, `on`, `1` — but
+/// serde_norway is YAML 1.2, which reads those as a string and a number. Going
+/// by `as_bool` alone would report a manual skill as auto-loading and bill it
+/// for context it never costs.
+fn yaml_truthy(v: &serde_norway::Value) -> bool {
+    if let Some(b) = v.as_bool() {
+        return b;
+    }
+    if let Some(s) = v.as_str() {
+        return matches!(
+            s.trim().to_ascii_lowercase().as_str(),
+            "true" | "yes" | "on" | "1"
+        );
+    }
+    v.as_i64() == Some(1)
+}
+
+/// (description, manual).
+pub(super) fn describe_content(content: &str) -> (String, bool) {
     let (head, body) = crate::aigen::split_frontmatter(content);
+    let mut manual = false;
     if let Some(head) = head {
         if let Ok(val) = serde_norway::from_str::<serde_norway::Value>(head) {
+            manual = val.get("disable-model-invocation").is_some_and(yaml_truthy);
             let d = crate::aigen::yaml_str(&val, "description");
             if !d.is_empty() {
-                return d.chars().take(DESC_CAP).collect();
+                return (d.chars().take(DESC_CAP).collect(), manual);
             }
         }
     }
     // Skip fenced blocks wholesale — a skill that opens with a shell example
     // would otherwise be described by a line of its own sample code.
     let mut fenced = false;
-    body.lines()
+    let description = body
+        .lines()
         .map(str::trim)
         .find(|line| {
             if line.starts_with("```") {
@@ -79,7 +102,8 @@ pub(super) fn describe_content(content: &str) -> String {
         .unwrap_or("")
         .chars()
         .take(DESC_CAP)
-        .collect()
+        .collect();
+    (description, manual)
 }
 
 /// `<dir>/<name>/SKILL.md` — the skill's name is its directory name. `owner` is
@@ -102,7 +126,7 @@ fn skills_in(cli: &str, scope: &str, dir: &Path, owner: &str, out: &mut AgentCap
         let Some(name) = entry.file_name().to_str().map(str::to_string) else {
             continue;
         };
-        let (description, bytes) = describe(&skill_md);
+        let (description, manual, bytes) = describe(&skill_md);
         let mut cap = AgentCapability::new(cli, KIND_SKILL, scope, &name);
         if !owner.is_empty() {
             cap.detail = owner.to_string();
@@ -111,6 +135,7 @@ fn skills_in(cli: &str, scope: &str, dir: &Path, owner: &str, out: &mut AgentCap
         cap.path = skill_md.to_string_lossy().into_owned();
         cap.description = description;
         cap.bytes = bytes;
+        cap.manual = manual;
         // A plugin's files are replaced wholesale on update, so an edit there
         // would be silently thrown away.
         cap.editable = owner.is_empty();
@@ -129,11 +154,12 @@ fn markdown_in(cli: &str, kind: &str, scope: &str, dir: &Path, out: &mut AgentCa
         let Some(name) = path.file_stem().and_then(|s| s.to_str()).map(str::to_string) else {
             continue;
         };
-        let (description, bytes) = describe(&path);
+        let (description, manual, bytes) = describe(&path);
         let mut cap = AgentCapability::new(cli, kind, scope, &name);
         cap.path = path.to_string_lossy().into_owned();
         cap.description = description;
         cap.bytes = bytes;
+        cap.manual = manual;
         cap.editable = true;
         out.items.push(cap);
     }
@@ -149,7 +175,7 @@ fn instructions_at(cli: &str, scope: &str, path: &Path, out: &mut AgentCapabilit
     let Some(name) = path.file_name().and_then(|s| s.to_str()).map(str::to_string) else {
         return;
     };
-    let (description, bytes) = describe(path);
+    let (description, manual, bytes) = describe(path);
     let mut cap = AgentCapability::new(cli, KIND_INSTRUCTIONS, scope, &name);
     cap.path = path.to_string_lossy().into_owned();
     // The file's own first line, not its size: the row already prints the size
@@ -157,6 +183,7 @@ fn instructions_at(cli: &str, scope: &str, path: &Path, out: &mut AgentCapabilit
     // than "11 B" does.
     cap.description = description;
     cap.bytes = bytes;
+    cap.manual = manual;
     cap.editable = true;
     out.items.push(cap);
 }
@@ -228,13 +255,21 @@ pub(super) fn codex(
 
 #[cfg(test)]
 mod tests {
+    fn desc(content: &str) -> String {
+        super::describe_content(content).0
+    }
+
+    fn manual(content: &str) -> bool {
+        super::describe_content(content).1
+    }
+
     #[test]
     fn describes_from_frontmatter_then_falls_back_to_the_body() {
         let with_fm = "---\nname: deploy\ndescription: Ship the thing\n---\n\n# Deploy\n\nBody.";
-        assert_eq!(super::describe_content(with_fm), "Ship the thing");
+        assert_eq!(desc(with_fm), "Ship the thing");
 
         let no_fm = "# Heading\n\n```sh\nignored\n```\n\nThe first real line.";
-        assert_eq!(super::describe_content(no_fm), "The first real line.");
+        assert_eq!(desc(no_fm), "The first real line.");
     }
 
     /// The pane estimates a skill's standing context cost from this string's
@@ -244,10 +279,39 @@ mod tests {
     fn keeps_descriptions_longer_than_a_label() {
         let long = "x".repeat(500);
         let doc = format!("---\ndescription: {long}\n---\n\nBody.");
-        assert_eq!(super::describe_content(&doc).len(), 500);
+        assert_eq!(desc(&doc).len(), 500);
 
         let body = format!("{}\n", "y".repeat(500));
-        assert_eq!(super::describe_content(&body).len(), 500);
+        assert_eq!(desc(&body).len(), 500);
+    }
+
+    /// A manual skill still needs its description read — the pane shows it —
+    /// even though it costs no up-front context.
+    #[test]
+    fn reads_the_manual_only_flag_alongside_the_description() {
+        let doc = "---\nname: deploy\ndescription: Ship it\ndisable-model-invocation: true\n---\n\nBody.";
+        assert_eq!(super::describe_content(doc), ("Ship it".to_string(), true));
+    }
+
+    /// Claude reads far more than `true` here. A skill written any of these ways
+    /// is manual to the CLI, so reporting it as auto-loading would put a
+    /// description in the token estimate that never reaches the model.
+    #[test]
+    fn every_spelling_of_true_the_cli_honours_reads_as_manual() {
+        for value in ["true", "True", "\"true\"", "yes", "YES", "on", "On", "1"] {
+            let doc = format!("---\ndisable-model-invocation: {value}\n---\n\nBody.");
+            assert!(manual(&doc), "{value} should read as manual");
+        }
+    }
+
+    #[test]
+    fn a_skill_is_model_invocable_unless_the_key_says_otherwise() {
+        assert!(!manual("---\ndescription: Ship it\n---\n\nBody."));
+        assert!(!manual("No frontmatter at all."));
+        for value in ["false", "\"false\"", "no", "off", "Off", "0", "maybe"] {
+            let doc = format!("---\ndisable-model-invocation: {value}\n---\n\nBody.");
+            assert!(!manual(&doc), "{value} should not read as manual");
+        }
     }
 
     /// Machine-dependent, so it never runs in CI. Kept because "what does the

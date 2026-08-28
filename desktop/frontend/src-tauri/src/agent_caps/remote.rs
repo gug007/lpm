@@ -148,9 +148,11 @@ fn parse(bytes: &[u8], out: &mut AgentCapabilities) {
                     "instructions" => KIND_INSTRUCTIONS,
                     _ => continue,
                 };
+                let (description, manual) = describe_content(&text);
                 let mut cap = AgentCapability::new(&frame.cli, kind, &frame.scope, &frame.name);
                 cap.path = frame.path;
-                cap.description = describe_content(&text);
+                cap.description = description;
+                cap.manual = manual;
                 cap.bytes = frame.contents.len() as u64;
                 // Remote files are read-only in v0: the CAS write path is local.
                 cap.editable = false;
@@ -203,5 +205,19 @@ mod tests {
         assert_eq!(out.items.len(), 1);
         assert_eq!(out.items[0].cli, "codex");
         assert_eq!(out.items[0].description, "Review a diff");
+        assert!(!out.items[0].manual);
+    }
+
+    #[test]
+    fn a_remote_skill_reports_its_manual_only_frontmatter() {
+        let bytes = frame(
+            "claude\u{1f}skill\u{1f}user\u{1f}deploy\u{1f}/h/.claude/skills/deploy/SKILL.md",
+            "---\ndescription: Ship it\ndisable-model-invocation: true\n---\n",
+        );
+        let mut out = super::AgentCapabilities::default();
+        super::parse(&bytes, &mut out);
+        assert_eq!(out.items.len(), 1);
+        assert!(out.items[0].manual);
+        assert_eq!(out.items[0].description, "Ship it");
     }
 }
