@@ -109,7 +109,7 @@ export function ToolkitAiDraft({
       }}
     >
       <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-purple-500/10 text-purple-500">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--text-primary)_10%,transparent)] text-[var(--text-primary)]">
           <WandSparkles size={12} />
         </span>
         <span className="text-[11.5px] font-medium text-[var(--text-primary)]">

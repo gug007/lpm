@@ -108,6 +108,36 @@ export function skillTemplate(
   ].join("\n");
 }
 
+function unquote(value: string): string {
+  if (value.length > 1 && value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1).replace(/\\(["\\])/g, "$1");
+  }
+  if (value.length > 1 && value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1).replace(/''/g, "'");
+  }
+  return value;
+}
+
+// The description already in a skill's file, as the edit form should show it —
+// the inverse of `yamlDescription`. A folded value is read back from the lines
+// under the key, which is why `splitFrontmatter` cannot answer this: its chips
+// carry the first line only, and for a folded value that is the `>-` marker.
+export function skillDescription(content: string): string {
+  const match = /^\ufeff?---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(content);
+  if (!match) return "";
+  const lines = match[1].split(/\r?\n/);
+  const at = lines.findIndex((line) => /^description\s*:/.test(line));
+  if (at < 0) return "";
+  const value = lines[at].slice(lines[at].indexOf(":") + 1).trim();
+  if (!/^[>|]/.test(value)) return unquote(value);
+  const folded: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    if (line.trim() && !/^\s/.test(line)) break;
+    folded.push(line.trim());
+  }
+  return folded.join("\n").replace(/\n+$/, "");
+}
+
 export interface SkillDestination {
   path: string;
   cli: string;

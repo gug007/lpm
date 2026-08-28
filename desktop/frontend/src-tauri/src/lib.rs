@@ -126,7 +126,7 @@ use agent_sessions::*;
 use agent_usage::*;
 use agent_caps::{
     create_agent_skill, delete_agent_skill, generate_agent_skill, list_agent_capabilities,
-    preview_agent_skill_delete, read_agent_capability, write_agent_capability,
+    preview_agent_skill_delete, read_agent_capability, update_agent_skill, write_agent_capability,
 };
 use aigen::*;
 use browser::*;

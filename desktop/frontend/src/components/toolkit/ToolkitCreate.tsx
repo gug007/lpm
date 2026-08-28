@@ -166,13 +166,31 @@ export function ToolkitCreate({
 
   // The draft lands in the fields, never in a file: review starts at the name,
   // and Create stays the only thing that writes. Drafted steps unfold with it —
-  // a draft the user cannot see is not something they can review.
+  // a draft the user cannot see is not something they can review. Prose it
+  // pushed out comes back on one click: the draft replaces typed text without
+  // asking, and a written-out description is not something to retype.
   const applyDraft = (draft: SkillDraft) => {
+    const prev = { name, description, steps, stepsOpen };
     setName(skillNameDraft(draft.name));
     setDescription(draft.description);
     setSteps(draft.body);
     setStepsOpen(Boolean(draft.body.trim()));
     nameRef.current?.focus();
+    const lost =
+      (prev.description.trim() && prev.description !== draft.description) ||
+      (prev.steps.trim() && prev.steps !== draft.body);
+    if (!lost) return;
+    toast("The draft replaced what you had typed", {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setName(prev.name);
+          setDescription(prev.description);
+          setSteps(prev.steps);
+          setStepsOpen(prev.stepsOpen);
+        },
+      },
+    });
   };
 
   const openSteps = () => {
@@ -215,6 +233,14 @@ export function ToolkitCreate({
         className="flex min-h-0 flex-1 flex-col"
       >
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3">
+          <ToolkitAiDraft
+            cwd={cwd}
+            nameHint={finalName}
+            request={aiRequest}
+            onRequest={setAiRequest}
+            onDraft={applyDraft}
+          />
+
           <div className="flex flex-col gap-1">
             <label className={LABEL} htmlFor="toolkit-skill-name">
               Name
@@ -293,14 +319,6 @@ export function ToolkitCreate({
               </span>
             </div>
           </div>
-
-          <ToolkitAiDraft
-            cwd={cwd}
-            nameHint={finalName}
-            request={aiRequest}
-            onRequest={setAiRequest}
-            onDraft={applyDraft}
-          />
 
           {stepsOpen ? (
             <div className="flex flex-col gap-1">

@@ -5,6 +5,7 @@ import type { SkillDestination } from "./toolkitSkill";
 import {
   defaultDestination,
   skillClash,
+  skillDescription,
   skillDescriptionError,
   skillDestinations,
   skillFilePath,
@@ -175,6 +176,30 @@ describe("skillTemplate", () => {
     const stepped = skillTemplate("deploy", "Ship it.", false, "1. Build\n2. Ship");
     expect(splitFrontmatter(stepped).body).toBe("\n# Deploy\n\n1. Build\n2. Ship\n");
     expect(template).toContain("Write the steps the agent should follow here, in order.");
+  });
+});
+
+describe("skillDescription", () => {
+  // The form has to reopen what the template wrote, whichever shape it took.
+  it("reads back what skillTemplate wrote", () => {
+    for (const written of ["Ship it.", 'Ship the "web" app.', "Ship it.\nUse when asked."]) {
+      expect(skillDescription(skillTemplate("deploy", written))).toBe(written);
+    }
+  });
+
+  it("unfolds a hand-written block, and drops the blank lines under it", () => {
+    const doc = "---\nname: deploy\ndescription: |\n  Ship it.\n\n  Use when asked.\n\nmodel: sonnet\n---\n\nBody.";
+    expect(skillDescription(doc)).toBe("Ship it.\n\nUse when asked.");
+  });
+
+  it("has nothing to say about a file with no description of its own", () => {
+    expect(skillDescription("# Deploy\n\nRun it.")).toBe("");
+    expect(skillDescription("---\nname: deploy\n---\n\nBody.")).toBe("");
+  });
+
+  it("takes a single-quoted value as written", () => {
+    expect(skillDescription("---\ndescription: 'Ship it'\n---\n\nBody.")).toBe("Ship it");
+    expect(skillDescription("---\ndescription: Ship it\n---\n\nBody.")).toBe("Ship it");
   });
 });
 

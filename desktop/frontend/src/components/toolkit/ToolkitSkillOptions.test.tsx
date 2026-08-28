@@ -25,16 +25,31 @@ const DESTS: SkillDestination[] = [
   },
 ];
 
+// A folder whose CLI honours no opt-out, so the "Only you" card is disabled.
+const GEMINI: SkillDestination = {
+  path: "/h/.gemini/skills",
+  cli: "gemini",
+  scope: "user",
+  label: "Gemini",
+  exists: true,
+};
+
 // The parent owns both choices the way ToolkitCreate does, down to the token
 // the chosen folder's CLI is invoked with.
-function Harness({ startDest = DESTS[0].path }: { startDest?: string }) {
+function Harness({
+  startDest = DESTS[0].path,
+  dests = DESTS,
+}: {
+  startDest?: string;
+  dests?: SkillDestination[];
+}) {
   const [destPath, setDestPath] = useState(startDest);
   const [manual, setManual] = useState(false);
-  const dest = DESTS.find((d) => d.path === destPath) ?? null;
+  const dest = dests.find((d) => d.path === destPath) ?? null;
   const manualAllowed = dest?.cli === "claude" || dest?.cli === "codex";
   return (
     <ToolkitSkillOptions
-      destinations={DESTS}
+      destinations={dests}
       destPath={destPath}
       onDest={setDestPath}
       manual={manual && manualAllowed}
@@ -48,7 +63,7 @@ function Harness({ startDest = DESTS[0].path }: { startDest?: string }) {
 let host: HTMLDivElement;
 let root: Root;
 
-function render(props: { startDest?: string } = {}) {
+function render(props: { startDest?: string; dests?: SkillDestination[] } = {}) {
   act(() => {
     root.render(<Harness {...props} />);
   });
@@ -72,6 +87,13 @@ function mark(label: string, title: string): string | null {
 function click(button: HTMLButtonElement) {
   act(() => {
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+}
+
+function press(button: HTMLButtonElement, key: string) {
+  act(() => {
+    button.focus();
+    button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
   });
 }
 
@@ -170,5 +192,43 @@ describe("ToolkitSkillOptions", () => {
     click(card("Who runs it", "Only you"));
     click(card("Folder", "Codex, Gemini and OpenCode"));
     expect(card("Who runs it", "Only you").getAttribute("aria-checked")).toBe("true");
+  });
+
+  // Four folders should cost one press of Tab, not four: the chosen card holds
+  // the group's tab stop and the arrows move the choice, selecting as they go.
+  it("keeps one tab stop per group and moves the choice with the arrows", () => {
+    render();
+    expect(cards("Folder").map((b) => b.tabIndex)).toEqual([0, -1, -1, -1]);
+    press(card("Folder", "Claude Code"), "ArrowRight");
+    expect(card("Folder", "Claude Code, in this project").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(cards("Folder").map((b) => b.tabIndex)).toEqual([-1, 0, -1, -1]);
+  });
+
+  it("wraps at either end of the group", () => {
+    render();
+    press(card("Folder", "Claude Code"), "ArrowUp");
+    expect(card("Folder", "Codex, Gemini and OpenCode").getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    press(card("Folder", "Codex, Gemini and OpenCode"), "ArrowDown");
+    expect(card("Folder", "Claude Code").getAttribute("aria-checked")).toBe("true");
+  });
+
+  // Under a folder with no opt-out the agent card is the only enabled radio, so
+  // an arrow has nowhere to go — it must not land the choice on a disabled card.
+  it("never arrows onto a disabled card", () => {
+    render({ startDest: GEMINI.path, dests: [...DESTS, GEMINI] });
+    expect(card("Who runs it", "Only you").disabled).toBe(true);
+    press(card("Who runs it", "Your agent"), "ArrowRight");
+    expect(card("Who runs it", "Your agent").getAttribute("aria-checked")).toBe("true");
+  });
+
+  // A re-scan can drop the chosen folder for a render before the fallback
+  // re-picks; the group must keep a tab stop through that beat.
+  it("keeps the folder group tabbable while the chosen folder is gone", () => {
+    render({ startDest: "/gone" });
+    expect(cards("Folder").map((b) => b.tabIndex)).toEqual([0, -1, -1, -1]);
   });
 });

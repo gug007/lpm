@@ -14,7 +14,7 @@ use std::path::{Component, Path, PathBuf};
 const MAX_NAME: usize = 64;
 /// Mirrors `write.rs`'s own document cap, so a skill lpm writes is always a
 /// skill lpm can reopen for editing.
-const MAX_CONTENT_BYTES: u64 = 512 * 1024;
+pub(super) const MAX_CONTENT_BYTES: u64 = 512 * 1024;
 const WALK_ENTRIES: u32 = 500;
 const WALK_DEPTH: u32 = 4;
 const EXTRAS_CAP: usize = 8;
@@ -22,12 +22,12 @@ const EXTRAS_CAP: usize = 8;
 /// Codex's own opt-out, written to `<skill>/agents/openai.yaml`. Claude ignores
 /// the folder entirely, so it goes into every root: a skill created as manual
 /// stays manual if it is later copied into a Codex one.
-const CODEX_OPT_OUT: &str = "policy:\n  allow_implicit_invocation: false\n";
+pub(super) const CODEX_OPT_OUT: &str = "policy:\n  allow_implicit_invocation: false\n";
 
 const NOT_A_ROOT: &str = "That is not a folder an agent reads skills from.";
 const NOT_A_SKILL: &str = "This is not a skill folder lpm can remove.";
 const IS_A_LINK: &str =
-    "This skill is a link to a folder somewhere else. Remove it where it lives.";
+    "This skill is a link to a folder somewhere else. Edit or remove it where it lives.";
 
 // ---- where skills may live ---------------------------------------------------
 
@@ -129,7 +129,7 @@ fn validate_skill_name(name: &str) -> Result<(), String> {
 }
 
 /// The skill folder `path` belongs to, or why it is not one.
-fn resolve_skill_dir(path: &Path, roots: &[SkillRoot]) -> Result<PathBuf, String> {
+pub(super) fn resolve_skill_dir(path: &Path, roots: &[SkillRoot]) -> Result<PathBuf, String> {
     if !path.is_absolute() || path.components().any(|c| c == Component::ParentDir) {
         return Err(NOT_A_SKILL.into());
     }
@@ -168,7 +168,7 @@ fn resolve_skill_dir(path: &Path, roots: &[SkillRoot]) -> Result<PathBuf, String
 /// equality against project roots, so `/srv/app/.claude/skills/x/SKILL.md` never
 /// equals `/srv/app` and a path-based gate would let create materialise a
 /// phantom tree on the local Mac at the remote's path.
-fn ensure_local(cwd: &str, verb: &str) -> Result<(), String> {
+pub(super) fn ensure_local(cwd: &str, verb: &str) -> Result<(), String> {
     if crate::sshexec::remote_project_for_path(cwd).is_some() {
         return Err(format!(
             "Skills for this project live on a remote host. {verb} it there."

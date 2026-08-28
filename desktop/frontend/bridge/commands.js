@@ -593,6 +593,9 @@ export function WriteAgentCapability(path, content, baseline) {
 export function CreateAgentSkill(cwd, root, name, content, manual) {
   return invoke("create_agent_skill", { cwd, root, name, content, manual });
 }
+export function UpdateAgentSkill(cwd, path, baseline, description, manual) {
+  return invoke("update_agent_skill", { cwd, path, baseline, description, manual });
+}
 export function GenerateAgentSkill(cli, model, effort, fast, cwd, description, nameHint, genId = "") {
   return invoke("generate_agent_skill", { cli, model, effort, fast, cwd, description, nameHint, genId });
 }

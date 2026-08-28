@@ -194,6 +194,7 @@ export function ListAgentCapabilities(...args: any[]): Promise<any>;
 export function ReadAgentCapability(...args: any[]): Promise<any>;
 export function WriteAgentCapability(...args: any[]): Promise<any>;
 export function CreateAgentSkill(...args: any[]): Promise<any>;
+export function UpdateAgentSkill(...args: any[]): Promise<any>;
 export function GenerateAgentSkill(...args: any[]): Promise<any>;
 export function PreviewAgentSkillDelete(...args: any[]): Promise<any>;
 export function DeleteAgentSkill(...args: any[]): Promise<any>;

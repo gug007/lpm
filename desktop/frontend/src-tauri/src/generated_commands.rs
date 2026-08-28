@@ -18,6 +18,7 @@ macro_rules! all_command_handlers {
             read_agent_capability,
             write_agent_capability,
             create_agent_skill,
+            update_agent_skill,
             generate_agent_skill,
             preview_agent_skill_delete,
             delete_agent_skill,
