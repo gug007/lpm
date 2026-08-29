@@ -57,6 +57,7 @@ export function AIPickerButton({
         title={title}
         trailing={
           <button
+            type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             title="Select AI CLI and model"
           >

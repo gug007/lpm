@@ -41,6 +41,7 @@ export function AIButton({
   return (
     <div className={`group relative inline-flex ${GRADIENT} active:scale-[0.98] ${inert ? "hover:shadow-sm" : ""}`}>
       <button
+        type="button"
         onClick={showStop ? onCancel : onClick}
         disabled={inert}
         title={showStop ? "Stop generating" : title}
