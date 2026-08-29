@@ -24,6 +24,11 @@ const FAQS = [
       "Yes. The same dialog writes Codex skills to ~/.codex/skills or the shared ~/.agents/skills folder. Codex invokes skills with $name instead of /name, and lpm shows the right invocation for whichever folder you pick.",
   },
   {
+    question: "Can I use one skill with both Claude Code and Codex?",
+    answer:
+      "Each CLI reads its own folders, so a skill lives where its CLI looks: Claude Code reads ~/.claude/skills and a project's .claude/skills, while Codex reads ~/.codex/skills and the shared ~/.agents/skills folder that other agent CLIs read too. The dialog is identical either way — pick a different folder and lpm writes the same SKILL.md format there.",
+  },
+  {
     question: "What does the “Only you” run mode mean?",
     answer:
       "A manual-only skill never triggers on its own and stays out of the agent's context, so it costs no tokens until you invoke it by name. lpm can mark skills manual-only for both Claude Code and Codex.",
