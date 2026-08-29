@@ -3,13 +3,12 @@ import {
   ArrowRight,
   Check,
   Code2,
-  Eye,
-  FileSliders,
-  LockKeyhole,
-  Monitor,
-  Save,
-  Settings2,
-  SlidersHorizontal,
+  Gauge,
+  Layers,
+  PencilLine,
+  Plus,
+  Sparkles,
+  Terminal,
 } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
 import { RelatedPages } from "@/components/related-pages";
@@ -27,43 +26,43 @@ import {
   webPageJsonLd,
 } from "@/lib/structured-data";
 import Cta from "./_components/cta";
+import DialogPreview from "./_components/dialog-preview";
 import Faq from "./_components/faq";
-import LpmStatuslineDemo from "./_components/lpm-statusline-demo";
 
-const TITLE = "Customize Claude Code & Codex Statuslines";
+const TITLE = "Create & Edit Claude Code and Codex Skills";
 const DESCRIPTION =
-  "Customize Claude Code and Codex statuslines visually in lpm for macOS. Pick presets, reorder fields, tune colors, meters, and separators, and preview live.";
+  "Create and edit Claude Code and Codex skills visually in lpm for macOS. Describe the task, let AI draft the SKILL.md, choose who runs it, and see what every skill costs in context.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
-    "Claude Code statusline",
-    "Claude Code status line",
-    "Codex statusline",
-    "Codex status line",
-    "Claude Code statusline GUI",
-    "Codex statusline GUI",
-    "customize Claude Code statusline",
-    "Codex CLI status line",
+    "Claude Code skills",
+    "create Claude Code skill",
+    "Claude Code skill editor",
+    "SKILL.md",
+    "Codex skills",
+    "Codex custom prompts",
+    "agent skills manager",
+    "Claude Code slash command",
     "macOS developer tools",
   ],
   alternates: {
-    canonical: STATUSLINE_PATH,
+    canonical: SKILLS_PATH,
   },
   openGraph: {
     title: TITLE,
     description:
-      "Use lpm to visually customize Claude Code and Codex statuslines with presets, live preview, fields, colors, and usage meters.",
+      "Use lpm to create and edit Claude Code and Codex skills with AI drafting, run modes, and per-skill context cost.",
     type: "website",
-    url: STATUSLINE_PATH,
+    url: SKILLS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Visual statusline customization for Claude Code and Codex, built into lpm for macOS.",
+      "A visual skill editor for Claude Code and Codex, built into lpm for macOS.",
   },
 };
 
@@ -71,63 +70,63 @@ const structuredData = [
   webPageJsonLd({
     title: TITLE,
     description: DESCRIPTION,
-    path: STATUSLINE_PATH,
+    path: SKILLS_PATH,
     about: [
-      "Claude Code statusline",
-      "Codex status line",
-      "visual statusline editor",
+      "Claude Code skills",
+      "Codex skills",
+      "SKILL.md editor",
       "macOS developer tools",
     ],
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "lpm statusline customization",
-      path: STATUSLINE_PATH,
+      name: "lpm skill editor",
+      path: SKILLS_PATH,
     },
   ]),
 ];
 
 const benefits = [
   {
-    icon: SlidersHorizontal,
-    title: "Visual instead of fragile",
-    copy: "Choose from real fields, valid colors, separators, and meter styles. lpm keeps the underlying agent configuration out of your way.",
+    icon: Sparkles,
+    title: "Describe it, AI drafts it",
+    copy: "Type one sentence about the task. lpm reads your repository and drafts the name, description, and instructions to match how your project actually works. Nothing is saved until you click Create.",
   },
   {
-    icon: Eye,
-    title: "Preview the real signal",
-    copy: "See representative values using your lpm terminal theme and font size before the line reaches Claude Code or Codex.",
+    icon: PencilLine,
+    title: "Edit without breaking files",
+    copy: "Reopen any skill — including ones you wrote by hand — and change its description, instructions, or who runs it. lpm rewrites only the fields you touched and leaves everything else exactly as it was.",
   },
   {
-    icon: Save,
-    title: "Saved while you work",
-    copy: "Preset changes and custom edits apply automatically, so you can iterate without copying snippets between files.",
+    icon: Gauge,
+    title: "See what skills cost",
+    copy: "Skill descriptions are loaded before every turn; instructions only when a skill runs. lpm estimates both, so you know which skills are cheap to keep and which deserve a manual-only switch.",
   },
 ];
 
 const steps = [
   {
     step: "01",
-    icon: Settings2,
-    title: "Open AI & Integrations",
-    copy: "In lpm, click Settings at the bottom of the sidebar and select AI & Integrations.",
+    icon: Layers,
+    title: "Open Skills & tools",
+    copy: "Add the Skills & tools tab in any project terminal. lpm scans every folder Claude Code and Codex read skills from and lists what it finds.",
   },
   {
     step: "02",
-    icon: FileSliders,
-    title: "Choose the statusline",
-    copy: "Click Customize beside Claude Code status line or Codex CLI status line, then pick a starting layout.",
+    icon: Plus,
+    title: "Create a new skill",
+    copy: "Click New skill, describe the task, and let AI draft the fields — or fill in the name, description, and instructions yourself.",
   },
   {
     step: "03",
-    icon: Monitor,
-    title: "Tune it live",
-    copy: "Arrange fields, adjust appearance, and watch the saved statusline update as you work.",
+    icon: PencilLine,
+    title: "Refine as you go",
+    copy: "Pick who runs it and press Create. Reopen the same dialog any time to edit, and deleted skills go to the Trash — never gone for good.",
   },
 ];
 
-export default function ClaudeCodeCodexStatuslinePage() {
+export default function ClaudeCodeCodexSkillsPage() {
   return (
     <>
       <script
@@ -142,49 +141,49 @@ export default function ClaudeCodeCodexStatuslinePage() {
             Built into lpm · macOS
           </p>
           <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)]">
-            Customize Claude Code & Codex statuslines.{" "}
-            <span className="block">Without editing config files.</span>
+            Create Claude Code & Codex skills.{" "}
+            <span className="block">Without hand-writing SKILL.md.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
-            lpm gives Claude Code and Codex a visual statusline editor.
-            Pick a layout, arrange useful signals, tune the appearance, and see
-            every change before it applies.
+            lpm scans every folder your agents read skills from, shows what each
+            skill costs in context, and gives you one dialog to create and edit
+            them — with AI drafting the fields from a plain-English description.
           </p>
           <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-2">
-              <Eye className="h-3.5 w-3.5" aria-hidden />
-              Live preview
+              <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              AI drafts the fields
             </span>
             <span className="inline-flex items-center gap-2">
-              <Save className="h-3.5 w-3.5" aria-hidden />
-              Automatic local save
+              <PencilLine className="h-3.5 w-3.5" aria-hidden />
+              Edit any skill in place
             </span>
             <span className="inline-flex items-center gap-2">
-              <LockKeyhole className="h-3.5 w-3.5" aria-hidden />
-              Native and private
+              <Gauge className="h-3.5 w-3.5" aria-hidden />
+              Context cost, visible
             </span>
           </div>
-          <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex flex-col items-center gap-3">
-            <HeroDownload source="statusline-hero" />
+          <div className="mt-[clamp(1.25rem,3vh,1.75rem)] mb-[clamp(1.5rem,4vh,2.5rem)] flex flex-col items-center gap-3">
+            <HeroDownload source="skills-hero" />
             <a
-              href="#preview"
+              href="#dialog"
               className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-gray-600 transition hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
             >
-              Try the interactive preview
+              See the New skill dialog
               <ArrowRight className="h-4 w-4" aria-hidden />
             </a>
           </div>
         </div>
       </section>
 
-      <LpmStatuslineDemo />
+      <DialogPreview />
 
       <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
-            eyebrow="One lpm setting, two agent formats"
-            title="lpm handles what each statusline supports"
-            description="Claude Code and Codex expose different customization systems. lpm gives each one a focused editor while keeping the workflow consistent."
+            eyebrow="One dialog, both CLIs"
+            title="Skills live in folders — lpm knows them all"
+            description="Claude Code and Codex each read skills from their own places. lpm scans every root, shows what is installed for each CLI, and writes new skills where the CLI you pick will read them."
           />
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -198,20 +197,20 @@ export default function ClaudeCodeCodexStatuslinePage() {
                     Claude Code
                   </h3>
                 </div>
-                <span className="rounded-full bg-[#D97757]/10 px-2.5 py-1 text-[11px] font-semibold text-[#B75F40] dark:text-[#F09978]">
-                  Fully styled
+                <span className="rounded-full bg-[#D97757]/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-[#B75F40] dark:text-[#F09978]">
+                  /skill-name
                 </span>
               </div>
               <p className="mt-5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                lpm builds and applies Claude Code’s command-powered statusline
-                through a visual editor.
+                lpm writes a standard SKILL.md, so everything works exactly as
+                if you had written it by hand.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
                 {[
-                  "Clean, Minimalistic, Modern, Custom, and Off layouts",
-                  "Per-item colors, labels, icons, and custom text",
-                  "Separators, Git status, and eight usage meter styles",
-                  "Model, project, context, limits, Git, and session cost",
+                  "Personal skills in ~/.claude/skills, project skills next to your code",
+                  "Auto-run when the description matches, or manual-only on request",
+                  "Manual-only skills stay out of context entirely — zero tokens up front",
+                  "Per-skill estimates of what each description costs every turn",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <Check
@@ -223,12 +222,12 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 ))}
               </ul>
               <a
-                href="https://code.claude.com/docs/en/statusline"
+                href="https://code.claude.com/docs/en/skills"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-7 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gray-800 transition hover:text-[#B75F40] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-200 dark:hover:text-[#F09978] dark:focus-visible:ring-white"
               >
-                Claude Code statusline docs
+                Claude Code skills docs
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
             </article>
@@ -237,26 +236,26 @@ export default function ClaudeCodeCodexStatuslinePage() {
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#10A37F]/12 text-[#10A37F]">
-                    <SlidersHorizontal className="h-5 w-5" aria-hidden />
+                    <Terminal className="h-5 w-5" aria-hidden />
                   </span>
                   <h3 className="text-xl font-bold text-gray-950 dark:text-white">
                     Codex
                   </h3>
                 </div>
-                <span className="rounded-full bg-[#10A37F]/10 px-2.5 py-1 text-[11px] font-semibold text-[#087A5E] dark:text-[#4FD1AB]">
-                  Native fields
+                <span className="rounded-full bg-[#10A37F]/10 px-2.5 py-1 font-mono text-[11px] font-semibold text-[#087A5E] dark:text-[#4FD1AB]">
+                  $skill-name
                 </span>
               </div>
               <p className="mt-5 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                lpm turns Codex’s native statusline fields into a visual,
-                reorderable list and saves it to the local configuration.
+                The same dialog writes Codex skills, including the shared folder
+                other agent CLIs read too.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
                 {[
-                  "Essential, Project, Usage, Detailed, and Off layouts",
-                  "Model, reasoning, Git, context, limits, tokens, and state",
-                  "Task progress, permissions, thread, and workspace details",
-                  "Active Codex theme colors with automatic field omission",
+                  "Skills in ~/.codex/skills, plus the shared ~/.agents/skills folder",
+                  "Invoked with $name — lpm shows the right token for each folder",
+                  "Manual-only supported here too, kept out of context until you call it",
+                  "Descriptions validated against what both CLIs actually accept",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <Check
@@ -285,7 +284,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
             eyebrow="Made for daily agent work"
-            title="Your statusline should reduce uncertainty"
+            title="Skills should be easy to write and cheap to keep"
           />
           <div className="grid gap-5 md:grid-cols-3">
             {benefits.map(({ icon: Icon, title, copy }) => (
@@ -312,7 +311,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
             eyebrow="Three steps in lpm"
-            title="From default to useful in a minute"
+            title="From idea to installed skill in a minute"
           />
           <div className="grid gap-5 md:grid-cols-3">
             {steps.map(({ step, icon: Icon, title, copy }) => (
@@ -343,6 +342,12 @@ export default function ClaudeCodeCodexStatuslinePage() {
       <RelatedPages
         links={[
           {
+            href: STATUSLINE_PATH,
+            title: "Claude Code & Codex statusline customization",
+            description:
+              "Pick presets, reorder fields, tune colors and meters, and preview the statusline live.",
+          },
+          {
             href: TOKEN_USAGE_PATH,
             title: "Claude Code & Codex token usage in lpm",
             description:
@@ -359,12 +364,6 @@ export default function ClaudeCodeCodexStatuslinePage() {
             title: "Connect agents to your dev environment",
             description:
               "Give Claude Code and Codex tools to run services, inspect logs, and work across project copies.",
-          },
-          {
-            href: SKILLS_PATH,
-            title: "Create & edit Claude Code and Codex skills",
-            description:
-              "Describe a task, let AI draft the SKILL.md, and see what every skill costs in context.",
           },
         ]}
       />

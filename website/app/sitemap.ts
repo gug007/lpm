@@ -13,6 +13,7 @@ import {
   PROJECT_SIDEBAR_PATH,
   REVIEW_CHANGES_PATH,
   SITE_URL,
+  SKILLS_PATH,
   SSH_TERMINAL_MAC_PATH,
   STATS_PATH,
   STATUSLINE_PATH,
@@ -138,6 +139,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       url: `${SITE_URL}${STATUSLINE_PATH}`,
       lastModified: lastModified(STATUSLINE_PATH),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${SITE_URL}${SKILLS_PATH}`,
+      lastModified: lastModified(SKILLS_PATH),
       changeFrequency: "monthly",
       priority: 0.8,
     },

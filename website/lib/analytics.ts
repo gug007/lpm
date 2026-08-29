@@ -38,6 +38,8 @@ export type DownloadSource =
   | "linux-host-cta"
   | "statusline-hero"
   | "statusline-cta"
+  | "skills-hero"
+  | "skills-cta"
   | "token-usage-hero"
   | "token-usage-cta"
   | "mobile-cta";
