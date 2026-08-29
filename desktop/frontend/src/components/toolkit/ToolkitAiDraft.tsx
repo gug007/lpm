@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { WandSparkles } from "lucide-react";
+import { ChevronUp, WandSparkles } from "lucide-react";
 import { toast } from "sonner";
 import { GenerateAgentSkill } from "../../../bridge/commands";
 import { EventsOn } from "../../../bridge/runtime";
@@ -15,6 +15,18 @@ export interface SkillDraft {
   description: string;
   body: string;
 }
+
+// The collapsed row reads as the dialog's other collapsed answer does — the
+// same hairline, radius and focus ring as an OptionSelect trigger — so the
+// shortcut sits in the form rather than on top of it.
+const BAR =
+  "flex w-full min-w-0 items-center gap-2 rounded-[var(--tk-radius-s)] px-2 py-1.5 text-left shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--text-primary)_16%,transparent)] transition-[background-color,box-shadow] hover:bg-[var(--tk-hover)] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[2px] focus-visible:outline-[var(--text-primary)]";
+
+const PLATE =
+  "flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--text-primary)_10%,transparent)] text-[var(--text-primary)]";
+
+const CHIP =
+  "shrink-0 rounded-full px-2.5 py-[3px] text-[11px] text-[var(--text-secondary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--text-primary)_16%,transparent)]";
 
 interface ToolkitAiDraftProps {
   cwd: string;
@@ -43,6 +55,7 @@ export function ToolkitAiDraft({
   onDraft,
 }: ToolkitAiDraftProps) {
   const [progress, setProgress] = useState("");
+  const [expanded, setExpanded] = useState(false);
   const ai = useAIPicker(true);
   const generation = useAIGeneration();
 
@@ -94,6 +107,23 @@ export function ToolkitAiDraft({
       ? ""
       : "Install an AI coding CLI to use this.";
 
+  // Collapsed, the shortcut costs one row instead of a quarter of the dialog —
+  // the form below it is what most skills are written in. Anything already
+  // described stays the row's label rather than disappearing behind it.
+  if (!expanded) {
+    return (
+      <button type="button" onClick={() => setExpanded(true)} className={BAR}>
+        <span className={PLATE}>
+          <WandSparkles size={12} />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[11.5px] text-[var(--text-muted)]">
+          {described || "Describe it and let AI draft the fields"}
+        </span>
+        <span className={CHIP}>Draft</span>
+      </button>
+    );
+  }
+
   return (
     <div
       className="flex flex-col"
@@ -109,14 +139,28 @@ export function ToolkitAiDraft({
       }}
     >
       <div className="flex items-center gap-2">
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--text-primary)_10%,transparent)] text-[var(--text-primary)]">
+        <span className={PLATE}>
           <WandSparkles size={12} />
         </span>
         <span className="text-[11.5px] font-medium text-[var(--text-primary)]">
           Draft it with AI
         </span>
+        {/* A running draft reports into the composer's footer, so putting it
+            away mid-run would hide the only sign it is working. */}
+        {!generation.generating && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            title="Put it away"
+            aria-label="Put the AI drafter away"
+            className="ml-auto rounded-md p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--tk-hover)] hover:text-[var(--text-primary)]"
+          >
+            <ChevronUp size={12} />
+          </button>
+        )}
       </div>
       <InputComposer
+        autoFocus
         defaultValue={request}
         onChange={onRequest}
         placeholder="Describe what the skill should do — it can read this project for context."
