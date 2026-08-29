@@ -25,7 +25,7 @@ const DESTS: SkillDestination[] = [
   },
 ];
 
-// A folder whose CLI honours no opt-out, so the "Only you" card is disabled.
+// A folder whose CLI honours no opt-out, so the "Only you" option is disabled.
 const GEMINI: SkillDestination = {
   path: "/h/.gemini/skills",
   cli: "gemini",
@@ -69,19 +69,41 @@ function render(props: { startDest?: string; dests?: SkillDestination[] } = {}) 
   });
 }
 
-function cards(label: string): HTMLButtonElement[] {
-  const group = document.querySelector(`[role="radiogroup"][aria-label="${label}"]`);
-  return Array.from(group?.querySelectorAll("button") ?? []);
+// The collapsed control: its label, the chosen title, and the note left
+// standing underneath.
+function field(label: string): HTMLElement {
+  const tag = [...host.querySelectorAll("span")].find(
+    (s) => s.id.endsWith("-label") && s.textContent === label,
+  );
+  if (!tag?.parentElement) throw new Error(`no ${label} field`);
+  return tag.parentElement;
 }
 
-function card(label: string, title: string): HTMLButtonElement {
-  const found = cards(label).find((b) => b.textContent?.startsWith(title));
-  if (!found) throw new Error(`no ${label} card titled ${title}`);
+function trigger(label: string): HTMLButtonElement {
+  const found = field(label).querySelector<HTMLButtonElement>('[role="combobox"]');
+  if (!found) throw new Error(`no ${label} trigger`);
   return found;
 }
 
-function mark(label: string, title: string): string | null {
-  return card(label, title).querySelector("[data-mark]")?.getAttribute("data-mark") ?? null;
+function open(label: string): HTMLElement {
+  if (trigger(label).getAttribute("aria-expanded") !== "true") click(trigger(label));
+  const list = document.querySelector<HTMLElement>(`[role="listbox"][aria-label="${label}"]`);
+  if (!list) throw new Error(`${label} did not open`);
+  return list;
+}
+
+function options(label: string): HTMLButtonElement[] {
+  return [...open(label).querySelectorAll("button")];
+}
+
+function option(label: string, title: string): HTMLButtonElement {
+  const found = options(label).find((b) => b.textContent?.startsWith(title));
+  if (!found) throw new Error(`no ${label} option titled ${title}`);
+  return found;
+}
+
+function mark(el: HTMLElement): string | null {
+  return el.querySelector("[data-mark]")?.getAttribute("data-mark") ?? null;
 }
 
 function click(button: HTMLButtonElement) {
@@ -90,11 +112,23 @@ function click(button: HTMLButtonElement) {
   });
 }
 
-function press(button: HTMLButtonElement, key: string) {
+function mouseDown(target: Element) {
   act(() => {
-    button.focus();
-    button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   });
+}
+
+function press(el: HTMLElement, key: string) {
+  act(() => {
+    el.focus();
+    el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+  });
+}
+
+function highlighted(label: string): string {
+  const id = trigger(label).getAttribute("aria-activedescendant");
+  const el = id ? document.getElementById(id) : null;
+  return el?.textContent ?? "";
 }
 
 beforeEach(() => {
@@ -109,126 +143,166 @@ afterEach(() => {
 });
 
 describe("ToolkitSkillOptions", () => {
-  it("offers one card per folder, with the path it writes to", () => {
+  // Collapsed, the field reads exactly as the option does in the open list:
+  // the title over the sentence that explains it — for a folder, the path it
+  // writes to.
+  it("shows the chosen folder with its path, closed", () => {
     render();
-    expect(cards("Folder")).toHaveLength(4);
-    expect(card("Folder", "Claude Code").textContent).toContain("/h/.claude/skills");
-    expect(card("Folder", "Codex, Gemini and OpenCode").textContent).toContain(
+    expect(trigger("Folder").textContent).toContain("Claude Code");
+    expect(trigger("Folder").textContent).toContain("/h/.claude/skills");
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  // The dialog hosting the form is itself a portalled modal overlay, and the
+  // list hangs off a field inside it: a click anywhere else in that dialog is
+  // an outside click, not a layer above the list.
+  it("closes on a click elsewhere in the dialog, but not inside itself", () => {
+    host.setAttribute("data-modal-overlay", "");
+    render();
+    const list = open("Folder");
+    mouseDown(list);
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull();
+    mouseDown(host);
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    expect(trigger("Folder").textContent).toContain("Claude Code");
+  });
+
+  it("offers one option per folder, with the path it writes to", () => {
+    render();
+    expect(options("Folder")).toHaveLength(4);
+    expect(option("Folder", "Claude Code").textContent).toContain("/h/.claude/skills");
+    expect(option("Folder", "Codex, Gemini and OpenCode").textContent).toContain(
       "/h/.agents/skills",
     );
   });
 
   it("says which folder does not exist yet", () => {
     render();
-    expect(card("Folder", "Claude Code, in this project").textContent).toContain(
+    expect(option("Folder", "Claude Code, in this project").textContent).toContain(
       "will be created",
     );
-    expect(card("Folder", "Claude Code").textContent).not.toContain("will be created");
+    expect(option("Folder", "Claude Code").textContent).not.toContain("will be created");
   });
 
-  it("marks the chosen folder and moves on click", () => {
+  it("marks the chosen folder, and moves and closes on click", () => {
     render();
-    expect(card("Folder", "Claude Code").getAttribute("aria-checked")).toBe("true");
-    click(card("Folder", "Codex, Gemini and OpenCode"));
-    expect(card("Folder", "Codex, Gemini and OpenCode").getAttribute("aria-checked")).toBe(
-      "true",
-    );
-    expect(card("Folder", "Claude Code").getAttribute("aria-checked")).toBe("false");
+    expect(option("Folder", "Claude Code").getAttribute("aria-selected")).toBe("true");
+    click(option("Folder", "Codex, Gemini and OpenCode"));
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    expect(trigger("Folder").textContent).toContain("Codex, Gemini and OpenCode");
+    expect(trigger("Folder").textContent).toContain("/h/.agents/skills");
+    expect(option("Folder", "Claude Code").getAttribute("aria-selected")).toBe("false");
   });
 
   it("defaults to the agent picking it up, and keeps it to you on request", () => {
     render();
-    expect(card("Who runs it", "Your agent").getAttribute("aria-checked")).toBe("true");
-    click(card("Who runs it", "Only you"));
-    expect(card("Who runs it", "Only you").getAttribute("aria-checked")).toBe("true");
-    expect(card("Who runs it", "Your agent").textContent).toContain("description matches");
+    expect(trigger("Who runs it").textContent).toContain("Your agent");
+    expect(trigger("Who runs it").textContent).toContain("description matches");
+    click(option("Who runs it", "Only you"));
+    expect(trigger("Who runs it").textContent).toContain("Only you");
   });
 
   // The two CLIs are typed differently — Claude takes /name, Codex $name — and
-  // a card that names the wrong one teaches a keystroke that does nothing.
+  // an option that names the wrong one teaches a keystroke that does nothing.
   it("names the thing the user types, in the chosen CLI's own form", () => {
     render();
-    expect(card("Who runs it", "Only you").textContent).toContain("/deploy-web");
-    click(card("Folder", "Codex"));
-    expect(card("Who runs it", "Only you").textContent).toContain("$deploy-web");
+    expect(option("Who runs it", "Only you").textContent).toContain("/deploy-web");
+    press(trigger("Who runs it"), "Escape");
+    click(option("Folder", "Codex"));
+    expect(option("Who runs it", "Only you").textContent).toContain("$deploy-web");
   });
 
   it("offers the opt-out under a Codex folder too", () => {
     render({ startDest: "/h/.codex/skills" });
-    const only = card("Who runs it", "Only you");
+    const only = option("Who runs it", "Only you");
     expect(only.disabled).toBe(false);
     expect(only.textContent).toContain("agents never trigger it");
   });
 
   // The shared folder is three CLIs' and only Codex honours the opt-out, so the
-  // card has to say so rather than promise the skill is held back everywhere.
+  // option has to say so rather than promise the skill is held back everywhere.
   it("says who still picks it up in the shared folder", () => {
     render({ startDest: "/h/.agents/skills" });
-    const note = card("Who runs it", "Only you").textContent ?? "";
+    const note = option("Who runs it", "Only you").textContent ?? "";
     expect(note).toContain("only Codex holds it back");
     expect(note).toContain("Gemini and OpenCode");
   });
 
-  // The label runs out of room in two columns long before the mark does, and
-  // which CLI reads the folder is the thing the label cannot say twice.
+  // The label runs out of room in a collapsed line long before the mark does,
+  // and which CLI reads the folder is the thing the label cannot say twice.
   it("marks every folder with the agent that reads it", () => {
     render();
-    expect(mark("Folder", "Claude Code")).toBe("claude");
-    expect(mark("Folder", "Claude Code, in this project")).toBe("claude");
-    expect(mark("Folder", "Codex")).toBe("codex");
-    expect(mark("Folder", "Codex, Gemini and OpenCode")).toBe("shared");
+    expect(mark(option("Folder", "Claude Code"))).toBe("claude");
+    expect(mark(option("Folder", "Claude Code, in this project"))).toBe("claude");
+    expect(mark(option("Folder", "Codex"))).toBe("codex");
+    expect(mark(option("Folder", "Codex, Gemini and OpenCode"))).toBe("shared");
   });
 
-  it("carries the chosen folder's mark onto the agent card", () => {
+  it("carries the chosen folder's mark onto the collapsed agent line", () => {
     render();
-    expect(mark("Who runs it", "Your agent")).toBe("claude");
-    expect(mark("Who runs it", "Only you")).toBe("prompt");
-    click(card("Folder", "Codex, Gemini and OpenCode"));
-    expect(mark("Who runs it", "Your agent")).toBe("shared");
+    expect(mark(trigger("Who runs it"))).toBe("claude");
+    expect(mark(option("Who runs it", "Only you"))).toBe("prompt");
+    press(trigger("Who runs it"), "Escape");
+    click(option("Folder", "Codex, Gemini and OpenCode"));
+    expect(mark(trigger("Who runs it"))).toBe("shared");
   });
 
   it("keeps the opt-out when the folder moves to Codex", () => {
     render();
-    click(card("Who runs it", "Only you"));
-    click(card("Folder", "Codex, Gemini and OpenCode"));
-    expect(card("Who runs it", "Only you").getAttribute("aria-checked")).toBe("true");
+    click(option("Who runs it", "Only you"));
+    click(option("Folder", "Codex, Gemini and OpenCode"));
+    expect(trigger("Who runs it").textContent).toContain("Only you");
   });
 
-  // Four folders should cost one press of Tab, not four: the chosen card holds
-  // the group's tab stop and the arrows move the choice, selecting as they go.
-  it("keeps one tab stop per group and moves the choice with the arrows", () => {
+  // Four folders cost one press of Tab, not four: the field is a single stop
+  // and the arrows walk the open list from the trigger.
+  it("opens and picks from the keyboard", () => {
     render();
-    expect(cards("Folder").map((b) => b.tabIndex)).toEqual([0, -1, -1, -1]);
-    press(card("Folder", "Claude Code"), "ArrowRight");
-    expect(card("Folder", "Claude Code, in this project").getAttribute("aria-checked")).toBe(
-      "true",
-    );
-    expect(cards("Folder").map((b) => b.tabIndex)).toEqual([-1, 0, -1, -1]);
+    press(trigger("Folder"), "ArrowDown");
+    expect(document.querySelector('[role="listbox"][aria-label="Folder"]')).not.toBeNull();
+    press(trigger("Folder"), "ArrowDown");
+    expect(highlighted("Folder")).toContain("Claude Code, in this project");
+    press(trigger("Folder"), "Enter");
+    expect(trigger("Folder").textContent).toContain("Claude Code, in this project");
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
   });
 
-  it("wraps at either end of the group", () => {
+  // Opening lands on the answer already given, so the arrows start from it and
+  // wrap rather than jumping to an end of the list.
+  it("opens on the chosen folder and wraps at either end", () => {
     render();
-    press(card("Folder", "Claude Code"), "ArrowUp");
-    expect(card("Folder", "Codex, Gemini and OpenCode").getAttribute("aria-checked")).toBe(
-      "true",
-    );
-    press(card("Folder", "Codex, Gemini and OpenCode"), "ArrowDown");
-    expect(card("Folder", "Claude Code").getAttribute("aria-checked")).toBe("true");
+    press(trigger("Folder"), "ArrowDown");
+    expect(highlighted("Folder")).toContain("Claude Code");
+    press(trigger("Folder"), "ArrowUp");
+    expect(highlighted("Folder")).toContain("Codex, Gemini and OpenCode");
+    press(trigger("Folder"), "ArrowDown");
+    expect(highlighted("Folder")).toContain("Claude Code");
   });
 
-  // Under a folder with no opt-out the agent card is the only enabled radio, so
-  // an arrow has nowhere to go — it must not land the choice on a disabled card.
-  it("never arrows onto a disabled card", () => {
+  // Escape belongs to the open list; the dialog hosting it must not close too.
+  it("closes on Escape without changing the answer", () => {
+    render();
+    press(trigger("Folder"), "ArrowDown");
+    press(trigger("Folder"), "ArrowDown");
+    press(trigger("Folder"), "Escape");
+    expect(document.querySelector('[role="listbox"]')).toBeNull();
+    expect(trigger("Folder").textContent).toContain("Claude Code");
+  });
+
+  // Under a folder with no opt-out the agent option is the only enabled one, so
+  // an arrow has nowhere to go — it must not land the choice on a disabled row.
+  it("never arrows onto a disabled option", () => {
     render({ startDest: GEMINI.path, dests: [...DESTS, GEMINI] });
-    expect(card("Who runs it", "Only you").disabled).toBe(true);
-    press(card("Who runs it", "Your agent"), "ArrowRight");
-    expect(card("Who runs it", "Your agent").getAttribute("aria-checked")).toBe("true");
+    expect(option("Who runs it", "Only you").disabled).toBe(true);
+    press(trigger("Who runs it"), "ArrowDown");
+    press(trigger("Who runs it"), "Enter");
+    expect(trigger("Who runs it").textContent).toContain("Your agent");
   });
 
   // A re-scan can drop the chosen folder for a render before the fallback
-  // re-picks; the group must keep a tab stop through that beat.
-  it("keeps the folder group tabbable while the chosen folder is gone", () => {
+  // re-picks; the collapsed line has to stay readable through that beat.
+  it("falls back to the first folder while the chosen one is gone", () => {
     render({ startDest: "/gone" });
-    expect(cards("Folder").map((b) => b.tabIndex)).toEqual([0, -1, -1, -1]);
+    expect(trigger("Folder").textContent).toContain("Claude Code");
   });
 });

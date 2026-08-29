@@ -1,12 +1,13 @@
-//! Changing the two things a skill's form owns — what it says it does, and
-//! whether the agent may reach for it on its own — in a file the user may have
-//! written by hand.
+//! Changing what a skill's form owns — what it says it does, whether the agent
+//! may reach for it on its own, and the prose it reads once it opens it — in a
+//! file the user may have written by hand.
 //!
 //! The rewrite is line-based rather than a YAML round-trip: parsing and
 //! re-emitting the frontmatter would reorder keys, drop comments and requote
 //! values the author chose, so a one-word description change would arrive as a
 //! whole-file diff. Only the description entry and the opt-out key are touched;
-//! every other byte of the file survives.
+//! every other byte of the frontmatter survives. The prose under it is replaced
+//! only when the form hands some back — a body nobody edited is never rewritten.
 
 use serde_norway::{Mapping, Value};
 use std::path::Path;
@@ -26,10 +27,12 @@ pub fn update_agent_skill(
     baseline: String,
     description: String,
     manual: bool,
+    instructions: Option<String>,
 ) -> Result<(), String> {
     ensure_local(&cwd, "Edit")?;
     let dir = resolve_skill_dir(Path::new(&path), &skill_roots(&cwd))?;
     validate_description(&description)?;
+    validate_instructions(instructions.as_deref())?;
 
     let skill_md = dir.join("SKILL.md");
     let current = std::fs::read_to_string(&skill_md)
@@ -40,7 +43,13 @@ pub fn update_agent_skill(
         return Err("modified".into());
     }
     let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-    let updated = rewrite(&current, name, &description, manual);
+    let updated = rewrite(
+        &current,
+        name,
+        &description,
+        manual,
+        instructions.as_deref(),
+    );
     if updated.len() as u64 > MAX_CONTENT_BYTES {
         return Err(format!("cannot write {}: too large", skill_md.display()));
     }
@@ -75,6 +84,17 @@ fn validate_description(description: &str) -> Result<(), String> {
         return Err("Skip the < and > characters here.".into());
     }
     Ok(())
+}
+
+/// Mirrors `skillInstructionsError` in the form: a skill whose file says
+/// nothing is a name the agent can open and learn nothing from.
+fn validate_instructions(instructions: Option<&str>) -> Result<(), String> {
+    match instructions {
+        Some(text) if text.trim().is_empty() => {
+            Err("Say what the agent should do once it opens this.".into())
+        }
+        _ => Ok(()),
+    }
 }
 
 // ---- the file ----------------------------------------------------------------
@@ -154,6 +174,19 @@ fn description_entry(description: &str, manual: bool, eol: &str) -> Vec<String> 
     out
 }
 
+/// The prose under the frontmatter as the form hands it back: every line takes
+/// the file's own line ending, and the block ends in a single newline the way
+/// the create template writes one.
+fn body_lines(text: &str, eol: &str) -> Vec<String> {
+    let mut out: Vec<String> = text
+        .trim_end()
+        .split('\n')
+        .map(|line| format!("{}{eol}", line.trim_end_matches('\r')))
+        .collect();
+    out.push(String::new());
+    out
+}
+
 fn rewrite_head(head: &[&str], entry: &[String]) -> Vec<String> {
     let span = description_span(head);
     let mut out: Vec<String> = Vec::new();
@@ -185,7 +218,13 @@ fn rewrite_head(head: &[&str], entry: &[String]) -> Vec<String> {
     out
 }
 
-fn rewrite(content: &str, name: &str, description: &str, manual: bool) -> String {
+fn rewrite(
+    content: &str,
+    name: &str,
+    description: &str,
+    manual: bool,
+    body: Option<&str>,
+) -> String {
     let (bom, rest) = match content.strip_prefix('\u{feff}') {
         Some(rest) => ("\u{feff}", rest),
         None => ("", content),
@@ -205,12 +244,28 @@ fn rewrite(content: &str, name: &str, description: &str, manual: bool) -> String
         head.extend(entry);
         head.push(format!("---{eol}"));
         head.push(eol.to_string());
-        return format!("{bom}{}\n{rest}", head.join("\n"));
+        return match body {
+            Some(text) => format!(
+                "{bom}{}\n{}",
+                head.join("\n"),
+                body_lines(text, eol).join("\n")
+            ),
+            None => format!("{bom}{}\n{rest}", head.join("\n")),
+        };
     };
 
     let mut out = vec![lines[0].to_string()];
     out.extend(rewrite_head(&lines[1..close], &entry));
-    out.extend(lines[close..].iter().map(|l| (*l).to_string()));
+    match body {
+        // The closing `---` and one blank line, then the prose: what is under
+        // the frontmatter is the form's to replace, and nothing above it moves.
+        Some(text) => {
+            out.push(lines[close].to_string());
+            out.push(eol.to_string());
+            out.extend(body_lines(text, eol));
+        }
+        None => out.extend(lines[close..].iter().map(|l| (*l).to_string())),
+    }
     format!("{bom}{}", out.join("\n"))
 }
 
@@ -342,12 +397,24 @@ mod tests {
         description: &str,
         manual: bool,
     ) -> Result<(), String> {
+        write(cwd, dir, baseline, description, manual, None)
+    }
+
+    fn write(
+        cwd: &str,
+        dir: &Path,
+        baseline: &str,
+        description: &str,
+        manual: bool,
+        instructions: Option<&str>,
+    ) -> Result<(), String> {
         update_agent_skill(
             cwd.to_string(),
             dir.join("SKILL.md").to_string_lossy().into_owned(),
             baseline.to_string(),
             description.to_string(),
             manual,
+            instructions.map(str::to_string),
         )
     }
 
@@ -359,7 +426,7 @@ mod tests {
     fn a_quoted_description_is_replaced_in_place() {
         let doc = "---\nname: \"deploy\"\ndescription: \"Ship it\"\n---\n\nBody.\n";
         assert_eq!(
-            rewrite(doc, "deploy", "Ship the site", false),
+            rewrite(doc, "deploy", "Ship the site", false, None),
             "---\nname: \"deploy\"\ndescription: \"Ship the site\"\n---\n\nBody.\n"
         );
     }
@@ -370,7 +437,7 @@ mod tests {
     fn a_folded_description_goes_with_its_continuation_lines() {
         let doc = "---\nname: \"deploy\"\ndescription: >-\n  Ship the site to staging.\n\n  Use when asked to deploy.\nallowed-tools: Bash\n---\n\nBody.\n";
         assert_eq!(
-            rewrite(doc, "deploy", "Ship it", false),
+            rewrite(doc, "deploy", "Ship it", false, None),
             "---\nname: \"deploy\"\ndescription: \"Ship it\"\nallowed-tools: Bash\n---\n\nBody.\n"
         );
     }
@@ -379,7 +446,7 @@ mod tests {
     fn a_multi_line_description_is_written_as_the_form_writes_it() {
         let doc = "---\nname: \"deploy\"\ndescription: \"Ship it\"\n---\n\nBody.\n";
         assert_eq!(
-            rewrite(doc, "deploy", "Ship the site.\n\nUse when deploying.", false),
+            rewrite(doc, "deploy", "Ship the site.\n\nUse when deploying.", false, None),
             "---\nname: \"deploy\"\ndescription: >-\n  Ship the site.\n\n  Use when deploying.\n---\n\nBody.\n"
         );
     }
@@ -388,12 +455,12 @@ mod tests {
     fn a_description_is_added_after_the_name_when_the_file_has_none() {
         let doc = "---\nname: \"deploy\"\nallowed-tools: Bash\n---\n\nBody.\n";
         assert_eq!(
-            rewrite(doc, "deploy", "Ship it", false),
+            rewrite(doc, "deploy", "Ship it", false, None),
             "---\nname: \"deploy\"\ndescription: \"Ship it\"\nallowed-tools: Bash\n---\n\nBody.\n"
         );
         let unnamed = "---\nallowed-tools: Bash\n---\n\nBody.\n";
         assert_eq!(
-            rewrite(unnamed, "deploy", "Ship it", false),
+            rewrite(unnamed, "deploy", "Ship it", false, None),
             "---\ndescription: \"Ship it\"\nallowed-tools: Bash\n---\n\nBody.\n"
         );
     }
@@ -416,7 +483,7 @@ mod tests {
             "Body with --- in it.\n",
         );
         assert_eq!(
-            rewrite(doc, "deploy", "Ship the site", false),
+            rewrite(doc, "deploy", "Ship the site", false, None),
             concat!(
                 "---\n",
                 "# how this one is wired\n",
@@ -437,7 +504,7 @@ mod tests {
     fn a_file_without_frontmatter_gains_one_and_keeps_its_body() {
         let doc = "# Deploy\n\nRun the script.\n";
         assert_eq!(
-            rewrite(doc, "deploy", "Ship it", true),
+            rewrite(doc, "deploy", "Ship it", true, None),
             "---\nname: \"deploy\"\ndescription: \"Ship it\"\ndisable-model-invocation: true\n---\n\n# Deploy\n\nRun the script.\n"
         );
     }
@@ -446,7 +513,7 @@ mod tests {
     fn quotes_and_backslashes_in_a_description_are_escaped() {
         let doc = "---\ndescription: \"x\"\n---\n\nBody.\n";
         assert_eq!(
-            rewrite(doc, "deploy", "Run \"deploy\" from C:\\bin", false),
+            rewrite(doc, "deploy", "Run \"deploy\" from C:\\bin", false, None),
             "---\ndescription: \"Run \\\"deploy\\\" from C:\\\\bin\"\n---\n\nBody.\n"
         );
     }
@@ -605,6 +672,89 @@ mod tests {
             assert!(update(&cwd, &dir, before, bad, false).is_err(), "{bad:?}");
         }
         assert!(update(&cwd, &dir, before, &"x".repeat(DESCRIPTION_MAX + 1), false).is_err());
+        assert_eq!(read(&dir), before);
+    }
+
+    /// The prose the form hands back replaces everything under the
+    /// frontmatter, in the shape the create template writes.
+    #[test]
+    fn instructions_replace_the_body_and_nothing_above_it() {
+        let doc = "---\nname: \"deploy\"\ndescription: \"Ship it\"\n---\n\n# Deploy\n\nRun it.\n";
+        assert_eq!(
+            rewrite(
+                doc,
+                "deploy",
+                "Ship it",
+                false,
+                Some("# Deploy\n\n1. Build\n2. Ship"),
+            ),
+            "---\nname: \"deploy\"\ndescription: \"Ship it\"\n---\n\n# Deploy\n\n1. Build\n2. Ship\n"
+        );
+    }
+
+    /// A body nobody edited is not something to reflow: the form sends none,
+    /// and every byte under the frontmatter comes back as it was.
+    #[test]
+    fn a_body_the_form_left_alone_is_untouched() {
+        let doc = "---\ndescription: \"Ship it\"\n---\n\n\tindented\n\n\n  and spaced   \n";
+        assert_eq!(
+            rewrite(doc, "deploy", "Ship the site", false, None),
+            doc.replace("Ship it", "Ship the site")
+        );
+    }
+
+    #[test]
+    fn a_crlf_file_keeps_its_line_endings() {
+        let doc = "---\r\ndescription: \"Ship it\"\r\n---\r\n\r\nOld.\r\n";
+        assert_eq!(
+            rewrite(doc, "deploy", "Ship it", false, Some("New.")),
+            "---\r\ndescription: \"Ship it\"\r\n---\r\n\r\nNew.\r\n"
+        );
+    }
+
+    #[test]
+    fn a_file_without_frontmatter_gets_one_over_the_new_body() {
+        assert_eq!(
+            rewrite(
+                "Old prose.\n",
+                "deploy",
+                "Ship it",
+                false,
+                Some("New prose.")
+            ),
+            "---\nname: \"deploy\"\ndescription: \"Ship it\"\n---\n\nNew prose.\n"
+        );
+    }
+
+    #[test]
+    fn the_whole_file_is_written_at_once() {
+        let project = tempdir().unwrap();
+        let before = "---\ndescription: \"Ship it\"\n---\n\n# Deploy\n\nRun it.\n";
+        let (cwd, dir) = skill(project.path(), before);
+
+        write(
+            &cwd,
+            &dir,
+            before,
+            "Ship the site",
+            false,
+            Some("# Deploy\n\nRun it twice."),
+        )
+        .unwrap();
+
+        assert_eq!(
+            read(&dir),
+            "---\ndescription: \"Ship the site\"\n---\n\n# Deploy\n\nRun it twice.\n"
+        );
+    }
+
+    #[test]
+    fn a_body_with_nothing_in_it_is_refused() {
+        let project = tempdir().unwrap();
+        let before = "---\ndescription: \"Ship it\"\n---\n\nBody.\n";
+        let (cwd, dir) = skill(project.path(), before);
+
+        assert!(write(&cwd, &dir, before, "Ship it", false, Some("  \n ")).is_err());
         assert_eq!(read(&dir), before);
     }
 }

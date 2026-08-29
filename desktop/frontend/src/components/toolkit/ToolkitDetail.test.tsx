@@ -6,18 +6,17 @@ import type { AgentCapability } from "../../toolkit";
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
-  update: vi.fn(),
   write: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
   onSaved: vi.fn(),
   onBack: vi.fn(),
+  onEdit: vi.fn(),
   onDeleted: vi.fn(),
 }));
 
 vi.mock("../../../bridge/commands", () => ({
   ReadAgentCapability: mocks.read,
-  UpdateAgentSkill: mocks.update,
   WriteAgentCapability: mocks.write,
   PreviewAgentSkillDelete: vi.fn(),
   DeleteAgentSkill: vi.fn(),
@@ -25,7 +24,7 @@ vi.mock("../../../bridge/commands", () => ({
 vi.mock("sonner", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 
 // The doc pane's own dependencies — a syntax highlighter and the open-in list —
-// have nothing to do with the form under test and cost a second to load.
+// have nothing to do with what is under test and cost a second to load.
 vi.mock("../MessageMarkdown", () => ({
   MessageMarkdown: ({ text }: { text: string }) => <p>{text}</p>,
 }));
@@ -63,7 +62,7 @@ function cap(over: Partial<AgentCapability> = {}): AgentCapability {
 let host: HTMLDivElement;
 let root: Root;
 
-async function render(over: Partial<AgentCapability> = {}, deletable = true) {
+async function render(over: Partial<AgentCapability> = {}, deletable = true, savedAt = 0) {
   await act(async () => {
     root.render(
       <ToolkitDetail
@@ -71,8 +70,10 @@ async function render(over: Partial<AgentCapability> = {}, deletable = true) {
         cwd="/work/lpm"
         siblingPaths={[]}
         deletable={deletable}
+        savedAt={savedAt}
         active
         onBack={mocks.onBack}
+        onEdit={mocks.onEdit}
         onSaved={mocks.onSaved}
         onDeleted={mocks.onDeleted}
       />,
@@ -88,33 +89,20 @@ function tab(label: string): HTMLButtonElement | null {
   );
 }
 
-function button(label: string): HTMLButtonElement {
-  const found = [...document.querySelectorAll("button")].find(
-    (b) => b.textContent?.trim() === label,
-  );
-  if (!found) throw new Error(`no ${label} button in the detail view`);
-  return found;
-}
-
-function card(title: string): HTMLButtonElement {
-  const group = document.querySelector('[role="radiogroup"][aria-label="Who runs it"]');
-  const found = [...(group?.querySelectorAll("button") ?? [])].find((b) =>
-    b.textContent?.startsWith(title),
-  );
-  if (!found) throw new Error(`no card titled ${title}`);
-  return found;
-}
-
-function textarea(): HTMLTextAreaElement {
-  const found = document.getElementById("toolkit-skill-edit-description");
-  if (!found) throw new Error("no description field");
-  return found as HTMLTextAreaElement;
+function pencil(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>('[aria-label="Edit this skill"]');
 }
 
 function click(target: HTMLButtonElement) {
   act(() => {
     target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
+}
+
+function source(): HTMLTextAreaElement {
+  const found = document.querySelector("textarea");
+  if (!found) throw new Error("no source editor");
+  return found;
 }
 
 // React reads the value off the event target, and its change tracker ignores a
@@ -126,16 +114,11 @@ function type(el: HTMLTextAreaElement, value: string) {
   });
 }
 
-async function openForm() {
-  await render();
-  click(tab("Edit")!);
-}
-
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   mocks.read.mockResolvedValue(doc(SKILL));
-  mocks.update.mockResolvedValue(undefined);
+  mocks.write.mockResolvedValue(undefined);
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -146,89 +129,54 @@ afterEach(async () => {
   host.remove();
 });
 
-describe("ToolkitDetail edit mode", () => {
+describe("ToolkitDetail", () => {
   // The form writes to a skill folder, which is only lpm's to write when the
   // capability is a local skill lpm owns the format of.
   it("offers the form for your own skill and nothing else", async () => {
     await render();
-    expect(tab("Edit")).not.toBeNull();
+    expect(pencil()).not.toBeNull();
 
     await render({ kind: "command", name: "deploy", path: "/h/.claude/commands/deploy.md" });
-    expect(tab("Edit")).toBeNull();
+    expect(pencil()).toBeNull();
 
     await render({}, false);
+    expect(pencil()).toBeNull();
+  });
+
+  // The same form the list's pencil opens: the detail asks the pane for it
+  // rather than keeping a second one of its own.
+  it("hands the form back to the pane", async () => {
+    await render();
+    click(pencil()!);
+    expect(mocks.onEdit).toHaveBeenCalledOnce();
+  });
+
+  it("reads the file and its source, and offers no form of its own", async () => {
+    await render();
+    expect(tab("Doc")).not.toBeNull();
+    expect(tab("Source")).not.toBeNull();
     expect(tab("Edit")).toBeNull();
   });
 
-  it("starts from what the file already says", async () => {
-    await openForm();
-    expect(textarea().value).toBe("Ship it");
-    expect(card("Your agent").getAttribute("aria-checked")).toBe("true");
+  // The source editor and the form write the same file, so one may not be
+  // opened over what the other is holding.
+  it("holds the form while the source has unsaved text", async () => {
+    await render();
+    click(tab("Source")!);
+    type(source(), `${SKILL}\nAnd more.\n`);
+    expect(pencil()?.disabled).toBe(true);
   });
 
-  it("has nothing to save until something changes", async () => {
-    await openForm();
-    expect(button("Save changes").disabled).toBe(true);
-    type(textarea(), "Ship the site");
-    expect(button("Save changes").disabled).toBe(false);
-  });
+  // The form wrote to the file behind this, so what is on screen is a version
+  // behind until it reads it again.
+  it("re-reads the file after the form saves", async () => {
+    await render();
+    expect(document.body.textContent).toContain("Run it.");
 
-  // Both CLIs drop a skill whose description carries an angle bracket, so the
-  // form has to stop it here rather than let it be written and silently ignored.
-  it("refuses a description the CLIs would drop, and says which characters", async () => {
-    await openForm();
-    type(textarea(), "Ship the <site>");
-    expect(button("Save changes").disabled).toBe(true);
-    expect(document.body.textContent).toContain("Skip the < and > characters here.");
-  });
+    mocks.read.mockResolvedValue(doc(SKILL.replace("Run it.", "Run it twice.")));
+    await render({}, true, 1);
 
-  it("saves both answers at once and goes back to the doc", async () => {
-    await openForm();
-    type(textarea(), "  Ship the site  ");
-    click(card("Only you"));
-
-    await act(async () => button("Save changes").click());
-
-    expect(mocks.update).toHaveBeenCalledTimes(1);
-    expect(mocks.update).toHaveBeenCalledWith(
-      "/work/lpm",
-      SKILL_PATH,
-      SKILL,
-      "Ship the site",
-      true,
-    );
-    expect(mocks.success).toHaveBeenCalledWith("Saved");
-    expect(mocks.onSaved).toHaveBeenCalledOnce();
-    expect(tab("Doc")?.getAttribute("aria-pressed")).toBe("true");
-  });
-
-  // Someone else wrote to the file while the form was open, so the form has to
-  // give way to what is on disk rather than write over it.
-  it("reloads instead of clobbering a file that moved under it", async () => {
-    mocks.update.mockRejectedValueOnce("modified");
-    mocks.read
-      .mockResolvedValueOnce(doc(SKILL))
-      .mockResolvedValue(doc(SKILL.replace("Ship it", "Ship it, from the agent")));
-    await openForm();
-    type(textarea(), "Ship the site");
-
-    await act(async () => button("Save changes").click());
-
-    expect(mocks.error).toHaveBeenCalledWith("Changed on disk since you opened it — reloading.");
-    expect(mocks.onSaved).not.toHaveBeenCalled();
-    expect(textarea().value).toBe("Ship it, from the agent");
-  });
-
-  // Leaving the form is leaving it: coming back must show the file, not a draft
-  // the user walked away from.
-  it("throws the form away on cancel", async () => {
-    await openForm();
-    type(textarea(), "Ship the site");
-    click(button("Cancel"));
-    expect(tab("Doc")?.getAttribute("aria-pressed")).toBe("true");
-
-    click(tab("Edit")!);
-    expect(textarea().value).toBe("Ship it");
-    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).toContain("Run it twice.");
   });
 });

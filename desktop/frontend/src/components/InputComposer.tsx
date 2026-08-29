@@ -691,7 +691,7 @@ export function InputComposer({
         />
 
         {blank && placeholder && (
-          <div className="pointer-events-none absolute left-3 top-2.5 text-[13px] leading-snug text-[var(--text-muted)]">
+          <div className="pointer-events-none absolute left-3 top-2.5 whitespace-pre-line text-[13px] leading-snug text-[var(--text-muted)]">
             {placeholder}
           </div>
         )}

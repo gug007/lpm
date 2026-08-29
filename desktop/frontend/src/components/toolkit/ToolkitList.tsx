@@ -21,7 +21,7 @@ function Group({
       type="button"
       onClick={onToggle}
       aria-expanded={node.open}
-      className={`${ROW} text-[var(--text-secondary)] hover:bg-[var(--tk-hover)]`}
+      className={`${ROW} pr-2 text-[var(--text-secondary)] hover:bg-[var(--tk-hover)]`}
     >
       <span className="flex items-center gap-1.5 truncate font-mono text-[11.5px] leading-4">
         <span className="text-[var(--text-muted)] [&>svg]:h-2.5 [&>svg]:w-2.5">
@@ -103,6 +103,9 @@ interface ToolkitListProps {
   activeIndex: number;
   onHover: (index: number) => void;
   onActivate: (cap: AgentCapability) => void;
+  // Which rows get a pencil, and what it opens.
+  canEdit: (cap: AgentCapability) => boolean;
+  onEdit: (cap: AgentCapability) => void;
   onToggleGroup: (id: string) => void;
   onFilterKind: (kind: CapabilityKind) => void;
 }
@@ -117,6 +120,8 @@ export function ToolkitList({
   activeIndex,
   onHover,
   onActivate,
+  canEdit,
+  onEdit,
   onToggleGroup,
   onFilterKind,
 }: ToolkitListProps) {
@@ -153,6 +158,7 @@ export function ToolkitList({
                 active={node.index === activeIndex}
                 onSelect={() => onHover(node.index)}
                 onActivate={() => onActivate(node.cap)}
+                onEdit={canEdit(node.cap) ? () => onEdit(node.cap) : undefined}
               />
             ),
           )}

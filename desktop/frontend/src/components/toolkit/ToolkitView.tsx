@@ -4,13 +4,19 @@ import type { AgentCapability, CapabilityKind } from "../../toolkit";
 import { KIND_LABELS, needsAttention, shortPath } from "../../toolkit";
 import { buildList, visibleItems as itemsOf } from "../../toolkitList";
 import { rowSummary } from "../../toolkitRowText";
-import { skillDestinations, skillName, skillSiblings } from "../../toolkitSkill";
+import {
+  editableSkill,
+  skillDestinations,
+  skillName,
+  skillSiblings,
+} from "../../toolkitSkill";
 import { AIButton } from "../ui/AIButton";
 import { EmptyState } from "../ui/EmptyState";
 import { LayersIcon } from "../icons";
 import { ToolkitBudget } from "./ToolkitBudget";
 import { ToolkitCreate } from "./ToolkitCreate";
 import { ToolkitDetail } from "./ToolkitDetail";
+import { ToolkitEdit } from "./ToolkitEdit";
 import { ToolkitHeader, type CliFilter } from "./ToolkitHeader";
 import { ToolkitList } from "./ToolkitList";
 import { ToolkitRoots } from "./ToolkitRoots";
@@ -52,6 +58,10 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
   const [kindFilter, setKindFilter] = useState<CapabilityKind | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<AgentCapability | null>(null);
+  // The skill the form is open on, which the list and the detail both ask for.
+  const [editing, setEditing] = useState<AgentCapability | null>(null);
+  // Bumped on every save, so an open detail re-reads the file the form wrote.
+  const [saved, setSaved] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   // Plugin blocks and the disabled pile start folded: one vendor shipping a
   // dozen skills should not bury everything the user installed themselves.
@@ -112,6 +122,15 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     [all],
   );
 
+  const openDetail = useCallback((cap: AgentCapability) => {
+    setSelected(cap);
+  }, []);
+
+  const canEdit = useCallback(
+    (cap: AgentCapability) => editableSkill(cap, !data?.remote),
+    [data?.remote],
+  );
+
   const startCreate = useCallback((seed: string) => {
     setSeedName(seed);
     setCreating(true);
@@ -122,9 +141,9 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
       const cap = all.find((i) => i.path === path);
       if (!cap) return;
       setCreating(false);
-      setSelected(cap);
+      openDetail(cap);
     },
-    [all],
+    [all, openDetail],
   );
 
   const handleCreated = useCallback(
@@ -143,8 +162,17 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     if (!pending || !data || scannedAt <= pending.after) return;
     const made = data.items.find((i) => i.path === pending.path);
     setPending(null);
-    if (made) setSelected(made);
-  }, [data, scannedAt, pending]);
+    if (made) openDetail(made);
+  }, [data, scannedAt, pending, openDetail]);
+
+  // A scan hands back fresh objects, so the open detail is re-pointed at the
+  // one describing the file it is showing — otherwise a save through the form
+  // leaves its header quoting the listing from before the edit.
+  useEffect(() => {
+    if (!selected || !data) return;
+    const fresh = data.items.find((i) => i.id === selected.id && i.path === selected.path);
+    if (fresh && fresh !== selected) setSelected(fresh);
+  }, [data, selected]);
 
   const toggleGroup = useCallback((id: string) => {
     setExpanded((prev) => {
@@ -159,9 +187,9 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     setActiveIndex(0);
   }, [cli, kindFilter, query]);
 
-  // Keyboard only while this pane has focus and no detail is open, so it never
-  // competes with the terminal beside it.
-  const listActive = visible && focused && !selected && !creating;
+  // Keyboard only while this pane has focus and nothing is open over it, so it
+  // never competes with the terminal beside it or with a form.
+  const listActive = visible && focused && !selected && !creating && !editing;
   useEffect(() => {
     if (!listActive) return;
     const onKey = (e: KeyboardEvent) => {
@@ -195,7 +223,7 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
         const cap = visibleItems[activeIndex];
         if (!cap) return;
         e.preventDefault();
-        setSelected(cap);
+        openDetail(cap);
       } else if (e.key === "n" && !inField && canCreate) {
         e.preventDefault();
         startCreate("");
@@ -211,43 +239,56 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [listActive, visibleItems, activeIndex, query, kindFilter, canCreate, startCreate]);
+  }, [
+    listActive,
+    visibleItems,
+    activeIndex,
+    query,
+    kindFilter,
+    canCreate,
+    startCreate,
+    openDetail,
+  ]);
 
-  if (creating) {
-    return (
-      <ToolkitCreate
-        cwd={cwd}
-        roots={data?.roots ?? []}
-        items={all}
-        truncated={data?.truncated ?? false}
-        cli={cli}
-        seedName={seedName}
-        active={visible && focused}
-        onBack={() => setCreating(false)}
-        onCreated={handleCreated}
-        onOpenExisting={openByPath}
-      />
-    );
-  }
+  // One form for both ways in: the list's pencil and the detail's. It is
+  // portalled out of the pane, so it rides along with whichever is on screen
+  // rather than replacing it.
+  const editor = editing ? (
+    <ToolkitEdit
+      cwd={cwd}
+      cap={editing}
+      open={visible}
+      onBack={() => setEditing(null)}
+      onSaved={() => {
+        setSaved((n) => n + 1);
+        void refresh();
+      }}
+    />
+  ) : null;
 
   if (selected) {
     return (
-      <ToolkitDetail
-        cap={selected}
-        cwd={cwd}
-        // The folder, not its SKILL.md: the sentence reads "a copy is also in …".
-        siblingPaths={skillSiblings(selected, all).map((s) =>
-          shortPath(s.path.replace(/\/SKILL\.md$/, "")),
-        )}
-        deletable={!data?.remote}
-        active={visible && focused}
-        onBack={() => setSelected(null)}
-        onSaved={refresh}
-        onDeleted={() => {
-          setSelected(null);
-          void refresh();
-        }}
-      />
+      <>
+        <ToolkitDetail
+          cap={selected}
+          cwd={cwd}
+          // The folder, not its SKILL.md: the sentence reads "a copy is also in …".
+          siblingPaths={skillSiblings(selected, all).map((s) =>
+            shortPath(s.path.replace(/\/SKILL\.md$/, "")),
+          )}
+          deletable={!data?.remote}
+          active={visible && focused && !editing}
+          savedAt={saved}
+          onBack={() => setSelected(null)}
+          onEdit={() => setEditing(selected)}
+          onSaved={refresh}
+          onDeleted={() => {
+            setSelected(null);
+            void refresh();
+          }}
+        />
+        {editor}
+      </>
     );
   }
 
@@ -375,7 +416,9 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
               showCli={cli === "all"}
               activeIndex={activeIndex}
               onHover={setActiveIndex}
-              onActivate={setSelected}
+              onActivate={openDetail}
+              canEdit={canEdit}
+              onEdit={setEditing}
               onToggleGroup={toggleGroup}
               onFilterKind={(kind) => setKindFilter((prev) => (prev === kind ? null : kind))}
             />
@@ -383,6 +426,26 @@ export function ToolkitView({ cwd, visible, focused }: ToolkitViewProps) {
           <ToolkitRoots data={data} />
         </>
       )}
+
+      {/* Mounted beside the list, not in place of it: the dialog is portalled
+          out of the pane, and unmounting it on a tab switch would throw away a
+          half-written skill. */}
+      {creating && (
+        <ToolkitCreate
+          cwd={cwd}
+          roots={data?.roots ?? []}
+          items={all}
+          truncated={data?.truncated ?? false}
+          cli={cli}
+          seedName={seedName}
+          open={visible}
+          onBack={() => setCreating(false)}
+          onCreated={handleCreated}
+          onOpenExisting={openByPath}
+        />
+      )}
+
+      {editor}
     </div>
   );
 }

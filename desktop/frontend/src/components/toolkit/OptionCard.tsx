@@ -1,28 +1,32 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export const LABEL = "text-[11.5px] text-[var(--text-muted)]";
 
-export const GRID = "grid gap-1.5 @min-[360px]:grid-cols-2";
+export const NOTE = "text-[10px] text-[var(--text-muted)]";
+
+export function noteClass(mono?: boolean) {
+  return `${NOTE} ${mono ? "truncate font-mono" : "leading-snug"}`;
+}
 
 const CARD =
-  "flex min-w-0 items-start gap-[7px] rounded-[var(--tk-radius-s)] px-2 py-1.5 text-left transition-[background-color,box-shadow] focus:outline-none focus-visible:outline-[1.5px] focus-visible:outline-offset-[1px] focus-visible:outline-[var(--accent-blue)]";
+  "flex min-w-0 items-start gap-[7px] rounded-[var(--tk-radius-s)] px-2 py-1.5 text-left transition-[background-color,box-shadow]";
 
-// Selection is a ring rather than a fill. A filled surface in this pane already
-// means "this one is not loading", and the choice of folder is not news about a
-// running thing — so the cards spend an edge on it and leave the fills alone.
-const HAIRLINE = "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--text-primary)_10%,transparent)]";
-const HAIRLINE_OFF =
-  "shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--text-primary)_5%,transparent)]";
+// Selection is a chromatic wash under a ring. The neutral fills in this pane
+// mean "this one is not loading", so a tinted one cannot be mistaken for them —
+// and a filled row is answerable at a glance where an outline needs a look.
+// One hue for both questions: they are the same act. Green is left to mean
+// running and healthy, which is what it means everywhere else in lpm.
+const SELECTED =
+  "bg-[color-mix(in_srgb,var(--accent-blue)_10%,transparent)] shadow-[inset_0_0_0_1.5px_var(--accent-blue)]";
 
-const RING = {
-  dest: "shadow-[inset_0_0_0_1.5px_var(--accent-blue)]",
-  mode: "shadow-[inset_0_0_0_1.5px_var(--accent-green)]",
-} as const;
-
+// The folder is the answer the tint belongs to; under "Who runs it" the wash
+// already marks the choice, so the title stays ink rather than saying it twice.
 const TITLE_ON = {
   dest: "text-[var(--accent-blue-text)]",
-  mode: "text-[var(--accent-green-text)]",
+  mode: "text-[var(--text-primary)]",
 } as const;
+
+export type OptionTone = keyof typeof TITLE_ON;
 
 const PLATE = "mt-px grid h-[15px] w-[15px] shrink-0 place-items-center rounded-[5px]";
 
@@ -35,7 +39,7 @@ const PLATE_TONE = {
 export type MarkKind = "claude" | "codex" | "shared" | "prompt";
 
 // Which CLI reads the folder, drawn rather than spelled: the label already says
-// the name, and at 15px a mark survives the two-column layout the label cannot.
+// the name, and at 15px a mark survives a collapsed trigger the label cannot.
 export function agentMark(cli: string, shared: boolean): MarkKind {
   if (cli === "claude") return "claude";
   return shared ? "shared" : "codex";
@@ -84,43 +88,29 @@ export function Plate({ kind, quiet }: { kind: MarkKind; quiet?: boolean }) {
   );
 }
 
-// One tab stop per group with the arrows moving the choice — what the radio
-// role promises a keyboard. Selection follows focus, as it does in native
-// radios, wrapping at either end and never landing on a disabled card.
-export function onRadioKey(e: KeyboardEvent<HTMLDivElement>) {
-  const forward = e.key === "ArrowRight" || e.key === "ArrowDown";
-  if (!forward && e.key !== "ArrowLeft" && e.key !== "ArrowUp") return;
-  const radios = Array.from(
-    e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'),
-  ).filter((radio) => !radio.disabled);
-  const current = radios.indexOf(e.target as HTMLButtonElement);
-  if (current < 0) return;
-  e.preventDefault();
-  if (radios.length < 2) return;
-  const next = radios[(current + (forward ? 1 : radios.length - 1)) % radios.length];
-  next.focus();
-  next.click();
-}
-
 interface OptionCardProps {
+  id: string;
   on: boolean;
-  tone: keyof typeof RING;
+  // Where the arrow keys are standing. Focus stays on the trigger while the
+  // list is open, so the highlight has to be drawn rather than borrowed.
+  active: boolean;
+  tone: OptionTone;
   mark: ReactNode;
   title: string;
   note: string;
-  tabIndex: number;
   mono?: boolean;
   disabled?: boolean;
   onPick: () => void;
 }
 
 export function OptionCard({
+  id,
   on,
+  active,
   tone,
   mark,
   title,
   note,
-  tabIndex,
   mono,
   disabled,
   onPick,
@@ -128,17 +118,18 @@ export function OptionCard({
   return (
     <button
       type="button"
-      role="radio"
-      aria-checked={on}
-      tabIndex={tabIndex}
+      id={id}
+      role="option"
+      aria-selected={on}
+      tabIndex={-1}
       disabled={disabled}
       onClick={onPick}
       className={`${CARD} ${
         disabled
-          ? `cursor-default ${HAIRLINE_OFF}`
+          ? "cursor-default"
           : on
-            ? RING[tone]
-            : `${HAIRLINE} hover:bg-[var(--tk-hover)]`
+            ? SELECTED
+            : `hover:bg-[var(--tk-hover)] ${active ? "bg-[var(--tk-hover)]" : ""}`
       }`}
     >
       {mark}
@@ -154,13 +145,7 @@ export function OptionCard({
         >
           {title}
         </span>
-        <span
-          className={`text-[10px] text-[var(--text-muted)] ${
-            mono ? "truncate font-mono" : "leading-snug"
-          }`}
-        >
-          {note}
-        </span>
+        <span className={noteClass(mono)}>{note}</span>
       </span>
     </button>
   );

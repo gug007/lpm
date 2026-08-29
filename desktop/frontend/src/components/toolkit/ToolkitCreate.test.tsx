@@ -2,6 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 import type { CapabilityRoot } from "../../toolkit";
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +14,33 @@ vi.mock("../../../bridge/commands", () => ({
   CreateAgentSkill: mocks.create,
 }));
 vi.mock("sonner", () => ({ toast: mocks.toast }));
+
+// The prose fields are the app's composer, which brings dictation, the rewrite
+// actions and a contentEditable the tests would have to drive by hand. The
+// stub keeps the one behaviour the form depends on: the value seeds on mount,
+// so text the form writes itself only lands when it remounts the field.
+vi.mock("../InputComposer", () => ({
+  InputComposer: ({
+    defaultValue,
+    onChange,
+    placeholder,
+    footer,
+  }: {
+    defaultValue?: { text: string };
+    onChange?: (value: { text: string; images: []; pending: boolean }) => void;
+    footer?: ReactNode;
+    placeholder?: string;
+  }) => (
+    <>
+      <textarea
+        defaultValue={defaultValue?.text ?? ""}
+        placeholder={placeholder}
+        onChange={(e) => onChange?.({ text: e.target.value, images: [], pending: false })}
+      />
+      {footer}
+    </>
+  ),
+}));
 
 // The real drafter drags in the composer and the AI hooks; the form only needs
 // something that hands it a draft the way the drafter would.
@@ -58,7 +86,7 @@ function render() {
         truncated={false}
         cli="all"
         seedName=""
-        active
+        open
         onBack={vi.fn()}
         onCreated={vi.fn()}
         onOpenExisting={vi.fn()}
@@ -77,6 +105,20 @@ function field(id: string): HTMLInputElement | HTMLTextAreaElement {
   const found = document.getElementById(id);
   if (!found) throw new Error(`no field ${id}`);
   return found as HTMLInputElement | HTMLTextAreaElement;
+}
+
+function prose(name: string): HTMLTextAreaElement {
+  const found = document.querySelector<HTMLTextAreaElement>(`[data-field="${name}"] textarea`);
+  if (!found) throw new Error(`no field ${name}`);
+  return found;
+}
+
+function submitButton(): HTMLButtonElement {
+  const found = [...document.querySelectorAll("button")].find((b) =>
+    b.textContent?.startsWith("Create skill"),
+  );
+  if (!found) throw new Error("no create button");
+  return found as HTMLButtonElement;
 }
 
 function click(button: HTMLButtonElement) {
@@ -126,24 +168,36 @@ describe("ToolkitCreate", () => {
     render();
     click(draftButton());
     expect(field("toolkit-skill-name").value).toBe("drafted-skill");
-    expect(field("toolkit-skill-description").value).toBe("Drafted description");
-    expect(field("toolkit-skill-steps").value).toBe("1. Drafted step");
+    expect(prose("description").value).toBe("Drafted description");
+    expect(prose("instructions").value).toBe("1. Drafted step");
     expect(mocks.toast).not.toHaveBeenCalled();
+  });
+
+  // A skill whose file says nothing is a name the agent can open and learn
+  // nothing from, so Create waits for the instructions the way it waits for the
+  // description.
+  it("holds Create until the instructions say something", () => {
+    render();
+    type(field("toolkit-skill-name"), "deploy-web");
+    type(prose("description"), "Ship the site. Use when asked to deploy.");
+    expect(submitButton().disabled).toBe(true);
+    type(prose("instructions"), "1. Build the site");
+    expect(submitButton().disabled).toBe(false);
   });
 
   // The draft replaces typed prose without asking, so the replacement has to be
   // reversible: a written-out description is not something to retype.
   it("offers Undo when the draft replaces typed prose", () => {
     render();
-    type(field("toolkit-skill-description"), "My own words");
+    type(prose("description"), "My own words");
     click(draftButton());
-    expect(field("toolkit-skill-description").value).toBe("Drafted description");
+    expect(prose("description").value).toBe("Drafted description");
     expect(mocks.toast).toHaveBeenCalledTimes(1);
 
     const options = mocks.toast.mock.calls[0][1] as { action: { onClick: () => void } };
     act(() => options.action.onClick());
-    expect(field("toolkit-skill-description").value).toBe("My own words");
+    expect(prose("description").value).toBe("My own words");
     expect(field("toolkit-skill-name").value).toBe("");
-    expect(document.getElementById("toolkit-skill-steps")).toBeNull();
+    expect(prose("instructions").value).toBe("");
   });
 });

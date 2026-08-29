@@ -4,6 +4,7 @@ import { splitFrontmatter } from "./toolkit";
 import type { SkillDestination } from "./toolkitSkill";
 import {
   defaultDestination,
+  joinSkillBody,
   skillClash,
   skillDescription,
   skillDescriptionError,
@@ -14,6 +15,7 @@ import {
   skillNameError,
   skillSiblings,
   skillTemplate,
+  splitSkillBody,
 } from "./toolkitSkill";
 
 const CLAUDE_USER = "/Users/ada/.claude/skills";
@@ -126,7 +128,12 @@ describe("skillDescriptionError", () => {
 // The file has to load in both CLIs on the first try: a key either vendor's
 // validator rejects turns the new skill into a silent no-op.
 describe("skillTemplate", () => {
-  const template = skillTemplate("deploy-web", "Ship the site. Use when asked to deploy.");
+  const template = skillTemplate(
+    "deploy-web",
+    "Ship the site. Use when asked to deploy.",
+    false,
+    "1. Build the site",
+  );
 
   it("carries exactly name and description, and no version", () => {
     const { fields } = splitFrontmatter(template);
@@ -135,7 +142,7 @@ describe("skillTemplate", () => {
   });
 
   it("names the frontmatter after the folder it will sit in", () => {
-    const { fields } = splitFrontmatter(skillTemplate("lpm-cli", "Runs lpm."));
+    const { fields } = splitFrontmatter(skillTemplate("lpm-cli", "Runs lpm.", false, "Run it."));
     expect(fields[0].value).toBe("lpm-cli");
   });
 
@@ -150,13 +157,13 @@ describe("skillTemplate", () => {
   });
 
   it("escapes a quoted description rather than breaking the frontmatter", () => {
-    const quoted = skillTemplate("deploy", 'Ship the "web" app.');
+    const quoted = skillTemplate("deploy", 'Ship the "web" app.', false, "Run it.");
     expect(quoted).toContain('description: "Ship the \\"web\\" app."');
     expect(splitFrontmatter(quoted).fields.map((f) => f.key)).toEqual(["name", "description"]);
   });
 
   it("folds a description that spans lines", () => {
-    const folded = skillTemplate("deploy", "Ship it.\nUse when asked to deploy.");
+    const folded = skillTemplate("deploy", "Ship it.\nUse when asked to deploy.", false, "Run it.");
     expect(folded).toContain("description: >-\n  Ship it.\n  Use when asked to deploy.");
     expect(splitFrontmatter(folded).fields.map((f) => f.key)).toEqual(["name", "description"]);
   });
@@ -164,7 +171,7 @@ describe("skillTemplate", () => {
   // The one key beyond name and description lpm will write, and only on request:
   // the skill leaves the model's context and runs only as a user-typed /name.
   it("adds the opt-out key only for a manual-only skill", () => {
-    const manual = skillTemplate("deploy", "Ship it.", true);
+    const manual = skillTemplate("deploy", "Ship it.", true, "Run it.");
     expect(splitFrontmatter(manual).fields).toContainEqual({
       key: "disable-model-invocation",
       value: "true",
@@ -172,10 +179,11 @@ describe("skillTemplate", () => {
     expect(template).not.toContain("disable-model-invocation");
   });
 
-  it("uses the steps as the body, and keeps the placeholder prose without them", () => {
-    const stepped = skillTemplate("deploy", "Ship it.", false, "1. Build\n2. Ship");
-    expect(splitFrontmatter(stepped).body).toBe("\n# Deploy\n\n1. Build\n2. Ship\n");
-    expect(template).toContain("Write the steps the agent should follow here, in order.");
+  // The instructions are the file: the form requires them, so the template has
+  // no placeholder prose left to ship into a skill nobody finished.
+  it("writes the instructions as the body, under the title", () => {
+    const written = skillTemplate("deploy", "Ship it.", false, "1. Build\n2. Ship");
+    expect(splitFrontmatter(written).body).toBe("\n# Deploy\n\n1. Build\n2. Ship\n");
   });
 });
 
@@ -183,7 +191,7 @@ describe("skillDescription", () => {
   // The form has to reopen what the template wrote, whichever shape it took.
   it("reads back what skillTemplate wrote", () => {
     for (const written of ["Ship it.", 'Ship the "web" app.', "Ship it.\nUse when asked."]) {
-      expect(skillDescription(skillTemplate("deploy", written))).toBe(written);
+      expect(skillDescription(skillTemplate("deploy", written, false, "Run it."))).toBe(written);
     }
   });
 
@@ -347,5 +355,44 @@ describe("skillFilePath", () => {
     expect(skillFilePath(`${CLAUDE_USER}/`, "deploy-web")).toBe(
       "/Users/ada/.claude/skills/deploy-web/SKILL.md",
     );
+  });
+});
+
+describe("splitSkillBody and joinSkillBody", () => {
+  // What the create form wrote: the heading comes from the name, so it is not
+  // instructions and not something to hand back for retyping.
+  it("lifts out the heading and hands back the prose", () => {
+    const file = skillTemplate("deploy-web", "Ship it", false, "1. Build\n2. Ship");
+    expect(splitSkillBody(file)).toEqual({
+      heading: "# Deploy Web",
+      instructions: "1. Build\n2. Ship",
+    });
+  });
+
+  it("puts back exactly what it took", () => {
+    const file = skillTemplate("deploy-web", "Ship it", true, "1. Build");
+    const { heading, instructions } = splitSkillBody(file);
+    expect(splitFrontmatter(file).body.trim()).toBe(joinSkillBody(heading, instructions));
+  });
+
+  // A hand-written file may open with prose, a section heading, or nothing at
+  // all. Only a top-level heading on the first line is the name's.
+  it("leaves every other opening where it is", () => {
+    expect(splitSkillBody("---\nname: x\n---\n\nJust prose.\n")).toEqual({
+      heading: "",
+      instructions: "Just prose.",
+    });
+    expect(splitSkillBody("---\nname: x\n---\n\n## Steps\n\nRun it.\n")).toEqual({
+      heading: "",
+      instructions: "## Steps\n\nRun it.",
+    });
+    expect(joinSkillBody("", "Just prose.")).toBe("Just prose.");
+  });
+
+  it("reads a file with no frontmatter at all", () => {
+    expect(splitSkillBody("# Deploy\n\nRun it.\n")).toEqual({
+      heading: "# Deploy",
+      instructions: "Run it.",
+    });
   });
 });

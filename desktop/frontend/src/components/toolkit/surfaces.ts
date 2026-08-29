@@ -30,8 +30,12 @@ export const PANEL_LABEL =
 export const FAULT_LABEL =
   "text-[10px] uppercase tracking-[0.09em] text-[var(--accent-amber-text)]";
 
+// Right padding is the caller's: the edit button is drawn over the row it
+// belongs to, and only that row makes room for it, so an untouched list runs
+// its meta column to the same edge as everything else in the pane instead of
+// keeping an empty gutter down its side.
 export const ROW =
-  "grid w-full grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] items-baseline gap-2.5 rounded-[var(--tk-radius-s)] px-2 py-[3px] text-left transition-colors";
+  "grid w-full grid-cols-[minmax(0,auto)_minmax(0,1fr)_auto] items-baseline gap-2.5 rounded-[var(--tk-radius-s)] py-[3px] pl-2 text-left transition-colors";
 
 export const CHOICE =
   "flex w-full items-center gap-2 rounded-[var(--tk-radius-s)] px-2 py-1.5 text-left transition-colors hover:bg-[var(--tk-hover)]";

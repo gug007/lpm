@@ -1,8 +1,9 @@
-import { GRID, LABEL, OptionCard, Plate, agentMark, onRadioKey } from "./OptionCard";
+import { Plate, agentMark } from "./OptionCard";
+import { OptionSelect } from "./OptionSelect";
 
 interface ToolkitRunModeProps {
   // The CLI that reads the folder the skill sits in, for the mark on the
-  // agent's card.
+  // agent's option.
   cli: string;
   // The folder is the one three CLIs read, so only Codex honours the opt-out.
   shared: boolean;
@@ -32,31 +33,28 @@ export function ToolkitRunMode({
       : `Runs when you type ${invocation} — agents never trigger it, and it costs no context.`;
 
   return (
-    <div className="flex flex-col gap-1">
-      <span className={LABEL}>Who runs it</span>
-      <div role="radiogroup" aria-label="Who runs it" className={GRID} onKeyDown={onRadioKey}>
-        {/* The marks carry the answer twice over: the agent that reads the
-            chosen folder, against the prompt the user types at. */}
-        <OptionCard
-          on={!manual}
-          tabIndex={manual ? -1 : 0}
-          tone="mode"
-          mark={<Plate kind={agentMark(cli, shared)} quiet />}
-          title="Your agent, when it fits"
-          note="Picked up on its own whenever the description matches the task."
-          onPick={() => onManual(false)}
-        />
-        <OptionCard
-          on={manual}
-          tabIndex={manual ? 0 : -1}
-          tone="mode"
-          mark={<Plate kind="prompt" quiet />}
-          disabled={!manualAllowed}
-          title="Only you"
-          note={manualNote}
-          onPick={() => onManual(true)}
-        />
-      </div>
-    </div>
+    <OptionSelect
+      label="Who runs it"
+      tone="mode"
+      value={manual ? "manual" : "auto"}
+      onChange={(id) => onManual(id === "manual")}
+      // The marks carry the answer twice over: the agent that reads the chosen
+      // folder, against the prompt the user types at.
+      options={[
+        {
+          id: "auto",
+          mark: <Plate kind={agentMark(cli, shared)} quiet />,
+          title: "Your agent, when it fits",
+          note: "Picked up on its own whenever the description matches the task.",
+        },
+        {
+          id: "manual",
+          mark: <Plate kind="prompt" quiet />,
+          title: "Only you",
+          note: manualNote,
+          disabled: !manualAllowed,
+        },
+      ]}
+    />
   );
 }

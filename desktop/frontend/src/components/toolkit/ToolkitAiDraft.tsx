@@ -91,7 +91,7 @@ export function ToolkitAiDraft({
   const status = generation.generating
     ? progress || "Drafting…"
     : ai.anyAvailable
-      ? "Fills in the fields for you to review."
+      ? ""
       : "Install an AI coding CLI to use this.";
 
   return (

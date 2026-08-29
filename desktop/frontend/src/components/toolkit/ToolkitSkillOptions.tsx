@@ -1,14 +1,7 @@
 import { shortPath } from "../../toolkit";
 import { isSharedSkillsDir, type SkillDestination } from "../../toolkitSkill";
-import {
-  GRID,
-  LABEL,
-  OptionCard,
-  Plate,
-  agentMark,
-  onRadioKey,
-  type MarkKind,
-} from "./OptionCard";
+import { Plate, agentMark, type MarkKind } from "./OptionCard";
+import { OptionSelect } from "./OptionSelect";
 import { ToolkitRunMode } from "./ToolkitRunMode";
 
 function markKind(dest: SkillDestination): MarkKind {
@@ -25,9 +18,9 @@ interface ToolkitSkillOptionsProps {
   invocation: string;
 }
 
-// The two choices a new skill needs after its name. Both are cards rather than
-// a line of tokens: the folders differ only by the path they write to, so the
-// path has to be readable while the choice is being made.
+// The two choices a new skill needs after its name. Both collapse to a line
+// with their answer spelled out underneath: the folders differ only by the path
+// they write to, so the path has to stay readable without opening anything.
 export function ToolkitSkillOptions({
   destinations,
   destPath,
@@ -40,32 +33,22 @@ export function ToolkitSkillOptions({
   const dest = destinations.find((d) => d.path === destPath) ?? null;
 
   return (
-    <div className="@container flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <span className={LABEL}>Folder</span>
-        <div role="radiogroup" aria-label="Folder" className={GRID} onKeyDown={onRadioKey}>
-          {/* A re-scan can orphan the chosen path for a beat; the first card
-              holds the tab stop until the fallback re-picks, so the group never
-              drops out of the tab order. */}
-          {destinations.map((option, index) => (
-            <OptionCard
-              key={option.path}
-              on={option.path === destPath}
-              tabIndex={option.path === destPath || (!dest && index === 0) ? 0 : -1}
-              tone="dest"
-              mark={<Plate kind={markKind(option)} />}
-              title={option.label}
-              note={
-                option.exists
-                  ? shortPath(option.path)
-                  : `${shortPath(option.path)} — will be created`
-              }
-              mono
-              onPick={() => onDest(option.path)}
-            />
-          ))}
-        </div>
-      </div>
+    <div className="flex flex-col gap-3">
+      <OptionSelect
+        label="Folder"
+        tone="dest"
+        value={destPath}
+        onChange={onDest}
+        options={destinations.map((option) => ({
+          id: option.path,
+          mark: <Plate kind={markKind(option)} />,
+          title: option.label,
+          note: option.exists
+            ? shortPath(option.path)
+            : `${shortPath(option.path)} — will be created`,
+          mono: true,
+        }))}
+      />
 
       <ToolkitRunMode
         cli={dest?.cli ?? ""}

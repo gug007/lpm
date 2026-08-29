@@ -2,7 +2,7 @@
 // it may go, and which copy the agent will actually use once it is there.
 
 import type { AgentCapability, CapabilityRoot } from "./toolkit";
-import { CLI_LABELS, shortPath } from "./toolkit";
+import { CLI_LABELS, shortPath, splitFrontmatter } from "./toolkit";
 
 export const SKILL_NAME_MAX = 64;
 export const SKILL_DESCRIPTION_MAX = 1024;
@@ -47,6 +47,13 @@ export function skillDescriptionError(text: string): string | null {
   return null;
 }
 
+// A skill whose file says nothing is a name the agent can open and learn
+// nothing from, so the instructions are as required as the description.
+export function skillInstructionsError(text: string): string | null {
+  if (!text.trim()) return "Say what the agent should do once it opens this.";
+  return null;
+}
+
 export function titleCaseSkillName(name: string): string {
   return name
     .split("-")
@@ -81,18 +88,9 @@ function yamlDescription(description: string): string {
 export function skillTemplate(
   name: string,
   description: string,
-  manual = false,
-  steps = "",
+  manual: boolean,
+  instructions: string,
 ): string {
-  const body = steps
-    ? [steps, ""]
-    : [
-        "Write the steps the agent should follow here, in order.",
-        "",
-        "Keep this file short. Long reference material belongs in its own file beside",
-        "this one, linked from here, so it only loads when it is needed.",
-        "",
-      ];
   return [
     "---",
     // Quoted, because `no`, `on`, `off`, `y` and `n` are all legal skill names
@@ -104,7 +102,8 @@ export function skillTemplate(
     "",
     `# ${titleCaseSkillName(name)}`,
     "",
-    ...body,
+    instructions,
+    "",
   ].join("\n");
 }
 
@@ -136,6 +135,33 @@ export function skillDescription(content: string): string {
     folded.push(line.trim());
   }
   return folded.join("\n").replace(/\n+$/, "");
+}
+
+// A skill file's prose, split the way the edit form shows it. The heading lpm
+// writes from the name is not instructions and not something to retype, so it
+// rides along outside the field and goes back on top of whatever is saved. Any
+// other opening heading is treated the same way: lifting it out and putting it
+// back loses nothing, and leaving it in the field invites a second one.
+export function splitSkillBody(content: string): { heading: string; instructions: string } {
+  const body = splitFrontmatter(content).body;
+  const heading = /^\s*(#[ \t][^\n]*)(?:\r?\n|$)/.exec(body);
+  if (!heading) return { heading: "", instructions: body.trim() };
+  return { heading: heading[1].trim(), instructions: body.slice(heading[0].length).trim() };
+}
+
+// The inverse: what goes under the frontmatter once the form is saved, in the
+// shape `skillTemplate` writes so a skill lpm made and a skill lpm edited read
+// the same.
+export function joinSkillBody(heading: string, instructions: string): string {
+  return heading ? `${heading}\n\n${instructions}` : instructions;
+}
+
+// The rows lpm may rewrite: a skill in a folder it owns the format of, never a
+// plugin's copy, and never a listing scanned over SSH. The list's pencil and
+// the detail's Edit tab read this one answer — a pencil that opens a view with
+// no form in it is a bug.
+export function editableSkill(cap: AgentCapability, local: boolean): boolean {
+  return local && cap.kind === "skill" && cap.editable;
 }
 
 export interface SkillDestination {

@@ -53,8 +53,12 @@ export function useAnchoredPanel<
       if (panelRef.current?.contains(target)) return;
       // A panel may host a portaled modal, rendered outside both refs. Its
       // overlay/backdrop belongs to the layer stack above the panel, not the
-      // page behind it, so dismissing the modal must not close its host.
-      if ((event.target as Element)?.closest?.("[data-modal-overlay]")) return;
+      // page behind it, so dismissing the modal must not close its host. An
+      // overlay holding the trigger is the other way round — the panel hangs
+      // off a field in that dialog, and a click elsewhere in it is an outside
+      // click like any other.
+      const overlay = (event.target as Element)?.closest?.("[data-modal-overlay]");
+      if (overlay && !overlay.contains(triggerRef.current)) return;
       onCloseRef.current();
     };
     document.addEventListener("mousedown", handleMouseDown);
