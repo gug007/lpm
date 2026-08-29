@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import {
+  ArrowDown,
   ArrowRight,
   Check,
   Code2,
@@ -10,7 +11,7 @@ import {
   Sparkles,
   Terminal,
 } from "lucide-react";
-import { HeroDownload } from "@/components/home/hero-download";
+import { HeroCta } from "@/components/home/hero-cta";
 import { RelatedPages } from "@/components/related-pages";
 import { SectionHeader } from "@/components/section-header";
 import {
@@ -144,7 +145,7 @@ export default function ClaudeCodeCodexSkillsPage() {
             Create Claude Code & Codex skills.{" "}
             <span className="block">Without hand-writing SKILL.md.</span>
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
+          <p className="mx-auto mt-5 max-w-3xl text-pretty text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
             lpm scans every folder your agents read skills from, shows what each
             skill costs in context, and gives you one dialog to create and edit
             them — with AI drafting the fields from a plain-English description.
@@ -163,15 +164,19 @@ export default function ClaudeCodeCodexSkillsPage() {
               Context cost, visible
             </span>
           </div>
-          <div className="mt-[clamp(1.25rem,3vh,1.75rem)] mb-[clamp(1.5rem,4vh,2.5rem)] flex flex-col items-center gap-3">
-            <HeroDownload source="skills-hero" />
-            <a
-              href="#dialog"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-gray-600 transition hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
-            >
-              See the New skill dialog
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </a>
+          <div className="mx-auto mt-[clamp(1.25rem,3vh,1.75rem)] max-w-3xl">
+            <HeroCta
+              source="skills-hero"
+              secondary={
+                <a
+                  href="#dialog"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-gray-300 px-6 py-[13px] text-[15px] font-medium text-gray-700 transition-colors duration-200 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                  See the New skill dialog
+                </a>
+              }
+            />
           </div>
         </div>
       </section>

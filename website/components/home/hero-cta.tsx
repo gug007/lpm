@@ -1,8 +1,13 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ArrowDown, ArrowRight, Play } from "lucide-react";
 import Link from "next/link";
-import { trackDownload, trackGithubVisit } from "@/lib/analytics";
+import {
+  trackDownload,
+  trackGithubVisit,
+  type DownloadSource,
+} from "@/lib/analytics";
 import { DEMO_ANCHOR, RELEASES_URL } from "@/lib/links";
 import { usePlatform } from "@/lib/use-platform";
 import { DOWNLOAD_ENTRIES } from "./hero-download";
@@ -27,7 +32,13 @@ function DemoLink() {
   );
 }
 
-export function HeroCta() {
+export function HeroCta({
+  source = "hero",
+  secondary,
+}: {
+  source?: DownloadSource;
+  secondary?: ReactNode;
+}) {
   const platform = usePlatform();
 
   if (platform === "ipad" || platform === "unsupported") {
@@ -78,7 +89,7 @@ export function HeroCta() {
           aria-label={primary.ariaLabel}
           onClick={() =>
             trackDownload({
-              source: "hero",
+              source,
               platform: primary.platform,
               href: primary.href,
             })
@@ -99,7 +110,7 @@ export function HeroCta() {
             aria-hidden
           />
         </a>
-        <DemoLink />
+        {secondary ?? <DemoLink />}
       </div>
       <div className="flex flex-col flex-wrap items-center justify-center gap-y-1 sm:flex-row sm:gap-x-2">
         <a
@@ -107,7 +118,7 @@ export function HeroCta() {
           aria-label={alternate.ariaLabel}
           onClick={() =>
             trackDownload({
-              source: "hero",
+              source,
               platform: alternate.platform,
               href: alternate.href,
             })
