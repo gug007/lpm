@@ -110,7 +110,7 @@ const steps = [
     step: "01",
     icon: Layers,
     title: "Open Skills & tools",
-    copy: "Add the Skills & tools tab in any project terminal. lpm scans every folder Claude Code and Codex read skills from and lists what it finds.",
+    copy: "Press ⌘⇧K in any project, or pick Skills & tools from the ˅ menu beside the terminal tabs. lpm scans every folder Claude Code and Codex read skills from and lists what it finds.",
   },
   {
     step: "02",

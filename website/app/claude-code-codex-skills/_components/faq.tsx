@@ -11,7 +11,7 @@ const FAQS = [
   {
     question: "How do I create a Claude Code skill in lpm?",
     answer:
-      "Open the Skills & tools tab in a project terminal and click New skill. Name it, pick the folder for the CLI you want, choose who runs it, and write the description and instructions — or describe the task in one sentence and let AI draft every field.",
+      "Open a project and press ⌘⇧K — or choose Skills & tools from the ˅ menu next to the terminal tabs — then click New skill. Name it, pick the folder for the CLI you want, choose who runs it, and write the description and instructions — or describe the task in one sentence and let AI draft every field.",
   },
   {
     question: "Can AI write the skill for me?",
