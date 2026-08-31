@@ -320,6 +320,7 @@ macro_rules! all_command_handlers {
             uninstall_app,
             upload_and_quote_for_terminal,
             upload_clipboard_image_for_terminal,
+            upload_file_for_terminal,
             vault_export_key,
             vault_import_key,
             voice_to_text_available,

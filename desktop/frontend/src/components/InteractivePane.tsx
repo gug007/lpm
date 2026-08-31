@@ -44,7 +44,8 @@ import { installLinkHoverRefresh } from "./terminal/linkHoverRefresh";
 import { registerFileDropHandler } from "../fileDrop";
 import { useTerminalFont } from "../hooks/useTerminalFont";
 import { logDiagnostic } from "../diagnostics";
-import { isPeerName, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
+import { isPeerName, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
+import { uploadPeerFiles } from "../peer/uploadFiles";
 import { reclaimPeerSession } from "../peer/retainedSessions";
 import { SSH_TRANSPORT_EXIT_CODE } from "../reconnect";
 import {
@@ -188,9 +189,12 @@ function initFileDrop() {
   registerFileDropHandler("terminals", (x, y, paths) => {
     const id = terminalIdAtPoint(x, y);
     if (!id) return false;
-    // Remote (peer) terminals live on another Mac; local file paths can't be
-    // uploaded there in v1. Consume the drop without acting.
-    if (isPeerName(id)) return true;
+    // A remote (peer) terminal runs on another Mac, where these paths don't
+    // exist: send the bytes and paste the host paths that come back.
+    if (isPeerName(id)) {
+      pastePeerUploads(id, paths);
+      return true;
+    }
     getTerminalRemote(id).then((remote) => {
       if (remote) {
         UploadAndQuoteForTerminal(id, paths)
@@ -390,7 +394,7 @@ function saveImageBlob(terminalId: string, blob: File, mimeType: string) {
   // A remote (peer) terminal caps the image so its base64 stays under the peer
   // link's frame limit; the upload command runs on the host and returns a path
   // the host pane can read.
-  if (peer && blob.size > PEER_IMAGE_MAX_BYTES) {
+  if (peer && blob.size > PEER_UPLOAD_MAX_BYTES) {
     writeTerminalError(terminalId, "image too large to send to a remote Mac (max 8 MB)");
     return;
   }
@@ -443,6 +447,16 @@ function formatPastedPaths(paths: string[]): string {
 // the receiver unable to distinguish a paste from typed input.
 function pasteToTerminal(terminalId: string, text: string): void {
   interactiveSessions.get(terminalId)?.term.paste(text);
+}
+
+// Send client-local files to the Mac a peer pane runs on and paste the paths it
+// wrote them to. A host on an older lpm doesn't know the upload command; its
+// rejection is written into the pane rather than swallowed, so the drop doesn't
+// look like it silently did nothing.
+export function pastePeerUploads(terminalId: string, paths: string[]): Promise<void> {
+  return uploadPeerFiles(terminalId, paths)
+    .then((hostPaths) => pasteToTerminal(terminalId, formatPastedPaths(hostPaths)))
+    .catch((err) => writeTerminalError(terminalId, err));
 }
 
 // Subscribe a peer terminal to its host stream: the host answers with its
@@ -941,13 +955,10 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
       };
       ReadClipboardFiles()
         .then((paths) => {
-          // Peer terminals can't receive local file paths; fall back to any
-          // plain-text/image handling the local branch would do.
-          if (isPeerName(terminalId)) {
-            fallback();
-            return;
-          }
           if (paths && paths.length > 0) {
+            // A peer pane's Mac has none of these paths, so the files go over
+            // the link first and what gets pasted is where the host put them.
+            if (isPeerName(terminalId)) return pastePeerUploads(terminalId, paths);
             return getTerminalRemote(terminalId).then((remote) => {
               if (remote) {
                 return UploadAndQuoteForTerminal(terminalId, paths)

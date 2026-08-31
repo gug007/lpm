@@ -815,6 +815,9 @@ export function UploadAndQuoteForTerminal(terminalID, localPaths) {
 export function UploadClipboardImageForTerminal(terminalID, b64Data, mimeType) {
   return invoke("upload_clipboard_image_for_terminal", { terminalId: terminalID, b64Data, mimeType });
 }
+export function UploadFileForTerminal(terminalID, b64Data, mimeType, name) {
+  return invoke("upload_file_for_terminal", { terminalId: terminalID, b64Data, mimeType, name });
+}
 export function VaultExportKey(passphrase) {
   return invoke("vault_export_key", { passphrase });
 }

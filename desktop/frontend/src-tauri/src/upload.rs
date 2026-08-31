@@ -40,11 +40,13 @@ pub fn upload_clipboard_image_for_terminal(
     upload_and_quote_for_terminal(state, terminal_id, vec![local])
 }
 
-/// Save an uploaded blob from the phone and quote its path for pasting. A named
-/// file is saved preserving its original basename (any mime); with no name it
-/// falls back to the mime-keyed clipboard-image path. Both then scp (remote pane)
-/// + shell-quote exactly like an image upload, so existing image callers behave
-/// unchanged.
+/// Save an uploaded blob (from the phone, or from a peer Mac attaching a local
+/// file to a terminal that lives here) and return the RAW path it can be read
+/// at — scp'd to the remote for an ssh-backed pane, local otherwise. A named
+/// file keeps its original basename (any mime); with no name it falls back to
+/// the mime-keyed clipboard-image path. Callers that paste the result format it
+/// themselves via `format_paste_paths`.
+#[tauri::command(async)]
 pub fn upload_file_for_terminal(
     state: State<'_, PtyState>,
     terminal_id: String,
@@ -56,7 +58,12 @@ pub fn upload_file_for_terminal(
         Some(name) => clipboard::save_clipboard_file_impl(&b64_data, &name)?,
         None => clipboard::save_clipboard_image_impl(&b64_data, &mime_type)?,
     };
-    upload_and_quote_for_terminal(state, terminal_id, vec![local])
+    match pty::session_remote_ssh(&state, &terminal_id) {
+        Some((true, Some(ssh))) => upload_files(&ssh, std::slice::from_ref(&local))?
+            .pop()
+            .ok_or_else(|| "upload returned no path".to_string()),
+        _ => Ok(local),
+    }
 }
 
 fn new_batch_id() -> String {
@@ -143,7 +150,7 @@ fn trim_output(s: &str) -> String {
 
 /// Mirrors formatPastedPaths (InteractivePane.tsx): a single image path goes in
 /// as one bare word; otherwise each path is shell-quoted and space-joined.
-fn format_paste_paths(paths: &[String]) -> String {
+pub(crate) fn format_paste_paths(paths: &[String]) -> String {
     if paths.len() == 1 && is_image_path(&paths[0]) {
         return quote_image_path(&paths[0]);
     }

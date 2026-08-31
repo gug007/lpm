@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   peerTermAttach: vi.fn(() => Promise.resolve()),
   peerTermDetach: vi.fn(() => Promise.resolve()),
+  notesReadFileAsInput: vi.fn(),
+  uploadFileForTerminal: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -15,8 +17,10 @@ vi.mock("../../bridge/commands", () => ({
   IsTerminalRemote: vi.fn(() => Promise.resolve(false)),
   PeerTermAttach: mocks.peerTermAttach,
   PeerTermDetach: mocks.peerTermDetach,
+  NotesReadFileAsInput: mocks.notesReadFileAsInput,
   UploadAndQuoteForTerminal: vi.fn(),
   UploadClipboardImageForTerminal: vi.fn(),
+  UploadFileForTerminal: mocks.uploadFileForTerminal,
   TerminalPresentControl: vi.fn(() => Promise.resolve(null)),
   TerminalUnpresentControl: vi.fn(() => Promise.resolve(null)),
   TerminalClaimControl: vi.fn(() => Promise.resolve(null)),
@@ -30,6 +34,7 @@ import {
   attachPeerTerminal,
   disposeInteractivePaneSession,
   interactiveSessions,
+  pastePeerUploads,
   repairBlindScreen,
   revivePeerSession,
   writeErrorIsFatal,
@@ -50,6 +55,8 @@ function fakeSession(id: string, dead: { sessionDead: boolean; exited: boolean }
   const session = {
     term: {
       dispose: vi.fn(),
+      paste: vi.fn(),
+      write: vi.fn(),
       options: { disableStdin: !!dead, cursorBlink: !dead },
     },
     host: { remove: vi.fn() },
@@ -71,6 +78,8 @@ afterEach(() => {
   publishPeerSnapshot([]);
   mocks.peerTermAttach.mockClear();
   mocks.peerTermDetach.mockClear();
+  mocks.notesReadFileAsInput.mockReset();
+  mocks.uploadFileForTerminal.mockReset();
 });
 
 describe("disposeInteractivePaneSession", () => {
@@ -114,6 +123,63 @@ describe("attachPeerTerminal", () => {
   it("never subscribes a local terminal", () => {
     attachPeerTerminal("web-3", false);
     expect(mocks.peerTermAttach).not.toHaveBeenCalled();
+  });
+});
+
+// Files dropped on (or pasted into) a peer pane exist only on this Mac, so the
+// bytes go to the host and what reaches the pty is where the host put them.
+describe("pastePeerUploads", () => {
+  function reads(name: string) {
+    mocks.notesReadFileAsInput.mockImplementation(() =>
+      Promise.resolve({ name, mimeType: "text/plain", data: "aGk=" }),
+    );
+  }
+
+  it("pastes the paths the host saved the files under", async () => {
+    const session = fakeSession(TERM);
+    reads("notes.txt");
+    mocks.uploadFileForTerminal
+      .mockImplementationOnce(() => Promise.resolve("/host/.lpm/uploads/notes.txt"))
+      .mockImplementationOnce(() => Promise.resolve("/host/.lpm/uploads/log.txt"));
+    await pastePeerUploads(TERM, ["/local/notes.txt", "/local/log.txt"]);
+    expect(session.term.paste).toHaveBeenCalledWith(
+      "/host/.lpm/uploads/notes.txt /host/.lpm/uploads/log.txt",
+    );
+  });
+
+  it("shell-quotes a host path that isn't one word", async () => {
+    const session = fakeSession(TERM);
+    reads("my notes.txt");
+    mocks.uploadFileForTerminal.mockImplementation(() =>
+      Promise.resolve("/host/.lpm/uploads/my notes.txt"),
+    );
+    await pastePeerUploads(TERM, ["/local/my notes.txt"]);
+    expect(session.term.paste).toHaveBeenCalledWith("'/host/.lpm/uploads/my notes.txt'");
+  });
+
+  // A lone image still goes in as one bare word so an agent lifts it as an
+  // attachment, exactly as a locally dropped one would.
+  it("leaves a single image path unquoted", async () => {
+    const session = fakeSession(TERM);
+    reads("shot.png");
+    mocks.uploadFileForTerminal.mockImplementation(() =>
+      Promise.resolve("/host/.lpm/uploads/shot.png"),
+    );
+    await pastePeerUploads(TERM, ["/local/shot.png"]);
+    expect(session.term.paste).toHaveBeenCalledWith("/host/.lpm/uploads/shot.png");
+  });
+
+  it("writes the host's refusal into the pane instead of dropping it", async () => {
+    const session = fakeSession(TERM);
+    reads("notes.txt");
+    mocks.uploadFileForTerminal.mockImplementation(() =>
+      Promise.reject("Command upload_file_for_terminal not found"),
+    );
+    await pastePeerUploads(TERM, ["/local/notes.txt"]);
+    expect(session.term.paste).not.toHaveBeenCalled();
+    expect(session.term.write).toHaveBeenCalledWith(
+      expect.stringContaining("Command upload_file_for_terminal not found"),
+    );
   });
 });
 

@@ -266,6 +266,7 @@ export function UninstallApp(...args: any[]): Promise<any>;
 export function UninstallKokoro(...args: any[]): Promise<any>;
 export function UploadAndQuoteForTerminal(...args: any[]): Promise<any>;
 export function UploadClipboardImageForTerminal(...args: any[]): Promise<any>;
+export function UploadFileForTerminal(...args: any[]): Promise<any>;
 export function VaultExportKey(...args: any[]): Promise<any>;
 export function VaultImportKey(...args: any[]): Promise<any>;
 export function WriteFile(...args: any[]): Promise<any>;

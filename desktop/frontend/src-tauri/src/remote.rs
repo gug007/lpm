@@ -2394,7 +2394,10 @@ fn handle_msg(
                     name,
                 );
                 let mut reply = match res {
-                    Ok(path) => json!({ "t": "upload", "id": id, "ok": true, "path": path }),
+                    Ok(path) => {
+                        let path = crate::upload::format_paste_paths(std::slice::from_ref(&path));
+                        json!({ "t": "upload", "id": id, "ok": true, "path": path })
+                    }
                     Err(e) => json!({ "t": "upload", "id": id, "ok": false, "error": e }),
                 };
                 if !req_id.is_null() {

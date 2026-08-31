@@ -1420,12 +1420,12 @@ fn dispatch_invoke(
     cmd: &str,
     args: Value,
 ) {
-    // A clipboard-image upload carries a multi-MB base64 blob. Run it directly in
-    // Rust on a worker thread (the temp-write + a possible scp for an ssh-backed
-    // host pane can block) and reply async via the out-queue, instead of
-    // round-tripping the whole payload through the host webview. Args arrive with
-    // the frontend's camelCase keys on this direct path.
-    if cmd == "upload_clipboard_image_for_terminal" {
+    // An upload carries a multi-MB base64 blob. Run it directly in Rust on a
+    // worker thread (the temp-write + a possible scp for an ssh-backed host pane
+    // can block) and reply async via the out-queue, instead of round-tripping the
+    // whole payload through the host webview. Args arrive with the frontend's
+    // camelCase keys on this direct path.
+    if cmd == "upload_clipboard_image_for_terminal" || cmd == "upload_file_for_terminal" {
         let s = |k: &str| {
             args.get(k)
                 .and_then(Value::as_str)
@@ -1442,14 +1442,16 @@ fn dispatch_invoke(
                 m
             }
         };
+        let name = Some(s("name")).filter(|n| !n.trim().is_empty());
+        let named_file = cmd == "upload_file_for_terminal";
         let (app, out) = (app.clone(), out.clone());
         std::thread::spawn(move || {
-            let res = crate::upload::upload_clipboard_image_for_terminal(
-                app.state::<pty::PtyState>(),
-                terminal_id,
-                b64,
-                mime,
-            );
+            let state = app.state::<pty::PtyState>();
+            let res = if named_file {
+                crate::upload::upload_file_for_terminal(state, terminal_id, b64, mime, name)
+            } else {
+                crate::upload::upload_clipboard_image_for_terminal(state, terminal_id, b64, mime)
+            };
             let frame = match res {
                 Ok(path) => result_frame(&req_id, true, Value::String(path)),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),

@@ -24,7 +24,8 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { peerSlugOf, PEER_IMAGE_MAX_BYTES } from "../peer/markers";
+import { peerSlugOf, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
+import { uploadPeerBytes } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
 import {
@@ -64,6 +65,7 @@ import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
 import { quoteImagePathForPaste } from "../composerValue";
+import { shellQuote } from "../terminal-io";
 import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
   caretEdges,
@@ -219,11 +221,12 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
 }
 
 export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, agentStatus, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
-  // A remote (peer) terminal runs on another machine. Images are still supported:
-  // they're uploaded to the host (which returns a host-valid path) at attach time
-  // via UploadClipboardImageForTerminal; other file types stay unsupported. The
-  // slug carries into every later read of those host paths — chip thumbnails, the
-  // hover preview, the lightbox — since the host is the only machine they exist on.
+  // A remote (peer) terminal runs on another machine, so an attachment is
+  // uploaded to the host at attach time and the chip holds the host-valid path
+  // that comes back — images via UploadClipboardImageForTerminal, any other file
+  // via UploadFileForTerminal (which keeps its basename). The slug carries into
+  // every later read of those host paths — chip thumbnails, the hover preview,
+  // the lightbox — since the host is the only machine they exist on.
   const peerSlug = peerSlugOf(terminalId);
   const isRemotePeer = peerSlug !== null;
   // The input reads better slightly larger than the terminal text it feeds.
@@ -713,7 +716,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // on failure/oversize. Shared by pasted/dropped blobs and Finder-path reads.
   const uploadPeerImage = useCallback(
     async (b64: string, mimeType: string, rawBytes: number): Promise<HTMLSpanElement | null> => {
-      if (rawBytes > PEER_IMAGE_MAX_BYTES) {
+      if (rawBytes > PEER_UPLOAD_MAX_BYTES) {
         toast.error("Image too large to send to a remote Mac (max 8 MB)");
         return null;
       }
@@ -763,13 +766,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   );
 
   // Insert the chips that resolved and warn about any that didn't, so a failed
-  // image save (decode/temp-write error) never vanishes without feedback.
+  // save (decode/temp-write error) never vanishes without feedback.
   const insertImageChips = useCallback(
     (chips: Array<HTMLSpanElement | null>, attempted: number) => {
       const ok = chips.filter((c): c is HTMLSpanElement => c !== null);
       insertItems(ok);
       const failed = attempted - ok.length;
-      if (failed > 0) toast.error(failed === 1 ? "Couldn't add image" : `Couldn't add ${failed} images`);
+      if (failed > 0)
+        toast.error(failed === 1 ? "Couldn't add attachment" : `Couldn't add ${failed} attachments`);
     },
     [insertItems],
   );
@@ -783,31 +787,41 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [insertItems, registerImagePath],
   );
 
-  // Read client-local image paths (a Finder drop or copied file), upload each to
-  // the host, and insert the resulting chips. Non-image files can't be sent to a
-  // remote Mac, so they're dropped with a notice rather than silently ignored.
-  const addPeerLocalImages = useCallback(
+  // Read client-local paths (a Finder drop or copied files), upload each to the
+  // host, and insert the resulting chips: an image keeps the thumbnail seeded
+  // from the bytes just sent, any other file becomes a named chip on the host's
+  // copy. A refusal that carries a reason — a file past the link's size cap, or
+  // a host on an older lpm that has no file-upload command — is shown as-is;
+  // insertImageChips covers the rest with its count.
+  const addPeerLocalFiles = useCallback(
     async (paths: string[]) => {
-      const images = paths.filter((p) => isImagePath(p));
-      if (images.length < paths.length) {
-        toast.error("Only images can be sent to a remote Mac");
-      }
-      if (images.length === 0) return;
+      const reasons: string[] = [];
       const chips = await Promise.all(
-        images.map(async (path) => {
+        paths.map(async (path) => {
           try {
-            const input = await NotesReadFileAsInput(path);
+            const input = await NotesReadFileAsInput(path, PEER_UPLOAD_MAX_BYTES);
             const b64 = input?.data;
             if (!b64) return null;
-            return uploadPeerImage(b64, input.mimeType || "image/png", base64ByteLength(b64));
-          } catch {
+            if (isImagePath(path)) {
+              return await uploadPeerImage(b64, input.mimeType || "image/png", base64ByteLength(b64));
+            }
+            const hostPath = await uploadPeerBytes(
+              terminalId,
+              b64,
+              input.mimeType,
+              input.name || basename(path),
+            );
+            return registerImagePath(hostPath);
+          } catch (err) {
+            reasons.push(err instanceof Error ? err.message : String(err));
             return null;
           }
         }),
       );
-      insertImageChips(chips, images.length);
+      insertImageChips(chips, paths.length - reasons.length);
+      for (const reason of new Set(reasons)) toast.error(reason);
     },
-    [uploadPeerImage, insertImageChips],
+    [terminalId, uploadPeerImage, registerImagePath, insertImageChips],
   );
 
   const pointInComposer = useCallback((x: number, y: number): boolean => {
@@ -830,12 +844,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return registerFileDropHandler("terminal-composer", (x, y, paths) => {
       if (paths.length === 0 || !pointInComposer(x, y)) return false;
       focusAtPoint(x, y);
-      if (isRemotePeer) void addPeerLocalImages(paths);
+      if (isRemotePeer) void addPeerLocalFiles(paths);
       else insertFilePaths(paths);
       setDragOver(false);
       return true;
     });
-  }, [isRemotePeer, addPeerLocalImages, insertFilePaths, pointInComposer, focusAtPoint]);
+  }, [isRemotePeer, addPeerLocalFiles, insertFilePaths, pointInComposer, focusAtPoint]);
 
   // Native (Finder) drags don't raise DOM dragover in the webview — the runtime
   // shim republishes them as app:* events instead — so drive the drop overlay
@@ -895,7 +909,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         void ReadClipboardFiles()
           .then((paths) => {
             if (!Array.isArray(paths) || paths.length === 0) return;
-            if (isRemotePeer) void addPeerLocalImages(paths);
+            if (isRemotePeer) void addPeerLocalFiles(paths);
             else insertFilePaths(paths);
           })
           .catch(() => {});
@@ -931,7 +945,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       histIdx.current = -1;
       syncState();
     },
-    [addImageBlob, addPeerLocalImages, insertFilePaths, insertImageChips, insertItems, isRemotePeer, registerImagePath, syncState],
+    [addImageBlob, addPeerLocalFiles, insertFilePaths, insertImageChips, insertItems, isRemotePeer, registerImagePath, syncState],
   );
 
   // In-app / web drags deliver File objects through the DOM (OS file drops go
@@ -1009,10 +1023,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       segments.map(async (s) => {
         const path = s.image === null ? undefined : images[s.image];
         if (path === undefined) return s.text;
-        // For a peer terminal the path is already host-valid AND already
-        // paste-formatted — the host quoted it when the image was uploaded there
-        // on attach — so paste it through as-is; quoting again would nest quotes.
-        if (isRemotePeer) return ` ${path} `;
+        // For a peer terminal the path is already host-valid — the host wrote the
+        // file when the chip was attached — so there is nothing to upload here,
+        // only the same paste formatting the host would have applied.
+        if (isRemotePeer) {
+          return ` ${isImagePath(path) ? quoteImagePathForPaste(path) : shellQuote(path)} `;
+        }
         const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
         return ` ${uploaded || quoteImagePathForPaste(path)} `;
       }),
