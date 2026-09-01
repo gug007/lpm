@@ -13,6 +13,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+const FINAL_ANSWER_PHASE: &str = "final_answer";
+
 pub(crate) fn codex_answers(
     home: &Path,
     session_id: &str,
@@ -60,6 +62,17 @@ fn codex_assistant_answer(line: &str) -> Option<RecentAnswer> {
     let record = serde_json::from_str::<Value>(line).ok()?;
     let payload = codex_payload(&record, "message")?;
     if payload.get("role").and_then(Value::as_str) != Some("assistant") {
+        return None;
+    }
+    // Codex names the phase each message belongs to, so the turn's answer is
+    // marked rather than inferred: "commentary" is what it said on the way
+    // there. Rollouts written before the field existed carry no phase, and
+    // there every assistant message still counts.
+    if payload
+        .get("phase")
+        .and_then(Value::as_str)
+        .is_some_and(|phase| phase != FINAL_ANSWER_PHASE)
+    {
         return None;
     }
     Some(RecentAnswer {

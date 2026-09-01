@@ -52,7 +52,12 @@ export function CopyAnswerList({
       LIST_LIMIT,
     )
       .then((list) => {
-        if (!cancelled) setAnswers(list);
+        if (cancelled) return;
+        // The command answers newest-first; the list reads oldest-down like the
+        // terminal above it, which also puts the newest answer nearest the pill
+        // that opened the menu.
+        setAnswers([...list].reverse());
+        setActiveIdx(Math.max(0, list.length - 1));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -63,6 +68,14 @@ export function CopyAnswerList({
       cancelled = true;
     };
   }, [projectName, session.provider, session.sessionId]);
+
+  // Opens at the newest answer, the way the terminal above it sits at its
+  // newest output. Runs once per load: `answers` is set exactly once.
+  useEffect(() => {
+    if (!answers?.length) return;
+    const list = listRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [answers]);
 
   const copy = useRef(async (text: string) => {
     try {

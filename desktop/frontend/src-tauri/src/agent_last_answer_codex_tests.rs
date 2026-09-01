@@ -39,6 +39,11 @@ fn codex_message(role: &str, texts: &[&str]) -> Value {
     })
 }
 
+fn phased(mut record: Value, phase: &str) -> Value {
+    record["payload"]["phase"] = json!(phase);
+    record
+}
+
 fn codex_task_complete(message: Value) -> Value {
     json!({
         "type": "event_msg",
@@ -266,5 +271,50 @@ fn codex_answers_carry_their_record_stamp() {
             text: "fix(tooltip): hide on context menu opening".into(),
             at: Some(1_788_275_202_168),
         }]
+    );
+}
+
+#[test]
+fn codex_keeps_only_the_phase_that_answers() {
+    let dir = TempDir::new().unwrap();
+    let rollout = dir.path().join("rollout.jsonl");
+    write_jsonl(
+        &rollout,
+        &[
+            codex_message("user", &["the question"]),
+            // What it said on the way there, which codex names for us.
+            phased(
+                codex_message("assistant", &["Reading the config first."]),
+                "commentary",
+            ),
+            phased(codex_message("assistant", &["The answer."]), "final_answer"),
+            phased(
+                codex_message("assistant", &["Now running the tests."]),
+                "commentary",
+            ),
+        ],
+    );
+
+    assert_eq!(
+        texts(codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 10).unwrap()),
+        ["The answer."]
+    );
+}
+
+#[test]
+fn codex_counts_every_message_when_the_rollout_predates_phases() {
+    let dir = TempDir::new().unwrap();
+    let rollout = dir.path().join("rollout.jsonl");
+    write_jsonl(
+        &rollout,
+        &[
+            codex_message("assistant", &["An older answer."]),
+            codex_message("assistant", &["The newest answer."]),
+        ],
+    );
+
+    assert_eq!(
+        texts(codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 10).unwrap()),
+        ["The newest answer.", "An older answer."]
     );
 }

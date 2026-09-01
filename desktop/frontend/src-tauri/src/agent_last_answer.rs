@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 const INITIAL_TAIL_BYTES: u64 = 4 << 20;
 const TAIL_GROWTH: u64 = 4;
 const MAX_RECENT_ANSWERS: usize = 50;
+const SYNTHETIC_MODEL: &str = "<synthetic>";
 
 /// Where one session's answers are recorded, once the project and provider have
 /// been checked.
@@ -159,8 +160,18 @@ fn claude_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec
 /// left out. Records of one response being consecutive is what lets the walk
 /// stop at the first record of the answer after the last one wanted.
 fn claude_answers_in_window(window: &str, want: usize) -> Vec<RecentAnswer> {
-    let mut answers: Vec<Collecting> = Vec::new();
+    let mut answers = Vec::new();
+    let mut turn: Option<Collecting> = None;
     for line in complete_lines(window).rev() {
+        if claude_turn_boundary(line) {
+            if let Some(answer) = turn.take().and_then(Collecting::finish) {
+                answers.push(answer);
+                if answers.len() >= want {
+                    return answers;
+                }
+            }
+            continue;
+        }
         let Some(record) = claude_assistant_record(line) else {
             continue;
         };
@@ -172,24 +183,19 @@ fn claude_answers_in_window(window: &str, want: usize) -> Vec<RecentAnswer> {
             .get("message")
             .and_then(|message| message.get("id"))
             .and_then(Value::as_str);
-        // A record without an id is an answer of its own, so it never extends
-        // one already collected.
-        let collected = id.and_then(|id| {
-            answers
-                .iter_mut()
-                .find(|answer| answer.id.as_deref() == Some(id))
-        });
-        match collected {
-            Some(answer) => {
-                answer.texts.splice(..0, texts);
+        match &mut turn {
+            // One response is split across consecutive records sharing an id,
+            // so a record carrying the open answer's id extends it.
+            Some(open) if open.id.is_some() && open.id.as_deref() == id => {
+                open.texts.splice(..0, texts);
             }
+            // Anything else earlier in this turn is what the agent said on its
+            // way to the answer, not the answer.
+            Some(_) => {}
+            // Walking backwards meets a turn's last text first — its answer —
+            // and the stamp kept is when that text landed.
             None => {
-                if answers.len() >= want {
-                    break;
-                }
-                // Walking backwards meets a message's newest record first, so
-                // the stamp kept is when the answer landed, not when it opened.
-                answers.push(Collecting {
+                turn = Some(Collecting {
                     id: id.map(str::to_string),
                     texts,
                     at: timestamp_millis(&record),
@@ -197,7 +203,51 @@ fn claude_answers_in_window(window: &str, want: usize) -> Vec<RecentAnswer> {
             }
         }
     }
-    answers.into_iter().filter_map(Collecting::finish).collect()
+    if answers.len() < want {
+        answers.extend(turn.and_then(Collecting::finish));
+    }
+    answers
+}
+
+/// A user record that is a person actually speaking, which is where one
+/// exchange ends and the next begins. Tool results are written as user records
+/// too but are the plumbing inside a turn, and the CLI injects slash-command
+/// echoes and reminders that nobody typed. An interruption does count: the user
+/// stopped the agent, so whatever it had said by then is that exchange's answer.
+fn claude_turn_boundary(line: &str) -> bool {
+    if !line.contains("\"type\":\"user\"") {
+        return false;
+    }
+    let Ok(record) = serde_json::from_str::<Value>(line) else {
+        return false;
+    };
+    if record.get("type").and_then(Value::as_str) != Some("user")
+        || record.get("isSidechain").and_then(Value::as_bool) == Some(true)
+    {
+        return false;
+    }
+    claude_user_text(&record).is_some_and(|text| !is_injected(text))
+}
+
+fn claude_user_text(record: &Value) -> Option<&str> {
+    match record.get("message")?.get("content")? {
+        Value::String(text) => Some(text.as_str()),
+        Value::Array(items) => items.iter().find_map(|item| {
+            (item.get("type").and_then(Value::as_str) == Some("text"))
+                .then(|| item.get("text").and_then(Value::as_str))
+                .flatten()
+        }),
+        _ => None,
+    }
+}
+
+fn is_injected(text: &str) -> bool {
+    let text = text.trim_start();
+    text.is_empty()
+        || text.starts_with("<command-")
+        || text.starts_with("<local-command")
+        || text.starts_with("<system-reminder>")
+        || text.starts_with("Caveat:")
 }
 
 struct Collecting {
@@ -216,7 +266,10 @@ impl Collecting {
 }
 
 /// Most lines are multi-megabyte tool results, so the marker check gates the
-/// JSON work. Sidechain records belong to a subagent, not to the conversation.
+/// JSON work. Sidechain records belong to a subagent, not to the conversation,
+/// and a `<synthetic>` model marks a notice the CLI wrote in the agent's voice
+/// — "No response requested.", a session-limit warning, an API error — which is
+/// never something anyone means to copy.
 fn claude_assistant_record(line: &str) -> Option<Value> {
     if !line.contains("\"type\":\"assistant\"") {
         return None;
@@ -224,10 +277,18 @@ fn claude_assistant_record(line: &str) -> Option<Value> {
     let record = serde_json::from_str::<Value>(line).ok()?;
     if record.get("type").and_then(Value::as_str) != Some("assistant")
         || record.get("isSidechain").and_then(Value::as_bool) == Some(true)
+        || claude_model(&record) == Some(SYNTHETIC_MODEL)
     {
         return None;
     }
     Some(record)
+}
+
+fn claude_model(record: &Value) -> Option<&str> {
+    record
+        .get("message")
+        .and_then(|message| message.get("model"))
+        .and_then(Value::as_str)
 }
 
 fn claude_text_blocks(record: &Value) -> Vec<String> {
