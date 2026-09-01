@@ -164,7 +164,7 @@ fn value_u64(value: &Value, key: &str) -> u64 {
     value.get(key).and_then(Value::as_u64).unwrap_or(0)
 }
 
-fn timestamp_millis(value: &Value) -> Option<i64> {
+pub(crate) fn timestamp_millis(value: &Value) -> Option<i64> {
     value
         .get("timestamp")
         .and_then(Value::as_str)

@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AgentRecentAnswers, SetClipboardText } from "../../bridge/commands";
 import type { AgentSessionRef } from "../agentSession";
+import { relativeTime } from "../relativeTime";
 import { CopyIcon } from "./icons";
 
 const LIST_LIMIT = 20;
+
+/** An answer and when the agent gave it, in epoch milliseconds — `at` is null
+ *  for a transcript record that carried no stamp. */
+type Answer = { text: string; at: number | null };
 
 // First meaningful line of an answer, stripped of markdown furniture, so the
 // row reads like a sentence rather than a heading marker.
@@ -30,12 +35,12 @@ export function CopyAnswerList({
   session: AgentSessionRef;
   onCopied: () => void;
 }) {
-  const [answers, setAnswers] = useState<string[] | null>(null);
+  const [answers, setAnswers] = useState<Answer[] | null>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
   // The capture-phase key handler reads through a ref so it never re-binds on
   // selection moves.
-  const stateRef = useRef({ answers: [] as string[], activeIdx: 0 });
+  const stateRef = useRef({ answers: [] as Answer[], activeIdx: 0 });
   stateRef.current = { answers: answers ?? [], activeIdx };
 
   useEffect(() => {
@@ -79,7 +84,7 @@ export function CopyAnswerList({
       e.stopPropagation();
       const { answers, activeIdx } = stateRef.current;
       if (e.key === "Enter") {
-        void copy(answers[activeIdx]);
+        void copy(answers[activeIdx].text);
         return;
       }
       const step = e.key === "ArrowDown" ? 1 : -1;
@@ -114,7 +119,7 @@ export function CopyAnswerList({
   }
   return (
     <div ref={listRef} className="max-h-[300px] overflow-y-auto">
-      {answers.map((text, i) => (
+      {answers.map((answer, i) => (
         <button
           key={i}
           type="button"
@@ -122,25 +127,35 @@ export function CopyAnswerList({
           // Keep the terminal focused, same as the pill itself.
           onMouseDown={(e) => e.preventDefault()}
           onMouseEnter={() => setActiveIdx(i)}
-          onClick={() => void copy(text)}
+          onClick={() => void copy(answer.text)}
           className={`flex w-full items-start gap-2.5 px-3 py-1.5 text-left text-[11px] transition-colors ${
             i === activeIdx
               ? "bg-[var(--bg-hover)] text-[var(--text-primary)]"
               : "text-[var(--text-secondary)]"
           }`}
         >
-          {/* The row IS the button; the glyph only labels what it does. Pinned
-              to the first line so a two-line preview doesn't strand it in the
-              gap between the lines. */}
+          {/* The row IS the button; the glyph only labels what it does. Its
+              space is held while hidden, so the text never shifts under the
+              cursor, and it sits on the first line so a two-line preview
+              doesn't strand it between the lines. */}
           <span
             aria-hidden
-            className={`mt-[2px] shrink-0 ${i === activeIdx ? "" : "text-[var(--text-muted)]"}`}
+            className={`mt-[2px] shrink-0 transition-opacity ${
+              i === activeIdx ? "opacity-100" : "opacity-0"
+            }`}
           >
             <CopyIcon size={12} />
           </span>
           <span className="line-clamp-2 min-w-0 flex-1 leading-snug">
-            {answerPreview(text)}
+            {answerPreview(answer.text)}
           </span>
+          {answer.at !== null && (
+            // Its line box matches the preview's first line, so the age sits on
+            // that line rather than needing a nudge of its own.
+            <span className="shrink-0 text-[10px] leading-[15px] tabular-nums text-[var(--text-muted)]">
+              {relativeTime(Math.floor(answer.at / 1000))}
+            </span>
+          )}
         </button>
       ))}
     </div>

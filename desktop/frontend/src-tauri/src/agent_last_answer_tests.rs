@@ -1,11 +1,18 @@
 use super::*;
-use rusqlite::params;
 use serde_json::json;
 use std::fs;
 use tempfile::TempDir;
 
-const SESSION_ID: &str = "019fac59-0da4-7160-b104-5b8429ba1054";
-const OTHER_SESSION_ID: &str = "019fac59-0da4-7160-b104-5b8429ba1055";
+/// The answer texts alone, for the assertions that are about which answers came
+/// back and in what order rather than about their stamps.
+fn texts(answers: Vec<RecentAnswer>) -> Vec<String> {
+    answers.into_iter().map(|answer| answer.text).collect()
+}
+
+fn stamped(mut record: Value, timestamp: &str) -> Value {
+    record["timestamp"] = json!(timestamp);
+    record
+}
 
 fn write_jsonl(path: &Path, lines: &[Value]) {
     let body = lines
@@ -40,24 +47,6 @@ fn tool_result(text: &str) -> Value {
     json!({
         "type": "user",
         "message": {"role": "user", "content": [{"type": "tool_result", "content": text}]},
-    })
-}
-
-fn codex_message(role: &str, texts: &[&str]) -> Value {
-    let content = texts
-        .iter()
-        .map(|text| json!({"type": if role == "assistant" { "output_text" } else { "input_text" }, "text": text}))
-        .collect::<Vec<_>>();
-    json!({
-        "type": "response_item",
-        "payload": {"type": "message", "id": "msg_023d", "role": role, "content": content},
-    })
-}
-
-fn codex_task_complete(message: Value) -> Value {
-    json!({
-        "type": "event_msg",
-        "payload": {"type": "task_complete", "last_agent_message": message},
     })
 }
 
@@ -197,119 +186,6 @@ fn claude_reports_no_answer_for_a_missing_or_answerless_transcript() {
 }
 
 #[test]
-fn codex_takes_the_last_assistant_message_over_the_task_complete_echo() {
-    let dir = TempDir::new().unwrap();
-    let rollout = dir.path().join("rollout.jsonl");
-    write_jsonl(
-        &rollout,
-        &[
-            codex_message("developer", &["you are a helpful agent"]),
-            codex_message("assistant", &["An earlier answer."]),
-            codex_message("user", &["and now the real question"]),
-            codex_message("assistant", &["The final answer.", "With a second part."]),
-            codex_task_complete(json!("The final answer.")),
-        ],
-    );
-
-    assert_eq!(
-        codex_rollout_answer(&rollout, INITIAL_TAIL_BYTES)
-            .unwrap()
-            .as_deref(),
-        Some("The final answer.\n\nWith a second part.")
-    );
-}
-
-#[test]
-fn codex_falls_back_to_the_task_complete_message() {
-    let dir = TempDir::new().unwrap();
-    let rollout = dir.path().join("rollout.jsonl");
-    write_jsonl(
-        &rollout,
-        &[
-            codex_message("user", &["write the commit message"]),
-            codex_task_complete(json!("fix(tooltip): hide on context menu opening")),
-        ],
-    );
-    assert_eq!(
-        codex_rollout_answer(&rollout, INITIAL_TAIL_BYTES)
-            .unwrap()
-            .as_deref(),
-        Some("fix(tooltip): hide on context menu opening")
-    );
-
-    write_jsonl(&rollout, &[codex_task_complete(Value::Null)]);
-    assert_eq!(
-        codex_rollout_answer(&rollout, INITIAL_TAIL_BYTES).unwrap(),
-        None
-    );
-}
-
-#[test]
-fn codex_reads_the_rollout_path_from_the_thread_database() {
-    let home = TempDir::new().unwrap();
-    let sessions = home.path().join("sessions/2026/09/01");
-    fs::create_dir_all(&sessions).unwrap();
-    let name = format!("rollout-2026-09-01T14-14-33-{SESSION_ID}.jsonl");
-    write_jsonl(
-        &sessions.join(&name),
-        &[codex_message("assistant", &["From the database."])],
-    );
-
-    let connection = Connection::open(home.path().join("state_1.sqlite")).unwrap();
-    connection
-        .execute_batch("CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT);")
-        .unwrap();
-    connection
-        .execute(
-            "INSERT INTO threads VALUES (?1, ?2)",
-            params![SESSION_ID, format!("sessions/2026/09/01/{name}")],
-        )
-        .unwrap();
-
-    assert_eq!(
-        codex_last_answer(home.path(), SESSION_ID, INITIAL_TAIL_BYTES)
-            .unwrap()
-            .as_deref(),
-        Some("From the database.")
-    );
-}
-
-#[test]
-fn codex_finds_the_rollout_by_filename_without_a_database() {
-    let home = TempDir::new().unwrap();
-    let older = home.path().join("sessions/2026/08/31");
-    let newer = home.path().join("sessions/2026/09/01");
-    fs::create_dir_all(&older).unwrap();
-    fs::create_dir_all(&newer).unwrap();
-    write_jsonl(
-        &older.join(format!(
-            "rollout-2026-08-31T09-00-00-{OTHER_SESSION_ID}.jsonl"
-        )),
-        &[codex_message("assistant", &["Another session."])],
-    );
-    write_jsonl(
-        &newer.join(format!("rollout-2026-09-01T14-14-33-{SESSION_ID}.jsonl")),
-        &[codex_message("assistant", &["Found by filename."])],
-    );
-
-    assert_eq!(
-        codex_last_answer(home.path(), SESSION_ID, INITIAL_TAIL_BYTES)
-            .unwrap()
-            .as_deref(),
-        Some("Found by filename.")
-    );
-    assert_eq!(
-        codex_last_answer(
-            home.path(),
-            "019fac59-0da4-7160-b104-5b8429ba1056",
-            INITIAL_TAIL_BYTES
-        )
-        .unwrap(),
-        None
-    );
-}
-
-#[test]
 fn claude_lists_answers_newest_first_assembling_each_from_its_records() {
     let dir = TempDir::new().unwrap();
     let transcript = dir.path().join("session.jsonl");
@@ -329,7 +205,7 @@ fn claude_lists_answers_newest_first_assembling_each_from_its_records() {
     );
 
     assert_eq!(
-        claude_answers(&transcript, INITIAL_TAIL_BYTES, 10).unwrap(),
+        texts(claude_answers(&transcript, INITIAL_TAIL_BYTES, 10).unwrap()),
         [
             "Newest answer.",
             "Middle, first half.\n\nMiddle, second half.",
@@ -353,11 +229,11 @@ fn claude_answers_stop_at_the_requested_count() {
     );
 
     assert_eq!(
-        claude_answers(&transcript, INITIAL_TAIL_BYTES, 2).unwrap(),
+        texts(claude_answers(&transcript, INITIAL_TAIL_BYTES, 2).unwrap()),
         ["Fourth.", "Third."]
     );
     assert_eq!(
-        claude_answers(&transcript, INITIAL_TAIL_BYTES, 1).unwrap(),
+        texts(claude_answers(&transcript, INITIAL_TAIL_BYTES, 1).unwrap()),
         ["Fourth."]
     );
 }
@@ -375,7 +251,7 @@ fn claude_widens_the_window_until_the_requested_count_is_gathered() {
     assert!(fs::metadata(&transcript).unwrap().len() > 16 * 256);
 
     assert_eq!(
-        claude_answers(&transcript, 256, 3).unwrap(),
+        texts(claude_answers(&transcript, 256, 3).unwrap()),
         ["Newest.", "Middle.", "Oldest."]
     );
     // Asking for more than the session holds returns what there is.
@@ -383,44 +259,41 @@ fn claude_widens_the_window_until_the_requested_count_is_gathered() {
 }
 
 #[test]
-fn codex_lists_answers_newest_first() {
+fn claude_answers_carry_the_stamp_of_the_record_that_landed_them() {
     let dir = TempDir::new().unwrap();
-    let rollout = dir.path().join("rollout.jsonl");
+    let transcript = dir.path().join("session.jsonl");
     write_jsonl(
-        &rollout,
+        &transcript,
         &[
-            codex_message("developer", &["you are a helpful agent"]),
-            codex_message("assistant", &["Oldest answer."]),
-            codex_message("user", &["another question"]),
-            codex_message("assistant", &["Newest answer.", "With a second part."]),
-            codex_task_complete(json!("Newest answer.")),
+            stamped(
+                assistant("msg_1", text_block("First half.")),
+                "2026-09-01T15:05:10.000Z",
+            ),
+            // Skipped for having no text, so it cannot stamp the answer either.
+            stamped(
+                assistant("msg_1", tool_use_block("Bash")),
+                "2026-09-01T15:05:12.000Z",
+            ),
+            stamped(
+                assistant("msg_1", text_block("Second half.")),
+                "2026-09-01T15:05:15.949Z",
+            ),
+            assistant("msg_2", text_block("Answer with no stamp.")),
         ],
     );
 
+    let answers = claude_answers(&transcript, INITIAL_TAIL_BYTES, 10).unwrap();
     assert_eq!(
-        codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 10).unwrap(),
-        ["Newest answer.\n\nWith a second part.", "Oldest answer."]
-    );
-    assert_eq!(
-        codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 1).unwrap(),
-        ["Newest answer.\n\nWith a second part."]
-    );
-}
-
-#[test]
-fn codex_answers_fall_back_to_a_lone_task_complete_echo() {
-    let dir = TempDir::new().unwrap();
-    let rollout = dir.path().join("rollout.jsonl");
-    write_jsonl(
-        &rollout,
-        &[
-            codex_message("user", &["write the commit message"]),
-            codex_task_complete(json!("fix(tooltip): hide on context menu opening")),
-        ],
-    );
-
-    assert_eq!(
-        codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 10).unwrap(),
-        ["fix(tooltip): hide on context menu opening"]
+        answers,
+        [
+            RecentAnswer {
+                text: "Answer with no stamp.".into(),
+                at: None,
+            },
+            RecentAnswer {
+                text: "First half.\n\nSecond half.".into(),
+                at: Some(1_788_275_115_949),
+            },
+        ]
     );
 }

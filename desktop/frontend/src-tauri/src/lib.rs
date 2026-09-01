@@ -1,5 +1,6 @@
 mod actions;
 mod agent_last_answer;
+mod agent_last_answer_codex;
 mod agent_limits;
 mod agent_session_titles;
 mod agent_sessions;
