@@ -1,8 +1,8 @@
-//! The last answer an agent gave in a session: the text of its newest assistant
-//! message, as the raw markdown it wrote, so the clipboard keeps the formatting.
-//! Both providers append to their transcripts forever and reach tens of
-//! megabytes, so the answer is searched in a tail window that widens only when
-//! it comes up empty.
+//! The answers an agent gave in a session: the text of its assistant messages,
+//! newest first, as the raw markdown it wrote, so the clipboard keeps the
+//! formatting. Both providers append to their transcripts forever and reach
+//! tens of megabytes, so answers are gathered from a tail window that widens
+//! only while it holds fewer than were asked for.
 use crate::agent_session_titles::{
     codex_home, codex_state_databases, parse_provider, threads_columns, validate_project_name,
     AgentProvider,
@@ -17,6 +17,14 @@ use std::time::Duration;
 
 const INITIAL_TAIL_BYTES: u64 = 4 << 20;
 const TAIL_GROWTH: u64 = 4;
+const MAX_RECENT_ANSWERS: usize = 50;
+
+/// Where one session's answers are recorded, once the project and provider have
+/// been checked.
+enum Answers {
+    Claude(PathBuf),
+    Codex { home: PathBuf, session_id: String },
+}
 
 #[tauri::command(async)]
 pub fn agent_last_answer(
@@ -24,51 +32,77 @@ pub fn agent_last_answer(
     provider: String,
     session_id: String,
 ) -> Result<Option<String>, String> {
-    let provider = parse_provider(&provider)?;
-    if !crate::socketsrv::valid_session_id(&session_id) {
+    let answers = locate(&project_name, &provider, &session_id)?.newest(1)?;
+    Ok(answers.into_iter().next())
+}
+
+#[tauri::command(async)]
+pub fn agent_recent_answers(
+    project_name: String,
+    provider: String,
+    session_id: String,
+    limit: usize,
+) -> Result<Vec<String>, String> {
+    locate(&project_name, &provider, &session_id)?.newest(limit.clamp(1, MAX_RECENT_ANSWERS))
+}
+
+fn locate(project_name: &str, provider: &str, session_id: &str) -> Result<Answers, String> {
+    let provider = parse_provider(provider)?;
+    if !crate::socketsrv::valid_session_id(session_id) {
         return Err("invalid agent session id".into());
     }
-    validate_project_name(&project_name)?;
-    let project = config::spawn_info(&project_name)?;
+    validate_project_name(project_name)?;
+    let project = config::spawn_info(project_name)?;
     if project.is_remote {
-        return Err("the last answer is only available for local projects".into());
+        return Err("agent answers are only available for local projects".into());
     }
 
-    match provider {
-        AgentProvider::Claude => {
-            let transcript = crate::hooks::claude_transcript_path(
-                config::claude_env_for_account(project.claude_account.as_deref()),
-                &project.root,
-                &session_id,
-            );
-            claude_last_answer(&transcript, INITIAL_TAIL_BYTES).map_err(|e| e.to_string())
+    Ok(match provider {
+        AgentProvider::Claude => Answers::Claude(crate::hooks::claude_transcript_path(
+            config::claude_env_for_account(project.claude_account.as_deref()),
+            &project.root,
+            session_id,
+        )),
+        AgentProvider::Codex => Answers::Codex {
+            home: codex_home(),
+            session_id: session_id.to_string(),
+        },
+    })
+}
+
+impl Answers {
+    fn newest(&self, want: usize) -> Result<Vec<String>, String> {
+        match self {
+            Answers::Claude(transcript) => claude_answers(transcript, INITIAL_TAIL_BYTES, want),
+            Answers::Codex { home, session_id } => {
+                codex_answers(home, session_id, INITIAL_TAIL_BYTES, want)
+            }
         }
-        AgentProvider::Codex => codex_last_answer(&codex_home(), &session_id, INITIAL_TAIL_BYTES)
-            .map_err(|e| e.to_string()),
+        .map_err(|e| e.to_string())
     }
 }
 
-/// Search a JSONL file's tail with `extract`, widening the window until it
-/// answers or the window covers the whole file. A missing file is "no answer
-/// yet", not a failure.
-fn scan_tail<T>(
+/// Gather from a JSONL file's tail with `collect`, widening the window until it
+/// yields `want` records or covers the whole file — so a session with fewer
+/// answers than asked for costs one full read, and the common case costs one
+/// window. A missing file is "no answers yet", not a failure.
+fn collect_tail(
     path: &Path,
     window_bytes: u64,
-    extract: impl Fn(&str) -> Option<T>,
-) -> io::Result<Option<T>> {
+    want: usize,
+    collect: impl Fn(&str, usize) -> Vec<String>,
+) -> io::Result<Vec<String>> {
     let mut file = match File::open(path) {
         Ok(file) => file,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(e) => return Err(e),
     };
     let len = file.metadata()?.len();
     let mut window = window_bytes.max(1);
     loop {
-        if let Some(found) = extract(&read_window(&mut file, len, window)?) {
-            return Ok(Some(found));
-        }
-        if window >= len {
-            return Ok(None);
+        let found = collect(&read_window(&mut file, len, window)?, want);
+        if found.len() >= want || window >= len {
+            return Ok(found);
         }
         window = window.saturating_mul(TAIL_GROWTH);
     }
@@ -105,41 +139,53 @@ fn join_answer(texts: Vec<String>) -> Option<String> {
     (!answer.is_empty()).then(|| answer.to_string())
 }
 
-fn claude_last_answer(path: &Path, window_bytes: u64) -> io::Result<Option<String>> {
-    scan_tail(path, window_bytes, claude_answer_in_window)
+fn claude_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec<String>> {
+    collect_tail(path, window_bytes, want, claude_answers_in_window)
 }
 
-/// One API response is split across consecutive records sharing a `message.id`,
-/// one content block each — so the answer is every text block of the newest
-/// message that has one, and the thinking and tool_use records of that same
-/// message are left out.
-fn claude_answer_in_window(window: &str) -> Option<String> {
-    let lines = complete_lines(window).collect::<Vec<_>>();
-    let (last, record) = lines.iter().enumerate().rev().find_map(|(index, line)| {
-        let record = claude_assistant_record(line)?;
-        (!claude_text_blocks(&record).is_empty()).then_some((index, record))
-    })?;
-
-    let Some(id) = record
-        .get("message")
-        .and_then(|message| message.get("id"))
-        .and_then(Value::as_str)
-    else {
-        return join_answer(claude_text_blocks(&record));
-    };
-    let texts = lines[..=last]
-        .iter()
-        .filter(|line| line.contains(id))
-        .filter_map(|line| claude_assistant_record(line))
-        .filter(|part| {
-            part.get("message")
-                .and_then(|message| message.get("id"))
-                .and_then(Value::as_str)
-                == Some(id)
-        })
-        .flat_map(|part| claude_text_blocks(&part))
-        .collect();
-    join_answer(texts)
+/// The newest answers in the window, newest first. One API response is split
+/// across consecutive records sharing a `message.id`, one content block each,
+/// so a record whose id is already collected extends that answer instead of
+/// starting another, and the thinking and tool_use records of that message are
+/// left out. Records of one response being consecutive is what lets the walk
+/// stop at the first record of the answer after the last one wanted.
+fn claude_answers_in_window(window: &str, want: usize) -> Vec<String> {
+    let mut answers: Vec<(Option<String>, Vec<String>)> = Vec::new();
+    for line in complete_lines(window).rev() {
+        let Some(record) = claude_assistant_record(line) else {
+            continue;
+        };
+        let texts = claude_text_blocks(&record);
+        if texts.is_empty() {
+            continue;
+        }
+        let id = record
+            .get("message")
+            .and_then(|message| message.get("id"))
+            .and_then(Value::as_str);
+        // A record without an id is an answer of its own, so it never extends
+        // one already collected.
+        let collected = id.and_then(|id| {
+            answers
+                .iter_mut()
+                .find(|(seen, _)| seen.as_deref() == Some(id))
+        });
+        match collected {
+            Some((_, collected)) => {
+                collected.splice(..0, texts);
+            }
+            None => {
+                if answers.len() >= want {
+                    break;
+                }
+                answers.push((id.map(str::to_string), texts));
+            }
+        }
+    }
+    answers
+        .into_iter()
+        .filter_map(|(_, texts)| join_answer(texts))
+        .collect()
 }
 
 /// Most lines are multi-megabyte tool results, so the marker check gates the
@@ -163,18 +209,17 @@ fn claude_text_blocks(record: &Value) -> Vec<String> {
             .get("message")
             .and_then(|message| message.get("content")),
         "text",
-        "text",
     )
 }
 
-fn text_blocks(content: Option<&Value>, block_type: &str, field: &str) -> Vec<String> {
+fn text_blocks(content: Option<&Value>, block_type: &str) -> Vec<String> {
     content
         .and_then(Value::as_array)
         .map(|blocks| {
             blocks
                 .iter()
                 .filter(|block| block.get("type").and_then(Value::as_str) == Some(block_type))
-                .filter_map(|block| block.get(field).and_then(Value::as_str))
+                .filter_map(|block| block.get("text").and_then(Value::as_str))
                 .filter(|text| !text.trim().is_empty())
                 .map(str::to_string)
                 .collect()
@@ -182,30 +227,39 @@ fn text_blocks(content: Option<&Value>, block_type: &str, field: &str) -> Vec<St
         .unwrap_or_default()
 }
 
-fn codex_last_answer(
+fn codex_answers(
     home: &Path,
     session_id: &str,
     window_bytes: u64,
-) -> io::Result<Option<String>> {
+    want: usize,
+) -> io::Result<Vec<String>> {
     let Some(rollout) = codex_rollout_path(home, session_id) else {
-        return Ok(None);
+        return Ok(Vec::new());
     };
-    codex_rollout_answer(&rollout, window_bytes)
+    codex_rollout_answers(&rollout, window_bytes, want)
 }
 
-/// The message record is the answer; `task_complete` only repeats it and is the
-/// fallback for a rollout that has none, so it may not stand in for a message
-/// record that sits further from the tail than the current window reaches.
-fn codex_rollout_answer(path: &Path, window_bytes: u64) -> io::Result<Option<String>> {
-    if let Some(answer) = scan_tail(path, window_bytes, |window| {
-        complete_lines(window).rev().find_map(codex_assistant_text)
-    })? {
-        return Ok(Some(answer));
-    }
-    scan_tail(path, window_bytes, |window| {
+/// One message record is one whole answer. `task_complete` only echoes the last
+/// of them, so it stands in for a rollout that has no message record at all —
+/// never for one that sits further from the tail than the window reaches, and
+/// never as an extra entry beside the messages it repeats.
+fn codex_rollout_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec<String>> {
+    let answers = collect_tail(path, window_bytes, want, |window, want| {
         complete_lines(window)
             .rev()
-            .find_map(codex_task_complete_text)
+            .filter_map(codex_assistant_text)
+            .take(want)
+            .collect()
+    })?;
+    if !answers.is_empty() {
+        return Ok(answers);
+    }
+    collect_tail(path, window_bytes, 1, |window, want| {
+        complete_lines(window)
+            .rev()
+            .filter_map(codex_task_complete_text)
+            .take(want)
+            .collect()
     })
 }
 
@@ -217,7 +271,7 @@ fn codex_assistant_text(line: &str) -> Option<String> {
     if payload.get("role").and_then(Value::as_str) != Some("assistant") {
         return None;
     }
-    join_answer(text_blocks(payload.get("content"), "output_text", "text"))
+    join_answer(text_blocks(payload.get("content"), "output_text"))
 }
 
 fn codex_task_complete_text(line: &str) -> Option<String> {
@@ -308,6 +362,31 @@ fn newest_first(dir: &Path) -> Vec<PathBuf> {
         .collect::<Vec<_>>();
     dirs.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
     dirs
+}
+
+// The single-answer view of each provider. `agent_last_answer` takes the same
+// answer from `newest(1)`, so these exist to pin that one narrowing in tests.
+#[cfg(test)]
+fn claude_last_answer(path: &Path, window_bytes: u64) -> io::Result<Option<String>> {
+    Ok(claude_answers(path, window_bytes, 1)?.into_iter().next())
+}
+
+#[cfg(test)]
+fn codex_last_answer(
+    home: &Path,
+    session_id: &str,
+    window_bytes: u64,
+) -> io::Result<Option<String>> {
+    Ok(codex_answers(home, session_id, window_bytes, 1)?
+        .into_iter()
+        .next())
+}
+
+#[cfg(test)]
+fn codex_rollout_answer(path: &Path, window_bytes: u64) -> io::Result<Option<String>> {
+    Ok(codex_rollout_answers(path, window_bytes, 1)?
+        .into_iter()
+        .next())
 }
 
 #[cfg(test)]
