@@ -3,17 +3,17 @@
 //! formatting. Both providers append to their transcripts forever and reach
 //! tens of megabytes, so answers are gathered from a tail window that widens
 //! only while it holds fewer than were asked for.
+use crate::agent_last_answer_codex::codex_answers;
 use crate::agent_session_titles::{
-    codex_home, codex_state_databases, parse_provider, threads_columns, validate_project_name,
-    AgentProvider,
+    codex_home, parse_provider, validate_project_name, AgentProvider,
 };
+use crate::agent_usage::timestamp_millis;
 use crate::config;
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use serde::Serialize;
 use serde_json::Value;
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 const INITIAL_TAIL_BYTES: u64 = 4 << 20;
 const TAIL_GROWTH: u64 = 4;
@@ -26,6 +26,15 @@ enum Answers {
     Codex { home: PathBuf, session_id: String },
 }
 
+/// One answer and when the agent gave it, in epoch milliseconds — `None` when
+/// the record carried no parseable timestamp, which the UI reads as "no time to
+/// show" rather than as the epoch.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RecentAnswer {
+    pub(crate) text: String,
+    pub(crate) at: Option<i64>,
+}
+
 #[tauri::command(async)]
 pub fn agent_last_answer(
     project_name: String,
@@ -33,7 +42,7 @@ pub fn agent_last_answer(
     session_id: String,
 ) -> Result<Option<String>, String> {
     let answers = locate(&project_name, &provider, &session_id)?.newest(1)?;
-    Ok(answers.into_iter().next())
+    Ok(answers.into_iter().next().map(|answer| answer.text))
 }
 
 #[tauri::command(async)]
@@ -42,7 +51,7 @@ pub fn agent_recent_answers(
     provider: String,
     session_id: String,
     limit: usize,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<RecentAnswer>, String> {
     locate(&project_name, &provider, &session_id)?.newest(limit.clamp(1, MAX_RECENT_ANSWERS))
 }
 
@@ -71,7 +80,7 @@ fn locate(project_name: &str, provider: &str, session_id: &str) -> Result<Answer
 }
 
 impl Answers {
-    fn newest(&self, want: usize) -> Result<Vec<String>, String> {
+    fn newest(&self, want: usize) -> Result<Vec<RecentAnswer>, String> {
         match self {
             Answers::Claude(transcript) => claude_answers(transcript, INITIAL_TAIL_BYTES, want),
             Answers::Codex { home, session_id } => {
@@ -86,12 +95,12 @@ impl Answers {
 /// yields `want` records or covers the whole file — so a session with fewer
 /// answers than asked for costs one full read, and the common case costs one
 /// window. A missing file is "no answers yet", not a failure.
-fn collect_tail(
+pub(crate) fn collect_tail<T>(
     path: &Path,
     window_bytes: u64,
     want: usize,
-    collect: impl Fn(&str, usize) -> Vec<String>,
-) -> io::Result<Vec<String>> {
+    collect: impl Fn(&str, usize) -> Vec<T>,
+) -> io::Result<Vec<T>> {
     let mut file = match File::open(path) {
         Ok(file) => file,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
@@ -128,18 +137,18 @@ fn read_window(file: &mut File, len: u64, window: u64) -> io::Result<String> {
 
 /// Whole records only: a trailing line without its newline is a record the
 /// agent is still writing.
-fn complete_lines(window: &str) -> impl DoubleEndedIterator<Item = &str> {
+pub(crate) fn complete_lines(window: &str) -> impl DoubleEndedIterator<Item = &str> {
     let end = window.rfind('\n').map_or(0, |newline| newline + 1);
     window[..end].lines()
 }
 
-fn join_answer(texts: Vec<String>) -> Option<String> {
+pub(crate) fn join_answer(texts: Vec<String>) -> Option<String> {
     let answer = texts.join("\n\n");
     let answer = answer.trim_end();
     (!answer.is_empty()).then(|| answer.to_string())
 }
 
-fn claude_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec<String>> {
+fn claude_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec<RecentAnswer>> {
     collect_tail(path, window_bytes, want, claude_answers_in_window)
 }
 
@@ -149,8 +158,8 @@ fn claude_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec
 /// starting another, and the thinking and tool_use records of that message are
 /// left out. Records of one response being consecutive is what lets the walk
 /// stop at the first record of the answer after the last one wanted.
-fn claude_answers_in_window(window: &str, want: usize) -> Vec<String> {
-    let mut answers: Vec<(Option<String>, Vec<String>)> = Vec::new();
+fn claude_answers_in_window(window: &str, want: usize) -> Vec<RecentAnswer> {
+    let mut answers: Vec<Collecting> = Vec::new();
     for line in complete_lines(window).rev() {
         let Some(record) = claude_assistant_record(line) else {
             continue;
@@ -168,24 +177,42 @@ fn claude_answers_in_window(window: &str, want: usize) -> Vec<String> {
         let collected = id.and_then(|id| {
             answers
                 .iter_mut()
-                .find(|(seen, _)| seen.as_deref() == Some(id))
+                .find(|answer| answer.id.as_deref() == Some(id))
         });
         match collected {
-            Some((_, collected)) => {
-                collected.splice(..0, texts);
+            Some(answer) => {
+                answer.texts.splice(..0, texts);
             }
             None => {
                 if answers.len() >= want {
                     break;
                 }
-                answers.push((id.map(str::to_string), texts));
+                // Walking backwards meets a message's newest record first, so
+                // the stamp kept is when the answer landed, not when it opened.
+                answers.push(Collecting {
+                    id: id.map(str::to_string),
+                    texts,
+                    at: timestamp_millis(&record),
+                });
             }
         }
     }
-    answers
-        .into_iter()
-        .filter_map(|(_, texts)| join_answer(texts))
-        .collect()
+    answers.into_iter().filter_map(Collecting::finish).collect()
+}
+
+struct Collecting {
+    id: Option<String>,
+    texts: Vec<String>,
+    at: Option<i64>,
+}
+
+impl Collecting {
+    fn finish(self) -> Option<RecentAnswer> {
+        Some(RecentAnswer {
+            text: join_answer(self.texts)?,
+            at: self.at,
+        })
+    }
 }
 
 /// Most lines are multi-megabyte tool results, so the marker check gates the
@@ -212,7 +239,7 @@ fn claude_text_blocks(record: &Value) -> Vec<String> {
     )
 }
 
-fn text_blocks(content: Option<&Value>, block_type: &str) -> Vec<String> {
+pub(crate) fn text_blocks(content: Option<&Value>, block_type: &str) -> Vec<String> {
     content
         .and_then(Value::as_array)
         .map(|blocks| {
@@ -227,166 +254,14 @@ fn text_blocks(content: Option<&Value>, block_type: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn codex_answers(
-    home: &Path,
-    session_id: &str,
-    window_bytes: u64,
-    want: usize,
-) -> io::Result<Vec<String>> {
-    let Some(rollout) = codex_rollout_path(home, session_id) else {
-        return Ok(Vec::new());
-    };
-    codex_rollout_answers(&rollout, window_bytes, want)
-}
-
-/// One message record is one whole answer. `task_complete` only echoes the last
-/// of them, so it stands in for a rollout that has no message record at all —
-/// never for one that sits further from the tail than the window reaches, and
-/// never as an extra entry beside the messages it repeats.
-fn codex_rollout_answers(path: &Path, window_bytes: u64, want: usize) -> io::Result<Vec<String>> {
-    let answers = collect_tail(path, window_bytes, want, |window, want| {
-        complete_lines(window)
-            .rev()
-            .filter_map(codex_assistant_text)
-            .take(want)
-            .collect()
-    })?;
-    if !answers.is_empty() {
-        return Ok(answers);
-    }
-    collect_tail(path, window_bytes, 1, |window, want| {
-        complete_lines(window)
-            .rev()
-            .filter_map(codex_task_complete_text)
-            .take(want)
-            .collect()
-    })
-}
-
-fn codex_assistant_text(line: &str) -> Option<String> {
-    if !line.contains("\"role\":\"assistant\"") {
-        return None;
-    }
-    let payload = codex_payload(line, "message")?;
-    if payload.get("role").and_then(Value::as_str) != Some("assistant") {
-        return None;
-    }
-    join_answer(text_blocks(payload.get("content"), "output_text"))
-}
-
-fn codex_task_complete_text(line: &str) -> Option<String> {
-    if !line.contains("task_complete") {
-        return None;
-    }
-    let payload = codex_payload(line, "task_complete")?;
-    let message = payload.get("last_agent_message").and_then(Value::as_str)?;
-    join_answer(vec![message.to_string()])
-}
-
-fn codex_payload(line: &str, payload_type: &str) -> Option<Value> {
-    let record = serde_json::from_str::<Value>(line).ok()?;
-    let payload = record.get("payload")?;
-    (payload.get("type").and_then(Value::as_str) == Some(payload_type)).then(|| payload.clone())
-}
-
-fn codex_rollout_path(home: &Path, session_id: &str) -> Option<PathBuf> {
-    for database in codex_state_databases(home) {
-        let Ok(Some(recorded)) = codex_rollout_from_database(home, &database, session_id) else {
-            continue;
-        };
-        let path = home.join(recorded);
-        if path.is_file() {
-            return Some(path);
-        }
-    }
-    codex_rollout_by_filename(home, session_id)
-}
-
-fn codex_rollout_from_database(
-    home: &Path,
-    path: &Path,
-    session_id: &str,
-) -> rusqlite::Result<Option<String>> {
-    let connection = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )?;
-    connection.busy_timeout(Duration::from_millis(100))?;
-
-    let columns = threads_columns(home, path, &connection)?;
-    if !columns.contains("id") || !columns.contains("rollout_path") {
-        return Ok(None);
-    }
-    connection
-        .query_row(
-            "SELECT CAST(rollout_path AS TEXT) FROM threads WHERE id = ?1 LIMIT 1",
-            [session_id],
-            |row| row.get::<_, Option<String>>(0),
-        )
-        .optional()
-        .map(Option::flatten)
-}
-
-/// Rollouts live at `sessions/YYYY/MM/DD/rollout-<timestamp>-<id>.jsonl`. The
-/// tree holds every session ever run, so the walk goes newest day first and
-/// stops at the match rather than collecting the tree.
-fn codex_rollout_by_filename(home: &Path, session_id: &str) -> Option<PathBuf> {
-    let suffix = format!("-{session_id}.jsonl");
-    for year in newest_first(&home.join("sessions")) {
-        for month in newest_first(&year) {
-            for day in newest_first(&month) {
-                let Ok(entries) = std::fs::read_dir(&day) else {
-                    continue;
-                };
-                for entry in entries.flatten() {
-                    let name = entry.file_name();
-                    let name = name.to_string_lossy();
-                    if name.starts_with("rollout-") && name.ends_with(suffix.as_str()) {
-                        return Some(entry.path());
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-fn newest_first(dir: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut dirs = entries
-        .flatten()
-        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
-        .map(|entry| entry.path())
-        .collect::<Vec<_>>();
-    dirs.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-    dirs
-}
-
 // The single-answer view of each provider. `agent_last_answer` takes the same
 // answer from `newest(1)`, so these exist to pin that one narrowing in tests.
 #[cfg(test)]
 fn claude_last_answer(path: &Path, window_bytes: u64) -> io::Result<Option<String>> {
-    Ok(claude_answers(path, window_bytes, 1)?.into_iter().next())
-}
-
-#[cfg(test)]
-fn codex_last_answer(
-    home: &Path,
-    session_id: &str,
-    window_bytes: u64,
-) -> io::Result<Option<String>> {
-    Ok(codex_answers(home, session_id, window_bytes, 1)?
+    Ok(claude_answers(path, window_bytes, 1)?
         .into_iter()
-        .next())
-}
-
-#[cfg(test)]
-fn codex_rollout_answer(path: &Path, window_bytes: u64) -> io::Result<Option<String>> {
-    Ok(codex_rollout_answers(path, window_bytes, 1)?
-        .into_iter()
-        .next())
+        .next()
+        .map(|answer| answer.text))
 }
 
 #[cfg(test)]

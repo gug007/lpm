@@ -6,7 +6,7 @@ export function AgentUsageStats(...args: any[]): Promise<any>;
 export function AgentLimits(...args: any[]): Promise<any>;
 export function AgentSessionTitle(projectName: string, provider: "claude" | "codex", sessionId: string): Promise<string | null>;
 export function AgentLastAnswer(projectName: string, provider: "claude" | "codex", sessionId: string): Promise<string | null>;
-export function AgentRecentAnswers(projectName: string, provider: "claude" | "codex", sessionId: string, limit: number): Promise<string[]>;
+export function AgentRecentAnswers(projectName: string, provider: "claude" | "codex", sessionId: string, limit: number): Promise<{ text: string; at: number | null }[]>;
 export function ListAgentSessions(projectName: string, limit: number, search: string): Promise<{ sessions: unknown[]; hasMore: boolean }>;
 export function ApplyClaudeLimits(...args: any[]): Promise<any>;
 export function GetClaudeStatuslineState(...args: any[]): Promise<any>;
