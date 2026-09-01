@@ -102,6 +102,9 @@ export function Tooltip({ content, children, side = "top", align = "center", wid
         className={triggerClassName}
         onMouseEnter={show}
         onMouseLeave={hide}
+        // A right-click opens a context menu without moving the pointer off the
+        // trigger, so the hover tooltip would otherwise stay up behind the menu.
+        onContextMenu={hide}
         // Immediate (no dwell) on keyboard focus; :focus-visible keeps mouse
         // clicks from pinning the tooltip until blur.
         onFocus={(e) => {
