@@ -308,3 +308,119 @@ fn codex_finds_the_rollout_by_filename_without_a_database() {
         None
     );
 }
+
+#[test]
+fn claude_lists_answers_newest_first_assembling_each_from_its_records() {
+    let dir = TempDir::new().unwrap();
+    let transcript = dir.path().join("session.jsonl");
+    write_jsonl(
+        &transcript,
+        &[
+            assistant("msg_1", text_block("Oldest answer.")),
+            tool_result("first tool output"),
+            assistant("msg_2", thinking_block("weighing it up")),
+            assistant("msg_2", text_block("Middle, first half.")),
+            assistant("msg_2", tool_use_block("Bash")),
+            tool_result("output of that Bash call"),
+            assistant("msg_2", text_block("Middle, second half.")),
+            tool_result("more output"),
+            assistant("msg_3", text_block("Newest answer.")),
+        ],
+    );
+
+    assert_eq!(
+        claude_answers(&transcript, INITIAL_TAIL_BYTES, 10).unwrap(),
+        [
+            "Newest answer.",
+            "Middle, first half.\n\nMiddle, second half.",
+            "Oldest answer.",
+        ]
+    );
+}
+
+#[test]
+fn claude_answers_stop_at_the_requested_count() {
+    let dir = TempDir::new().unwrap();
+    let transcript = dir.path().join("session.jsonl");
+    write_jsonl(
+        &transcript,
+        &[
+            assistant("msg_1", text_block("First.")),
+            assistant("msg_2", text_block("Second.")),
+            assistant("msg_3", text_block("Third.")),
+            assistant("msg_4", text_block("Fourth.")),
+        ],
+    );
+
+    assert_eq!(
+        claude_answers(&transcript, INITIAL_TAIL_BYTES, 2).unwrap(),
+        ["Fourth.", "Third."]
+    );
+    assert_eq!(
+        claude_answers(&transcript, INITIAL_TAIL_BYTES, 1).unwrap(),
+        ["Fourth."]
+    );
+}
+
+#[test]
+fn claude_widens_the_window_until_the_requested_count_is_gathered() {
+    let dir = TempDir::new().unwrap();
+    let transcript = dir.path().join("session.jsonl");
+    let mut lines = Vec::new();
+    for answer in ["Oldest.", "Middle.", "Newest."] {
+        lines.push(assistant(answer, text_block(answer)));
+        lines.extend((0..12).map(|n| tool_result(&format!("padding line {n} for {answer}"))));
+    }
+    write_jsonl(&transcript, &lines);
+    assert!(fs::metadata(&transcript).unwrap().len() > 16 * 256);
+
+    assert_eq!(
+        claude_answers(&transcript, 256, 3).unwrap(),
+        ["Newest.", "Middle.", "Oldest."]
+    );
+    // Asking for more than the session holds returns what there is.
+    assert_eq!(claude_answers(&transcript, 256, 9).unwrap().len(), 3);
+}
+
+#[test]
+fn codex_lists_answers_newest_first() {
+    let dir = TempDir::new().unwrap();
+    let rollout = dir.path().join("rollout.jsonl");
+    write_jsonl(
+        &rollout,
+        &[
+            codex_message("developer", &["you are a helpful agent"]),
+            codex_message("assistant", &["Oldest answer."]),
+            codex_message("user", &["another question"]),
+            codex_message("assistant", &["Newest answer.", "With a second part."]),
+            codex_task_complete(json!("Newest answer.")),
+        ],
+    );
+
+    assert_eq!(
+        codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 10).unwrap(),
+        ["Newest answer.\n\nWith a second part.", "Oldest answer."]
+    );
+    assert_eq!(
+        codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 1).unwrap(),
+        ["Newest answer.\n\nWith a second part."]
+    );
+}
+
+#[test]
+fn codex_answers_fall_back_to_a_lone_task_complete_echo() {
+    let dir = TempDir::new().unwrap();
+    let rollout = dir.path().join("rollout.jsonl");
+    write_jsonl(
+        &rollout,
+        &[
+            codex_message("user", &["write the commit message"]),
+            codex_task_complete(json!("fix(tooltip): hide on context menu opening")),
+        ],
+    );
+
+    assert_eq!(
+        codex_rollout_answers(&rollout, INITIAL_TAIL_BYTES, 10).unwrap(),
+        ["fix(tooltip): hide on context menu opening"]
+    );
+}
