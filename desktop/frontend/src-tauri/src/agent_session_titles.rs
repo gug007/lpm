@@ -15,7 +15,7 @@ const CODEX_DB_SCAN_TTL: Duration = Duration::from_secs(60);
 const CODEX_HOME_ENV: &str = "CODEX_HOME";
 const GLOBAL_PROJECT_NAME: &str = "__global__";
 
-enum AgentProvider {
+pub(crate) enum AgentProvider {
     Claude,
     Codex,
 }
@@ -57,7 +57,7 @@ pub fn agent_session_title(
     }
 }
 
-fn validate_project_name(project_name: &str) -> Result<(), String> {
+pub(crate) fn validate_project_name(project_name: &str) -> Result<(), String> {
     if project_name == GLOBAL_PROJECT_NAME {
         Ok(())
     } else {
@@ -65,7 +65,7 @@ fn validate_project_name(project_name: &str) -> Result<(), String> {
     }
 }
 
-fn parse_provider(provider: &str) -> Result<AgentProvider, String> {
+pub(crate) fn parse_provider(provider: &str) -> Result<AgentProvider, String> {
     match provider {
         "claude" => Ok(AgentProvider::Claude),
         "codex" => Ok(AgentProvider::Codex),

@@ -23,6 +23,7 @@ macro_rules! all_command_handlers {
             preview_agent_skill_delete,
             delete_agent_skill,
             agent_session_title,
+            agent_last_answer,
             list_agent_sessions,
             agent_usage_stats,
             apply_claude_limits,

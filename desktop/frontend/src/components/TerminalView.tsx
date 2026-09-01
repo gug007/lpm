@@ -1017,6 +1017,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onOpenMemorySession={openMemorySession}
             onDetachMemory={detachTerminalMemory}
             memoryTarget={memoryTarget}
+            localAgentSessions={localSessions}
             onRatioChange={setRatio}
             onFindInPane={findInPane}
             onFilterInPane={filterInPane}

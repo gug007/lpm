@@ -1,4 +1,5 @@
 mod actions;
+mod agent_last_answer;
 mod agent_limits;
 mod agent_session_titles;
 mod agent_sessions;
@@ -120,6 +121,7 @@ mod watchfilter;
 // macro (which lists them unqualified) resolves the hand-written real
 // commands and the generated stubs.
 use actions::*;
+use agent_last_answer::*;
 use agent_limits::*;
 use agent_session_titles::*;
 use agent_sessions::*;
