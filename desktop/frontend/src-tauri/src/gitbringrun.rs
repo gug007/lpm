@@ -39,7 +39,7 @@ pub(crate) fn run(
     project_root: &str,
 ) -> Result<Done, String> {
     progress(app, id, "preparing", 0, 0);
-    let prepared = hub.bring_request(
+    let prepared = hub.peer_request(
         &req.source_slug,
         PREPARE_TIMEOUT,
         json!({
@@ -53,7 +53,7 @@ pub(crate) fn run(
     // The sender holds a temp pack until we say we are finished — release it even
     // when the transfer failed or the user cancelled.
     if !transfer_id.is_empty() {
-        let _ = hub.bring_request(
+        let _ = hub.peer_request(
             &req.source_slug,
             DONE_TIMEOUT,
             json!({ "t": "gitBringDone", "transferId": transfer_id }),
@@ -143,7 +143,7 @@ fn download(
             return Err(e);
         }
         let reply = hub
-            .bring_request(
+            .peer_request(
                 &req.source_slug,
                 CHUNK_TIMEOUT,
                 json!({ "t": "gitBringChunk", "transferId": transfer_id, "offset": offset, "len": len }),

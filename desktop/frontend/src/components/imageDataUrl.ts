@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NotesReadFileAsInput } from "../../bridge/commands";
-import { prefixRoot } from "../peer/markers";
+import { PEER_UPLOAD_MAX_BYTES, prefixRoot } from "../peer/markers";
 
 // Data URLs are reused across previews so re-opening the same image doesn't
 // re-read it from disk. Bounded LRU: base64 data URLs are large and the composer
@@ -40,7 +40,11 @@ function readKey(path: string, slug?: string | null): string {
 // are known before the host path exists — so every later reader of that path (a
 // chip rebuilt from a draft, the hover preview, the lightbox) is served without a
 // round trip to the host.
-export function seedImageDataUrl(path: string, slug: string | null, dataUrl: string): void {
+export function seedImageDataUrl(
+  path: string,
+  slug: string | null,
+  dataUrl: string,
+): void {
   cacheSet(readKey(path, slug), dataUrl);
 }
 
@@ -48,11 +52,20 @@ export function seedImageDataUrl(path: string, slug: string | null, dataUrl: str
 // thumbnail chip, its hover preview, and the click-to-open lightbox of the same
 // file each read disk at most once. Imperative form, for the chip thumbnails
 // rendered into the contenteditable outside React.
-export function loadImageDataUrl(path: string, slug?: string | null): Promise<string> {
+export function loadImageDataUrl(
+  path: string,
+  slug?: string | null,
+): Promise<string> {
   const key = readKey(path, slug);
   const cached = cacheGet(key);
   if (cached) return Promise.resolve(cached);
-  return NotesReadFileAsInput(key).then((input: { mimeType?: string; data: string }) => {
+  // A routed read comes back as one frame over the peer link, so it is capped
+  // where an upload is; past that the chip keeps its placeholder glyph.
+  const read =
+    key === path
+      ? NotesReadFileAsInput(key)
+      : NotesReadFileAsInput(key, PEER_UPLOAD_MAX_BYTES);
+  return read.then((input: { mimeType?: string; data: string }) => {
     const dataUrl = `data:${input.mimeType || "image/png"};base64,${input.data}`;
     cacheSet(key, dataUrl);
     return dataUrl;
@@ -66,7 +79,9 @@ export function useImageDataUrl(
   path: string,
   slug?: string | null,
 ): { url: string | null; failed: boolean } {
-  const [url, setUrl] = useState<string | null>(() => cacheGet(readKey(path, slug)) ?? null);
+  const [url, setUrl] = useState<string | null>(
+    () => cacheGet(readKey(path, slug)) ?? null,
+  );
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {

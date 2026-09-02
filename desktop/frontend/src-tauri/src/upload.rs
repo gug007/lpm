@@ -58,7 +58,18 @@ pub fn upload_file_for_terminal(
         Some(name) => clipboard::save_clipboard_file_impl(&b64_data, &name)?,
         None => clipboard::save_clipboard_image_impl(&b64_data, &mime_type)?,
     };
-    match pty::session_remote_ssh(&state, &terminal_id) {
+    host_path_for_terminal(&state, &terminal_id, local)
+}
+
+/// The path a pane can read a just-saved local file at: scp'd to the remote for
+/// an ssh-backed pane, unchanged otherwise. Shared with the chunked peer upload
+/// (peeruploadhost.rs), which writes the file itself and then needs this tail.
+pub(crate) fn host_path_for_terminal(
+    state: &State<'_, PtyState>,
+    terminal_id: &str,
+    local: String,
+) -> Result<String, String> {
+    match pty::session_remote_ssh(state, terminal_id) {
         Some((true, Some(ssh))) => upload_files(&ssh, std::slice::from_ref(&local))?
             .pop()
             .ok_or_else(|| "upload returned no path".to_string()),
@@ -127,7 +138,7 @@ fn upload_files(ssh: &config::SshSettings, locals: &[String]) -> Result<Vec<Stri
         .collect())
 }
 
-fn basename(p: &str) -> String {
+pub(crate) fn basename(p: &str) -> String {
     Path::new(p)
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())

@@ -25,7 +25,7 @@ import {
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
 import { peerSlugOf, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
-import { uploadPeerBytes } from "../peer/uploadFiles";
+import { uploadPeerFile } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
 import {
@@ -787,31 +787,30 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     [insertItems, registerImagePath],
   );
 
-  // Read client-local paths (a Finder drop or copied files), upload each to the
-  // host, and insert the resulting chips: an image keeps the thumbnail seeded
-  // from the bytes just sent, any other file becomes a named chip on the host's
-  // copy. A refusal that carries a reason — a file past the link's size cap, or
-  // a host on an older lpm that has no file-upload command — is shown as-is;
-  // insertImageChips covers the rest with its count.
+  // Send client-local paths (a Finder drop or copied files) to the host and
+  // insert the resulting chips. The bytes go by path, which Rust streams in
+  // chunks, so nothing here is bounded by what one frame holds.
+  //
+  // An image small enough to read in one go takes the older route instead: that
+  // read is what seeds its thumbnail from the bytes just sent. A bigger one still
+  // travels, and its chip fetches a thumbnail back from the host like any other
+  // host image. A refusal that carries a reason — a host too old to be sent a
+  // file this size — is shown as-is; insertImageChips covers the rest by count.
   const addPeerLocalFiles = useCallback(
     async (paths: string[]) => {
       const reasons: string[] = [];
+      const sendByPath = async (path: string) =>
+        registerImagePath(await uploadPeerFile(terminalId, path));
       const chips = await Promise.all(
         paths.map(async (path) => {
           try {
-            const input = await NotesReadFileAsInput(path, PEER_UPLOAD_MAX_BYTES);
-            const b64 = input?.data;
-            if (!b64) return null;
-            if (isImagePath(path)) {
-              return await uploadPeerImage(b64, input.mimeType || "image/png", base64ByteLength(b64));
-            }
-            const hostPath = await uploadPeerBytes(
-              terminalId,
-              b64,
-              input.mimeType,
-              input.name || basename(path),
+            if (!isImagePath(path)) return await sendByPath(path);
+            const input = await NotesReadFileAsInput(path, PEER_UPLOAD_MAX_BYTES).catch(
+              () => null,
             );
-            return registerImagePath(hostPath);
+            const b64 = input?.data;
+            if (!b64) return await sendByPath(path);
+            return await uploadPeerImage(b64, input.mimeType || "image/png", base64ByteLength(b64));
           } catch (err) {
             reasons.push(err instanceof Error ? err.message : String(err));
             return null;

@@ -225,6 +225,7 @@ macro_rules! all_command_handlers {
             peer_reconnect,
             peer_set_auto_sync,
             peer_invoke,
+            peer_upload_file,
             peer_pair_request,
             peer_pair_cancel,
             peer_discovery_start,

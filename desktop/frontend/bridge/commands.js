@@ -952,6 +952,9 @@ export function PeerSetAutoSync(slug, enabled) {
 export function PeerInvoke(slug, cmd, args) {
   return invoke("peer_invoke", { slug, cmd, args });
 }
+export function PeerUploadFile(slug, terminalId, path, token) {
+  return invoke("peer_upload_file", { slug, terminalId, path, token });
+}
 export function PeerSyncStatus(slug) {
   return invoke("peer_sync_status", { slug });
 }

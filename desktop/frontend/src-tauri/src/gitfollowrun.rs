@@ -114,7 +114,7 @@ pub(crate) fn remote_states(
     }
     let mut out = RemoteStates::empty();
     for cwd in cwds {
-        let reply = hub.bring_request(
+        let reply = hub.peer_request(
             slug,
             STATE_TIMEOUT,
             json!({ "t": "gitBringState", "cwd": cwd }),
@@ -125,7 +125,7 @@ pub(crate) fn remote_states(
 }
 
 fn batch_states(hub: &PeerClientHub, slug: &str, cwds: &[String]) -> Result<RemoteStates, String> {
-    let reply = hub.bring_request(
+    let reply = hub.peer_request(
         slug,
         STATE_TIMEOUT,
         json!({ "t": "gitBringStates", "cwds": cwds }),

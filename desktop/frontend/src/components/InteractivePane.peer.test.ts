@@ -4,8 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   peerTermAttach: vi.fn(() => Promise.resolve()),
   peerTermDetach: vi.fn(() => Promise.resolve()),
-  notesReadFileAsInput: vi.fn(),
-  uploadFileForTerminal: vi.fn(),
+  peerUploadFile: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -17,10 +16,11 @@ vi.mock("../../bridge/commands", () => ({
   IsTerminalRemote: vi.fn(() => Promise.resolve(false)),
   PeerTermAttach: mocks.peerTermAttach,
   PeerTermDetach: mocks.peerTermDetach,
-  NotesReadFileAsInput: mocks.notesReadFileAsInput,
+  PeerUploadFile: mocks.peerUploadFile,
+  PeerState: vi.fn(() => Promise.resolve(null)),
   UploadAndQuoteForTerminal: vi.fn(),
   UploadClipboardImageForTerminal: vi.fn(),
-  UploadFileForTerminal: mocks.uploadFileForTerminal,
+  UploadFileForTerminal: vi.fn(),
   TerminalPresentControl: vi.fn(() => Promise.resolve(null)),
   TerminalUnpresentControl: vi.fn(() => Promise.resolve(null)),
   TerminalClaimControl: vi.fn(() => Promise.resolve(null)),
@@ -78,8 +78,7 @@ afterEach(() => {
   publishPeerSnapshot([]);
   mocks.peerTermAttach.mockClear();
   mocks.peerTermDetach.mockClear();
-  mocks.notesReadFileAsInput.mockReset();
-  mocks.uploadFileForTerminal.mockReset();
+  mocks.peerUploadFile.mockReset();
 });
 
 describe("disposeInteractivePaneSession", () => {
@@ -129,28 +128,26 @@ describe("attachPeerTerminal", () => {
 // Files dropped on (or pasted into) a peer pane exist only on this Mac, so the
 // bytes go to the host and what reaches the pty is where the host put them.
 describe("pastePeerUploads", () => {
-  function reads(name: string) {
-    mocks.notesReadFileAsInput.mockImplementation(() =>
-      Promise.resolve({ name, mimeType: "text/plain", data: "aGk=" }),
-    );
-  }
-
   it("pastes the paths the host saved the files under", async () => {
     const session = fakeSession(TERM);
-    reads("notes.txt");
-    mocks.uploadFileForTerminal
+    mocks.peerUploadFile
       .mockImplementationOnce(() => Promise.resolve("/host/.lpm/uploads/notes.txt"))
       .mockImplementationOnce(() => Promise.resolve("/host/.lpm/uploads/log.txt"));
     await pastePeerUploads(TERM, ["/local/notes.txt", "/local/log.txt"]);
     expect(session.term.paste).toHaveBeenCalledWith(
       "/host/.lpm/uploads/notes.txt /host/.lpm/uploads/log.txt",
     );
+    expect(mocks.peerUploadFile).toHaveBeenCalledWith(
+      SLUG,
+      "web-3",
+      "/local/notes.txt",
+      expect.any(String),
+    );
   });
 
   it("shell-quotes a host path that isn't one word", async () => {
     const session = fakeSession(TERM);
-    reads("my notes.txt");
-    mocks.uploadFileForTerminal.mockImplementation(() =>
+    mocks.peerUploadFile.mockImplementation(() =>
       Promise.resolve("/host/.lpm/uploads/my notes.txt"),
     );
     await pastePeerUploads(TERM, ["/local/my notes.txt"]);
@@ -161,25 +158,18 @@ describe("pastePeerUploads", () => {
   // attachment, exactly as a locally dropped one would.
   it("leaves a single image path unquoted", async () => {
     const session = fakeSession(TERM);
-    reads("shot.png");
-    mocks.uploadFileForTerminal.mockImplementation(() =>
-      Promise.resolve("/host/.lpm/uploads/shot.png"),
-    );
+    mocks.peerUploadFile.mockImplementation(() => Promise.resolve("/host/.lpm/uploads/shot.png"));
     await pastePeerUploads(TERM, ["/local/shot.png"]);
     expect(session.term.paste).toHaveBeenCalledWith("/host/.lpm/uploads/shot.png");
   });
 
   it("writes the host's refusal into the pane instead of dropping it", async () => {
     const session = fakeSession(TERM);
-    reads("notes.txt");
-    mocks.uploadFileForTerminal.mockImplementation(() =>
-      Promise.reject("Command upload_file_for_terminal not found"),
-    );
-    await pastePeerUploads(TERM, ["/local/notes.txt"]);
+    const refusal = "big.zip is 40 MB — update lpm on the other Mac to send files over 8 MB";
+    mocks.peerUploadFile.mockImplementation(() => Promise.reject(refusal));
+    await pastePeerUploads(TERM, ["/local/big.zip"]);
     expect(session.term.paste).not.toHaveBeenCalled();
-    expect(session.term.write).toHaveBeenCalledWith(
-      expect.stringContaining("Command upload_file_for_terminal not found"),
-    );
+    expect(session.term.write).toHaveBeenCalledWith(expect.stringContaining(refusal));
   });
 });
 

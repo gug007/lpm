@@ -9,11 +9,14 @@
 // A root stays a valid absolute-looking path (starts with /) so string ops and
 // display don't break. Both forms are Tauri-event-name safe.
 
-// A peer upload — an image or any other attached file — travels as one base64
-// JSON frame over the peer WebSocket (tungstenite's ~16 MiB default max frame).
-// Cap the raw bytes at 8 MB so their base64 (~10.7 MB) plus envelope stays
-// comfortably under that, and so a LAN transfer finishes well within the
-// client's invoke deadline.
+// What one base64 JSON frame can carry over the peer WebSocket (tungstenite's
+// ~16 MiB default max frame): 8 MB of raw bytes, whose base64 (~10.7 MB) plus
+// envelope stays comfortably under it and finishes well within the client's
+// invoke deadline.
+//
+// This bounds only the single-frame paths — a pasted image blob, the thumbnail
+// read that seeds an image chip, and the fallback for a host too old to stream.
+// A file attached by path is sent in chunks by Rust and is not capped here.
 export const PEER_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
 
 const SLUG = "[0-9a-f]{8}";

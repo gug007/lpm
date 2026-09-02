@@ -91,6 +91,7 @@ struct PeerConn {
     supports_git_follow: AtomicBool, // host can also answer the working-state fingerprint
     supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
     supports_remote_pair: AtomicBool, // host can arm its own phone pairing and hand back the QR
+    supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
     generation: AtomicU64,     // bump to retire the current connection thread
     // Present only for a peer reached over SSH. Owned here so the forward is torn
     // down with the connection rather than outliving it as a stray ssh process.
@@ -135,6 +136,7 @@ impl PeerConn {
             supports_git_follow: AtomicBool::new(false),
             supports_git_watch: AtomicBool::new(false),
             supports_remote_pair: AtomicBool::new(false),
+            supports_file_upload: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -345,6 +347,9 @@ impl PeerClientHub {
                 let supports_git_follow = conn
                     .map(|c| c.supports_git_follow.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_file_upload = conn
+                    .map(|c| c.supports_file_upload.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
@@ -371,6 +376,7 @@ impl PeerClientHub {
                     "supportsSync2": supports_sync2,
                     "supportsGitBring": supports_git_bring,
                     "supportsGitFollow": supports_git_follow,
+                    "supportsFileUpload": supports_file_upload,
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
                     "pinned": p.tls_fp.is_some(),
@@ -667,7 +673,12 @@ impl PeerClientHub {
         let _ = ws.flush();
     }
 
-    fn invoke_blocking(&self, slug: &str, cmd: &str, args: Value) -> Result<Value, String> {
+    pub(crate) fn invoke_blocking(
+        &self,
+        slug: &str,
+        cmd: &str,
+        args: Value,
+    ) -> Result<Value, String> {
         self.request_blocking(
             slug,
             INVOKE_TIMEOUT,
@@ -751,6 +762,17 @@ impl PeerClientHub {
         )
     }
 
+    /// Whether this peer takes an attached file in chunks. Not a guard: a host that
+    /// doesn't is sent the file as one frame instead, up to what that frame holds.
+    pub(crate) fn supports_file_upload(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_file_upload.load(Ordering::Relaxed))
+    }
+
     /// Guard: the peer must be connected and its host must speak "bring changes".
     pub(crate) fn require_git_bring(&self, slug: &str) -> Result<(), String> {
         self.require_feature(slug, |c| c.supports_git_bring.load(Ordering::Relaxed))
@@ -803,10 +825,10 @@ impl PeerClientHub {
         Ok(())
     }
 
-    /// Send one bring-changes frame and block on its reply. The caller supplies
-    /// the whole frame (verb + args); the reqId is filled in here so it shares the
-    /// same correlation machinery as invoke and config sync.
-    pub(crate) fn bring_request(
+    /// Send one dedicated frame and block on its reply. The caller supplies the
+    /// whole frame (verb + args); the reqId is filled in here so it shares the same
+    /// correlation machinery as invoke, config sync and file upload.
+    pub(crate) fn peer_request(
         &self,
         slug: &str,
         timeout: Duration,
@@ -1735,6 +1757,10 @@ fn connect_session(
     );
     conn.supports_remote_pair.store(
         has_feature(crate::peer::REMOTE_PAIR_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_file_upload.store(
+        has_feature(crate::peeruploadhost::FILE_UPLOAD_FEATURE),
         Ordering::Relaxed,
     );
 

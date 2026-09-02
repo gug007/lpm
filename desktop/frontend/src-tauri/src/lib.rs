@@ -60,6 +60,8 @@ mod peerssh;
 mod peersync;
 mod peertls;
 mod peertunnel;
+mod peeruploadhost;
+mod peeruploadrun;
 mod portforward;
 mod ports;
 mod portsprobe;
@@ -164,6 +166,7 @@ use peerclient::{
     peer_update_host,
 };
 use peerdiscovery::{peer_discovery_start, peer_discovery_stop};
+use peeruploadrun::peer_upload_file;
 use portforward::*;
 use ports::*;
 use projects_crud::*;

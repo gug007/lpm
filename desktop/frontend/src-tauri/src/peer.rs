@@ -58,6 +58,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::gitbringhost::GIT_BRING_FEATURE,
     crate::gitbringhost::GIT_FOLLOW_FEATURE,
     crate::gitwatchhost::GIT_WATCH_FEATURE,
+    crate::peeruploadhost::FILE_UPLOAD_FEATURE,
     REMOTE_PAIR_FEATURE,
 ];
 
@@ -1254,6 +1255,13 @@ fn handle_msg(
         // gitBring feature so an older host simply ignores them.
         "gitBringPrepare" | "gitBringState" | "gitBringStates" | "gitBringChunk"
         | "gitBringDone" => crate::gitbringhost::handle_bring(out, t, &v),
+        // A file attached to a terminal that lives here, streamed in pieces so its
+        // size is bounded by this Mac's disk rather than by one frame. Same shape
+        // again: gated on the fileUpload feature, so a client that hasn't seen it
+        // sends the one-frame upload command instead.
+        "uploadBegin" | "uploadChunk" | "uploadDone" | "uploadAbort" => {
+            crate::peeruploadhost::handle(app, out, t, &v)
+        }
         // Arm this host's own phone pairing and hand back the QR payload, so the
         // asking Mac can show the code for a machine that has no screen to show it
         // on. A dedicated frame, not an `invoke`: every `remote_*` command is

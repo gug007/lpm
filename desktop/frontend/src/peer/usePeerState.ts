@@ -46,6 +46,9 @@ export interface PeerClient {
   supportsGitBring?: boolean;
   // ...and answer the cheap fingerprint a followed project polls for.
   supportsGitFollow?: boolean;
+  // The peer's build can take an attached file in chunks rather than one frame,
+  // which is what lifts the 8 MB cap on sending it a file.
+  supportsFileUpload?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

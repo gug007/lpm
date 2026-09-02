@@ -308,6 +308,7 @@ export function PeerSetAlias(...args: any[]): Promise<any>;
 export function PeerReconnect(...args: any[]): Promise<any>;
 export function PeerSetAutoSync(...args: any[]): Promise<any>;
 export function PeerInvoke(...args: any[]): Promise<any>;
+export function PeerUploadFile(...args: any[]): Promise<any>;
 export function PeerSyncStatus(...args: any[]): Promise<any>;
 export function PeerSyncRun(...args: any[]): Promise<any>;
 export function PeerRemotePair(...args: any[]): Promise<any>;
