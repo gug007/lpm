@@ -20,9 +20,9 @@ import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-
 const PATH = vsPath("overmind");
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs Overmind — Procfile Alternative, No tmux Setup" },
+  title: { absolute: "Overmind Alternative for Mac — Procfile Without tmux" },
   description:
-    "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
+    "Overmind drives your Procfile through tmux. lpm runs the same services in a native Mac app — one live pane per process, click to attach, no tmux to learn.",
   keywords: [
     "overmind alternative",
     "overmind vs lpm",
@@ -31,18 +31,18 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Overmind — Procfile Alternative, No tmux Setup",
+    title: "Overmind Alternative for Mac — Procfile Without tmux",
     description:
-      "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
+      "Overmind drives your Procfile through tmux. lpm runs the same services in a native Mac app — one live pane per process, click to attach, no tmux to learn.",
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Overmind — Procfile Alternative, No tmux Setup",
+    title: "Overmind Alternative for Mac — Procfile Without tmux",
     description:
-      "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
+      "Overmind drives your Procfile through tmux. lpm runs the same services in a native Mac app — one live pane per process, click to attach, no tmux to learn.",
   },
 };
 
@@ -170,9 +170,9 @@ const FAQS: FaqItem[] = [
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Overmind — Procfile Alternative, No tmux Setup",
+    title: "Overmind Alternative for Mac — Procfile Without tmux",
     description:
-      "Overmind runs your Procfile through tmux; lpm gives the same per-service control in a native Mac app — panes, project switching, and AI-agent workflows.",
+      "Overmind drives your Procfile through tmux. lpm runs the same services in a native Mac app — one live pane per process, click to attach, no tmux to learn.",
     path: PATH,
   }),
   breadcrumbJsonLd([

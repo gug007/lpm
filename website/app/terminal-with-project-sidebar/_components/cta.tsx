@@ -3,7 +3,7 @@ import { HeroDownload } from "@/components/home/hero-download";
 
 export default function Cta() {
   return (
-    <section className="py-20 text-center sm:py-24">
+    <section id="download" className="scroll-mt-20 py-20 text-center sm:py-24">
       <div className="mx-auto max-w-3xl px-6">
         <h2 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-3xl leading-[1.1] font-extrabold tracking-tight text-transparent sm:text-5xl dark:from-white dark:via-gray-100 dark:to-gray-400">
           Give every project a home.

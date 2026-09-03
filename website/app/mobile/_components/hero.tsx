@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { DownloadLink } from "@/components/download-link";
 import AppStoreButton from "./app-store-button";
 
 export default function Hero() {
@@ -24,13 +24,10 @@ export default function Hero() {
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <AppStoreButton source="mobile-hero" />
         </div>
-        <Link
-          href="/#download"
-          className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-        >
+        <DownloadLink className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
           Get lpm for your Mac
           <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+        </DownloadLink>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           Install lpm on your Mac and the lpm link app on your iPhone or iPad,
           then scan one QR code to pair.

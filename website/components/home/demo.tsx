@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AutoVideo } from "@/components/auto-video";
 import { useInView } from "@/components/config/playground/hooks";
+import { DownloadLink } from "@/components/download-link";
 import { MOBILE_PATH } from "@/lib/links";
 
 // A real lpm window is 960×640; the stage is capped at 1040px wide (see
@@ -64,12 +65,9 @@ function DesktopOnlyPrompt() {
           lpm is a macOS app with a multi-pane terminal workspace. Open this
           page on your computer to try the interactive demo.
         </p>
-        <Link
-          href="/#download"
-          className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]"
-        >
+        <DownloadLink className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
           Get lpm for Mac
-        </Link>
+        </DownloadLink>
         <Link
           href={MOBILE_PATH}
           className="text-[12px] text-[#919191] underline decoration-[#4a4a4a] underline-offset-4 transition-colors hover:text-white hover:decoration-current"
@@ -144,12 +142,9 @@ function DemoStage() {
             className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400"
           >
             Done poking around?{" "}
-            <Link
-              href="/#download"
-              className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white"
-            >
+            <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
               Get lpm for Mac
-            </Link>{" "}
+            </DownloadLink>{" "}
             and point it at your own projects.
           </p>
         </div>

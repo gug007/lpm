@@ -30,9 +30,11 @@ import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import LpmStatuslineDemo from "./_components/lpm-statusline-demo";
 
-const TITLE = "Customize Claude Code & Codex Statuslines";
+// Every query this page ranks for on page one leads with "codex", so the title
+// does too.
+const TITLE = "Codex & Claude Code Statusline — Customize It Without Config Files";
 const DESCRIPTION =
-  "Customize Claude Code and Codex statuslines visually in lpm for macOS. Pick presets, reorder fields, tune colors, meters, and separators, and preview live.";
+  "Build a custom Codex or Claude Code statusline in a visual editor: pick a preset, reorder fields, tune colors and meters, preview live. Free Mac app.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -54,7 +56,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "Use lpm to visually customize Claude Code and Codex statuslines with presets, live preview, fields, colors, and usage meters.",
+      "Build a Codex or Claude Code statusline in a visual editor — presets, live preview, fields, colors, and usage meters. No config files.",
     type: "website",
     url: STATUSLINE_PATH,
     siteName: "lpm",
@@ -63,7 +65,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Visual statusline customization for Claude Code and Codex, built into lpm for macOS.",
+      "Visual statusline editor for Codex and Claude Code, built into lpm for macOS.",
   },
 };
 

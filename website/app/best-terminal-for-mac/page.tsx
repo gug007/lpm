@@ -20,10 +20,15 @@ import Landscape from "./_components/landscape";
 import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
 
+const TITLE = "Best Terminal for Mac 2026 — Free, Native, Apple Silicon";
+const DESCRIPTION =
+  "Free, native, no Electron. Run your whole dev stack in one Mac window — a log pane per service, instant project switching, and Claude Code or Codex beside it.";
+
 export const metadata: Metadata = {
-  title: "Best Terminal for Mac in 2026 — Native, No Electron",
-  description:
-    "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
+  // Absolute so the "%s — lpm" template does not push the title past the
+  // ~60-character mark Google truncates at.
+  title: { absolute: TITLE },
+  description: DESCRIPTION,
   keywords: [
     "best terminal for mac",
     "best terminal for macos",
@@ -36,26 +41,23 @@ export const metadata: Metadata = {
     canonical: BEST_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Mac in 2026 — Native, No Electron",
-    description:
-      "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: BEST_TERMINAL_MAC_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Mac in 2026 — Native, No Electron",
-    description:
-      "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal for Mac in 2026 — Native, No Electron",
-    description:
-      "A native Apple Silicon terminal that runs your whole dev stack in one window — live logs per service, one-click project switching, and AI agents alongside.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: BEST_TERMINAL_MAC_PATH,
   }),
   breadcrumbJsonLd([

@@ -5,7 +5,7 @@ import { AI_AGENTS_PATH } from "@/lib/links";
 
 export default function Cta() {
   return (
-    <section className="py-20 text-center sm:py-24">
+    <section id="download" className="scroll-mt-20 py-20 text-center sm:py-24">
       <div className="mx-auto max-w-3xl px-6">
         <h2 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-3xl font-extrabold leading-[1.1] tracking-tight text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl">
           Put Claude Code and Codex in one visible workspace.

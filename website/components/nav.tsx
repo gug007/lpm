@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AI_AGENTS_PATH, VS_BASE_PATH } from "@/lib/links";
+import { DownloadLink } from "./download-link";
 import { GitHubStarButton } from "./github-star-button";
 import { NavLink } from "./nav-link";
 import { NavMobileMenu } from "./nav-mobile-menu";
@@ -49,12 +50,9 @@ export function Nav() {
           <NavLink href={VS_BASE_PATH} className={`hidden md:inline-flex ${linkClass}`}>
             Compare
           </NavLink>
-          <Link
-            href="/#download"
-            className="inline-flex items-center rounded-full bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200"
-          >
+          <DownloadLink className="inline-flex items-center rounded-full bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200">
             Download
-          </Link>
+          </DownloadLink>
           <ThemeToggle />
           <NavMobileMenu />
         </div>
