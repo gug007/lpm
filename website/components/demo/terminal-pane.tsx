@@ -134,7 +134,8 @@ export function PaneHeader({
             onTabContextMenu(i, e.clientX, e.clientY);
           };
           // The tab icon gives way to the close (or pin) affordance on hover
-          // rather than sitting beside it, so the pill never changes width.
+          // rather than sitting beside it, inside a fixed 14px slot: emoji and
+          // glyph icons are narrower than the X, so the pill never changes width.
           const hasHoverIcon = closable || pinned;
           return (
             <div
@@ -161,10 +162,10 @@ export function PaneHeader({
                   : "text-[#9a9a9a] hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5]"
               }`}
             >
-              <span className="flex shrink-0 items-center">
+              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                 <span
                   aria-hidden="true"
-                  className={`flex items-center transition-opacity ${
+                  className={`flex items-center justify-center transition-opacity ${
                     active ? "opacity-90" : "opacity-60 group-hover:opacity-80"
                   } ${hasHoverIcon ? "group-hover:hidden" : ""}`}
                 >
