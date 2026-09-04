@@ -8,6 +8,7 @@ import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-c
 import { AgentComposer } from "./agent-composer";
 import { AgentTurn } from "./agent-turn";
 import {
+  AFFIRMATIVE,
   BRAND,
   DONE_STEPS,
   GENERIC_REPLY_CONTEXT,
@@ -23,6 +24,10 @@ import {
 } from "./agent-script";
 
 export type AgentStatus = "running" | "waiting" | "done" | "error";
+
+/** When the turn behind a status started, and when it landed. A turn still in
+ *  flight reports no `until`, so the sidebar's clock counts up. */
+export type AgentTurnTiming = { since: number; until?: number };
 
 type HistoryItem = {
   id: number;
@@ -45,17 +50,28 @@ const SETTLE_AFTER_MS = 32000;
 // What a session that opens already finished claims it spent, so its footer
 // reads like a turn that really ran instead of one that took no time at all.
 const SEEDED_DONE_MS = 9000;
+// How long a seeded question has been standing when the visitor opens it. The
+// sidebar was already counting it before the tab existed, so the reading has to
+// carry on from there rather than restart at zero.
+const SEEDED_WAIT_MS = 4 * 60_000;
 
 type AgentTerminalProps = {
   agent: AgentKind;
   cwd: string;
   replyContext?: ReplyContext;
-  onStatus?: (status: AgentStatus) => void;
+  onStatus?: (status: AgentStatus, timing?: AgentTurnTiming) => void;
   // When set, the session opens with this prompt already sent. autoMode
   // "progress" streams a canned reply that never resolves (agent still
-  // working); "done" shows the reply already finished (work already complete).
+  // working); "done" shows the reply already finished (work already complete);
+  // "waiting" shows a reply that stopped on a question, so the session is
+  // holding for an answer the visitor can actually give.
   autoPrompt?: string;
-  autoMode?: "progress" | "done";
+  autoMode?: "progress" | "done" | "waiting";
+  // What answering "yes" to a waiting session carries out. The intent decides
+  // the fallback reply; answer steps, when given, are what actually runs, so a
+  // seeded question can be answered in its own terms.
+  autoIntent?: ReplyIntent;
+  autoAnswerSteps?: Step[];
   autoSteps?: Step[];
 };
 
@@ -67,6 +83,8 @@ export function AgentTerminal({
   autoPrompt,
   autoMode = "progress",
   autoSteps,
+  autoIntent,
+  autoAnswerSteps,
 }: AgentTerminalProps) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -78,6 +96,8 @@ export function AgentTerminal({
   ]);
   const nextIdRef = useRef(0);
   const pendingRef = useRef<ReplyIntent | undefined>(undefined);
+  // The reply a seeded question has already written, waiting on a yes.
+  const pendingStepsRef = useRef<Step[] | undefined>(undefined);
   const keepAliveIdxRef = useRef(0);
   const onStatusRef = useRef(onStatus);
   useEffect(() => {
@@ -93,14 +113,23 @@ export function AgentTerminal({
     let steps = opts?.steps;
     let asks = false;
     if (!steps) {
-      const reply = buildReply(text, agent, ctx, pendingRef.current);
-      steps = reply.steps;
-      asks = reply.intent !== undefined;
-      pendingRef.current = reply.intent;
+      const answering = pendingStepsRef.current;
+      if (answering && AFFIRMATIVE.test(text.trim().toLowerCase())) {
+        steps = answering;
+        pendingStepsRef.current = undefined;
+        pendingRef.current = undefined;
+      } else {
+        const reply = buildReply(text, agent, ctx, pendingRef.current);
+        steps = reply.steps;
+        asks = reply.intent !== undefined;
+        pendingRef.current = reply.intent;
+        if (reply.intent === undefined) pendingStepsRef.current = undefined;
+      }
     }
     if (steps.length === 0) return;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
+    const startedAt = Date.now();
     setHistory((h) => {
       const next = [
         ...h,
@@ -110,7 +139,7 @@ export function AgentTerminal({
           revealed: 0,
           steps,
           finished: false,
-          startedAt: Date.now(),
+          startedAt,
           doneMs: 0,
           keepBusy: opts?.keepBusy,
           asks,
@@ -119,7 +148,7 @@ export function AgentTerminal({
       return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
     });
     setBusy(true);
-    onStatusRef.current?.("running");
+    onStatusRef.current?.("running", { since: startedAt });
   };
 
   // One pending timer at a time, re-derived from the transcript: closing the
@@ -133,16 +162,22 @@ export function AgentTerminal({
       setHistory((h) => h.map((x) => (x.id === item.id ? fn(x) : x)));
 
     const finish = (closing?: Step) => {
+      const landedAt = Date.now();
       patch((x) => ({
         ...x,
         finished: true,
         keepBusy: false,
-        doneMs: Date.now() - x.startedAt,
+        doneMs: landedAt - x.startedAt,
         steps: closing ? [...x.steps, closing] : x.steps,
         revealed: x.steps.length + (closing ? 1 : 0),
       }));
       setBusy(false);
-      onStatusRef.current?.(item.asks ? "waiting" : "done");
+      // A turn that ends on a question is still on the clock — it counts how
+      // long it has been waiting, the way the app's row does.
+      onStatusRef.current?.(
+        item.asks ? "waiting" : "done",
+        item.asks ? { since: landedAt } : { since: item.startedAt, until: landedAt },
+      );
     };
 
     const after = (ms: number, fn: () => void) => {
@@ -188,6 +223,8 @@ export function AgentTerminal({
       });
     } else if (autoPrompt && autoMode === "done") {
       nextIdRef.current += 1;
+      const landedAt = Date.now();
+      const startedAt = landedAt - SEEDED_DONE_MS;
       setHistory([
         {
           id: nextIdRef.current,
@@ -195,13 +232,35 @@ export function AgentTerminal({
           revealed: DONE_STEPS.length,
           steps: DONE_STEPS,
           finished: true,
-          startedAt: Date.now() - SEEDED_DONE_MS,
+          startedAt,
           doneMs: SEEDED_DONE_MS,
         },
       ]);
       // Without this the finished session never reports itself, so its sidebar
       // badge disappears for good the first time the project is opened.
-      onStatusRef.current?.("done");
+      onStatusRef.current?.("done", { since: startedAt, until: landedAt });
+    } else if (autoPrompt && autoMode === "waiting" && autoSteps) {
+      nextIdRef.current += 1;
+      const askedAt = Date.now();
+      setHistory([
+        {
+          id: nextIdRef.current,
+          query: autoPrompt,
+          revealed: autoSteps.length,
+          steps: autoSteps,
+          finished: true,
+          startedAt: askedAt - SEEDED_WAIT_MS - SEEDED_DONE_MS,
+          doneMs: SEEDED_DONE_MS,
+          asks: true,
+        },
+      ]);
+      // The question is live: "yes" in the composer runs it through the same
+      // path a question asked during the visit would take.
+      pendingRef.current = autoIntent;
+      pendingStepsRef.current = autoAnswerSteps;
+      // Counting from the question, not from the turn — the row reads how long
+      // the agent has been held up.
+      onStatusRef.current?.("waiting", { since: askedAt - SEEDED_WAIT_MS });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -209,6 +268,8 @@ export function AgentTerminal({
   // Mirrors the app's interrupt: the turn in flight settles where it stands
   // and the composer is free again.
   const stop = () => {
+    const landedAt = Date.now();
+    const inFlight = history.find((item) => !item.finished);
     setHistory((h) =>
       h.map((item) =>
         item.finished
@@ -218,12 +279,15 @@ export function AgentTerminal({
               finished: true,
               // Cut off before the question landed, so nothing is waiting on you.
               asks: false,
-              doneMs: Date.now() - item.startedAt,
+              doneMs: landedAt - item.startedAt,
             },
       ),
     );
     setBusy(false);
-    onStatusRef.current?.("done");
+    onStatusRef.current?.("done", {
+      since: inFlight?.startedAt ?? landedAt,
+      until: landedAt,
+    });
     inputRef.current?.focus();
   };
 
@@ -267,7 +331,7 @@ export function AgentTerminal({
         <div className="h-2" />
         <AgentBanner agent={agent} cwd={cwd} />
         <div className="h-2" />
-        <div className="text-[#686868]">
+        <div className="text-[#8a8a8a]">
           <span className="font-semibold text-[#919191]">
             {agent === "claude" ? "※ Tip:" : "Tip:"}
           </span>{" "}
@@ -315,6 +379,9 @@ export function AgentTerminal({
         onSuggest={() => fillInput(SUGGESTIONS[0])}
         onRecall={() => fillInput(lastQuery)}
         canRecall={!!lastQuery}
+        workingSince={history[history.length - 1]?.finished === false
+          ? history[history.length - 1].startedAt
+          : undefined}
       >
         {history.length === 0 && !busy && (
           <div className="mb-2 flex flex-wrap gap-1.5">

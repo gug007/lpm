@@ -14,11 +14,16 @@ import { FOCUS_RING } from "./ui";
 
 const VIEWPORT_MARGIN = 8;
 
-type Item = { label: string; icon: LucideIcon; shortcut?: string };
+type Item = {
+  label: string;
+  icon: LucideIcon;
+  shortcut?: string;
+  action?: "duplicate" | "worktree";
+};
 
 const ITEMS: Item[] = [
-  { label: "Duplicate", icon: Copy },
-  { label: "New Worktree", icon: GitBranch },
+  { label: "Duplicate", icon: Copy, action: "duplicate" },
+  { label: "New Worktree", icon: GitBranch, action: "worktree" },
   { label: "Edit Config", icon: Pencil, shortcut: "⌘E" },
   { label: "Notes", icon: MessageSquare, shortcut: "⌘⇧N" },
   { label: "Rename", icon: Pencil },
@@ -28,19 +33,21 @@ const ITEMS: Item[] = [
 const ITEM_CLASS =
   "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] outline-none transition-colors";
 
-/** The menu a project row opens on right-click or from its ⋮. The demo has
- *  nothing behind these commands, so every one of them just closes — what it
- *  is here to show is that the row has them at all. */
+/** The menu a project row opens on right-click or from its ⋮. Duplicate and
+ *  New Worktree really run — they are what the page sells. The rest close, and
+ *  are here to show the row has them. */
 export function SidebarRowMenu({
   x,
   y,
   label,
   onClose,
+  onDuplicate,
 }: {
   x: number;
   y: number;
   label: string;
   onClose: () => void;
+  onDuplicate: (mode: "duplicate" | "worktree") => void;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: x, top: y });
@@ -85,12 +92,15 @@ export function SidebarRowMenu({
       style={{ left: pos.left, top: pos.top }}
       className="menu-pop fixed z-[80] min-w-[180px] rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] py-1 shadow-lg"
     >
-      {ITEMS.map(({ label: item, icon: Icon, shortcut }) => (
+      {ITEMS.map(({ label: item, icon: Icon, shortcut, action }) => (
         <button
           key={item}
           type="button"
           role="menuitem"
-          onClick={onClose}
+          onClick={() => {
+            if (action) onDuplicate(action);
+            onClose();
+          }}
           className={`${ITEM_CLASS} ${FOCUS_RING} text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]`}
         >
           <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} />

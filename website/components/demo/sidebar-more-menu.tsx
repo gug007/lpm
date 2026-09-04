@@ -19,6 +19,7 @@ type MoreMenuProps = {
   activeView: DemoView;
   onOpen: (view: DemoView) => void;
   hasError: boolean;
+  needsYou: number;
   unreadAutomations: number;
   runningAutomations: number;
 };
@@ -36,6 +37,7 @@ export function SidebarMoreMenu({
   activeView,
   onOpen,
   hasError,
+  needsYou,
   unreadAutomations,
   runningAutomations,
 }: MoreMenuProps) {
@@ -84,7 +86,7 @@ export function SidebarMoreMenu({
         </span>
         <span className="truncate">More</span>
         <span className="ml-auto flex items-center gap-2">
-          <ErrorSignal hasError={hasError} />
+          <NavSignals needsYou={needsYou} hasError={hasError} />
           {runningAutomations > 0 ? (
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22d3ee]" />
           ) : (
@@ -103,7 +105,7 @@ export function SidebarMoreMenu({
             label="Activity"
             active={activeView === "activity"}
             onClick={pick("activity")}
-            trailing={<ErrorSignal hasError={hasError} />}
+            trailing={<NavSignals needsYou={needsYou} hasError={hasError} />}
           />
           <MenuRow
             icon={<History className="h-3.5 w-3.5" strokeWidth={1.5} />}
@@ -196,10 +198,36 @@ function MenuRow({
   );
 }
 
-// The ambient signal the app's footer carries: an agent somewhere hit an error.
-function ErrorSignal({ hasError }: { hasError: boolean }) {
-  if (!hasError) return null;
-  return <span aria-label="an agent hit an error" className="h-1.5 w-1.5 rounded-full bg-[#f87171]" />;
+// The ambient signal the app's footer carries, in the order it reads them: how
+// many agents are stopped on a question, then whether one hit an error. Without
+// it a visitor scrolled past the sidebar has no sign anything wants them.
+function NavSignals({
+  needsYou,
+  hasError,
+}: {
+  needsYou: number;
+  hasError: boolean;
+}) {
+  if (needsYou <= 0 && !hasError) return null;
+  return (
+    <>
+      {needsYou > 0 && (
+        <span
+          aria-label={`${needsYou} agent${needsYou === 1 ? "" : "s"} waiting on you`}
+          className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold tabular-nums text-[#fbbf24]"
+        >
+          <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-[#fbbf24]" />
+          {needsYou}
+        </span>
+      )}
+      {hasError && (
+        <span
+          aria-label="an agent hit an error"
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#f87171]"
+        />
+      )}
+    </>
+  );
 }
 
 function CountBadge({ count, label }: { count: number; label: string }) {

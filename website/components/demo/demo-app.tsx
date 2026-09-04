@@ -17,6 +17,7 @@ import INITIAL_PROJECTS, {
   type DemoGit,
   type DemoProject,
   type OutputLine,
+  type ReplyContext,
 } from "./projects";
 import { DemoSidebar } from "./sidebar";
 import { MobileProjectSwitcher } from "./mobile-project-switcher";
@@ -31,7 +32,10 @@ import {
   unreadJobCount,
   type DemoJob,
 } from "./automations";
-import { DEFAULT_USAGE_SETTINGS, type UsageSidebarSettings } from "./usage-data";
+import {
+  DEFAULT_USAGE_SETTINGS,
+  type UsageSidebarSettings,
+} from "./usage-data";
 import type { DemoView } from "./views";
 import {
   DemoProjectView,
@@ -39,14 +43,13 @@ import {
   type ActionTerminalMap,
   type AgentTabState,
 } from "./project-view";
-import type { PaneNode } from "./pane-tree";
+import { activateTabByKey, activeTabKeys, type PaneNode } from "./pane-tree";
+import { DemoActiveProvider, usePageVisible } from "./demo-active";
 import { GlobalTerminalsView } from "./global-terminals-view";
 import { SettingsView } from "./settings-view";
-import {
-  DemoAddProjectModal,
-  type NewProjectInput,
-} from "./add-project-modal";
+import { DemoAddProjectModal, type NewProjectInput } from "./add-project-modal";
 import type { NewActionInput } from "./add-action-modal";
+import type { AgentStep } from "./agent-script";
 
 type DemoAppProps = {
   heightCss?: string;
@@ -62,6 +65,37 @@ const EMPTY_STATUS: Record<string, AgentTabState> = {};
 // What a project's row reports when its tabs disagree: a problem outranks a
 // question, which outranks work still in flight.
 const ROLLUP_ORDER: AiStatus[] = ["error", "waiting", "running", "done"];
+
+// What the agent in a fresh copy picks up, so the duplicate is visibly doing
+// its own work rather than mirroring its parent.
+const DUPLICATE_PROMPT = "Try the same change with a background job instead";
+
+// The copy's opening turn, named in the source project's own files. Built here
+// rather than through buildReply, whose replies all stop on a question — a
+// duplicate has to look like a second agent working, not one asking.
+function duplicateSteps(ctx: ReplyContext | undefined): AgentStep[] | undefined {
+  if (!ctx) return undefined;
+  return [
+    { kind: "thinking" },
+    { kind: "tool", label: "Read", arg: ctx.focusFile, result: ctx.focusLines },
+    {
+      kind: "text",
+      text: `Same change, queued through ${ctx.wireTarget} instead, so the caller returns straight away.`,
+    },
+    { kind: "tool", label: "Write", arg: ctx.draftFile, result: "+52" },
+    { kind: "tool", label: "Edit", arg: ctx.focusFile, result: "+7 -12" },
+    { kind: "tool", label: "Bash", arg: ctx.testCmd, result: "running…" },
+  ];
+}
+
+// How long the sessions a visitor has not opened yet claim to have been going,
+// so their rows read like work already under way rather than starting now.
+const SEEDED_AGENT_AGE_MS: Record<AiStatus, number> = {
+  running: 41_000,
+  waiting: 4 * 60_000,
+  done: 52_000,
+  error: 18_000,
+};
 
 type AutoCursorState =
   | { phase: "hidden" }
@@ -214,8 +248,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   >({});
   const [view, setView] = useState<DemoView>("project");
   const [jobs, setJobs] = useState<DemoJob[]>(INITIAL_JOBS);
-  const [usageSettings, setUsageSettings] =
-    useState<UsageSidebarSettings>(DEFAULT_USAGE_SETTINGS);
+  const [usageSettings, setUsageSettings] = useState<UsageSidebarSettings>(
+    DEFAULT_USAGE_SETTINGS,
+  );
   const [adding, setAdding] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(
     () => new Set([INITIAL_PROJECTS[0].name]),
@@ -225,13 +260,18 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   });
   const [hint, setHint] = useState<HintStage>("invite");
   const [isInView, setIsInView] = useState(false);
+  const pageVisible = usePageVisible();
   const [glowActive, setGlowActive] = useState(false);
   const [ringPulseOn, setRingPulseOn] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const startButtonRef = useRef<HTMLButtonElement | null>(null);
   const agentButtonRef = useRef<HTMLButtonElement | null>(null);
+  const codexButtonRef = useRef<HTMLButtonElement | null>(null);
   const autoCursorRanRef = useRef(false);
   const hasBeenSeenRef = useRef(false);
+  // Stamped once when the demo mounts, so the seeded sessions all date from
+  // the same moment rather than drifting apart as the tree re-renders.
+  const [mountedAt] = useState(() => Date.now());
 
   const markInteracted = () => {
     setAutoCursor({ phase: "hidden" });
@@ -284,6 +324,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     // and a second agent click would open a duplicate tab.
     let started = false;
     let launched = false;
+    let paired = false;
 
     const startIfIdle = () => {
       if (started) return;
@@ -302,12 +343,24 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       setHint("next");
     };
 
+    // The headline claim is two agents at once, so the last beat opens the
+    // other CLI too. It lands as a tab beside Claude's, the way an action
+    // always opens — the tour never rearranges the visitor's panes.
+    const launchCodexIfIdle = () => {
+      const btn = codexButtonRef.current;
+      if (paired || !btn) return;
+      paired = true;
+      btn.click();
+      setHint("next");
+    };
+
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     if (prefersReducedMotion) {
       startIfIdle();
       launchAgentIfIdle();
+      launchCodexIfIdle();
       return;
     }
 
@@ -398,8 +451,25 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       if (!cursorHidden) moveToAgent("tap")();
       launchAgentIfIdle();
     });
-    mime(6700, moveToAgent("fade"));
-    mime(7200, () => setAutoCursor({ phase: "hidden" }));
+
+    // Third beat: Claude has been streaming long enough to read, so the other
+    // agent joins it in the same project.
+    const codexAt = () => {
+      const el = codexButtonRef.current;
+      return el ? at(el) : null;
+    };
+    const moveToCodex = (phase: "travel" | "tap" | "fade") => () => {
+      const pos = codexAt();
+      if (pos) setAutoCursor({ phase, ...pos });
+    };
+
+    mime(9400, moveToCodex("travel"));
+    step(10200, () => {
+      if (!cursorHidden) moveToCodex("tap")();
+      launchCodexIfIdle();
+    });
+    mime(10700, moveToCodex("fade"));
+    mime(11200, () => setAutoCursor({ phase: "hidden" }));
 
     return () => {
       // Scrolling away mid-flight would otherwise strand the mimed cursor on
@@ -409,6 +479,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       if (!cancelled) {
         startIfIdle();
         launchAgentIfIdle();
+        launchCodexIfIdle();
       }
       cancelled = true;
       clearTimers();
@@ -473,133 +544,177 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       const seeded = aiStatusByProject[p.name];
       const action = p.actions.find((a) => a.name === p.autoStart);
       if (seeded && action) {
+        const age = SEEDED_AGENT_AGE_MS[seeded];
         out[p.name] = {
-          [`${action.name}-seed`]: { label: action.label, status: seeded },
+          [`${action.name}-seed`]: {
+            label: action.label,
+            status: seeded,
+            since: mountedAt - age,
+            // Only a landed turn stops counting; one still working or waiting
+            // keeps ticking, the way the app's row does.
+            ...(seeded === "done" ? { until: mountedAt } : {}),
+          },
         };
       }
     }
     return out;
-  }, [projects, agentTabStatusByProject, aiStatusByProject]);
+  }, [projects, agentTabStatusByProject, aiStatusByProject, mountedAt]);
+
+  // How many agents are stopped on a question, counted off the same rows the
+  // sidebar draws so the footer and the list can never disagree.
+  const needsYouCount = useMemo(
+    () =>
+      Object.values(sidebarAgentTabs).reduce(
+        (total, tabs) =>
+          total +
+          Object.values(tabs).filter((tab) => tab.status === "waiting").length,
+        0,
+      ),
+    [sidebarAgentTabs],
+  );
+
+  const activeAgentKeys = useMemo(
+    () =>
+      view === "project"
+        ? activeTabKeys(treeByProject[selected] ?? null)
+        : undefined,
+    [view, treeByProject, selected],
+  );
+
+  // A sidebar agent row opens the tab it names, rather than only selecting the
+  // project it sits under. A seeded row has no tab yet, so the tree is left
+  // alone and selecting the project is the whole action.
+  const openAgent = (projectName: string, key: string) => {
+    selectProject(projectName);
+    setTreeByProject((prev) => ({
+      ...prev,
+      [projectName]: activateTabByKey(prev[projectName] ?? null, key),
+    }));
+  };
 
   // Every visited project stays mounted, so its handlers must bind to a name
   // rather than to whichever project happens to be selected.
   const handlers = useMemo(() => {
     const build = (p: DemoProject) => {
-    const name = p.name;
+      const name = p.name;
 
-    // Narrows a by-project record down to this project's slice.
-    const scoped =
-      <T,>(
-        setAll: Dispatch<SetStateAction<Record<string, T>>>,
-        fallback: () => T,
-      ): Dispatch<SetStateAction<T>> =>
-      (update) =>
-        setAll((prev) => {
-          const cur = name in prev ? prev[name] : fallback();
-          const next = typeof update === "function"
-            ? (update as (c: T) => T)(cur)
-            : update;
-          return { ...prev, [name]: next };
+      // Narrows a by-project record down to this project's slice.
+      const scoped =
+        <T,>(
+          setAll: Dispatch<SetStateAction<Record<string, T>>>,
+          fallback: () => T,
+        ): Dispatch<SetStateAction<T>> =>
+        (update) =>
+          setAll((prev) => {
+            const cur = name in prev ? prev[name] : fallback();
+            const next =
+              typeof update === "function"
+                ? (update as (c: T) => T)(cur)
+                : update;
+            return { ...prev, [name]: next };
+          });
+
+      const setTree = scoped(setTreeByProject, () => initialPaneState(p).tree);
+      const setActionTerminals = scoped(
+        setActionTerminalsByProject,
+        () => initialPaneState(p).actionTerminals,
+      );
+      const setAgentTabStatus = scoped(setAgentTabStatusByProject, () => ({}));
+
+      const updateGit = (mutate: (g: DemoGit) => DemoGit) => {
+        setGitByProject((prev) => {
+          const cur = prev[name];
+          if (!cur) return prev;
+          return { ...prev, [name]: mutate(cur) };
         });
+      };
 
-    const setTree = scoped(setTreeByProject, () => initialPaneState(p).tree);
-    const setActionTerminals = scoped(
-      setActionTerminalsByProject,
-      () => initialPaneState(p).actionTerminals,
-    );
-    const setAgentTabStatus = scoped(setAgentTabStatusByProject, () => ({}));
-
-    const updateGit = (mutate: (g: DemoGit) => DemoGit) => {
-      setGitByProject((prev) => {
-        const cur = prev[name];
-        if (!cur) return prev;
-        return { ...prev, [name]: mutate(cur) };
-      });
-    };
-
-    return {
-      setTree,
-      setActionTerminals,
-      setAgentTabStatus,
-      onStartServices: (names: string[]) =>
-        setRunningByProject((prev) => ({
-          ...prev,
-          [name]: new Set(
-            names.filter((n) => p.services.some((s) => s.name === n)),
+      return {
+        setTree,
+        setActionTerminals,
+        setAgentTabStatus,
+        onStartServices: (names: string[]) =>
+          setRunningByProject((prev) => ({
+            ...prev,
+            [name]: new Set(
+              names.filter((n) => p.services.some((s) => s.name === n)),
+            ),
+          })),
+        onStopAll: () =>
+          setRunningByProject((prev) => ({ ...prev, [name]: new Set() })),
+        onToggleService: (svc: string) =>
+          setRunningByProject((prev) => {
+            const next = new Set(prev[name]);
+            if (next.has(svc)) next.delete(svc);
+            else next.add(svc);
+            return { ...prev, [name]: next };
+          }),
+        onGitCheckout: (b: DemoBranch) =>
+          updateGit((g) => {
+            const hasLocal = g.branches.some(
+              (x) => !x.remote && x.name === b.name,
+            );
+            const branches =
+              b.remote && !hasLocal
+                ? [{ name: b.name, age: "now" }, ...g.branches]
+                : g.branches;
+            return {
+              ...g,
+              branch: b.name,
+              uncommitted: 0,
+              ahead: 0,
+              behind: 0,
+              branches,
+            };
+          }),
+        onGitCommit: () =>
+          updateGit((g) =>
+            g.uncommitted === 0
+              ? g
+              : { ...g, uncommitted: 0, ahead: g.ahead + 1 },
           ),
-        })),
-      onStopAll: () =>
-        setRunningByProject((prev) => ({ ...prev, [name]: new Set() })),
-      onToggleService: (svc: string) =>
-        setRunningByProject((prev) => {
-          const next = new Set(prev[name]);
-          if (next.has(svc)) next.delete(svc);
-          else next.add(svc);
-          return { ...prev, [name]: next };
-        }),
-      onGitCheckout: (b: DemoBranch) =>
-        updateGit((g) => {
-          const hasLocal = g.branches.some(
-            (x) => !x.remote && x.name === b.name,
-          );
-          const branches =
-            b.remote && !hasLocal
-              ? [{ name: b.name, age: "now" }, ...g.branches]
-              : g.branches;
-          return {
+        onGitPull: () => updateGit((g) => ({ ...g, behind: 0 })),
+        onGitPush: () =>
+          updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
+        // Fetch only updates remote-tracking refs; the demo has nothing new to
+        // pull in, so this is a no-op — same as a real "Already up to date".
+        onGitFetch: () => {},
+        onGitMerge: () =>
+          updateGit((g) => ({ ...g, ahead: g.ahead + 1, uncommitted: 0 })),
+        onGitCreatePR: () =>
+          updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
+        onGitDiscard: () => updateGit((g) => ({ ...g, uncommitted: 0 })),
+        onGitSync: () => updateGit((g) => ({ ...g, ahead: 0, behind: 0 })),
+        onGitCreateBranch: (branch: string) =>
+          updateGit((g) => ({
             ...g,
-            branch: b.name,
+            branch,
             uncommitted: 0,
             ahead: 0,
             behind: 0,
-            branches,
-          };
-        }),
-      onGitCommit: () =>
-        updateGit((g) =>
-          g.uncommitted === 0 ? g : { ...g, uncommitted: 0, ahead: g.ahead + 1 },
-        ),
-      onGitPull: () => updateGit((g) => ({ ...g, behind: 0 })),
-      onGitPush: () => updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
-      // Fetch only updates remote-tracking refs; the demo has nothing new to
-      // pull in, so this is a no-op — same as a real "Already up to date".
-      onGitFetch: () => {},
-      onGitMerge: () =>
-        updateGit((g) => ({ ...g, ahead: g.ahead + 1, uncommitted: 0 })),
-      onGitCreatePR: () =>
-        updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
-      onGitDiscard: () => updateGit((g) => ({ ...g, uncommitted: 0 })),
-      onGitSync: () => updateGit((g) => ({ ...g, ahead: 0, behind: 0 })),
-      onGitCreateBranch: (branch: string) =>
-        updateGit((g) => ({
-          ...g,
-          branch,
-          uncommitted: 0,
-          ahead: 0,
-          behind: 0,
-          branches: [{ name: branch, age: "now" }, ...g.branches],
-        })),
-      onGitRenameBranch: (oldName: string, newName: string) =>
-        updateGit((g) => ({
-          ...g,
-          branch: g.branch === oldName ? newName : g.branch,
-          branches: g.branches.map((b) =>
-            !b.remote && b.name === oldName ? { ...b, name: newName } : b,
-          ),
-        })),
-      onGitDeleteBranch: (branch: string) =>
-        updateGit((g) => ({
-          ...g,
-          branches: g.branches.filter((b) => b.remote || b.name !== branch),
-        })),
-      onGitRemoveRemote: (branch: DemoBranch) =>
-        updateGit((g) => ({
-          ...g,
-          branches: g.branches.filter(
-            (b) => !(b.remote === branch.remote && b.name === branch.name),
-          ),
-        })),
-    };
+            branches: [{ name: branch, age: "now" }, ...g.branches],
+          })),
+        onGitRenameBranch: (oldName: string, newName: string) =>
+          updateGit((g) => ({
+            ...g,
+            branch: g.branch === oldName ? newName : g.branch,
+            branches: g.branches.map((b) =>
+              !b.remote && b.name === oldName ? { ...b, name: newName } : b,
+            ),
+          })),
+        onGitDeleteBranch: (branch: string) =>
+          updateGit((g) => ({
+            ...g,
+            branches: g.branches.filter((b) => b.remote || b.name !== branch),
+          })),
+        onGitRemoveRemote: (branch: DemoBranch) =>
+          updateGit((g) => ({
+            ...g,
+            branches: g.branches.filter(
+              (b) => !(b.remote === branch.remote && b.name === branch.name),
+            ),
+          })),
+      };
     };
     // Setters from useState are stable, so only the project list can invalidate.
     return Object.fromEntries(projects.map((p) => [p.name, build(p)]));
@@ -609,10 +724,90 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     setProjects((prev) =>
       prev.map((p) =>
         p.name === name
-          ? { ...p, actions: [...p.actions, buildActionFromInput(input, p.actions)] }
+          ? {
+              ...p,
+              actions: [...p.actions, buildActionFromInput(input, p.actions)],
+            }
           : p,
       ),
     );
+  };
+
+  // "Duplicate any project to run agents in parallel" is the page's headline
+  // claim, so the menu item really makes one: a copy right under its parent,
+  // its services already up, and the other CLI working in it. A worktree copy
+  // is the same thing on a branch of its own.
+  const handleDuplicate = (name: string, mode: "duplicate" | "worktree") => {
+    const source = projects.find((p) => p.name === name);
+    if (!source) return;
+    const taken = new Set(projects.map((p) => p.name));
+    const copyName = uniqueName(
+      mode === "worktree" ? `${source.name}-wt` : `${source.name}-2`,
+      taken,
+    );
+    // The copy leads with whichever agent the source is not already running, so
+    // the pair reads as two agents on one codebase rather than the same one
+    // twice.
+    const sourceAgent = source.actions.find((a) => a.name === source.autoStart)?.agent;
+    const copyAgent =
+      source.actions.find((a) => a.agent && a.agent !== sourceAgent) ??
+      source.actions.find((a) => a.agent);
+    const branch =
+      mode === "worktree" && source.git
+        ? `${source.git.branch.split("/")[0] || "feat"}/${copyName}`
+        : source.git?.branch;
+    const copy: DemoProject = {
+      ...source,
+      name: copyName,
+      label: copyName,
+      root:
+        mode === "worktree"
+          ? `~/Projects/.worktrees/${copyName}`
+          : `~/Projects/${copyName}`,
+      actions: source.actions.map((a) =>
+        a === copyAgent
+          ? {
+              ...a,
+              autoPrompt: DUPLICATE_PROMPT,
+              autoMode: "progress" as const,
+              autoSteps: duplicateSteps(source.replyContext),
+            }
+          : { ...a, autoPrompt: undefined, autoMode: undefined, autoSteps: undefined },
+      ),
+      autoStart: copyAgent?.name,
+      ...(source.git && branch
+        ? { git: { ...source.git, branch, uncommitted: 0, ahead: 0, behind: 0 } }
+        : {}),
+    };
+    const pane = initialPaneState(copy);
+    setProjects((prev) => {
+      const at = prev.findIndex((p) => p.name === name);
+      const next = [...prev];
+      next.splice(at + 1, 0, copy);
+      return next;
+    });
+    if (copy.git) {
+      setGitByProject((prev) => ({
+        ...prev,
+        [copyName]: { ...copy.git!, branches: [...copy.git!.branches] },
+      }));
+    }
+    // A copy that boots empty would undercut the claim: it comes up running the
+    // same profile its parent does.
+    setRunningByProject((prev) => ({
+      ...prev,
+      [copyName]: new Set(
+        (source.profiles[0]?.services ?? source.services.map((sv) => sv.name)).filter(
+          (svc) => copy.services.some((cs) => cs.name === svc),
+        ),
+      ),
+    }));
+    setTreeByProject((prev) => ({ ...prev, [copyName]: pane.tree }));
+    setActionTerminalsByProject((prev) => ({
+      ...prev,
+      [copyName]: pane.actionTerminals,
+    }));
+    selectProject(copyName);
   };
 
   const handleAddProject = (input: NewProjectInput) => {
@@ -625,8 +820,10 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       ...prev,
       [newProject.name]: pane.actionTerminals,
     }));
-    setSelected(newProject.name);
-    setView("project");
+    // Routed through selectProject so the new name lands in `visited` — the
+    // keep-alive filter below only mounts visited projects, so setting
+    // `selected` alone would leave the visitor on a blank pane.
+    selectProject(newProject.name);
     setAdding(false);
   };
 
@@ -643,170 +840,189 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   }, [hint, isInView]);
 
   const hidden = hint === "hidden" || !isInView;
+  // Nothing on a timer runs while the frame is scrolled away or the tab is in
+  // the background — a demo left open in another tab should cost nothing.
+  const demoActive = isInView && pageVisible;
 
   return (
-    <div
-      ref={containerRef}
-      data-on-dark
-      onPointerDownCapture={markInteracted}
-      onKeyDownCapture={markInteracted}
-      className={`replica-ui relative flex overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
-        glowActive ? "ring-[#4ade80]/40" : "ring-white/[0.16]"
-      }`}
-      style={
-        {
-          "--demo-h": heightCss ?? "min(520px, calc(100vh - 140px))",
-          "--demo-h-sm":
-            heightCssSm ?? heightCss ?? "min(640px, calc(100vh - 180px))",
-        } as React.CSSProperties
-      }
-    >
-      <DemoSidebar
-        projects={projects}
-        selected={project.name}
-        activeView={view}
-        onSelect={selectProject}
-        runningByProject={runningByProject}
-        aiStatusByProject={sidebarStatus}
-        agentTabStatusByProject={sidebarAgentTabs}
-        onAddProject={() => setAdding(true)}
-        onOpenView={setView}
-        usageSettings={usageSettings}
-        hasError={hasAgentError}
-        unreadAutomations={unreadJobCount(jobs)}
-        runningAutomations={runningJobCount(jobs)}
-      />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <MobileProjectSwitcher
+    <DemoActiveProvider value={demoActive}>
+      <div
+        ref={containerRef}
+        data-on-dark
+        onPointerDownCapture={markInteracted}
+        onKeyDownCapture={markInteracted}
+        className={`replica-ui relative flex overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)] h-[var(--demo-h)] sm:h-[var(--demo-h-sm)] transition-[box-shadow] duration-700 ${
+          glowActive ? "ring-[#4ade80]/40" : "ring-white/[0.16]"
+        }`}
+        style={
+          {
+            "--demo-h": heightCss ?? "min(520px, calc(100vh - 140px))",
+            "--demo-h-sm":
+              heightCssSm ?? heightCss ?? "min(640px, calc(100vh - 180px))",
+          } as React.CSSProperties
+        }
+      >
+        <DemoSidebar
           projects={projects}
           selected={project.name}
+          activeView={view}
           onSelect={selectProject}
           runningByProject={runningByProject}
+          aiStatusByProject={sidebarStatus}
+          agentTabStatusByProject={sidebarAgentTabs}
           onAddProject={() => setAdding(true)}
+          onOpenAgent={openAgent}
+        onDuplicate={handleDuplicate}
+          activeAgentKeys={activeAgentKeys}
+          onOpenView={setView}
+          usageSettings={usageSettings}
+          hasError={hasAgentError}
+          needsYou={needsYouCount}
+          unreadAutomations={unreadJobCount(jobs)}
+          runningAutomations={runningJobCount(jobs)}
         />
-        {view === "terminals" ? (
-          <GlobalTerminalsView />
-        ) : view === "settings" ? (
-          <SettingsView />
-        ) : view === "activity" ? (
-          <ActivityView
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <MobileProjectSwitcher
             projects={projects}
+            selected={project.name}
+            onSelect={selectProject}
             runningByProject={runningByProject}
-            aiStatusByProject={aiStatusByProject}
-            agentTabStatusByProject={agentTabStatusByProject}
-            jobs={jobs}
-            onOpenProject={selectProject}
-            onOpenAutomations={() => setView("automations")}
+            onAddProject={() => setAdding(true)}
           />
-        ) : view === "automations" ? (
-          <AutomationsView
-            jobs={jobs}
-            setJobs={setJobs}
-            projects={projects.map((p) => p.name)}
-          />
-        ) : view === "usage" ? (
-          <UsageView settings={usageSettings} onSettingsChange={setUsageSettings} />
-        ) : view === "stats" ? (
-          <StatsView />
-        ) : view === "mobile" ? (
-          <MobileView />
-        ) : null}
-        {/* Visited projects stay mounted: switching away must not reboot a
-            service's logs or erase a conversation you were having. */}
-        {projects
-          .filter((p) => visited.has(p.name))
-          .map((p) => {
-            const h = handlers[p.name];
-            const active = view === "project" && p.name === project.name;
-            return (
-              <div
-                key={p.name}
-                className={
-                  active ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"
-                }
-              >
-                <DemoProjectView
-                  {...h}
-                  project={p}
-                  runningServices={runningByProject[p.name] ?? EMPTY_SERVICES}
-                  tree={treeByProject[p.name] ?? null}
-                  actionTerminals={actionTerminalsByProject[p.name] ?? EMPTY_ACTIONS}
-                  agentTabStatus={agentTabStatusByProject[p.name] ?? EMPTY_STATUS}
-                  git={gitByProject[p.name]}
-                  onAddAction={(input) => handleAddAction(p.name, input)}
-                  startButtonRef={active ? startButtonRef : undefined}
-                  agentButtonRef={active ? agentButtonRef : undefined}
-                  startRingPulse={active && ringPulseOn}
-                />
-              </div>
-            );
-          })}
-      </div>
-      <DemoAddProjectModal
-        open={adding}
-        onClose={() => setAdding(false)}
-        onCreate={handleAddProject}
-      />
-
-      {autoCursor.phase !== "hidden" && (
-        <div
-          aria-hidden
-          className={`pointer-events-none absolute z-40 transition-[transform,opacity] ${
-            autoCursor.phase === "travel"
-              ? "duration-[1000ms] ease-[cubic-bezier(0.22,1,0.36,1)] opacity-100"
-              : autoCursor.phase === "fade"
-                ? "duration-[400ms] ease-out opacity-0"
-                : "duration-150 ease-out opacity-100"
-          }`}
-          style={{
-            top: 0,
-            left: 0,
-            transform: `translate3d(${autoCursor.x}px, ${autoCursor.y}px, 0)`,
-          }}
-        >
-          <div className="relative">
-            {autoCursor.phase === "tap" && (
-              <span className="auto-cursor-tap absolute -left-2 -top-2 h-9 w-9 rounded-full border-2 border-[#60a5fa]/70 bg-[#60a5fa]/20" />
-            )}
-            <MousePointer2
-              className="relative h-5 w-5 text-[#e5e5e5] drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-              strokeWidth={1.75}
-              fill="#e5e5e5"
+          {view === "terminals" ? (
+            <GlobalTerminalsView />
+          ) : view === "settings" ? (
+            <SettingsView />
+          ) : view === "activity" ? (
+            <ActivityView
+              projects={projects}
+              runningByProject={runningByProject}
+              aiStatusByProject={aiStatusByProject}
+              agentTabStatusByProject={agentTabStatusByProject}
+              jobs={jobs}
+              onOpenProject={selectProject}
+              onOpenAutomations={() => setView("automations")}
             />
+          ) : view === "automations" ? (
+            <AutomationsView
+              jobs={jobs}
+              setJobs={setJobs}
+              projects={projects.map((p) => p.name)}
+            />
+          ) : view === "usage" ? (
+            <UsageView
+              settings={usageSettings}
+              onSettingsChange={setUsageSettings}
+            />
+          ) : view === "stats" ? (
+            <StatsView />
+          ) : view === "mobile" ? (
+            <MobileView />
+          ) : null}
+          {/* Visited projects stay mounted: switching away must not reboot a
+            service's logs or erase a conversation you were having. */}
+          {projects
+            .filter((p) => visited.has(p.name))
+            .map((p) => {
+              const h = handlers[p.name];
+              const active = view === "project" && p.name === project.name;
+              return (
+                <div
+                  key={p.name}
+                  className={
+                    active ? "flex min-h-0 min-w-0 flex-1 flex-col" : "hidden"
+                  }
+                >
+                  <DemoProjectView
+                    {...h}
+                    project={p}
+                    runningServices={runningByProject[p.name] ?? EMPTY_SERVICES}
+                    tree={treeByProject[p.name] ?? null}
+                    actionTerminals={
+                      actionTerminalsByProject[p.name] ?? EMPTY_ACTIONS
+                    }
+                    agentTabStatus={
+                      agentTabStatusByProject[p.name] ?? EMPTY_STATUS
+                    }
+                    git={gitByProject[p.name]}
+                    onAddAction={(input) => handleAddAction(p.name, input)}
+                    startButtonRef={active ? startButtonRef : undefined}
+                    agentButtonRef={active ? agentButtonRef : undefined}
+                    codexButtonRef={active ? codexButtonRef : undefined}
+                    startRingPulse={active && ringPulseOn}
+                  />
+                </div>
+              );
+            })}
+        </div>
+        <DemoAddProjectModal
+          open={adding}
+          onClose={() => setAdding(false)}
+          onCreate={handleAddProject}
+        />
+
+        {autoCursor.phase !== "hidden" && (
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute z-40 transition-[transform,opacity] ${
+              autoCursor.phase === "travel"
+                ? "duration-[1000ms] ease-[cubic-bezier(0.22,1,0.36,1)] opacity-100"
+                : autoCursor.phase === "fade"
+                  ? "duration-[400ms] ease-out opacity-0"
+                  : "duration-150 ease-out opacity-100"
+            }`}
+            style={{
+              top: 0,
+              left: 0,
+              transform: `translate3d(${autoCursor.x}px, ${autoCursor.y}px, 0)`,
+            }}
+          >
+            <div className="relative">
+              {autoCursor.phase === "tap" && (
+                <span className="auto-cursor-tap absolute -left-2 -top-2 h-9 w-9 rounded-full border-2 border-[#60a5fa]/70 bg-[#60a5fa]/20" />
+              )}
+              <MousePointer2
+                className="relative h-5 w-5 text-[#e5e5e5] drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+                strokeWidth={1.75}
+                fill="#e5e5e5"
+              />
+            </div>
+          </div>
+        )}
+
+        <div
+          role="status"
+          aria-live="polite"
+          aria-hidden={hidden}
+          className={`pointer-events-none absolute bottom-12 right-3 z-30 max-w-[260px] transition-all duration-500 ${
+            hidden ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"
+          }`}
+        >
+          <div className="flex items-start gap-2 rounded-2xl border border-white/15 bg-black/75 px-3.5 py-1.5 text-[11px] sm:text-[12px] font-medium leading-snug text-[#e5e5e5] shadow-2xl backdrop-blur-md">
+            <MousePointer2
+              className="h-3.5 w-3.5 text-[#60a5fa] shrink-0"
+              strokeWidth={2.25}
+            />
+            {hint === "next" ? (
+              <>
+                <span className="sm:hidden">
+                  Two agents at once — tap around
+                </span>
+                <span className="hidden sm:inline">
+                  Claude and Codex, side by side. Try auth-service next.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="sm:hidden">Booting saas-app…</span>
+                <span className="hidden sm:inline">
+                  Booting saas-app — every pane is live. Click anything.
+                </span>
+              </>
+            )}
           </div>
         </div>
-      )}
-
-      <div
-        role="status"
-        aria-live="polite"
-        aria-hidden={hidden}
-        className={`pointer-events-none absolute right-3 top-16 z-30 max-w-[260px] transition-all duration-500 ${
-          hidden ? "-translate-y-1 opacity-0" : "translate-y-0 opacity-100"
-        }`}
-      >
-        <div className="flex items-start gap-2 rounded-2xl border border-white/15 bg-black/75 px-3.5 py-1.5 text-[11px] sm:text-[12px] font-medium leading-snug text-[#e5e5e5] shadow-2xl backdrop-blur-md">
-          <MousePointer2
-            className="h-3.5 w-3.5 text-[#60a5fa] shrink-0"
-            strokeWidth={2.25}
-          />
-          {hint === "next" ? (
-            <>
-              <span className="sm:hidden">Claude is working — tap around</span>
-              <span className="hidden sm:inline">
-                Claude keeps working — try auth-service.
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="sm:hidden">Tap anything — it works</span>
-              <span className="hidden sm:inline">
-                Yes, this really works. Click anything.
-              </span>
-            </>
-          )}
-        </div>
       </div>
-    </div>
+    </DemoActiveProvider>
   );
 }

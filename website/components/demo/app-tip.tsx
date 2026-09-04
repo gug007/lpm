@@ -66,7 +66,17 @@ export function AppTip() {
           "key" in part ? (
             <Combo key={i} label={part.key} />
           ) : (
-            <span key={i} className="truncate">
+            // Only the last part gives way: letting every span shrink
+            // ellipsises the lead-in too, so the tip reads "In the … @ mentions
+            // files, …" with both halves cut.
+            <span
+              key={i}
+              className={
+                i === TIPS[index].length - 1
+                  ? "truncate"
+                  : "shrink-0 whitespace-pre"
+              }
+            >
               {part.text}
             </span>
           ),

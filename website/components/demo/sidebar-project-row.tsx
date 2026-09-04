@@ -32,8 +32,11 @@ type ProjectRowProps = {
   aiStatus?: AiStatus;
   agentTabs?: Record<string, AgentTabState>;
   expanded: boolean;
+  activeAgentKeys?: ReadonlySet<string>;
   onToggleAgents: () => void;
   onSelect: () => void;
+  onOpenAgent: (key: string) => void;
+  onDuplicate: (mode: "duplicate" | "worktree") => void;
 };
 
 export function SidebarProjectRow({
@@ -43,8 +46,11 @@ export function SidebarProjectRow({
   aiStatus,
   agentTabs,
   expanded,
+  activeAgentKeys,
   onToggleAgents,
   onSelect,
+  onOpenAgent,
+  onDuplicate,
 }: ProjectRowProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -148,8 +154,22 @@ export function SidebarProjectRow({
           <MoreVertical className="h-3.5 w-3.5" strokeWidth={1.5} />
         </button>
       </div>
-      {isExpanded && <SidebarAgentRows agents={agents} onOpen={onSelect} />}
-      {menu && <SidebarRowMenu x={menu.x} y={menu.y} label={label} onClose={closeMenu} />}
+      {isExpanded && (
+        <SidebarAgentRows
+          agents={agents}
+          activeKeys={activeAgentKeys}
+          onOpen={onOpenAgent}
+        />
+      )}
+      {menu && (
+        <SidebarRowMenu
+          x={menu.x}
+          y={menu.y}
+          label={label}
+          onClose={closeMenu}
+          onDuplicate={onDuplicate}
+        />
+      )}
     </>
   );
 }

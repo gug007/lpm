@@ -7,6 +7,8 @@ import {
   usageBarColor,
   usagePaceColor,
   usagePaceLabel,
+  resetAbsolute,
+  resetDurationShort,
   type UsageProviderData,
   type UsageSidebarSettings,
   type UsageToolKey,
@@ -19,7 +21,7 @@ import { FOCUS_RING } from "./ui";
 const WINDOWS: readonly SegmentedOption<UsageWindowChoice>[] = [
   { value: "fiveHour", label: "5-hour" },
   { value: "weekly", label: "Weekly" },
-  { value: "higher", label: "Higher" },
+  { value: "higher", label: "Whichever is higher" },
 ];
 
 type UsageViewProps = {
@@ -201,7 +203,8 @@ function Meter({ label, win }: { label: string; win: UsageWindowData }) {
         )}
       </div>
       <span className="truncate text-[11px] tabular-nums text-[#919191]">
-        resets in {win.resetIn} · {win.resetAt}
+        resets in {resetDurationShort(win.resetInMs)} ·{" "}
+        {resetAbsolute(win.resetInMs)}
       </span>
     </div>
   );

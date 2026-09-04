@@ -176,7 +176,7 @@ function sibling(path: string, name: string): string {
   return `${dir}${name}${ext}`;
 }
 
-const AFFIRMATIVE =
+export const AFFIRMATIVE =
   /^(y|yes|yep|yeah|yup|sure|ok|okay|do it|go ahead|go for it|please do|apply|make the change|sounds good)\b/;
 
 function executeReply(

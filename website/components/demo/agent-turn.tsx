@@ -36,12 +36,12 @@ function ClaudeTurn({ query, steps, revealed, footer }: TurnProps) {
             if (!step.text.trim()) return null;
             return (
               <div key={i} className="flex gap-[1ch]">
-                <span className={step.style === "muted" ? "text-[#686868]" : "text-[#cccccc]"}>
+                <span className={step.style === "muted" ? "text-[#8a8a8a]" : "text-[#cccccc]"}>
                   {BRAND.claude.bullet}
                 </span>
                 <span
                   className={`whitespace-pre-wrap break-words ${
-                    step.style === "muted" ? "text-[#686868]" : "text-[#cccccc]"
+                    step.style === "muted" ? "text-[#8a8a8a]" : "text-[#cccccc]"
                   }`}
                 >
                   {step.text}
@@ -59,7 +59,7 @@ function ClaudeTurn({ query, steps, revealed, footer }: TurnProps) {
                   <span className="text-[#919191]">({tool.arg})</span>
                 </span>
               </div>
-              <div className="flex gap-[2ch] pl-[2ch] text-[#686868]">
+              <div className="flex gap-[2ch] pl-[2ch] text-[#8a8a8a]">
                 <span>⎿</span>
                 <span className="break-words">{emphasize(tool.result)}</span>
               </div>
@@ -87,14 +87,14 @@ function CodexTurn({ query, steps, revealed, finished, footer }: TurnProps) {
     blocks.push(
       <div key={key}>
         <div className="flex gap-[1ch]">
-          <span className="text-[#686868]">{BRAND.codex.bullet}</span>
+          <span className="text-[#8a8a8a]">{BRAND.codex.bullet}</span>
           <span className="font-semibold text-[#cccccc]">Explored</span>
         </div>
         {lines.map((detail, i) => {
           const [verb, target] = splitVerb(detail);
           return (
             <div key={i} className="flex gap-[1ch] pl-[2ch]">
-              <span className="w-[1ch] shrink-0 text-[#686868]">{i === 0 ? "└" : ""}</span>
+              <span className="w-[1ch] shrink-0 text-[#8a8a8a]">{i === 0 ? "└" : ""}</span>
               <span className="break-all">
                 <span className="text-[#00c5c7]">{verb}</span>{" "}
                 <span className="text-[#c7c7c7]">{target}</span>
@@ -115,10 +115,10 @@ function CodexTurn({ query, steps, revealed, finished, footer }: TurnProps) {
         <Fragment key={i}>
           {closing?.start === i && <Rule />}
           <div className="flex gap-[1ch]">
-            <span className="text-[#686868]">{BRAND.codex.bullet}</span>
+            <span className="text-[#8a8a8a]">{BRAND.codex.bullet}</span>
             <span
               className={`whitespace-pre-wrap break-words ${
-                step.style === "muted" ? "text-[#686868]" : "text-[#cccccc]"
+                step.style === "muted" ? "text-[#8a8a8a]" : "text-[#cccccc]"
               }`}
             >
               {step.text}
@@ -139,11 +139,11 @@ function CodexTurn({ query, steps, revealed, finished, footer }: TurnProps) {
       const [verb, target] = splitVerb(tool.head);
       blocks.push(
         <div key={i} className="flex gap-[1ch]">
-          <span className="text-[#686868]">{BRAND.codex.bullet}</span>
+          <span className="text-[#8a8a8a]">{BRAND.codex.bullet}</span>
           <span className="break-all">
             <span className="font-semibold text-[#cccccc]">{verb}</span>{" "}
             <span className="text-[#c7c7c7]">{target}</span>
-            {tool.tag && <span className="ml-1 text-[#686868]">({tool.tag})</span>}
+            {tool.tag && <span className="ml-1 text-[#8a8a8a]">({tool.tag})</span>}
           </span>
         </div>,
       );
@@ -152,14 +152,14 @@ function CodexTurn({ query, steps, revealed, finished, footer }: TurnProps) {
     blocks.push(
       <div key={i}>
         <div className="flex gap-[1ch]">
-          <span className="text-[#686868]">{BRAND.codex.bullet}</span>
+          <span className="text-[#8a8a8a]">{BRAND.codex.bullet}</span>
           <span className="break-all">
             <span className="font-semibold text-[#cccccc]">Ran</span>{" "}
             <span className="text-[#c7c7c7]">{tool.head}</span>
           </span>
         </div>
-        <div className="flex gap-[1ch] pl-[2ch] text-[#686868]">
-          <span className="text-[#686868]">└</span>
+        <div className="flex gap-[1ch] pl-[2ch] text-[#8a8a8a]">
+          <span className="text-[#8a8a8a]">└</span>
           <span className="break-words">{tool.detail}</span>
         </div>
       </div>,
@@ -170,7 +170,7 @@ function CodexTurn({ query, steps, revealed, finished, footer }: TurnProps) {
   return (
     <div className="mb-3">
       <div className="flex gap-[1ch]">
-        <span className="font-bold text-[#686868]">{BRAND.codex.prompt}</span>
+        <span className="font-bold text-[#8a8a8a]">{BRAND.codex.prompt}</span>
         <span className="whitespace-pre-wrap break-words text-[#cccccc]">{query}</span>
       </div>
       <div className="mt-1 space-y-1">

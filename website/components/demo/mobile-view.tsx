@@ -84,7 +84,7 @@ export function MobileView() {
                   }`}
                 />
                 <span className={enabled ? "text-[#4ade80]" : "text-[#919191]"}>
-                  {enabled ? "Listening" : "Off"}
+                  {enabled ? "Live" : "Off"}
                 </span>
                 {enabled && (
                   <span className="font-mono text-[11px] text-[#919191]">
@@ -176,8 +176,8 @@ export function MobileView() {
               <div className="min-w-0 flex-1">
                 <div className="text-[13px] font-medium text-[#e5e5e5]">Scan this in lpm Link</div>
                 <p className="mt-1 text-[11px] leading-relaxed text-[#919191]">
-                  The code carries this Mac&apos;s address and a one-time key. It expires in 60
-                  seconds and works once.
+                  The code carries this Mac&apos;s address and a one-time key. It works
+                  once and expires after a device pairs.
                 </p>
                 <div className="mt-2.5 flex items-center gap-2">
                   <code className="rounded bg-[#1a1a1a] px-2 py-1 font-mono text-[12px] tracking-[0.2em] text-[#b3b3b3]">
@@ -220,7 +220,8 @@ export function MobileView() {
           </div>
 
           <p className="text-[11px] leading-relaxed text-[#919191]">
-            Nothing routes through a server of ours — the phone talks to your Mac directly.
+            Terminal output, keystrokes and files go straight from your phone to this Mac. The
+            only thing that leaves your network is an end-to-end encrypted push notification.
           </p>
         </div>
       </div>

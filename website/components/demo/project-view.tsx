@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { NO_AUTOFILL } from "./no-autofill";
 import { useStickToBottom } from "./use-stick-to-bottom";
 import { Globe, Terminal } from "lucide-react";
@@ -24,7 +25,11 @@ import {
 } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
-import { AgentTerminal, type AgentStatus } from "./agent-terminal";
+import {
+  AgentTerminal,
+  type AgentStatus,
+  type AgentTurnTiming,
+} from "./agent-terminal";
 import { BrowserView } from "./browser-view";
 import { DemoBranchSwitcher } from "./branch-switcher";
 import { TabContextMenu, TabRenameModal } from "./tab-controls";
@@ -67,7 +72,14 @@ export type ActionTerminalMap = Record<string, DemoAction>;
 
 // Keyed by tab key, which encodes no human-readable name — the label rides
 // along so views like Activity can title a row without parsing the key.
-export type AgentTabState = { label: string; status: AgentStatus };
+export type AgentTabState = {
+  label: string;
+  status: AgentStatus;
+  // When the turn on this tab started, and when it landed. A turn still in
+  // flight has no `until`, so its row counts up.
+  since?: number;
+  until?: number;
+};
 
 // The workspace lives in DemoApp, keyed by project, so switching projects and
 // back doesn't wipe panes the header still reports as running.
@@ -124,6 +136,7 @@ type ProjectViewProps = {
   // needs a handle on both buttons; only the visible project gets them.
   startButtonRef?: React.Ref<HTMLButtonElement>;
   agentButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  codexButtonRef?: React.RefObject<HTMLButtonElement | null>;
   startRingPulse?: boolean;
 };
 
@@ -156,6 +169,7 @@ export function DemoProjectView({
   onAddAction,
   startButtonRef,
   agentButtonRef,
+  codexButtonRef,
   startRingPulse,
 }: ProjectViewProps) {
   const [startOpen, setStartOpen] = useState(false);
@@ -165,8 +179,12 @@ export function DemoProjectView({
     tabKey: string,
     label: string,
     status: AgentStatus,
+    timing?: AgentTurnTiming,
   ) => {
-    setAgentTabStatus((prev) => ({ ...prev, [tabKey]: { label, status } }));
+    setAgentTabStatus((prev) => ({
+      ...prev,
+      [tabKey]: { label, status, since: timing?.since, until: timing?.until },
+    }));
   };
   const [isResizing, setIsResizing] = useState(false);
   const [resizeDir, setResizeDir] = useState<SplitDirection>("row");
@@ -181,6 +199,25 @@ export function DemoProjectView({
     tabIdx: number;
   } | null>(null);
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
+  // Each pane's bodies are portaled into a host element this view owns, not
+  // into the pane's own div. Splitting rebuilds the pane, and a portal whose
+  // container changes remounts its children — the host survives instead and is
+  // simply moved into whichever pane now shows it.
+  const hostsRef = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [paneSlots, setPaneSlots] = useState<Record<string, HTMLElement>>({});
+  const registerSlot = useCallback((leafId: string, el: HTMLElement | null) => {
+    if (el === null) return;
+    let host = hostsRef.current.get(leafId);
+    if (!host) {
+      host = document.createElement("div");
+      host.style.position = "absolute";
+      host.style.inset = "0";
+      hostsRef.current.set(leafId, host);
+      const created = host;
+      setPaneSlots((prev) => ({ ...prev, [leafId]: created }));
+    }
+    if (host.parentNode !== el) el.appendChild(host);
+  }, []);
   const closeStart = useCallback(() => setStartOpen(false), []);
 
   useEffect(() => {
@@ -438,6 +475,14 @@ export function DemoProjectView({
   const leaves = collectLeaves(tree);
   const focusedPaneId = leaves.length > 1 ? focusedLeafId ?? leaves[0].id : null;
 
+  const leafCtx: LeafContext = {
+    project,
+    runningServices,
+    actionTerminals,
+    agentTabStatus,
+    onAgentTabStatus: handleAgentStatus,
+  };
+
   return (
     <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
       <Header
@@ -458,6 +503,7 @@ export function DemoProjectView({
         runningServices={runningServices}
         startButtonRef={startButtonRef}
         agentButtonRef={agentButtonRef}
+        codexButtonRef={codexButtonRef}
         startRingPulse={startRingPulse}
       />
 
@@ -484,7 +530,19 @@ export function DemoProjectView({
             focusedLeafId={focusedPaneId}
             onFocusPane={setFocusedLeafId}
             onClosePane={leaves.length > 1 ? handleClosePane : undefined}
+            registerSlot={registerSlot}
           />
+          {/* Mounted once per leaf, for the life of that leaf, and portaled
+              into the slot its pane exposes. */}
+          {leaves.map((leaf) => (
+            <LeafBodies
+              key={leaf.id}
+              leaf={leaf}
+              ctx={leafCtx}
+              target={paneSlots[leaf.id] ?? null}
+              onSelectTab={handleSelectTab}
+            />
+          ))}
         </div>
       ) : (
         <EmptyState
@@ -599,10 +657,17 @@ type PaneLayoutProps = {
   onResizeStart: (dir: SplitDirection) => void;
   onResizeEnd: () => void;
   agentTabStatus: Record<string, AgentTabState>;
-  onAgentTabStatus: (tabKey: string, label: string, status: AgentStatus) => void;
+  onAgentTabStatus: (
+    tabKey: string,
+    label: string,
+    status: AgentStatus,
+    timing?: AgentTurnTiming,
+  ) => void;
   focusedLeafId: string | null;
   onFocusPane: (leafId: string) => void;
   onClosePane?: (leafId: string) => void;
+  /** Where a leaf hands back the element its bodies get portaled into. */
+  registerSlot: (leafId: string, el: HTMLElement | null) => void;
 };
 
 function PaneLayout(props: PaneLayoutProps) {
@@ -615,7 +680,12 @@ type LeafContext = {
   runningServices: Set<string>;
   actionTerminals: ActionTerminalMap;
   agentTabStatus: Record<string, AgentTabState>;
-  onAgentTabStatus: (tabKey: string, label: string, status: AgentStatus) => void;
+  onAgentTabStatus: (
+    tabKey: string,
+    label: string,
+    status: AgentStatus,
+    timing?: AgentTurnTiming,
+  ) => void;
 };
 
 type ResolvedTab = {
@@ -719,7 +789,11 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         autoPrompt={action.autoPrompt}
         autoMode={action.autoMode}
         autoSteps={action.autoSteps}
-        onStatus={(status) => ctx.onAgentTabStatus(key, tab.label, status)}
+        autoIntent={action.autoIntent}
+        autoAnswerSteps={action.autoAnswerSteps}
+        onStatus={(status, timing) =>
+          ctx.onAgentTabStatus(key, tab.label, status, timing)
+        }
       />
     ) : (
       <StreamingOutput key={tab.key} output={action.output} loop={action.loop} />
@@ -744,6 +818,7 @@ function Leaf({
   focusedLeafId,
   onFocusPane,
   onClosePane,
+  registerSlot,
 }: PaneLayoutProps & { leaf: PaneLeaf }) {
   const ctx: LeafContext = {
     project,
@@ -753,11 +828,6 @@ function Leaf({
     onAgentTabStatus,
   };
   const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
-  const serviceIdxs = leaf.tabs.flatMap((t, i) =>
-    t.kind === "service" ? [i] : [],
-  );
-  const allActive = leaf.tabs[leaf.activeTabIdx]?.kind === "all";
-  const servicesVisible = allActive || serviceIdxs.includes(leaf.activeTabIdx);
   return (
     <div
       onMouseDownCapture={() => onFocusPane(leaf.id)}
@@ -780,53 +850,87 @@ function Leaf({
         onSplitDown={() => onSplit(leaf.id, "col")}
         onClosePane={onClosePane ? () => onClosePane(leaf.id) : undefined}
       />
-      <div className="relative flex-1 min-h-0">
-        {serviceIdxs.length > 0 && (
+      {/* Only a slot: the bodies are mounted once, outside the tree, and
+          portaled in here. Splitting a pane turns this Leaf into a SplitView,
+          which unmounts everything below it — with the sessions rendered here
+          that would restart the agent mid-turn and wipe the logs. */}
+      <div
+        ref={(el) => registerSlot(leaf.id, el)}
+        className="relative flex-1 min-h-0"
+      />
+    </div>
+  );
+}
+
+/** Every tab body in one leaf, mounted for the life of that leaf and shown or
+ *  hidden by CSS. Rendered outside the pane tree and portaled into the leaf's
+ *  slot, so restructuring the tree never remounts a session. */
+function LeafBodies({
+  leaf,
+  ctx,
+  target,
+  onSelectTab,
+}: {
+  leaf: PaneLeaf;
+  ctx: LeafContext;
+  target: HTMLElement | null;
+  onSelectTab: (leafId: string, idx: number) => void;
+}) {
+  const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
+  const serviceIdxs = leaf.tabs.flatMap((t, i) =>
+    t.kind === "service" ? [i] : [],
+  );
+  const allActive = leaf.tabs[leaf.activeTabIdx]?.kind === "all";
+  const servicesVisible = allActive || serviceIdxs.includes(leaf.activeTabIdx);
+  if (!target) return null;
+  return createPortal(
+    <>
+      {serviceIdxs.length > 0 && (
+        <div
+          className={`absolute inset-0 ${servicesVisible ? "flex" : "hidden"} ${
+            allActive ? "divide-x divide-[#2e2e2e]" : ""
+          }`}
+        >
+          {serviceIdxs.map((i) => {
+            const { info, body } = resolved[i];
+            const visible = allActive || i === leaf.activeTabIdx;
+            return (
+              <div
+                key={info.key}
+                className={
+                  visible
+                    ? `flex min-h-0 flex-1 flex-col overflow-hidden ${
+                        allActive ? "min-w-32" : "min-w-0"
+                      }`
+                    : "hidden"
+                }
+              >
+                {allActive && (
+                  <ServiceLabelBar
+                    label={info.label}
+                    onClick={() => onSelectTab(leaf.id, i)}
+                  />
+                )}
+                {body}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {resolved.map(({ info, body }, i) =>
+        isServiceTab(leaf.tabs[i]) ? null : (
           <div
-            className={`absolute inset-0 ${servicesVisible ? "flex" : "hidden"} ${
-              allActive ? "divide-x divide-[#2e2e2e]" : ""
+            key={info.key}
+            className={`absolute inset-0 flex-col ${
+              i === leaf.activeTabIdx ? "flex" : "hidden"
             }`}
           >
-            {serviceIdxs.map((i) => {
-              const { info, body } = resolved[i];
-              const visible = allActive || i === leaf.activeTabIdx;
-              return (
-                <div
-                  key={info.key}
-                  className={
-                    visible
-                      ? `flex min-h-0 flex-1 flex-col overflow-hidden ${
-                          allActive ? "min-w-32" : "min-w-0"
-                        }`
-                      : "hidden"
-                  }
-                >
-                  {allActive && (
-                    <ServiceLabelBar
-                      label={info.label}
-                      onClick={() => onSelectTab(leaf.id, i)}
-                    />
-                  )}
-                  {body}
-                </div>
-              );
-            })}
+            {body}
           </div>
-        )}
-        {resolved.map(({ info, body }, i) =>
-          isServiceTab(leaf.tabs[i]) ? null : (
-            <div
-              key={info.key}
-              className={`absolute inset-0 flex-col ${
-                i === leaf.activeTabIdx ? "flex" : "hidden"
-              }`}
-            >
-              {body}
-            </div>
-          ),
-        )}
-      </div>
-    </div>
+        ),
+      )}
+    </>,
+    target,
   );
 }
 
@@ -984,6 +1088,19 @@ export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
     history,
   ]);
 
+  // A shell you just opened should take what you type. Only when the click that
+  // opened it came from inside the demo, so a pane mounted for a project the
+  // visitor is not looking at never steals the page's focus — and never with a
+  // scroll, which would shove the page under them.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement)) return;
+    if (!active.closest(".replica-ui")) return;
+    input.focus({ preventScroll: true });
+  }, []);
+
   const rel = projectRoot.replace(/^~\/?/, "");
   const prompt = rel ? `~/${rel} $ ` : `~ $ `;
 
@@ -1106,7 +1223,7 @@ function HeaderActionButton({
           their emoji on narrow windows. */}
       <span
         className={
-          action.emoji && !action.agent ? "hidden @min-[560px]:inline" : ""
+          action.emoji && !action.agent ? "hidden @min-[860px]:inline" : ""
         }
       >
         {action.label}
@@ -1153,6 +1270,7 @@ type HeaderProps = {
   onAddAction: () => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
   agentButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  codexButtonRef?: React.RefObject<HTMLButtonElement | null>;
   startRingPulse?: boolean;
 };
 
@@ -1171,9 +1289,11 @@ function Header({
   onAddAction,
   startButtonRef,
   agentButtonRef,
+  codexButtonRef,
   startRingPulse,
 }: HeaderProps) {
-  const agentAction = headerActions.find((a) => a.agent);
+  const agentAction = headerActions.find((a) => a.agent === "claude");
+  const codexAction = headerActions.find((a) => a.agent === "codex");
   // @container: action labels follow the pane's own width, which is far
   // narrower than the viewport when the demo is embedded in a page.
   return (
@@ -1182,12 +1302,18 @@ function Header({
         {project.label ?? project.name}
       </div>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
+        <div className="scrollbar-none flex min-w-0 items-center gap-2 overflow-x-auto">
           {headerActions.map((a) => (
             <HeaderActionButton
               key={a.name}
               action={a}
-              buttonRef={a === agentAction ? agentButtonRef : undefined}
+              buttonRef={
+                a === agentAction
+                  ? agentButtonRef
+                  : a === codexAction
+                    ? codexButtonRef
+                    : undefined
+              }
               onRun={() => onOpenAction(a)}
             />
           ))}

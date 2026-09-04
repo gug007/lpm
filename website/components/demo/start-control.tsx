@@ -63,7 +63,7 @@ export function StartControl({
         <div
           className={`inline-flex h-8 items-stretch rounded-lg border ${
             running
-              ? "border-[#f87171] bg-[#f87171] text-white"
+              ? "border-[#f87171] bg-[#f87171] text-[#1a1a1a]"
               : "border-[#e5e5e5] bg-[#e5e5e5] text-[#1a1a1a]"
           }`}
         >

@@ -7,6 +7,7 @@ import {
   DialogPanel,
   PrimaryButton,
   SecondaryButton,
+  useDialogFocus,
 } from "./ui-kit";
 import { FOCUS_RING, PRESS } from "./ui";
 
@@ -27,6 +28,9 @@ export function ConfirmDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  // Cancel takes focus, matching the app: the safe way out is the one the
+  // keyboard lands on, and Escape is the other.
+  const cancelRef = useDialogFocus<HTMLButtonElement>(onCancel);
   return (
     // Anchored to the replica frame rather than the viewport — the demo is an
     // inset window, not a page-level overlay.
@@ -41,7 +45,9 @@ export function ConfirmDialog({
         <DialogHeader title={title} />
         <div className="mt-2 text-sm leading-relaxed text-[#b3b3b3]">{body}</div>
         <DialogFooter>
-          <SecondaryButton onClick={onCancel}>{cancelLabel}</SecondaryButton>
+          <SecondaryButton ref={cancelRef} onClick={onCancel}>
+            {cancelLabel}
+          </SecondaryButton>
           {danger ? (
             <button
               type="button"

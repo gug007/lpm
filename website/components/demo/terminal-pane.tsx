@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import {
   ChevronRight,
   Code,
@@ -19,6 +19,7 @@ import { useStickToBottom } from "./use-stick-to-bottom";
 import { AddTabSplitButton } from "./tab-controls";
 import { IconBtn } from "./icon-btn";
 import { Tooltip } from "./tooltip";
+import { useDemoActive } from "./demo-active";
 import { FOCUS_RING } from "./ui";
 
 
@@ -94,6 +95,21 @@ export function PaneHeader({
   // Only a split tree has a pane worth singling out, so the cyan focus edge
   // rides on the close control the split also brings.
   const canClose = !!onClosePane;
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+  // Scrolls the strip itself rather than calling scrollIntoView, which walks up
+  // to the document and would jump the marketing page under the visitor.
+  useEffect(() => {
+    const strip = stripRef.current;
+    const pill = activeTabRef.current;
+    if (!strip || !pill) return;
+    const left = pill.offsetLeft;
+    const right = left + pill.offsetWidth;
+    if (left < strip.scrollLeft) strip.scrollLeft = left;
+    else if (right > strip.scrollLeft + strip.clientWidth) {
+      strip.scrollLeft = right - strip.clientWidth;
+    }
+  }, [activeIdx, tabs.length]);
   return (
     <div
       className={`flex-shrink-0 flex items-center gap-0.5 border-b bg-[#2d2d2d] px-2 py-1 ${
@@ -102,7 +118,10 @@ export function PaneHeader({
           : "border-b-[rgba(255,255,255,0.06)]"
       }`}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+      <div
+        ref={stripRef}
+        className="scrollbar-none flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto"
+      >
         {tabs.map((tab, i) => {
           const active = i === activeIdx;
           const port = tab.port;
@@ -120,6 +139,7 @@ export function PaneHeader({
           return (
             <div
               key={tab.key}
+              ref={active ? activeTabRef : undefined}
               // The app's pill is a single <button>; here it stays a div so the
               // close and port controls inside it remain real buttons.
               role="button"
@@ -132,10 +152,13 @@ export function PaneHeader({
                 onSelectTab(i);
               }}
               onContextMenu={onContext}
-              className={`group flex h-6 max-w-[150px] min-w-0 cursor-pointer select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${FOCUS_RING} ${
+              // Never shrinks below its label: a squeezed pill collapses onto
+              // the close affordance, so selecting a tab would close it. The
+              // strip scrolls instead, like the app's.
+              className={`group flex h-6 max-w-[150px] shrink-0 cursor-pointer select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${FOCUS_RING} ${
                 active
                   ? "bg-[#3c3c3c] text-[#e5e5e5] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09),0_1px_2px_rgba(0,0,0,0.25)]"
-                  : "text-[#8e8e8e] hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5]"
+                  : "text-[#9a9a9a] hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5]"
               }`}
             >
               <span className="flex shrink-0 items-center">
@@ -299,36 +322,41 @@ type StreamingOutputProps = {
 export function StreamingOutput({ output, loop }: StreamingOutputProps) {
   const [lines, setLines] = useState<OutputLine[]>([]);
   const { ref: scrollRef, onScroll } = useStickToBottom<HTMLDivElement>([lines]);
+  const active = useDemoActive();
 
+  // The boot lines play once. Keeping them out of the pause below matters: a
+  // paused-and-resumed effect would schedule the whole banner a second time.
   useEffect(() => {
-    const timers: number[] = [];
-    output.forEach((line) => {
-      const id = window.setTimeout(() => {
-        setLines((prev) => [...prev, line]);
-      }, line.delay);
-      timers.push(id);
-    });
+    const timers = output.map((line) =>
+      window.setTimeout(() => setLines((prev) => [...prev, line]), line.delay),
+    );
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [output]);
 
+  // The tail keeps appending forever, so it only runs while someone is looking.
+  const loopStartedRef = useRef(false);
+  useEffect(() => {
+    if (!loop || !active) return;
+    const lastDelay = output.length ? output[output.length - 1].delay : 0;
+    // The lead-in only spaces the tail after the boot lines. Coming back from a
+    // pause it has already been served, so the log picks up straight away.
+    const wait = loopStartedRef.current ? 0 : lastDelay + LOOP_START_DELAY_MS;
     let loopId: number | undefined;
-    if (loop) {
-      const lastDelay = output.length ? output[output.length - 1].delay : 0;
-      const startId = window.setTimeout(() => {
-        loopId = window.setInterval(() => {
-          setLines((prev) => {
-            const next = [...prev, loop.line];
-            if (next.length > MAX_LINES) next.splice(0, next.length - MAX_LINES);
-            return next;
-          });
-        }, loop.intervalMs);
-      }, lastDelay + LOOP_START_DELAY_MS);
-      timers.push(startId);
-    }
-
+    const startId = window.setTimeout(() => {
+      loopStartedRef.current = true;
+      loopId = window.setInterval(() => {
+        setLines((prev) => {
+          const next = [...prev, loop.line];
+          if (next.length > MAX_LINES) next.splice(0, next.length - MAX_LINES);
+          return next;
+        });
+      }, loop.intervalMs);
+    }, wait);
     return () => {
-      timers.forEach((t) => window.clearTimeout(t));
+      window.clearTimeout(startId);
       if (loopId !== undefined) window.clearInterval(loopId);
     };
-  }, [output, loop]);
+  }, [output, loop, active]);
 
 
   return (

@@ -1,7 +1,6 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AutoVideo } from "@/components/auto-video";
@@ -26,26 +25,60 @@ const DemoApp = dynamic(
   },
 );
 
+// The frame's own furniture, drawn rather than photographed. A screenshot here
+// would be a picture of some other workspace, so every element would change the
+// moment the demo mounted; this holds the exact shape the demo arrives in.
+function SkeletonBar({ className = "" }: { className?: string }) {
+  return (
+    <div className={`rounded bg-[#2e2e2e] motion-safe:animate-pulse ${className}`} />
+  );
+}
+
 function DemoPlaceholder() {
   return (
     <div
-      className={`relative h-[var(--demo-h)] ${WINDOW_FRAME}`}
+      aria-hidden="true"
+      className={`relative flex h-[var(--demo-h)] ${WINDOW_FRAME}`}
       style={{ "--demo-h": DEMO_HEIGHT_DESKTOP } as React.CSSProperties}
     >
-      <Image
-        src="/screenrecording/agent-parallel-tabs-poster.jpg"
-        alt="lpm project view on macOS: a sidebar of projects, one-click agent buttons in the header, and a Claude Code session running in a terminal tab"
-        width={1224}
-        height={754}
-        // contain, not cover: the frame's 3:2 is narrower than the 1224x754
-        // screenshot, and cropping it takes the traffic lights and the sidebar
-        // labels off the sides — the two things that say "this is a Mac app".
-        className="h-full w-full object-contain"
-      />
-      <div className="absolute inset-x-0 bottom-0 flex justify-center pb-3">
-        <span className="rounded-full bg-black/60 px-3 py-1 text-[11px] text-[#b3b3b3]">
-          Loading demo…
-        </span>
+      <div className="hidden w-52 shrink-0 flex-col border-r border-[#2e2e2e] bg-[#1e1e1e] sm:flex lg:w-[260px]">
+        <div className="flex h-11 shrink-0 items-center gap-2 px-[14px] pt-[7px]">
+          <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
+          <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
+          <span className="h-3 w-3 rounded-full bg-[#28c840]" />
+        </div>
+        <div className="px-4 pb-2 text-xs font-medium uppercase tracking-wider text-[#5c5c5c]">
+          Projects
+        </div>
+        <div className="flex flex-col gap-1 px-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2">
+              <span className="h-2 w-2 shrink-0 rounded-full border border-[#3a3a3a]" />
+              <SkeletonBar className="h-2.5 flex-1" />
+            </div>
+          ))}
+        </div>
+        {/* The footer the sidebar carries, so the column does not visibly grow
+            a bottom half the moment the demo arrives. */}
+        <div className="mt-auto flex flex-col gap-3 p-3">
+          <SkeletonBar className="h-1 w-full" />
+          <SkeletonBar className="h-1 w-full" />
+          <SkeletonBar className="h-3 w-20" />
+          <SkeletonBar className="h-3 w-14" />
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center gap-4 px-3 py-3">
+          <SkeletonBar className="h-4 w-28" />
+          <div className="ml-auto flex items-center gap-2">
+            <SkeletonBar className="h-8 w-24" />
+            <SkeletonBar className="h-8 w-20" />
+            <SkeletonBar className="h-8 w-16" />
+          </div>
+        </div>
+        <div className="flex flex-1 items-center justify-center border-t border-[#2e2e2e]">
+          <span className="text-[13px] text-[#5c5c5c]">Loading demo…</span>
+        </div>
       </div>
     </div>
   );
@@ -80,7 +113,7 @@ function DesktopOnlyPrompt() {
 }
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting
-// for an idle slot keeps the demo's bundle off the critical path — the poster
+// for an idle slot keeps the demo's bundle off the critical path — the drawn
 // placeholder is what the visitor sees while the page settles.
 function useIdle() {
   const [idle, setIdle] = useState(false);

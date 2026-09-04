@@ -102,6 +102,31 @@ export function collectLeaves(node: PaneNode | null): PaneLeaf[] {
   return [...collectLeaves(node.a), ...collectLeaves(node.b)];
 }
 
+/** Brings the tab a sidebar agent row names to the front of whichever pane
+ *  holds it. A row with no live tab behind it leaves the tree alone. */
+export function activateTabByKey(
+  node: PaneNode | null,
+  key: string,
+): PaneNode | null {
+  if (!node) return node;
+  for (const leaf of collectLeaves(node)) {
+    const idx = leaf.tabs.findIndex((tab) => tabKey(tab) === key);
+    if (idx !== -1) return setActiveTab(node, leaf.id, idx);
+  }
+  return node;
+}
+
+/** The tab on screen in every pane, by key — what the sidebar marks as where
+ *  the visitor is. */
+export function activeTabKeys(node: PaneNode | null): Set<string> {
+  const out = new Set<string>();
+  for (const leaf of collectLeaves(node)) {
+    const tab = leaf.tabs[leaf.activeTabIdx];
+    if (tab) out.add(tabKey(tab));
+  }
+  return out;
+}
+
 export function collectServiceNames(node: PaneNode | null): string[] {
   const out: string[] = [];
   for (const leaf of collectLeaves(node)) {

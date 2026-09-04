@@ -20,9 +20,13 @@ type SidebarProps = {
   aiStatusByProject: Record<string, AiStatus>;
   agentTabStatusByProject?: Record<string, Record<string, AgentTabState>>;
   onAddProject: () => void;
+  onOpenAgent: (project: string, key: string) => void;
+  onDuplicate: (project: string, mode: "duplicate" | "worktree") => void;
+  activeAgentKeys?: ReadonlySet<string>;
   onOpenView: (view: DemoView) => void;
   usageSettings: UsageSidebarSettings;
   hasError: boolean;
+  needsYou: number;
   unreadAutomations: number;
   runningAutomations: number;
 };
@@ -36,9 +40,13 @@ export function DemoSidebar({
   aiStatusByProject,
   agentTabStatusByProject,
   onAddProject,
+  onOpenAgent,
+  onDuplicate,
+  activeAgentKeys,
   onOpenView,
   usageSettings,
   hasError,
+  needsYou,
   unreadAutomations,
   runningAutomations,
 }: SidebarProps) {
@@ -112,8 +120,15 @@ export function DemoSidebar({
             aiStatus={aiStatusByProject[project.name]}
             agentTabs={agentTabStatusByProject?.[project.name]}
             expanded={!collapsedAgents.has(project.name)}
+            activeAgentKeys={
+              projectSelected && selected === project.name
+                ? activeAgentKeys
+                : undefined
+            }
             onToggleAgents={() => toggleAgents(project.name)}
             onSelect={() => onSelect(project.name)}
+            onOpenAgent={(key) => onOpenAgent(project.name, key)}
+            onDuplicate={(mode) => onDuplicate(project.name, mode)}
           />
         ))}
       </nav>
@@ -129,6 +144,7 @@ export function DemoSidebar({
           activeView={activeView}
           onOpen={onOpenView}
           hasError={hasError}
+          needsYou={needsYou}
           unreadAutomations={unreadAutomations}
           runningAutomations={runningAutomations}
         />

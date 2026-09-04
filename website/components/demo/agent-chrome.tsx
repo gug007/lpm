@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BRAND, CLAUDE_STARS, settledVerb, workingVerb, type AgentKind } from "./agent-script";
+import { useDemoActive } from "./demo-active";
 import { useReducedMotion } from "./ui";
 
 // The fixed furniture each CLI paints around a session: its launch banner and
@@ -24,7 +25,7 @@ function ClaudeBanner({ cwd }: { cwd: string }) {
       <div className="space-y-[2px]">
         <div>
           <span className="font-semibold text-[#cccccc]">{b.name}</span>{" "}
-          <span className="text-[#686868]">{b.version}</span>
+          <span className="text-[#8a8a8a]">{b.version}</span>
         </div>
         <div className="text-[#919191]">
           {b.model} · {b.account}
@@ -40,18 +41,18 @@ function CodexBanner({ cwd }: { cwd: string }) {
   return (
     <div className="inline-block rounded-md border border-[#2e2e2e] px-2.5 py-1.5">
       <div>
-        <span className="text-[#686868]">&gt;_</span>{" "}
+        <span className="text-[#8a8a8a]">&gt;_</span>{" "}
         <span className="font-semibold text-[#cccccc]">OpenAI Codex</span>{" "}
-        <span className="text-[#686868]">({b.version})</span>
+        <span className="text-[#8a8a8a]">({b.version})</span>
       </div>
       <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3">
-        <span className="text-[#686868]">model:</span>
+        <span className="text-[#8a8a8a]">model:</span>
         <span className="text-[#c7c7c7]">
           {b.model}
           <span className="ml-3 text-[#00c5c7]">/model</span>
-          <span className="text-[#686868]"> to change</span>
+          <span className="text-[#8a8a8a]"> to change</span>
         </span>
-        <span className="text-[#686868]">directory:</span>
+        <span className="text-[#8a8a8a]">directory:</span>
         <span className="text-[#c7c7c7]">{cwd}</span>
       </div>
     </div>
@@ -85,7 +86,7 @@ function ClaudeWorkingLine({
   const elapsed = useElapsed(startedAt);
   const star = useStar();
   return (
-    <div className="text-[#686868]">
+    <div className="text-[#8a8a8a]">
       <span className={`inline-block w-3 ${BRAND.claude.color}`}>{star}</span>
       <span className="ml-1 text-[#e5e5e5]">{workingVerb(seed)}…</span>
       <span className="ml-1.5">
@@ -98,7 +99,7 @@ function ClaudeWorkingLine({
 function CodexWorkingLine({ startedAt }: { startedAt: number }) {
   const elapsed = useElapsed(startedAt);
   return (
-    <div className="text-[#686868]">
+    <div className="text-[#8a8a8a]">
       <span>{BRAND.codex.bullet}</span>
       <span className="ml-1.5 text-[#e5e5e5]">Working</span>
       <span className="ml-1.5">({elapsed}s • esc to interrupt)</span>
@@ -109,7 +110,7 @@ function CodexWorkingLine({ startedAt }: { startedAt: number }) {
 /** Claude Code closes a landed turn with `✻ Cogitated for 9s`. */
 export function TurnFooter({ seed, seconds }: { seed: number; seconds: number }) {
   return (
-    <div className="mt-1 text-[#686868]">
+    <div className="mt-1 text-[#8a8a8a]">
       <span className="inline-block w-3">✻</span>
       <span className="ml-1">
         {settledVerb(seed)} for {seconds}s
@@ -127,7 +128,7 @@ export function AgentStatusLine({
   project: string;
   work: number;
 }) {
-  const dot = <span className="text-[#686868]"> · </span>;
+  const dot = <span className="text-[#8a8a8a]"> · </span>;
 
   if (agent === "codex") {
     const context = Math.max(41, 100 - work * 2);
@@ -152,7 +153,7 @@ export function AgentStatusLine({
       {dot}
       <span className="text-[#d78787]">{BRAND.claude.model}</span>
       {dot}
-      <span className="text-[#686868]">ctx </span>
+      <span className="text-[#8a8a8a]">ctx </span>
       <span>{context}%</span>
       {dot}
       <span className="text-[#c7c400]">${cost}</span>
@@ -165,21 +166,26 @@ function formatTokens(tokens: number): string {
 }
 
 function useElapsed(startedAt: number): number {
+  const active = useDemoActive();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    if (!active) return;
+    // Catches the reading up on the first tick after a pause, without a
+    // synchronous set that would cascade a render on every resume.
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
-  }, []);
+  }, [active]);
   return Math.max(0, Math.round((now - startedAt) / 1000));
 }
 
 function useStar(): string {
   const [i, setI] = useState(0);
   const reducedMotion = useReducedMotion();
+  const active = useDemoActive();
   useEffect(() => {
-    if (reducedMotion) return;
+    if (reducedMotion || !active) return;
     const id = window.setInterval(() => setI((v) => (v + 1) % CLAUDE_STARS.length), 120);
     return () => window.clearInterval(id);
-  }, [reducedMotion]);
+  }, [reducedMotion, active]);
   return reducedMotion ? CLAUDE_STARS[3] : CLAUDE_STARS[i];
 }

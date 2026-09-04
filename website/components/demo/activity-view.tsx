@@ -84,6 +84,28 @@ type ActivityViewProps = ActivityInput & {
   onOpenAutomations: () => void;
 };
 
+// Why a row refuses to clear, in the app's own words. A row still working or
+// still asking is not stale — clearing it would hide the one thing the view
+// exists to surface, while the sidebar went on showing it.
+function dismissBlockedReason(row: ActivityRow): string | null {
+  if (row.kind === "automation") {
+    return "This automation clears itself when the run finishes.";
+  }
+  if (row.kind === "service") {
+    return "The service is still running — stopping it is what clears this.";
+  }
+  switch (row.state) {
+    case "needs-you":
+      return "The agent is asking for you — answering it is what clears this.";
+    case "working":
+      return "The agent is still working — this clears when it finishes.";
+    case "idle":
+      return "There is nothing to clear on this one.";
+    default:
+      return null;
+  }
+}
+
 export function ActivityView({
   onOpenProject,
   onOpenAutomations,
@@ -165,6 +187,7 @@ export function ActivityView({
                 row.kind === "automation" ? onOpenAutomations() : onOpenProject(row.project)
               }
               onDismiss={() => setDismissed((prev) => [...prev, row.id])}
+              dismissBlocked={dismissBlockedReason(row)}
             />
           ))
         )}
@@ -185,12 +208,15 @@ function ActivityRowItem({
   reducedMotion,
   onOpen,
   onDismiss,
+  dismissBlocked,
 }: {
   row: ActivityRow;
   elapsed: string;
   reducedMotion: boolean;
   onOpen: () => void;
   onDismiss: () => void;
+  /** Why this row refuses to clear, or null when it will. */
+  dismissBlocked: string | null;
 }) {
   const style = ACTIVITY_STATE_STYLE[row.state];
   const animate = row.state === "working" && !reducedMotion;
@@ -232,13 +258,21 @@ function ActivityRowItem({
       </span>
       <button
         type="button"
+        disabled={dismissBlocked !== null}
         onClick={(event) => {
           event.stopPropagation();
           onDismiss();
         }}
-        aria-label={`Clear ${ACTIVITY_STATE_LABEL[row.state]} on ${row.projectLabel || row.title}`}
-        title="Clear this row"
-        className={`shrink-0 rounded-md p-1.5 text-[#919191] opacity-0 hover:bg-[#333333] hover:text-[#e5e5e5] focus-visible:opacity-100 group-hover:opacity-100 ${FOCUS_RING} ${PRESS}`}
+        aria-label={
+          dismissBlocked ??
+          `Clear ${ACTIVITY_STATE_LABEL[row.state]} on ${row.projectLabel || row.title}`
+        }
+        title={dismissBlocked ?? "Clear this row"}
+        className={`shrink-0 rounded-md p-1.5 text-[#919191] opacity-0 focus-visible:opacity-100 group-hover:opacity-100 ${
+          dismissBlocked === null
+            ? "hover:bg-[#333333] hover:text-[#e5e5e5]"
+            : "cursor-not-allowed disabled:opacity-0 disabled:group-hover:opacity-35"
+        } ${FOCUS_RING} ${PRESS}`}
       >
         <X className="h-3.5 w-3.5" strokeWidth={2} />
       </button>

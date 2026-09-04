@@ -16,3 +16,4 @@ export { MobileToggle } from "./mobile-toggle";
 export { SettingsToggle } from "./settings-toggle";
 export { SegmentedControl, type SegmentedOption } from "./segmented-control";
 export { SelectField } from "./select-field";
+export { useDialogFocus } from "./use-dialog-focus";

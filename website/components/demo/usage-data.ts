@@ -12,8 +12,9 @@ export type UsageWindowData = {
   usedPercent: number;
   /** Share of the window already gone — the tick mark on the meter. */
   elapsedPercent: number;
-  resetIn: string;
-  resetAt: string;
+  /** How far off the reset is, held as an offset rather than a date so the
+   *  card reads as today's whenever the page is opened. */
+  resetInMs: number;
 };
 
 export type UsageProviderData = {
@@ -35,12 +36,36 @@ export const DEFAULT_USAGE_SETTINGS: UsageSidebarSettings = {
   window: "weekly",
 };
 
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** How long until a window rolls over, in the app's shape: "2h 14m", "6d 23h",
+ *  "18m". */
+export function resetDurationShort(ms: number): string {
+  const minutes = Math.max(0, Math.round(ms / MINUTE));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
+/** The wall-clock moment a window rolls over, in the visitor's own locale. */
+export function resetAbsolute(ms: number): string {
+  return new Date(Date.now() + ms).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 export const USAGE_PROVIDERS: UsageProviderData[] = [
   {
     key: "claude",
     label: "Claude",
     color: "#D97757",
-    plan: "Max 20x",
+    plan: "Fable 5",
     account: "you@example.com",
     updated: "updated 2m ago",
     tokensToday: "14.2M",
@@ -48,14 +73,12 @@ export const USAGE_PROVIDERS: UsageProviderData[] = [
     fiveHour: {
       usedPercent: 41,
       elapsedPercent: 55,
-      resetIn: "2h 14m",
-      resetAt: "Aug 13, 12:15",
+      resetInMs: 2 * HOUR + 14 * MINUTE,
     },
     weekly: {
       usedPercent: 65,
       elapsedPercent: 89,
-      resetIn: "18h 29m",
-      resetAt: "Aug 14, 04:00",
+      resetInMs: 18 * HOUR + 29 * MINUTE,
     },
   },
   {
@@ -69,14 +92,12 @@ export const USAGE_PROVIDERS: UsageProviderData[] = [
     fiveHour: {
       usedPercent: 12,
       elapsedPercent: 8,
-      resetIn: "4h 36m",
-      resetAt: "Aug 13, 14:37",
+      resetInMs: 4 * HOUR + 36 * MINUTE,
     },
     weekly: {
       usedPercent: 1,
       elapsedPercent: 1,
-      resetIn: "6d 23h",
-      resetAt: "Aug 20, 09:00",
+      resetInMs: 6 * DAY + 23 * HOUR,
     },
   },
 ];
@@ -141,7 +162,7 @@ export function sidebarUsageRows(settings: UsageSidebarSettings): SidebarUsageRo
         label: provider.label,
         color: provider.color,
         fill: usageBarColor(win.usedPercent),
-        detail: win.resetIn,
+        detail: resetDurationShort(win.resetInMs),
         percentText: `${Math.round(win.usedPercent)}%`,
         fraction: Math.max(0, Math.min(100, win.usedPercent)) / 100,
         windowLabel: label,

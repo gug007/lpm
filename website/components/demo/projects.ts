@@ -1,4 +1,4 @@
-import type { AgentStep } from "./agent-script";
+import type { AgentStep, ReplyIntent } from "./agent-script";
 
 export type LineColor =
   | "default"
@@ -34,9 +34,12 @@ export type DemoAction = {
   // When this agent action opens, the session starts with this prompt already
   // sent — "progress" streams an unfinished reply, "done" shows it complete.
   autoPrompt?: string;
-  autoMode?: "progress" | "done";
+  autoMode?: "progress" | "done" | "waiting";
   // The work that reply streams. Falls back to a generic canned session.
   autoSteps?: AgentStep[];
+  // For a "waiting" session, what answering yes carries out.
+  autoIntent?: ReplyIntent;
+  autoAnswerSteps?: AgentStep[];
   confirm?: boolean;
   durationMs?: number;
   // Accent hex the button tints itself with, mirroring the app's `color:` field.
@@ -114,6 +117,27 @@ export type DemoProject = {
 
 export type AiStatus = "running" | "done" | "error" | "waiting";
 
+// Seeded logs are stamped when the demo loads rather than written down, so a
+// service's output never reads as months old. Only the demo chunk imports this
+// module, and it is client-only, so there is no server render to disagree with.
+const SEED_DAY = new Date();
+const pad = (n: number) => String(n).padStart(2, "0");
+const Y = SEED_DAY.getFullYear();
+const M = pad(SEED_DAY.getMonth() + 1);
+const D = pad(SEED_DAY.getDate());
+const MONTH_ABBR = SEED_DAY.toLocaleString("en-US", { month: "short" });
+
+/** 20260904 — the date half of a Rails migration version or a run id. */
+const YMD = `${Y}${M}${D}`;
+/** 2026/09/04 — Go's default log date. */
+const SLASHED = `${Y}/${M}/${D}`;
+/** 2026-09-04 — ISO, as Jupyter prints it. */
+const DASHED = `${Y}-${M}-${D}`;
+/** 4 Sep 2026 — how redis stamps its startup lines. */
+const REDIS_DAY = `${SEED_DAY.getDate()} ${MONTH_ABBR} ${Y}`;
+/** v2026.9.4 — a calendar-versioned release tag. */
+const CALVER = `v${Y}.${SEED_DAY.getMonth() + 1}.${SEED_DAY.getDate()}`;
+
 const CLAUDE_ACTION: DemoAction = {
   name: "claude",
   label: "Claude Code",
@@ -152,7 +176,7 @@ const PROJECTS: DemoProject[] = [
         output: [
           { text: "$ pnpm dev", color: "green", delay: 50 },
           { text: "", delay: 150 },
-          { text: "  ▲ Next.js 15.0.2", color: "muted", delay: 250 },
+          { text: "  ▲ Next.js 16.3.0", color: "muted", delay: 250 },
           { text: "  - Local:        http://localhost:3000", color: "muted", delay: 300 },
           { text: "  - Experiments:  turbo", color: "muted", delay: 320 },
           { text: "", delay: 340 },
@@ -245,6 +269,27 @@ const PROJECTS: DemoProject[] = [
         ],
       },
       {
+        ...CODEX_ACTION,
+        autoPrompt: "Move the plans table to integer cents",
+        autoMode: "progress",
+        autoSteps: [
+          { kind: "tool", label: "Read", arg: "db/schema.rb", result: "212 lines" },
+          {
+            kind: "tool",
+            label: "Search",
+            arg: 'pattern: "price_cents|price"',
+            result: "17 matches",
+          },
+          {
+            kind: "text",
+            text: "Storing prices as floats rounds badly at the seam between Stripe and the ledger. Moving the column to integer cents with a backfill.",
+          },
+          { kind: "tool", label: "Edit", arg: "db/migrate/add_price_cents.rb", result: "+34" },
+          { kind: "tool", label: "Edit", arg: "app/models/plan.rb", result: "+12 -7" },
+          { kind: "tool", label: "Ran", arg: "bin/rails db:migrate", result: "running…" },
+        ],
+      },
+      {
         name: "test",
         label: "Run Tests",
         emoji: "🧪",
@@ -275,10 +320,10 @@ const PROJECTS: DemoProject[] = [
         color: "#60a5fa",
         output: [
           { text: "$ bin/rails db:migrate", color: "green", delay: 50 },
-          { text: "== 20260423090100 AddIndexToUsers: migrating =======", color: "muted", delay: 200 },
+          { text: `== ${YMD}090100 AddIndexToUsers: migrating =======`, color: "muted", delay: 200 },
           { text: "-- add_index(:users, :email, {:unique=>true})", color: "muted", delay: 400 },
           { text: "   -> 0.0182s", color: "muted", delay: 600 },
-          { text: "== 20260423090100 AddIndexToUsers: migrated (0.0184s)", color: "green", delay: 850 },
+          { text: `== ${YMD}090100 AddIndexToUsers: migrated (0.0184s)`, color: "green", delay: 850 },
         ],
       },
       {
@@ -295,7 +340,7 @@ const PROJECTS: DemoProject[] = [
           { text: "→ building release bundle", color: "muted", delay: 250 },
           { text: "→ uploading to s3://releases/myapp", color: "muted", delay: 650 },
           { text: "→ rolling 3 instances", color: "muted", delay: 950 },
-          { text: "✓ deployed v2026.4.23-rc1", color: "green", delay: 1300 },
+          { text: `✓ deployed ${CALVER}-rc1`, color: "green", delay: 1300 },
         ],
       },
     ],
@@ -399,10 +444,10 @@ const PROJECTS: DemoProject[] = [
         port: 8080,
         output: [
           { text: "$ go run ./cmd/server", color: "green", delay: 50 },
-          { text: "2026/04/23 09:01:02 loading config from env", color: "muted", delay: 400 },
-          { text: "2026/04/23 09:01:02 connected to postgres://localhost:5432/api", color: "muted", delay: 650 },
-          { text: "2026/04/23 09:01:02 migrations: up to date (14)", color: "muted", delay: 700 },
-          { text: "2026/04/23 09:01:02 server listening on :8080", color: "cyan", delay: 850 },
+          { text: `${SLASHED} 09:01:02 loading config from env`, color: "muted", delay: 400 },
+          { text: `${SLASHED} 09:01:02 connected to postgres://localhost:5432/api`, color: "muted", delay: 650 },
+          { text: `${SLASHED} 09:01:02 migrations: up to date (14)`, color: "muted", delay: 700 },
+          { text: `${SLASHED} 09:01:02 server listening on :8080`, color: "cyan", delay: 850 },
         ],
         loop: {
           line: {
@@ -431,8 +476,8 @@ const PROJECTS: DemoProject[] = [
         port: 6379,
         output: [
           { text: "$ redis-server", color: "green", delay: 50 },
-          { text: "37123:C 23 Apr 2026 09:01:03.001 * oO0OoO0OoO0Oo Redis is starting", color: "muted", delay: 400 },
-          { text: "37123:M 23 Apr 2026 09:01:03.012 * Ready to accept connections tcp", color: "cyan", delay: 700 },
+          { text: `37123:C ${REDIS_DAY} 09:01:03.001 * oO0OoO0OoO0Oo Redis is starting`, color: "muted", delay: 400 },
+          { text: `37123:M ${REDIS_DAY} 09:01:03.012 * Ready to accept connections tcp`, color: "cyan", delay: 700 },
         ],
       },
     ],
@@ -706,11 +751,11 @@ const PROJECTS: DemoProject[] = [
         port: 8888,
         output: [
           { text: "$ jupyter lab --no-browser", color: "green", delay: 50 },
-          { text: "[I 2026-04-23 09:01:02.000 ServerApp] jupyter_lsp | 2.2.5", color: "muted", delay: 400 },
-          { text: "[I 2026-04-23 09:01:02.112 ServerApp] jupyterlab | 4.0.11", color: "muted", delay: 550 },
-          { text: "[I 2026-04-23 09:01:02.214 ServerApp] Serving notebooks from: /Users/you/Projects/ml-pipeline", color: "muted", delay: 700 },
-          { text: "[I 2026-04-23 09:01:02.320 ServerApp] Jupyter Server 2.12.1 is running at:", color: "muted", delay: 900 },
-          { text: "[I 2026-04-23 09:01:02.321 ServerApp] http://localhost:8888/lab?token=9e2e…", color: "cyan", delay: 1000 },
+          { text: `[I ${DASHED} 09:01:02.000 ServerApp] jupyter_lsp | 2.2.5`, color: "muted", delay: 400 },
+          { text: `[I ${DASHED} 09:01:02.112 ServerApp] jupyterlab | 4.0.11`, color: "muted", delay: 550 },
+          { text: `[I ${DASHED} 09:01:02.214 ServerApp] Serving notebooks from: /Users/you/Projects/ml-pipeline`, color: "muted", delay: 700 },
+          { text: `[I ${DASHED} 09:01:02.320 ServerApp] Jupyter Server 2.12.1 is running at:`, color: "muted", delay: 900 },
+          { text: `[I ${DASHED} 09:01:02.321 ServerApp] http://localhost:8888/lab?token=9e2e…`, color: "cyan", delay: 1000 },
         ],
       },
       {
@@ -734,7 +779,40 @@ const PROJECTS: DemoProject[] = [
       },
     ],
     actions: [
-      CODEX_ACTION,
+      {
+        ...CODEX_ACTION,
+        autoPrompt: "Fix the train/test leak in the feature scaler",
+        autoMode: "waiting",
+        autoIntent: "fix",
+        autoSteps: [
+          { kind: "tool", label: "Read", arg: "pipeline/features.py", result: "184 lines" },
+          {
+            kind: "tool",
+            label: "Search",
+            arg: 'pattern: "StandardScaler"',
+            result: "3 matches",
+          },
+          {
+            kind: "text",
+            text: "The scaler is fit on the full frame before the split, so test statistics leak into training. Fitting on the train split alone and only transforming the test split fixes it, and it will move your eval numbers.",
+          },
+          {
+            kind: "text",
+            text: "Scale on the train split only — apply the change?",
+          },
+        ],
+        autoAnswerSteps: [
+          { kind: "thinking" },
+          { kind: "tool", label: "Edit", arg: "pipeline/features.py", result: "+9 -4" },
+          { kind: "tool", label: "Edit", arg: "pipeline/train.py", result: "+3 -1" },
+          { kind: "tool", label: "Bash", arg: "pytest -q", result: "23 passed in 4.8s" },
+          {
+            kind: "text",
+            text: "The scaler now fits on the train split and only transforms the test split. Eval accuracy moved 0.918 → 0.904, which is the honest number.",
+          },
+          { kind: "text", text: "Ready for the next one.", style: "muted" },
+        ],
+      },
       {
         name: "train",
         label: "Train",
@@ -751,7 +829,7 @@ const PROJECTS: DemoProject[] = [
           { text: "epoch 1/10  loss=0.4821  acc=0.812", color: "default", delay: 1000 },
           { text: "epoch 5/10  loss=0.1872  acc=0.908", color: "default", delay: 1600 },
           { text: "epoch 10/10 loss=0.0914  acc=0.942", color: "default", delay: 2100 },
-          { text: "saved ./runs/20260423-091502.ckpt", color: "green", delay: 2300 },
+          { text: `saved ./runs/${YMD}-091502.ckpt`, color: "green", delay: 2300 },
         ],
       },
       {
