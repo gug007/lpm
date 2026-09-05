@@ -17,8 +17,8 @@ enum AutomationEditorContext: Identifiable {
     var isEditing: Bool { if case .edit = self { return true } else { return false } }
 }
 
-private let CODEX_MAX_MODELS: Set<String> = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
-private let CODEX_ULTRA_MODELS: Set<String> = ["gpt-5.6-sol", "gpt-5.6-terra"]
+private let CODEX_MAX_MODELS: Set<String> = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
+private let CODEX_ULTRA_MODELS: Set<String> = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra"]
 
 private let WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 /// The scheduler's floor, and the least room a single run needs in a window
@@ -350,7 +350,7 @@ struct AutomationEditorSheet: View {
 
     /// The levels the picked agent and model actually accept — an unsupported
     /// one fails the run rather than falling back. Every Claude model goes to
-    /// Max; Codex needs a pinned GPT-5.6 model for its top two. An unpinned
+    /// Max; Codex needs a supported pinned model for its top two. An unpinned
     /// agent gets only the levels both CLIs share.
     private var effortOptions: [EffortOption] {
         var opts = [EffortOption(value: "", label: "Default"),

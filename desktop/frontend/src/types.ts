@@ -309,6 +309,7 @@ export const AI_CLI_OPTIONS: AICLIOption[] = [
     label: "Codex",
     models: [
       { value: "", label: "Default" },
+      { value: "gpt-6-astra", label: "GPT-6 Astra" },
       { value: "gpt-5.6-sol", label: "GPT-5.6 Sol" },
       { value: "gpt-5.6-terra", label: "GPT-5.6 Terra" },
       { value: "gpt-5.6-luna", label: "GPT-5.6 Luna" },
@@ -343,11 +344,11 @@ export function aiDefaultModel(cli: AICLI): string {
 const CODEX_TOP_EFFORTS: { option: AIEffortOption; models: ReadonlySet<string> }[] = [
   {
     option: { value: "max", label: "Max" },
-    models: new Set(["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]),
+    models: new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]),
   },
   {
     option: { value: "ultra", label: "Ultra" },
-    models: new Set(["gpt-5.6-sol", "gpt-5.6-terra"]),
+    models: new Set(["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra"]),
   },
 ];
 
@@ -369,10 +370,10 @@ export function aiEffectiveEffort(cli: AICLI, model: string, effort: string): st
   return aiEfforts(cli, model).some((e) => e.value === effort) ? effort : "";
 }
 
-// Codex Fast Mode (`service_tier=fast`) is currently honored only by the
-// flagship 5.x models. Listing the eligible models centrally so the picker
-// and the call-site guard agree.
+// Codex Fast Mode (`service_tier=fast`) eligibility is listed centrally so
+// the picker and the call-site guard agree.
 const CODEX_FAST_MODELS: ReadonlySet<string> = new Set([
+  "gpt-6-astra",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
