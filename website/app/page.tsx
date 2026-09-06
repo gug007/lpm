@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BeforeAfter } from "@/components/home/before-after";
 import { ConfigExample } from "@/components/home/config-example";
+import { Contributors } from "@/components/home/contributors";
 import { CtaBand } from "@/components/home/cta-band";
 import { DemoSection } from "@/components/home/demo";
 import { DownloadSafety } from "@/components/home/download-safety";
@@ -50,6 +51,7 @@ export default function HomePage() {
       <Features />
       <PairedDevices />
       <ConfigExample />
+      <Contributors />
       <HomeFaq />
       <RelatedPages
         links={[

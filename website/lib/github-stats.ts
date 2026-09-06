@@ -129,3 +129,39 @@ export function formatCount(n: number): string {
   }
   return n.toString();
 }
+
+type RawContributor = {
+  login: string;
+  avatar_url: string;
+  html_url: string;
+  contributions: number;
+  type: string;
+};
+
+export type Contributor = {
+  login: string;
+  avatarUrl: string;
+  url: string;
+  commits: number;
+};
+
+export async function fetchContributors(): Promise<Contributor[]> {
+  try {
+    const res = await fetch(`${REPO_API_URL}/contributors?per_page=100`, {
+      headers: { Accept: "application/vnd.github+json" },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const raw = (await res.json()) as RawContributor[];
+    return raw
+      .filter((c) => c.type === "User")
+      .map((c) => ({
+        login: c.login,
+        avatarUrl: c.avatar_url,
+        url: c.html_url,
+        commits: c.contributions,
+      }));
+  } catch {
+    return [];
+  }
+}

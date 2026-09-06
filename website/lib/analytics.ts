@@ -68,6 +68,7 @@ export function trackDownload({
 
 export type GithubLinkSource =
   | "home-cta"
+  | "home-contributors"
   | "mac-hero"
   | "mac-cta"
   | "mac-devs-hero"
