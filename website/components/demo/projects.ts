@@ -1061,7 +1061,7 @@ const PROJECTS: DemoProject[] = [
       { ...CODEX_ACTION },
       {
         name: "test",
-        label: "Run Tests",
+        label: "Tests",
         emoji: "🧪",
         cmd: "pnpm test",
         display: "header",
@@ -1083,7 +1083,7 @@ const PROJECTS: DemoProject[] = [
       },
       {
         name: "ios",
-        label: "Run on iOS",
+        label: "Run iOS",
         emoji: "📱",
         cmd: "npx expo run:ios",
         display: "header",
