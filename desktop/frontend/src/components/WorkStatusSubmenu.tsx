@@ -64,6 +64,7 @@ export function WorkStatusSubmenu({
                 label={choice.label}
                 emoji={choice.emoji}
                 current={sameWorkStatus(current, choice.input)}
+                asks={choice.asksNote}
                 onPick={then(() => onPick(choice))}
                 actions={
                   entry && {
