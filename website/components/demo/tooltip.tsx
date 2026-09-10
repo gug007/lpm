@@ -84,10 +84,15 @@ export function Tooltip({
   // Drop a pending show if the trigger unmounts mid-dwell.
   useEffect(() => clearShowTimer, [clearShowTimer]);
 
+  // A control may stand its label down while its own menu is open. The wrapper
+  // has to stay mounted through that, or the dwell in flight never gets its
+  // onMouseLeave and the tooltip comes back stuck once the label returns.
+  const labelled = Boolean(content);
+
   useEffect(() => {
     const trigger = triggerRef.current;
     const tooltip = tooltipRef.current;
-    if (openId === null || !trigger || !tooltip) return;
+    if (openId === null || !labelled || !trigger || !tooltip) return;
 
     const tr = trigger.getBoundingClientRect();
     const tt = tooltip.getBoundingClientRect();
@@ -109,9 +114,9 @@ export function Tooltip({
       left: Math.max(EDGE_MARGIN, Math.min(left, maxLeft)),
       id: openId,
     });
-  }, [openId, side]);
+  }, [labelled, openId, side]);
 
-  if (!hoverCapable || !content) return <>{children}</>;
+  if (!hoverCapable) return <>{children}</>;
 
   const placed = pos !== null && pos.id === openId;
 
@@ -132,6 +137,7 @@ export function Tooltip({
         {children}
       </span>
       {openId !== null &&
+        labelled &&
         createPortal(
           <span
             ref={tooltipRef}

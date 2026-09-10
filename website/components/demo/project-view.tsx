@@ -8,8 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { NO_AUTOFILL } from "./no-autofill";
-import { useStickToBottom } from "./use-stick-to-bottom";
 import { Globe, Terminal } from "lucide-react";
 import type {
   DemoAction,
@@ -31,14 +29,13 @@ import {
   type AgentTurnTiming,
 } from "./agent-terminal";
 import { BrowserView } from "./browser-view";
+import { InteractiveTerminal } from "./interactive-terminal";
+import { ProjectHeader } from "./project-header";
 import { DemoBranchSwitcher } from "./branch-switcher";
 import { TabContextMenu, TabRenameModal } from "./tab-controls";
 import { AppTip } from "./app-tip";
-import { OpenInDropdown } from "./open-in-dropdown";
 import { ReviewView } from "./review-view";
 import { actionButtonStyle } from "./action-colors";
-import { CreateActionButton } from "./create-action-button";
-import { StartControl } from "./start-control";
 import { FOCUS_RING, PRESS } from "./ui";
 import {
   type LeafContent,
@@ -65,8 +62,6 @@ import {
   tabKey,
   updateTabInLeaf,
 } from "./pane-tree";
-
-const MAX_TERMINAL_HISTORY = 200;
 
 export type ActionTerminalMap = Record<string, DemoAction>;
 
@@ -477,6 +472,7 @@ export function DemoProjectView({
 
   const leafCtx: LeafContext = {
     project,
+    git,
     runningServices,
     actionTerminals,
     agentTabStatus,
@@ -485,7 +481,7 @@ export function DemoProjectView({
 
   return (
     <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
-      <Header
+      <ProjectHeader
         project={project}
         anyRunning={anyRunning}
         headerActions={headerActions}
@@ -554,30 +550,32 @@ export function DemoProjectView({
 
       {/* Outside the tree guard: the footer must not pop in and shove the
           workspace up the moment the first pane appears. */}
-      <div className="flex shrink-0 items-center gap-1 bg-[#1a1a1a] px-2 py-1">
+      <div className="flex shrink-0 items-center gap-2 bg-[#1a1a1a] px-3 py-2">
         <AppTip />
-        {footerActions.map((a) => (
-          <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
-        ))}
-        {git && (
-          <DemoBranchSwitcher
-            git={git}
-            onCheckout={handleGitCheckout}
-            onCommit={handleGitCommit}
-            onPull={handleGitPull}
-            onPush={handleGitPush}
-            onFetch={handleGitFetch}
-            onMerge={handleGitMerge}
-            onCreatePR={handleGitCreatePR}
-            onDiscard={handleGitDiscard}
-            onSync={handleGitSync}
-            onCreateBranch={handleGitCreateBranch}
-            onRenameBranch={onGitRenameBranch}
-            onDeleteBranch={onGitDeleteBranch}
-            onRemoveRemote={onGitRemoveRemote}
-            onCopyBranchName={handleGitCopyBranchName}
-          />
-        )}
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
+          {footerActions.map((a) => (
+            <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
+          ))}
+          {git && (
+            <DemoBranchSwitcher
+              git={git}
+              onCheckout={handleGitCheckout}
+              onCommit={handleGitCommit}
+              onPull={handleGitPull}
+              onPush={handleGitPush}
+              onFetch={handleGitFetch}
+              onMerge={handleGitMerge}
+              onCreatePR={handleGitCreatePR}
+              onDiscard={handleGitDiscard}
+              onSync={handleGitSync}
+              onCreateBranch={handleGitCreateBranch}
+              onRenameBranch={onGitRenameBranch}
+              onDeleteBranch={onGitDeleteBranch}
+              onRemoveRemote={onGitRemoveRemote}
+              onCopyBranchName={handleGitCopyBranchName}
+            />
+          )}
+        </div>
       </div>
 
       {runningAction && (
@@ -677,6 +675,10 @@ function PaneLayout(props: PaneLayoutProps) {
 
 type LeafContext = {
   project: DemoProject;
+  // Live git, not `project.git`: the seed goes stale the moment the visitor
+  // commits, and a Review tab or a shell that disagrees with the branch pill
+  // is worse than no Review tab at all.
+  git?: DemoGit;
   runningServices: Set<string>;
   actionTerminals: ActionTerminalMap;
   agentTabStatus: Record<string, AgentTabState>;
@@ -733,7 +735,15 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         emoji: tab.emoji,
         pinned: tab.pinned,
       },
-      body: <InteractiveTerminal key={tab.id} projectRoot={ctx.project.root} />,
+      body: (
+        <InteractiveTerminal
+          key={tab.id}
+          projectRoot={ctx.project.root}
+          projectName={ctx.project.name}
+          git={ctx.git}
+          changedFiles={ctx.project.changedFiles}
+        />
+      ),
     };
   }
   if (tab.kind === "browser") {
@@ -764,7 +774,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         running: true,
         pinned: tab.pinned,
       },
-      body: <ReviewView key={tab.id} project={ctx.project} />,
+      body: <ReviewView key={tab.id} project={ctx.project} git={ctx.git} />,
     };
   }
   const action = ctx.actionTerminals[tab.key];
@@ -1078,160 +1088,6 @@ function EmptyState({
   );
 }
 
-export function InteractiveTerminal({ projectRoot }: { projectRoot: string }) {
-  const [input, setInput] = useState("");
-  const [history, setHistory] = useState<
-    { prompt: string; input: string; output: string }[]
-  >([]);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const { ref: scrollRef, onScroll } = useStickToBottom<HTMLDivElement>([
-    history,
-  ]);
-
-  // A shell you just opened should take what you type. Only when the click that
-  // opened it came from inside the demo, so a pane mounted for a project the
-  // visitor is not looking at never steals the page's focus — and never with a
-  // scroll, which would shove the page under them.
-  useEffect(() => {
-    const input = inputRef.current;
-    if (!input) return;
-    const active = document.activeElement;
-    if (!(active instanceof HTMLElement)) return;
-    if (!active.closest(".replica-ui")) return;
-    input.focus({ preventScroll: true });
-  }, []);
-
-  const rel = projectRoot.replace(/^~\/?/, "");
-  const prompt = rel ? `~/${rel} $ ` : `~ $ `;
-
-  const fakeRun = (cmd: string): string => {
-    const trimmed = cmd.trim();
-    if (!trimmed) return "";
-    if (trimmed === "ls") {
-      return "README.md  package.json  src/  scripts/  tests/";
-    }
-    if (trimmed === "pwd") return projectRoot;
-    if (trimmed === "git status") {
-      return [
-        "On branch main",
-        "Your branch is up to date with 'origin/main'.",
-        "",
-        "nothing to commit, working tree clean",
-      ].join("\n");
-    }
-    if (trimmed === "git log --oneline -3") {
-      return [
-        "aa990a3 refactor build: remove goreleaser config",
-        "5068101 chore(release): notarized macOS binaries",
-        "1caaf7f feat(vite): bump target to ES2022",
-      ].join("\n");
-    }
-    if (trimmed === "whoami") return "demo";
-    if (trimmed === "date") return new Date().toString();
-    if (trimmed === "clear") return "__clear__";
-    if (trimmed.startsWith("echo ")) return trimmed.slice(5);
-    if (trimmed === "help") {
-      return [
-        "demo shell · try:",
-        "  ls          list files",
-        "  git status  working tree status",
-        "  whoami      current user",
-        "  echo X      print X",
-        "  clear       clear terminal",
-      ].join("\n");
-    }
-    return `zsh: command not found: ${trimmed.split(" ")[0]}`;
-  };
-
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const out = fakeRun(input);
-    if (out === "__clear__") {
-      setHistory([]);
-    } else {
-      setHistory((h) => {
-        const next = [...h, { prompt, input, output: out }];
-        return next.length > MAX_TERMINAL_HISTORY
-          ? next.slice(-MAX_TERMINAL_HISTORY)
-          : next;
-      });
-    }
-    setInput("");
-  };
-
-  return (
-    <div
-      ref={scrollRef}
-      onScroll={onScroll}
-      className="flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] leading-relaxed bg-[#1a1a1a]"
-      onClick={() => inputRef.current?.focus()}
-    >
-      <div className="text-[#919191]">
-        lpm demo · try{" "}
-        <span className="text-[#4ade80]">ls</span>,{" "}
-        <span className="text-[#4ade80]">git status</span>,{" "}
-        <span className="text-[#4ade80]">help</span>
-      </div>
-      {history.map((h, i) => (
-        <div key={i}>
-          <div className="text-[#cccccc] whitespace-pre-wrap break-all">
-            <span className="text-[#22d3ee]">{h.prompt}</span>
-            {h.input}
-          </div>
-          {h.output && (
-            <div className="text-[#b3b3b3] whitespace-pre-wrap">{h.output}</div>
-          )}
-        </div>
-      ))}
-      <form onSubmit={onSubmit} autoComplete="off" className="flex items-center text-[#cccccc]">
-        <span className="text-[#22d3ee] whitespace-pre">{prompt}</span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          {...NO_AUTOFILL}
-          className="flex-1 bg-transparent outline-none text-[#cccccc] font-mono caret-[#cccccc]"
-        />
-      </form>
-    </div>
-  );
-}
-
-function HeaderActionButton({
-  action,
-  onRun,
-  buttonRef,
-}: {
-  action: DemoAction;
-  onRun: () => void;
-  buttonRef?: React.Ref<HTMLButtonElement>;
-}) {
-  return (
-    <button
-      ref={buttonRef}
-      type="button"
-      onClick={onRun}
-      title={action.label}
-      style={actionButtonStyle(action.color)}
-      className={`inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2e2e2e] bg-[var(--action-tint,#242424)] px-3.5 text-xs font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
-    >
-      {action.emoji && (
-        <span className="text-[13px] leading-none">{action.emoji}</span>
-      )}
-      {/* Agents are the headline feature — only utility actions collapse to
-          their emoji on narrow windows. */}
-      <span
-        className={
-          action.emoji && !action.agent ? "hidden @min-[860px]:inline" : ""
-        }
-      >
-        {action.label}
-      </span>
-    </button>
-  );
-}
-
 function FooterActionButton({
   action,
   onRun,
@@ -1254,87 +1110,3 @@ function FooterActionButton({
     </button>
   );
 }
-
-type HeaderProps = {
-  project: DemoProject;
-  anyRunning: boolean;
-  headerActions: DemoAction[];
-  startOpen: boolean;
-  runningServices: Set<string>;
-  onToggleStart: () => void;
-  onCloseStart: () => void;
-  onStartStop: () => void;
-  onStartProfile: (name: string) => void;
-  onToggleService: (name: string) => void;
-  onOpenAction: (a: DemoAction) => void;
-  onAddAction: () => void;
-  startButtonRef?: React.Ref<HTMLButtonElement>;
-  agentButtonRef?: React.RefObject<HTMLButtonElement | null>;
-  codexButtonRef?: React.RefObject<HTMLButtonElement | null>;
-  startRingPulse?: boolean;
-};
-
-function Header({
-  project,
-  anyRunning,
-  headerActions,
-  startOpen,
-  runningServices,
-  onToggleStart,
-  onCloseStart,
-  onStartStop,
-  onStartProfile,
-  onToggleService,
-  onOpenAction,
-  onAddAction,
-  startButtonRef,
-  agentButtonRef,
-  codexButtonRef,
-  startRingPulse,
-}: HeaderProps) {
-  const agentAction = headerActions.find((a) => a.agent === "claude");
-  const codexAction = headerActions.find((a) => a.agent === "codex");
-  // @container: action labels follow the pane's own width, which is far
-  // narrower than the viewport when the demo is embedded in a page.
-  return (
-    <div className="@container flex shrink-0 items-center gap-4 px-3 py-1">
-      <div className="min-w-0 shrink-0 truncate pr-2 text-xl font-semibold tracking-tight text-[#e5e5e5]">
-        {project.label ?? project.name}
-      </div>
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-        <div className="scrollbar-none flex min-w-0 items-center gap-2 overflow-x-auto">
-          {headerActions.map((a) => (
-            <HeaderActionButton
-              key={a.name}
-              action={a}
-              buttonRef={
-                a === agentAction
-                  ? agentButtonRef
-                  : a === codexAction
-                    ? codexButtonRef
-                    : undefined
-              }
-              onRun={() => onOpenAction(a)}
-            />
-          ))}
-        </div>
-        <CreateActionButton onClick={onAddAction} />
-        <OpenInDropdown />
-        <StartControl
-          project={project}
-          running={anyRunning}
-          runningServices={runningServices}
-          open={startOpen}
-          onToggleMenu={onToggleStart}
-          onCloseMenu={onCloseStart}
-          onStartStop={onStartStop}
-          onStartProfile={onStartProfile}
-          onToggleService={onToggleService}
-          startButtonRef={startButtonRef}
-          ringPulse={startRingPulse}
-        />
-      </div>
-    </div>
-  );
-}
-

@@ -13,11 +13,10 @@ const FILES: ChangedFile[] = [
     path: "src/lib/billing.ts",
     status: "modified",
     diff: [
-      { t: "hunk", text: "@@ -14,9 +14,12 @@ export async function createSubscription(" },
+      { t: "hunk", text: "@@ -14,6 +14,7 @@ export async function createSubscription(" },
       { t: "ctx", text: "  const customer = await stripe.customers.create({ email });" },
       { t: "del", text: "  const price = PRICES[plan];" },
       { t: "add", text: "  const price = PRICES[plan] ?? PRICES.starter;" },
-      { t: "add", text: "  if (!price) throw new Error(`Unknown plan: ${plan}`);" },
       { t: "ctx", text: "  return stripe.subscriptions.create({" },
       { t: "ctx", text: "    customer: customer.id," },
       { t: "add", text: "    trial_period_days: 14," },
@@ -53,7 +52,7 @@ const FILES: ChangedFile[] = [
     path: "src/components/PlanCard.tsx",
     status: "modified",
     diff: [
-      { t: "hunk", text: "@@ -8,7 +8,9 @@ export function PlanCard({ plan }: Props) {" },
+      { t: "hunk", text: "@@ -8,5 +8,6 @@ export function PlanCard({ plan }: Props) {" },
       { t: "ctx", text: "  return (" },
       { t: "del", text: '    <div className="rounded-lg border p-4">' },
       { t: "add", text: '    <div className="rounded-xl border p-5 shadow-sm">' },
@@ -68,7 +67,7 @@ const FILES: ChangedFile[] = [
     path: "src/lib/legacy-pricing.ts",
     status: "deleted",
     diff: [
-      { t: "hunk", text: "@@ -1,8 +0,0 @@" },
+      { t: "hunk", text: "@@ -1,9 +0,0 @@" },
       { t: "del", text: "export const LEGACY_PRICES = {" },
       { t: "del", text: "  free: 0," },
       { t: "del", text: "  pro: 12," },

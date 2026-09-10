@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "./use-stick-to-bottom";
-import type { ReplyContext } from "./projects";
+import { INITIAL_AI_STATUS, type ReplyContext } from "./projects";
 import { FOCUS_RING, PRESS } from "./ui";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
 import { AgentComposer } from "./agent-composer";
@@ -47,13 +47,44 @@ const MAX_HISTORY = 30;
 // How long a seeded "still working" session runs before it lands.
 const KEEP_ALIVE_MS = 5200;
 const SETTLE_AFTER_MS = 32000;
-// What a session that opens already finished claims it spent, so its footer
-// reads like a turn that really ran instead of one that took no time at all.
-const SEEDED_DONE_MS = 9000;
-// How long a seeded question has been standing when the visitor opens it. The
-// sidebar was already counting it before the tab existed, so the reading has to
-// carry on from there rather than restart at zero.
-const SEEDED_WAIT_MS = 4 * 60_000;
+
+// When the demo loaded. Every seeded session dates from this one stamp, so the
+// sidebar row, the Activity row and the transcript behind them read the same
+// clock. The demo chunk is client-only, so there is no server render to differ.
+export const DEMO_EPOCH = Date.now();
+
+// What a seeded turn spent before it landed. A row that has finished reports
+// the turn's own runtime, so the footer under the transcript and the row that
+// opened it are one number rather than two.
+export const SEEDED_TURN_MS = 52_000;
+
+// How long each seeded session has been in the state a visitor first finds it
+// in: still working, still holding its question, or — once it has landed — how
+// long the turn behind it took.
+export const SEEDED_AGENT_AGE_MS: Record<AgentStatus, number> = {
+  running: 41_000,
+  waiting: 4 * 60_000,
+  done: SEEDED_TURN_MS,
+  error: 18_000,
+};
+
+/** When a seeded session entered the state it is showing. */
+export function seededSince(status: AgentStatus): number {
+  return DEMO_EPOCH - SEEDED_AGENT_AGE_MS[status];
+}
+
+const projectName = (cwd: string) => cwd.slice(cwd.lastIndexOf("/") + 1);
+
+/** The clock a session inherits when its tab opens. A project the visitor has
+ *  not opened yet has had a row counting since the demo loaded, so the
+ *  transcript behind it carries that reading on instead of restarting it;
+ *  a session the visitor started — a duplicate, a second tab — has no such row
+ *  and starts where it is opened. */
+function seededStart(cwd: string, status: AgentStatus): number | undefined {
+  return INITIAL_AI_STATUS[projectName(cwd)] === status
+    ? seededSince(status)
+    : undefined;
+}
 
 type AgentTerminalProps = {
   agent: AgentKind;
@@ -108,7 +139,7 @@ export function AgentTerminal({
 
   const runQuery = (
     text: string,
-    opts?: { steps?: Step[]; keepBusy?: boolean },
+    opts?: { steps?: Step[]; keepBusy?: boolean; startedAt?: number },
   ) => {
     let steps = opts?.steps;
     let asks = false;
@@ -129,7 +160,7 @@ export function AgentTerminal({
     if (steps.length === 0) return;
     nextIdRef.current += 1;
     const id = nextIdRef.current;
-    const startedAt = Date.now();
+    const startedAt = opts?.startedAt ?? Date.now();
     setHistory((h) => {
       const next = [
         ...h,
@@ -220,11 +251,12 @@ export function AgentTerminal({
       runQuery(autoPrompt, {
         steps: autoSteps ?? IN_PROGRESS_STEPS,
         keepBusy: true,
+        startedAt: seededStart(cwd, "running"),
       });
     } else if (autoPrompt && autoMode === "done") {
       nextIdRef.current += 1;
-      const landedAt = Date.now();
-      const startedAt = landedAt - SEEDED_DONE_MS;
+      const startedAt = seededStart(cwd, "done") ?? Date.now() - SEEDED_TURN_MS;
+      const landedAt = startedAt + SEEDED_TURN_MS;
       setHistory([
         {
           id: nextIdRef.current,
@@ -233,7 +265,7 @@ export function AgentTerminal({
           steps: DONE_STEPS,
           finished: true,
           startedAt,
-          doneMs: SEEDED_DONE_MS,
+          doneMs: SEEDED_TURN_MS,
         },
       ]);
       // Without this the finished session never reports itself, so its sidebar
@@ -241,7 +273,7 @@ export function AgentTerminal({
       onStatusRef.current?.("done", { since: startedAt, until: landedAt });
     } else if (autoPrompt && autoMode === "waiting" && autoSteps) {
       nextIdRef.current += 1;
-      const askedAt = Date.now();
+      const askedAt = seededStart(cwd, "waiting") ?? Date.now();
       setHistory([
         {
           id: nextIdRef.current,
@@ -249,8 +281,8 @@ export function AgentTerminal({
           revealed: autoSteps.length,
           steps: autoSteps,
           finished: true,
-          startedAt: askedAt - SEEDED_WAIT_MS - SEEDED_DONE_MS,
-          doneMs: SEEDED_DONE_MS,
+          startedAt: askedAt - SEEDED_TURN_MS,
+          doneMs: SEEDED_TURN_MS,
           asks: true,
         },
       ]);
@@ -260,7 +292,7 @@ export function AgentTerminal({
       pendingStepsRef.current = autoAnswerSteps;
       // Counting from the question, not from the turn — the row reads how long
       // the agent has been held up.
-      onStatusRef.current?.("waiting", { since: askedAt - SEEDED_WAIT_MS });
+      onStatusRef.current?.("waiting", { since: askedAt });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -309,7 +341,7 @@ export function AgentTerminal({
   };
 
   const b = BRAND[agent];
-  const project = cwd.slice(cwd.lastIndexOf("/") + 1);
+  const project = projectName(cwd);
   // Drives the status line's context/cost readouts, so they drift with the work
   // on screen instead of sitting at a constant.
   const work = history.reduce(
@@ -376,7 +408,6 @@ export function AgentTerminal({
         busy={busy}
         placeholder={busy ? "Working… press Stop to interrupt" : `Send to ${b.name}…`}
         inputRef={inputRef}
-        onSuggest={() => fillInput(SUGGESTIONS[0])}
         onRecall={() => fillInput(lastQuery)}
         canRecall={!!lastQuery}
         workingSince={history[history.length - 1]?.finished === false

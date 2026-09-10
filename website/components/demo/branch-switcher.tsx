@@ -2,29 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "./confirm-dialog";
+import {
+  BranchIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  CloudBranchIcon,
+  CloudOffIcon,
+  CommitIcon,
+  CopyIcon,
+  PencilIcon,
+  PlusIcon,
+  SyncIcon,
+  TrashIcon,
+} from "./branch-icons";
 import { GitActionsMenu, type PullStrategy } from "./git-actions-menu";
+import { MergeDialog } from "./merge-dialog";
 import { NO_AUTOFILL } from "./no-autofill";
 import type { DemoBranch, DemoGit } from "./projects";
 import { RemoteBadge } from "./remote-badge";
+import { SparkleGlyph } from "./sparkle-glyph";
 import { FOCUS_RING, PRESS } from "./ui";
-import {
-  DialogFooter,
-  DialogHeader,
-  DialogPanel,
-  PrimaryButton,
-  SecondaryButton,
-} from "./ui-kit";
-
-const ICON_PROPS = {
-  width: 14,
-  height: 14,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.5,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
 
 // The app's git buttons sit on the terminal footer, so they take the composer
 // border rather than the app-chrome one.
@@ -35,113 +32,6 @@ const AI_BRANCH_SUGGESTIONS = [
   "fix/webhook-retry-backoff",
   "chore/upgrade-dependencies",
 ];
-
-function BranchIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
-      <line x1="6" y1="3" x2="6" y2="15" />
-      <circle cx="18" cy="6" r="3" />
-      <circle cx="6" cy="18" r="3" />
-      <path d="M18 9a9 9 0 0 1-9 9" />
-    </svg>
-  );
-}
-
-function CloudBranchIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
-      <path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.78 6 6 0 0 0-11.6 2.28A4 4 0 0 0 6 19h11.5z" />
-    </svg>
-  );
-}
-
-function CopyIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size}>
-      <rect x="9" y="9" width="13" height="13" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  );
-}
-
-function PencilIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size}>
-      <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
-    </svg>
-  );
-}
-
-function TrashIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size}>
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    </svg>
-  );
-}
-
-function CheckIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2.5}>
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function PlusIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon() {
-  return (
-    <svg {...ICON_PROPS}>
-      <path d="m6 9 6 6 6-6" />
-    </svg>
-  );
-}
-
-function CommitIcon() {
-  return (
-    <svg {...ICON_PROPS} width={12} height={12} strokeWidth={2}>
-      <circle cx="12" cy="12" r="3" />
-      <line x1="3" y1="12" x2="9" y2="12" />
-      <line x1="15" y1="12" x2="21" y2="12" />
-    </svg>
-  );
-}
-
-function CloudOffIcon({ size = 12 }: { size?: number } = {}) {
-  return (
-    <svg {...ICON_PROPS} width={size} height={size} strokeWidth={2}>
-      <path d="m2 2 20 20" />
-      <path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" />
-      <path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07" />
-    </svg>
-  );
-}
-
-function SyncIcon({ spinning }: { spinning: boolean }) {
-  return (
-    <svg
-      {...ICON_PROPS}
-      width={12}
-      height={12}
-      strokeWidth={2}
-      className={spinning ? "animate-spin" : undefined}
-    >
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  );
-}
 
 type BranchSwitcherProps = {
   git: DemoGit;
@@ -239,9 +129,20 @@ export function DemoBranchSwitcher({
         setCommitMenuOpen(false);
       }
     };
+    // The rename and new-branch inputs only preventDefault on Escape, so without
+    // this guard the first Escape typed in them would tear down the popover too.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && branchOpen && !creating && !renamingKey) {
+        closeBranchMenu();
+      }
+    };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [branchOpen, commitMenuOpen]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [branchOpen, commitMenuOpen, creating, renamingKey]);
 
   useEffect(() => {
     if (branchOpen && !creating) searchRef.current?.focus();
@@ -353,7 +254,7 @@ export function DemoBranchSwitcher({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search branches"
                 {...NO_AUTOFILL}
-                className="w-full rounded-lg bg-transparent px-3 py-2 text-[13px] text-[#e5e5e5] placeholder:text-[#919191] focus:outline-none"
+                className={`w-full rounded-lg bg-transparent px-3 py-2 text-[13px] text-[#e5e5e5] placeholder:text-[#919191] ${FOCUS_RING}`}
               />
             </div>
             <div className="max-h-[300px] overflow-y-auto py-1.5">
@@ -629,6 +530,15 @@ export function DemoBranchSwitcher({
               setCommitMenuOpen(false);
               setMergePicker(true);
             }}
+            onAutoCommit={() => {
+              setCommitMenuOpen(false);
+              onCommit();
+            }}
+            onAutoCommitAndPush={() => {
+              setCommitMenuOpen(false);
+              onCommit();
+              onPush();
+            }}
             onDiscard={() => {
               setCommitMenuOpen(false);
               setConfirmDiscard(true);
@@ -706,147 +616,6 @@ export function DemoBranchSwitcher({
         />
       )}
     </div>
-  );
-}
-
-function MergeDialog({
-  currentBranch,
-  branches,
-  onCancel,
-  onMerge,
-}: {
-  currentBranch: string;
-  branches: DemoBranch[];
-  onCancel: () => void;
-  onMerge: (branch: string) => void;
-}) {
-  const mergeable = useMemo(
-    () =>
-      branches.filter(
-        (b) => (b.remote ? `${b.remote}/${b.name}` : b.name) !== currentBranch,
-      ),
-    [branches, currentBranch],
-  );
-  const [selected, setSelected] = useState<DemoBranch | undefined>(mergeable[0]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const labelOf = (b: DemoBranch) => (b.remote ? `${b.remote}/${b.name}` : b.name);
-
-  return (
-    <div className="absolute inset-0 z-[60] flex items-center justify-center">
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onCancel}
-        className="absolute inset-0 bg-black/50"
-      />
-      <DialogPanel className="relative">
-        <DialogHeader
-          title="Merge"
-          description={
-            <>
-              Merge another branch into{" "}
-              <span className="font-mono text-[#e5e5e5]">{currentBranch}</span>.
-            </>
-          }
-        />
-        <div className="mt-4">
-          <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-wider text-[#919191]">
-            Branch to merge
-          </span>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setPickerOpen((v) => !v)}
-              disabled={!selected}
-              aria-expanded={pickerOpen}
-              aria-haspopup="listbox"
-              className={`flex w-full items-center gap-2.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-2 text-left text-[13px] text-[#e5e5e5] transition-colors hover:bg-[#2a2a2a] disabled:opacity-40 ${FOCUS_RING} ${PRESS}`}
-            >
-              {selected ? (
-                <BranchOption b={selected} />
-              ) : (
-                <span className="flex-1 text-[#919191]">No other branches</span>
-              )}
-              <span className="shrink-0 text-[#919191]">
-                <ChevronDownIcon />
-              </span>
-            </button>
-            {pickerOpen && (
-              <div className="menu-pop absolute left-0 right-0 top-full z-10 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[#2e2e2e] bg-[#1a1a1a] py-1 shadow-2xl">
-                {mergeable.map((b) => {
-                  const active = selected && labelOf(b) === labelOf(selected);
-                  return (
-                    <button
-                      key={labelOf(b)}
-                      type="button"
-                      onClick={() => {
-                        setSelected(b);
-                        setPickerOpen(false);
-                      }}
-                      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12.5px] transition-colors hover:bg-[#2a2a2a] ${
-                        active ? "text-[#e5e5e5]" : "text-[#b3b3b3]"
-                      }`}
-                    >
-                      <BranchOption b={b} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="mt-3 flex items-center gap-1.5 rounded-lg border border-[#2e2e2e] bg-[#242424] px-3 py-2 text-[11px] text-[#919191]">
-          <span className="text-[#c084fc]">
-            <SparkleGlyph />
-          </span>
-          Conflicts? lpm can resolve them with AI.
-        </div>
-        <DialogFooter>
-          <SecondaryButton onClick={onCancel}>Cancel</SecondaryButton>
-          <PrimaryButton
-            onClick={() => selected && onMerge(labelOf(selected))}
-            disabled={!selected}
-          >
-            Merge
-          </PrimaryButton>
-        </DialogFooter>
-      </DialogPanel>
-    </div>
-  );
-}
-
-function BranchOption({ b }: { b: DemoBranch }) {
-  return (
-    <>
-      <span className="shrink-0 text-[#919191]">
-        {b.remote ? <CloudBranchIcon size={14} /> : <BranchIcon size={14} />}
-      </span>
-      <span className="min-w-0 flex-1 truncate font-mono">{b.name}</span>
-      {b.remote && <RemoteBadge remote={b.remote} />}
-      {b.age && (
-        <span className="shrink-0 text-[11px] tabular-nums text-[#919191]">
-          {b.age}
-        </span>
-      )}
-    </>
-  );
-}
-
-function SparkleGlyph() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={12}
-      height={12}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0"
-    >
-      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2" />
-    </svg>
   );
 }
 

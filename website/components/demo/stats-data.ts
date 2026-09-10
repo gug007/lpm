@@ -30,16 +30,17 @@ export const DAILY: DailyPoint[] = CLAUDE_SERIES.map((claude, index) => ({
 const ALL_TIME_FACTOR = 4.6;
 
 const PROJECT_SHARES: { name: string; share: number }[] = [
-  { name: "saas-app", share: 0.41 },
-  { name: "auth-service", share: 0.27 },
-  { name: "docs-site", share: 0.18 },
-  { name: "ml-pipeline", share: 0.14 },
+  { name: "saas-app", share: 0.39 },
+  { name: "auth-service", share: 0.25 },
+  { name: "docs-site", share: 0.17 },
+  { name: "ml-pipeline", share: 0.13 },
+  { name: "mobile-app", share: 0.06 },
 ];
 
 const MODEL_SHARES: { name: string; share: number }[] = [
-  { name: "claude-opus-5", share: 0.46 },
+  { name: "claude-fable-5", share: 0.46 },
   { name: "claude-sonnet-5", share: 0.22 },
-  { name: "gpt-5-codex", share: 0.32 },
+  { name: "gpt-5.6-sol", share: 0.32 },
 ];
 
 export type RecentSession = {
@@ -50,11 +51,12 @@ export type RecentSession = {
 };
 
 export const RECENT_SESSIONS: RecentSession[] = [
-  { project: "saas-app", model: "claude-opus-5", tokens: 4_120_000, when: "14m ago" },
-  { project: "auth-service", model: "gpt-5-codex", tokens: 2_640_000, when: "1h ago" },
+  { project: "saas-app", model: "claude-fable-5", tokens: 4_120_000, when: "14m ago" },
+  { project: "auth-service", model: "claude-fable-5", tokens: 2_640_000, when: "1h ago" },
   { project: "docs-site", model: "claude-sonnet-5", tokens: 980_000, when: "3h ago" },
-  { project: "saas-app", model: "gpt-5-codex", tokens: 3_310_000, when: "yesterday" },
-  { project: "ml-pipeline", model: "claude-opus-5", tokens: 5_870_000, when: "yesterday" },
+  { project: "saas-app", model: "gpt-5.6-sol", tokens: 3_310_000, when: "yesterday" },
+  { project: "ml-pipeline", model: "gpt-5.6-sol", tokens: 5_870_000, when: "yesterday" },
+  { project: "mobile-app", model: "claude-fable-5", tokens: 1_240_000, when: "2d ago" },
 ];
 
 export type StatsSlice = {

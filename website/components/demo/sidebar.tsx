@@ -22,6 +22,7 @@ type SidebarProps = {
   onAddProject: () => void;
   onOpenAgent: (project: string, key: string) => void;
   onDuplicate: (project: string, mode: "duplicate" | "worktree") => void;
+  onRemoveProject: (project: string) => void;
   activeAgentKeys?: ReadonlySet<string>;
   onOpenView: (view: DemoView) => void;
   usageSettings: UsageSidebarSettings;
@@ -42,6 +43,7 @@ export function DemoSidebar({
   onAddProject,
   onOpenAgent,
   onDuplicate,
+  onRemoveProject,
   activeAgentKeys,
   onOpenView,
   usageSettings,
@@ -129,6 +131,7 @@ export function DemoSidebar({
             onSelect={() => onSelect(project.name)}
             onOpenAgent={(key) => onOpenAgent(project.name, key)}
             onDuplicate={(mode) => onDuplicate(project.name, mode)}
+            onRemove={() => onRemoveProject(project.name)}
           />
         ))}
       </nav>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Clock, Layers, Server, Terminal, X } from "lucide-react";
 import {
   ACTIVITY_STATE_LABEL,
@@ -11,7 +11,10 @@ import {
   type ActivityRow,
   type ActivityState,
 } from "./activity";
+import { DEMO_EPOCH, seededSince } from "./agent-terminal";
+import type { DemoJob } from "./automations";
 import { FOCUS_RING, PRESS, useReducedMotion } from "./ui";
+import { useSecondsClock } from "./use-seconds-clock";
 
 const KINDS: { value: ActivityKind | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -37,6 +40,10 @@ function formatDuration(secs: number): string {
   return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
 }
 
+function elapsedSeconds(clock: RowClock, now: number): number {
+  return ((clock.until ?? now) - clock.since) / 1000;
+}
+
 function elapsedLabel(state: ActivityState, secs: number): string {
   const span = formatDuration(secs);
   switch (state) {
@@ -53,30 +60,64 @@ function elapsedLabel(state: ActivityState, secs: number): string {
   }
 }
 
-// Nothing here has a real start time, so each row gets a stable head start
-// hashed off its id — rows read as having been running for different lengths
-// instead of every clock in the list showing the same second.
-function seedSeconds(id: string): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return 20 + (hash % 1600);
+/** When a row's state began, and when it stopped counting. A row still working
+ *  or still asking reports no `until`, exactly as the sidebar's row does. */
+type RowClock = { since: number; until?: number };
+
+// A row here and the sidebar row beside it are the same session, so both read
+// their age off the same start. The ids mirror the ones activityRows builds.
+function agentClocks(input: ActivityInput): Map<string, RowClock> {
+  const clocks = new Map<string, RowClock>();
+  for (const project of input.projects) {
+    const tabs = input.agentTabStatusByProject[project.name] ?? {};
+    const keys = Object.keys(tabs);
+    for (const key of keys) {
+      const { since, until } = tabs[key];
+      if (since !== undefined) {
+        clocks.set(`agent:${project.name}:${key}`, { since, until });
+      }
+    }
+    const rollup = input.aiStatusByProject[project.name];
+    if (rollup && keys.length === 0) {
+      clocks.set(`agent:${project.name}`, {
+        since: seededSince(rollup),
+        // Only a landed turn stops counting; the rest keep ticking.
+        ...(rollup === "done" ? { until: DEMO_EPOCH } : {}),
+      });
+    }
+  }
+  return clocks;
 }
 
-/** Starts at 0 rather than at a wall clock, so the server render and the first
- *  client render agree and only the ticking differs. */
-function useSecondsSinceMount(): number {
-  const [seconds, setSeconds] = useState(0);
+const AGO = /^(\d+)([smhd])/;
+const AGO_UNIT: Record<string, number> = {
+  s: 1000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
 
-  useEffect(() => {
-    const started = Date.now();
-    const id = window.setInterval(
-      () => setSeconds(Math.floor((Date.now() - started) / 1000)),
-      1000,
-    );
-    return () => window.clearInterval(id);
-  }, []);
+// Automations is one click away and states when each job last ran, so the row
+// here counts from that moment rather than from a clock of its own.
+function lastRunSince(job: DemoJob, now: number): number | undefined {
+  const match = AGO.exec(job.lastRun.trim());
+  if (match) return now - Number(match[1]) * AGO_UNIT[match[2]];
+  return job.lastRun.startsWith("just now") ? now : undefined;
+}
 
-  return seconds;
+// A service or a run the visitor started carries no start time in the demo's
+// state, so its row counts from when the list first saw it — a reading the
+// list can back up, and one that never jumps. Kept across visits to the view.
+const FIRST_SEEN = new Map<string, number>();
+
+function firstSeen(ids: string[], now: number): (id: string) => number {
+  for (const id of FIRST_SEEN.keys()) {
+    if (!ids.includes(id)) FIRST_SEEN.delete(id);
+  }
+  for (const id of ids) {
+    if (!FIRST_SEEN.has(id)) FIRST_SEEN.set(id, now);
+  }
+  return (id) => FIRST_SEEN.get(id) ?? now;
 }
 
 type ActivityViewProps = ActivityInput & {
@@ -114,9 +155,23 @@ export function ActivityView({
   const [kind, setKind] = useState<ActivityKind | "all">("all");
   const [dismissed, setDismissed] = useState<string[]>([]);
   const reducedMotion = useReducedMotion();
-  const running = useSecondsSinceMount();
+  // The same once-a-second reading of the wall clock the sidebar's rows use.
+  const now = useSecondsClock(false);
   const rows = activityRows(input).filter((row) => !dismissed.includes(row.id));
   const shown = kind === "all" ? rows : rows.filter((row) => row.kind === kind);
+  const clocks = agentClocks(input);
+  const seenAt = firstSeen(rows.map((row) => row.id), now);
+
+  const clockFor = (row: ActivityRow): RowClock => {
+    const agent = clocks.get(row.id);
+    if (agent) return agent;
+    if (row.kind === "automation") {
+      const job = input.jobs.find((j) => `job:${j.id}` === row.id);
+      const since = job && !job.running ? lastRunSince(job, now) : undefined;
+      if (since !== undefined) return { since };
+    }
+    return { since: seenAt(row.id) };
+  };
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#1a1a1a]">
@@ -181,7 +236,7 @@ export function ActivityView({
             <ActivityRowItem
               key={row.id}
               row={row}
-              elapsed={elapsedLabel(row.state, seedSeconds(row.id) + running)}
+              elapsed={elapsedLabel(row.state, elapsedSeconds(clockFor(row), now))}
               reducedMotion={reducedMotion}
               onOpen={() =>
                 row.kind === "automation" ? onOpenAutomations() : onOpenProject(row.project)

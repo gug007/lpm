@@ -12,12 +12,9 @@ import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
   INITIAL_AI_STATUS,
   type AiStatus,
-  type DemoAction,
   type DemoBranch,
   type DemoGit,
   type DemoProject,
-  type OutputLine,
-  type ReplyContext,
 } from "./projects";
 import { DemoSidebar } from "./sidebar";
 import { MobileProjectSwitcher } from "./mobile-project-switcher";
@@ -43,20 +40,41 @@ import {
   type ActionTerminalMap,
   type AgentTabState,
 } from "./project-view";
-import { activateTabByKey, activeTabKeys, type PaneNode } from "./pane-tree";
+import {
+  activateTabByKey,
+  activeTabKeys,
+  collectLeaves,
+  setActiveTab,
+  syncServiceTabs,
+  type PaneNode,
+} from "./pane-tree";
 import { DemoActiveProvider, usePageVisible } from "./demo-active";
 import { GlobalTerminalsView } from "./global-terminals-view";
 import { SettingsView } from "./settings-view";
 import { DemoAddProjectModal, type NewProjectInput } from "./add-project-modal";
 import type { NewActionInput } from "./add-action-modal";
-import type { AgentStep } from "./agent-script";
+import { NoProjectsPane } from "./no-projects-pane";
+import { RemoveProjectDialog, removeProject } from "./remove-project";
+import {
+  DUPLICATE_PROMPT,
+  SEEDED_AGENT_AGE_MS,
+  buildActionFromInput,
+  buildProjectFromInput,
+  duplicateSteps,
+  initialActionTerminalState,
+  initialGitState,
+  initialRunningState,
+  initialTreeState,
+  uniqueName,
+  worktreeBranch,
+} from "./project-factory";
 
 type DemoAppProps = {
   heightCss?: string;
   heightCssSm?: string;
 };
 
-type HintStage = "invite" | "next" | "hidden";
+type HintStage = "invite" | "next";
 
 const EMPTY_SERVICES: ReadonlySet<string> = new Set<string>();
 const EMPTY_ACTIONS: ActionTerminalMap = {};
@@ -66,164 +84,22 @@ const EMPTY_STATUS: Record<string, AgentTabState> = {};
 // question, which outranks work still in flight.
 const ROLLUP_ORDER: AiStatus[] = ["error", "waiting", "running", "done"];
 
-// What the agent in a fresh copy picks up, so the duplicate is visibly doing
-// its own work rather than mirroring its parent.
-const DUPLICATE_PROMPT = "Try the same change with a background job instead";
+// One row of project header, until the live one reports otherwise.
+const HEADER_ROW_H = 40;
+// What sits between the header and the first line of output: the pane's 33px
+// tab strip, the two hairlines around it, and a little air. The hint pill hangs
+// below the pair, so it never covers the tabs its own line points at.
+const PILL_DROP_BELOW_HEADER = 40;
 
-// The copy's opening turn, named in the source project's own files. Built here
-// rather than through buildReply, whose replies all stop on a question — a
-// duplicate has to look like a second agent working, not one asking.
-function duplicateSteps(ctx: ReplyContext | undefined): AgentStep[] | undefined {
-  if (!ctx) return undefined;
-  return [
-    { kind: "thinking" },
-    { kind: "tool", label: "Read", arg: ctx.focusFile, result: ctx.focusLines },
-    {
-      kind: "text",
-      text: `Same change, queued through ${ctx.wireTarget} instead, so the caller returns straight away.`,
-    },
-    { kind: "tool", label: "Write", arg: ctx.draftFile, result: "+52" },
-    { kind: "tool", label: "Edit", arg: ctx.focusFile, result: "+7 -12" },
-    { kind: "tool", label: "Bash", arg: ctx.testCmd, result: "running…" },
-  ];
-}
-
-// How long the sessions a visitor has not opened yet claim to have been going,
-// so their rows read like work already under way rather than starting now.
-const SEEDED_AGENT_AGE_MS: Record<AiStatus, number> = {
-  running: 41_000,
-  waiting: 4 * 60_000,
-  done: 52_000,
-  error: 18_000,
-};
+// What a branch is ahead/behind its upstream by. git keeps this per branch, so
+// the demo has to park it when a checkout leaves the branch.
+type BranchSync = { ahead: number; behind: number };
 
 type AutoCursorState =
   | { phase: "hidden" }
   | { phase: "travel"; x: number; y: number }
   | { phase: "tap"; x: number; y: number }
   | { phase: "fade"; x: number; y: number };
-
-function initialGitState(projects: DemoProject[]): Record<string, DemoGit> {
-  const out: Record<string, DemoGit> = {};
-  for (const p of projects) {
-    if (p.git) out[p.name] = { ...p.git, branches: [...p.git.branches] };
-  }
-  return out;
-}
-
-// A visitor's first frame has to be the product, not an empty room: every
-// project boots the way its owner left it — default profile up, agent open.
-function initialRunningState(
-  projects: DemoProject[],
-): Record<string, Set<string>> {
-  return Object.fromEntries(projects.map((p) => [p.name, new Set<string>()]));
-}
-
-function initialTreeState(
-  projects: DemoProject[],
-): Record<string, PaneNode | null> {
-  return Object.fromEntries(
-    projects.map((p) => [p.name, initialPaneState(p).tree]),
-  );
-}
-
-function initialActionTerminalState(
-  projects: DemoProject[],
-): Record<string, ActionTerminalMap> {
-  return Object.fromEntries(
-    projects.map((p) => [p.name, initialPaneState(p).actionTerminals]),
-  );
-}
-
-function uniqueName(base: string, taken: Set<string>): string {
-  if (!taken.has(base)) return base;
-  let i = 2;
-  while (taken.has(`${base}-${i}`)) i++;
-  return `${base}-${i}`;
-}
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function actionOutput(
-  cmd: string,
-  mode: "once" | "terminal",
-): { output: OutputLine[]; loop?: { line: OutputLine; intervalMs: number } } {
-  const head: OutputLine = { text: `$ ${cmd}`, color: "green", delay: 50 };
-  if (mode === "terminal") {
-    return {
-      output: [
-        head,
-        { text: "starting process…", color: "muted", delay: 350 },
-        { text: "ready — watching for changes", color: "cyan", delay: 850 },
-      ],
-      loop: {
-        line: { text: "· recompiled in 41ms", color: "muted", delay: 0 },
-        intervalMs: 2600,
-      },
-    };
-  }
-  return {
-    output: [
-      head,
-      { text: "working…", color: "muted", delay: 350 },
-      { text: "✓ done in 0.9s", color: "green", delay: 950 },
-    ],
-  };
-}
-
-function buildActionFromInput(
-  input: NewActionInput,
-  existing: DemoAction[],
-): DemoAction {
-  const taken = new Set(existing.map((a) => a.name));
-  const name = uniqueName(slugify(input.name) || "action", taken);
-  const { output, loop } = actionOutput(input.cmd, input.runMode);
-  return {
-    name,
-    label: input.name,
-    ...(input.emoji ? { emoji: input.emoji } : {}),
-    cmd: input.cmd,
-    display: "header",
-    ...(input.runMode === "terminal" ? { type: "terminal" as const } : {}),
-    ...(input.confirm ? { confirm: true } : {}),
-    durationMs: 1000,
-    output,
-    ...(loop ? { loop } : {}),
-  };
-}
-
-function buildProjectFromInput(
-  input: NewProjectInput,
-  existing: DemoProject[],
-): DemoProject {
-  const taken = new Set(existing.map((p) => p.name));
-  const name = uniqueName(input.name, taken);
-  if (input.kind === "ssh") {
-    return {
-      name,
-      label: name,
-      root: `ssh://${input.host}/~/${name}`,
-      stack: `SSH · ${input.host}`,
-      services: [],
-      actions: [],
-      profiles: [],
-    };
-  }
-  return {
-    name,
-    label: name,
-    root: `~/Projects/${name}`,
-    stack: "Local project",
-    services: [],
-    actions: [],
-    profiles: [],
-  };
-}
 
 export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [projects, setProjects] = useState<DemoProject[]>(INITIAL_PROJECTS);
@@ -234,6 +110,12 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const [gitByProject, setGitByProject] = useState<Record<string, DemoGit>>(
     () => initialGitState(INITIAL_PROJECTS),
   );
+  // Only the branch on screen has its counts in gitByProject; every branch left
+  // behind keeps its own here, so a round trip returns to what it had. Nothing
+  // renders from it, so a ref keeps it out of the render path.
+  const branchSyncByProject = useRef<
+    Record<string, Record<string, BranchSync>>
+  >({});
   const [aiStatusByProject, setAiStatusByProject] = useState<
     Record<string, AiStatus>
   >(() => ({ ...INITIAL_AI_STATUS }));
@@ -259,7 +141,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     phase: "hidden",
   });
   const [hint, setHint] = useState<HintStage>("invite");
+  const [headerHeight, setHeaderHeight] = useState(HEADER_ROW_H);
+  // Visibility is held apart from the stage so the pill keeps drawing the line
+  // it was showing all the way through its half-second fade.
+  const [hintVisible, setHintVisible] = useState(true);
   const [isInView, setIsInView] = useState(false);
+  // Glimpsed is enough to keep the frame alive; parked is what the tour waits
+  // for, so nobody spends the whole performance on it below the fold.
+  const [isParked, setIsParked] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
   const pageVisible = usePageVisible();
   const [glowActive, setGlowActive] = useState(false);
   const [ringPulseOn, setRingPulseOn] = useState(false);
@@ -269,14 +159,21 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   const codexButtonRef = useRef<HTMLButtonElement | null>(null);
   const autoCursorRanRef = useRef(false);
   const hasBeenSeenRef = useRef(false);
+  // Read by the mimed tour at the moment it would press Start, which is long
+  // after the effect that owns it last re-ran.
+  const servicesRunningRef = useRef(false);
   // Stamped once when the demo mounts, so the seeded sessions all date from
   // the same moment rather than drifting apart as the tree re-renders.
   const [mountedAt] = useState(() => Date.now());
 
   const markInteracted = () => {
     setAutoCursor({ phase: "hidden" });
-    setHint("hidden");
+    setHintVisible(false);
   };
+
+  useEffect(() => {
+    servicesRunningRef.current = (runningByProject[selected]?.size ?? 0) > 0;
+  }, [runningByProject, selected]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -284,17 +181,21 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          setIsInView(entry.isIntersecting);
+          const ratio = entry.isIntersecting ? entry.intersectionRatio : 0;
+          // A hair under each threshold: the ratio a crossing reports is the
+          // threshold itself, and floating point does not always agree.
+          setIsInView(ratio >= 0.38);
+          setIsParked(ratio >= 0.8);
         }
       },
-      { threshold: 0.4 },
+      { threshold: [0.4, 0.85] },
     );
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    if (!isInView || hasBeenSeenRef.current) return;
+    if (!isParked || hasBeenSeenRef.current) return;
     hasBeenSeenRef.current = true;
     const prefersReducedMotion =
       typeof window !== "undefined" &&
@@ -307,10 +208,10 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       window.clearTimeout(timeout);
       setGlowActive(false);
     };
-  }, [isInView]);
+  }, [isParked]);
 
   useEffect(() => {
-    if (!isInView || autoCursorRanRef.current) return;
+    if (!isParked || autoCursorRanRef.current) return;
     const container = containerRef.current;
     if (!container) return;
     if (typeof window === "undefined") return;
@@ -329,7 +230,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     const startIfIdle = () => {
       if (started) return;
       started = true;
-      startBtn.click();
+      // Start is a toggle: once the visitor's own click has booted the project
+      // this same button reads Stop, and pressing it would shut it all down.
+      if (!servicesRunningRef.current) startBtn.click();
     };
 
     // The agent is the product's whole point, so the mimed cursor launches it
@@ -340,7 +243,6 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       if (launched || !btn) return;
       launched = true;
       btn.click();
-      setHint("next");
     };
 
     // The headline claim is two agents at once, so the last beat opens the
@@ -352,6 +254,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       paired = true;
       btn.click();
       setHint("next");
+      setHintVisible(true);
     };
 
     const prefersReducedMotion = window.matchMedia(
@@ -387,21 +290,41 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     };
 
     // Moving the pointer means the visitor is taking over: drop the mimed
-    // cursor, but still boot the project so the demo never sits empty.
-    // Clicking or typing is real engagement — leave the project untouched.
+    // cursor, but still boot the project so the demo never sits empty. A click
+    // lands the boot too — synchronously, so it is still the selected
+    // project's Start button being pressed rather than whichever row the click
+    // is about to select.
     const onPointerMove = () => hideCursor();
-    const onPointerDown = () => cancel();
+    // The chevron beside Start and the menu it opens: pressing either only
+    // opens or uses that menu, so the boot is neither wanted here nor spent —
+    // a later click elsewhere still lands it.
+    const inStartMenu = (node: Node) =>
+      !!startBtn.parentElement?.contains(node) ||
+      (node instanceof Element && !!node.closest('[role="menu"]'));
+    // Pressing Start IS the boot, so it latches the flag rather than injecting
+    // one: the browser delivers pointerdown and click in separate tasks, so a
+    // click here would flip the button to Stop before the visitor's own click
+    // lands on it and shut the project straight back down.
+    const onPointerDown = (event: PointerEvent) => {
+      const node = event.target instanceof Node ? event.target : null;
+      if (node && startBtn.contains(node)) started = true;
+      else if (!node || !inStartMenu(node)) startIfIdle();
+      cancel();
+    };
     const onKeyDown = () => cancel();
     container.addEventListener("pointermove", onPointerMove, { passive: true });
     container.addEventListener("pointerdown", onPointerDown, { passive: true });
     container.addEventListener("keydown", onKeyDown);
 
     const containerRect = container.getBoundingClientRect();
+    // Re-read the frame every beat: the visitor is usually still scrolling it
+    // into place, and a stale origin would land the cursor on the wrong control.
     const at = (el: HTMLElement) => {
+      const frame = container.getBoundingClientRect();
       const r = el.getBoundingClientRect();
       return {
-        x: r.left + r.width / 2 - containerRect.left,
-        y: r.top + r.height / 2 - containerRect.top,
+        x: r.left + r.width / 2 - frame.left,
+        y: r.top + r.height / 2 - frame.top,
       };
     };
     const start = at(startBtn);
@@ -458,17 +381,47 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       const el = codexButtonRef.current;
       return el ? at(el) : null;
     };
-    const moveToCodex = (phase: "travel" | "tap" | "fade") => () => {
+    const moveToCodex = (phase: "travel" | "tap") => () => {
       const pos = codexAt();
       if (pos) setAutoCursor({ phase, ...pos });
     };
 
-    mime(9400, moveToCodex("travel"));
+    // The action strip scrolls sideways on a narrow stage, so the chip has to
+    // be brought inside it before the cursor aims — the strip's own scrollLeft,
+    // never scrollIntoView, which walks to the document and would yank the
+    // marketing page. If it still will not fit, the tab opens without a mime
+    // rather than tapping whatever chip happens to be under that point.
+    const revealCodex = () => {
+      const btn = codexButtonRef.current;
+      if (!btn) return false;
+      let strip = btn.parentElement;
+      while (strip && strip !== container && strip.scrollWidth <= strip.clientWidth)
+        strip = strip.parentElement;
+      if (!strip || strip === container) return true;
+      const box = strip.getBoundingClientRect();
+      const left = btn.getBoundingClientRect().left - box.left + strip.scrollLeft;
+      const right = left + btn.offsetWidth;
+      if (left < strip.scrollLeft) strip.scrollLeft = left;
+      else if (right > strip.scrollLeft + strip.clientWidth)
+        strip.scrollLeft = right - strip.clientWidth;
+      const chip = btn.getBoundingClientRect();
+      return chip.left >= box.left - 1 && chip.right <= box.right + 1;
+    };
+
+    mime(9400, () => {
+      if (revealCodex()) moveToCodex("travel")();
+    });
     step(10200, () => {
-      if (!cursorHidden) moveToCodex("tap")();
+      if (!cursorHidden && revealCodex()) moveToCodex("tap")();
       launchCodexIfIdle();
     });
-    mime(10700, moveToCodex("fade"));
+    // Fades from wherever the cursor actually is, which is the agent chip when
+    // Codex could not be reached.
+    mime(10700, () =>
+      setAutoCursor((cur) =>
+        cur.phase === "hidden" ? cur : { phase: "fade", x: cur.x, y: cur.y },
+      ),
+    );
     mime(11200, () => setAutoCursor({ phase: "hidden" }));
 
     return () => {
@@ -488,12 +441,35 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("keydown", onKeyDown);
     };
-  }, [isInView]);
+  }, [isParked]);
 
-  const project = useMemo(
+  // Undefined once the last project is removed — the frame then shows its
+  // empty room rather than a workspace for a project that is gone.
+  const project: DemoProject | undefined = useMemo(
     () => projects.find((p) => p.name === selected) ?? projects[0],
     [projects, selected],
   );
+
+  // The header wraps its action chips onto a row of their own on a narrow stage,
+  // so the pill's offset follows the header's measured height rather than
+  // assuming one row. Every visited project keeps its own header mounted; the
+  // ones that are not on screen measure zero, so a zero reading is ignored and
+  // the last real height stands.
+  const activeProjectName = project?.name;
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const head = [
+      ...container.querySelectorAll<HTMLElement>("[data-demo-header]"),
+    ].find((el) => el.dataset.demoHeader === activeProjectName);
+    if (!head) return;
+    const observer = new ResizeObserver(() => {
+      const { height } = head.getBoundingClientRect();
+      if (height > 0) setHeaderHeight(height);
+    });
+    observer.observe(head);
+    return () => observer.disconnect();
+  }, [activeProjectName]);
 
   const selectProject = (name: string) => {
     setSelected(name);
@@ -629,6 +605,19 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         });
       };
 
+      const branchSync = branchSyncByProject.current;
+
+      // Stores the counts the branch being left is carrying, and answers with
+      // the map to read the branch being entered out of.
+      const parkSync = (g: DemoGit): Record<string, BranchSync> => {
+        const next = {
+          ...branchSync[name],
+          [g.branch]: { ahead: g.ahead, behind: g.behind },
+        };
+        branchSync[name] = next;
+        return next;
+      };
+
       return {
         setTree,
         setActionTerminals,
@@ -649,6 +638,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
             else next.add(svc);
             return { ...prev, [name]: next };
           }),
+        // A checkout carries the working tree across with it — git only refuses
+        // the switch, it never throws the changes away — so `uncommitted`
+        // stays put and the sync counts come from the branch being entered.
         onGitCheckout: (b: DemoBranch) =>
           updateGit((g) => {
             const hasLocal = g.branches.some(
@@ -658,12 +650,11 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
               b.remote && !hasLocal
                 ? [{ name: b.name, age: "now" }, ...g.branches]
                 : g.branches;
+            const parked = parkSync(g);
             return {
               ...g,
               branch: b.name,
-              uncommitted: 0,
-              ahead: 0,
-              behind: 0,
+              ...(parked[b.name] ?? { ahead: 0, behind: 0 }),
               branches,
             };
           }),
@@ -679,29 +670,42 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         // Fetch only updates remote-tracking refs; the demo has nothing new to
         // pull in, so this is a no-op — same as a real "Already up to date".
         onGitFetch: () => {},
-        onGitMerge: () =>
-          updateGit((g) => ({ ...g, ahead: g.ahead + 1, uncommitted: 0 })),
+        // A merge lands a commit on the current branch and leaves the working
+        // tree alone — it would refuse to run rather than swallow local edits —
+        // so the visitor's uncommitted files are still there afterwards.
+        onGitMerge: () => updateGit((g) => ({ ...g, ahead: g.ahead + 1 })),
         onGitCreatePR: () =>
           updateGit((g) => (g.ahead === 0 ? g : { ...g, ahead: 0 })),
         onGitDiscard: () => updateGit((g) => ({ ...g, uncommitted: 0 })),
         onGitSync: () => updateGit((g) => ({ ...g, ahead: 0, behind: 0 })),
+        // `git checkout -b` is still a checkout: the tree comes along, and the
+        // new branch simply has nothing to be ahead or behind by yet.
         onGitCreateBranch: (branch: string) =>
-          updateGit((g) => ({
-            ...g,
-            branch,
-            uncommitted: 0,
-            ahead: 0,
-            behind: 0,
-            branches: [{ name: branch, age: "now" }, ...g.branches],
-          })),
+          updateGit((g) => {
+            parkSync(g);
+            return {
+              ...g,
+              branch,
+              ahead: 0,
+              behind: 0,
+              branches: [{ name: branch, age: "now" }, ...g.branches],
+            };
+          }),
         onGitRenameBranch: (oldName: string, newName: string) =>
-          updateGit((g) => ({
-            ...g,
-            branch: g.branch === oldName ? newName : g.branch,
-            branches: g.branches.map((b) =>
-              !b.remote && b.name === oldName ? { ...b, name: newName } : b,
-            ),
-          })),
+          updateGit((g) => {
+            const parked = branchSync[name];
+            if (parked && oldName in parked) {
+              const { [oldName]: moved, ...rest } = parked;
+              branchSync[name] = { ...rest, [newName]: moved };
+            }
+            return {
+              ...g,
+              branch: g.branch === oldName ? newName : g.branch,
+              branches: g.branches.map((b) =>
+                !b.remote && b.name === oldName ? { ...b, name: newName } : b,
+              ),
+            };
+          }),
         onGitDeleteBranch: (branch: string) =>
           updateGit((g) => ({
             ...g,
@@ -748,13 +752,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     // The copy leads with whichever agent the source is not already running, so
     // the pair reads as two agents on one codebase rather than the same one
     // twice.
-    const sourceAgent = source.actions.find((a) => a.name === source.autoStart)?.agent;
+    const sourceAgent =
+      source.actions.find((a) => a.name === source.autoStart)?.agent ??
+      source.actions.find((a) => a.agent)?.agent;
     const copyAgent =
       source.actions.find((a) => a.agent && a.agent !== sourceAgent) ??
       source.actions.find((a) => a.agent);
     const branch =
       mode === "worktree" && source.git
-        ? `${source.git.branch.split("/")[0] || "feat"}/${copyName}`
+        ? worktreeBranch(copyName)
         : source.git?.branch;
     const copy: DemoProject = {
       ...source,
@@ -780,6 +786,22 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         : {}),
     };
     const pane = initialPaneState(copy);
+    // The copy comes up as if someone had pressed Start on it: the same
+    // services its parent runs, their log tabs already in the strip.
+    const running = (
+      source.profiles[0]?.services ?? source.services.map((sv) => sv.name)
+    ).filter((svc) => copy.services.some((cs) => cs.name === svc));
+    const ordered = copy.services
+      .map((s) => s.name)
+      .filter((n) => running.includes(n));
+    const withServices = syncServiceTabs(pane.tree, ordered);
+    // syncServiceTabs pulls focus onto the logs it just added, which would bury
+    // the agent already working the duplicate prompt — the point of the copy.
+    const leaf = withServices ? collectLeaves(withServices)[0] : undefined;
+    const tree =
+      leaf && withServices
+        ? setActiveTab(withServices, leaf.id, leaf.tabs.length - 1)
+        : withServices;
     setProjects((prev) => {
       const at = prev.findIndex((p) => p.name === name);
       const next = [...prev];
@@ -792,23 +814,30 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         [copyName]: { ...copy.git!, branches: [...copy.git!.branches] },
       }));
     }
-    // A copy that boots empty would undercut the claim: it comes up running the
-    // same profile its parent does.
-    setRunningByProject((prev) => ({
-      ...prev,
-      [copyName]: new Set(
-        (source.profiles[0]?.services ?? source.services.map((sv) => sv.name)).filter(
-          (svc) => copy.services.some((cs) => cs.name === svc),
-        ),
-      ),
-    }));
-    setTreeByProject((prev) => ({ ...prev, [copyName]: pane.tree }));
+    setRunningByProject((prev) => ({ ...prev, [copyName]: new Set(running) }));
+    setTreeByProject((prev) => ({ ...prev, [copyName]: tree }));
     setActionTerminalsByProject((prev) => ({
       ...prev,
       [copyName]: pane.actionTerminals,
     }));
     selectProject(copyName);
   };
+
+  const handleRemoveProject = (name: string) =>
+    removeProject(name, {
+      projects,
+      selected,
+      selectProject,
+      setSelected,
+      setProjects,
+      setRunningByProject,
+      setGitByProject,
+      setAiStatusByProject,
+      setTreeByProject,
+      setActionTerminalsByProject,
+      setAgentTabStatusByProject,
+      setVisited,
+    });
 
   const handleAddProject = (input: NewProjectInput) => {
     const newProject = buildProjectFromInput(input, projects);
@@ -828,18 +857,18 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   };
 
   // A pill that never leaves reads as chrome rather than a prompt. The clock
-  // only runs while the frame is on screen, so a visitor who scrolls past and
-  // comes back still gets the hint.
+  // only runs while the frame is parked in the viewport, so its whole life is
+  // not spent under the fold.
   useEffect(() => {
-    if (hint === "hidden" || !isInView) return;
+    if (!hintVisible || !isParked) return;
     const id = window.setTimeout(
-      () => setHint("hidden"),
+      () => setHintVisible(false),
       hint === "next" ? 8000 : 12000,
     );
     return () => window.clearTimeout(id);
-  }, [hint, isInView]);
+  }, [hint, hintVisible, isParked]);
 
-  const hidden = hint === "hidden" || !isInView;
+  const hidden = !hintVisible || !isParked;
   // Nothing on a timer runs while the frame is scrolled away or the tab is in
   // the background — a demo left open in another tab should cost nothing.
   const demoActive = isInView && pageVisible;
@@ -864,7 +893,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       >
         <DemoSidebar
           projects={projects}
-          selected={project.name}
+          selected={project?.name ?? ""}
           activeView={view}
           onSelect={selectProject}
           runningByProject={runningByProject}
@@ -872,7 +901,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
           agentTabStatusByProject={sidebarAgentTabs}
           onAddProject={() => setAdding(true)}
           onOpenAgent={openAgent}
-        onDuplicate={handleDuplicate}
+          onDuplicate={handleDuplicate}
+          onRemoveProject={setRemoving}
           activeAgentKeys={activeAgentKeys}
           onOpenView={setView}
           usageSettings={usageSettings}
@@ -884,7 +914,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <MobileProjectSwitcher
             projects={projects}
-            selected={project.name}
+            selected={project?.name ?? ""}
             onSelect={selectProject}
             runningByProject={runningByProject}
             onAddProject={() => setAdding(true)}
@@ -925,7 +955,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
             .filter((p) => visited.has(p.name))
             .map((p) => {
               const h = handlers[p.name];
-              const active = view === "project" && p.name === project.name;
+              const active = view === "project" && p.name === project?.name;
               return (
                 <div
                   key={p.name}
@@ -954,12 +984,25 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
                 </div>
               );
             })}
+          {view === "project" && !project && (
+            <NoProjectsPane onAddProject={() => setAdding(true)} />
+          )}
         </div>
         <DemoAddProjectModal
           open={adding}
           onClose={() => setAdding(false)}
           onCreate={handleAddProject}
         />
+        {removing && (
+          <RemoveProjectDialog
+            name={removing}
+            onCancel={() => setRemoving(null)}
+            onConfirm={() => {
+              handleRemoveProject(removing);
+              setRemoving(null);
+            }}
+          />
+        )}
 
         {autoCursor.phase !== "hidden" && (
           <div
@@ -990,11 +1033,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
           </div>
         )}
 
+        {/* Clear of the header and the tab strip: for the ten seconds it is up
+          the pill would otherwise sit on the split-layout buttons and the tabs
+          its own line is telling the visitor to use. */}
         <div
           role="status"
           aria-live="polite"
           aria-hidden={hidden}
-          className={`pointer-events-none absolute bottom-12 right-3 z-30 max-w-[260px] transition-all duration-500 ${
+          style={{ top: headerHeight + PILL_DROP_BELOW_HEADER }}
+          className={`pointer-events-none absolute right-3 z-30 max-w-[260px] transition-all duration-500 ${
             hidden ? "translate-y-1 opacity-0" : "translate-y-0 opacity-100"
           }`}
         >
@@ -1006,10 +1053,11 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
             {hint === "next" ? (
               <>
                 <span className="sm:hidden">
-                  Two agents at once — tap around
+                  Two agents at once — switch tabs
                 </span>
                 <span className="hidden sm:inline">
-                  Claude and Codex, side by side. Try auth-service next.
+                  Two agents on one project — switch tabs. ml-pipeline is asking
+                  you something.
                 </span>
               </>
             ) : (

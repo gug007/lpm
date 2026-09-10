@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
-import type { ChangedFile, DemoProject, DiffLine } from "./projects";
+import type { ChangedFile, DemoGit, DemoProject, DiffLine } from "./projects";
 import { ReviewFileTree } from "./review-file-tree";
 import { FOCUS_RING, PRESS } from "./ui";
 import { SegmentedControl } from "./ui-kit";
@@ -139,7 +139,13 @@ function ReviewPlaceholder({ title, body }: { title: string; body: string }) {
   );
 }
 
-export function ReviewView({ project }: { project: DemoProject }) {
+export function ReviewView({
+  project,
+  git,
+}: {
+  project: DemoProject;
+  git?: DemoGit;
+}) {
   const [source, setSource] = useState<ReviewSource>("working");
   const [selectedPath, setSelectedPath] = useState("");
   const [fontSize, setFontSize] = useState(BASE_FONT_SIZE);
@@ -152,8 +158,11 @@ export function ReviewView({ project }: { project: DemoProject }) {
 
   const changed = project.changedFiles ?? [];
   // Everything the demo ships is unstaged working-tree work, so the staged
-  // source is genuinely empty rather than a copy of the same diff.
-  const files: ChangedFile[] = source === "staged" ? [] : changed;
+  // source is genuinely empty rather than a copy of the same diff. Commit or
+  // discard and the list empties with the branch pill — the seed diff is not
+  // resurrected, because a real working tree would not resurrect it either.
+  const files: ChangedFile[] =
+    source === "staged" || (git?.uncommitted ?? 0) === 0 ? [] : changed;
   const file = files.find((f) => f.path === selectedPath) ?? files[0];
   const rows = useMemo(() => (file ? numberDiff(file.diff) : []), [file]);
 
@@ -189,7 +198,7 @@ export function ReviewView({ project }: { project: DemoProject }) {
           body={
             source === "staged"
               ? "Stage files and they show up here."
-              : `Working tree clean${project.git ? ` on ${project.git.branch}` : ""}.`
+              : `Working tree clean${git ? ` on ${git.branch}` : ""}.`
           }
         />
       </div>

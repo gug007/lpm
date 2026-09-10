@@ -172,6 +172,13 @@ const PROJECTS_FS: FsNode[] = [
       { name: "android", kind: "folder", children: [] },
       { name: "ios", kind: "folder", children: [] },
       { name: "src", kind: "folder", children: [] },
+      { name: "app.json", kind: "file" },
+      { name: "App.tsx", kind: "file" },
+      { name: "eas.json", kind: "file" },
+      { name: "index.ts", kind: "file" },
+      { name: "package.json", kind: "file" },
+      { name: "README.md", kind: "file" },
+      { name: "tsconfig.json", kind: "file" },
     ],
   },
   {

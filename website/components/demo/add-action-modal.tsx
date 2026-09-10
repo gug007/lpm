@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { NO_AUTOFILL } from "./no-autofill";
 import { Play, Terminal as TerminalIcon } from "lucide-react";
 import { EmojiPickerField } from "./tab-controls";
@@ -57,6 +63,16 @@ function AddActionForm({
     return () => cancelAnimationFrame(id);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // The emoji picker claims Escape while it is open; only an unclaimed
+      // Escape throws the form away.
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const canSubmit = name.trim().length > 0 && cmd.trim().length > 0;
 
   const create = () => {
@@ -75,7 +91,7 @@ function AddActionForm({
     create();
   };
 
-  const onKeyDown = (e: KeyboardEvent) => {
+  const onKeyDown = (e: ReactKeyboardEvent) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       create();

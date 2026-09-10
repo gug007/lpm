@@ -33,11 +33,29 @@ const GROUPS: { label: string | null; items: OpenInApp[] }[] = [
 
 const APPS = GROUPS.flatMap((g) => g.items);
 
-export function OpenInDropdown() {
+export function OpenInDropdown({ projectName }: { projectName?: string }) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState(APPS[0]);
+  const [launched, setLaunched] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  const launchTimer = useRef<number | null>(null);
   const CurrentIcon = current.icon;
+  const openLabel = projectName
+    ? `Open ${projectName} in ${current.label}`
+    : `Open in ${current.label}`;
+
+  const launch = () => {
+    setLaunched(true);
+    if (launchTimer.current) window.clearTimeout(launchTimer.current);
+    launchTimer.current = window.setTimeout(() => setLaunched(false), 1500);
+  };
+
+  useEffect(
+    () => () => {
+      if (launchTimer.current) window.clearTimeout(launchTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -60,11 +78,18 @@ export function OpenInDropdown() {
       <div className="inline-flex h-8 items-stretch rounded-lg border border-[#2e2e2e] bg-[#242424]">
         <button
           type="button"
-          title={`Open in ${current.label}`}
-          aria-label={`Open in ${current.label}`}
-          className={`flex items-center rounded-l-lg px-2 text-[#b3b3b3] hover:bg-white/10 hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
+          onClick={launch}
+          title={openLabel}
+          aria-label={openLabel}
+          className={`flex items-center rounded-l-lg px-2 hover:bg-white/10 hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING} ${
+            launched ? "text-[#4ade80]" : "text-[#b3b3b3]"
+          }`}
         >
-          <CurrentIcon className="h-4 w-4" strokeWidth={1.75} />
+          {launched ? (
+            <Check className="h-4 w-4" strokeWidth={2.25} />
+          ) : (
+            <CurrentIcon className="h-4 w-4" strokeWidth={1.75} />
+          )}
         </button>
         <button
           type="button"
@@ -108,6 +133,7 @@ export function OpenInDropdown() {
                     onClick={() => {
                       setCurrent(app);
                       setOpen(false);
+                      launch();
                     }}
                     className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[13px] transition-colors duration-75 hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${
                       active ? "text-[#e5e5e5]" : "text-[#b3b3b3]"

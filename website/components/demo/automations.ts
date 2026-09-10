@@ -1,3 +1,5 @@
+import { SEED_BRANCH_DAY } from "./projects";
+
 export type JobResult = "ok" | "blocked" | "failed";
 
 export type JobMessage = { at: string; text: string };
@@ -66,7 +68,10 @@ export const INITIAL_JOBS: DemoJob[] = [
     unread: 1,
     messages: [
       { at: "02:07", text: "Bumped 14 packages across 3 projects, test suites green." },
-      { at: "02:09", text: "Opened branch chore/deps-aug-13 in saas-app." },
+      {
+        at: "02:09",
+        text: `Opened branch chore/deps-${SEED_BRANCH_DAY} in saas-app.`,
+      },
     ],
   },
   {

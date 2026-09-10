@@ -220,7 +220,7 @@ export function BrowserView({
             onChange={(e) => setAddress(e.target.value)}
             {...NO_AUTOFILL}
             placeholder="Search Google or enter a URL…"
-            className="h-7 w-full rounded-md border border-[#2e2e2e] bg-[#1a1a1a] pl-7 pr-2.5 text-xs text-[#e5e5e5] outline-none transition-colors placeholder:text-[#919191] focus:border-[#919191]/60"
+            className="h-7 w-full rounded-md border border-[#2e2e2e] bg-[#1a1a1a] pl-7 pr-2.5 text-xs text-[#e5e5e5] outline-none transition-colors placeholder:text-[#919191] focus:border-[#22d3ee]"
           />
         </form>
         <button

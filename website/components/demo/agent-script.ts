@@ -86,6 +86,8 @@ export const SUGGESTIONS = [
 // A canned session that streams agent work and then holds on a live "Thinking…"
 // spinner — used to show a project mid-task ("in progress") the moment you open
 // it. It never resolves on its own, so the sidebar stays in the running state.
+// The edits are auth-service's seeded working tree, file for file and count for
+// count, so its Review tab shows exactly the work this session claims.
 export const IN_PROGRESS_STEPS: AgentStep[] = [
   { kind: "thinking" },
   { kind: "tool", label: "Read", arg: "internal/auth/jwt.go", result: "212 lines" },
@@ -94,48 +96,68 @@ export const IN_PROGRESS_STEPS: AgentStep[] = [
     kind: "text",
     text: "Rotating the signing key on a schedule and keeping a grace window so in-flight tokens stay valid.",
   },
-  { kind: "tool", label: "Edit", arg: "internal/auth/rotation.go", result: "+48 -6" },
-  { kind: "tool", label: "Bash", arg: "go test ./internal/auth/...", result: "running…" },
+  { kind: "tool", label: "Edit", arg: "internal/auth/rotation.go", result: "+18 -1" },
+  { kind: "tool", label: "Edit", arg: "internal/auth/jwt.go", result: "+6 -1" },
+  { kind: "tool", label: "Bash", arg: "go test ./internal/auth/...", result: "ok — 1 package" },
   { kind: "thinking" },
 ];
 
 // Extra work trickled into a still-running session so a project you leave open
 // keeps visibly advancing instead of freezing on one spinner. Derived from the
-// project's own context — a Go service must not report `pnpm test`.
+// project's own context — a Go service must not report `pnpm test`. It only
+// inspects, and says nothing about edits: the Review tab is a seeded snapshot
+// that never grows, and some sessions reach here having written nothing at all.
+// It also stays off `focusFile`, which the opening turn of every seeded and
+// duplicated session has already read.
 export function keepAliveSteps(ctx: ReplyContext): AgentStep[] {
   return [
     { kind: "tool", label: "Bash", arg: ctx.testCmd, result: ctx.testResult },
     {
       kind: "text",
-      text: `Tests pass with the change in place. Tightening the edge cases in ${ctx.focusArea} next.`,
+      text: `Suite is green. Reading wider through \`${ctx.hotspotDir}\` for edge cases the tests don't reach.`,
     },
-    { kind: "tool", label: "Edit", arg: ctx.focusFile, result: "+22 -0" },
-    { kind: "thinking" },
     { kind: "tool", label: "Glob", arg: ctx.sourceGlob, result: ctx.sourceMatches },
+    { kind: "thinking" },
+    { kind: "tool", label: "Grep", arg: "TODO|FIXME", result: "3 matches" },
   ];
 }
 
 export function settleStep(ctx: ReplyContext): AgentStep {
   return {
     kind: "text",
-    text: `Done — the change is in place across ${ctx.focusArea} and the suite is green.`,
+    text: `Done — ${ctx.testCmd} is green. The 3 TODOs in \`${ctx.hotspotDir}\` are still open whenever you want them.`,
   };
 }
 
 // A finished session — shown fully revealed when a project opens with work
-// already complete.
+// already complete. The files and counts are docs-site's seeded working tree,
+// so its Review tab lists exactly what this session says it wrote.
 export const DONE_STEPS: AgentStep[] = [
   { kind: "thinking" },
   { kind: "tool", label: "Glob", arg: "src/pages/api/**/*.ts", result: "24 routes" },
-  { kind: "tool", label: "Read", arg: "src/content/reference.mdx", result: "88 lines" },
-  { kind: "tool", label: "Write", arg: "src/content/reference.mdx", result: "+312 -74" },
+  {
+    kind: "tool",
+    label: "Read",
+    arg: "src/content/docs/api/authentication.mdx",
+    result: "96 lines",
+  },
+  {
+    kind: "tool",
+    label: "Edit",
+    arg: "src/content/docs/api/authentication.mdx",
+    result: "+6 -2",
+  },
+  { kind: "tool", label: "Write", arg: "src/content/docs/api/webhooks.mdx", result: "+8" },
+  { kind: "tool", label: "Write", arg: "src/components/ApiEndpoint.astro", result: "+8" },
+  { kind: "tool", label: "Edit", arg: "src/content/docs/index.mdx", result: "+1" },
+  { kind: "tool", label: "Edit", arg: "astro.config.mjs", result: "+1" },
   {
     kind: "text",
-    text: "Regenerated the API reference from the current routes — 24 endpoints grouped by resource, each with request and response examples.",
+    text: "Regenerated the API reference from the current routes — authentication now documents header auth, webhooks gets its own page, and both render through a shared ApiEndpoint component.",
   },
   {
     kind: "text",
-    text: "The dev server hot-reloaded; the updated page is live at /reference.",
+    text: "The dev server hot-reloaded; the updated pages are live under /docs/api.",
     style: "muted",
   },
 ];

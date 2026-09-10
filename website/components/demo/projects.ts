@@ -137,6 +137,30 @@ const DASHED = `${Y}-${M}-${D}`;
 const REDIS_DAY = `${SEED_DAY.getDate()} ${MONTH_ABBR} ${Y}`;
 /** v2026.9.4 — a calendar-versioned release tag. */
 const CALVER = `v${Y}.${SEED_DAY.getMonth() + 1}.${SEED_DAY.getDate()}`;
+/** sep-04 — the date a nightly job's branch name carries. */
+export const SEED_BRANCH_DAY = `${MONTH_ABBR.toLowerCase()}-${D}`;
+
+// Boot banners are stamped a few seconds before the demo loaded rather than at a
+// fixed 09:01, so a service the visitor starts reports a boot that just happened
+// instead of one this morning — or, further east, one later today.
+const clockAgo = (seconds: number) => {
+  const t = new Date(SEED_DAY.getTime() - seconds * 1000);
+  return `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+};
+// tsc stamps its watch lines with toLocaleTimeString, so on this machine —
+// the same en-US one MONTH_ABBR is read off — they come out 12-hour.
+const clock12Ago = (seconds: number) =>
+  new Date(SEED_DAY.getTime() - seconds * 1000).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+const BOOT_T0 = clockAgo(3);
+const BOOT_T1 = clockAgo(2);
+const BOOT_T2 = clockAgo(1);
+const WATCH_T0 = clock12Ago(3);
+const WATCH_T1 = clock12Ago(1);
+const runId = (clock: string) => `${YMD}-${clock.replace(/:/g, "")}`;
 
 const CLAUDE_ACTION: DemoAction = {
   name: "claude",
@@ -262,9 +286,9 @@ const PROJECTS: DemoProject[] = [
             kind: "text",
             text: "Adding the trial to subscription creation, with a fallback plan so an unknown price can't silently create a free subscription.",
           },
-          { kind: "tool", label: "Edit", arg: "src/lib/billing.ts", result: "+3 -1" },
-          { kind: "tool", label: "Write", arg: "src/lib/stripe-webhook.ts", result: "+48" },
-          { kind: "tool", label: "Bash", arg: "pnpm test", result: "running…" },
+          { kind: "tool", label: "Edit", arg: "src/lib/billing.ts", result: "+2 -1" },
+          { kind: "tool", label: "Edit", arg: "src/components/PlanCard.tsx", result: "+2 -1" },
+          { kind: "tool", label: "Write", arg: "src/lib/stripe-webhook.ts", result: "+8" },
           { kind: "thinking" },
         ],
       },
@@ -272,21 +296,33 @@ const PROJECTS: DemoProject[] = [
         ...CODEX_ACTION,
         autoPrompt: "Move the plans table to integer cents",
         autoMode: "progress",
+        // Reads only: saas-app's working tree is the three files the Claude
+        // session above already accounts for, so a finished edit here would be
+        // one the Review tab and `git status` both deny. This session is caught
+        // earlier, still sizing the migration up.
         autoSteps: [
           { kind: "tool", label: "Read", arg: "db/schema.rb", result: "212 lines" },
           {
             kind: "tool",
-            label: "Search",
-            arg: 'pattern: "price_cents|price"',
+            label: "Bash",
+            arg: 'rg -n "price_cents|price" app db',
             result: "17 matches",
           },
           {
             kind: "text",
-            text: "Storing prices as floats rounds badly at the seam between Stripe and the ledger. Moving the column to integer cents with a backfill.",
+            text: "Storing prices as floats rounds badly at the seam between Stripe and the ledger. Moving the column to integer cents needs a migration and a backfill — reading what the model does with it today first.",
           },
-          { kind: "tool", label: "Edit", arg: "db/migrate/add_price_cents.rb", result: "+34" },
-          { kind: "tool", label: "Edit", arg: "app/models/plan.rb", result: "+12 -7" },
-          { kind: "tool", label: "Ran", arg: "bin/rails db:migrate", result: "running…" },
+          { kind: "tool", label: "Read", arg: "app/models/plan.rb", result: "88 lines" },
+          {
+            kind: "tool",
+            label: "Ran",
+            arg: "bin/rails db:migrate:status",
+            result: "1 migration pending",
+          },
+          {
+            kind: "text",
+            text: "Schema and backfill are clear. Before I touch the migration, checking what the Next.js side in `src/` does with the price today.",
+          },
         ],
       },
       {
@@ -355,20 +391,20 @@ const PROJECTS: DemoProject[] = [
       sourceGlob: "src/**/*.ts",
       sourceMatches: "86 matches",
       overview:
-        "Next.js frontend in `app/`, Rails API in `api/`, Sidekiq workers for async jobs.",
+        "Next.js frontend in `src/`, Rails API at the repo root (`app/`, `db/`, `bin/`), Sidekiq workers for async jobs.",
       flows:
         "Main flows: auth, billing, dashboard, teams. Want a deeper dive on any of them?",
       testCmd: "pnpm test",
       testResult: "14 passed in 2.1s",
       testSummary:
         "All 14 tests green. Auth, utils, and the button component all passed.",
-      focusFile: "src/lib/auth.ts",
+      focusFile: "src/lib/billing.ts",
       focusLines: "142 lines",
-      focusArea: "the auth module",
+      focusArea: "the billing module",
       hotspotDir: "src/lib/",
       deployFile: "scripts/deploy.sh",
       deployCmd: "./scripts/deploy.sh production",
-      draftFile: "src/features/new-feature.ts",
+      draftFile: "src/lib/entitlements.ts",
       wireTarget: "the router",
     },
     changedFiles: [
@@ -376,11 +412,10 @@ const PROJECTS: DemoProject[] = [
         path: "src/lib/billing.ts",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -14,7 +14,9 @@ export async function createSubscription(" },
+          { t: "hunk", text: "@@ -14,5 +14,6 @@ export async function createSubscription(" },
           { t: "ctx", text: "   const customer = await stripe.customers.create({ email });" },
           { t: "del", text: "-  const price = PRICES[plan];" },
           { t: "add", text: "+  const price = PRICES[plan] ?? PRICES.starter;" },
-          { t: "add", text: "+  if (!price) throw new Error(`Unknown plan: ${plan}`);" },
           { t: "ctx", text: "   return stripe.subscriptions.create({" },
           { t: "ctx", text: "     customer: customer.id," },
           { t: "add", text: "+    trial_period_days: 14," },
@@ -391,7 +426,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/components/PlanCard.tsx",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -8,5 +8,7 @@ export function PlanCard({ plan }: Props) {" },
+          { t: "hunk", text: "@@ -8,4 +8,5 @@ export function PlanCard({ plan }: Props) {" },
           { t: "ctx", text: "   return (" },
           { t: "del", text: '-    <div className="rounded-lg border p-4">' },
           { t: "add", text: '+    <div className="rounded-xl border p-5 shadow-sm">' },
@@ -404,7 +439,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/lib/stripe-webhook.ts",
         status: "added",
         diff: [
-          { t: "hunk", text: "@@ -0,0 +1,48 @@" },
+          { t: "hunk", text: "@@ -0,0 +1,8 @@" },
           { t: "add", text: '+import { stripe } from "./billing";' },
           { t: "add", text: "+" },
           { t: "add", text: "+export async function handleWebhook(req: Request) {" },
@@ -444,10 +479,10 @@ const PROJECTS: DemoProject[] = [
         port: 8080,
         output: [
           { text: "$ go run ./cmd/server", color: "green", delay: 50 },
-          { text: `${SLASHED} 09:01:02 loading config from env`, color: "muted", delay: 400 },
-          { text: `${SLASHED} 09:01:02 connected to postgres://localhost:5432/api`, color: "muted", delay: 650 },
-          { text: `${SLASHED} 09:01:02 migrations: up to date (14)`, color: "muted", delay: 700 },
-          { text: `${SLASHED} 09:01:02 server listening on :8080`, color: "cyan", delay: 850 },
+          { text: `${SLASHED} ${BOOT_T0} loading config from env`, color: "muted", delay: 400 },
+          { text: `${SLASHED} ${BOOT_T0} connected to postgres://localhost:5432/api`, color: "muted", delay: 650 },
+          { text: `${SLASHED} ${BOOT_T1} migrations: up to date (14)`, color: "muted", delay: 700 },
+          { text: `${SLASHED} ${BOOT_T1} server listening on :8080`, color: "cyan", delay: 850 },
         ],
         loop: {
           line: {
@@ -465,7 +500,7 @@ const PROJECTS: DemoProject[] = [
         output: [
           { text: "$ docker compose up postgres", color: "green", delay: 50 },
           { text: "[+] Running 1/1", color: "muted", delay: 400 },
-          { text: " ✔ Container go-api-postgres-1  Created", color: "muted", delay: 550 },
+          { text: " ✔ Container auth-service-postgres-1  Created", color: "muted", delay: 550 },
           { text: "postgres  | PostgreSQL 16.1 starting up...", color: "muted", delay: 900 },
           { text: 'postgres  | database system is ready to accept connections', color: "cyan", delay: 1500 },
         ],
@@ -476,19 +511,13 @@ const PROJECTS: DemoProject[] = [
         port: 6379,
         output: [
           { text: "$ redis-server", color: "green", delay: 50 },
-          { text: `37123:C ${REDIS_DAY} 09:01:03.001 * oO0OoO0OoO0Oo Redis is starting`, color: "muted", delay: 400 },
-          { text: `37123:M ${REDIS_DAY} 09:01:03.012 * Ready to accept connections tcp`, color: "cyan", delay: 700 },
+          { text: `37123:C ${REDIS_DAY} ${BOOT_T1}.001 * oO0OoO0OoO0Oo Redis is starting`, color: "muted", delay: 400 },
+          { text: `37123:M ${REDIS_DAY} ${BOOT_T1}.012 * Ready to accept connections tcp`, color: "cyan", delay: 700 },
         ],
       },
     ],
-    autoStart: "claude",
     actions: [
-      {
-        ...CLAUDE_ACTION,
-        autoPrompt:
-          "Rotate the JWT signing keys safely and keep existing tokens valid",
-        autoMode: "progress",
-      },
+      CLAUDE_ACTION,
       {
         name: "test",
         label: "go test",
@@ -499,9 +528,9 @@ const PROJECTS: DemoProject[] = [
         color: "#4ade80",
         output: [
           { text: "$ go test ./...", color: "green", delay: 50 },
-          { text: "ok   github.com/you/go-api/internal/auth   0.142s", color: "green", delay: 500 },
-          { text: "ok   github.com/you/go-api/internal/db     0.281s", color: "green", delay: 800 },
-          { text: "ok   github.com/you/go-api/internal/api    0.104s", color: "green", delay: 1050 },
+          { text: "ok   github.com/you/auth-service/internal/auth   0.142s", color: "green", delay: 500 },
+          { text: "ok   github.com/you/auth-service/internal/db     0.281s", color: "green", delay: 800 },
+          { text: "ok   github.com/you/auth-service/internal/api    0.104s", color: "green", delay: 1050 },
         ],
       },
       {
@@ -543,10 +572,64 @@ const PROJECTS: DemoProject[] = [
       draftFile: "internal/auth/handler.go",
       wireTarget: "the router",
     },
+    changedFiles: [
+      {
+        path: "internal/auth/rotation.go",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -18,7 +18,14 @@ func (m *Manager) Rotate(ctx context.Context, now time.Time) error {" },
+          { t: "ctx", text: " \tnext, err := newSigningKey()" },
+          { t: "ctx", text: " \tif err != nil {" },
+          { t: "ctx", text: ' \t\treturn fmt.Errorf("rotate signing key: %w", err)' },
+          { t: "ctx", text: " \t}" },
+          { t: "del", text: "-\tm.keys = []signingKey{next}" },
+          { t: "add", text: "+\t// Give the outgoing key a deadline instead of dropping it, so tokens it" },
+          { t: "add", text: "+\t// already signed keep verifying until they expire on their own." },
+          { t: "add", text: "+\tfor i := range m.keys {" },
+          { t: "add", text: "+\t\tif m.keys[i].RetireAfter.IsZero() {" },
+          { t: "add", text: "+\t\t\tm.keys[i].RetireAfter = now.Add(m.graceWindow)" },
+          { t: "add", text: "+\t\t}" },
+          { t: "add", text: "+\t}" },
+          { t: "add", text: "+\tm.keys = append([]signingKey{next}, m.unexpired(now)...)" },
+          { t: "ctx", text: " \tm.activeKID = next.KID" },
+          { t: "ctx", text: " \treturn m.store.Put(ctx, m.keys)" },
+          { t: "hunk", text: "@@ -41,0 +48,10 @@" },
+          { t: "add", text: "+// unexpired keeps the keys still inside their grace window." },
+          { t: "add", text: "+func (m *Manager) unexpired(now time.Time) []signingKey {" },
+          { t: "add", text: "+\tkept := make([]signingKey, 0, len(m.keys))" },
+          { t: "add", text: "+\tfor _, k := range m.keys {" },
+          { t: "add", text: "+\t\tif now.Before(k.RetireAfter) {" },
+          { t: "add", text: "+\t\t\tkept = append(kept, k)" },
+          { t: "add", text: "+\t\t}" },
+          { t: "add", text: "+\t}" },
+          { t: "add", text: "+\treturn kept" },
+          { t: "add", text: "+}" },
+        ],
+      },
+      {
+        path: "internal/auth/jwt.go",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -96,6 +96,11 @@ func Parse(raw string, keys *KeySet) (*Claims, error) {" },
+          { t: "ctx", text: " \ttok, err := jwt.ParseWithClaims(raw, &Claims{}, func(t *jwt.Token) (any, error) {" },
+          { t: "del", text: "-\t\treturn keys.Active().Public(), nil" },
+          { t: "add", text: '+\t\tkid, _ := t.Header["kid"].(string)' },
+          { t: "add", text: "+\t\tkey, ok := keys.ByID(kid)" },
+          { t: "add", text: "+\t\tif !ok {" },
+          { t: "add", text: "+\t\t\treturn nil, ErrUnknownKeyID" },
+          { t: "add", text: "+\t\t}" },
+          { t: "add", text: "+\t\treturn key.Public(), nil" },
+          { t: "ctx", text: " \t})" },
+          { t: "ctx", text: " \tif err != nil {" },
+          { t: "ctx", text: " \t\treturn nil, ErrInvalidToken" },
+          { t: "ctx", text: " \t}" },
+        ],
+      },
+    ],
     git: {
       branch: "main",
       upstream: "origin",
-      uncommitted: 0,
+      uncommitted: 2,
       ahead: 0,
       behind: 1,
       branches: [
@@ -577,11 +660,11 @@ const PROJECTS: DemoProject[] = [
           { text: "  ┃ Local    http://localhost:4321/", color: "cyan", delay: 800 },
           { text: "  ┃ Network  use --host to expose", color: "muted", delay: 850 },
           { text: "", delay: 900 },
-          { text: "09:01:15 watching for file changes...", color: "muted", delay: 1200 },
+          { text: `${BOOT_T1} watching for file changes...`, color: "muted", delay: 1200 },
         ],
         loop: {
           line: {
-            text: "09:01:18 [200] / 14ms",
+            text: `${BOOT_T2} [200] / 14ms`,
             color: "muted",
             delay: 0,
           },
@@ -657,7 +740,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/content/docs/api/authentication.mdx",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -1,6 +1,6 @@" },
+          { t: "hunk", text: "@@ -1,5 +1,9 @@" },
           { t: "ctx", text: " ---" },
           { t: "del", text: "-title: API Keys" },
           { t: "add", text: "+title: Authentication" },
@@ -675,7 +758,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/content/docs/api/webhooks.mdx",
         status: "added",
         diff: [
-          { t: "hunk", text: "@@ -0,0 +1,32 @@" },
+          { t: "hunk", text: "@@ -0,0 +1,8 @@" },
           { t: "add", text: "+---" },
           { t: "add", text: "+title: Webhooks" },
           { t: "add", text: "+---" },
@@ -690,7 +773,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/components/ApiEndpoint.astro",
         status: "added",
         diff: [
-          { t: "hunk", text: "@@ -0,0 +1,24 @@" },
+          { t: "hunk", text: "@@ -0,0 +1,8 @@" },
           { t: "add", text: "+---" },
           { t: "add", text: "+const { method, path } = Astro.props;" },
           { t: "add", text: "+---" },
@@ -705,7 +788,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/content/docs/index.mdx",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -12,3 +12,4 @@ Start here if you're new." },
+          { t: "hunk", text: "@@ -12,2 +12,3 @@ Start here if you're new." },
           { t: "ctx", text: " - [Quickstart](/docs/quickstart)" },
           { t: "ctx", text: " - [Authentication](/docs/api/authentication)" },
           { t: "add", text: "+- [Webhooks](/docs/api/webhooks)" },
@@ -715,7 +798,7 @@ const PROJECTS: DemoProject[] = [
         path: "astro.config.mjs",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -6,6 +6,7 @@ export default defineConfig({" },
+          { t: "hunk", text: "@@ -6,4 +6,5 @@ export default defineConfig({" },
           { t: "ctx", text: "   integrations: [" },
           { t: "ctx", text: "     mdx()," },
           { t: "add", text: "+    sitemap()," },
@@ -751,11 +834,11 @@ const PROJECTS: DemoProject[] = [
         port: 8888,
         output: [
           { text: "$ jupyter lab --no-browser", color: "green", delay: 50 },
-          { text: `[I ${DASHED} 09:01:02.000 ServerApp] jupyter_lsp | 2.2.5`, color: "muted", delay: 400 },
-          { text: `[I ${DASHED} 09:01:02.112 ServerApp] jupyterlab | 4.0.11`, color: "muted", delay: 550 },
-          { text: `[I ${DASHED} 09:01:02.214 ServerApp] Serving notebooks from: /Users/you/Projects/ml-pipeline`, color: "muted", delay: 700 },
-          { text: `[I ${DASHED} 09:01:02.320 ServerApp] Jupyter Server 2.12.1 is running at:`, color: "muted", delay: 900 },
-          { text: `[I ${DASHED} 09:01:02.321 ServerApp] http://localhost:8888/lab?token=9e2e…`, color: "cyan", delay: 1000 },
+          { text: `[I ${DASHED} ${BOOT_T0}.000 ServerApp] jupyter_lsp | 2.2.5`, color: "muted", delay: 400 },
+          { text: `[I ${DASHED} ${BOOT_T0}.112 ServerApp] jupyterlab | 4.0.11`, color: "muted", delay: 550 },
+          { text: `[I ${DASHED} ${BOOT_T0}.214 ServerApp] Serving notebooks from: /Users/you/Projects/ml-pipeline`, color: "muted", delay: 700 },
+          { text: `[I ${DASHED} ${BOOT_T1}.320 ServerApp] Jupyter Server 2.12.1 is running at:`, color: "muted", delay: 900 },
+          { text: `[I ${DASHED} ${BOOT_T1}.321 ServerApp] http://localhost:8888/lab?token=9e2e…`, color: "cyan", delay: 1000 },
         ],
       },
       {
@@ -767,15 +850,15 @@ const PROJECTS: DemoProject[] = [
           { text: "epoch 1/10  loss=0.4821  acc=0.812", color: "default", delay: 1200 },
           { text: "epoch 2/10  loss=0.3114  acc=0.874", color: "default", delay: 2100 },
           { text: "epoch 3/10  loss=0.2247  acc=0.902", color: "default", delay: 3000 },
+          { text: "epoch 4/10  loss=0.1968  acc=0.911", color: "default", delay: 3900 },
+          { text: "epoch 5/10  loss=0.1743  acc=0.918", color: "default", delay: 4800 },
+          { text: "epoch 6/10  loss=0.1522  acc=0.924", color: "default", delay: 5700 },
+          { text: "epoch 7/10  loss=0.1361  acc=0.929", color: "default", delay: 6600 },
+          { text: "epoch 8/10  loss=0.1204  acc=0.933", color: "default", delay: 7500 },
+          { text: "epoch 9/10  loss=0.1078  acc=0.937", color: "default", delay: 8400 },
+          { text: "epoch 10/10 loss=0.0982  acc=0.939", color: "default", delay: 9300 },
+          { text: `saved ./runs/${runId(BOOT_T0)}.ckpt`, color: "green", delay: 9900 },
         ],
-        loop: {
-          line: {
-            text: "epoch x/10  loss=0.18xx  acc=0.91x",
-            color: "default",
-            delay: 0,
-          },
-          intervalMs: 1800,
-        },
       },
     ],
     actions: [
@@ -784,31 +867,39 @@ const PROJECTS: DemoProject[] = [
         autoPrompt: "Fix the train/test leak in the feature scaler",
         autoMode: "waiting",
         autoIntent: "fix",
+        // The question is about work the visitor can already see: the two files
+        // in the Review tab are the fix, sitting uncommitted. Asking to *make*
+        // the change would be asking permission for a diff that is already on
+        // disk, so it asks to score it instead.
         autoSteps: [
           { kind: "tool", label: "Read", arg: "pipeline/features.py", result: "184 lines" },
           {
             kind: "tool",
-            label: "Search",
-            arg: 'pattern: "StandardScaler"',
-            result: "3 matches",
+            label: "Bash",
+            arg: 'rg -n "amount_norm|scaler" pipeline',
+            result: "6 matches",
           },
           {
             kind: "text",
-            text: "The scaler is fit on the full frame before the split, so test statistics leak into training. Fitting on the train split alone and only transforming the test split fixes it, and it will move your eval numbers.",
+            text: "`amount_norm` was divided by `df[\"amount\"].max()` across the whole frame, so the test split set the scale training saw. It's a RobustScaler fit on the train split alone now, with the val metric logged in `pipeline/train.py` — both files are uncommitted in the working tree.",
           },
           {
             kind: "text",
-            text: "Scale on the train split only — apply the change?",
+            text: "Closing the leak will move your eval numbers. Refit and score it so you see the honest ones before this is committed?",
           },
         ],
         autoAnswerSteps: [
           { kind: "thinking" },
-          { kind: "tool", label: "Edit", arg: "pipeline/features.py", result: "+9 -4" },
-          { kind: "tool", label: "Edit", arg: "pipeline/train.py", result: "+3 -1" },
           { kind: "tool", label: "Bash", arg: "pytest -q", result: "23 passed in 4.8s" },
           {
+            kind: "tool",
+            label: "Bash",
+            arg: "python -m pipeline.eval --refit",
+            result: "accuracy 0.904",
+          },
+          {
             kind: "text",
-            text: "The scaler now fits on the train split and only transforms the test split. Eval accuracy moved 0.918 → 0.904, which is the honest number.",
+            text: "0.924 → 0.904 once the scaler only ever sees the train split. That drop is the leak coming out, not a regression — the old number was scored against statistics the model had already been given. Tests are green and both files are still uncommitted, so the diff is yours to review.",
           },
           { kind: "text", text: "Ready for the next one.", style: "muted" },
         ],
@@ -824,12 +915,12 @@ const PROJECTS: DemoProject[] = [
         color: "#fbbf24",
         output: [
           { text: "$ python -m pipeline.train --full", color: "green", delay: 50 },
-          { text: "loading dataset: ./data/train.parquet (512MB)", color: "muted", delay: 300 },
+          { text: "loading dataset: ./data/train.parquet (128MB)", color: "muted", delay: 300 },
           { text: "gpu: NVIDIA A100 40GB · batch=64", color: "muted", delay: 600 },
           { text: "epoch 1/10  loss=0.4821  acc=0.812", color: "default", delay: 1000 },
           { text: "epoch 5/10  loss=0.1872  acc=0.908", color: "default", delay: 1600 },
           { text: "epoch 10/10 loss=0.0914  acc=0.942", color: "default", delay: 2100 },
-          { text: `saved ./runs/${YMD}-091502.ckpt`, color: "green", delay: 2300 },
+          { text: `saved ./runs/${runId(BOOT_T2)}.ckpt`, color: "green", delay: 2300 },
         ],
       },
       {
@@ -880,7 +971,7 @@ const PROJECTS: DemoProject[] = [
         path: "pipeline/features.py",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -28,9 +28,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:" },
+          { t: "hunk", text: "@@ -28,4 +28,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:" },
           { t: "ctx", text: "     df = df.dropna(subset=[\"user_id\"])" },
           { t: "del", text: "-    df[\"amount_norm\"] = df[\"amount\"] / df[\"amount\"].max()" },
           { t: "add", text: "+    # max() leaks the test set into training — scale on the train split only" },
@@ -894,7 +985,7 @@ const PROJECTS: DemoProject[] = [
         path: "pipeline/train.py",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -41,6 +41,8 @@ def train(cfg: Config) -> Path:" },
+          { t: "hunk", text: "@@ -41,4 +41,6 @@ def train(cfg: Config) -> Path:" },
           { t: "ctx", text: "     model = GradientBoosting(**cfg.params)" },
           { t: "ctx", text: "     model.fit(X_train, y_train)" },
           { t: "add", text: "+    mlflow.log_metric(\"val_f1\", f1_score(y_val, model.predict(X_val)))" },
@@ -919,14 +1010,223 @@ const PROJECTS: DemoProject[] = [
       ],
     },
   },
+  {
+    name: "mobile-app",
+    label: "mobile-app",
+    root: "~/Projects/mobile-app",
+    stack: "Expo + React Native",
+    services: [
+      {
+        // No port: Metro hands a device an exp:// URL rather than serving a
+        // page, so there is nothing here for the browser pane to open.
+        name: "metro",
+        cmd: "npx expo start --ios",
+        output: [
+          { text: "$ npx expo start --ios", color: "green", delay: 50 },
+          { text: "Starting project at /Users/you/Projects/mobile-app", color: "muted", delay: 400 },
+          { text: "Starting Metro Bundler", color: "muted", delay: 650 },
+          { text: "› Metro waiting on exp://192.168.1.24:8081", color: "cyan", delay: 950 },
+          { text: "› Using development build", color: "muted", delay: 1000 },
+          { text: "", delay: 1050 },
+          { text: "› Press a │ open Android", color: "muted", delay: 1100 },
+          { text: "› Press i │ open iOS simulator", color: "muted", delay: 1150 },
+          { text: "› Press r │ reload app", color: "muted", delay: 1200 },
+          { text: "› Press ? │ show all commands", color: "muted", delay: 1250 },
+          { text: "", delay: 1300 },
+          { text: "› Opening on iPhone 17 Pro", color: "muted", delay: 1900 },
+          { text: "iOS Bundled 3184ms index.ts (1128 modules)", color: "green", delay: 3400 },
+        ],
+        loop: {
+          line: {
+            text: " LOG  [api] GET /v1/plans 200 in 96ms",
+            color: "muted",
+            delay: 0,
+          },
+          intervalMs: 5200,
+        },
+      },
+      {
+        name: "types",
+        cmd: "npx tsc --noEmit --watch",
+        output: [
+          { text: "$ npx tsc --noEmit --watch", color: "green", delay: 50 },
+          { text: `[${WATCH_T0}] Starting compilation in watch mode...`, color: "muted", delay: 500 },
+          { text: "", delay: 550 },
+          { text: `[${WATCH_T1}] Found 0 errors. Watching for file changes.`, color: "cyan", delay: 1600 },
+        ],
+      },
+    ],
+    actions: [
+      { ...CLAUDE_ACTION },
+      { ...CODEX_ACTION },
+      {
+        name: "test",
+        label: "Run Tests",
+        emoji: "🧪",
+        cmd: "pnpm test",
+        display: "header",
+        durationMs: 1500,
+        color: "#4ade80",
+        output: [
+          { text: "$ pnpm test", color: "green", delay: 50 },
+          { text: "> jest", color: "muted", delay: 150 },
+          { text: "", delay: 250 },
+          { text: " PASS  src/lib/session.test.ts", color: "green", delay: 700 },
+          { text: " PASS  src/screens/PlansScreen.test.tsx", color: "green", delay: 1050 },
+          { text: "", delay: 1100 },
+          { text: "Test Suites: 2 passed, 2 total", color: "default", delay: 1200 },
+          { text: "Tests:       11 passed, 11 total", color: "default", delay: 1250 },
+          { text: "Snapshots:   0 total", color: "default", delay: 1300 },
+          { text: "Time:        2.31 s", color: "muted", delay: 1350 },
+          { text: "Ran all test suites.", color: "muted", delay: 1450 },
+        ],
+      },
+      {
+        name: "ios",
+        label: "Run on iOS",
+        emoji: "📱",
+        cmd: "npx expo run:ios",
+        display: "header",
+        durationMs: 2600,
+        color: "#60a5fa",
+        output: [
+          { text: "$ npx expo run:ios", color: "green", delay: 50 },
+          { text: "› Planning build", color: "muted", delay: 350 },
+          { text: "› Executing xcodebuild -workspace ios/mobileapp.xcworkspace -scheme mobileapp", color: "muted", delay: 700 },
+          { text: "› Build Succeeded", color: "green", delay: 2000 },
+          { text: "› Installing on iPhone 17 Pro", color: "muted", delay: 2280 },
+          { text: "› Opening on iPhone 17 Pro (com.example.mobileapp)", color: "cyan", delay: 2500 },
+        ],
+      },
+      {
+        name: "update",
+        label: "Publish update",
+        emoji: "🚢",
+        cmd: "eas update --branch preview",
+        display: "footer",
+        confirm: true,
+        durationMs: 1900,
+        color: "#fb923c",
+        output: [
+          { text: "$ eas update --branch preview", color: "green", delay: 50 },
+          { text: "✔ Compressed bundle files", color: "muted", delay: 500 },
+          { text: "✔ Uploaded 2 app bundles", color: "muted", delay: 1000 },
+          { text: "✔ Published!", color: "green", delay: 1500 },
+          { text: "  Branch          preview", color: "muted", delay: 1600 },
+          { text: "  Runtime version 1.4.0", color: "muted", delay: 1680 },
+          { text: "  Platform        ios, android", color: "muted", delay: 1760 },
+          { text: "  Update group    8c1e2f4a…", color: "muted", delay: 1840 },
+        ],
+      },
+    ],
+    profiles: [
+      { name: "default", services: ["metro"] },
+      { name: "full", services: ["metro", "types"] },
+    ],
+    replyContext: {
+      manifest: "package.json",
+      manifestLines: "36 lines",
+      sourceGlob: "src/**/*.tsx",
+      sourceMatches: "38 matches",
+      overview:
+        "Expo app for iOS and Android — screens in `src/screens`, the API client in `src/lib/api.ts`, native projects in `ios/` and `android/`. It reads the same `/v1` API saas-app serves.",
+      flows:
+        "Main flows: sign-in, plans, usage, push notifications. Want a deeper dive on any of them?",
+      testCmd: "pnpm test",
+      testResult: "11 passed in 2.3s",
+      testSummary:
+        "All 11 tests green across the session store and the plans screen.",
+      focusFile: "src/lib/api.ts",
+      focusLines: "118 lines",
+      focusArea: "the API client",
+      hotspotDir: "src/screens/",
+      deployFile: "eas.json",
+      deployCmd: "eas update --branch preview",
+      draftFile: "src/lib/offline-queue.ts",
+      wireTarget: "the API client",
+    },
+    // Left half-finished: the trial banner needs a field the API does not
+    // return yet, which is the work saas-app is busy adding.
+    changedFiles: [
+      {
+        path: "src/lib/api.ts",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -22,6 +22,8 @@ export type Plan = {" },
+          { t: "ctx", text: "   id: string;" },
+          { t: "ctx", text: "   name: string;" },
+          { t: "ctx", text: "   priceCents: number;" },
+          { t: "add", text: "+  /** Days of free trial the API grants, or null when the plan has none. */" },
+          { t: "add", text: "+  trialDays: number | null;" },
+          { t: "ctx", text: " };" },
+          { t: "ctx", text: "" },
+          { t: "ctx", text: " export async function fetchPlans(): Promise<Plan[]> {" },
+          { t: "hunk", text: "@@ -38,6 +40,7 @@ function toPlan(row: PlanRow): Plan {" },
+          { t: "ctx", text: "     id: row.id," },
+          { t: "ctx", text: "     name: row.name," },
+          { t: "ctx", text: "     priceCents: Math.round(row.price * 100)," },
+          { t: "add", text: "+    trialDays: row.trial_period_days ?? null," },
+          { t: "ctx", text: "   };" },
+          { t: "ctx", text: " }" },
+          { t: "ctx", text: "" },
+        ],
+      },
+      {
+        path: "src/screens/PlansScreen.tsx",
+        status: "modified",
+        diff: [
+          { t: "hunk", text: "@@ -46,8 +46,13 @@ function PlanRow({ plan }: { plan: Plan }) {" },
+          { t: "ctx", text: "     <View style={styles.card}>" },
+          { t: "ctx", text: "       <Text style={styles.planName}>{plan.name}</Text>" },
+          { t: "ctx", text: "       <Text style={styles.price}>{formatPrice(plan.priceCents)}</Text>" },
+          { t: "add", text: "+      {plan.trialDays ? (" },
+          { t: "add", text: "+        <Text style={styles.trial}>{plan.trialDays} days free</Text>" },
+          { t: "add", text: "+      ) : null}" },
+          { t: "ctx", text: "       <Pressable style={styles.cta} onPress={() => subscribe(plan.id)}>" },
+          { t: "del", text: "-        <Text style={styles.ctaLabel}>Choose plan</Text>" },
+          { t: "add", text: "+        <Text style={styles.ctaLabel}>" },
+          { t: "add", text: '+          {plan.trialDays ? "Start free trial" : "Choose plan"}' },
+          { t: "add", text: "+        </Text>" },
+          { t: "ctx", text: "       </Pressable>" },
+          { t: "ctx", text: "     </View>" },
+          { t: "ctx", text: "   );" },
+          { t: "hunk", text: "@@ -79,6 +84,11 @@ const styles = StyleSheet.create({" },
+          { t: "ctx", text: "     fontSize: 28," },
+          { t: "ctx", text: '     fontWeight: "600",' },
+          { t: "ctx", text: "   }," },
+          { t: "add", text: "+  trial: {" },
+          { t: "add", text: "+    marginTop: 4," },
+          { t: "add", text: "+    fontSize: 13," },
+          { t: "add", text: '+    color: "#16a34a",' },
+          { t: "add", text: "+  }," },
+          { t: "ctx", text: "   cta: {" },
+          { t: "ctx", text: "     marginTop: 16," },
+          { t: "ctx", text: "     borderRadius: 12," },
+        ],
+      },
+    ],
+    git: {
+      branch: "main",
+      upstream: "origin",
+      uncommitted: 2,
+      ahead: 0,
+      behind: 3,
+      branches: [
+        { name: "main", age: "5d" },
+        { name: "feat/push-notifications", age: "6d" },
+        { name: "chore/sdk-upgrade", age: "3w" },
+        { name: "main", remote: "origin", age: "6h" },
+        { name: "release/ios-1.4", remote: "origin", age: "2d" },
+      ],
+    },
+  },
 ];
 
-// Seeded so the sidebar shows lpm's per-project AI states at a glance: a
-// background agent still working (running shimmer), one that just finished
-// (done), and one stopped on a question (waiting → "Needs you"). The selected
-// project picks up live status when you launch Claude Code or Codex in it.
+// Seeded so the sidebar shows lpm's per-project AI states at a glance: one
+// agent that just finished (done) and one stopped on a question (waiting →
+// "Needs you"). The selected project picks up live status when you launch
+// Claude Code or Codex in it.
 export const INITIAL_AI_STATUS: Record<string, AiStatus> = {
-  "auth-service": "running",
   "docs-site": "done",
   "ml-pipeline": "waiting",
 };

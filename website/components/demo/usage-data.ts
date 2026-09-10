@@ -95,14 +95,21 @@ export const USAGE_PROVIDERS: UsageProviderData[] = [
       resetInMs: 4 * HOUR + 36 * MINUTE,
     },
     weekly: {
-      usedPercent: 1,
-      elapsedPercent: 1,
-      resetInMs: 6 * DAY + 23 * HOUR,
+      usedPercent: 27,
+      elapsedPercent: 21,
+      resetInMs: 5 * DAY + 13 * HOUR,
     },
   },
 ];
 
 export const TOKENS_TODAY = "22.6M";
+
+/** What a weekly window has left, which is how Codex's own status line puts it.
+ *  Derived so the meter and the transcript can never quote different weeks. */
+export function weeklyLeftPercent(key: UsageToolKey): number {
+  const provider = USAGE_PROVIDERS.find((p) => p.key === key);
+  return provider ? Math.round(100 - provider.weekly.usedPercent) : 100;
+}
 
 export function usageBarColor(usedPercent: number): string {
   if (usedPercent >= 95) return "#f87171";

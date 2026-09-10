@@ -224,7 +224,9 @@ function TabRenameForm({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // Escape belongs to whatever is open inside the dialog — the emoji
+      // picker claims it first, and only an unclaimed Escape dismisses.
+      if (e.key === "Escape" && !e.defaultPrevented) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -316,7 +318,9 @@ function MenuLayer({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      onClose();
     };
     // The menu sits at coordinates captured on open, so a scroll that moves its
     // trigger strands it. Only scrollers that contain the trigger count — the
@@ -378,6 +382,21 @@ export function EmojiPickerField({
     setPicking(false);
     inputRef.current?.focus();
   };
+
+  // The field lives inside dialogs that dismiss on Escape and were mounted
+  // first, so the picker takes the key in the capture phase and marks it
+  // handled — one Escape closes the picker, not the visitor's half-filled form.
+  useEffect(() => {
+    if (!picking) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setPicking(false);
+      inputRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [picking, inputRef]);
   return (
     <div className={`relative${className ? ` ${className}` : ""}`}>
       <button

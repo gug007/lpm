@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Check,
   ChevronLeft,
@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Upload,
 } from "lucide-react";
+import { SparkleGlyph } from "./sparkle-glyph";
 import { FOCUS_RING } from "./ui";
 
 export type PullStrategy = "ff" | "ff-only" | "rebase";
@@ -27,7 +28,10 @@ const PULL_STRATEGIES = Object.keys(PULL_STRATEGY_LABELS) as PullStrategy[];
 
 const ROW = `flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`;
 const INSET_ROW = `mx-1.5 flex w-[calc(100%-12px)] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-40 ${FOCUS_RING}`;
+const AI_ROW = `group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[#2a2a2a] disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`;
 const ICON = "h-3.5 w-3.5 shrink-0";
+
+type AutoAction = "commit" | "commit-push";
 
 export function GitActionsMenu({
   busy,
@@ -41,6 +45,8 @@ export function GitActionsMenu({
   onCreatePR,
   onMerge,
   onDiscard,
+  onAutoCommit,
+  onAutoCommitAndPush,
 }: {
   busy: boolean;
   uncommitted: number;
@@ -53,14 +59,42 @@ export function GitActionsMenu({
   onCreatePR: () => void;
   onMerge: () => void;
   onDiscard: () => void;
+  onAutoCommit: () => void;
+  onAutoCommitAndPush: () => void;
 }) {
   const [screen, setScreen] = useState<"root" | "pull">("root");
+  const [generating, setGenerating] = useState<AutoAction | null>(null);
+  const genTimer = useRef<number | null>(null);
+
+  // Closing the menu unmounts it, so a pending run would otherwise commit for a
+  // visitor who already dismissed the menu.
+  useEffect(
+    () => () => {
+      if (genTimer.current) window.clearTimeout(genTimer.current);
+    },
+    [],
+  );
+
+  const runAuto = (action: AutoAction, run: () => void) => {
+    if (genTimer.current) window.clearTimeout(genTimer.current);
+    setGenerating(action);
+    genTimer.current = window.setTimeout(() => {
+      genTimer.current = null;
+      setGenerating(null);
+      run();
+    }, 650);
+  };
 
   return (
     <div className="menu-pop absolute bottom-full right-0 z-50 mb-2 w-80 overflow-hidden rounded-2xl border border-[#2e2e2e] bg-[#1a1a1a] py-1.5 shadow-2xl">
       {screen === "root" ? (
         <>
-          <button type="button" onClick={onCommit} disabled={uncommitted === 0} className={ROW}>
+          <button
+            type="button"
+            onClick={onCommit}
+            disabled={busy || uncommitted === 0}
+            className={ROW}
+          >
             <GitCommitHorizontal className={ICON} strokeWidth={2} />
             Commit
           </button>
@@ -101,6 +135,21 @@ export function GitActionsMenu({
             <GitMerge className={ICON} strokeWidth={2} />
             Merge
           </button>
+          <div className="my-1.5 border-t border-[#2e2e2e]" />
+          <AutoCommitRow
+            label="Auto Commit"
+            description="AI writes the message, then commits"
+            generating={generating === "commit"}
+            disabled={busy || uncommitted === 0 || generating !== null}
+            onClick={() => runAuto("commit", onAutoCommit)}
+          />
+          <AutoCommitRow
+            label="Auto Commit and Push"
+            description="AI writes the message, commits, and pushes"
+            generating={generating === "commit-push"}
+            disabled={busy || uncommitted === 0 || generating !== null}
+            onClick={() => runAuto("commit-push", onAutoCommitAndPush)}
+          />
           <div className="my-1.5 border-t border-[#2e2e2e]" />
           <button
             type="button"
@@ -160,5 +209,35 @@ export function GitActionsMenu({
         </>
       )}
     </div>
+  );
+}
+
+function AutoCommitRow({
+  label,
+  description,
+  generating,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  generating: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className={AI_ROW}>
+      <span
+        className={`mt-0.5 text-[#b3b3b3] ${generating ? "animate-spin" : ""}`}
+      >
+        <SparkleGlyph size={14} />
+      </span>
+      <span className="flex flex-col">
+        <span className="text-[13px] text-[#b3b3b3] group-hover:text-[#e5e5e5]">
+          {generating ? "Generating…" : label}
+        </span>
+        <span className="text-[11px] text-[#919191]">{description}</span>
+      </span>
+    </button>
   );
 }

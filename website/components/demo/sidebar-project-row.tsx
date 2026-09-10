@@ -37,6 +37,7 @@ type ProjectRowProps = {
   onSelect: () => void;
   onOpenAgent: (key: string) => void;
   onDuplicate: (mode: "duplicate" | "worktree") => void;
+  onRemove: () => void;
 };
 
 export function SidebarProjectRow({
@@ -51,6 +52,7 @@ export function SidebarProjectRow({
   onSelect,
   onOpenAgent,
   onDuplicate,
+  onRemove,
 }: ProjectRowProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -148,7 +150,7 @@ export function SidebarProjectRow({
           className={`absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-[#919191] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING} ${
             menu
               ? "opacity-100"
-              : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
+              : "pointer-events-none opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
           }`}
         >
           <MoreVertical className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -166,8 +168,10 @@ export function SidebarProjectRow({
           x={menu.x}
           y={menu.y}
           label={label}
+          root={project.root}
           onClose={closeMenu}
           onDuplicate={onDuplicate}
+          onRemove={onRemove}
         />
       )}
     </>

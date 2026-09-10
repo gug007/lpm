@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import { useReducedMotion } from "./ui";
 
@@ -8,12 +8,12 @@ type TipPart = { text: string } | { key: string };
 
 const TIPS: TipPart[][] = [
   [{ text: "Right-click a tab to rename or pin it" }],
-  [{ text: "The arrow next to + opens a diff tab or a browser" }],
-  [{ text: "Split a pane sideways or stacked from the buttons on the right" }],
-  [{ text: "Drag the divider between panes to resize them" }],
-  [{ text: "Click a service tab to watch its log stream" }],
-  [{ text: "In the app, " }, { key: "⌘T" }, { text: " opens a fresh terminal tab" }],
-  [{ text: "In the app, " }, { key: "@" }, { text: " mentions files, branches, changes, or terminals" }],
+  [{ text: "The + arrow opens a diff or a browser" }],
+  [{ text: "Split a pane sideways or stacked" }],
+  [{ text: "Drag the divider to resize the panes" }],
+  [{ text: "Click a service tab to watch its log" }],
+  [{ text: "In the app," }, { key: "⌘T" }, { text: "opens a terminal" }],
+  [{ text: "In the app," }, { key: "@" }, { text: "mentions files" }],
 ];
 
 const ROTATE_MS = 9000;
@@ -43,6 +43,9 @@ function splitKeys(label: string): string[] {
 export function AppTip() {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [fits, setFits] = useState(true);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -54,34 +57,44 @@ export function AppTip() {
     return () => window.clearTimeout(id);
   }, [reducedMotion, paused, index]);
 
+  // The footer hands the tip whatever is left after the git cluster, and every
+  // project leaves a different amount. So show a tip only while it fits whole,
+  // the way the app does, rather than shredding it to an ellipsis: a longer one
+  // simply sits the round out until a shorter one rotates in or the pane grows.
+  // The slot keeps its flex-1 either way, which is what holds the git cluster
+  // against the right edge.
+  useLayoutEffect(() => {
+    const slot = slotRef.current;
+    const content = contentRef.current;
+    if (!slot || !content) return;
+    const measure = () => setFits(content.offsetWidth <= slot.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(slot);
+    return () => observer.disconnect();
+  }, [index]);
+
   return (
-    <div
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      className="flex h-6 min-w-0 flex-1 select-none items-center gap-2"
-    >
-      <Lightbulb className="h-3.5 w-3.5 shrink-0 text-[#fbbf24]" strokeWidth={1.75} />
-      <span className="flex min-w-0 items-center gap-1 truncate text-[12px] text-[#8e8e8e]">
-        {TIPS[index].map((part, i) =>
-          "key" in part ? (
-            <Combo key={i} label={part.key} />
-          ) : (
-            // Only the last part gives way: letting every span shrink
-            // ellipsises the lead-in too, so the tip reads "In the … @ mentions
-            // files, …" with both halves cut.
-            <span
-              key={i}
-              className={
-                i === TIPS[index].length - 1
-                  ? "truncate"
-                  : "shrink-0 whitespace-pre"
-              }
-            >
-              {part.text}
-            </span>
-          ),
-        )}
-      </span>
+    <div ref={slotRef} className="min-w-0 flex-1 overflow-hidden">
+      <div
+        ref={contentRef}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        className={`flex h-6 w-fit select-none items-center gap-2 transition-opacity duration-200 ${
+          fits ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      >
+        <Lightbulb className="h-3.5 w-3.5 shrink-0 text-[#fbbf24]" strokeWidth={1.75} />
+        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[#8e8e8e]">
+          {TIPS[index].map((part, i) =>
+            "key" in part ? (
+              <Combo key={i} label={part.key} />
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
+        </span>
+      </div>
     </div>
   );
 }

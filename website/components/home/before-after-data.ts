@@ -182,7 +182,7 @@ export const WINDOWS: PileWindow[] = [
         ],
         band: "bg-white/[0.07]",
       },
-      gap(s("• ", DIM), s("Edited", BOLD), s(" app/models/plan.rb", TEXT)),
+      gap(s("• ", DIM), s("Read", BOLD), s(" app/models/plan.rb", TEXT)),
       gap(
         s("• ", TEXT),
         s("Working ", LIGHT),

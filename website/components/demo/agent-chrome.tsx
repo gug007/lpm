@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { BRAND, CLAUDE_STARS, settledVerb, workingVerb, type AgentKind } from "./agent-script";
 import { useDemoActive } from "./demo-active";
 import { useReducedMotion } from "./ui";
+import { weeklyLeftPercent } from "./usage-data";
 
 // The fixed furniture each CLI paints around a session: its launch banner and
 // its bottom status line. Everything here mirrors the real binaries.
@@ -138,7 +139,9 @@ export function AgentStatusLine({
         {dot}
         <span className="text-[#f2b590]">Context {context}% left</span>
         {dot}
-        <span className="text-[#e990a9]">weekly 99% left</span>
+        <span className="text-[#e990a9]">
+          weekly {weeklyLeftPercent("codex")}% left
+        </span>
         {dot}
         <span className="text-[#c8a9ee]">Fast off</span>
       </div>

@@ -1,6 +1,11 @@
 "use client";
 
 import type { DemoProfile, DemoService } from "./projects";
+import { FOCUS_RING } from "./ui";
+
+// The menu clips its overflow to keep its rounded corners, so a ring drawn
+// outside a full-width row's box would be cut off at both ends.
+const ITEM_FOCUS = `${FOCUS_RING} focus-visible:ring-inset`;
 
 type StartMenuProps = {
   profiles: DemoProfile[];
@@ -36,7 +41,7 @@ export function StartMenu({
                   type="button"
                   role="menuitem"
                   onClick={() => onPickProfile(p.name)}
-                  className={`flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-[#2a2a2a] focus-visible:bg-[#2a2a2a] focus-visible:outline-none ${
+                  className={`flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-[#2a2a2a] focus-visible:bg-[#2a2a2a] ${ITEM_FOCUS} ${
                     active ? "text-[#e5e5e5]" : "text-[#b3b3b3]"
                   }`}
                 >
@@ -69,7 +74,7 @@ export function StartMenu({
                 role="menuitemcheckbox"
                 aria-checked={running}
                 onClick={() => onToggleService(s.name)}
-                className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[#2a2a2a] focus-visible:bg-[#2a2a2a] focus-visible:outline-none ${
+                className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[#2a2a2a] focus-visible:bg-[#2a2a2a] ${ITEM_FOCUS} ${
                   running ? "font-medium text-[#e5e5e5]" : "text-[#b3b3b3]"
                 }`}
               >
