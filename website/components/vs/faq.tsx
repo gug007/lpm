@@ -3,11 +3,9 @@ import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { jsonLdString } from "@/lib/structured-data";
 
-export type FaqItem = {
-  question: string;
-  answer: ReactNode;
-  answerText?: string;
-};
+export type FaqItem =
+  | { question: string; answer: string; answerText?: never }
+  | { question: string; answer: ReactNode; answerText: string };
 
 type Props = {
   eyebrow?: string;

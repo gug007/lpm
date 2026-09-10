@@ -1,45 +1,73 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CodeBlock } from "@/components/config/code-block";
 import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
+import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
-import {
-  FeatureMatrix,
-  type MatrixRow,
-} from "@/components/vs/feature-matrix";
+import { QuickAnswer } from "@/components/vs/quick-answer";
+import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
+import { SectionVideo } from "@/components/vs/section-video";
+import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { RelatedPages } from "@/components/related-pages";
 import {
-  AI_AGENTS_PATH,
-  BEST_TERMINAL_MAC_PATH,
+  CONFIG_PATH,
+  PROJECT_SIDEBAR_PATH,
   REPO_URL,
   VS_BASE_PATH,
+  WORKTREE_AGENTS_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  screenRecordingJsonLd,
+  webPageJsonLd,
+} from "@/lib/structured-data";
+import { EmulatorShelf } from "./_components/emulator-shelf";
+import { KeepGiveUp } from "./_components/keep-give-up";
+import { Matrix } from "./_components/matrix";
 
 const PATH = vsPath("iterm2");
 
-const TITLE = "lpm vs iTerm2 — Projects, Not Just Panes";
+const TITLE = "iTerm2 Alternative for Mac: Projects, Not Just Panes";
 const DESCRIPTION =
-  "iTerm2 is a great terminal emulator. lpm is a project manager with a terminal inside it. Honest side-by-side, including where iTerm2 wins.";
+  "iTerm2 is the better emulator. lpm runs the project instead: one click brings up every service, with Claude Code and Codex in the next tab. Keep both.";
+
+const QUESTION = "Is there a real iTerm2 alternative?";
+
+const PROJECT_FILE = `name: shop
+root: ~/Projects/shop
+
+services:
+  web: npm run dev
+  api: npm run api
+
+profiles:
+  frontend: [web]`;
 
 export const metadata: Metadata = {
-  title: { absolute: TITLE },
+  title: TITLE,
   description: DESCRIPTION,
   keywords: [
-    "lpm vs iterm2",
     "iterm2 alternative",
     "iterm alternative",
-    "iterm2 alternative macos",
-    "best terminal for mac",
-    "mac terminal alternative",
+    "iterm2 alternative mac",
+    "iterm2 vs lpm",
+    "free iterm2 alternative",
+    "iterm2 alternative for claude code",
+    "iterm2 vs warp",
+    "iterm2 project management",
+    "run multiple services in iterm2",
+    "mac terminal for multiple projects",
+    "iterm2 vs ghostty",
   ],
   alternates: { canonical: PATH },
   openGraph: {
     title: TITLE,
-    description:
-      "iTerm2 is the terminal. lpm manages whole projects — services, agents, and duplicates — with a terminal inside. Honest comparison.",
+    description: DESCRIPTION,
     type: "website",
     url: PATH,
     siteName: "lpm",
@@ -47,91 +75,25 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: TITLE,
-    description:
-      "iTerm2 is the terminal. lpm manages whole projects, with a terminal inside. Honest comparison.",
+    description: DESCRIPTION,
   },
 };
 
-const MATRIX_ROWS: MatrixRow[] = [
+const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
-    label: "Primary object",
-    lpm: "Project (services + agents)",
-    competitor: "Terminal window (tabs + split panes)",
+    label: "iTerm2",
+    title: "Keep iTerm2 for",
+    body: "Triggers that fire on output, smart selection, the Python API, tmux control mode, and every keybinding you have tuned over the years.",
   },
   {
-    label: "Per-project config",
-    lpm: "small file you can edit and commit",
-    competitor: "Profiles in app settings",
+    label: "lpm",
+    title: "Add lpm for",
+    body: "One click that starts four services, a switcher across repos, and a separate checkout per agent.",
   },
   {
-    label: "Auto-detect stack on init",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Start, stop, restart services",
-    lpm: true,
-    competitor: "you run each command yourself",
-  },
-  {
-    label: "Live status per service on the tab",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Run a subset of services (profiles)",
-    lpm: true,
-    competitor: "profiles set the shell and appearance, not service sets",
-  },
-  {
-    label: "One-shot tasks (lint, migrate, seed)",
-    lpm: "buttons in the project",
-    competitor: "shell history and aliases",
-  },
-  {
-    label: "Duplicate a project for a parallel agent",
-    lpm: "worktrees or standalone copies, in a batch",
-    competitor: false,
-  },
-  {
-    label: "Pre-built agent hooks (Claude Code, Codex, …)",
-    lpm: "Claude Code, Codex, Gemini, OpenCode",
-    competitor: false,
-  },
-  {
-    label: "Embedded browser",
-    lpm: "tabs beside terminals",
-    competitor: false,
-  },
-  {
-    label: "Native SSH workspaces",
-    lpm: "remote projects + port forwarding",
-    competitor: "ssh in a shell, with shell integration",
-  },
-  {
-    label: "tmux control mode integration",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Triggers, smart selection, scripting API",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Years of terminal-emulator polish",
-    lpm: "terminal built for running services and agents",
-    competitor: true,
-  },
-  {
-    label: "License",
-    lpm: "Open source, free",
-    competitor: "Open source, free",
-  },
-  {
-    label: "Platforms",
-    lpm: "macOS",
-    competitor: "macOS",
+    label: "Both",
+    title: "Run both",
+    body: "lpm starts ordinary processes through your login shell. Nothing is captured, nothing is wrapped, and the Open in iTerm action drops you into the project directory in your own window whenever you want it.",
   },
 ];
 
@@ -144,34 +106,67 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I keep using iTerm2 alongside lpm?",
     answer:
-      "Yes, and plenty of people do. Let lpm own the project layer — which project is active, what services are running, duplicating a checkout for a second agent — and keep iTerm2 as the terminal you reach for when you want a scratch shell. They don't conflict: lpm starts and stops ordinary native processes, exactly as you would by hand.",
+      "Yes, and plenty of people do. Let lpm own the project layer — which project is active, what services are running, duplicating a checkout for a second agent — and keep iTerm2 as the terminal you reach for when you want a scratch shell. They don't conflict: lpm starts and stops ordinary native processes, exactly as you would by hand. lpm has an Open in iTerm action, so the project directory is one click from your own shell.",
   },
   {
-    question: "What does lpm do that iTerm2 can't?",
-    answer:
-      "Three things, all above the terminal layer. It reads your repo and generates a working config, so starting the whole stack is one click instead of six tabs. It shows live status per service on each tab, so a crashed worker is visible without hunting for it. And it can duplicate a project — as a linked Git worktree or a standalone copy — so a second agent gets its own checkout and its own ports instead of fighting the first one.",
-  },
-  {
-    question: "I only ever work on one repo. Is lpm worth it?",
-    answer:
-      "Honestly, the gains are smaller. lpm's value scales with how many services you start and how often you switch context. On a single repo with one process, iTerm2 plus a shell alias is a perfectly good setup and you should keep it. The moment you add a second agent working in parallel, or a stack of four services with a database, the project layer starts paying for itself.",
-  },
-  {
-    question: "Is lpm free like iTerm2?",
+    question: "What does lpm do that iTerm2 cannot?",
     answer: (
       <>
-        Yes. lpm is free and open source with no paid tier and no commercial
-        license to buy, the same as iTerm2. The source is on{" "}
-        <a
-          href={REPO_URL}
+        Three things, and not one of them is about the emulator. It gets the
+        service list written for you: point Claude Code or Codex at the repo —
+        package.json scripts, Makefile targets, justfile recipes, compose files
+        — and it writes the list, while the built-in scan offers the commands it
+        finds as one-shot buttons. It starts every service at once and puts the
+        port that service is listening on onto that service&apos;s tab. And it
+        copies the project so a second agent works in a checkout of its own
+        instead of overwriting the first one&apos;s files — a standalone copy
+        brings your ignored files and installed packages along, while{" "}
+        <Link
+          href={WORKTREE_AGENTS_PATH}
           className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
         >
-          GitHub
-        </a>{" "}
-        if you want to read it before installing.
+          a linked worktree starts from the commit, so your .env and node_modules
+          do not come with it
+        </Link>
+        — and either way both copies answer on the same ports and talk to the
+        same database.
       </>
     ),
-    answerText: `Yes. lpm is free and open source with no paid tier and no commercial license to buy, the same as iTerm2. The source is on GitHub at ${REPO_URL} if you want to read it before installing.`,
+    answerText:
+      "Three things, and not one of them is about the emulator. It gets the service list written for you: point Claude Code or Codex at the repo — package.json scripts, Makefile targets, justfile recipes, compose files — and it writes the list, while the built-in scan offers the commands it finds as one-shot buttons. It starts every service at once and puts the port that service is listening on onto that service's tab. And it copies the project so a second agent works in a checkout of its own instead of overwriting the first one's files — a standalone copy brings your ignored files and installed packages along, while a linked worktree starts from the commit, so your .env and node_modules do not come with it — and either way both copies answer on the same ports and talk to the same database.",
+  },
+  {
+    question: "How does lpm compare to Warp, Ghostty, or Kitty?",
+    answer:
+      "Same answer as iTerm2: those are emulators, and lpm is not one. Pick whichever emulator suits you for your own shells — lpm holds the projects and the services either way.",
+  },
+  {
+    question: "Can I run lpm from the iTerm2 command line?",
+    answer: (
+      <>
+        Yes, from an iTerm2 tab like any other shell — but the verbs split in
+        two.{" "}
+        <code className="font-mono text-[0.9em]">lpm start</code>,{" "}
+        <code className="font-mono text-[0.9em]">lpm stop</code>,{" "}
+        <code className="font-mono text-[0.9em]">lpm service web restart</code>,{" "}
+        <code className="font-mono text-[0.9em]">lpm run</code> and{" "}
+        <code className="font-mono text-[0.9em]">lpm duplicate</code> hand the
+        work to the app, so lpm has to be open; with it closed they stop and say
+        so. <code className="font-mono text-[0.9em]">lpm list</code> and{" "}
+        <code className="font-mono text-[0.9em]">lpm logs</code> read your
+        running services themselves, so those two answer from a cold shell.{" "}
+        <code className="font-mono text-[0.9em]">lpm status</code> reports what
+        your agents are doing, which only the app knows, so it needs lpm open
+        too.
+      </>
+    ),
+    answerText:
+      "Yes, from an iTerm2 tab like any other shell — but the verbs split in two. lpm start, lpm stop, lpm service web restart, lpm run and lpm duplicate hand the work to the app, so lpm has to be open; with it closed they stop and say so. lpm list and lpm logs read your running services themselves, so those two answer from a cold shell. lpm status reports what your agents are doing, which only the app knows, so it needs lpm open too.",
+  },
+  {
+    question: "Do I lose my iTerm2 profiles and keybindings?",
+    answer:
+      "They do not transfer, and that is a real cost. It is also why the recommendation here is to run both rather than switch.",
   },
 ];
 
@@ -180,12 +175,20 @@ const structuredData = [
     title: TITLE,
     description: DESCRIPTION,
     path: PATH,
+    about: [
+      "iTerm2 alternatives for macOS",
+      "terminal emulator versus project manager",
+      "running multiple dev services on a Mac",
+      "Claude Code and Codex in a terminal",
+    ],
+    dateModified: VS_REVIEWED_ISO,
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     { name: "Compare", path: VS_BASE_PATH },
     { name: "iTerm2", path: PATH },
   ]),
+  screenRecordingJsonLd("duplicate-project"),
 ];
 
 export default function LpmVsIterm2Page() {
@@ -197,30 +200,116 @@ export default function LpmVsIterm2Page() {
       />
       <ComparisonHero
         eyebrow="lpm vs iTerm2"
-        title="An iTerm2 alternative that manages projects, not just panes."
-        description="iTerm2 is the terminal emulator most Mac developers already have open, and it is very good at that job. lpm sits a layer above: it starts and stops your whole stack, shows live status per service, and duplicates a project when a second agent needs its own checkout. Honest side-by-side, including the rows where iTerm2 wins."
+        title="An iTerm2 alternative that runs whole projects, not just panes."
+        description="iTerm2 is the more capable emulator, and nothing here argues with that. lpm owns the project instead: one click brings up every service, each service tab carries the ports it is listening on, and a second agent gets a checkout of its own."
+        verdictLine="Most people should keep iTerm2 and add the project layer."
+        jumpHref="#matrix"
+        jumpLabel="Jump to the iTerm2 rows"
+        downloadSource="vs-iterm2-hero"
       />
 
-      <FeatureMatrix
-        title="iTerm2 and lpm, feature by feature"
-        description="These tools overlap less than the search results suggest. Rows where iTerm2 wins are called out plainly — it is the better emulator, and lpm does not pretend otherwise."
-        competitorName="iTerm2"
-        rows={MATRIX_ROWS}
+      <ComparisonBasis
+        reviewed={VS_REVIEWED}
+        reviewedIso={VS_REVIEWED_ISO}
+        sources={[
+          {
+            href: "https://iterm2.com/documentation.html",
+            label: "iTerm2 documentation",
+          },
+          {
+            href: "https://iterm2.com/python-api/",
+            label: "the iTerm2 scripting API docs",
+          },
+          {
+            href: "https://iterm2.com/documentation-tmux-integration.html",
+            label: "the iTerm2 tmux integration docs",
+          },
+          {
+            href: "https://iterm2.com/news.html",
+            label: "the iTerm2 release notes",
+          },
+          {
+            href: "https://iterm2.com/claude-code-integration.html",
+            label: "its Claude Code integration docs",
+          },
+          {
+            href: "https://iterm2.com/documentation-preferences-profiles-terminal.html",
+            label: "its scrollback setting",
+          },
+          {
+            href: "https://github.com/gnachman/iTerm2/blob/master/LICENSE",
+            label: "iTerm2's licence",
+          },
+          {
+            href: "https://github.com/warpdotdev/Warp",
+            label: "Warp's repository",
+          },
+        ]}
+        lpmNote="iTerm2 3.7 shipped on 8 September 2026; the agent-integration row reflects that release."
+      />
+
+      <QuickAnswer question={QUESTION}>
+        <p>
+          If what you want is a better terminal emulator, the honest answers are
+          Ghostty, Kitty, WezTerm, Alacritty, Warp — or iTerm2 itself, which
+          shipped a major release in September 2026 and is not standing still.
+          lpm is not on that shelf.
+        </p>
+        <p>
+          lpm is a free macOS app that manages the projects you run inside a
+          terminal. One click starts and stops every service in a project, each
+          service tab is labelled with the port that service&apos;s process tree
+          is listening on, those services stay up after you quit the app, and a
+          second agent can be handed its own checkout — a linked worktree that
+          shares the repository, or a standalone copy that carries its own
+          history.
+        </p>
+        <CodeBlock filename="~/Projects/shop/.lpm.yml">{PROJECT_FILE}</CodeBlock>
+        <p>
+          That file sits in the repo and travels with the branch, so a teammate
+          who opens the project gets the same services; if it is only for you,
+          the same lines can live in your own project file instead. iTerm2 has no
+          equivalent object — its profiles set the shell and the appearance, not
+          which services a project runs.{" "}
+          <Link
+            href={CONFIG_PATH}
+            className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+          >
+            Every field
+          </Link>{" "}
+          a project file accepts is in the config reference.
+        </p>
+      </QuickAnswer>
+
+      <VerdictCards cards={VERDICT_CARDS} />
+
+      <KeepGiveUp />
+
+      <Matrix />
+
+      <EmulatorShelf />
+
+      <SectionVideo
+        eyebrow="See it"
+        title="The thing a terminal window cannot do"
+        description="Copying a project so a second agent gets its own checkout, its own services, and its own terminals."
+        clip="duplicate-project"
+        label="Duplicating a project in lpm into an independent copy with its own services, terminals, and agents."
       />
 
       <WhenToPick
         title="When each one is the right tool"
-        description="Both are free, open source, and macOS-only. The split is whether your bottleneck is the terminal itself or everything you have to start inside it."
+        description="Two free, macOS-only, open-source tools. The split is whether your bottleneck is the emulator itself or everything you have to start inside it."
         lpm={{
           name: "lpm",
           headline:
             "Your friction is starting, stopping, and switching whole projects — not the emulator.",
           points: [
-            "You start several services every morning and want one click instead of six tabs.",
-            "You want lpm to read your repo and generate a working config rather than writing one by hand.",
-            "You run AI coding agents and want a second checkout with its own ports, created as a worktree or a copy.",
-            "You want a crashed service to be visible on its tab instead of buried in scrollback.",
-            "You bounce between projects and want a visual switcher that remembers what each one runs.",
+            "You start four services every morning and want one command instead of six tabs.",
+            "You want the service list drafted from your repo by the agent CLI you already have, instead of typed out by hand.",
+            "You run Claude Code or Codex and want each agent in its own checkout, created as a worktree or a standalone copy.",
+            "You want one view of everything running across every project, with the ports each service holds.",
+            "You want your dev servers to survive quitting the app — without running tmux to get it.",
           ],
         }}
         competitor={{
@@ -243,23 +332,56 @@ export default function LpmVsIterm2Page() {
       <RelatedPages
         links={[
           {
-            href: BEST_TERMINAL_MAC_PATH,
-            title: "Best terminal for Mac",
+            href: PROJECT_SIDEBAR_PATH,
+            title: "Terminal with a project sidebar",
             description:
-              "What a native macOS terminal looks like when it also runs your whole dev stack.",
+              "Every repo in one list, with what each one is running — the switcher a profile menu is not.",
           },
           {
-            href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
+            href: vsPath("tmux"),
+            title: "lpm vs tmux",
             description:
-              "Run AI coding agents next to your services with status on every tab.",
+              "Where the control-mode row leads: a live pane per service, with no multiplexer underneath.",
+          },
+          {
+            href: vsPath("cmux"),
+            title: "lpm vs cmux",
+            description:
+              "The other Mac terminal built around coding agents, compared row by row.",
+          },
+          {
+            href: WORKTREE_AGENTS_PATH,
+            title: "Git worktrees for AI agents",
+            description:
+              "How many checkouts you can run at once, and what each one quietly leaves behind.",
+          },
+          {
+            href: CONFIG_PATH,
+            title: "Project config reference",
+            description:
+              "Every key a project file takes: services, dependsOn, profiles, actions, and declared ports.",
           },
         ]}
       />
 
       <Cta
         title="Keep iTerm2. Add the project layer."
-        description="lpm is free, macOS-native, and starts ordinary processes the same way you would by hand. Install it next to your current setup and see whether the project layer earns its place."
+        description={
+          <>
+            lpm is free, macOS-native, MIT-licensed, and starts your services as
+            ordinary processes — the same commands you would type by hand.
+            Install it beside iTerm2 and see whether the project layer earns its
+            place. Read it first on{" "}
+            <a
+              href={REPO_URL}
+              className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+            >
+              GitHub
+            </a>{" "}
+            if you would rather.
+          </>
+        }
+        downloadSource="vs-iterm2-cta"
       />
     </>
   );

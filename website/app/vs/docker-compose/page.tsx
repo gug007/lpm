@@ -1,131 +1,156 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CodeBlock } from "@/components/config/code-block";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
+import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
-import {
-  FeatureMatrix,
-  type MatrixRow,
-} from "@/components/vs/feature-matrix";
+import { QuickAnswer } from "@/components/vs/quick-answer";
+import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
+import { SectionVideo } from "@/components/vs/section-video";
+import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
-  BEST_TERMINAL_MAC_PATH,
-  REPO_URL,
+  AI_AGENTS_PATH,
+  CONFIG_PATH,
+  LINUX_HOST_PATH,
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  screenRecordingJsonLd,
+  webPageJsonLd,
+} from "@/lib/structured-data";
+import { ComposeMap } from "./_components/compose-map";
+import { ComposeMatrix } from "./_components/compose-matrix";
+import { SplitStack } from "./_components/split-stack";
 
 const PATH = vsPath("docker-compose");
 
+const TITLE = "Docker Compose Alternative for Local Dev on macOS";
+const DESCRIPTION =
+  "A Docker Compose alternative for the daily loop: run your stack natively on macOS, a pane per service, and keep compose for the containers that earn it.";
+
+const CODE = "font-mono text-[0.9em]";
+const LINK =
+  "underline underline-offset-2 hover:text-gray-900 dark:hover:text-white";
+
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs Docker Compose — Native Local Dev, No Containers" },
-  description:
-    "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
     "docker compose alternative for dev",
+    "docker compose alternative mac",
+    "docker compose slow mac",
     "docker compose vs lpm",
-    "dev without docker",
-    "run dev stack without docker on mac",
-    "docker compose macos slow",
-    "local dev without containers",
+    "run dev stack without docker",
+    "local development without docker desktop",
+    "native local development macos",
+    "docker compose local dev",
+    "docker compose profiles alternative",
+    "do i need docker desktop",
+    "run claude code without docker",
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Docker Compose — Native Local Dev, No Containers",
-    description:
-      "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Docker Compose — Native Local Dev, No Containers",
-    description:
-      "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
-const MATRIX_ROWS: MatrixRow[] = [
+const YAML = `services:
+  db: docker compose up
+  api:
+    cmd: bin/rails s
+    port: 3000
+    dependsOn: [db]
+  web:
+    cmd: npm run dev
+    port: 5173
+    dependsOn: [api]
+
+profiles:
+  backend: [db, api]`;
+
+const SOURCES = [
   {
-    label: "Starts a multi-service dev stack in one command",
-    lpm: true,
-    competitor: true,
+    href: "https://docs.docker.com/reference/cli/docker/compose/",
+    label: "the Compose CLI reference",
   },
   {
-    label: "Declares startup order between services",
-    lpm: "start order",
-    competitor: "order + health gate",
+    href: "https://docs.docker.com/reference/compose-file/services/",
+    label: "the Compose file services reference",
   },
   {
-    label: "Runs services natively on the host",
-    lpm: true,
-    competitor: false,
+    href: "https://docs.docker.com/desktop/settings-and-maintenance/settings/#file-sharing",
+    label: "Docker Desktop's VM and file-sharing settings",
   },
   {
-    label: "Containerized service isolation",
-    lpm: false,
-    competitor: true,
+    href: "https://docs.docker.com/compose/how-tos/file-watch/",
+    label: "Compose file watch",
   },
   {
-    label: "Cold start after a code change",
-    lpm: "native speed",
-    competitor: "container rebuild",
+    href: "https://docs.docker.com/desktop/use-desktop/container/",
+    label: "the Docker Desktop containers view",
   },
   {
-    label: "macOS file I/O speed for mounted source",
-    lpm: "native FS",
-    competitor: "volume sync overhead",
+    href: "https://docs.docker.com/subscription-billing/desktop-license/",
+    label: "Docker Desktop pricing",
   },
   {
-    label: "Per-service live output pane in a native app",
-    lpm: true,
-    competitor: "docker compose logs",
+    href: "https://github.com/docker/compose/blob/main/LICENSE",
+    label: "the Compose licence",
+  },
+];
+
+const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
+  {
+    label: "lpm",
+    title: "Run it natively",
+    body: "Each process gets its own pane. No image, no volume, no container to create — dependsOn for order, profiles for subsets.",
   },
   {
-    label: "Visual project switcher across multiple repos",
-    lpm: true,
-    competitor: false,
+    label: "Both",
+    title: "Drive compose from lpm",
+    body: "Keep Postgres, Redis or Kafka in containers and declare docker compose up as one lpm service, with its output in a pane beside your native ones.",
   },
   {
-    label: "Prod-parity service versions (Postgres 15.3, Redis 7.2, etc.)",
-    lpm: "use host versions",
-    competitor: true,
-  },
-  {
-    label: "Reproducible across team machines and OSes",
-    lpm: "partial",
-    competitor: true,
-  },
-  {
-    label: "Auto-detects docker-compose.yml and can run it",
-    lpm: true,
-    competitor: true,
-  },
-  {
-    label: "Designed for parallel AI coding agents on host",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Native macOS desktop app with shared config",
-    lpm: true,
-    competitor: "CLI only",
-  },
-  {
-    label: "Open source, free",
-    lpm: true,
-    competitor: true,
+    label: "Docker Compose",
+    title: "Keep compose",
+    body: "Prod parity down to the image tag, a teammate whose laptop is not a Mac, or an image there is no native way to install. Five rows in the table go to Compose, and the description names them.",
   },
 ];
 
 const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I use lpm and Docker Compose together?",
-    answer:
-      "Yes, and this is the common case. lpm can run compose up as one of your services alongside native processes. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive.",
+    answer: (
+      <>
+        Yes, and this is the common case. lpm can run compose up as one of your
+        services alongside native processes. So you can keep Postgres and Redis
+        in containers for prod parity while running your Rails or Next.js app
+        natively, and watch every pane — container logs included — in the same
+        desktop app. They are not mutually exclusive. Use the attached form —{" "}
+        <code className={CODE}>docker compose up</code>, not{" "}
+        <code className={CODE}>-d</code>{" "}
+        — if you want the container output in an lpm pane; a detached start hands
+        you nothing to watch.
+      </>
+    ),
+    answerText:
+      "Yes, and this is the common case. lpm can run compose up as one of your services alongside native processes. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive. Use the attached form — docker compose up, not -d — if you want the container output in an lpm pane; a detached start hands you nothing to watch.",
   },
   {
     question: "Does lpm replace Docker Compose?",
@@ -133,51 +158,69 @@ const FAQ_ITEMS: FaqItem[] = [
       "For some workflows, yes; for others, no. If you're a solo or small-team dev doing native work on macOS and Compose was mostly a way to launch a process tree, lpm covers that with per-service panes and multi-project switching. If you rely on Compose for prod-parity service versions, cross-OS team reproducibility, or container-first deploy pipelines, keep using Compose. lpm doesn't try to be a container runtime.",
   },
   {
-    question: "Why would I run things natively instead of in containers on macOS?",
+    question: "Why is Docker Compose slow on a Mac?",
     answer:
-      "Speed, mostly. Docker Desktop on macOS runs a virtualized environment and shares your source over a virtualized filesystem, which adds latency to file watching, bundle installs, test runs, and hot reloads. Native processes read your disk directly. Cold start is also instant — no image build, no container create, no volume mount. For the inner dev loop on one machine, native is usually faster; for prod parity and team reproducibility, containers are usually better.",
+      "Your containers run in a Linux VM and your source is shared into it. VirtioFS narrowed that gap a lot and it is the default now, but the shared path still sits between your file watcher and your disk, and every start has to create and start containers rather than just a process. Native processes read the disk directly.",
   },
   {
-    question: "Can I run Claude Code or Codex against services lpm started?",
-    answer:
-      "Yes, and that's a big part of why lpm exists. Agents run natively on your host and talk to whichever services lpm brought up — native processes, compose-backed services, or a mix. Each project gets its own entry in the desktop app with live panes per service, so you can run one agent against one project and another agent against a duplicated project without them fighting over ports or tabs.",
-  },
-  {
-    question: "If I have a docker-compose.yml today, what does migrating look like?",
+    question: "Can lpm read my docker-compose.yml?",
     answer: (
       <>
-        You don&apos;t have to fully migrate. Point lpm at the repo, it detects the
-        compose file, and you can run the whole graph via{" "}
-        <code>docker compose up</code> as one lpm service. From there you can
-        incrementally move native-friendly processes — your Rails server, your
-        Next.js dev server, a Go binary — out of the compose file and into lpm
-        as native services, while leaving stateful infra like Postgres and
-        Redis in Compose. Keep whatever split makes sense. The source is on{" "}
-        <a
-          href={REPO_URL}
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          GitHub
-        </a>{" "}
-        if you want to see how the config reads.
+        It spots the file when it scans the repo and offers{" "}
+        <code className={CODE}>docker compose up -d</code>{" "}
+        as a one-click action. It does not parse the service graph. To get a live
+        log pane instead,
+        declare it as a service with the attached form —{" "}
+        <code className={CODE}>db: docker compose up</code>{" "}
+        — or press Generate with AI in the config editor and let your own
+        Claude Code or Codex read the repo, compose file included, and write the
+        services.
       </>
     ),
-    answerText: `You don't have to fully migrate. Point lpm at the repo, it detects the compose file, and you can run the whole graph via "docker compose up" as one lpm service. From there you can incrementally move native-friendly processes — your Rails server, your Next.js dev server, a Go binary — out of the compose file and into lpm as native services, while leaving stateful infra like Postgres and Redis in Compose. Keep whatever split makes sense. The source is on GitHub at ${REPO_URL} if you want to see how the config reads.`,
+    answerText:
+      "It spots the file when it scans the repo and offers docker compose up -d as a one-click action. It does not parse the service graph. To get a live log pane instead, declare it as a service with the attached form — db: docker compose up — or press Generate with AI in the config editor and let your own Claude Code or Codex read the repo, compose file included, and write the services.",
+  },
+  {
+    question: "Two projects need port 5432 — what happens without containers?",
+    answer:
+      "One of them loses, and lpm tells you before it starts: it checks each declared port, names the process holding it, and either asks, frees it, or refuses to start depending on that service's portConflict setting. That is detection, not isolation. If you genuinely need both at once, that is a container's job.",
+  },
+  {
+    question: "Does lpm run on Linux or Windows?",
+    answer: (
+      <>
+        There is no Windows build, and no Linux desktop build either — the app
+        itself is macOS only. A Linux machine can still be{" "}
+        <Link href={LINUX_HOST_PATH} className={LINK}>
+          the host that runs your services and agent sessions
+        </Link>
+        , with the Mac window driving all of it.
+      </>
+    ),
+    answerText:
+      "There is no Windows build, and no Linux desktop build either — the app itself is macOS only. A Linux machine can still be the host that runs your services and agent sessions, with the Mac window driving all of it.",
   },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Docker Compose — Native Local Dev, No Containers",
-    description:
-      "Skip container overhead in the daily dev loop — run your Rails, Next.js, Go, or Python stack natively with per-service panes and a project switcher.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: PATH,
+    about: [
+      "Docker Compose alternatives for local development",
+      "running a dev stack natively on macOS",
+      "Docker Compose performance on macOS",
+      "driving docker compose from lpm",
+    ],
+    dateModified: VS_REVIEWED_ISO,
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     { name: "Compare", path: VS_BASE_PATH },
     { name: "Docker Compose", path: PATH },
   ]),
+  screenRecordingJsonLd("run-profile-project"),
 ];
 
 export default function LpmVsDockerComposePage() {
@@ -189,31 +232,81 @@ export default function LpmVsDockerComposePage() {
       />
       <ComparisonHero
         eyebrow="lpm vs Docker Compose"
-        title="A Docker Compose alternative for fast native development."
-        description="Docker Compose is excellent for prod parity and cross-team reproducibility. lpm is about the daily native dev loop on one machine — with per-service panes, a project switcher, and room for AI agents alongside your stack."
+        title="A Docker Compose alternative for fast local dev on macOS."
+        description="Compose gives every machine the same stack, at the cost of a Linux VM, a shared filesystem and a container to create before anything runs. lpm declares the same processes in one YAML file and runs them straight on the host, one live pane each."
+        verdictLine="Most people end up splitting it: app code native, stateful infrastructure still in compose."
+        jumpHref="#map"
+        jumpLabel="See every compose command mapped"
+        downloadSource="vs-compose-hero"
       />
 
-      <FeatureMatrix
-        title="Docker Compose and lpm, feature by feature"
-        description="Different jobs. Rows where Compose clearly wins are called out honestly — nothing here is a dunk."
-        competitorName="Docker Compose"
-        rows={MATRIX_ROWS}
+      <ComparisonBasis
+        reviewed={VS_REVIEWED}
+        reviewedIso={VS_REVIEWED_ISO}
+        sources={SOURCES}
+        lpmNote="The file-sharing and rebuild rows were re-checked against Docker's current defaults, not the osxfs era; every lpm cell was re-read in the app source on the same date."
+      />
+
+      <QuickAnswer question="Can you run a dev stack on macOS without Docker Compose?">
+        <p>
+          Yes — for every service your Mac can run directly. Declare each process
+          in one small YAML file and lpm starts them together, each in its own
+          live pane, with <code className={CODE}>dependsOn</code>{" "}
+          for start order and <code className={CODE}>profiles</code>{" "}
+          for subsets of the stack.
+        </p>
+        <p>
+          What you give up is the container boundary: no pinned image versions,
+          no separate network namespace, and no guarantee that a teammate on
+          Linux gets an identical stack. Which is why most people end up
+          splitting it — application code native, stateful infrastructure still
+          in compose, both started from the same window.
+        </p>
+        <CodeBlock filename=".lpm.yml">{YAML}</CodeBlock>
+        <p>
+          Committed at the repo root, so a teammate who clones gets the same
+          graph. Use the attached form —{" "}
+          <code className={CODE}>docker compose up</code>, not{" "}
+          <code className={CODE}>-d</code>{" "}
+          — if you want the container output in an lpm pane. The config reference
+          documents{" "}
+          <Link href={CONFIG_PATH} className={LINK}>
+            every field
+          </Link>
+          .
+        </p>
+      </QuickAnswer>
+
+      <VerdictCards cards={VERDICT_CARDS} />
+
+      <ComposeMap />
+
+      <ComposeMatrix />
+
+      <SplitStack />
+
+      <SectionVideo
+        eyebrow="See it"
+        title="A subset of the stack, on demand"
+        description="Compose profiles have a direct equivalent: named subsets you switch between from the header."
+        clip="run-profile-project"
+        label="Switching between profiles in lpm to run a subset of a project's services."
       />
 
       <WhenToPick
-        title="When each one is the right tool"
+        title="When to keep compose, and when to go native"
         description="A friendly split. If your daily loop is native code running on your laptop, lpm leans in. If your daily loop depends on containerized infra matching prod, Compose still wins."
         lpm={{
           name: "lpm",
           headline:
-            "You want fast native startup, per-service panes, and space for AI agents next to your stack.",
+            "Most of your stack runs fine as a host process, and you want to see each one.",
           points: [
-            "You do most of your dev natively on macOS and Docker volume sync has been slowing you down.",
+            "You do most of your dev natively on macOS, and the file share into the VM still sits between your watcher and your disk.",
             "You want your Rails server, Next.js frontend, worker, and a Redis process each in their own live pane.",
-            "You juggle multiple projects and want a visual switcher instead of remembering which compose file is running where.",
-            "You run Claude Code, Codex, or Cursor in parallel on the same or adjacent codebases and want their output visible alongside your services.",
+            "You juggle several repos and would rather see which stack is up than remember which compose file you left running where.",
+            "You run Claude Code, Codex, Gemini CLI, or OpenCode in parallel on the same or adjacent codebases and want their output beside your services — with Claude Code and Codex also reporting Working, Needs you or Done on the tab.",
             "You already have a docker-compose.yml — lpm can drive it as one service while you move the rest native.",
-            "You want a native macOS desktop app to manage your services, not a terminal-only workflow.",
+            "Your production is not containers at all — a managed platform, a VPS, or serverless — so the parity compose buys you was never real.",
           ],
         }}
         competitor={{
@@ -226,6 +319,8 @@ export default function LpmVsDockerComposePage() {
             "You rely on complex service networking, named volumes, or health checks that Compose expresses cleanly.",
             "You want strong isolation — each service in its own container, its own filesystem, its own network namespace.",
             "Your CI, staging, and prod pipelines are container-based and your dev environment should stay in that ecosystem.",
+            "A service nobody sensibly installs natively — Kafka, Elasticsearch, ClickHouse, SQL Server, LocalStack, or a vendor image with no Homebrew formula.",
+            "Two projects need the same port at the same time; containers give each stack its own network namespace and lpm does not.",
           ],
         }}
       />
@@ -240,23 +335,42 @@ export default function LpmVsDockerComposePage() {
       <RelatedPages
         links={[
           {
-            href: BEST_TERMINAL_MAC_PATH,
-            title: "Best terminal for Mac",
+            href: CONFIG_PATH,
+            title: "The config file, field by field",
             description:
-              "A native Apple Silicon workspace for services, logs, and agents.",
+              "What port, portConflict, env, dependsOn and profiles each do inside a project file.",
           },
           {
             href: vsPath("pm2"),
-            title: "lpm vs PM2",
+            title: "lpm vs PM2 for local dev",
             description:
-              "Where the dev loop ends and production process management begins.",
+              "The supervisor question rather than the container one: what keeps a process alive after it dies.",
+          },
+          {
+            href: vsPath("foreman"),
+            title: "Foreman, Overmind and lpm",
+            description:
+              "Three ways to start the same handful of processes when the stack is Procfile lines, not images.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "A terminal for Claude Code and Codex",
+            description:
+              "Where Claude Code and Codex sit once the services are up, and what their tabs report while they work.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "A Linux box as a headless host",
+            description:
+              "Put the services and the agents on a Linux machine and drive all of it from the Mac app.",
           },
         ]}
       />
 
       <Cta
-        title="Keep compose where it earns it. Go native everywhere else."
-        description="Fast startup, per-service panes, multi-project switching, and AI agents on your host — with your docker-compose.yml still welcome. Free and open source."
+        title="Keep compose where it earns it. Run the rest on the host."
+        description="One small YAML file, a live pane per service, and docker compose up as one of those services when a container is the right answer. Free, open source, native macOS app."
+        downloadSource="vs-compose-cta"
       />
     </>
   );

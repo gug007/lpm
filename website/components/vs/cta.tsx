@@ -1,13 +1,15 @@
 import type { ReactNode } from "react";
 import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
+import type { DownloadSource } from "@/lib/analytics";
 
 type Props = {
   title: ReactNode;
   description: ReactNode;
+  downloadSource?: DownloadSource;
 };
 
-export function Cta({ title, description }: Props) {
+export function Cta({ title, description, downloadSource }: Props) {
   return (
     <section id="download" className="scroll-mt-20 py-20 sm:py-24 text-center">
       <div className="max-w-3xl mx-auto px-6">
@@ -19,13 +21,13 @@ export function Cta({ title, description }: Props) {
         </p>
 
         <div className="mt-10 flex justify-center">
-          <HeroDownload />
+          <HeroDownload source={downloadSource} />
         </div>
 
-        <div className="mt-8">
+        <div className="mt-6">
           <GithubLink
             source="vs-cta"
-            className="text-[13px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 inline-flex items-center gap-1.5"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 px-3 py-2 text-[13px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
           />
         </div>
       </div>

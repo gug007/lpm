@@ -1,142 +1,162 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CodeBlock } from "@/components/config/code-block";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
+import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
-import {
-  FeatureMatrix,
-  type MatrixRow,
-} from "@/components/vs/feature-matrix";
+import { QuickAnswer } from "@/components/vs/quick-answer";
+import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
+import { SectionVideo } from "@/components/vs/section-video";
+import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
+  AI_AGENTS_PATH,
   CONFIG_PATH,
-  MAC_TERMINAL_DEVELOPERS_PATH,
-  REPO_URL,
+  LINUX_HOST_PATH,
   VS_BASE_PATH,
+  WORKTREE_AGENTS_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  screenRecordingJsonLd,
+  webPageJsonLd,
+} from "@/lib/structured-data";
+import { Migrate } from "./_components/migrate";
+import { OneTerminal } from "./_components/one-terminal";
+import { ProcfileMatrix } from "./_components/procfile-matrix";
 
 const PATH = vsPath("foreman");
+const OVERMIND_PATH = vsPath("overmind");
+
+const TITLE = "Foreman vs Overmind: Procfile Dev for Rails on Mac";
+const DESCRIPTION =
+  "Foreman interleaves one log stream; Overmind needs tmux. Both read your Procfile. lpm converts the lines into live panes on macOS — all three compared.";
+
+const QUESTION = "Foreman or Overmind for a Rails Procfile?";
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs Foreman — Procfile Dev with Per-Service Panes" },
-  description:
-    "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
-    "foreman alternative",
-    "foreman vs lpm",
-    "procfile alternative",
+    "foreman vs overmind",
+    "foreman alternative rails",
+    "run procfile locally",
+    "procfile.dev",
+    "bin/dev rails",
+    "foreman ruby gem",
     "foreman start",
+    "heroku local alternative",
+    "restart one process foreman",
+    "rails procfile setup mac",
+    "procfile runner mac",
+    "foreman vs overmind vs lpm",
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs Foreman — Procfile Dev with Per-Service Panes",
-    description:
-      "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs Foreman — Procfile Dev with Per-Service Panes",
-    description:
-      "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
-const MATRIX_ROWS: MatrixRow[] = [
+const PROCFILE = `web: bin/rails server -p 3000
+css: bin/rails tailwindcss:watch
+worker: bundle exec sidekiq`;
+
+const LPM_SERVICES = `services:
+  web: bin/rails server -p 3000
+  css: bin/rails tailwindcss:watch
+  worker: bundle exec sidekiq`;
+
+const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
-    label: "Starts a stack with one command",
-    lpm: true,
-    competitor: true,
+    label: "Foreman",
+    title: "Keep Foreman",
+    body: "Two lines in Procfile.dev, $PORT assigned for you, .env loaded automatically, and foreman export generating the launchd or systemd units your deploy needs.",
   },
   {
-    label: "Name + command services in a lightweight config",
-    lpm: "per-project file",
-    competitor: "Procfile",
+    label: "Overmind",
+    title: "Keep Overmind",
+    body: "overmind connect web to attach one process, restart it without the rest, -m web=2 to scale it, and Linux or *BSD support.",
   },
   {
-    label: "Per-service live output pane",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Interleaved color-prefixed logs",
-    lpm: "optional",
-    competitor: true,
-  },
-  {
-    label: "Native macOS desktop app",
-    lpm: true,
-    competitor: "CLI only",
-  },
-  {
-    label: "Visual project switcher",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Manages multiple projects at once",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Start, stop, restart individual services",
-    lpm: true,
-    competitor: "all or nothing",
-  },
-  {
-    label: "Designed for parallel AI coding agents",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Duplicate a project for a second agent",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Exports systemd / upstart / launchd units",
-    lpm: false,
-    competitor: "via foreman export",
-  },
-  {
-    label: "Generates project config from your repo",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Open source, free",
-    lpm: true,
-    competitor: true,
+    label: "lpm",
+    title: "Switch to lpm",
+    body: "A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. macOS only, and it converts the Procfile rather than reading it.",
   },
 ];
 
+const OVERMIND_FIRST_ANSWER =
+  "Overmind, if you want to attach to or restart one process without touching the rest — it runs each process in its own tmux window to make that possible, and -m web=2,worker=3 scales one of them. Foreman, if one interleaved stream on stdout is all you need, if you would rather not install tmux, or if your deploy depends on foreman export.";
+
 const FAQ_ITEMS: FaqItem[] = [
   {
-    question: "Can I move to lpm without rewriting my Procfile?",
+    question: "Foreman or Overmind — which should I use?",
     answer: (
       <>
-        You&apos;ll convert it, but the shape is the same. lpm keeps each
-        project in a{" "}
         <Link
-          href={CONFIG_PATH}
+          href={OVERMIND_PATH}
           className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
         >
-          small per-project config file
-        </Link>{" "}
-        you can read, edit, and commit — each service is just a name and a
-        command, the same web/worker/css/jobs lines from your Procfile. Or skip
-        the conversion entirely — lpm can read your repo and generate the
-        config for you.
+          Overmind
+        </Link>
+        , if you want to attach to or restart one process without touching the
+        rest — it runs each process in its own tmux window to make that possible,
+        and <code>-m web=2,worker=3</code> scales one of them. Foreman, if one
+        interleaved stream on stdout is all you need, if you would rather not
+        install tmux, or if your deploy depends on <code>foreman export</code>.
+      </>
+    ),
+    answerText: OVERMIND_FIRST_ANSWER,
+  },
+  {
+    question: "Does lpm read my Procfile?",
+    answer: (
+      <>
+        No. lpm never parses the file. You copy the lines into a{" "}
+        <code>services:</code> block — a minute for a normal Rails app — and the
+        Procfile stays in the repo for Heroku and <code>foreman export</code>.
       </>
     ),
     answerText:
-      "You'll convert it, but the shape is the same. lpm keeps each project in a small per-project config file you can read, edit, and commit — each service is just a name and a command, the same web/worker/css/jobs lines from your Procfile. Or skip the conversion entirely — lpm can read your repo and generate the config for you.",
+      "No. lpm never parses the file. You copy the lines into a services: block — a minute for a normal Rails app — and the Procfile stays in the repo for Heroku and foreman export.",
+  },
+  {
+    question: "What replaces bin/dev in a Rails app?",
+    answer: (
+      <>
+        <code>bin/dev</code> shells out to Foreman with{" "}
+        <code>Procfile.dev</code>. With lpm you press Start, or run{" "}
+        <code>lpm start</code>, and the same lines come up as separate panes.
+        Keep <code>bin/dev</code> working — nothing removes it.
+      </>
+    ),
+    answerText:
+      "bin/dev shells out to Foreman with Procfile.dev. With lpm you press Start, or run lpm start, and the same lines come up as separate panes. Keep bin/dev working — nothing removes it.",
+  },
+  {
+    question: "Does lpm load .env the way foreman start does?",
+    answer: (
+      <>
+        No. lpm exports the <code>env:</code> map you write on each service, so
+        move the variables you need there or keep loading <code>.env</code>{" "}
+        inside the command with dotenv.
+      </>
+    ),
+    answerText:
+      "No. lpm exports the env: map you write on each service, so move the variables you need there or keep loading .env inside the command with dotenv.",
   },
   {
     question: "Does lpm replace foreman export?",
@@ -144,49 +164,46 @@ const FAQ_ITEMS: FaqItem[] = [
       "No. If you use foreman export to generate upstart, systemd, or launchd unit files for deploy, keep using Foreman for that. lpm is focused on the local dev loop — starting the stack on your machine, viewing live output per service, and switching between projects — not on producing init-system artifacts for servers.",
   },
   {
-    question: "I have one Rails app and I like interleaved logs. Why switch?",
-    answer:
-      "You might not need to. If you are a solo Rails dev with one active project and foreman start is all you want, Foreman is great and stays out of your way. lpm starts paying off when you have more than one project, want per-service panes instead of one interleaved stream, want a desktop UI to see what is running without running ps, or want to duplicate a project so a second AI agent can work in parallel.",
-  },
-  {
-    question: "How does lpm help when I run Claude Code or Codex?",
-    answer:
-      "Each project gets its own entry in the desktop app with live panes per service, so you can point Claude Code at one project and Codex at another — or duplicate a project and run two agents against their own copies of the stack — and still see every service's output at a glance. Foreman was not designed for this; its single interleaved stream and single-project model get noisy fast once multiple agents are touching the same stack.",
-  },
-  {
-    question: "Do I have to pick one? Can lpm and Foreman coexist?",
+    question: "Does it run on Linux or Windows?",
     answer: (
       <>
-        They coexist fine. lpm does not lock a project in — it just starts the
-        processes you defined. You can keep <code>foreman export</code> in your
-        deploy pipeline, keep a Procfile in the repo, and still drive the local
-        stack from lpm when you want panes and project switching. The source
-        lives on{" "}
-        <a
-          href={REPO_URL}
+        Foreman is a Ruby gem, so it goes wherever Ruby goes, and Overmind covers
+        Linux, *BSD and macOS. lpm is the odd one out — its window opens on a Mac
+        and nowhere else. A Linux server can still be{" "}
+        <Link
+          href={LINUX_HOST_PATH}
           className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
         >
-          GitHub
-        </a>{" "}
-        if you want to poke around before committing.
+          where your Rails processes actually run
+        </Link>
+        , with the Mac driving them.
       </>
     ),
-    answerText: `They coexist fine. lpm does not lock a project in — it just starts the processes you defined. You can keep "foreman export" in your deploy pipeline, keep a Procfile in the repo, and still drive the local stack from lpm when you want panes and project switching. The source lives on GitHub at ${REPO_URL} if you want to poke around before committing.`,
+    answerText:
+      "Foreman is a Ruby gem, so it goes wherever Ruby goes, and Overmind covers Linux, *BSD and macOS. lpm is the odd one out — its window opens on a Mac and nowhere else. A Linux server can still be where your Rails processes actually run, with the Mac driving them.",
   },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs Foreman — Procfile Dev with Per-Service Panes",
-    description:
-      "Keep Foreman's name-plus-command simplicity and add live per-service panes, a native Mac app, and multi-project switching. Where Foreman still fits, too.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: PATH,
+    about: [
+      "Procfile-based local development",
+      "Foreman versus Overmind",
+      "running a Rails stack on macOS",
+      "per-process restart in local development",
+      "parallel Claude Code and Codex sessions",
+    ],
+    dateModified: VS_REVIEWED_ISO,
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     { name: "Compare", path: VS_BASE_PATH },
     { name: "Foreman", path: PATH },
   ]),
+  screenRecordingJsonLd("add-action"),
 ];
 
 export default function LpmVsForemanPage() {
@@ -197,43 +214,126 @@ export default function LpmVsForemanPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
-        eyebrow="lpm vs Foreman"
-        title="A Foreman alternative with per-service panes and project switching."
-        description="Foreman is stable and lovable for Rails devs. lpm keeps the name-plus-command simplicity and adds per-service panes, a desktop app, multi-project switching, and parallel AI-agent workflows."
+        eyebrow="Procfile dev on macOS"
+        title="Foreman vs Overmind for a Rails Procfile — and a third option."
+        description="Both read the same Procfile.dev. Foreman interleaves everything on one stdout stream, Overmind gives each process a tmux window, and lpm gives every line a live pane of its own."
+        verdictLine="If your Procfile.dev is two lines and nothing ever crashes, Foreman is still the answer."
+        jumpHref="#matrix"
+        jumpLabel="See all three side by side"
+        downloadSource="vs-foreman-hero"
       />
 
-      <FeatureMatrix
-        title="Foreman and lpm, feature by feature"
-        description="Rows where Foreman wins are called out honestly. No marketing shade — this is the real shape of the overlap."
-        competitorName="Foreman"
-        rows={MATRIX_ROWS}
+      <ComparisonBasis
+        reviewed={VS_REVIEWED}
+        reviewedIso={VS_REVIEWED_ISO}
+        sources={[
+          {
+            href: "https://ddollar.github.io/foreman/",
+            label: "the foreman man page",
+          },
+          {
+            href: "https://github.com/ddollar/foreman",
+            label: "the Foreman README",
+          },
+          {
+            href: "https://github.com/ddollar/foreman/blob/master/lib/foreman/engine.rb",
+            label: "the code that ends a formation",
+          },
+          {
+            href: "https://github.com/DarthSim/overmind",
+            label: "the Overmind README",
+          },
+          {
+            href: "https://github.com/rails/tailwindcss-rails",
+            label: "tailwindcss-rails on bin/dev",
+          },
+          {
+            href: "https://rubygems.org/gems/foreman/versions",
+            label: "the foreman gem's version list",
+          },
+          {
+            href: "https://github.com/DarthSim/overmind/releases",
+            label: "Overmind's release tags",
+          },
+        ]}
+        lpmNote="The foreman gem sits at 0.90.0 from July 2025; Overmind's newest tag, v2.5.1, is from March 2024. Every lpm cell was re-read off the app's own source."
+      />
+
+      <QuickAnswer question={QUESTION}>
+        <p>
+          <Link
+            href={OVERMIND_PATH}
+            className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+          >
+            Overmind
+          </Link>
+          , if you want to attach to or restart one process without touching the
+          rest — it runs each process in its own tmux window to make that
+          possible, and <code>-m web=2,worker=3</code> scales one of them.
+          Foreman, if one interleaved stream on stdout is all you need, if you
+          would rather not install tmux, or if your deploy depends on{" "}
+          <code>foreman export</code>.
+        </p>
+        <p>
+          There is a third shape. <code>foreman start</code> puts your whole
+          stack in one terminal, and when the CSS watcher dies it takes Rails
+          with it. lpm runs the same <code>web</code>, <code>css</code> and{" "}
+          <code>worker</code> lines as separate live panes on macOS — restart
+          one, leave the rest alone, and quit the app without killing anything.
+          It will not read your Procfile; you copy the lines into a{" "}
+          <code>services:</code> block once, and the shape is identical.
+        </p>
+        <CodeBlock filename="Procfile.dev">{PROCFILE}</CodeBlock>
+        <CodeBlock filename=".lpm.yml">{LPM_SERVICES}</CodeBlock>
+        <p>
+          That is the whole migration. What changes is not the declaration — it
+          is that <code>worker</code> can crash without taking <code>web</code>{" "}
+          down with it.
+        </p>
+      </QuickAnswer>
+
+      <VerdictCards cards={VERDICT_CARDS} />
+
+      <OneTerminal />
+
+      <ProcfileMatrix />
+
+      <Migrate />
+
+      <SectionVideo
+        eyebrow="See it"
+        title="rails db:migrate as a button"
+        description="The one-off commands you run with foreman run become actions you click, or call with lpm run."
+        clip="add-action"
+        label="Adding a one-shot action to a project in lpm — a migration, a linter, or a test run as a button."
       />
 
       <WhenToPick
         title="When each one is the right tool"
-        description="Both manage local processes. The split is about how much surface area you want around them."
+        description="Both start the same commands from the same one-line declaration. The split is what happens after they are running."
         lpm={{
           name: "lpm",
           headline:
-            "You work across multiple projects, want per-service panes, or run AI agents in parallel.",
+            "Your stack has more than two processes, or a second agent is about to want its own copy of it.",
           points: [
-            "You juggle several local projects and want a visual switcher instead of terminal tabs and memory.",
-            "You want each service — web, workers, CSS, jobs — in its own live pane rather than one interleaved stream.",
-            "You run Claude Code, Codex, Cursor, or aider in parallel and need their output visible without tab wrestling.",
-            "You want a native macOS desktop app to manage your processes, not a terminal-only workflow.",
-            "You'd rather duplicate a project than spin up a second worktree by hand when a second agent shows up.",
+            "You want the CSS watcher to die on its own without taking Rails down, and to bring just that one back.",
+            "A pane per process beats scrolling one stream to find which one printed the error.",
+            "You quit the app at lunch and want the dev servers still up when you get back.",
+            "Two or three repos are up at once and you would rather click between them than count terminal tabs.",
+            "Claude Code or Codex is about to want its own checkout of this project — anywhere from 1 to 50 of them, and a linked worktree arrives without your .env or your installed gems.",
+            "lpm does not lock the project in — it runs the same commands your Procfile already names.",
           ],
         }}
         competitor={{
-          name: "Foreman",
-          headline:
-            "You're a solo Rails dev with one project and all you need is foreman start.",
+          name: "Foreman or Overmind",
+          headline: "The Procfile runner you already have is enough.",
           points: [
-            "One Rails app, one Procfile, one terminal — and you like it that way.",
-            "You rely on foreman export to generate upstart, systemd, or launchd units for deploy.",
-            "Interleaved color-prefixed logs are actually what you want to read.",
-            "Zero UI is a feature, not a missing one, and you live inside tmux or iTerm already.",
-            "You don't need multi-project management or parallel AI agents yet.",
+            "Your Procfile.dev is two lines and neither of them ever crashes (Foreman).",
+            "You want $PORT assigned and .env loaded without writing either down (both).",
+            "foreman export generates the units your deploy depends on (Foreman).",
+            "One interleaved stream is genuinely how you read your app (Foreman).",
+            "You need overmind connect and per-process restart, and tmux is already installed (Overmind).",
+            "Someone on the team develops on Windows, or on Linux (Foreman runs on both; Overmind on Linux and *BSD).",
           ],
         }}
       />
@@ -241,30 +341,49 @@ export default function LpmVsForemanPage() {
       <DemoSection />
 
       <Faq
-        title="Switching from Foreman to lpm — the honest FAQ"
+        title="Foreman, Overmind and lpm — the honest answers"
         items={FAQ_ITEMS}
       />
 
       <RelatedPages
         links={[
           {
-            href: MAC_TERMINAL_DEVELOPERS_PATH,
-            title: "Mac terminal for developers",
-            description:
-              "Run your whole stack — services, logs, and agents — in one native Mac app.",
-          },
-          {
-            href: vsPath("overmind"),
+            href: OVERMIND_PATH,
             title: "lpm vs Overmind",
             description:
-              "How lpm compares to the other big Procfile runner for Rails devs.",
+              "The two-way version of this page: what changes when the Procfile runner you already have is tmux-backed.",
+          },
+          {
+            href: vsPath("docker-compose"),
+            title: "lpm vs Docker Compose",
+            description:
+              "When the services in your stack are images rather than Procfile lines, and what you give up either way.",
+          },
+          {
+            href: CONFIG_PATH,
+            title: "Every field in the config",
+            description:
+              "services, port, env, dependsOn, profiles and actions — the reference for the file you just converted into.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "A terminal for Claude Code and Codex",
+            description:
+              "What it looks like to keep an agent in the tab next to the panes running your Rails stack.",
+          },
+          {
+            href: WORKTREE_AGENTS_PATH,
+            title: "Worktrees for parallel agents",
+            description:
+              "Where the copies come from when two agents need the same repo, and exactly what a copy does not carry.",
           },
         ]}
       />
 
       <Cta
-        title="Keep the Procfile feel. Add the layer Foreman doesn't."
-        description="Same one-command start your stack, plus per-service panes, a desktop app, and multi-project switching. Free and open source."
+        title="Three lines in a Procfile. Three panes on your Mac."
+        description="lpm starts the same commands your Procfile.dev already names, one pane each, and leaves them running when you quit the app. Free, MIT-licensed, macOS."
+        downloadSource="vs-foreman-cta"
       />
     </>
   );

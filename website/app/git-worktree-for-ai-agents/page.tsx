@@ -6,6 +6,7 @@ import {
   CONNECT_AGENTS_PATH,
   LINUX_HOST_PATH,
   REVIEW_CHANGES_PATH,
+  vsPath,
   WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
@@ -135,6 +136,12 @@ export default function GitWorktreeForAiAgentsPage() {
             title: "Run Claude Code on a remote server",
             description:
               "Fan out on a Linux box with cores to spare instead of the laptop you are typing on.",
+          },
+          {
+            href: vsPath("cmux"),
+            title: "A cmux alternative for parallel agents",
+            description:
+              "cmux gives every agent its own terminal tab; see how that compares with giving every agent its own checkout.",
           },
         ]}
       />

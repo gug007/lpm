@@ -1,14 +1,14 @@
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
-  "A PM2 alternative for local development with per-service panes and project switching.";
+  "A PM2 alternative for local development — and what to keep PM2 for.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["A PM2 alternative", "for local development."],
+    headline: ["A PM2 alternative for local dev", "— and what to keep PM2 for."],
     subline:
-      "PM2 keeps Node apps alive in production. lpm runs your dev loop — per-service panes, project switching, AI-agent workflows.",
+      "A live pane per service you can read and search, plus the six things PM2 does that lpm does not.",
   });
 }

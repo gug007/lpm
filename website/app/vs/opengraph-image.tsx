@@ -1,14 +1,14 @@
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
-  "lpm alternatives and comparisons with iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.";
+  "tmux, iTerm2 and PM2 alternatives for Mac dev stacks — seven tools compared.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["Compare lpm with iTerm2, tmux,", "PM2, and more."],
+    headline: ["tmux, iTerm2, Docker Compose:", "seven ways to run a Mac dev stack."],
     subline:
-      "Honest comparisons of lpm against iTerm2, Foreman, Overmind, Docker Compose, tmux, PM2, and cmux.",
+      "Seven tools and lpm in one table, an honest verdict on each, and the three rows that go against lpm.",
   });
 }

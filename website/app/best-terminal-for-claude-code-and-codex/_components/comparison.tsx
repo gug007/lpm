@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, X } from "lucide-react";
+import { ArrowRight, Check, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { vsPath } from "@/lib/links";
 
@@ -193,14 +193,23 @@ export default function Comparison() {
           })}
         </div>
 
-        <p className="mt-6 text-xs text-gray-500 dark:text-gray-400 sm:mt-4 sm:text-right">
-          <Link
-            href={vsPath("cmux")}
-            className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Or compare lpm to cmux directly →
-          </Link>
-        </p>
+        <Link
+          href={vsPath("cmux")}
+          className="group mt-6 block rounded-2xl border border-gray-200 dark:border-gray-800 p-6 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors duration-200"
+        >
+          <h3 className="text-sm font-semibold mb-1.5 inline-flex items-center gap-1.5 text-gray-900 dark:text-gray-100">
+            lpm vs cmux
+            <ArrowRight
+              className="w-3.5 h-3.5 opacity-0 -translate-x-1 group-hover:opacity-70 group-hover:translate-x-0 transition-all duration-200"
+              aria-hidden
+            />
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
+            cmux is a Mac terminal built around agent sessions. Compare the two
+            row by row: what each one configures, and which of them starts the
+            services your agents need.
+          </p>
+        </Link>
       </div>
     </section>
   );

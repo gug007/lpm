@@ -1,175 +1,146 @@
 import type { Metadata } from "next";
+import { CodeBlock } from "@/components/config/code-block";
 import { DemoSection } from "@/components/home/demo";
+import { RelatedPages } from "@/components/related-pages";
+import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
-import {
-  FeatureMatrix,
-  type MatrixRow,
-} from "@/components/vs/feature-matrix";
+import { QuickAnswer } from "@/components/vs/quick-answer";
+import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
+import { SectionVideo } from "@/components/vs/section-video";
+import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
-import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
-  REPO_URL,
+  CONNECT_AGENTS_PATH,
+  REVIEW_CHANGES_PATH,
   VS_BASE_PATH,
+  WORKTREE_AGENTS_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  screenRecordingJsonLd,
+  webPageJsonLd,
+} from "@/lib/structured-data";
+import FanOut from "./_components/fan-out";
+import Matrix from "./_components/matrix";
+import Migrate from "./_components/migrate";
 
 const PATH = vsPath("cmux");
 
+const TITLE = "cmux Alternative for Claude Code & Codex";
+const DESCRIPTION =
+  "cmux gives Claude Code and Codex a scriptable Mac terminal. lpm adds the project around them: services, per-tab agent status, and 1–50 parallel copies.";
+
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs cmux — Project Control for AI Agents" },
-  description:
-    "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
-    "lpm vs cmux",
     "cmux alternative",
-    "cmux alternative macos",
-    "terminal for claude code",
-    "terminal for codex",
+    "cmux alternative mac",
+    "cmux vs lpm",
     "manaflow cmux",
+    "is cmux open source",
+    "parallel claude code agents",
+    "run multiple codex agents",
+    "claude code agent manager",
+    "run multiple claude code agents at once",
+    "agent terminal macos",
+    "claude code multiple projects",
+    "does cmux use tmux",
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs cmux — Project Control for AI Agents",
-    description:
-      "Both run on macOS for AI coding agents — lpm manages projects while cmux is the terminal. Honest comparison.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs cmux — Project Control for AI Agents",
-    description:
-      "Both run on macOS for AI coding agents — lpm manages projects while cmux is the terminal.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
-const MATRIX_ROWS: MatrixRow[] = [
+const QUICK_ANSWER_QUESTION =
+  "Is there a cmux alternative that also runs my dev services?";
+
+const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
-    label: "Primary object",
-    lpm: "Project (services + agents)",
-    competitor: "Workspace (panes + commands)",
+    label: "cmux",
+    title: "The terminal",
+    body: "Vertical tabs with branch and PR status, split panes, a browser pane a script can snapshot and click, cmux ssh for a remote workspace, and a socket API over all of it.",
   },
   {
-    label: "Per-project config",
-    lpm: "small file you can edit and commit",
-    competitor: "cmux.json in repo",
+    label: "lpm",
+    title: "The project",
+    body: "Start the stack, check the ports, fan one prompt out to 50 copies, and read working, needs you, done or a problem off each agent's own tab.",
   },
   {
-    label: "Auto-detect stack on init",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Start, stop, restart services",
-    lpm: true,
-    competitor: "via custom workspace commands",
-  },
-  {
-    label: "Duplicate project for parallel agents",
-    lpm: true,
-    competitor: "via custom commands",
-  },
-  {
-    label: "Run a subset of services (profiles)",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "One-shot tasks (lint, migrate, seed)",
-    lpm: true,
-    competitor: "as pane commands",
-  },
-  {
-    label: "Embedded browser",
-    lpm: "tabs beside terminals",
-    competitor: "scriptable",
-  },
-  {
-    label: "Native SSH workspaces",
-    lpm: "remote projects + port forwarding",
-    competitor: true,
-  },
-  {
-    label: "Pre-built agent hooks (Claude Code, Codex, Aider, etc.)",
-    lpm: "Claude Code, Codex, Gemini, OpenCode",
-    competitor: true,
-  },
-  {
-    label: "External socket / control API",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Portable, shareable config",
-    lpm: true,
-    competitor: "GUI-first",
-  },
-  {
-    label: "License",
-    lpm: "Open source, free",
-    competitor: "GPL-3.0 + paid commercial",
-  },
-  {
-    label: "Platforms",
-    lpm: "macOS",
-    competitor: "macOS",
+    label: "Both",
+    title: "Run both",
+    body: "They configure different things and neither reads the other's config. Many people keep cmux as the terminal and let lpm own which project is up.",
   },
 ];
 
 const FAQ_ITEMS: FaqItem[] = [
   {
-    question: "Do I have to pick one? Can lpm and cmux coexist?",
+    question: "What is cmux?",
     answer:
-      "Yes — and it's a reasonable setup. Let lpm own the project layer (which project is active, what services are running, duplicating for a parallel agent). Use cmux as your daily terminal when you want native rendering and the embedded browser. The two configs describe different things and don't conflict.",
+      "A native macOS terminal from Manaflow built around AI coding agents: vertical tabs showing branch and PR status, split panes, a notification panel, a scriptable browser pane, and a CLI plus Unix socket to control all of it. It renders through libghostty and reads your Ghostty config for themes and fonts.",
   },
   {
-    question: "What's the license difference?",
+    question: "Is cmux free and open source?",
     answer:
-      "lpm is open source and free for any use, including inside companies. cmux is GPL-3.0; that's fine for running it internally, and orgs that want to embed or redistribute it without GPL obligations can buy a commercial license from Manaflow.",
+      "Yes. cmux ships under GPL-3.0-or-later; its repository adds that commercial terms may be available where the GPL will not do, and that a paid Founder's Edition buys early access to features still in progress. lpm is MIT and has nothing to buy. Cost is not the reason to choose between them.",
   },
   {
-    question: "Can I migrate a cmux.json to an lpm config?",
+    question: "Can I run several Claude Code or Codex agents at once?",
     answer:
-      "There's no automatic converter, but the shapes are close. Each cmux command roughly maps to an lpm service or action. Pointing lpm at the repo gives you a starting config you can prune to match what your cmux.json was launching.",
+      "In cmux each agent gets its own tab, so two agents in the same folder still edit the same files. lpm splits the repo first — up to 50 copies at a time, each one a linked worktree on a branch of its own or a full folder copy that keeps its Git history — and queues the same prompt in every copy, with working, needs you, done or a problem on the agent tab that owns it. What the copies still share is ports and databases.",
   },
   {
-    question: "Does lpm have an embedded browser like cmux?",
-    answer: (
-      <>
-        Yes — lpm opens browser tabs in panes right next to your terminals, so
-        the app you&apos;re building renders in the same workspace as the
-        agents building it. cmux&apos;s browser is scriptable, which matters
-        if you automate browser checks. The source lives on{" "}
-        <a
-          href={REPO_URL}
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          GitHub
-        </a>{" "}
-        if you want to see how lpm&apos;s browser tabs fit in.
-      </>
-    ),
-    answerText: `Yes — lpm opens browser tabs in panes right next to your terminals, so the app you're building renders in the same workspace as the agents building it. cmux's browser is scriptable, which matters if you automate browser checks. The source lives on GitHub at ${REPO_URL} if you want to see how lpm's browser tabs fit in.`,
+    question: "Can lpm and cmux run side by side?",
+    answer:
+      "Yes, and it is a reasonable setup. cmux configures your terminal; lpm describes your projects. Neither reads the other's config.",
+  },
+  {
+    question: "How do I move a cmux setup to lpm?",
+    answer:
+      "There is nothing to convert: cmux.json describes your terminal, not your stack. Add the folder in lpm, then hit Generate with AI in its config editor — the Claude Code or Codex you already have reads the repo, compose file included, and drafts the services for you to prune. A command you kept as a cmux action becomes an lpm action: one click, or lpm run.",
+  },
+  {
+    question: "Does lpm need tmux?",
+    answer:
+      "No — and cmux does not need it either. lpm never puts your services inside tmux and does not require it on the machine: the services keep running when you quit lpm, reopening the app picks them up again, and there is no .tmux.conf anywhere in that.",
   },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs cmux — Project Control for AI Agents",
-    description:
-      "lpm and cmux both target Mac developers running AI coding agents. Honest side-by-side: lpm manages projects, cmux is the terminal.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: PATH,
+    about: [
+      "cmux alternatives",
+      "parallel Claude Code agents",
+      "parallel Codex agents",
+      "AI agent terminal for macOS",
+      "project-level service control",
+    ],
+    dateModified: VS_REVIEWED_ISO,
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     { name: "Compare", path: VS_BASE_PATH },
     { name: "cmux", path: PATH },
   ]),
+  screenRecordingJsonLd("agent-duplicate-fanout"),
 ];
 
 export default function LpmVsCmuxPage() {
@@ -180,31 +151,87 @@ export default function LpmVsCmuxPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <ComparisonHero
-        eyebrow="lpm vs cmux"
-        title="A cmux terminal alternative that manages whole projects."
-        description="cmux is a native macOS terminal built for agents. lpm is a project manager with a built-in terminal. They overlap in the panes-for-agents area, but solve different halves of the workflow. Honest side-by-side, no shade."
+        eyebrow="cmux alternative · macOS"
+        title="A cmux alternative that runs Claude Code and Codex on whole projects."
+        description={DESCRIPTION}
+        verdictLine="cmux owns the terminal. lpm owns the project the agents run inside."
+        jumpHref="#matrix"
+        jumpLabel="Jump to the row-by-row table"
+        downloadSource="vs-cmux-hero"
       />
 
-      <FeatureMatrix
-        title="cmux and lpm, feature by feature"
-        description="Rows where cmux wins are called out honestly. No marketing shade — this is the real shape of the overlap."
-        competitorName="cmux"
-        rows={MATRIX_ROWS}
+      <ComparisonBasis
+        reviewed={VS_REVIEWED}
+        reviewedIso={VS_REVIEWED_ISO}
+        sources={[
+          { href: "https://cmux.com/docs", label: "cmux's documentation" },
+          {
+            href: "https://cmux.com/docs/configuration",
+            label: "its configuration reference",
+          },
+          {
+            href: "https://github.com/manaflow-ai/cmux",
+            label: "the cmux repository",
+          },
+        ]}
+        lpmNote="Every cmux row traces to those three; lpm's own rows were read back out of the app's source that day. Tell us what has drifted."
       />
+
+      <QuickAnswer question={QUICK_ANSWER_QUESTION}>
+        <p>
+          cmux and lpm both give Claude Code and Codex a native window on the
+          Mac, and they draw the line in different places. cmux is the terminal:
+          vertical tabs showing branch and PR status, split panes, a browser
+          pane that scripts can click through, and a Unix socket that can create
+          workspaces and read the screen. lpm is the project: it starts and
+          stops the services the agent needs, checks the declared ports first,
+          and splits the repo before the agents start — a linked worktree
+          branched off where the code stands now, or a straight copy of the
+          folder that keeps its own Git history — so nothing one agent writes
+          lands on top of another&apos;s work.
+        </p>
+        <p>
+          Both are free to use and macOS-only, and their configs describe
+          different things, so running both is a normal setup rather than a
+          compromise.
+        </p>
+        <CodeBlock filename="Three agents, one prompt">
+          {`lpm start api
+lpm worktree api --count 3 --run claude --prompt "fix the flaky auth test"
+lpm status --json`}
+        </CodeBlock>
+      </QuickAnswer>
+
+      <VerdictCards cards={VERDICT_CARDS} />
+
+      <FanOut />
+
+      <SectionVideo
+        eyebrow="See it"
+        title="One prompt, three project copies"
+        description="Duplicate fans the project out and starts an agent in each copy, all from one prompt."
+        clip="agent-duplicate-fanout"
+        label="Three project copies in lpm, each running its own Claude Code agent on the same prompt."
+      />
+
+      <Matrix />
+
+      <Migrate />
 
       <WhenToPick
-        title="When each one is the right tool"
-        description="Both are macOS-native and OSS. The split is which half of the agent workflow you want the tool to own."
+        eyebrow="Which one to pick"
+        title="Terminal-first, or project-first"
+        description="Both are macOS-native and open source. The split is which half of the agent workflow you want the tool to own."
         lpm={{
           name: "lpm",
           headline:
             "You want one switcher that owns starting, stopping, duplicating, and switching whole projects.",
           points: [
-            "You bounce between multiple local projects and want a single visual switcher with services + agents already wired up.",
-            "You want lpm to read your repo and generate a working config instead of writing one by hand.",
-            "You want a portable config you can read, edit, and commit — not settings locked inside a GUI.",
-            "You want a fully free tool with no commercial-license tier.",
-            "You rely on duplicating a project to run a second agent in parallel without conflicts.",
+            "You want the whole project to come up with the agent: services, profiles, a port check at start, and a diff pane before you keep anything.",
+            "You keep several repos in play at once and want one window that already knows each one's services and which agents are busy in it.",
+            "You would rather the agent CLI already on your machine wrote the first draft of the service list, and you pruned what it got wrong.",
+            "You want the services in a file the branch carries, so a teammate on that branch gets the same stack.",
+            "You fan one prompt out to several copies of the repo, each agent on its own checkout.",
           ],
         }}
         competitor={{
@@ -212,16 +239,16 @@ export default function LpmVsCmuxPage() {
           headline:
             "You want a native macOS terminal with agent ergonomics baked in.",
           points: [
-            "You want a scriptable browser and an external control API for automation.",
+            "You want the terminal itself to be programmable: vertical tabs, splits, a browser pane your scripts can click through, and cmux.json behind all of it.",
+            "You want libghostty rendering, and your Ghostty theme and font to carry over.",
             "Your work is one repo at a time, and project juggling isn't your bottleneck.",
-            "You're fine writing a cmux.json by hand for each project.",
           ],
         }}
       />
 
       <DemoSection />
 
-      <Faq title="lpm vs cmux — the honest FAQ" items={FAQ_ITEMS} />
+      <Faq title="Questions about cmux and lpm" items={FAQ_ITEMS} />
 
       <RelatedPages
         links={[
@@ -229,20 +256,39 @@ export default function LpmVsCmuxPage() {
             href: AI_AGENTS_PATH,
             title: "Best terminal for Claude Code & Codex",
             description:
-              "Run AI coding agents next to your services with status on every tab.",
+              "Agent terminals side by side, and what each one hands a running agent.",
           },
           {
-            href: vsPath("tmux"),
-            title: "lpm vs tmux",
+            href: WORKTREE_AGENTS_PATH,
+            title: "Git worktrees for AI agents",
             description:
-              "How lpm compares when your agent panes come from tmux instead.",
+              "One agent per branch, and the ignored files a fresh checkout never brings along.",
+          },
+          {
+            href: CONNECT_AGENTS_PATH,
+            title: "Connect AI agents to your projects",
+            description:
+              "Hand Claude Code and Codex a CLI that starts services, reads logs, and fans out copies.",
+          },
+          {
+            href: REVIEW_CHANGES_PATH,
+            title: "Review changes before you commit",
+            description:
+              "Read what an agent wrote file by file, beside the services it was working against.",
+          },
+          {
+            href: vsPath("iterm2"),
+            title: "lpm vs iTerm2",
+            description:
+              "The same split, weighed against the emulator you may already keep open all day.",
           },
         ]}
       />
 
       <Cta
         title="Run your projects, your way."
-        description="lpm is free, macOS-native, and pairs cleanly with whatever terminal you love — including cmux. Download and try it next to your current setup."
+        description="lpm is free under MIT and macOS-only. Add a repo, draft its services with the agent CLI you already have, and keep cmux open beside it."
+        downloadSource="vs-cmux-cta"
       />
     </>
   );

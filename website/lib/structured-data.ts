@@ -11,15 +11,23 @@ type WebPageInput = {
   description: string;
   path: string;
   about?: string[];
+  dateModified?: string;
 };
 
-export function webPageJsonLd({ title, description, path, about }: WebPageInput) {
+export function webPageJsonLd({
+  title,
+  description,
+  path,
+  about,
+  dateModified,
+}: WebPageInput) {
   return {
     "@context": "https://schema.org",
     "@type": "WebPage",
     name: title,
     url: absoluteUrl(path),
     description,
+    ...(dateModified ? { dateModified } : {}),
     isPartOf: {
       "@id": `${SITE_URL}/#website`,
     },
@@ -133,6 +141,26 @@ export function breadcrumbJsonLd(items: BreadcrumbItem[]) {
       position: index + 1,
       name: item.name,
       item: absoluteUrl(item.path),
+    })),
+  };
+}
+
+type ItemListEntry = {
+  name: string;
+  path: string;
+  description: string;
+};
+
+export function itemListJsonLd(items: ItemListEntry[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      url: absoluteUrl(item.path),
+      description: item.description,
     })),
   };
 }

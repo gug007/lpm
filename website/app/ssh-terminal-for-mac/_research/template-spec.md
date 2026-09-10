@@ -526,8 +526,9 @@ page `title` **plus 6 characters**. Budget accordingly:
 
 Copy rules that override any older sibling you are cloning from:
 
-- **Never embed the brand in `title`** — the layout template appends it. (`/vs/*` pages
-  are the only exception: they use `title: { absolute: … }` and carry their own suffix.)
+- **Never embed the brand in `title`** — the layout template appends it. No exceptions:
+  every page, `/vs/*` included, exports a plain `title` and lets the layout append the
+  suffix once.
 - **Never use the phrase "local project manager"** or any other expansion of the brand.
   The brand is `lpm`, lowercase, and it is never spelled out. Do not use "lpm Desktop"
   or other variants either.
@@ -813,6 +814,11 @@ const faqJsonLd = {
 ```
 
 Important constraints:
+- **`FAQPage` no longer renders as a Google rich result** — it stopped appearing in May
+  2026 and Google's documentation for it was removed in June 2026. Ship it anyway: it
+  costs nothing, and Bing and the answer-engine crawlers still parse it. But do not
+  budget or argue for it as a Google ranking lever, and do not expand the FAQ section
+  in the hope of winning a SERP feature that cannot render.
 - The script is rendered **inside** the same `<section>` as the questions. It is **not**
   hoisted into `<head>`.
 - If any answer is JSX (variant B in §2.7), provide a plain-text `answerText` and use

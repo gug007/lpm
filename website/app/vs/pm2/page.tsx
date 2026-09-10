@@ -1,146 +1,104 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CodeBlock } from "@/components/config/code-block";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
-import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
 import { Faq, type FaqItem } from "@/components/vs/faq";
-import {
-  FeatureMatrix,
-  type MatrixRow,
-} from "@/components/vs/feature-matrix";
+import { QuickAnswer } from "@/components/vs/quick-answer";
+import { VS_REVIEWED_ISO } from "@/components/vs/reviewed";
+import { SectionVideo } from "@/components/vs/section-video";
+import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
+  AI_AGENTS_PATH,
   CONFIG_PATH,
-  MAC_TERMINAL_DEVELOPERS_PATH,
+  CONNECT_AGENTS_PATH,
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  screenRecordingJsonLd,
+  webPageJsonLd,
+} from "@/lib/structured-data";
+import { EcosystemToLpm } from "./_components/ecosystem-to-lpm";
+import { Pm2Basis } from "./_components/pm2-basis";
+import { Pm2Matrix } from "./_components/pm2-matrix";
+import { SurvivesQuit } from "./_components/survives-quit";
+import { VerbMap } from "./_components/verb-map";
 
 const PATH = vsPath("pm2");
+const TMUX_PATH = vsPath("tmux");
+
+const TITLE = "PM2 Alternative for Local Dev: Panes, Not a Daemon";
+const DESCRIPTION =
+  "PM2 supervises production. Locally you want a live pane per service you can read and search, not a daemon — plus the six things PM2 does that lpm does not.";
+
+const QUESTION = "Can you use PM2 for local development?";
 
 export const metadata: Metadata = {
-  title: { absolute: "lpm vs PM2 — A PM2 Alternative for Local Development" },
-  description:
-    "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
     "pm2 alternative dev",
-    "pm2 vs lpm",
-    "node dev process manager",
     "pm2 for local development",
-    "node.js process manager",
+    "pm2 vs tmux",
+    "pm2 vs lpm",
+    "pm2 local dev",
+    "ecosystem.config.js alternative",
+    "pm2 dev mode",
+    "run multiple dev servers mac",
+    "start all services one command mac",
+    "claude code parallel sessions",
+    "codex parallel agents",
   ],
   alternates: { canonical: PATH },
   openGraph: {
-    title: "lpm vs PM2 — A PM2 Alternative for Local Development",
-    description:
-      "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm vs PM2 — A PM2 Alternative for Local Development",
-    description:
-      "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
-const MATRIX_ROWS: MatrixRow[] = [
+const BOTH_TOOLS = `pm2 start ecosystem.config.js --only "web,api"
+lpm start myapp --profile dev`;
+
+const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
-    label: "Starts multiple processes with one command",
-    lpm: true,
-    competitor: true,
+    label: "PM2",
+    title: "Keep PM2",
+    body: "You deploy Node and need cluster mode across cores, restart-on-crash with backoff, boot persistence, and zero-downtime reload.",
   },
   {
-    label: "Primary focus",
-    lpm: "local dev workflow",
-    competitor: "production-first",
+    label: "lpm",
+    title: "Add lpm",
+    body: "You want every service in its own live pane, a switcher across projects, and copies of the stack for parallel agents.",
   },
   {
-    label: "Local file-watch restart mode",
-    lpm: "via service command",
-    competitor: "pm2-dev / --watch",
-  },
-  {
-    label: "Per-service live output pane",
-    lpm: true,
-    competitor: "logs / attach",
-  },
-  {
-    label: "Native macOS desktop app",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Visual multi-project switcher",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Generates project config from your repo",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Runs Node, Python, shell commands, and binaries",
-    lpm: true,
-    competitor: true,
-  },
-  {
-    label: "Duplicate a project for a second AI agent",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Designed for Claude Code / Codex in parallel",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Cluster mode across CPU cores",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Auto-restart on crash with backoff",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Runs at server boot (pm2 startup / save)",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Zero-downtime reload on deploy",
-    lpm: false,
-    competitor: true,
-  },
-  {
-    label: "Log rotation and centralized log files",
-    lpm: "live dev panes",
-    competitor: "log files; rotation add-on",
-  },
-  {
-    label: "CPU / memory monitoring dashboard",
-    lpm: "no resource dashboard",
-    competitor: "pm2 monit + Plus",
-  },
-  {
-    label: "Config format",
-    lpm: "name + command per service",
-    competitor: "ecosystem.config.js",
-  },
-  {
-    label: "Open source, free",
-    lpm: true,
-    competitor: true,
+    label: "Both",
+    title: "Run both",
+    body: "ecosystem.config.js on the server, .lpm.yml on the laptop. They never nest and they never fight.",
   },
 ];
+
+const QUIT_ANSWER =
+  "Yes. They run outside the app, so closing the window leaves them up and relaunching finds them again. A reboot is the exception — there is no pm2 startup equivalent, so you start the project again.";
+
+const NEST_ANSWER =
+  "You can: a service's command is just a shell line, so pm2-runtime start ecosystem.config.js runs in a pane like anything else. Most people do not, because you would then have two things deciding whether a process is alive. Point lpm at the same commands your ecosystem file runs and skip the layer.";
+
+const TMUX_ANSWER =
+  "PM2 restarts what dies; tmux holds a detached session until you attach to it again. Neither one stands in for the other, so running both is a fair answer — one supervises, one keeps the window. If the pair is only there to give you a single workspace, that overlap is the job lpm does, with no tmux underneath it.";
 
 const FAQ_ITEMS: FaqItem[] = [
   {
@@ -154,57 +112,78 @@ const FAQ_ITEMS: FaqItem[] = [
       "No. Cluster mode is a production concern — PM2 forks your Node app across CPU cores and load-balances between workers so a single box serves more traffic. lpm doesn't do that. In dev you usually want one instance of each service so logs and debugger breakpoints map to a single process. If you need clustering, that is a signal you want PM2 in front of your app, not lpm.",
   },
   {
-    question: "I run non-Node projects — Rails, Django, Go. Does lpm help more than PM2 there?",
-    answer:
-      "PM2 can start Python applications, shell commands, and binaries as well as Node apps. lpm's difference is the local workspace around those processes: repo detection, generated service config, one pane per service, project switching, and isolated copies for parallel agents. If you need a server supervisor, choose PM2; if you need that interactive Mac workflow, choose lpm.",
-  },
-  {
-    question: "How do I migrate from ecosystem.config.js to lpm?",
+    question: "Do my services keep running if I quit lpm?",
     answer: (
       <>
-        You don&apos;t fully migrate — you&apos;d keep ecosystem.config.js for
-        production and add an lpm config for dev. lpm uses a{" "}
-        <Link
-          href={CONFIG_PATH}
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          small per-project config file
-        </Link>{" "}
-        you can read, edit, and commit, where each service is just a name and
-        a command — which maps cleanly to the apps array in
-        ecosystem.config.js: take each entry&apos;s name and script/args, drop
-        it into the lpm config, and you&apos;re running. Env vars, cwd, and
-        ports are handled in the lpm config separately. Or let lpm read the
-        repo and generate the config for you.
+        Yes. They run outside the app, so closing the window leaves them up and
+        relaunching finds them again. A reboot is the exception — there is no{" "}
+        <code className="font-mono">pm2 startup</code> equivalent, so you start
+        the project again.
       </>
     ),
-    answerText:
-      "You don't fully migrate — you'd keep ecosystem.config.js for production and add an lpm config for dev. lpm uses a small per-project config file you can read, edit, and commit, where each service is just a name and a command — which maps cleanly to the apps array in ecosystem.config.js: take each entry's name and script/args, drop it into the lpm config, and you're running. Env vars, cwd, and ports are handled in the lpm config separately. Or let lpm read the repo and generate the config for you.",
+    answerText: QUIT_ANSWER,
+  },
+  {
+    question: "Can I run PM2 inside lpm?",
+    answer: (
+      <>
+        You can: a service&apos;s command is just a shell line, so{" "}
+        <code className="font-mono">
+          pm2-runtime start ecosystem.config.js
+        </code>{" "}
+        runs in a pane like anything else. Most people do not, because you would
+        then have two things deciding whether a process is alive. Point lpm at
+        the same commands your ecosystem file runs and skip the layer.
+      </>
+    ),
+    answerText: NEST_ANSWER,
+  },
+  {
+    question: "Should I run PM2 and tmux together, or neither?",
+    answer: (
+      <>
+        PM2 restarts what dies; tmux holds a detached session until you attach
+        to it again. Neither one stands in for the other, so running both is a
+        fair answer — one supervises, one keeps the window. If the pair is only
+        there to give you a single workspace, that overlap is the job lpm does,{" "}
+        <Link
+          href={TMUX_PATH}
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          with no tmux underneath it
+        </Link>
+        .
+      </>
+    ),
+    answerText: TMUX_ANSWER,
   },
   {
     question: "Can I keep PM2 for production and use lpm locally?",
     answer:
-      "Yes. Keep ecosystem.config.js and PM2 in your deployment workflow, then add an lpm config for the local commands you actively develop against. That avoids nesting two process supervisors while preserving PM2's production behavior and giving local development lpm's service panes, project switcher, and parallel-agent copies.",
-  },
-  {
-    question: "PM2 vs tmux — which one for local development?",
-    answer:
-      "They do different jobs. PM2 is a restart-on-crash process daemon: it keeps processes alive in the background and brings them back when they die. tmux is persistent interactive sessions and panes: terminals you can watch, scroll, and type into. Neither covers the whole local-dev job alone, and some people run both — tmux for the interactive session, PM2 for supervision. lpm covers that overlap in one Mac app: a live pane per service you can read and interact with, plus start/stop lifecycle per project.",
+      "Yes. Keep ecosystem.config.js and PM2 in your deployment workflow, then add an lpm config for the local commands you actively develop against. Supervision stays with PM2, and local development gets lpm's service panes, project switcher, and parallel-agent copies.",
   },
 ];
 
 const structuredData = [
   webPageJsonLd({
-    title: "lpm vs PM2 — A PM2 Alternative for Local Development",
-    description:
-      "PM2 is a production-first daemon; lpm is a Mac workspace for the local dev loop — per-service panes, project switching, and isolated copies for AI agents.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: PATH,
+    about: [
+      "PM2 alternatives for local development",
+      "PM2 versus tmux",
+      "ecosystem.config.js",
+      "running multiple dev servers on macOS",
+      "parallel Claude Code and Codex sessions",
+    ],
+    dateModified: VS_REVIEWED_ISO,
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     { name: "Compare", path: VS_BASE_PATH },
     { name: "PM2", path: PATH },
   ]),
+  screenRecordingJsonLd("agent-run-command"),
 ];
 
 export default function LpmVsPm2Page() {
@@ -216,44 +195,71 @@ export default function LpmVsPm2Page() {
       />
       <ComparisonHero
         eyebrow="lpm vs PM2"
-        title="A PM2 alternative built for the local development loop."
-        description="PM2 is a production-first process supervisor with local watch and development modes. lpm specializes in the interactive Mac workflow around your services: live panes, project switching, and isolated copies for parallel agents."
+        title="A PM2 alternative for local development — and what to keep PM2 for."
+        description={DESCRIPTION}
+        verdictLine="If both columns describe you, that is the normal case — run both."
+        jumpHref="#map"
+        jumpLabel="Every pm2 verb, mapped"
+        downloadSource="vs-pm2-hero"
       />
 
-      <ComparisonBasis
-        reviewed="July 26, 2026"
-        sources={[
-          {
-            href: "https://pm2.keymetrics.io/docs/usage/pm2-development/",
-            label: "PM2 development docs",
-          },
-          {
-            href: "https://pm2.keymetrics.io/docs/usage/process-management/",
-            label: "PM2 process-management docs",
-          },
-        ]}
-      />
+      <QuickAnswer question={QUESTION}>
+        <p>
+          Yes. <code className="font-mono">pm2-dev</code> and{" "}
+          <code className="font-mono">--watch</code> restart your app on file
+          change, and if PM2 already runs production, one config for both is a
+          real reason to stay.
+        </p>
+        <p>
+          What PM2 does not give you locally is a pane per service you can read
+          and search, a switcher across projects, or a second copy of the stack
+          for a parallel agent. It is a supervisor, not a workspace. lpm is the
+          workspace, and it is additive: it supervises nothing in production and
+          it never wraps PM2. Keep{" "}
+          <code className="font-mono">ecosystem.config.js</code> for the server;
+          for the laptop, declare those same services to lpm — kept to yourself
+          in your own project file, or committed as a{" "}
+          <code className="font-mono">.lpm.yml</code> so a teammate gets the same
+          set.
+        </p>
+        <CodeBlock filename="Same two services, both tools">
+          {BOTH_TOOLS}
+        </CodeBlock>
+      </QuickAnswer>
 
-      <FeatureMatrix
-        title="PM2 and lpm, feature by feature"
-        description="PM2 has mature process supervision, monitoring, and a local watch mode. lpm adds a project-aware Mac workspace with service panes and parallel-agent copies."
-        competitorName="PM2"
-        rows={MATRIX_ROWS}
+      <VerdictCards cards={VERDICT_CARDS} />
+
+      <SurvivesQuit />
+
+      <Pm2Basis />
+
+      <Pm2Matrix />
+
+      <VerbMap />
+
+      <EcosystemToLpm />
+
+      <SectionVideo
+        eyebrow="See it"
+        title="The CLI, driven by an agent"
+        description="The same verbs above, called by Claude Code — a fresh tab opens in lpm with the output."
+        clip="agent-run-command"
+        label="Claude Code runs a command through the lpm CLI and a fresh terminal tab opens with the output."
       />
 
       <WhenToPick
         title="When each one is the right tool"
-        description="Both run multiple processes. PM2 is strongest as a supervisor and also offers local watch mode; lpm specializes in an interactive multi-project Mac workspace."
+        description="Both run multiple processes. PM2 is strongest as a supervisor and also offers local watch mode; lpm specializes in an interactive multi-project Mac workspace. And if both columns describe you, that is the normal case."
         lpm={{
           name: "lpm",
           headline:
             "You're in the dev loop — multiple projects, mixed stacks, or AI agents running in parallel.",
           points: [
             "You switch between several local projects a day and want a visual switcher instead of terminal tabs.",
-            "Your stack is Rails, Next.js, Go, Django, Flask, or Docker Compose — not just Node — and you want first-class framework detection.",
+            "Your stack is not just Node: a Go binary, a Python worker, a Rails server and a docker compose up sit in one config, each with its own pane. lpm reads your package.json scripts, Makefile, justfile and lockfiles to suggest commands, and it can put the repo in front of Claude Code or Codex to draft the rest.",
             "You want each service in its own live pane in a native macOS app, not one interleaved log stream.",
-            "You run Claude Code, Codex, Cursor, or aider in parallel and need each agent's output visible at once.",
-            "You want to duplicate a project so a second agent can work on its own copy of the stack without conflicts.",
+            "You run Claude Code and Codex in parallel and want each session's output and status visible at once.",
+            "You want to duplicate a project so a second agent works on its own checkout instead of the files you are editing. Both copies still reach the same database and the same ports — lpm names the process already holding one before a project starts.",
           ],
         }}
         competitor={{
@@ -272,31 +278,66 @@ export default function LpmVsPm2Page() {
 
       <DemoSection />
 
-      <Faq
-        title="lpm vs PM2 — the honest FAQ"
-        items={FAQ_ITEMS}
-      />
+      <Faq title="Keeping PM2, or moving off it" items={FAQ_ITEMS} />
 
       <RelatedPages
         links={[
           {
-            href: MAC_TERMINAL_DEVELOPERS_PATH,
-            title: "Mac terminal for developers",
+            href: TMUX_PATH,
+            title: "lpm vs tmux",
             description:
-              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+              "If PM2 and tmux are both in your setup: what changes when the tool you are replacing keeps panes alive rather than processes.",
           },
           {
             href: vsPath("docker-compose"),
             title: "lpm vs Docker Compose",
             description:
-              "Native dev versus containers for the local stack you edit every day.",
+              "When the things you are starting are images rather than npm scripts, and what a container stack costs on a laptop.",
+          },
+          {
+            href: CONFIG_PATH,
+            title: "The lpm config reference",
+            description:
+              "services, port, env, dependsOn and profiles — every field a service can take, with worked examples.",
+          },
+          {
+            href: CONNECT_AGENTS_PATH,
+            title: "Let an agent drive lpm",
+            description:
+              "How Claude Code and Codex call the CLI: start a project, wait for a port, read a pane, queue the next command.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "A terminal for Claude Code and Codex",
+            description:
+              "The tab beside your services: status on the tab while an agent works, and a diff to review before you keep it.",
           },
         ]}
       />
 
       <Cta
         title="Keep PM2 for supervision. Add lpm for the workspace."
-        description="Use the tool that matches the job: PM2 for mature runtime supervision, lpm for per-service panes, multi-project switching, and parallel AI-agent workflows."
+        description={
+          <>
+            MIT-licensed, free, no account. PM2 stays where it belongs — on the
+            server. lpm takes the laptop: a pane per service, a switcher across
+            projects, and copies of the stack for Claude Code and Codex.
+            <span className="mt-4 block">
+              Not installing today? Drop the{" "}
+              <Link
+                href={CONFIG_PATH}
+                className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+              >
+                <code className="font-mono">.lpm.yml</code>
+              </Link>{" "}
+              above into the repo, beside your{" "}
+              <code className="font-mono">ecosystem.config.js</code>. Point lpm
+              at that folder whenever you get to it — the services are already
+              declared.
+            </span>
+          </>
+        }
+        downloadSource="vs-pm2-cta"
       />
     </>
   );

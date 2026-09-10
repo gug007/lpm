@@ -42,7 +42,23 @@ export type DownloadSource =
   | "skills-cta"
   | "token-usage-hero"
   | "token-usage-cta"
-  | "mobile-cta";
+  | "mobile-cta"
+  | "vs-hub-hero"
+  | "vs-hub-cta"
+  | "vs-tmux-hero"
+  | "vs-tmux-cta"
+  | "vs-iterm2-hero"
+  | "vs-iterm2-cta"
+  | "vs-cmux-hero"
+  | "vs-cmux-cta"
+  | "vs-compose-hero"
+  | "vs-compose-cta"
+  | "vs-foreman-hero"
+  | "vs-foreman-cta"
+  | "vs-overmind-hero"
+  | "vs-overmind-cta"
+  | "vs-pm2-hero"
+  | "vs-pm2-cta";
 
 type TrackDownloadParams = {
   source: DownloadSource;

@@ -11,23 +11,29 @@ export type MatrixRow = {
 };
 
 type Props = {
+  id?: string;
   eyebrow?: string;
   title: ReactNode;
   description?: ReactNode;
   competitorName: string;
   rows: MatrixRow[];
+  footnote?: ReactNode;
 };
 
+// The wrapper is positioned so the absolutely positioned `sr-only` label
+// resolves against the cell rather than the page: inside a table wide enough to
+// scroll, a label whose containing block is the page escapes the scroller and
+// stretches the document instead.
 function Cell({ value }: { value: MatrixCell }) {
   if (value === "partial") {
     return (
-      <>
+      <span className="relative block">
         <Minus
           aria-hidden="true"
           className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
         />
         <span className="sr-only">Partial</span>
-      </>
+      </span>
     );
   }
   if (typeof value === "string") {
@@ -38,30 +44,32 @@ function Cell({ value }: { value: MatrixCell }) {
     );
   }
   return value ? (
-    <>
+    <span className="relative block">
       <Check
         aria-hidden="true"
         className="mx-auto w-4 h-4 text-gray-900 dark:text-white"
       />
       <span className="sr-only">Yes</span>
-    </>
+    </span>
   ) : (
-    <>
+    <span className="relative block">
       <X
         aria-hidden="true"
         className="mx-auto w-4 h-4 text-gray-500 dark:text-gray-400"
       />
       <span className="sr-only">No</span>
-    </>
+    </span>
   );
 }
 
 export function FeatureMatrix({
+  id,
   eyebrow = "How it compares",
   title,
   description,
   competitorName,
   rows,
+  footnote,
 }: Props) {
   const columns = [
     { key: "lpm", label: "lpm" },
@@ -69,7 +77,10 @@ export function FeatureMatrix({
   ] as const;
 
   return (
-    <section className="py-20 sm:py-24">
+    <section
+      {...(id ? { id } : {})}
+      className={`py-20 sm:py-24${id ? " scroll-mt-20" : ""}`}
+    >
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow={eyebrow}
@@ -78,56 +89,58 @@ export function FeatureMatrix({
         />
 
         <div className="hidden md:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50/60 dark:bg-white/[0.02] border-b border-gray-200 dark:border-gray-800">
-                <th
-                  scope="col"
-                  className="text-left font-medium text-gray-500 dark:text-gray-400 px-5 py-4 w-2/5 md:w-1/2"
-                >
-                  Capability
-                </th>
-                {columns.map((c) => (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50/60 dark:bg-white/[0.02] border-b border-gray-200 dark:border-gray-800">
                   <th
-                    key={c.key}
                     scope="col"
-                    className={`text-center font-semibold px-3 py-4 ${
-                      c.key === "lpm"
-                        ? "text-gray-900 dark:text-white bg-gray-100/70 dark:bg-white/[0.04]"
-                        : "text-gray-500 dark:text-gray-400"
-                    }`}
+                    className="text-left font-medium text-gray-500 dark:text-gray-400 px-5 py-4 w-2/5 md:w-1/2"
                   >
-                    {c.label}
+                    Capability
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr
-                  key={row.label}
-                  className={
-                    i !== rows.length - 1
-                      ? "border-b border-gray-200 dark:border-gray-800"
-                      : ""
-                  }
-                >
-                  <th
-                    scope="row"
-                    className="text-left font-normal text-gray-700 dark:text-gray-300 px-5 py-4"
-                  >
-                    {row.label}
-                  </th>
-                  <td className="px-3 py-4 bg-gray-100/70 dark:bg-white/[0.04] align-middle">
-                    <Cell value={row.lpm} />
-                  </td>
-                  <td className="px-3 py-4 align-middle">
-                    <Cell value={row.competitor} />
-                  </td>
+                  {columns.map((c) => (
+                    <th
+                      key={c.key}
+                      scope="col"
+                      className={`text-center font-semibold px-3 py-4 ${
+                        c.key === "lpm"
+                          ? "text-gray-900 dark:text-white bg-gray-100/70 dark:bg-white/[0.04]"
+                          : "text-gray-500 dark:text-gray-400"
+                      }`}
+                    >
+                      {c.label}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr
+                    key={row.label}
+                    className={
+                      i !== rows.length - 1
+                        ? "border-b border-gray-200 dark:border-gray-800"
+                        : ""
+                    }
+                  >
+                    <th
+                      scope="row"
+                      className="text-left font-normal text-gray-700 dark:text-gray-300 px-5 py-4"
+                    >
+                      {row.label}
+                    </th>
+                    <td className="px-3 py-4 bg-gray-100/70 dark:bg-white/[0.04] align-middle">
+                      <Cell value={row.lpm} />
+                    </td>
+                    <td className="px-3 py-4 align-middle">
+                      <Cell value={row.competitor} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <ul className="md:hidden space-y-3">
@@ -165,6 +178,12 @@ export function FeatureMatrix({
             </li>
           ))}
         </ul>
+
+        {footnote && (
+          <p className="mt-6 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+            {footnote}
+          </p>
+        )}
       </div>
     </section>
   );
