@@ -169,8 +169,8 @@ let builtInWorkStatuses: [WorkStatusChoice] = [
     builtInChoice(.done),
 ]
 
-/// What a Mac's palette holds until the user changes it — and what the phone
-/// assumes of a Mac too old to send one.
+/// The five statuses every Mac ships beside the built-in states, and what the
+/// phone assumes of a Mac too old to send them.
 let defaultWorkStatusPalette: [CustomWorkStatus] = [
     CustomWorkStatus(label: "Review", emoji: "👀", withNote: true),
     CustomWorkStatus(label: "Ready", emoji: "🚀"),

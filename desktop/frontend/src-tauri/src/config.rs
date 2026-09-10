@@ -399,14 +399,16 @@ fn migrate_work_statuses(settings: &mut Value) -> Option<Value> {
         _ => Vec::new(),
     };
     let mut doc = serde_json::Map::new();
-    doc.insert("custom".into(), Value::Array(users_own_work_statuses(Some(&Value::Array(legacy)))));
+    doc.insert(
+        "custom".into(),
+        Value::Array(users_own_work_statuses(Some(&Value::Array(legacy)))),
+    );
     // Written only when the user actually had an order; a reader fills in [].
     if let Some(order) = legacy_order.filter(Value::is_array) {
         doc.insert("order".into(), order);
     }
     Some(Value::Object(doc))
 }
-
 
 pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
 
@@ -2902,7 +2904,10 @@ mod work_status_palette_tests {
             json!({ "label": "Review", "emoji": "\u{1f440}", "withNote": true })
         );
         // withNote is omitted rather than written false.
-        assert_eq!(palette[1], json!({ "label": "Ready", "emoji": "\u{1f680}" }));
+        assert_eq!(
+            palette[1],
+            json!({ "label": "Ready", "emoji": "\u{1f680}" })
+        );
         assert_eq!(palette[4]["emoji"], "\u{23f8}\u{fe0f}");
     }
 
@@ -2939,7 +2944,10 @@ mod work_status_palette_tests {
         ] });
         let resolved = resolve_work_statuses(&stored);
         assert_eq!(labels(&resolved["custom"]), with_own(&["QA"]));
-        assert_eq!(resolved["custom"][0]["emoji"], "\u{1f440}", "the shipped emoji wins");
+        assert_eq!(
+            resolved["custom"][0]["emoji"], "\u{1f440}",
+            "the shipped emoji wins"
+        );
     }
 
     #[test]
@@ -2956,7 +2964,11 @@ mod work_status_palette_tests {
         assert_eq!(labels(&doc["custom"]), vec!["QA"]);
         assert_eq!(doc["custom"][0]["withNote"], json!(true));
         assert_eq!(doc["order"], json!(["in_progress", "custom:QA"]));
-        assert_eq!(s, json!({ "theme": "dark" }), "legacy keys must be stripped");
+        assert_eq!(
+            s,
+            json!({ "theme": "dark" }),
+            "legacy keys must be stripped"
+        );
     }
 
     #[test]
@@ -2970,7 +2982,10 @@ mod work_status_palette_tests {
         let mut only_list = json!({ "workStatuses": [{ "label": "QA", "emoji": "\u{1f9ea}" }] });
         let doc = migrate_work_statuses(&mut only_list).expect("a list alone migrates");
         assert_eq!(labels(&doc["custom"]), vec!["QA"]);
-        assert!(doc.get("order").is_none(), "no order is written when there was none");
+        assert!(
+            doc.get("order").is_none(),
+            "no order is written when there was none"
+        );
 
         assert!(migrate_work_statuses(&mut json!({ "theme": "dark" })).is_none());
     }

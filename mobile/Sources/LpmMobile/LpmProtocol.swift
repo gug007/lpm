@@ -619,8 +619,7 @@ enum Wire {
                               platform: obj["platform"] as? String)
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
-                // A Mac too old to send a palette gets the default one; a Mac
-                // that sends an empty list has emptied its palette on purpose.
+                // A Mac too old to send a palette gets the shipped one.
                 return .projects(
                     (obj["projects"] as? [[String: Any]] ?? []).map(Project.init),
                     workStatuses: (obj["workStatuses"] as? [[String: Any]])
