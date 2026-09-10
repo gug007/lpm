@@ -1,30 +1,29 @@
 import { create } from "zustand";
 import { LoadWorkStatuses, SaveWorkStatuses } from "../../bridge/commands";
 import type { CustomWorkStatus } from "../types";
-import { DEFAULT_WORK_STATUS_PALETTE } from "../workStatus";
+import { isShippedWorkStatusLabel } from "../workStatus";
 
-/** What `statuses.json` holds once the host has resolved it: the palette
- *  (the shipped statuses until the user changes them; `[]` once they remove
- *  the lot) and the menu order when they have dragged it. */
+/** What `statuses.json` holds: the statuses the user added, and the menu
+ *  order when they have dragged it. */
 export interface WorkStatusesConfig {
   custom: CustomWorkStatus[];
   order?: string[];
 }
 
 /** Reads the file leniently: a row needs a non-empty label and an emoji to
- *  count, and the order keeps only strings. The host already resolves a
- *  missing palette to the shipped one; doing it here too keeps an older host
- *  honest, while an explicit `[]` stays the user's own decision. */
+ *  count, and the order keeps only strings. The host lists the shipped
+ *  statuses first; those are fixed, so only the user's own are kept here. */
 export function normalizeWorkStatusesConfig(raw: unknown): WorkStatusesConfig {
   const doc = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const custom = !Array.isArray(doc.custom)
-    ? DEFAULT_WORK_STATUS_PALETTE
-    : doc.custom.flatMap((item): CustomWorkStatus[] => {
+  const custom = Array.isArray(doc.custom)
+    ? doc.custom.flatMap((item): CustomWorkStatus[] => {
         if (!item || typeof item !== "object") return [];
         const { label, emoji, withNote } = item as Record<string, unknown>;
         if (typeof label !== "string" || !label.trim() || typeof emoji !== "string") return [];
+        if (isShippedWorkStatusLabel(label)) return [];
         return [{ label: label.trim(), emoji, ...(withNote === true ? { withNote: true } : {}) }];
-      });
+      })
+    : [];
   const order = Array.isArray(doc.order)
     ? doc.order.filter((key): key is string => typeof key === "string")
     : undefined;
@@ -40,14 +39,14 @@ interface WorkStatusesState extends WorkStatusesConfig {
 /** The user's statuses and the menu's order, kept in their own file
  *  (`~/.lpm/statuses.json`) rather than among the app settings. */
 export const useWorkStatusesStore = create<WorkStatusesState>((set, get) => ({
-  custom: DEFAULT_WORK_STATUS_PALETTE,
+  custom: [],
   order: undefined,
 
   hydrate: async () => {
     try {
       set(normalizeWorkStatusesConfig(await LoadWorkStatuses()));
     } catch {
-      set({ custom: DEFAULT_WORK_STATUS_PALETTE, order: undefined });
+      set({ custom: [], order: undefined });
     }
   },
 

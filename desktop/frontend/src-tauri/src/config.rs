@@ -274,14 +274,15 @@ pub fn work_statuses_path() -> PathBuf {
     lpm_dir().join("statuses.json")
 }
 
-/// The statuses a palette starts out holding, as `(label, emoji, withNote)`.
-/// They are contents, not a built-in tier: the user may rename or drop any of
-/// them, and a file whose `custom` is an explicit `[]` has dropped them all.
+/// The five statuses that ship beside the three built-in states, as
+/// `(label, emoji, withNote)`. They are stored on a row the way a user's own
+/// are (state `custom` with label and emoji) but are fixed: every resolved
+/// palette lists them first, and nothing in the file can rename or drop them.
 ///
 /// The frontend keeps an identical copy in `src/workStatus.ts`
-/// (DEFAULT_WORK_STATUS_PALETTE) so it can render before the host answers. The
-/// two lists must stay in sync: edit both or neither.
-const DEFAULT_WORK_STATUS_PALETTE: [(&str, &str, bool); 5] = [
+/// (SHIPPED_WORK_STATUSES). The two lists must stay in sync: edit both or
+/// neither.
+const SHIPPED_WORK_STATUSES: [(&str, &str, bool); 5] = [
     ("Review", "👀", true),
     ("Ready", "🚀", false),
     ("Waiting", "⏰", true),
@@ -289,8 +290,8 @@ const DEFAULT_WORK_STATUS_PALETTE: [(&str, &str, bool); 5] = [
     ("Paused", "⏸️", true),
 ];
 
-fn default_work_status_palette() -> Vec<Value> {
-    DEFAULT_WORK_STATUS_PALETTE
+fn shipped_work_statuses() -> Vec<Value> {
+    SHIPPED_WORK_STATUSES
         .iter()
         .map(|(label, emoji, with_note)| {
             let mut entry = json!({ "label": label, "emoji": emoji });
@@ -331,11 +332,42 @@ pub fn save_work_statuses(doc: &Value) -> Result<(), String> {
 /// nobody has touched, so it reads as the defaults; an empty one is a palette
 /// the user emptied, and stays empty.
 fn resolve_work_statuses(doc: &Value) -> Value {
-    let array = |k: &str| doc.get(k).filter(|v| v.is_array()).cloned();
-    json!({
-        "custom": array("custom").unwrap_or_else(|| Value::Array(default_work_status_palette())),
-        "order": array("order").unwrap_or_else(|| json!([])),
-    })
+    let mut custom = shipped_work_statuses();
+    custom.extend(users_own_work_statuses(doc.get("custom")));
+    let order = doc
+        .get("order")
+        .filter(|v| v.is_array())
+        .cloned()
+        .unwrap_or_else(|| json!([]));
+    json!({ "custom": custom, "order": order })
+}
+
+fn work_status_label(entry: &Value) -> String {
+    entry
+        .get("label")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase()
+}
+
+/// The entries of a stored or legacy list that are the user's own. One named
+/// like a shipped status is a leftover from when those were editable.
+fn users_own_work_statuses(list: Option<&Value>) -> Vec<Value> {
+    list.and_then(Value::as_array)
+        .map(|entries| {
+            entries
+                .iter()
+                .filter(|e| {
+                    let label = work_status_label(e);
+                    !SHIPPED_WORK_STATUSES
+                        .iter()
+                        .any(|(shipped, _, _)| shipped.to_lowercase() == label)
+                })
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// One-time move of the palette out of settings.json, run only when
@@ -367,7 +399,7 @@ fn migrate_work_statuses(settings: &mut Value) -> Option<Value> {
         _ => Vec::new(),
     };
     let mut doc = serde_json::Map::new();
-    doc.insert("custom".into(), merge_work_status_palette(legacy));
+    doc.insert("custom".into(), Value::Array(users_own_work_statuses(Some(&Value::Array(legacy)))));
     // Written only when the user actually had an order; a reader fills in [].
     if let Some(order) = legacy_order.filter(Value::is_array) {
         doc.insert("order".into(), order);
@@ -375,29 +407,6 @@ fn migrate_work_statuses(settings: &mut Value) -> Option<Value> {
     Some(Value::Object(doc))
 }
 
-/// Defaults first, the user's own appended. A legacy status whose label matches
-/// a default (ignoring case) takes that default's slot rather than repeating it,
-/// so the emoji and note flag the user chose are the ones that survive.
-fn merge_work_status_palette(legacy: Vec<Value>) -> Value {
-    let label_of = |e: &Value| {
-        e.get("label")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_lowercase()
-    };
-    let mut out = default_work_status_palette();
-    for entry in legacy {
-        let label = label_of(&entry);
-        match out
-            .iter()
-            .position(|e| !label.is_empty() && label_of(e) == label)
-        {
-            Some(i) => out[i] = entry,
-            None => out.push(entry),
-        }
-    }
-    Value::Array(out)
-}
 
 pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
 
@@ -2874,33 +2883,39 @@ mod work_status_palette_tests {
             .collect()
     }
 
-    const DEFAULT_LABELS: [&str; 5] = ["Review", "Ready", "Waiting", "Needs decision", "Paused"];
+    const SHIPPED_LABELS: [&str; 5] = ["Review", "Ready", "Waiting", "Needs decision", "Paused"];
+
+    fn with_own(own: &[&str]) -> Vec<String> {
+        SHIPPED_LABELS
+            .iter()
+            .chain(own.iter())
+            .map(|l| l.to_string())
+            .collect()
+    }
 
     #[test]
-    fn the_default_palette_is_the_five_shipped_statuses() {
-        let palette = Value::Array(default_work_status_palette());
-        assert_eq!(labels(&palette), DEFAULT_LABELS);
+    fn the_shipped_statuses_are_the_five() {
+        let palette = Value::Array(shipped_work_statuses());
+        assert_eq!(labels(&palette), SHIPPED_LABELS);
         assert_eq!(
             palette[0],
             json!({ "label": "Review", "emoji": "\u{1f440}", "withNote": true })
         );
         // withNote is omitted rather than written false.
-        assert_eq!(
-            palette[1],
-            json!({ "label": "Ready", "emoji": "\u{1f680}" })
-        );
+        assert_eq!(palette[1], json!({ "label": "Ready", "emoji": "\u{1f680}" }));
         assert_eq!(palette[4]["emoji"], "\u{23f8}\u{fe0f}");
     }
 
     #[test]
-    fn an_untouched_palette_resolves_to_the_defaults() {
+    fn every_resolved_palette_lists_the_shipped_statuses_first() {
         for doc in [
             json!({}),
             json!({ "order": ["done"] }),
             json!({ "custom": 7 }),
+            json!({ "custom": [] }),
         ] {
             let resolved = resolve_work_statuses(&doc);
-            assert_eq!(labels(&resolved["custom"]), DEFAULT_LABELS, "{doc}");
+            assert_eq!(labels(&resolved["custom"]), SHIPPED_LABELS, "{doc}");
         }
         assert_eq!(resolve_work_statuses(&json!({}))["order"], json!([]));
         assert_eq!(
@@ -2910,95 +2925,54 @@ mod work_status_palette_tests {
     }
 
     #[test]
-    fn an_emptied_palette_stays_empty() {
-        let resolved = resolve_work_statuses(&json!({ "custom": [], "order": [] }));
-        assert_eq!(resolved["custom"], json!([]));
-    }
-
-    #[test]
-    fn a_stored_palette_replaces_the_defaults_outright() {
+    fn the_users_own_follow_the_shipped_ones() {
         let stored = json!({ "custom": [{ "label": "QA", "emoji": "\u{1f9ea}" }] });
         let resolved = resolve_work_statuses(&stored);
-        assert_eq!(labels(&resolved["custom"]), vec!["QA"]);
+        assert_eq!(labels(&resolved["custom"]), with_own(&["QA"]));
     }
 
     #[test]
-    fn migration_appends_the_users_statuses_after_the_defaults() {
+    fn a_stored_copy_of_a_shipped_status_is_ignored() {
+        let stored = json!({ "custom": [
+            { "label": "review", "emoji": "\u{1f50d}" },
+            { "label": "QA", "emoji": "\u{1f9ea}" }
+        ] });
+        let resolved = resolve_work_statuses(&stored);
+        assert_eq!(labels(&resolved["custom"]), with_own(&["QA"]));
+        assert_eq!(resolved["custom"][0]["emoji"], "\u{1f440}", "the shipped emoji wins");
+    }
+
+    #[test]
+    fn migration_keeps_the_users_own_and_strips_the_legacy_keys() {
         let mut s = json!({
             "theme": "dark",
-            "workStatuses": [{ "label": "QA", "emoji": "\u{1f9ea}", "withNote": true }],
+            "workStatuses": [
+                { "label": "review", "emoji": "\u{1f50d}" },
+                { "label": "QA", "emoji": "\u{1f9ea}", "withNote": true }
+            ],
             "workStatusOrder": ["in_progress", "custom:QA"]
         });
         let doc = migrate_work_statuses(&mut s).expect("a palette must migrate");
-        let mut expected: Vec<String> = DEFAULT_LABELS.iter().map(|l| l.to_string()).collect();
-        expected.push("QA".into());
-        assert_eq!(labels(&doc["custom"]), expected);
+        assert_eq!(labels(&doc["custom"]), vec!["QA"]);
+        assert_eq!(doc["custom"][0]["withNote"], json!(true));
         assert_eq!(doc["order"], json!(["in_progress", "custom:QA"]));
-        assert_eq!(
-            s,
-            json!({ "theme": "dark" }),
-            "legacy keys must be stripped"
-        );
+        assert_eq!(s, json!({ "theme": "dark" }), "legacy keys must be stripped");
     }
 
     #[test]
-    fn a_legacy_status_named_like_a_default_takes_its_slot() {
-        let mut s = json!({
-            "workStatuses": [
-                { "label": "review", "emoji": "\u{1f50d}" },
-                { "label": "QA", "emoji": "\u{1f9ea}" }
-            ]
-        });
-        let doc = migrate_work_statuses(&mut s).expect("a palette must migrate");
-        let custom = &doc["custom"];
-        assert_eq!(
-            labels(custom),
-            vec![
-                "review",
-                "Ready",
-                "Waiting",
-                "Needs decision",
-                "Paused",
-                "QA"
-            ],
-            "the user's spelling and slot win, and nothing is repeated"
-        );
-        assert_eq!(custom[0]["emoji"], "\u{1f50d}");
-        assert!(
-            doc.get("order").is_none(),
-            "an absent legacy order writes no order key"
-        );
-        assert_eq!(
-            resolve_work_statuses(&doc)["order"],
-            json!([]),
-            "which a reader fills in"
-        );
-    }
-
-    #[test]
-    fn a_lone_legacy_key_still_migrates_and_fills_in_the_other() {
-        let mut s = json!({ "theme": "dark", "workStatusOrder": ["done"] });
-        let doc = migrate_work_statuses(&mut s).expect("order alone still migrates");
+    fn a_lone_legacy_key_migrates_on_its_own() {
+        let mut only_order = json!({ "workStatusOrder": ["done"] });
+        let doc = migrate_work_statuses(&mut only_order).expect("an order alone migrates");
+        assert_eq!(doc["custom"], json!([]));
         assert_eq!(doc["order"], json!(["done"]));
-        assert_eq!(labels(&doc["custom"]), DEFAULT_LABELS);
-        assert_eq!(s, json!({ "theme": "dark" }));
+        assert_eq!(only_order, json!({}));
 
-        let mut s = json!({ "theme": "dark", "workStatuses": [] });
-        let doc = migrate_work_statuses(&mut s).expect("an empty palette still migrates");
-        assert_eq!(labels(&doc["custom"]), DEFAULT_LABELS);
-        assert!(doc.get("order").is_none());
-        assert_eq!(s, json!({ "theme": "dark" }));
-    }
+        let mut only_list = json!({ "workStatuses": [{ "label": "QA", "emoji": "\u{1f9ea}" }] });
+        let doc = migrate_work_statuses(&mut only_list).expect("a list alone migrates");
+        assert_eq!(labels(&doc["custom"]), vec!["QA"]);
+        assert!(doc.get("order").is_none(), "no order is written when there was none");
 
-    #[test]
-    fn settings_without_the_legacy_keys_migrate_nothing() {
-        let mut s = json!({ "theme": "dark", "workStatusesSomethingElse": 1 });
-        let before = s.clone();
-        assert!(migrate_work_statuses(&mut s).is_none());
-        assert_eq!(s, before, "settings must be left untouched");
-
-        let mut not_a_map = json!([1, 2]);
-        assert!(migrate_work_statuses(&mut not_a_map).is_none());
+        assert!(migrate_work_statuses(&mut json!({ "theme": "dark" })).is_none());
     }
 }
 

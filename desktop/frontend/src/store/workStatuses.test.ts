@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WORK_STATUS_PALETTE } from "../workStatus";
 import { normalizeWorkStatusesConfig } from "./workStatuses";
 
 describe("normalizeWorkStatusesConfig", () => {
@@ -25,10 +24,18 @@ describe("normalizeWorkStatusesConfig", () => {
     expect(normalizeWorkStatusesConfig({ custom: [], order: [] })).toEqual({ custom: [] });
   });
 
-  it("falls back to the shipped palette when the key is missing, but not when it is emptied", () => {
-    expect(normalizeWorkStatusesConfig({})).toEqual({ custom: DEFAULT_WORK_STATUS_PALETTE });
-    expect(normalizeWorkStatusesConfig(null)).toEqual({ custom: DEFAULT_WORK_STATUS_PALETTE });
-    expect(normalizeWorkStatusesConfig("junk")).toEqual({ custom: DEFAULT_WORK_STATUS_PALETTE });
-    expect(normalizeWorkStatusesConfig({ custom: [] })).toEqual({ custom: [] });
+  it("keeps only the user's own: a missing key is empty and shipped names are dropped", () => {
+    expect(normalizeWorkStatusesConfig({})).toEqual({ custom: [] });
+    expect(normalizeWorkStatusesConfig(null)).toEqual({ custom: [] });
+    expect(normalizeWorkStatusesConfig("junk")).toEqual({ custom: [] });
+    expect(
+      normalizeWorkStatusesConfig({
+        custom: [
+          { label: "Review", emoji: "👀", withNote: true },
+          { label: "QA", emoji: "🧪" },
+          { label: " paused ", emoji: "⏸️" },
+        ],
+      }),
+    ).toEqual({ custom: [{ label: "QA", emoji: "🧪" }] });
   });
 });

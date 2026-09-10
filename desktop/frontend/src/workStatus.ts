@@ -83,28 +83,37 @@ export function customWorkStatusChoice(entry: CustomWorkStatus): WorkStatusChoic
 
 // Statuses that ship with the app but are stored the way a user's own are —
 // as `custom` with their label and emoji on the row — so the host needs no
-// new vocabulary and a row still reads on a Mac whose palette differs.
+// new vocabulary and a row still reads on a Mac whose palette differs. They
+// are fixed all the same: nobody can edit or remove them.
 const REVIEW: CustomWorkStatus = { label: "Review", emoji: "👀", withNote: true };
 const READY: CustomWorkStatus = { label: "Ready", emoji: "🚀" };
 const WAITING: CustomWorkStatus = { label: "Waiting", emoji: "⏰", withNote: true };
 const NEEDS_DECISION: CustomWorkStatus = { label: "Needs decision", emoji: "❓", withNote: true };
 const PAUSED: CustomWorkStatus = { label: "Paused", emoji: "⏸️", withNote: true };
 
-/** The states the menu always offers. Everything else in it is the palette,
- *  which the user can edit down to nothing. */
-export const BUILT_IN_WORK_STATUSES: WorkStatusChoice[] = [
-  builtIn("in_progress"),
-  builtIn("blocked"),
-  builtIn("done"),
-];
-
-/** What the palette holds until the user changes it. */
-export const DEFAULT_WORK_STATUS_PALETTE: CustomWorkStatus[] = [
+/** The five that ship beside the three states. The host keeps an identical
+ *  list (SHIPPED_WORK_STATUSES in config.rs) and always serves them first;
+ *  edit both or neither. */
+export const SHIPPED_WORK_STATUSES: CustomWorkStatus[] = [
   REVIEW,
   READY,
   WAITING,
   NEEDS_DECISION,
   PAUSED,
+];
+
+export function isShippedWorkStatusLabel(label: string): boolean {
+  const wanted = label.trim().toLowerCase();
+  return SHIPPED_WORK_STATUSES.some((s) => s.label.toLowerCase() === wanted);
+}
+
+/** Everything the menu always offers. Anything else in it is the palette:
+ *  the statuses the user added. */
+export const BUILT_IN_WORK_STATUSES: WorkStatusChoice[] = [
+  builtIn("in_progress"),
+  builtIn("blocked"),
+  builtIn("done"),
+  ...SHIPPED_WORK_STATUSES.map(customWorkStatusChoice),
 ];
 
 const customKey = (entry: CustomWorkStatus) =>
@@ -128,14 +137,16 @@ export function workStatusChoiceKey(choice: WorkStatusChoice): string {
   return workStatusKey(choice.input);
 }
 
-/** The Status menu: the built-in states and the palette, in the order they
- *  were dragged into. A status the order says nothing about keeps its default
- *  place, after the ones it does. */
+/** The Status menu: the built-in statuses and the user's own, in the order
+ *  they were dragged into. A status the order says nothing about keeps its
+ *  default place, after the ones it does. A palette entry named like a
+ *  shipped status is a leftover from when those were editable, and is ignored. */
 export function workStatusMenu(
   palette: CustomWorkStatus[],
   order?: string[],
 ): WorkStatusChoice[] {
-  const choices = [...BUILT_IN_WORK_STATUSES, ...palette.map(customWorkStatusChoice)];
+  const own = palette.filter((s) => !isShippedWorkStatusLabel(s.label));
+  const choices = [...BUILT_IN_WORK_STATUSES, ...own.map(customWorkStatusChoice)];
   const ranked = order && order.length > 0 ? order : DEFAULT_WORK_STATUS_ORDER;
   const rank = new Map<string, number>();
   ranked.forEach((key, i) => {
@@ -171,8 +182,8 @@ export function removeFromWorkStatusOrder(
   return order?.filter((k) => k !== key);
 }
 
-/** Where a name is already taken: by a built-in state, by one of the palette's
- *  statuses, or nowhere. `editing` names the status being renamed, whose own
+/** Where a name is already taken: by a status the menu ships with, by one of
+ *  the user's own, or nowhere. `editing` names the status being renamed, whose own
  *  name stays free. */
 export function workStatusNameClash(
   palette: CustomWorkStatus[],

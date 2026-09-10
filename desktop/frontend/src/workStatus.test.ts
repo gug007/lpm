@@ -17,7 +17,6 @@ import {
   workStatusNameClash,
   workStatusNote,
   workStatusTitle,
-  DEFAULT_WORK_STATUS_PALETTE,
 } from "./workStatus";
 import type { WorkStatus } from "./types";
 
@@ -88,8 +87,19 @@ describe("the Status menu", () => {
   const names = (choices: { emoji: string; label: string }[]) =>
     choices.map((c) => `${c.emoji} ${c.label}`);
 
-  it("is one list: the built-in states and the palette", () => {
-    const palette = [...DEFAULT_WORK_STATUS_PALETTE, { label: "QA", emoji: "🧪" }];
+  const shipped = [
+    "⏳ In progress",
+    "👀 Review",
+    "🚀 Ready",
+    "✅ Done",
+    "⛔ Blocked",
+    "⏰ Waiting",
+    "❓ Needs decision",
+    "⏸️ Paused",
+  ];
+
+  it("is one list: the statuses the app ships and the user's own", () => {
+    const palette = [{ label: "QA", emoji: "🧪" }];
     expect(names(workStatusMenu(palette))).toEqual([
       "⏳ In progress",
       "👀 Review",
@@ -101,13 +111,16 @@ describe("the Status menu", () => {
       "⏸️ Paused",
       "🧪 QA",
     ]);
-    const builtInOnly = ["⏳ In progress", "✅ Done", "⛔ Blocked"];
-    expect(names(workStatusMenu([]))).toEqual(builtInOnly);
-    expect(names(workStatusMenu([], []))).toEqual(builtInOnly);
+    expect(names(workStatusMenu([]))).toEqual(shipped);
+    expect(names(workStatusMenu([], []))).toEqual(shipped);
+  });
+
+  it("ignores a palette entry named like a shipped status", () => {
+    expect(names(workStatusMenu([{ label: "review", emoji: "🔍", withNote: false }]))).toEqual(shipped);
   });
 
   it("names a row the way the saved order does", () => {
-    expect(workStatusMenu(DEFAULT_WORK_STATUS_PALETTE).map(workStatusChoiceKey)).toEqual([
+    expect(workStatusMenu([]).map(workStatusChoiceKey)).toEqual([
       "in_progress",
       "custom:Review",
       "custom:Ready",
@@ -124,7 +137,7 @@ describe("the Status menu", () => {
 
   it("puts the ordered rows first and leaves the rest in their default order", () => {
     const order = ["done", "custom:QA", "blocked", "custom:Gone"];
-    const palette = [...DEFAULT_WORK_STATUS_PALETTE, { label: "QA", emoji: "🧪" }];
+    const palette = [{ label: "QA", emoji: "🧪" }];
     const menu = workStatusMenu(palette, order);
     expect(menu.map(workStatusChoiceKey)).toEqual([
       "done",
@@ -150,8 +163,8 @@ describe("the Status menu", () => {
     expect(workStatusChoiceKey(menu[menu.length - 1])).toBe("custom:Hotfix");
   });
 
-  it("stores a preset like a custom status and knows which rows ask for a line", () => {
-    const menu = workStatusMenu(DEFAULT_WORK_STATUS_PALETTE);
+  it("stores a shipped status like a custom one and knows which rows ask for a line", () => {
+    const menu = workStatusMenu([]);
     expect(menu[0].input).toEqual({ state: "in_progress" });
     expect(menu[1].input).toEqual({ state: "custom", label: "Review", emoji: "👀" });
     expect(menu.map((c) => c.asksNote)).toEqual([false, true, false, false, true, true, true, true]);
@@ -175,12 +188,11 @@ describe("the Status menu", () => {
   });
 
   it("knows where a name is already taken", () => {
-    const palette = [...DEFAULT_WORK_STATUS_PALETTE, { label: "QA", emoji: "🧪" }];
-    expect(workStatusNameClash(palette, " review ", null)).toBe("yours");
+    const palette = [{ label: "QA", emoji: "🧪" }];
+    expect(workStatusNameClash(palette, " review ", null)).toBe("menu");
     expect(workStatusNameClash(palette, "Blocked", null)).toBe("menu");
     expect(workStatusNameClash(palette, "qa", "Hotfix")).toBe("yours");
     expect(workStatusNameClash(palette, "qa", "QA")).toBeNull();
-    expect(workStatusNameClash(palette, "Review", "Review")).toBeNull();
     expect(workStatusNameClash(palette, "New", null)).toBeNull();
   });
 
