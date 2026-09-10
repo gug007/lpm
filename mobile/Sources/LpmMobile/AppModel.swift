@@ -227,6 +227,10 @@ final class AppModel {
     // "group:<id>" tokens; `groups` are the folder defs.
     var sidebarOrder: [String] = []
     var groups: [ProjectFolder] = []
+    // The Mac's work-status palette, refreshed with every projects list: the
+    // user's own statuses, and the order they put the Status menu in.
+    var workStatuses: [CustomWorkStatus] = defaultWorkStatusPalette
+    var workStatusOrder: [String] = []
     // terminal id -> current owner. Absent = nobody/unknown (this phone may show
     // it). A terminal is rendered live in exactly one surface; when the desktop
     // (or another phone) owns it, this phone shows a "take control" placeholder.
@@ -1058,6 +1062,8 @@ final class AppModel {
         terminalCapture = [:]
         sidebarOrder = []
         groups = []
+        workStatuses = defaultWorkStatusPalette
+        workStatusOrder = []
         controlOwner = [:]
         actionError = nil
         pendingRun = [:]
@@ -1319,6 +1325,28 @@ final class AppModel {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed != p.label else { return }
         client?.renameProject(project: p.name, name: trimmed)
+    }
+
+    // The Status menu the phone offers: what the app ships with, then the user's
+    // own, in the order they arranged on the Mac. Qualified because the property
+    // shadows the free function inside the class.
+    var workStatusMenu: [WorkStatusChoice] {
+        LpmMobile.workStatusMenu(palette: workStatuses, order: workStatusOrder)
+    }
+
+    /// Set (or, with a nil input, clear) a duplicate's work status. The row wears
+    /// it immediately; the projects-changed push replaces it with what the Mac
+    /// wrote, and a failure both surfaces and re-asks for the list so the
+    /// optimistic row can't stick.
+    func setWorkStatus(_ project: String, _ input: WorkStatusInput?) {
+        if let idx = projects.firstIndex(where: { $0.name == project }) {
+            let next = nextWorkStatus(current: projects[idx].workStatus,
+                                      input: input,
+                                      now: Int(Date().timeIntervalSince1970 * 1000))
+            projects[idx] = projects[idx].withWorkStatus(next)
+        }
+        Haptics.tap()
+        client?.setWorkStatus(project: project, status: input)
     }
 
     // Sidebar folder management. Each op writes the Mac's groups.json + settings and
@@ -2302,6 +2330,17 @@ final class AppModel {
         // only a failure needs surfacing.
         c.onRenameProject = { [weak self] _, error in
             if let error { self?.actionError = error }
+        }
+        c.onWorkStatusPalette = { [weak self] statuses, order in
+            self?.workStatuses = statuses
+            self?.workStatusOrder = order
+        }
+        // A refused status leaves the optimistic row wearing something the Mac
+        // never wrote, so re-ask for the list rather than trusting the next push.
+        c.onSetWorkStatus = { [weak self] _, error in
+            guard let self, let error else { return }
+            self.actionError = error
+            self.client?.requestProjects()
         }
         c.onFile = { [weak self] project, path, content, truncated, error in
             guard let self else { return }

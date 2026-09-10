@@ -1902,10 +1902,29 @@ fn handle_msg(
 
     match t {
         "ping" => send(ws, json!({ "t": "pong" }))?,
-        "projects" => send(
-            ws,
-            json!({ "t": "projects", "projects": list_projects_json(app) }),
-        )?,
+        // The palette rides along with the list so the phone's Status menu can
+        // offer the user's own statuses without a second round trip. The host
+        // resolves the defaults, so the phone gets the list it would see on the
+        // Mac. The wire names predate statuses.json and stay as they are.
+        "projects" => {
+            let statuses = config::load_work_statuses();
+            let array = |k: &str| {
+                statuses
+                    .get(k)
+                    .filter(|v| v.is_array())
+                    .cloned()
+                    .unwrap_or_else(|| json!([]))
+            };
+            send(
+                ws,
+                json!({
+                    "t": "projects",
+                    "projects": list_projects_json(app),
+                    "workStatuses": array("custom"),
+                    "workStatusOrder": array("order"),
+                }),
+            )?
+        }
         "sidebar" => {
             let sb = sidebar_json();
             send(ws, json!({ "t": "sidebar", "order": sb.0, "groups": sb.1 }))?;
@@ -2732,6 +2751,21 @@ fn handle_msg(
             let name = str_field("name").unwrap_or_default();
             let r = crate::commands_real::set_project_label(app.clone(), project.clone(), name);
             send(ws, git_result_reply("renameProject", &project, r))?;
+        }
+        // Set or clear a duplicate's person-set work status, reusing the desktop's
+        // set_work_status (writes the duplicate's own YAML, emits `projects-changed`
+        // so the desktop webview and paired phones both refresh). A null or absent
+        // `status` clears the block. Another local config op — no main window needed.
+        "setWorkStatus" => {
+            let project = str_field("project").unwrap_or_default();
+            let r = serde_json::from_value::<Option<crate::commands_real::WorkStatusPatch>>(
+                v.get("status").cloned().unwrap_or(Value::Null),
+            )
+            .map_err(|e| e.to_string())
+            .and_then(|status| {
+                crate::commands_real::set_work_status(app.clone(), project.clone(), status)
+            });
+            send(ws, git_result_reply("setWorkStatus", &project, r))?;
         }
         // Run an action / open a new terminal. A terminal is a frontend pane-tree +
         // command-injection concept, not a raw pty op — spawning one from Rust would

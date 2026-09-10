@@ -75,6 +75,18 @@ func projectAgentRows(_ project: Project, now: Int, tabTitles: [String: String])
     }
 }
 
+/// The agent each terminal reads as. Several can report on one terminal — a
+/// split, or an agent that shelled out to another — and the rows arrive most
+/// urgent first, so the first to claim a terminal is the one that speaks for it.
+func agentRowsByTerminal(_ rows: [ProjectAgentRow]) -> [String: ProjectAgentRow] {
+    var byTerminal: [String: ProjectAgentRow] = [:]
+    for row in rows {
+        guard let id = row.terminalId, byTerminal[id] == nil else { continue }
+        byTerminal[id] = row
+    }
+    return byTerminal
+}
+
 /// "45s", "4m", "2h 5m" — `formatActivityDuration` with the remainder dropped, for
 /// a row with room for a reading rather than a stopwatch. Takes millis, and rounds
 /// down like a stopwatch: it says what has elapsed, never more.

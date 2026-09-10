@@ -13,6 +13,7 @@ import {
   type ProjectInfo,
   type SpawnTask,
 } from "../types";
+import { nextWorkStatus, type WorkStatusInput } from "../workStatus";
 import {
   AttachProject,
   BrowseFolder,
@@ -40,6 +41,7 @@ import {
   ResolvePortConflict,
   SaveConfig,
   SetProjectLabel,
+  SetWorkStatus,
   StartCloneProject,
   StartDuplicateProject,
   StartDuplicateWorktreeProject,
@@ -321,6 +323,7 @@ interface AppState {
   removeProjectFromDisk: (name: string) => Promise<void>;
   removeProjectsBatch: (names: string[]) => Promise<string[]>;
   renameProject: (name: string, label: string) => Promise<void>;
+  setWorkStatus: (name: string, input: WorkStatusInput | null) => Promise<void>;
   moveProjectRoot: (name: string, newRoot: string) => Promise<void>;
   createGroup: (name: string, opts?: { initialMembers?: string[] }) => Promise<void>;
   renameGroup: (id: string, name: string) => Promise<void>;
@@ -1658,6 +1661,20 @@ export const useAppStore = create<AppState>((set, get) => ({
       await SetProjectLabel(name, next);
     } catch (err) {
       toast.error(`Failed to rename ${name}: ${err}`);
+      await get().refreshProjects();
+    }
+  },
+
+  setWorkStatus: async (name, input) => {
+    set((s) => ({
+      projects: s.projects.map((p) =>
+        p.name === name ? { ...p, workStatus: nextWorkStatus(p.workStatus, input, Date.now()) } : p,
+      ),
+    }));
+    try {
+      await SetWorkStatus(name, input);
+    } catch (err) {
+      toast.error(`Failed to set status for ${name}: ${err}`);
       await get().refreshProjects();
     }
   },

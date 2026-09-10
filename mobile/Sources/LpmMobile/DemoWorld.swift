@@ -35,6 +35,8 @@ struct DemoWorld {
         var isRemote: Bool = false
         var parentName: String = ""
         var worktree: Bool = false
+        // The person-set work status, as the raw wire dict the Mac would send.
+        var workStatus: [String: Any]? = nil
         var services: [Svc] = []
         var profiles: [Profile] = []
         var activeProfile: String = ""
@@ -522,7 +524,7 @@ extension DemoWorld {
     }
 
     func projectDict(_ p: Project) -> [String: Any] {
-        [
+        var d: [String: Any] = [
             "name": p.name,
             "label": p.label,
             "running": p.running,
@@ -536,10 +538,19 @@ extension DemoWorld {
             "activeProfile": p.activeProfile,
             "actions": p.actions,
         ]
+        if let ws = p.workStatus { d["workStatus"] = ws }
+        return d
     }
 
     func projectsPayload() -> [String: Any] {
-        ["t": "projects", "projects": projects.map(projectDict)]
+        // The palette a Mac starts with, plus one the demo user added.
+        let palette = defaultWorkStatusPalette + [CustomWorkStatus(label: "QA", emoji: "🧪")]
+        return [
+            "t": "projects",
+            "projects": projects.map(projectDict),
+            "workStatuses": palette.map { ["label": $0.label, "emoji": $0.emoji, "withNote": $0.withNote] },
+            "workStatusOrder": [String](),
+        ]
     }
 
     func sidebarPayload() -> [String: Any] {

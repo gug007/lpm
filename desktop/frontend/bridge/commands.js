@@ -421,6 +421,12 @@ export function SaveGeneratorIcon(srcPath, id) {
 export function SaveGenerators(g) {
   return invoke("save_generators", { g });
 }
+export function LoadWorkStatuses() {
+  return invoke("load_work_statuses");
+}
+export function SaveWorkStatuses(doc) {
+  return invoke("save_work_statuses", { doc });
+}
 export function LoadClaudeAccounts() {
   return invoke("load_claude_accounts");
 }
@@ -735,6 +741,9 @@ export function SetClipboardText(text) {
 }
 export function SetProjectLabel(name, label) {
   return invoke("set_project_label", { name, label });
+}
+export function SetWorkStatus(name, status) {
+  return invoke("set_work_status", { name, status });
 }
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });

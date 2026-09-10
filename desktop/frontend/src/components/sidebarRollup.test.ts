@@ -129,3 +129,31 @@ describe("visibleRollup", () => {
     expect(visibleRollup(segments)).toEqual({ shown: segments, overflow: 0 });
   });
 });
+
+describe("rollupSegments work statuses", () => {
+  it("counts a person's statuses, blocked beside the agents' problems and the rest behind running", () => {
+    const segments = rollupSegments([
+      project({ name: "one", statusEntries: entries(STATUS_RUNNING), workStatus: { state: "blocked", since: 0 } }),
+      project({ name: "two", running: true, workStatus: { state: "in_progress", since: 0 } }),
+      project({ name: "three", workStatus: { state: "done", since: 0 } }),
+      project({
+        name: "four",
+        workStatus: { state: "custom", label: "Review", emoji: "🔍", since: 0 },
+      }),
+      project({ name: "five", workStatus: { state: "custom", label: "Review", since: 0 } }),
+    ]);
+    expect(segments.map((s) => s.text)).toEqual([
+      "1 blocked",
+      "1 working",
+      "1 running",
+      "2 🔍 Review",
+      "1 in progress",
+      "1 done",
+    ]);
+    expect(segments[0].className).toBe("text-[var(--accent-rose-text)]");
+  });
+
+  it("ignores a custom status with no label", () => {
+    expect(rollupSegments([project({ workStatus: { state: "custom", since: 0 } })])).toEqual([]);
+  });
+});

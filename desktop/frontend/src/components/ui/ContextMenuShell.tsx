@@ -25,7 +25,7 @@ export function ContextMenuShell({ x, y, minWidth = 160, onClose, children }: Co
     }
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     const items = Array.from(
-      ref.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
+      ref.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled):not([data-menu-aux])") ?? [],
     );
     if (items.length === 0) return;
     e.preventDefault();

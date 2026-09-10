@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Modal } from "./ui/Modal";
 import { EmojiPickerButton, EmojiSlotButton } from "./EmojiPickerButton";
 import { TerminalIcon } from "./icons";
@@ -13,6 +13,11 @@ interface RenameModalProps {
   // the trailing insert-into-text picker, and reports the emoji via onSubmit.
   withEmoji?: boolean;
   initialEmoji?: string;
+  placeholder?: string;
+  // An empty or unchanged value may be submitted (a note that is optional).
+  allowEmpty?: boolean;
+  // The primary button's text for the current trimmed value; "Save" otherwise.
+  submitLabel?: (value: string) => ReactNode;
   onClose: () => void;
   onSubmit: (value: string, emoji?: string) => void;
 }
@@ -24,6 +29,9 @@ export function RenameModal({
   initialValue,
   withEmoji = false,
   initialEmoji = "",
+  placeholder,
+  allowEmpty = false,
+  submitLabel,
   onClose,
   onSubmit,
 }: RenameModalProps) {
@@ -45,8 +53,8 @@ export function RenameModal({
 
   const trimmed = value.trim();
   const canSubmit =
-    trimmed.length > 0 &&
-    (trimmed !== initialValue.trim() || emoji !== initialEmoji);
+    allowEmpty ||
+    (trimmed.length > 0 && (trimmed !== initialValue.trim() || emoji !== initialEmoji));
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -84,6 +92,7 @@ export function RenameModal({
             ref={inputRef}
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
             {...modalInputDefaults}
             className={`w-full rounded-lg border border-[var(--border)] bg-transparent py-2.5 text-base text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] ${
               withEmoji ? "pl-12 pr-3" : "pl-3 pr-10"
@@ -107,7 +116,7 @@ export function RenameModal({
             disabled={!canSubmit}
             className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-85 disabled:opacity-30"
           >
-            Save
+            {submitLabel ? submitLabel(trimmed) : "Save"}
           </button>
         </div>
       </form>

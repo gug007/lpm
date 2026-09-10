@@ -169,6 +169,28 @@ extension DemoServer {
             self.push(["t": "renameProject", "project": project, "ok": true])
             self.pushAfter(0.1) { ["t": "projects-changed"] }
         }
+        register("setWorkStatus") { [weak self] o in
+            guard let self, let project = o["project"] as? String else { return }
+            let idx = self.world.projectIndex(project)
+            if let patch = o["status"] as? [String: Any] {
+                guard let next = WorkStatus(patch) else {
+                    self.push(["t": "setWorkStatus", "project": project, "ok": false,
+                               "error": "Couldn't set the status."])
+                    return
+                }
+                if let idx {
+                    let current = self.world.projects[idx].workStatus.flatMap(WorkStatus.init)
+                    let kept = current?.key == next.key ? (current?.since ?? 0) : 0
+                    let now = Int(Date().timeIntervalSince1970 * 1000)
+                    self.world.projects[idx].workStatus =
+                        self.workStatusDict(next, since: kept == 0 ? now : kept)
+                }
+            } else if let idx {
+                self.world.projects[idx].workStatus = nil
+            }
+            self.push(["t": "setWorkStatus", "project": project, "ok": true])
+            self.pushAfter(0.1) { ["t": "projects-changed"] }
+        }
         register("remove") { [weak self] o in
             guard let self, let name = o["name"] as? String else { return }
             guard !self.world.projects.contains(where: { $0.parentName == name }) else {
@@ -665,6 +687,7 @@ extension DemoServer {
             p.activeProfile = ""
             for i in p.services.indices { p.services[i].running = false }
             p.status = []
+            p.workStatus = nil
             world.projects.append(p)
             demoCreateTerminals(project: name, copyOf: copyOf)
             demoCloneGitState(from: copyOf, to: name)
@@ -694,6 +717,16 @@ extension DemoServer {
     }
 
     // MARK: helpers
+
+    /// The wire shape the Mac would write back: the normalized status, plus the
+    /// clock a new status starts and a re-applied one keeps.
+    private func workStatusDict(_ status: WorkStatus, since: Int) -> [String: Any] {
+        var d: [String: Any] = ["state": status.state.rawValue, "since": since]
+        if let label = status.label { d["label"] = label }
+        if let emoji = status.emoji { d["emoji"] = emoji }
+        if let note = status.note { d["note"] = note }
+        return d
+    }
 
     private func sidebarMutationReply(_ t: String) {
         var o = world.sidebarPayload()

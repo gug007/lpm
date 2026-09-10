@@ -183,6 +183,10 @@ enum Wire {
     static func renameProject(project: String, name: String) -> String {
         json(["t": "renameProject", "project": project, "name": name])
     }
+    /// Set a duplicate's work status; a nil `status` clears it.
+    static func setWorkStatus(project: String, status: WorkStatusInput?) -> String {
+        json(["t": "setWorkStatus", "project": project, "status": status?.wire ?? NSNull()])
+    }
     static func sidebarCreateFolder(name: String) -> String {
         json(["t": "sidebarCreateFolder", "name": name])
     }
@@ -424,7 +428,10 @@ enum Wire {
         case pairDenied(reason: String, message: String?)
         case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?)
         case error(String)
-        case projects([Project])
+        // The projects reply also brings the Mac's work-status palette (the
+        // user's own statuses and the order they put the menu in), since the
+        // menu is only ever opened against a project from this same list.
+        case projects([Project], workStatuses: [CustomWorkStatus], workStatusOrder: [String])
         case sidebar(order: [String], groups: [ProjectFolder])
         // Local agent token-usage stats (the desktop Stats page). `stats` is nil on
         // a hard failure; the scan runs on the Mac and replies asynchronously.
@@ -475,6 +482,9 @@ enum Wire {
         // A rename-project reply (label change). `error` nil on success; the list
         // itself refreshes off the projects-changed push.
         case renameProject(project: String, error: String?)
+        // A setWorkStatus reply. `error` nil on success; the row itself refreshes
+        // off the projects-changed push, over the optimistic status.
+        case setWorkStatus(project: String, error: String?)
         // A sidebar folder mutation reply (create/rename/delete/move). On success it
         // carries the updated sidebar so the phone re-renders in place; `error` is
         // the failure to surface.
@@ -609,7 +619,14 @@ enum Wire {
                               platform: obj["platform"] as? String)
             case "error": return .error(obj["error"] as? String ?? "error")
             case "projects":
-                return .projects((obj["projects"] as? [[String: Any]] ?? []).map(Project.init))
+                // A Mac too old to send a palette gets the default one; a Mac
+                // that sends an empty list has emptied its palette on purpose.
+                return .projects(
+                    (obj["projects"] as? [[String: Any]] ?? []).map(Project.init),
+                    workStatuses: (obj["workStatuses"] as? [[String: Any]])
+                        .map { $0.compactMap(CustomWorkStatus.init) } ?? defaultWorkStatusPalette,
+                    workStatusOrder: obj["workStatusOrder"] as? [String] ?? []
+                )
             case "sidebar":
                 return .sidebar(
                     order: obj["order"] as? [String] ?? [],
@@ -731,6 +748,10 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .renameProject(project: obj["project"] as? String ?? "",
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't rename the project."))
+            case "setWorkStatus":
+                let ok = obj["ok"] as? Bool ?? false
+                return .setWorkStatus(project: obj["project"] as? String ?? "",
+                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't set the status."))
             case "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject":
                 let ok = obj["ok"] as? Bool ?? false
                 return .sidebarMutation(
@@ -1224,6 +1245,9 @@ struct Project: Identifiable {
     let parentName: String
     // A duplicate made as a linked git worktree rather than a folder copy.
     let worktree: Bool
+    // The status a person set on this duplicate, distinct from statusEntries
+    // (what the agent is doing). Absent on originals and on a copy with none.
+    let workStatus: WorkStatus?
     let statusEntries: [StatusEntry]
     let services: [Service]      // currently running
     let allServices: [Service]   // every configured service
@@ -1233,6 +1257,8 @@ struct Project: Identifiable {
 
     var id: String { name }
     var isDuplicate: Bool { !parentName.isEmpty }
+    /// The desktop offers the Status menu on a local duplicate only.
+    var canHaveWorkStatus: Bool { isDuplicate && !isRemote }
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""
@@ -1241,6 +1267,7 @@ struct Project: Identifiable {
         isRemote = o["isRemote"] as? Bool ?? false
         parentName = o["parentName"] as? String ?? ""
         worktree = o["worktree"] as? Bool ?? false
+        workStatus = (o["workStatus"] as? [String: Any]).flatMap(WorkStatus.init)
         statusEntries = (o["statusEntries"] as? [[String: Any]] ?? []).map(StatusEntry.init)
         services = (o["services"] as? [[String: Any]] ?? []).map(Service.init)
         allServices = (o["allServices"] as? [[String: Any]] ?? []).map(Service.init)
@@ -1250,11 +1277,11 @@ struct Project: Identifiable {
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
-                 worktree: Bool, statusEntries: [StatusEntry], services: [Service],
-                 allServices: [Service], profiles: [Profile], activeProfile: String,
-                 actions: [Action]) {
+                 worktree: Bool, workStatus: WorkStatus?, statusEntries: [StatusEntry],
+                 services: [Service], allServices: [Service], profiles: [Profile],
+                 activeProfile: String, actions: [Action]) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
-        self.parentName = parentName; self.worktree = worktree
+        self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
         self.statusEntries = statusEntries; self.services = services; self.allServices = allServices
         self.profiles = profiles; self.activeProfile = activeProfile; self.actions = actions
     }
@@ -1263,7 +1290,17 @@ struct Project: Identifiable {
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, statusEntries: entries, services: services,
+                worktree: worktree, workStatus: workStatus, statusEntries: entries, services: services,
+                allServices: allServices, profiles: profiles, activeProfile: activeProfile,
+                actions: actions)
+    }
+
+    /// A copy wearing a status the phone has asked for but the Mac hasn't
+    /// confirmed yet, so the row changes under the thumb rather than after the
+    /// round trip. The projects push replaces it with what was written.
+    func withWorkStatus(_ status: WorkStatus?) -> Project {
+        Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
+                worktree: worktree, workStatus: status, statusEntries: statusEntries, services: services,
                 allServices: allServices, profiles: profiles, activeProfile: activeProfile,
                 actions: actions)
     }

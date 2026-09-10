@@ -959,6 +959,8 @@ private struct ProjectRowActions: ViewModifier {
     @Binding var duplicating: Project?
     // Set to present the "new folder" alert that moves this project into it.
     @Binding var newFolderForProject: Project?
+    // The status waiting on its line before it lands on the row.
+    @State private var noteFor: WorkStatusChoice?
 
     // The folder this project currently sits in (nil = top level), so the menu can
     // offer "No folder" and skip the folder it's already in.
@@ -991,6 +993,9 @@ private struct ProjectRowActions: ViewModifier {
                         Label("Start with profile", systemImage: "play.circle")
                     }
                 }
+                if project.canHaveWorkStatus {
+                    WorkStatusMenu(project: project, noteFor: $noteFor)
+                }
                 if !project.isRemote {
                     moveToFolderMenu
                     Button { duplicating = project } label: {
@@ -1003,6 +1008,7 @@ private struct ProjectRowActions: ViewModifier {
                     }
                 }
             }
+            .workStatusNotePrompt(project: project, noteFor: $noteFor)
     }
 
     private var moveToFolderMenu: some View {
@@ -1112,7 +1118,15 @@ struct ProjectRow: View {
                 }
             }
             .frame(width: 14)
-            Text(project.label)
+            if let status = project.workStatus {
+                WorkStatusMark(status: status)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(project.label)
+                if let status = project.workStatus, let note = status.note {
+                    WorkStatusNoteLine(status: status, note: note)
+                }
+            }
             Spacer()
             if agentCount > 0 {
                 Text("\(agentCount)")

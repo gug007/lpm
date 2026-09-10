@@ -12,6 +12,7 @@ import { hydrateAppStore } from "./store/app";
 import { useComposerStore } from "./store/composer";
 import { initTTSEvents } from "./store/tts";
 import { useGeneratorsStore } from "./store/generators";
+import { useWorkStatusesStore } from "./store/workStatuses";
 import { useAccountsStore } from "./store/accounts";
 import { queryClient } from "./queryClient";
 import { MIRROR_PROJECT } from "./mirror";
@@ -94,6 +95,7 @@ async function startApplication() {
     hydrateAppStore(groups);
     useComposerStore.getState().hydrate(settings.composerOpen ?? true);
     useGeneratorsStore.getState().hydrate();
+    useWorkStatusesStore.getState().hydrate();
     useAccountsStore.getState().hydrate();
     initTTSEvents();
     logDiagnostic(

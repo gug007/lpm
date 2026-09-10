@@ -121,6 +121,26 @@ export interface CopyOverride {
 // that means "inherit the shared default" rather than override it.
 export type CopyRunMode = RunMode | "default";
 
+export type WorkState = "in_progress" | "blocked" | "done" | "custom";
+
+// A person's own reading of a duplicate, apart from what its agent is doing
+// (statusEntries). A custom status carries its label and emoji with it, so
+// the row still reads after that status leaves the palette in Settings.
+export interface WorkStatus {
+  state: WorkState;
+  label?: string;
+  emoji?: string;
+  note?: string;
+  since: number;
+}
+
+export interface CustomWorkStatus {
+  label: string;
+  emoji: string;
+  // Asks for a line about the copy each time it is applied, as Blocked does.
+  withNote?: boolean;
+}
+
 export interface ProjectInfo {
   name: string;
   session: string;
@@ -137,6 +157,7 @@ export interface ProjectInfo {
   parentName?: string;
   worktree?: boolean;
   isRemote: boolean;
+  workStatus?: WorkStatus;
 }
 
 export interface TokenUsage {

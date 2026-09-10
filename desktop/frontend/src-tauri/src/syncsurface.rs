@@ -59,6 +59,11 @@ const GLOBAL_FILES: &[GlobalFile] = &[
         export: false,
     },
     GlobalFile {
+        name: "statuses.json",
+        sync: true,
+        export: false,
+    },
+    GlobalFile {
         name: "terminals.json",
         sync: false,
         export: true,
@@ -179,7 +184,8 @@ mod tests {
     fn sync_files_are_old_global_files_plus_branch_name() {
         // groups.json (sidebar folders) is per-machine, like sidebarOrder in
         // PER_MACHINE_KEYS — a peer's stale in-memory layout used to sync over
-        // and wipe local folders.
+        // and wipe local folders. statuses.json (the work-status palette) rides
+        // with generators.json: sync-only, never exported.
         let got: Vec<&str> = sync_global_files().collect();
         assert_eq!(
             got,
@@ -188,6 +194,7 @@ mod tests {
                 "settings.json",
                 "composer-actions.json",
                 "generators.json",
+                "statuses.json",
                 "commit-instructions.txt",
                 "pr-title-instructions.txt",
                 "pr-description-instructions.txt",
@@ -245,6 +252,9 @@ mod tests {
             PROJECT_LOCAL_KEYS,
             ["root", "ssh", "claudeAccount", "parent_name", "worktree"]
         );
+        // A person's work status travels with the project file: the point of
+        // setting one is that the other Mac sees it.
+        assert!(!PROJECT_LOCAL_KEYS.contains(&"work_status"));
     }
 
     #[test]
@@ -272,6 +282,8 @@ mod tests {
         assert!(is_sync_global_file("branch-name-instructions.txt"));
         assert!(is_sync_global_file("global.yml"));
         assert!(is_sync_global_file("settings.json"));
+        assert!(is_sync_global_file("statuses.json"));
+        assert!(!export_top_level_files().any(|f| f == "statuses.json"));
         // Export-only file is not a sync unit.
         assert!(!is_sync_global_file("terminals.json"));
         assert!(!is_sync_global_file("peer.json"));

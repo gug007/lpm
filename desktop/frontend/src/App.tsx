@@ -85,6 +85,7 @@ export default function App() {
   const removeProjectFromDisk = useAppStore((s) => s.removeProjectFromDisk);
   const removeProjectsBatch = useAppStore((s) => s.removeProjectsBatch);
   const renameProject = useAppStore((s) => s.renameProject);
+  const setWorkStatus = useAppStore((s) => s.setWorkStatus);
   const moveProjectRoot = useAppStore((s) => s.moveProjectRoot);
   const applySidebarLayout = useAppStore((s) => s.applySidebarLayout);
   const reorderDuplicate = useAppStore((s) => s.reorderDuplicate);
@@ -271,6 +272,7 @@ export default function App() {
           onRemoveProjectFromDisk={removeProjectFromDisk}
           onRemoveProjectsBatch={removeProjectsBatch}
           onRenameProject={renameProject}
+          onSetWorkStatus={setWorkStatus}
           onMoveProjectRoot={moveProjectRoot}
           onApplySidebarLayout={applySidebarLayout}
           onReorderDuplicate={reorderDuplicate}

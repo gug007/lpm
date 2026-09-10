@@ -1596,12 +1596,14 @@ fn is_denied(cmd: &str) -> bool {
             | "terminal_present_control"
             | "terminal_unpresent_control"
             // global host mutators (sidebar / project order / composer + generator
-            // config / saved terminals / stop-everything) — not project-scoped.
+            // + work-status config / saved terminals / stop-everything) — not
+            // project-scoped.
             | "save_groups"
             | "reorder_projects"
             | "save_composer_actions"
             | "save_generators"
             | "save_generator_icon"
+            | "save_work_statuses"
             | "save_terminals"
             | "stop_all"
             // window / dock / detached-window focus
@@ -2185,6 +2187,7 @@ mod tests {
         assert!(is_denied("save_composer_actions"));
         assert!(is_denied("save_generators"));
         assert!(is_denied("save_generator_icon"));
+        assert!(is_denied("save_work_statuses"));
         assert!(is_denied("save_terminals"));
         assert!(is_denied("stop_all"));
         // The one installer a peer may run, and the status call that decides

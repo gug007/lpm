@@ -88,6 +88,25 @@ pub fn write_config_file(path: &std::path::Path, content: &str) -> Result<(), St
     .map_err(|e| e.to_string())
 }
 
+/// Read-modify-write a project's own YAML file. `edit` reports whether it changed
+/// anything; only then is the doc serialized back. Returns whether it wrote, so
+/// callers can skip the reload they would otherwise announce.
+pub fn edit_project_yaml(
+    name: &str,
+    edit: impl FnOnce(&mut serde_norway::Value) -> Result<bool, String>,
+) -> Result<bool, String> {
+    let path = project_path(name);
+    let mut doc: serde_norway::Value =
+        serde_norway::from_slice(&std::fs::read(&path).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    if !edit(&mut doc)? {
+        return Ok(false);
+    }
+    let out = serde_norway::to_string(&doc).map_err(|e| e.to_string())?;
+    write_config_file(&path, &out)?;
+    Ok(true)
+}
+
 /// config.PeekParent: a project's `parent_name`, or None when absent/empty/unreadable.
 pub fn peek_parent(name: &str) -> Option<String> {
     let y = parse_project_yaml(name).ok()?;
@@ -245,6 +264,139 @@ pub fn save_generators(g: &Value) -> Result<(), String> {
         crate::fsatomic::Mode::Preserve(0o644),
     )
     .map_err(|e| e.to_string())
+}
+
+/// The user's work-status palette and the order their Status menu was dragged
+/// into:
+/// `{ "custom": [{ "label", "emoji", "withNote"? }], "order": ["in_progress", "custom:QA"] }`
+/// Both keys are optional on read.
+pub fn work_statuses_path() -> PathBuf {
+    lpm_dir().join("statuses.json")
+}
+
+/// The statuses a palette starts out holding, as `(label, emoji, withNote)`.
+/// They are contents, not a built-in tier: the user may rename or drop any of
+/// them, and a file whose `custom` is an explicit `[]` has dropped them all.
+///
+/// The frontend keeps an identical copy in `src/workStatus.ts`
+/// (DEFAULT_WORK_STATUS_PALETTE) so it can render before the host answers. The
+/// two lists must stay in sync: edit both or neither.
+const DEFAULT_WORK_STATUS_PALETTE: [(&str, &str, bool); 5] = [
+    ("Review", "👀", true),
+    ("Ready", "🚀", false),
+    ("Waiting", "⏰", true),
+    ("Needs decision", "❓", true),
+    ("Paused", "⏸️", true),
+];
+
+fn default_work_status_palette() -> Vec<Value> {
+    DEFAULT_WORK_STATUS_PALETTE
+        .iter()
+        .map(|(label, emoji, with_note)| {
+            let mut entry = json!({ "label": label, "emoji": emoji });
+            if *with_note {
+                entry["withNote"] = json!(true);
+            }
+            entry
+        })
+        .collect()
+}
+
+/// settings.json keys the palette used to live under.
+const LEGACY_WORK_STATUSES_KEY: &str = "workStatuses";
+const LEGACY_WORK_STATUS_ORDER_KEY: &str = "workStatusOrder";
+
+/// Always `{ custom, order }`, with the defaults filled in for a Mac that has
+/// never edited its palette.
+pub fn load_work_statuses() -> Value {
+    match std::fs::read(work_statuses_path()) {
+        Ok(bytes) => resolve_work_statuses(&serde_json::from_slice(&bytes).unwrap_or(json!({}))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => migrate_legacy_work_statuses(),
+        Err(_) => resolve_work_statuses(&json!({})),
+    }
+}
+
+pub fn save_work_statuses(doc: &Value) -> Result<(), String> {
+    std::fs::create_dir_all(lpm_dir()).map_err(|e| e.to_string())?;
+    let data = serde_json::to_vec_pretty(doc).map_err(|e| e.to_string())?;
+    crate::fsatomic::write(
+        &work_statuses_path(),
+        &data,
+        crate::fsatomic::Mode::Preserve(0o644),
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// A stored document as every reader sees it. An absent `custom` is a palette
+/// nobody has touched, so it reads as the defaults; an empty one is a palette
+/// the user emptied, and stays empty.
+fn resolve_work_statuses(doc: &Value) -> Value {
+    let array = |k: &str| doc.get(k).filter(|v| v.is_array()).cloned();
+    json!({
+        "custom": array("custom").unwrap_or_else(|| Value::Array(default_work_status_palette())),
+        "order": array("order").unwrap_or_else(|| json!([])),
+    })
+}
+
+/// One-time move of the palette out of settings.json, run only when
+/// statuses.json is absent. settings.json is rewritten without the legacy keys
+/// only once the new file is on disk, so a failed write leaves the palette where
+/// the next call can still find it.
+fn migrate_legacy_work_statuses() -> Value {
+    let mut settings = load_settings();
+    let Some(doc) = migrate_work_statuses(&mut settings) else {
+        return resolve_work_statuses(&json!({}));
+    };
+    if save_work_statuses(&doc).is_ok() {
+        let _ = save_settings(&settings);
+    }
+    resolve_work_statuses(&doc)
+}
+
+/// The pure half of the migration: lifts the legacy keys out of `settings` into
+/// a statuses.json document, or None when neither key is there.
+fn migrate_work_statuses(settings: &mut Value) -> Option<Value> {
+    let settings = settings.as_object_mut()?;
+    let legacy_custom = settings.remove(LEGACY_WORK_STATUSES_KEY);
+    let legacy_order = settings.remove(LEGACY_WORK_STATUS_ORDER_KEY);
+    if legacy_custom.is_none() && legacy_order.is_none() {
+        return None;
+    }
+    let legacy = match legacy_custom {
+        Some(Value::Array(a)) => a,
+        _ => Vec::new(),
+    };
+    let mut doc = serde_json::Map::new();
+    doc.insert("custom".into(), merge_work_status_palette(legacy));
+    // Written only when the user actually had an order; a reader fills in [].
+    if let Some(order) = legacy_order.filter(Value::is_array) {
+        doc.insert("order".into(), order);
+    }
+    Some(Value::Object(doc))
+}
+
+/// Defaults first, the user's own appended. A legacy status whose label matches
+/// a default (ignoring case) takes that default's slot rather than repeating it,
+/// so the emoji and note flag the user chose are the ones that survive.
+fn merge_work_status_palette(legacy: Vec<Value>) -> Value {
+    let label_of = |e: &Value| {
+        e.get("label")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_lowercase()
+    };
+    let mut out = default_work_status_palette();
+    for entry in legacy {
+        let label = label_of(&entry);
+        match out
+            .iter()
+            .position(|e| !label.is_empty() && label_of(e) == label)
+        {
+            Some(i) => out[i] = entry,
+            None => out.push(entry),
+        }
+    }
+    Value::Array(out)
 }
 
 pub const CLAUDE_CONFIG_DIR_ENV: &str = "CLAUDE_CONFIG_DIR";
@@ -807,6 +959,82 @@ struct ProjectYaml {
     services: BTreeMap<String, ServiceDef>,
     #[serde(default)]
     profiles: BTreeMap<String, Vec<String>>,
+    /// Held untyped so a hand-mangled block drops only the badge; typing it
+    /// here would fail the whole parse and drop the project from the sidebar.
+    #[serde(default)]
+    work_status: Option<serde_norway::Value>,
+}
+
+pub const WORK_STATES: [&str; 4] = ["in_progress", "blocked", "done", "custom"];
+
+/// The one state that carries its own label and emoji, so the row still reads
+/// after the user drops that status from their palette.
+pub const WORK_STATE_CUSTOM: &str = "custom";
+
+/// One emoji, kept deliberately loose: a sequence joined by ZWJ or carrying a
+/// variation selector is still one mark to the reader. Whitespace and control
+/// characters are the line, since the value is rendered inline beside the label.
+pub fn is_work_status_emoji(emoji: &str) -> bool {
+    !emoji.is_empty()
+        && emoji.chars().count() <= 64
+        && !emoji.chars().any(|c| c.is_whitespace() || c.is_control())
+}
+
+/// The `work_status` block, in the one shape everything uses: the YAML on disk,
+/// the ProjectInfo JSON, and the command's write side. Field order is the key
+/// order written to the file.
+#[derive(serde::Serialize, Deserialize)]
+pub(crate) struct WorkStatus {
+    pub(crate) state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) emoji: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) note: Option<String>,
+    /// Absent in a hand-written block; 0 then means "no clock started yet".
+    #[serde(default)]
+    pub(crate) since: u64,
+}
+
+impl WorkStatus {
+    /// Every rule about a status, in one place: the reader turns an Err into a
+    /// dropped key, the writer turns it into a message.
+    pub(crate) fn normalize(self) -> Result<Self, String> {
+        if !WORK_STATES.contains(&self.state.as_str()) {
+            return Err(format!("unknown status {}", self.state));
+        }
+        let custom = self.state == WORK_STATE_CUSTOM;
+        // Only a custom status describes itself; a built-in one is named by the UI.
+        let label = trimmed(self.label).filter(|_| custom);
+        if custom && label.is_none() {
+            return Err("a custom status needs a name".to_string());
+        }
+        let emoji = trimmed(self.emoji).filter(|_| custom);
+        if let Some(e) = emoji.as_deref().filter(|e| !is_work_status_emoji(e)) {
+            return Err(format!("unusable emoji {e}"));
+        }
+        Ok(Self {
+            state: self.state,
+            label,
+            emoji,
+            note: trimmed(self.note),
+            since: self.since,
+        })
+    }
+}
+
+fn trimmed(value: Option<String>) -> Option<String> {
+    value
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// `{ state, label?, emoji?, note?, since }` for a status that passes every rule,
+/// else None so the key is omitted entirely.
+fn work_status_json(raw: Option<serde_norway::Value>) -> Option<Value> {
+    let ws: WorkStatus = raw.and_then(|v| serde_norway::from_value(v).ok())?;
+    serde_json::to_value(ws.normalize().ok()?).ok()
 }
 
 /// Parsed separately from ProjectYaml so a malformed action section can never
@@ -1905,7 +2133,7 @@ fn to_project_info(
         .map(|(pname, names)| json!({ "name": pname, "services": names }))
         .collect();
 
-    json!({
+    let mut info = json!({
         "name": file_name,
         "session": session,
         "root": root,
@@ -1920,7 +2148,11 @@ fn to_project_info(
         "parentName": yaml.parent_name,
         "worktree": yaml.worktree,
         "isRemote": is_remote,
-    })
+    });
+    if let Some(ws) = work_status_json(yaml.work_status.take()) {
+        info["workStatus"] = ws;
+    }
+    info
 }
 
 fn read_project(
@@ -2492,6 +2724,281 @@ mod repo_merge_tests {
             services.is_empty(),
             "remote repo file lives on the remote; never merged locally"
         );
+    }
+}
+
+#[cfg(test)]
+mod work_status_tests {
+    use super::*;
+
+    fn parse(yaml: &str) -> ProjectYaml {
+        serde_norway::from_str::<ProjectYaml>(yaml).expect("project must still parse")
+    }
+
+    fn status_of(yaml: &str) -> Option<Value> {
+        work_status_json(parse(yaml).work_status)
+    }
+
+    #[test]
+    fn valid_block_emits_state_note_and_since() {
+        let ws = status_of(
+            "work_status:\n  state: blocked\n  note: waiting on the key\n  since: 1757520000000\n",
+        )
+        .expect("recognized state emits a block");
+        assert_eq!(ws["state"], "blocked");
+        assert_eq!(ws["note"], "waiting on the key");
+        assert_eq!(ws["since"], 1757520000000u64);
+    }
+
+    #[test]
+    fn every_known_state_is_emitted() {
+        for state in WORK_STATES {
+            let ws = status_of(&format!(
+                "work_status:\n  state: {state}\n  label: Review\n  since: 1\n"
+            ))
+            .unwrap_or_else(|| panic!("{state} must be emitted"));
+            assert_eq!(ws["state"], state);
+        }
+    }
+
+    #[test]
+    fn unknown_state_omits_the_key() {
+        assert!(status_of("work_status:\n  state: paused\n  since: 1\n").is_none());
+        assert!(status_of("work_status:\n  note: orphan\n  since: 1\n").is_none());
+    }
+
+    #[test]
+    fn missing_or_blank_note_omits_the_note_key() {
+        let ws = status_of("work_status:\n  state: done\n  since: 7\n").unwrap();
+        assert!(ws.get("note").is_none(), "{ws}");
+        let ws = status_of("work_status:\n  state: done\n  note: '   '\n  since: 7\n").unwrap();
+        assert!(ws.get("note").is_none(), "{ws}");
+    }
+
+    #[test]
+    fn missing_since_defaults_to_zero() {
+        let ws = status_of("work_status:\n  state: in_progress\n").unwrap();
+        assert_eq!(ws["since"], 0);
+    }
+
+    #[test]
+    fn absent_block_emits_nothing() {
+        assert!(status_of("name: solo\n").is_none());
+    }
+
+    #[test]
+    fn wrong_typed_block_never_breaks_the_project() {
+        // A hand-mangled status must cost the badge, not the sidebar row.
+        let y = parse("name: solo\nroot: /tmp/solo\nwork_status: nope\n");
+        assert_eq!(y.root, "/tmp/solo");
+        assert!(work_status_json(y.work_status).is_none());
+        assert!(status_of("work_status:\n  - blocked\n").is_none());
+    }
+
+    #[test]
+    fn custom_carries_its_own_label_and_emoji() {
+        let ws = status_of(
+            "work_status:\n  state: custom\n  label: '  Review  '\n  emoji: 🔍\n  since: 3\n",
+        )
+        .expect("a named custom status is renderable");
+        assert_eq!(ws["state"], "custom");
+        assert_eq!(ws["label"], "Review");
+        assert_eq!(ws["emoji"], "🔍");
+    }
+
+    #[test]
+    fn custom_without_a_label_omits_the_key() {
+        assert!(status_of("work_status:\n  state: custom\n  emoji: 🔍\n  since: 3\n").is_none());
+        assert!(status_of("work_status:\n  state: custom\n  label: '   '\n  since: 3\n").is_none());
+    }
+
+    #[test]
+    fn joined_emoji_survives_but_an_unusable_one_sinks_the_block() {
+        // A ZWJ sequence is several chars and one mark; it must come through whole.
+        let ws =
+            status_of("work_status:\n  state: custom\n  label: Review\n  emoji: 👩‍💻\n").unwrap();
+        assert_eq!(ws["emoji"], "👩‍💻");
+        // One rule for both sides: what the command refuses to write, the reader
+        // refuses to show.
+        assert!(
+            status_of("work_status:\n  state: custom\n  label: Review\n  emoji: '🔍 🔎'\n")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn a_built_in_state_never_carries_a_label_or_emoji() {
+        let ws =
+            status_of("work_status:\n  state: done\n  label: Review\n  emoji: 🔍\n  since: 3\n")
+                .unwrap();
+        assert!(ws.get("label").is_none(), "{ws}");
+        assert!(ws.get("emoji").is_none(), "{ws}");
+    }
+
+    #[test]
+    fn project_info_carries_the_key_only_when_valid() {
+        let valid = parse(
+            "root: /tmp/lpm-work-status-test\nwork_status:\n  state: in_progress\n  since: 42\n",
+        );
+        let info = to_project_info("lpm-work-status-test", valid, false, &RunState::default());
+        assert_eq!(info["workStatus"]["state"], "in_progress");
+        assert_eq!(info["workStatus"]["since"], 42);
+
+        let custom = parse(
+            "root: /tmp/lpm-work-status-test\nwork_status:\n  state: custom\n  label: Review\n  emoji: 🔍\n  since: 42\n",
+        );
+        let info = to_project_info("lpm-work-status-test", custom, false, &RunState::default());
+        assert_eq!(info["workStatus"]["label"], "Review");
+        assert_eq!(info["workStatus"]["emoji"], "🔍");
+
+        let invalid = parse("root: /tmp/lpm-work-status-test\nwork_status:\n  state: shipped\n");
+        let info = to_project_info("lpm-work-status-test", invalid, false, &RunState::default());
+        assert!(info.get("workStatus").is_none(), "{info}");
+
+        let unnamed = parse("root: /tmp/lpm-work-status-test\nwork_status:\n  state: custom\n");
+        let info = to_project_info("lpm-work-status-test", unnamed, false, &RunState::default());
+        assert!(info.get("workStatus").is_none(), "{info}");
+    }
+}
+
+#[cfg(test)]
+mod work_status_palette_tests {
+    use super::*;
+
+    fn labels(palette: &Value) -> Vec<String> {
+        palette
+            .as_array()
+            .expect("custom must be an array")
+            .iter()
+            .map(|e| e["label"].as_str().unwrap_or_default().to_string())
+            .collect()
+    }
+
+    const DEFAULT_LABELS: [&str; 5] = ["Review", "Ready", "Waiting", "Needs decision", "Paused"];
+
+    #[test]
+    fn the_default_palette_is_the_five_shipped_statuses() {
+        let palette = Value::Array(default_work_status_palette());
+        assert_eq!(labels(&palette), DEFAULT_LABELS);
+        assert_eq!(
+            palette[0],
+            json!({ "label": "Review", "emoji": "\u{1f440}", "withNote": true })
+        );
+        // withNote is omitted rather than written false.
+        assert_eq!(
+            palette[1],
+            json!({ "label": "Ready", "emoji": "\u{1f680}" })
+        );
+        assert_eq!(palette[4]["emoji"], "\u{23f8}\u{fe0f}");
+    }
+
+    #[test]
+    fn an_untouched_palette_resolves_to_the_defaults() {
+        for doc in [
+            json!({}),
+            json!({ "order": ["done"] }),
+            json!({ "custom": 7 }),
+        ] {
+            let resolved = resolve_work_statuses(&doc);
+            assert_eq!(labels(&resolved["custom"]), DEFAULT_LABELS, "{doc}");
+        }
+        assert_eq!(resolve_work_statuses(&json!({}))["order"], json!([]));
+        assert_eq!(
+            resolve_work_statuses(&json!({ "order": ["done"] }))["order"],
+            json!(["done"])
+        );
+    }
+
+    #[test]
+    fn an_emptied_palette_stays_empty() {
+        let resolved = resolve_work_statuses(&json!({ "custom": [], "order": [] }));
+        assert_eq!(resolved["custom"], json!([]));
+    }
+
+    #[test]
+    fn a_stored_palette_replaces_the_defaults_outright() {
+        let stored = json!({ "custom": [{ "label": "QA", "emoji": "\u{1f9ea}" }] });
+        let resolved = resolve_work_statuses(&stored);
+        assert_eq!(labels(&resolved["custom"]), vec!["QA"]);
+    }
+
+    #[test]
+    fn migration_appends_the_users_statuses_after_the_defaults() {
+        let mut s = json!({
+            "theme": "dark",
+            "workStatuses": [{ "label": "QA", "emoji": "\u{1f9ea}", "withNote": true }],
+            "workStatusOrder": ["in_progress", "custom:QA"]
+        });
+        let doc = migrate_work_statuses(&mut s).expect("a palette must migrate");
+        let mut expected: Vec<String> = DEFAULT_LABELS.iter().map(|l| l.to_string()).collect();
+        expected.push("QA".into());
+        assert_eq!(labels(&doc["custom"]), expected);
+        assert_eq!(doc["order"], json!(["in_progress", "custom:QA"]));
+        assert_eq!(
+            s,
+            json!({ "theme": "dark" }),
+            "legacy keys must be stripped"
+        );
+    }
+
+    #[test]
+    fn a_legacy_status_named_like_a_default_takes_its_slot() {
+        let mut s = json!({
+            "workStatuses": [
+                { "label": "review", "emoji": "\u{1f50d}" },
+                { "label": "QA", "emoji": "\u{1f9ea}" }
+            ]
+        });
+        let doc = migrate_work_statuses(&mut s).expect("a palette must migrate");
+        let custom = &doc["custom"];
+        assert_eq!(
+            labels(custom),
+            vec![
+                "review",
+                "Ready",
+                "Waiting",
+                "Needs decision",
+                "Paused",
+                "QA"
+            ],
+            "the user's spelling and slot win, and nothing is repeated"
+        );
+        assert_eq!(custom[0]["emoji"], "\u{1f50d}");
+        assert!(
+            doc.get("order").is_none(),
+            "an absent legacy order writes no order key"
+        );
+        assert_eq!(
+            resolve_work_statuses(&doc)["order"],
+            json!([]),
+            "which a reader fills in"
+        );
+    }
+
+    #[test]
+    fn a_lone_legacy_key_still_migrates_and_fills_in_the_other() {
+        let mut s = json!({ "theme": "dark", "workStatusOrder": ["done"] });
+        let doc = migrate_work_statuses(&mut s).expect("order alone still migrates");
+        assert_eq!(doc["order"], json!(["done"]));
+        assert_eq!(labels(&doc["custom"]), DEFAULT_LABELS);
+        assert_eq!(s, json!({ "theme": "dark" }));
+
+        let mut s = json!({ "theme": "dark", "workStatuses": [] });
+        let doc = migrate_work_statuses(&mut s).expect("an empty palette still migrates");
+        assert_eq!(labels(&doc["custom"]), DEFAULT_LABELS);
+        assert!(doc.get("order").is_none());
+        assert_eq!(s, json!({ "theme": "dark" }));
+    }
+
+    #[test]
+    fn settings_without_the_legacy_keys_migrate_nothing() {
+        let mut s = json!({ "theme": "dark", "workStatusesSomethingElse": 1 });
+        let before = s.clone();
+        assert!(migrate_work_statuses(&mut s).is_none());
+        assert_eq!(s, before, "settings must be left untouched");
+
+        let mut not_a_map = json!([1, 2]);
+        assert!(migrate_work_statuses(&mut not_a_map).is_none());
     }
 }
 

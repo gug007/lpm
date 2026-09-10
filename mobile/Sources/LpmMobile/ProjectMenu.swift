@@ -22,6 +22,8 @@ struct ProjectRunControl: View {
     let onRename: () -> Void
     let onTerminalSettings: () -> Void
     let onConfigure: () -> Void
+    // The status waiting on its line; the host presents the prompt.
+    @Binding var noteFor: WorkStatusChoice?
 
     private var running: Bool { project.running }
 
@@ -60,6 +62,9 @@ struct ProjectRunControl: View {
             }
             Button(action: onNotes) {
                 Label("Notes", systemImage: "note.text")
+            }
+            if project.canHaveWorkStatus {
+                WorkStatusMenu(project: project, noteFor: $noteFor)
             }
 
             if !actions.isEmpty {
@@ -187,6 +192,7 @@ struct ProjectMenuHost: ViewModifier {
     // Rename flow: the text field's draft, seeded from the current label.
     @State private var renaming = false
     @State private var renameText = ""
+    @State private var noteFor: WorkStatusChoice?
 
     private var actions: [Action] { project.actions.flatMap { $0.runnableLeaves } }
     // Changed-file count for the Review Changes menu item; nil until the snapshot
@@ -261,6 +267,7 @@ struct ProjectMenuHost: ViewModifier {
             } message: {
                 Text("Set a display name for this project. Leave it blank to use the project id.")
             }
+            .workStatusNotePrompt(project: project, noteFor: $noteFor)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     ProjectRunControl(project: project,
@@ -278,7 +285,8 @@ struct ProjectMenuHost: ViewModifier {
                                       onDiscard: { confirmingDiscard = true },
                                       onRename: { renameText = project.label; renaming = true },
                                       onTerminalSettings: { showTerminalSettings = true },
-                                      onConfigure: { showingConfig = true })
+                                      onConfigure: { showingConfig = true },
+                                      noteFor: $noteFor)
                         .environment(model)
                 }
             }

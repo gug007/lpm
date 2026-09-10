@@ -24,6 +24,9 @@ final class LpmClient: NSObject {
     var onControl: ((_ id: String, _ owner: ControlOwner?) -> Void)?
     var onExit: ((_ id: String, _ code: Int) -> Void)?
     var onProjects: (([Project]) -> Void)?
+    // The Mac's work-status palette, delivered with every projects reply: the
+    // user's own statuses plus the order they put the Status menu in.
+    var onWorkStatusPalette: ((_ statuses: [CustomWorkStatus], _ order: [String]) -> Void)?
     var onSidebar: ((_ order: [String], _ groups: [ProjectFolder]) -> Void)?
     var onStats: ((_ stats: AgentStats?, _ error: String?) -> Void)?
     var onLimits: ((_ snapshot: LimitsSnapshot?, _ error: String?) -> Void)?
@@ -114,6 +117,8 @@ final class LpmClient: NSObject {
     var onHistoryCreateFolder: ((_ folder: HistoryFolder?, _ error: String?) -> Void)?
     // Rename a project's label (error nil on success). New git branch reply.
     var onRenameProject: ((_ project: String, _ error: String?) -> Void)?
+    // A work-status write settled (error nil on success).
+    var onSetWorkStatus: ((_ project: String, _ error: String?) -> Void)?
     var onGitCreateBranch: ((_ project: String, _ error: String?) -> Void)?
     // A sidebar folder mutation settled: the updated layout (on success) plus any
     // error to surface. The reply carries the fresh order/groups so no follow-up
@@ -800,6 +805,10 @@ final class LpmClient: NSObject {
     func renameProject(project: String, name: String) {
         send(Wire.renameProject(project: project, name: name))
     }
+    /// Set a duplicate's work status; a nil `status` clears it.
+    func setWorkStatus(project: String, status: WorkStatusInput?) {
+        send(Wire.setWorkStatus(project: project, status: status))
+    }
     func sidebarCreateFolder(name: String) { send(Wire.sidebarCreateFolder(name: name)) }
     func sidebarRenameFolder(name: String, newName: String) {
         send(Wire.sidebarRenameFolder(name: name, newName: newName))
@@ -1128,7 +1137,9 @@ final class LpmClient: NSObject {
                 // credential is pointless, so stop and report it as the sentinel
                 // the model turns into a "pair again" prompt.
                 self.fatal(e == "unauthorized" ? Self.unauthorizedError : e)
-            case .projects(let p): self.onProjects?(p)
+            case .projects(let p, let statuses, let order):
+                self.onProjects?(p)
+                self.onWorkStatusPalette?(statuses, order)
             case .sidebar(let order, let groups): self.onSidebar?(order, groups)
             case .stats(let stats, let error): self.onStats?(stats, error)
             case .limits(let snapshot, let error): self.onLimits?(snapshot, error)
@@ -1181,6 +1192,7 @@ final class LpmClient: NSObject {
             case .remove(let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .renameProject(let proj, let error): self.onRenameProject?(proj, error)
+            case .setWorkStatus(let proj, let error): self.onSetWorkStatus?(proj, error)
             case .sidebarMutation(let order, let groups, let error):
                 self.onSidebarMutation?(order, groups, error)
             case .file(let proj, let path, let content, let truncated, let error):

@@ -13,6 +13,8 @@ struct ProjectDetail: View {
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
+    // Unix millis, ticked while an agent's reading is still counting up.
+    @State private var now = Int(Date().timeIntervalSince1970 * 1000)
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -25,6 +27,14 @@ struct ProjectDetail: View {
     // `services` is the resolved running list; display gates on `running`.
     private var runningServices: Set<String> {
         live.running ? Set(live.services.map(\.name)) : []
+    }
+    private var agentRows: [ProjectAgentRow] { projectAgentRows(live, now: now, tabTitles: [:]) }
+    private var agentByTerminal: [String: ProjectAgentRow] { agentRowsByTerminal(agentRows) }
+    private var hasTickingAgent: Bool { agentRows.contains(where: \.isTicking) }
+    /// The person-set status leads the name, as it does in the projects list.
+    private var title: String {
+        let mark = live.workStatus?.displayEmoji ?? ""
+        return mark.isEmpty ? project.label : "\(mark) \(project.label)"
     }
 
     var body: some View {
@@ -43,7 +53,8 @@ struct ProjectDetail: View {
             } else if !terminals.isEmpty || creating {
                 Section {
                     ForEach(terminals) { t in
-                        TerminalRow(term: t, onOpen: { openTerminal = t })
+                        TabCard(term: t, agent: agentByTerminal[t.id], now: now,
+                                onOpen: { openTerminal = t })
                         .terminalRowChrome()
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
                             Button {
@@ -127,7 +138,13 @@ struct ProjectDetail: View {
         .refreshable {
             model.loadTerminals(project.name)
         }
-        .navigationTitle(project.label)
+        .task(id: hasTickingAgent) {
+            while hasTickingAgent && !Task.isCancelled {
+                now = Int(Date().timeIntervalSince1970 * 1000)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+            }
+        }
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .navigationSubtitleCompat(live.running ? "Running" : "Stopped")
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live) }
@@ -322,58 +339,6 @@ private struct TabsSectionHeader: View {
         .font(.footnote.weight(.semibold))
         .foregroundStyle(.secondary)
         .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 2, trailing: 24))
-    }
-}
-
-/// One terminal card: a terminal-glyph icon tile and the tab name (prefixed with
-/// the tab's emoji when set). Tapping the card opens the terminal; the same tab
-/// actions as the desktop live on native swipe gestures (Pin from the leading
-/// edge; Rename / Close from the trailing edge).
-private struct TerminalRow: View {
-    let term: TerminalInfo
-    let onOpen: () -> Void
-
-    private var title: String {
-        term.emoji.isEmpty ? term.label : "\(term.emoji) \(term.label)"
-    }
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 16) {
-                Image(systemName: "terminal.fill")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 40, height: 40)
-                    .background(Color(.tertiarySystemGroupedBackground),
-                                in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                Text(title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 8)
-
-                if term.pinned {
-                    Image(systemName: "pin.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
-                if term.remote {
-                    Text("Remote")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color(.tertiarySystemFill), in: Capsule())
-                }
-            }
-            .padding(16)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 

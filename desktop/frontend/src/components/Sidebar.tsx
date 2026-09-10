@@ -19,7 +19,12 @@ import { useAppStore } from "../store/app";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
-import { isDuplicate, type DuplicateMode, type ProjectGroup, type ProjectInfo } from "../types";
+import {
+  isDuplicate,
+  type DuplicateMode,
+  type ProjectGroup,
+  type ProjectInfo,
+} from "../types";
 import { agentAmbient, computeProjectStatus } from "../agentStatus";
 import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
@@ -75,6 +80,11 @@ import { FollowIndicator } from "./FollowIndicator";
 import { useFollowState } from "../hooks/useFollowState";
 import { followPause, followResume, followStop } from "../followApi";
 import { ProjectNameDisplay, projectDisplayName } from "./ProjectNameDisplay";
+import { SidebarWorkStatusLine } from "./SidebarWorkStatusLine";
+import { WorkStatusMark } from "./WorkStatusMark";
+import { useWorkStatusDialogs } from "./useWorkStatusDialogs";
+import { useWorkStatusesStore } from "../store/workStatuses";
+import { workStatusNote, type WorkStatusInput } from "../workStatus";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
@@ -145,6 +155,7 @@ interface SidebarProps {
   onRemoveProjectFromDisk: (name: string) => void;
   onRemoveProjectsBatch: (names: string[]) => void;
   onRenameProject: (name: string, label: string) => void;
+  onSetWorkStatus: (name: string, input: WorkStatusInput | null) => void;
   onMoveProjectRoot: (name: string, newRoot: string) => Promise<void>;
   onApplySidebarLayout: (layout: SidebarLayout) => void;
   onReorderDuplicate: (name: string, overName: string) => void;
@@ -194,7 +205,7 @@ type TreeItem =
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -211,6 +222,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // seeded with a project to drop into the new folder.
   const [createFolder, setCreateFolder] = useState<{ initialMembers?: string[] } | null>(null);
   const [bulkDuplicate, setBulkDuplicate] = useState<{ name: string; mode: DuplicateMode } | null>(null);
+  const customWorkStatuses = useWorkStatusesStore((s) => s.custom);
+  const workStatusOrder = useWorkStatusesStore((s) => s.order);
+  const workStatusDialogs = useWorkStatusDialogs({ projects, onSetWorkStatus });
   // The remote project being set up as a local synced folder.
   const [syncing, setSyncing] = useState<{
     remoteName: string;
@@ -827,6 +841,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (next) onApplySidebarLayout(next);
   };
 
+  // A row with a note under its name stands two lines tall wherever it sits,
+  // so the elbow a folder draws into it has to know as well as the row does.
+  const hasNoteLine = (project: ProjectInfo) => workStatusNote(project.workStatus) !== null;
+
   const renderProjectRow = (project: ProjectInfo, indented: boolean) => {
     const status = computeProjectStatus(project.statusEntries);
     const isDetached = detached.has(project.name);
@@ -863,7 +881,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const hasDeck = !selectMode && deckChildren.length > 0;
     const deckCollapsed = hasDeck && collapsedDecks.has(project.name);
     const deckSegments = deckCollapsed ? rollupSegments(deckChildren) : [];
-    const twoLine = deckCollapsed;
+    const work = project.workStatus;
+    const workNote = workStatusNote(work);
+    const twoLine = deckCollapsed || workNote !== null;
     // Tints the parent instead: a folded deck is the only trace of a selected
     // duplicate, which has no row of its own on screen.
     const deckHoldsSelected =
@@ -874,6 +894,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
     const identity = (
       <>
+        {work && <WorkStatusMark status={work} />}
         <span
           className="truncate"
           style={project.configError ? MUTED_STYLE : status.isDone ? DONE_STYLE : undefined}
@@ -965,7 +986,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex min-w-0 items-center gap-3">{identity}</span>
                 <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
-                  {deckSegments.length > 0 ? (
+                  {!deckCollapsed && work && workNote !== null ? (
+                    <SidebarWorkStatusLine status={work} note={workNote} />
+                  ) : deckSegments.length > 0 ? (
                     <SidebarRollupLine segments={deckSegments} />
                   ) : (
                     `${deckChildren.length} ${deckKindLabel(deckChildren)}`
@@ -1055,7 +1078,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // off the folder's trunk like any member.
   const renderDeck = (
     item: Extract<TreeItem, { kind: "deck" }>,
-    connector?: (isLast: boolean) => React.ReactNode,
+    connector?: (isLast: boolean, twoLine?: boolean) => React.ReactNode,
     endsBlock = false,
   ) => {
     const { parent, children, collapsed } = item;
@@ -1067,7 +1090,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       const row = renderProjectRow(child, indented);
       const body = connector ? (
         <div className="relative">
-          {connector(endsBlock && i === lastIndex)}
+          {connector(endsBlock && i === lastIndex, hasNoteLine(child))}
           {row}
         </div>
       ) : (
@@ -1274,10 +1297,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         {body.map((it, i) => {
           if (it.kind === "deck") return renderDeck(it, rowConnector, i === lastProjectIndex);
           if (it.kind !== "project") return renderRow(it);
-          // A member whose deck is folded stands two lines tall, so its elbow
-          // meets line 1. A deck always follows its parent in `items`.
+          // A member whose deck is folded, or which carries a note, stands two
+          // lines tall, so its elbow meets line 1. A deck always follows its
+          // parent in `items`.
           const next = body[i + 1];
-          const twoLine = next?.kind === "deck" && next.collapsed;
+          const twoLine = (next?.kind === "deck" && next.collapsed) || hasNoteLine(it.project);
           return renderRow(it, rowConnector(i === lastProjectIndex, twoLine));
         })}
       </div>
@@ -1426,6 +1450,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             groups={groups}
             currentGroupId={memberOf.get(contextMenu.name) ?? null}
             onRename={() => setRenamingName(contextMenu.name)}
+            workStatus={contextProject?.workStatus}
+            customWorkStatuses={customWorkStatuses}
+            workStatusOrder={workStatusOrder}
+            onPickWorkStatus={(choice) => workStatusDialogs.pick(contextMenu.name, choice)}
+            onAddWorkStatus={() => workStatusDialogs.openAdd(contextMenu.name)}
+            onEditWorkStatus={workStatusDialogs.openEdit}
+            onRemoveWorkStatus={workStatusDialogs.confirmRemove}
+            onReorderWorkStatuses={workStatusDialogs.reorder}
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
             onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
             onOpenAI={() => onOpenProjectView(contextMenu.name, "ai")}
@@ -1617,6 +1649,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           onClose={() => setSyncing(null)}
         />
       )}
+      {workStatusDialogs.dialogs}
       <ProjectRenameModal
         open={renamingName !== null}
         displayName={

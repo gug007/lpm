@@ -7,7 +7,9 @@ import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
 import { OpenInBrowserSubmenu } from "./OpenInBrowserSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
-import type { ProjectGroup } from "../types";
+import type { CustomWorkStatus, ProjectGroup, WorkStatus } from "../types";
+import type { WorkStatusChoice } from "../workStatus";
+import { WorkStatusSubmenu } from "./WorkStatusSubmenu";
 
 // The sync controls a row only has while a copy of it is synced here. The remote
 // project's row and the copy's own row both get them, since either is a way to
@@ -45,6 +47,16 @@ interface ProjectContextMenuProps {
   projectPath: string | null;
   groups: ProjectGroup[];
   currentGroupId: string | null;
+  // A duplicate's own status, the statuses the menu offers, and the ways to
+  // set, add or edit them; the submenu only shows on a duplicate.
+  workStatus?: WorkStatus;
+  customWorkStatuses: CustomWorkStatus[];
+  workStatusOrder?: string[];
+  onPickWorkStatus: (choice: WorkStatusChoice | null) => void;
+  onAddWorkStatus: () => void;
+  onEditWorkStatus: (entry: CustomWorkStatus) => void;
+  onRemoveWorkStatus: (entry: CustomWorkStatus) => void;
+  onReorderWorkStatuses: (order: string[]) => void;
   onRename: () => void;
   onEditConfig: () => void;
   onOpenNotes: () => void;
@@ -88,6 +100,14 @@ export function ProjectContextMenu({
   projectPath,
   groups,
   currentGroupId,
+  workStatus,
+  customWorkStatuses,
+  workStatusOrder,
+  onPickWorkStatus,
+  onAddWorkStatus,
+  onEditWorkStatus,
+  onRemoveWorkStatus,
+  onReorderWorkStatuses,
   onRename,
   onEditConfig,
   onOpenNotes,
@@ -154,6 +174,19 @@ export function ProjectContextMenu({
         onDiscardAll={onGitDiscardAll}
         onClose={onClose}
       />
+      {isDuplicate && !remote && (
+        <WorkStatusSubmenu
+          current={workStatus}
+          custom={customWorkStatuses}
+          order={workStatusOrder}
+          onPick={onPickWorkStatus}
+          onAdd={onAddWorkStatus}
+          onEdit={onEditWorkStatus}
+          onRemove={onRemoveWorkStatus}
+          onReorder={onReorderWorkStatuses}
+          onClose={onClose}
+        />
+      )}
       <ContextMenuItem
         label="Duplicate"
         icon={<CopyIcon />}
