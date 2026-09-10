@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Ban, Check, ChevronDown, CircleAlert, Loader2, X } from "lucide-react";
+import { Ban, Check, ChevronDown, CircleAlert, Copy, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   clearBackgroundRun,
@@ -53,8 +53,20 @@ export function BackgroundRunToast({
     () => getBackgroundRunLines(runId),
   );
   const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const running = status === "running";
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
+
+  const copyOutput = () => {
+    void navigator.clipboard.writeText(lines.join("\n"));
+    setCopied(true);
+  };
 
   useEffect(() => {
     if (!running) return;
@@ -84,6 +96,21 @@ export function BackgroundRunToast({
         <span className="shrink-0 text-[11px] tabular-nums text-[var(--text-muted)]">
           {formatElapsed((running ? now : Date.now()) - startedAt)}
         </span>
+        {lines.length > 0 && (
+          <button
+            type="button"
+            onClick={copyOutput}
+            title={copied ? "Copied" : "Copy output"}
+            aria-label={copied ? "Copied" : "Copy output"}
+            className={`flex shrink-0 items-center justify-center rounded-md p-1 transition-colors hover:bg-[var(--bg-hover)] ${
+              copied
+                ? "text-[var(--accent-green)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
