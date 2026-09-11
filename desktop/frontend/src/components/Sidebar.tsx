@@ -892,6 +892,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
     const rowShape = twoLine ? ROW_TWO_LINE_CLASS : ROW_BASE_CLASS;
 
+    // A folded deck's rollup outranks the parent's own note: the mark at the
+    // row's end keeps the status in view, and the note comes back when the
+    // deck is opened.
+    const secondLine: React.ReactNode = deckCollapsed ? (
+      deckSegments.length > 0 ? (
+        <SidebarRollupLine segments={deckSegments} />
+      ) : (
+        `${deckChildren.length} ${deckKindLabel(deckChildren)}`
+      )
+    ) : work && workNote !== null ? (
+      <SidebarWorkStatusLine status={work}>{workNote}</SidebarWorkStatusLine>
+    ) : null;
+
     const identity = (
       <>
         {work && <WorkStatusMark status={work} />}
@@ -986,13 +999,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex min-w-0 items-center gap-3">{identity}</span>
                 <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
-                  {!deckCollapsed && work && workNote !== null ? (
-                    <SidebarWorkStatusLine status={work} note={workNote} />
-                  ) : deckSegments.length > 0 ? (
-                    <SidebarRollupLine segments={deckSegments} />
-                  ) : (
-                    `${deckChildren.length} ${deckKindLabel(deckChildren)}`
-                  )}
+                  {secondLine}
                 </span>
               </span>
             ) : (

@@ -1,11 +1,11 @@
 import type { WorkStatus } from "../types";
 import { workStatusEmoji, workStatusLabel, workStatusTitle } from "../workStatus";
-import { WorkStatusEmoji } from "./WorkStatusEmoji";
 
-/** What a row shows, before its name, for the status a person gave it: the
- *  state's emoji, with the name and any note as the tooltip. A custom status
- *  that somehow lost its emoji falls back to its name so the mark is never
- *  blank. */
+/** What a row shows, between its dot and its name, for the status a person
+ *  gave it: the state's emoji, with the name and any note as the tooltip. It
+ *  sits a step smaller than the menu's emoji so it reads as a mark rather
+ *  than a second name. A custom status that somehow lost its emoji falls
+ *  back to its name so the mark is never blank. */
 export function WorkStatusMark({ status }: { status: WorkStatus }) {
   const emoji = workStatusEmoji(status);
   if (!emoji) {
@@ -17,7 +17,9 @@ export function WorkStatusMark({ status }: { status: WorkStatus }) {
   }
   return (
     <span title={workStatusTitle(status)} className="flex shrink-0 items-center">
-      <WorkStatusEmoji emoji={emoji} />
+      <span aria-hidden="true" className="text-[10px] leading-none">
+        {emoji}
+      </span>
     </span>
   );
 }

@@ -1,18 +1,24 @@
+import type { ReactNode } from "react";
 import type { WorkStatus } from "../types";
 import { BLOCKED_TONE_CLASS, workStatusLabel } from "../workStatus";
 import { ROLLUP_SEPARATOR_CLASS } from "./sidebarRollup";
 
-/** The second line of a row whose status carries a note: the status's word,
- *  then the note, in the same 10px voice a folded deck uses for its rollup so
- *  the two never differ. Only Blocked's word takes colour. */
-export function SidebarWorkStatusLine({ status, note }: { status: WorkStatus; note: string }) {
+/** The line under a row's name when its status has something to say: the
+ *  state's word, then the note, in the same 10px voice a folded deck uses, so
+ *  the two never differ. The emoji is not repeated here — it stands at the end
+ *  of line 1. Only Blocked's word takes colour. */
+export function SidebarWorkStatusLine({ status, children }: { status: WorkStatus; children?: ReactNode }) {
   return (
-    <>
+    <span>
       <span className={status.state === "blocked" ? BLOCKED_TONE_CLASS : undefined}>
         {workStatusLabel(status)}
       </span>
-      <span className={ROLLUP_SEPARATOR_CLASS}>·</span>
-      <span>{note}</span>
-    </>
+      {children != null && children !== "" && (
+        <>
+          <span className={ROLLUP_SEPARATOR_CLASS}>·</span>
+          {children}
+        </>
+      )}
+    </span>
   );
 }
