@@ -200,3 +200,7 @@ export const WINDOWS: PileWindow[] = [
 
 export const SERVICE_COUNT = WINDOWS.filter((w) => w.kind === "service").length;
 export const AGENT_COUNT = WINDOWS.filter((w) => w.kind === "agent").length;
+
+// Windows minimised out of sight. It is the one number the picture cannot show,
+// so it is the one number stated as scenery rather than as a count.
+export const IN_THE_DOCK = 6;
