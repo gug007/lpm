@@ -2,15 +2,22 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AutoVideo } from "@/components/auto-video";
 import { useInView } from "@/components/config/playground/hooks";
+import type {
+  TourHandle,
+  TourState,
+  TourStepId,
+} from "@/components/demo/tour";
 import { DownloadLink } from "@/components/download-link";
+import { DemoSteps } from "@/components/home/demo-steps";
 import { MOBILE_PATH } from "@/lib/links";
 
-// A real lpm window is 960×640; the stage is capped at 1040px wide (see
-// DemoStage) so the demo keeps the app's 3:2 proportions instead of squatting.
-const DEMO_HEIGHT_DESKTOP = "min(694px, 76vh)";
+// Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
+// app's 3:2 proportions, and shorter from lg up, where the step list takes a
+// column beside the frame.
+const DEMO_HEIGHT_DESKTOP = "var(--demo-stage-h)";
 
 // Same recipe as the macOS windows in before-after-window.tsx: the edge comes
 // from a ring, the depth from a layered shadow.
@@ -137,6 +144,19 @@ function DemoStage() {
   const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   const { ref, inView } = useInView<HTMLDivElement>("600px 0px");
   const idle = useIdle();
+  const [tour, setTour] = useState<TourState>({ stage: 0, playing: false });
+  const tourRef = useRef<TourHandle>(null);
+  const runStep = useCallback(
+    (id: TourStepId) => tourRef.current?.run(id),
+    [],
+  );
+  // A fresh key remounts the demo at its first frame, tour and all — the only
+  // reset that cannot leave a stray tab or a half-run cursor behind.
+  const [demoRun, setDemoRun] = useState(0);
+  const restart = useCallback(() => {
+    setTour({ stage: 0, playing: false });
+    setDemoRun((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -147,7 +167,7 @@ function DemoStage() {
   }, []);
 
   return (
-    <div ref={ref} className="mx-auto max-w-[1040px]">
+    <div ref={ref} className="demo-stage mx-auto max-w-[1040px] lg:max-w-none">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
           <DesktopOnlyPrompt />
@@ -161,25 +181,33 @@ function DemoStage() {
           >
             Skip the interactive demo
           </a>
-          {isDesktop && inView && idle ? (
-            <DemoApp
-              heightCss={DEMO_HEIGHT_DESKTOP}
-              heightCssSm={DEMO_HEIGHT_DESKTOP}
-            />
-          ) : (
-            <DemoPlaceholder />
-          )}
-          <p
-            id="demo-next"
-            tabIndex={-1}
-            className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400"
-          >
-            Done poking around?{" "}
-            <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
-              Get lpm for Mac
-            </DownloadLink>{" "}
-            and point it at your own projects.
-          </p>
+          <div className="lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:items-start lg:gap-6">
+            <DemoSteps tour={tour} onRun={runStep} onRestart={restart} />
+            <div className="min-w-0">
+              {isDesktop && inView && idle ? (
+                <DemoApp
+                  key={demoRun}
+                  heightCss={DEMO_HEIGHT_DESKTOP}
+                  heightCssSm={DEMO_HEIGHT_DESKTOP}
+                  tourRef={tourRef}
+                  onTour={setTour}
+                />
+              ) : (
+                <DemoPlaceholder />
+              )}
+              <p
+                id="demo-next"
+                tabIndex={-1}
+                className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400"
+              >
+                Done poking around?{" "}
+                <DownloadLink className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white">
+                  Get lpm for Mac
+                </DownloadLink>{" "}
+                and point it at your own projects.
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -225,7 +253,7 @@ export function DemoSection() {
       aria-label="Live interactive demo"
       className="scroll-mt-20 pb-16 sm:pb-20"
     >
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:max-w-7xl">
         <DemoCaption />
         <div data-nosnippet>
           <DemoStage />

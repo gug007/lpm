@@ -560,3 +560,25 @@ html {
     animation-iteration-count: infinite !important;
   }
 }
+
+/* The demo frame's height. A real lpm window is 960×640, so it is capped where
+   a 1040px stage keeps that 3:2; from lg up the step list takes a column beside
+   the frame, and the height follows the width that leaves it. */
+.demo-stage {
+  --demo-stage-h: min(694px, 76vh);
+}
+@media (min-width: 1024px) {
+  .demo-stage {
+    --demo-stage-h: min(694px, 76vh, calc((100vw - 21.5rem) * 0.6));
+  }
+}
+
+/* The active step's bar in the list beside the demo, timed to the tour's beat. */
+@keyframes demo-step-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

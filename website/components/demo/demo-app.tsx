@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
@@ -68,10 +69,21 @@ import {
   uniqueName,
   worktreeBranch,
 } from "./project-factory";
+import {
+  TOUR_BEAT_MS,
+  TOUR_STEPS,
+  type TourHandle,
+  type TourState,
+  type TourStepId,
+} from "./tour";
 
 type DemoAppProps = {
   heightCss?: string;
   heightCssSm?: string;
+  // The step list beside the frame reads the tour's progress through onTour
+  // and presses the window's controls through tourRef.
+  tourRef?: React.Ref<TourHandle>;
+  onTour?: (state: TourState) => void;
 };
 
 type HintStage = "invite" | "next";
@@ -101,7 +113,12 @@ type AutoCursorState =
   | { phase: "tap"; x: number; y: number }
   | { phase: "fade"; x: number; y: number };
 
-export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
+export function DemoApp({
+  heightCss,
+  heightCssSm,
+  tourRef,
+  onTour,
+}: DemoAppProps) {
   const [projects, setProjects] = useState<DemoProject[]>(INITIAL_PROJECTS);
   const [selected, setSelected] = useState<string>(INITIAL_PROJECTS[0].name);
   const [runningByProject, setRunningByProject] = useState<
@@ -165,6 +182,11 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   // Stamped once when the demo mounts, so the seeded sessions all date from
   // the same moment rather than drifting apart as the tree re-renders.
   const [mountedAt] = useState(() => Date.now());
+  const [tourPlaying, setTourPlaying] = useState(false);
+  const [tourStage, setTourStage] = useState(0);
+  // Lets a step clicked in the list stop the mimed tour mid-flight, so the
+  // click it was about to land does not double the visitor's.
+  const tourCancelRef = useRef<(() => void) | null>(null);
 
   const markInteracted = () => {
     setAutoCursor({ phase: "hidden" });
@@ -174,6 +196,28 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
   useEffect(() => {
     servicesRunningRef.current = (runningByProject[selected]?.size ?? 0) > 0;
   }, [runningByProject, selected]);
+
+  // The step list counts what has happened in the window, whoever did it: a
+  // visitor pressing the buttons advances it the same as the tour does. It
+  // only moves forward — stopping a project again is not unlearning Start.
+  useEffect(() => {
+    const started = Object.values(runningByProject).some((s) => s.size > 0);
+    const agentsPerProject = Object.values(agentTabStatusByProject).map(
+      (tabs) => new Set(Object.values(tabs).map((t) => t.label)).size,
+    );
+    const reached = agentsPerProject.some((n) => n > 1)
+      ? 3
+      : agentsPerProject.some((n) => n > 0)
+        ? 2
+        : started
+          ? 1
+          : 0;
+    setTourStage((cur) => Math.max(cur, reached));
+  }, [runningByProject, agentTabStatusByProject]);
+
+  useEffect(() => {
+    onTour?.({ stage: tourStage, playing: tourPlaying });
+  }, [onTour, tourStage, tourPlaying]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -267,6 +311,7 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       return;
     }
 
+    setTourPlaying(true);
     let cancelled = false;
     let cursorHidden = false;
     let timers: ReturnType<typeof setTimeout>[] = [];
@@ -287,7 +332,9 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       cancelled = true;
       clearTimers();
       hideCursor();
+      setTourPlaying(false);
     };
+    tourCancelRef.current = cancel;
 
     // Moving the pointer means the visitor is taking over: drop the mimed
     // cursor, but still boot the project so the demo never sits empty. A click
@@ -347,14 +394,15 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
         if (!cursorHidden) fn();
       });
 
+    const { start: startMs, agent: agentMs, codex: codexMs } = TOUR_BEAT_MS;
     mime(0, () => setRingPulseOn(true));
     mime(600, () => setAutoCursor({ phase: "travel", ...from }));
     mime(680, () => setAutoCursor({ phase: "travel", ...start }));
-    step(1700, () => {
+    step(startMs, () => {
       if (!cursorHidden) setAutoCursor({ phase: "tap", ...start });
       startIfIdle();
     });
-    mime(2000, () => setRingPulseOn(false));
+    mime(startMs + 300, () => setRingPulseOn(false));
 
     // Second beat: hand the freshly started project to Claude Code. It waits on
     // the services long enough for a visitor to watch them boot — jumping
@@ -369,8 +417,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       if (pos) setAutoCursor({ phase, ...pos });
     };
 
-    mime(5200, moveToAgent("travel"));
-    step(6200, () => {
+    mime(agentMs - 1000, moveToAgent("travel"));
+    step(agentMs, () => {
       if (!cursorHidden) moveToAgent("tap")();
       launchAgentIfIdle();
     });
@@ -408,21 +456,24 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       return chip.left >= box.left - 1 && chip.right <= box.right + 1;
     };
 
-    mime(9400, () => {
+    mime(codexMs - 800, () => {
       if (revealCodex()) moveToCodex("travel")();
     });
-    step(10200, () => {
+    step(codexMs, () => {
       if (!cursorHidden && revealCodex()) moveToCodex("tap")();
       launchCodexIfIdle();
     });
     // Fades from wherever the cursor actually is, which is the agent chip when
     // Codex could not be reached.
-    mime(10700, () =>
+    mime(codexMs + 500, () =>
       setAutoCursor((cur) =>
         cur.phase === "hidden" ? cur : { phase: "fade", x: cur.x, y: cur.y },
       ),
     );
-    mime(11200, () => setAutoCursor({ phase: "hidden" }));
+    step(codexMs + 1000, () => {
+      if (!cursorHidden) setAutoCursor({ phase: "hidden" });
+      setTourPlaying(false);
+    });
 
     return () => {
       // Scrolling away mid-flight would otherwise strand the mimed cursor on
@@ -437,6 +488,8 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
       cancelled = true;
       clearTimers();
       hideCursor();
+      tourCancelRef.current = null;
+      setTourPlaying(false);
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerdown", onPointerDown);
       container.removeEventListener("keydown", onKeyDown);
@@ -855,6 +908,35 @@ export function DemoApp({ heightCss, heightCssSm }: DemoAppProps) {
     selectProject(newProject.name);
     setAdding(false);
   };
+
+  // A step clicked in the list runs everything up to it, so the list never
+  // shows a later step done with an earlier one still pending. Each control is
+  // pressed at most once: Start is a toggle, and a second click on an agent
+  // chip would open a duplicate tab.
+  useImperativeHandle(tourRef, () => ({
+    run: (id: TourStepId) => {
+      autoCursorRanRef.current = true;
+      tourCancelRef.current?.();
+      markInteracted();
+      if (!project) return;
+      const name = project.name;
+      const upTo = TOUR_STEPS.findIndex((s) => s.id === id);
+      const tree = treeByProject[name];
+      const hasTab = (agent: "claude" | "codex") => {
+        const label = project.actions.find((a) => a.agent === agent)?.label;
+        return (
+          !!tree &&
+          collectLeaves(tree).some((leaf) =>
+            leaf.tabs.some((t) => t.kind === "action" && t.label === label),
+          )
+        );
+      };
+      if (upTo >= 0 && !runningByProject[name]?.size)
+        startButtonRef.current?.click();
+      if (upTo >= 1 && !hasTab("claude")) agentButtonRef.current?.click();
+      if (upTo >= 2 && !hasTab("codex")) codexButtonRef.current?.click();
+    },
+  }));
 
   // A pill that never leaves reads as chrome rather than a prompt. The clock
   // only runs while the frame is parked in the viewport, so its whole life is
