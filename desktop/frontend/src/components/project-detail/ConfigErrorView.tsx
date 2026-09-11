@@ -1,5 +1,5 @@
 import { ConfigEditor } from "../ConfigEditor";
-import { AlertCircleIcon, PencilIcon } from "../icons";
+import { AlertCircleIcon, SettingsIcon } from "../icons";
 
 interface ConfigErrorViewProps {
   projectName: string;
@@ -54,7 +54,7 @@ export function ConfigErrorView({
                 onClick={onShowConfigEditor}
                 className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
               >
-                <PencilIcon />
+                <SettingsIcon />
                 Edit Config
               </button>
               <button

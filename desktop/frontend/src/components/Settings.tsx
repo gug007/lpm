@@ -72,7 +72,7 @@ import { Modal } from "./ui/Modal";
 import { TrafficLights } from "./ui/TrafficLights";
 import { MobileSettingsPane } from "./MobileSettingsPane";
 import { ConnectionsPane } from "./ConnectionsPane";
-import { PencilIcon, PlusIcon, TrashIcon } from "./icons";
+import { PlusIcon, SettingsIcon, TrashIcon } from "./icons";
 import { useAppStore } from "../store/app";
 import { useAccountsStore } from "../store/accounts";
 import type { ClaudeAccount } from "../types";
@@ -1732,7 +1732,7 @@ function TemplateRow({
               className="flex h-6 w-6 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
               title="Edit config"
             >
-              <PencilIcon />
+              <SettingsIcon />
             </button>
             <button
               onClick={onDelete}

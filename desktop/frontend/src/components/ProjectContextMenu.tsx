@@ -1,4 +1,4 @@
-import { BrainIcon, BranchIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, HardDriveIcon, MessageIcon, PencilIcon, SparkleIcon, TrashIcon } from "./icons";
+import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -166,6 +166,14 @@ export function ProjectContextMenu({
           ))}
         </ContextMenuSubmenu>
       )}
+      {!remote && (
+        <OpenInBrowserSubmenu
+          projectName={projectName}
+          running={running}
+          services={services}
+          onClose={onClose}
+        />
+      )}
       <ProjectGitSubmenu
         projectPath={projectPath}
         onCommit={onGitCommit}
@@ -187,6 +195,17 @@ export function ProjectContextMenu({
           onClose={onClose}
         />
       )}
+      {!remote && (
+        <ContextMenuSubmenu label="Project files" icon={<FileIcon size={14} />}>
+          <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut="⌘E" onClick={close(onEditConfig)} />
+          <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut="⌘⇧N" onClick={close(onOpenNotes)} />
+          <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
+          {!sshRemote && (
+            <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut="⌘⇧M" onClick={close(onOpenMemory)} />
+          )}
+        </ContextMenuSubmenu>
+      )}
+      <ContextMenuSeparator />
       <ContextMenuItem
         label="Duplicate"
         icon={<CopyIcon />}
@@ -195,7 +214,7 @@ export function ProjectContextMenu({
       />
       <ContextMenuItem
         label="New Worktree"
-        icon={<BranchIcon />}
+        icon={<WorktreeIcon />}
         onClick={close(onWorktree)}
         disabled={duplicateDisabled}
       />
@@ -241,24 +260,7 @@ export function ProjectContextMenu({
           />
         </>
       )}
-      {!remote && (
-        <OpenInBrowserSubmenu
-          projectName={projectName}
-          running={running}
-          services={services}
-          onClose={onClose}
-        />
-      )}
-      {!remote && (
-        <>
-          <ContextMenuItem label="Edit Config" icon={<PencilIcon />} shortcut="⌘E" onClick={close(onEditConfig)} />
-          <ContextMenuItem label="Notes" icon={<MessageIcon />} shortcut="⌘⇧N" onClick={close(onOpenNotes)} />
-          <ContextMenuItem label="AI Instructions" icon={<SparkleIcon />} onClick={close(onOpenAI)} />
-          {!sshRemote && (
-            <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut="⌘⇧M" onClick={close(onOpenMemory)} />
-          )}
-        </>
-      )}
+      <ContextMenuSeparator />
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
       {!remote &&

@@ -1,4 +1,4 @@
-import { HistoryIcon, PencilIcon, TerminalIcon } from "../icons";
+import { HistoryIcon, SettingsIcon, TerminalIcon } from "../icons";
 
 interface EmptyTerminalStateProps {
   projectName: string;
@@ -36,7 +36,7 @@ export function EmptyTerminalState({ projectName, onNewTerminal, onEditConfig, o
             onClick={onEditConfig}
             className="flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >
-            <PencilIcon />
+            <SettingsIcon />
             Edit Config
             <kbd className="ml-1 text-[10px] opacity-70">⌘E</kbd>
           </button>
