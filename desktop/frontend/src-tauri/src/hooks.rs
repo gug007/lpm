@@ -383,6 +383,11 @@ fn merge_claude_hooks(data: &[u8]) -> Option<Vec<u8>> {
     append_hook(hooks, "SessionStart", claude_hook(&set_resume, ""));
     append_hook(hooks, "UserPromptSubmit", claude_hook(&set_running, ""));
     append_hook(hooks, "PreToolUse", claude_hook(&set_running, ""));
+    // Approving a permission fires no hook of its own, so the Waiting that the
+    // prompt raised would outlive the dialog until the NEXT tool call — a long
+    // build right after an approval read as "needs you" the whole way through.
+    // PostToolUse is the first event after the approved tool has run.
+    append_hook(hooks, "PostToolUse", claude_hook(&set_running, ""));
     append_hook(
         hooks,
         "Notification",
@@ -2224,6 +2229,7 @@ mod tests {
             "SessionStart",
             "UserPromptSubmit",
             "PreToolUse",
+            "PostToolUse",
             "Notification",
             "Stop",
             "StopFailure",
@@ -2260,6 +2266,7 @@ mod tests {
         for ev in [
             "UserPromptSubmit",
             "PreToolUse",
+            "PostToolUse",
             "Notification",
             "Stop",
             "StopFailure",
@@ -3356,6 +3363,7 @@ mod tests {
         for ev in [
             "UserPromptSubmit",
             "PreToolUse",
+            "PostToolUse",
             "Notification",
             "Stop",
             "StopFailure",
@@ -3364,6 +3372,24 @@ mod tests {
             let cmd = v["hooks"][ev][0]["hooks"][0]["command"].as_str().unwrap();
             assert!(cmd.contains("python3 -c"), "{ev} uses the portable chain");
         }
+    }
+
+    /// Nothing fires when a permission prompt is approved, so the Waiting it
+    /// raised must be taken back by the first event after the tool has run.
+    #[test]
+    fn claude_post_tool_use_reasserts_running_after_an_approval() {
+        let out = merge_claude_hooks(b"{}").unwrap();
+        let v: Value = serde_json::from_slice(&out).unwrap();
+        let post = v["hooks"]["PostToolUse"].as_array().unwrap();
+        assert_eq!(post.len(), 1);
+        assert_eq!(post[0]["matcher"], "");
+        let cmd = post[0]["hooks"][0]["command"].as_str().unwrap();
+        let payload = r#"{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/p","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"cargo build"},"tool_response":{"stdout":"ok"}}"#;
+        let msg = run_codex_hook(cmd, payload).unwrap();
+        assert!(
+            msg.contains("claude_code_s1 Running") && msg.contains("--pane=pane-1"),
+            "{msg}"
+        );
     }
 
     #[test]

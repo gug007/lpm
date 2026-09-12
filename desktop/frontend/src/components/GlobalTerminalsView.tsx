@@ -7,6 +7,7 @@ import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { useProjectActions } from "../hooks/useProjectActions";
+import { useGlobalTerminalStatus } from "../hooks/useGlobalTerminalStatus";
 import { ActionInputsModal } from "./project-detail/ActionInputsModal";
 import { ActionTerminal } from "./project-detail/ActionTerminal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -38,6 +39,7 @@ export function GlobalTerminalsView({
   const headerInnerRef = useRef<HTMLDivElement>(null);
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
+  const paneStatus = useGlobalTerminalStatus(visible);
 
   const [actions, setActions] = useState<ActionInfo[]>([]);
   useEffect(() => {
@@ -130,6 +132,7 @@ export function GlobalTerminalsView({
           fontSize={fontSize}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
+          paneStatus={paneStatus}
           visible={visible && !showEmptyState}
         />
       </div>
