@@ -740,20 +740,28 @@ fn send_cmd_with_sid(cmd: &str) -> String {
 /// it", empty when nothing is in flight. Non-empty -> re-assert Running and let
 /// the real Done land on the turn that ends with nothing pending.
 ///
-/// Two entry kinds are NOT a pause. A `teammate` (an in-process teammate
+/// Three entry kinds are NOT a pause. A `teammate` (an in-process teammate
 /// agent): the harness leaves it registered with `status: "running"` for the
 /// whole session and tracks liveness in a separate `isIdle` flag that it never
 /// serializes into the hook payload, so an idle teammate is byte-identical to a
-/// working one. And a `monitor` (a wake-on-event watch): publishing an Artifact
+/// working one. A `monitor` (a wake-on-event watch): publishing an Artifact
 /// auto-arms a persistent ambient comment watcher (`timeout_ms: 0`, status
 /// `running` forever) that rides in every later Stop payload, so any session
 /// that published an artifact would otherwise pin on Running for good; a
 /// deliberate Monitor watch is a wake-later signal like `session_crons`, which
-/// have never held Running either. A turn that ends with nothing but teammates
-/// and monitors in flight is a real finish, and treating it as a pause pinned
-/// tabs on Running for hours — every later Stop re-reported the same value,
-/// which dedups away in status.rs and so never healed. These are therefore the
-/// only types that can be downgraded, and only on POSITIVE evidence.
+/// have never held Running either. And a `shell` (a backgrounded Bash command):
+/// nothing is thinking while it runs — the harness's own transcript calls the
+/// turn done and merely notes "1 shell still running" — and its exit, like a
+/// monitor firing, starts a fresh turn whose own hooks re-assert Running and
+/// land a Done of their own. The payload carries no start time and no hint of
+/// what the command is, so a dev server or job worker an agent deliberately
+/// leaves running for the user's manual test is indistinguishable from a build
+/// it expects to be woken by — and the server never exits. A turn that ends
+/// with nothing but teammates, monitors and shells in flight is a real finish,
+/// and treating it as a pause pinned tabs on Running for hours — every later
+/// Stop re-reported the same value, which dedups away in status.rs and so never
+/// healed. These are therefore the only types that can be downgraded, and only
+/// on POSITIVE evidence.
 ///
 /// JSON escapes `"` inside strings but leaves `{`, `}` and `[`, `]` raw, so no
 /// check on the shape of a naively cut array body can tell "the array closed"
@@ -761,9 +769,10 @@ fn send_cmd_with_sid(cmd: &str) -> String {
 /// `}]` would cut the body mid-entry, balance its own braces, and hide a live
 /// workflow behind the cut. The scan therefore tokenizes before it slices:
 /// `s/\\./Z/g` collapses every escape, after which a `"` can only be a real
-/// string delimiter; the ignorable `"type"` forms (`teammate`, `monitor`)
-/// collapse to `T` and every other type to `X`; and `s/"[^"]*"/Q/g` blanks what
-/// is left of every string. The
+/// string delimiter; the ignorable `"type"` forms (`teammate`, `monitor`,
+/// `shell`) collapse to `T` and every other type to `X`; and `s/"[^"]*"/Q/g`
+/// blanks what is left of every string — a shell's `command` included, so a
+/// command line that quotes a task type is text like any other. The
 /// survivors are pure structure, so `${f%%]*}` now cuts at the array's own close
 /// and the counts mean what they say: as many objects as `{`, as many `T` as
 /// objects, no `X`, no stray `[` (a nested array would cut early). A body that
@@ -788,7 +797,7 @@ fn claude_stop_cmd() -> String {
     let running = "Running --icon=bolt --color=#4C8DFF";
     let ty = "\"type\"[[:space:]]*:[[:space:]]*";
     format!(
-        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{recover} p=$(cat); sid=$(printf '%s' \"$p\" | sed -n 's/.*\"session_id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p'); bt=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[[[:space:]]*\\(.\\{{0,1\\}}\\).*/\\1/p'); st=\"{done}\"; if [ \"$bt\" = \"{{\" ]; then st=\"{running}\"; f=$(printf '%s' \"$p\" | sed -n 's/.*\"background_tasks\"[[:space:]]*:[[:space:]]*\\[//p' | sed -e 's/\\\\./Z/g' -e 's/{ty}\"teammate\"/T/g' -e 's/{ty}\"monitor\"/T/g' -e 's/{ty}\"shell\"/T/g' -e 's/{ty}\"[^\"]*\"/X/g' -e 's/\"[^\"]*\"/Q/g'); b=${{f%%]*}}; case \"$f\" in *\"]\"*) case \"$b\" in *\"[\"*) ;; *) n=$(printf '%s' \"$b\" | tr -cd '{{' | wc -c | tr -d ' '); c=$(printf '%s' \"$b\" | tr -cd '}}' | wc -c | tr -d ' '); k=$(printf '%s' \"$b\" | tr -cd 'T' | wc -c | tr -d ' '); x=$(printf '%s' \"$b\" | tr -cd 'X' | wc -c | tr -d ' '); if [ \"$n\" -gt 0 ] && [ \"$n\" = \"$c\" ] && [ \"$k\" = \"$n\" ] && [ \"$x\" = 0 ]; then st=\"{done}\"; fi;; esac;; esac; fi; m=\"set_status '$LPM_PROJECT_NAME' {key} $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2951,12 +2960,12 @@ mod tests {
         );
 
         let msg = stop(
-            "Building in the background.",
-            r#"[{"id":"bt1","type":"teammate","status":"running","description":"x"},{"id":"bt2","type":"shell","status":"running","description":"npm run build","command":"npm run build"}]"#,
+            "Reviewing in the background.",
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"x"},{"id":"bt2","type":"subagent","status":"running","description":"Review the diff","agent_type":"general-purpose"}]"#,
         );
         assert!(
             msg.contains("claude_code_s1 Running"),
-            "a backgrounded shell alongside a teammate still pauses the turn: {msg}"
+            "a backgrounded subagent alongside a teammate still pauses the turn: {msg}"
         );
 
         let msg = stop(
@@ -2974,7 +2983,7 @@ mod tests {
         // that ends a truncated body on a balanced-looking brace.
         for tasks in [
             r#"[{"id":"bt1","type":"teammate","status":"running","description":"Fix the stray }] in package.json"},{"id":"bt2","type":"workflow","status":"running","description":"deploy","name":"release"}]"#,
-            r#"[{"id":"bt1","type":"teammate","status":"running","description":"see }]}x"},{"id":"bt2","type":"shell","status":"running","description":"npm run build","command":"npm run build"}]"#,
+            r#"[{"id":"bt1","type":"teammate","status":"running","description":"see }]}x"},{"id":"bt2","type":"subagent","status":"running","description":"Review the diff","agent_type":"general-purpose"}]"#,
             r#"[{"id":"bt1","type":"teammate","status":"running","description":"x}],y"},{"id":"bt2","type":"teammate","status":"running","description":"q"},{"id":"bt3","type":"workflow","status":"running","description":"w"}]"#,
             r#"[{"id":"bt1","type":"teammate","status":"running","description":"rerun step [2] of the plan"},{"id":"bt2","type":"workflow","status":"running","description":"y"}]"#,
         ] {
@@ -3090,12 +3099,86 @@ mod tests {
         );
 
         let msg = stop(
-            "Building.",
-            r#"[{"id":"bt1","type":"shell","status":"running","description":"set \"type\":\"monitor\" in config.json","command":"npm run build"}]"#,
+            "Editing.",
+            r#"[{"id":"bt1","type":"subagent","status":"running","description":"set \"type\":\"monitor\" in config.json","agent_type":"general-purpose"}]"#,
         );
         assert!(
             msg.contains("claude_code_s1 Running"),
-            "a description quoting the monitor type must not hide a live shell: {msg}"
+            "a description quoting the monitor type must not hide a live subagent: {msg}"
+        );
+    }
+
+    /// A backgrounded shell is a wake-on-exit signal, not work: the harness
+    /// calls the turn done beside it, and its exit starts a fresh turn that
+    /// re-asserts Running itself. The payload cannot tell a build from a dev
+    /// server or job worker left running for the user, and the latter never
+    /// exits — so a shell-only Stop is a finish. Anything with an agent behind
+    /// it still pauses.
+    #[test]
+    fn claude_stop_hook_treats_background_shells_as_finished() {
+        let cmd = claude_stop_cmd();
+        let base = r#"{"session_id":"s1","transcript_path":"/tmp/t.jsonl","cwd":"/tmp/p","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"MSG","background_tasks":TASKS,"session_crons":[]}"#;
+        let stop = |msg: &str, tasks: &str| {
+            let payload = base.replace("MSG", msg).replace("TASKS", tasks);
+            run_codex_hook(&cmd, &payload).unwrap()
+        };
+
+        let msg = stop(
+            "Sidekiq is still running in the background for your manual test.",
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"Run Sidekiq in the background","command":"cd /tmp/p && bundle exec sidekiq -C config/sidekiq.yml"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "a server left running in the background is not in-flight work: {msg}"
+        );
+
+        let msg = stop(
+            "Building; I will pick up when it finishes.",
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"Build the desktop app","command":"cargo build --release 2>&1 | tail -20"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "a build whose exit will wake the session is a finish for now: {msg}"
+        );
+
+        let msg = stop(
+            "Done.",
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"Start the dev server","command":"npm run dev"},{"id":"bt2","type":"monitor","status":"running","description":"Artifact comment watch (auto-armed on publish)"},{"id":"bt3","type":"teammate","status":"running","description":"Fix the tests"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Done"),
+            "shells beside monitors and teammates are still a finish: {msg}"
+        );
+
+        let msg = stop(
+            "Auditing.",
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"Start the dev server","command":"npm run dev"},{"id":"bt2","type":"subagent","status":"running","description":"Audit the UI","agent_type":"general-purpose"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a subagent alongside a shell still pauses the turn: {msg}"
+        );
+
+        // A command line is JSON text like a description: its quoting of a
+        // task type, and its own braces and brackets, must not reach the scan.
+        for tasks in [
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"Write config","command":"printf '%s' '{\"type\":\"workflow\"}' > config.json"}]"#,
+            r#"[{"id":"bt1","type":"shell","status":"running","description":"List","command":"for f in a[0-9]; do echo ${f}]; done"}]"#,
+        ] {
+            let msg = stop("Done.", tasks);
+            assert!(
+                msg.contains("claude_code_s1 Done"),
+                "punctuation in a shell command is not in-flight work: {msg}"
+            );
+        }
+
+        let msg = stop(
+            "Thinking.",
+            r#"[{"id":"bt1","type":"shells","status":"running","description":"x"}]"#,
+        );
+        assert!(
+            msg.contains("claude_code_s1 Running"),
+            "a near-miss type name must not be downgraded: {msg}"
         );
     }
 
