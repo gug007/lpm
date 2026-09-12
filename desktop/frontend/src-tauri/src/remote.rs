@@ -3783,12 +3783,17 @@ fn handle_msg(
         }
         // Create a new empty project OR register an existing folder. create_dir_all
         // + a config write is fast, so inline; create_project emits projects-changed.
+        // The reply names the project as it landed: a taken name gets a suffix,
+        // and a folder that is already a project answers with that project.
         "createProject" => {
             let name = str_field("name").unwrap_or_default();
             let root = str_field("root").unwrap_or_default();
-            let r = crate::projects_crud::create_project(app.clone(), name.clone(), root);
-            let mut reply = result_reply("createProject", r);
-            reply["name"] = json!(name);
+            let reply = match crate::projects_crud::create_project(app.clone(), name.clone(), root)
+            {
+                Ok(adopted) => json!({ "t": "createProject", "ok": true,
+                "name": adopted.name, "existing": adopted.existing }),
+                Err(e) => json!({ "t": "createProject", "ok": false, "name": name, "error": e }),
+            };
             send(ws, reply)?;
         }
         // Add an SSH (remote) project. Inline — writes a config file, no network.

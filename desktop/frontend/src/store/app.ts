@@ -76,6 +76,7 @@ import {
 import { mergeWithDisk } from "../components/sidebarMerge";
 import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
 import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
+import { adoptedProject, adoptionNotice, folderBaseName, type AdoptedProject } from "./adoptProject";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
@@ -211,6 +212,7 @@ interface AppState {
   closeAddProjectPicker: () => void;
   closeRemoteFolderPicker: () => void;
   createRemoteProjectFromFolder: (hostDir: string) => Promise<void>;
+  noteAdoption: (adopted: AdoptedProject, requested: string, where: string) => void;
   pickAddProjectKind: (kind: "local" | "ssh" | "clone") => Promise<void>;
   closeSSHModal: () => void;
   addSSHProject: (params: SSHProjectParams) => Promise<void>;
@@ -1152,21 +1154,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   createRemoteProjectFromFolder: async (hostDir) => {
     const target = get().addProjectTarget;
     if (!target) return;
-    const name = hostDir.split("/").filter(Boolean).pop() || "new-project";
+    const name = folderBaseName(hostDir);
     try {
       // The marked root routes CreateProject to the peer (marker stripped before
       // it reaches the host), so the folder is adopted on the remote Mac.
-      await CreateProject(name, prefixRoot(target.slug, hostDir));
+      const adopted = adoptedProject(
+        await CreateProject(name, prefixRoot(target.slug, hostDir)),
+        prefixName(target.slug, name),
+      );
       await get().refreshProjects();
       set({
-        selected: prefixName(target.slug, name),
+        selected: adopted.name,
         view: "projects",
         remoteFolderPickerOpen: false,
         addProjectTarget: null,
       });
+      get().noteAdoption(adopted, name, target.alias);
     } catch (err) {
       toast.error(`Failed to add project on ${target.alias}: ${err}`);
     }
+  },
+
+  // Say so when a folder didn't land under its own name: it was already a
+  // project (shown under whatever label it carries), or that name was taken.
+  noteAdoption: (adopted, requested, where) => {
+    const label = get().projects.find((p) => p.name === adopted.name)?.label;
+    const notice = adoptionNotice(adopted, requested, label, where);
+    if (notice) toast.info(notice);
   },
 
   pickAddProjectKind: async (kind) => {
@@ -1189,10 +1203,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const dir = await BrowseFolder(getSettings().defaultProjectDirectory);
       if (!dir) return;
-      const name = dir.split("/").pop() || "new-project";
-      await CreateProject(name, dir);
+      const name = folderBaseName(dir);
+      const adopted = adoptedProject(await CreateProject(name, dir), name);
       await get().refreshProjects();
-      set({ selected: name, view: "projects" });
+      set({ selected: adopted.name, view: "projects" });
+      get().noteAdoption(adopted, name, "");
     } catch (err) {
       toast.error(`Failed to add project: ${err}`);
     }

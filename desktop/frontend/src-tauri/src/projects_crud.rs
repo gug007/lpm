@@ -1,6 +1,7 @@
 // Project CRUD — port of desktop/projects.go create/remove, clone.go, and
 // duplicate.go. macOS-only. No new Cargo deps: git/cp run as subprocesses,
 // uuid (existing) provides entropy, serde_norway writes configs.
+use crate::adopt::{self, AdoptedProject};
 use crate::config;
 use serde::Deserialize;
 use serde_norway::{Mapping, Value as Yaml};
@@ -45,13 +46,25 @@ fn dev_services() -> Yaml {
 
 // ---- create -----------------------------------------------------------------
 
+/// Adopt `root` as a project. `name` is the folder's name and only a wish: a
+/// project of that name may already exist under a label that hides it, so the
+/// folder takes the next free name instead of failing; a folder that is already
+/// a project simply answers with that project.
 #[tauri::command(async)]
-pub fn create_project(app: AppHandle, name: String, root: String) -> Result<(), String> {
+pub fn create_project(
+    app: AppHandle,
+    name: String,
+    root: String,
+) -> Result<AdoptedProject, String> {
     config::validate_name(&name)?;
-    if config::project_exists(&name) {
-        return Err(format!("project {name:?} already exists"));
-    }
     let abs_root = config::expand_home(&root);
+    if let Some(existing) = adopt::project_at_root(&abs_root) {
+        return Ok(AdoptedProject {
+            name: existing,
+            existing: true,
+        });
+    }
+    let name = adopt::available_name(&name, config::project_exists);
     std::fs::create_dir_all(&abs_root).map_err(|e| e.to_string())?;
     write_project_yaml(&name, |m| {
         yset(m, "name", name.as_str());
@@ -59,7 +72,10 @@ pub fn create_project(app: AppHandle, name: String, root: String) -> Result<(), 
         m.insert(Yaml::from("services"), dev_services());
     })?;
     let _ = app.emit("projects-changed", ());
-    Ok(())
+    Ok(AdoptedProject {
+        name,
+        existing: false,
+    })
 }
 
 /// Register a folder synced from another Mac. No placeholder service: whatever it

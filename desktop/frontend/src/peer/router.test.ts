@@ -122,6 +122,15 @@ describe("translateResult", () => {
     ]);
   });
 
+  it("prefixes the name an adopted folder landed under", () => {
+    expect(translateResult("create_project", A, { name: "app-2", existing: false })).toEqual({
+      name: prefixName(A, "app-2"),
+      existing: false,
+    });
+    // An older host answers with nothing; the caller falls back to the folder's name.
+    expect(translateResult("create_project", A, null)).toBeNull();
+  });
+
   it("passes other results through unchanged", () => {
     expect(translateResult("git_status", A, { clean: true })).toEqual({ clean: true });
     // start_terminal ids are prefixed by the route wiring, not the pure table.

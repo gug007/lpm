@@ -152,6 +152,12 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   if (cmd === "duplicate_projects" && Array.isArray(result)) {
     return result.map((n) => (typeof n === "string" ? prefixName(slug, n) : n));
   }
+  // Adopting a folder answers with the name it landed under (the folder's own
+  // unless that was taken); an older host answers with nothing.
+  if (cmd === "create_project" && result && typeof result === "object") {
+    const r = result as { name?: unknown };
+    if (typeof r.name === "string") return { ...result, name: prefixName(slug, r.name) };
+  }
   return result;
 }
 

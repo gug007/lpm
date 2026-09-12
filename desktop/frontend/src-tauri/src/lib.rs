@@ -1,4 +1,5 @@
 mod actions;
+mod adopt;
 mod agent_last_answer;
 mod agent_last_answer_codex;
 mod agent_limits;
