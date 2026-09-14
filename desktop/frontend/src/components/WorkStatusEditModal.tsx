@@ -75,7 +75,7 @@ export function WorkStatusEditModal({ editor, palette, onSubmit, onClose }: Work
         </h3>
         <p className="mt-1.5 text-[12px] leading-snug text-[var(--text-muted)]">
           {editing
-            ? "Every copy wearing this status follows the change."
+            ? "Every project wearing this status follows the change."
             : `Goes on ${editor?.kind === "add" ? editor.applyTo : ""} right away.`}
         </p>
         <div className="relative mt-2">

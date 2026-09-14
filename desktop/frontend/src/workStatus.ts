@@ -119,7 +119,7 @@ export const BUILT_IN_WORK_STATUSES: WorkStatusChoice[] = [
 const customKey = (entry: CustomWorkStatus) =>
   workStatusKey({ state: "custom", label: entry.label });
 
-// Where the copy is in its life in the order it moves through them, then why
+// Where the work is in its life in the order it moves through them, then why
 // it is not moving, hardest to lift first. The user can reorder the menu, so
 // this is only where a status starts out.
 export const DEFAULT_WORK_STATUS_ORDER: string[] = [

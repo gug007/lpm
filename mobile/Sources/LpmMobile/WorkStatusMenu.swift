@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Status ▸" in a duplicate's menu: every status the app ships with and the
+/// "Status ▸" in a project's menu: every status the app ships with and the
 /// user's own from the Mac, in the order the Mac's Settings put them, then
 /// Clear once something is set. A status that asks for a line (Blocked, or a
 /// custom one flagged for it) opens the note prompt instead of applying at once.
@@ -18,7 +18,7 @@ struct WorkStatusMenu: View {
             }
             if let current {
                 Divider()
-                Button { pick(nil) } label: {
+                Button(role: .destructive) { pick(nil) } label: {
                     Label("Clear \(current.displayLabel)", systemImage: "xmark.circle")
                 }
             }

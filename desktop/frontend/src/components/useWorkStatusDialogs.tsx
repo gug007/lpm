@@ -51,7 +51,7 @@ export function useWorkStatusDialogs({ projects, onSetWorkStatus }: WorkStatusDi
       custom: removeCustomWorkStatus(palette, label),
       ...alsoOrder(removeFromWorkStatusOrder(order, label)),
     });
-    toast.success(`Removed ${label}. Copies wearing it keep it until you change them.`);
+    toast.success(`Removed ${label}. Projects wearing it keep it until you change them.`);
   };
   const reorder = (next: string[]) => saveWorkStatuses({ order: next });
 

@@ -2752,8 +2752,8 @@ fn handle_msg(
             let r = crate::commands_real::set_project_label(app.clone(), project.clone(), name);
             send(ws, git_result_reply("renameProject", &project, r))?;
         }
-        // Set or clear a duplicate's person-set work status, reusing the desktop's
-        // set_work_status (writes the duplicate's own YAML, emits `projects-changed`
+        // Set or clear a project's person-set work status, reusing the desktop's
+        // set_work_status (writes the project's own YAML, emits `projects-changed`
         // so the desktop webview and paired phones both refresh). A null or absent
         // `status` clears the block. Another local config op — no main window needed.
         "setWorkStatus" => {

@@ -14,7 +14,7 @@ export function WorkStatusRemoveConfirm({ open, label, onCancel, onConfirm }: Wo
     <ConfirmDialog
       open={open}
       title={`Remove ${label}?`}
-      body="It leaves the Status menu. Copies wearing it keep it until you change them."
+      body="It leaves the Status menu. Projects wearing it keep it until you change them."
       confirmLabel="Remove"
       variant="destructive"
       zIndexClassName="z-[70]"

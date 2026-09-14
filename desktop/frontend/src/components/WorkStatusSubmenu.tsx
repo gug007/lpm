@@ -83,6 +83,7 @@ export function WorkStatusSubmenu({
         <ContextMenuItem
           label={`Clear ${workStatusLabel(current)}`}
           icon={<span className="block w-3.5" />}
+          destructive
           onClick={then(() => onPick(null))}
         />
       )}

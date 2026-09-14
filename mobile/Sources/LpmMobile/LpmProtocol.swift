@@ -1244,8 +1244,8 @@ struct Project: Identifiable {
     let parentName: String
     // A duplicate made as a linked git worktree rather than a folder copy.
     let worktree: Bool
-    // The status a person set on this duplicate, distinct from statusEntries
-    // (what the agent is doing). Absent on originals and on a copy with none.
+    // The status a person set on this project, distinct from statusEntries
+    // (what the agent is doing). Absent when none is set.
     let workStatus: WorkStatus?
     let statusEntries: [StatusEntry]
     let services: [Service]      // currently running
@@ -1256,8 +1256,8 @@ struct Project: Identifiable {
 
     var id: String { name }
     var isDuplicate: Bool { !parentName.isEmpty }
-    /// The desktop offers the Status menu on a local duplicate only.
-    var canHaveWorkStatus: Bool { isDuplicate && !isRemote }
+    /// The desktop offers the Status menu on every local project.
+    var canHaveWorkStatus: Bool { !isRemote }
 
     init(_ o: [String: Any]) {
         name = o["name"] as? String ?? ""

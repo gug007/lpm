@@ -1,6 +1,6 @@
 import Foundation
 
-// The person-set work status on a duplicate — "what I want done with this copy",
+// The person-set work status on a project — "what I want done with it",
 // as opposed to StatusEntry, which is what the agent is doing. Mirrors the
 // desktop's src/workStatus.ts so both surfaces read a status the same way, and
 // the Mac's set_work_status, so the row the phone paints before the reply lands
@@ -179,7 +179,7 @@ let defaultWorkStatusPalette: [CustomWorkStatus] = [
     CustomWorkStatus(label: "Paused", emoji: "⏸️", withNote: true),
 ]
 
-// Where the copy is in its life in the order it moves through them, then why it
+// Where the work is in its life in the order it moves through them, then why it
 // is not moving; the user can reorder the menu, so this is only the default.
 let defaultWorkStatusOrder: [String] = [
     WorkState.inProgress.rawValue,

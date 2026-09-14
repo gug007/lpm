@@ -47,8 +47,8 @@ interface ProjectContextMenuProps {
   projectPath: string | null;
   groups: ProjectGroup[];
   currentGroupId: string | null;
-  // A duplicate's own status, the statuses the menu offers, and the ways to
-  // set, add or edit them; the submenu only shows on a duplicate.
+  // The project's own status, the statuses the menu offers, and the ways to
+  // set, add or edit them; the submenu shows on every local project.
   workStatus?: WorkStatus;
   customWorkStatuses: CustomWorkStatus[];
   workStatusOrder?: string[];
@@ -182,7 +182,7 @@ export function ProjectContextMenu({
         onDiscardAll={onGitDiscardAll}
         onClose={onClose}
       />
-      {isDuplicate && !remote && (
+      {!remote && (
         <WorkStatusSubmenu
           current={workStatus}
           custom={customWorkStatuses}

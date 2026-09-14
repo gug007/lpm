@@ -123,7 +123,7 @@ export type CopyRunMode = RunMode | "default";
 
 export type WorkState = "in_progress" | "blocked" | "done" | "custom";
 
-// A person's own reading of a duplicate, apart from what its agent is doing
+// A person's own reading of a project, apart from what its agent is doing
 // (statusEntries). A custom status carries its label and emoji with it, so
 // the row still reads after that status leaves the palette in Settings.
 export interface WorkStatus {
