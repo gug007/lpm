@@ -35,14 +35,16 @@ export function ComposerModelMenuRow({
       onMouseDown={onMouseDown}
       onMouseEnter={onMouseEnter}
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-[5px] text-left text-[12.5px] leading-4 transition-colors ${
-        cursor ? (dim ? "bg-[var(--bg-hover)]/50" : "bg-[var(--bg-hover)]") : ""
+      className={`mx-1 flex w-[calc(100%-8px)] items-center gap-2 rounded-md px-2 py-[5px] text-left text-[12.5px] leading-4 transition-colors duration-75 ${
+        cursor ? (dim ? "bg-[var(--bg-hover)]" : "bg-[var(--bg-active)]") : ""
       } ${
         disabled
           ? "cursor-default text-[var(--text-muted)] opacity-40"
           : checked
             ? "font-medium text-[var(--text-primary)]"
-            : "text-[var(--text-secondary)]"
+            : cursor
+              ? "text-[var(--text-primary)]"
+              : "text-[var(--text-secondary)]"
       }`}
     >
       {/* A radio mark, not a tick: the row is one choice among alternatives,
