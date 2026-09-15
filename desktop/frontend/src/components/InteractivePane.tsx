@@ -308,6 +308,20 @@ export function isInteractivePaneSessionDead(terminalId: string): boolean {
   return interactiveSessions.get(terminalId)?.sessionDead ?? false;
 }
 
+/** Whether a terminal has a live pane session at all. Distinct from
+ *  isInteractivePaneSessionDead, which reads a *known* session's state and so
+ *  answers false for one that was never registered or has been disposed. */
+export function hasInteractivePaneSession(terminalId: string): boolean {
+  return interactiveSessions.has(terminalId);
+}
+
+/** When the pane last received output (a performance.now() stamp; 0 for no
+ *  session). Cheap enough to poll, so a reader of the pane's text can re-read
+ *  only when something actually arrived instead of on every tick. */
+export function interactivePaneOutputAt(terminalId: string): number {
+  return interactiveSessions.get(terminalId)?.lastOutputAt ?? 0;
+}
+
 // Plain-text snapshot of a terminal's recent scrollback + screen, for the
 // composer's "@<terminal>" mention. xterm's SerializeAddon replays the buffer
 // with ANSI intact, so strip it; bounded to the last `maxLines` scrollback rows

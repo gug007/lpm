@@ -38,6 +38,10 @@ import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerMicButton } from "./ComposerMicButton";
 import { ComposerMemoryButton } from "./ComposerMemoryButton";
+import { ComposerModelButton } from "./ComposerModelButton";
+import { EMPTY_PICK, switchableCLI } from "../agentModelSwitch";
+import { isSwitchingModel, useAgentModelSwitch } from "../hooks/useAgentModelSwitch";
+import { useAgentModelPicks } from "../store/agentModelPicks";
 import {
   createInputTab,
   deliverPromptDraft,
@@ -297,6 +301,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // agent); plain shells get no menu. Commands load lazily on focus.
   const slashCli = detectAICLI(launchCmd);
   const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
+  // Only Claude Code and Codex can be re-pointed at another model mid-session,
+  // so only their terminals get the model switcher in the button row.
+  const switchCli = switchableCLI(slashCli);
+  const modelPick = useAgentModelPicks((s) => s.byTerminal[terminalId]) ?? EMPTY_PICK;
+  const modelSwitch = useAgentModelSwitch({
+    terminalId,
+    cli: switchCli,
+    submit: (text) => onSubmit(text),
+  });
   // "@" mentions work in every terminal composer, not just agent terminals — the
   // referenced text is useful to any CLI. They load only while the composer is
   // focused, so a background tab still pays nothing for the tree walk / git call.
@@ -1059,6 +1072,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const deliverPrompt = async (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
     if (!editor) return;
+    // A model switch has the agent's picker open and drives it with raw keys; a
+    // prompt pasted into that lands as picker input and its CR confirms whatever
+    // row is highlighted. The draft is kept, so ↵ again once the switch settles.
+    if (isSwitchingModel(terminalId)) {
+      toast.error("Switching model — try again in a moment.");
+      return;
+    }
     // The editor stays editable across the upload await, so pin which prompt is
     // being sent now; a concurrent tab switch must not redirect the retire below.
     const sentId = activeId.current;
@@ -1099,6 +1119,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // then focus moves to the terminal to watch the result.
   const sendFromHistory = async (text: string, images: Record<string, string>) => {
     if (!text.trim()) return;
+    if (isSwitchingModel(terminalId)) {
+      toast.error("Switching model — try again in a moment.");
+      return;
+    }
     const payload = await buildPayloadForHere(text, images);
     if (!onSubmit(payload)) return;
     recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
@@ -2264,17 +2288,28 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               />
             )}
           </div>
-          <SendSplitButton
-            disabled={disabled}
-            busy={busy}
-            onSend={() => void send()}
-            onSaveDraft={() => void saveCurrentDraft()}
-            onSendElsewhere={() => {
-              const editor = editorRef.current;
-              setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
-            }}
-            onRunInDuplicates={runInDuplicates}
-          />
+          <div className="flex items-center gap-1.5">
+            {switchCli && (
+              <ComposerModelButton
+                cli={switchCli}
+                pick={modelPick}
+                applying={modelSwitch.applying}
+                onOpen={modelSwitch.refresh}
+                onPick={modelSwitch.apply}
+              />
+            )}
+            <SendSplitButton
+              disabled={disabled}
+              busy={busy}
+              onSend={() => void send()}
+              onSaveDraft={() => void saveCurrentDraft()}
+              onSendElsewhere={() => {
+                const editor = editorRef.current;
+                setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
+              }}
+              onRunInDuplicates={runInDuplicates}
+            />
+          </div>
         </div>
       </div>
       </div>

@@ -319,8 +319,9 @@ export const AI_CLI_OPTIONS: AICLIOption[] = [
     label: "Claude Code",
     models: [
       { value: "", label: "Default" },
-      { value: "sonnet", label: "Sonnet" },
+      { value: "fable", label: "Fable" },
       { value: "opus", label: "Opus" },
+      { value: "sonnet", label: "Sonnet" },
       { value: "haiku", label: "Haiku" },
     ],
     efforts: CLAUDE_EFFORTS,
