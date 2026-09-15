@@ -44,6 +44,24 @@ describe("focusProjectTerminal", () => {
     expect(s.mruProjects).toEqual(["web", "api"]);
   });
 
+  it("opens the Terminals view for a global tab without selecting a project", () => {
+    useAppStore.setState({
+      selected: "api",
+      view: "projects",
+      visited: new Set(["api"]),
+      mruProjects: ["api"],
+    });
+
+    useAppStore.getState().focusProjectTerminal("__global__", "t7");
+
+    const s = useAppStore.getState();
+    expect(s.view).toBe("terminals");
+    expect(s.selected).toBe("api");
+    expect(s.visited.has("__global__")).toBe(false);
+    expect(s.mruProjects).toEqual(["api"]);
+    expect(s.pendingFocusTerminal).toMatchObject({ projectName: "__global__", terminalId: "t7" });
+  });
+
   it("issues a fresh nonce per request so a repeat re-fires", () => {
     const s = useAppStore.getState();
     s.focusProjectTerminal("web", "t1");

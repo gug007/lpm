@@ -1,30 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { EventsOn } from "../../bridge/runtime";
-import { GetProject } from "../../bridge/commands";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
-import type { ProjectInfo, StatusEntry } from "../types";
 import { usePaneStatus, type PaneStatus } from "./usePaneStatus";
 
 // Agent hooks fire status-changed on every prompt, tool call and completion.
 const DEBOUNCE_MS = 250;
 
-/** Status rows for agents running in the global Terminals tabs. The backend
- *  files them under the reserved project key, which is not in the project list
- *  the sidebar syncs, so nothing else ever fetches them. */
-export function useGlobalTerminalStatus(visible: boolean): PaneStatus {
-  const [entries, setEntries] = useState<StatusEntry[]>([]);
-
+/** Keeps the global Terminals' agent statuses current for the whole window:
+ *  fetched once up front, again on each of the reserved project's status events,
+ *  and when the window comes back into view after events may have been missed.
+ *  Mounted once, in the main window, so the sidebar reads them whether or not
+ *  the Terminals view has ever been opened. */
+export function useGlobalAgentStatusSync(): void {
   useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
-    const load = () => {
-      GetProject(GLOBAL_TERMINALS_KEY)
-        .then((info: ProjectInfo | null) => {
-          if (!cancelled) setEntries(info?.statusEntries ?? []);
-        })
-        .catch(() => {});
-    };
-    load();
+    const { refresh } = useGlobalAgentStatus.getState();
+    void refresh();
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const cancelStatus = EventsOn("status-changed", (project: string) => {
@@ -32,15 +23,22 @@ export function useGlobalTerminalStatus(visible: boolean): PaneStatus {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         timer = null;
-        load();
+        void refresh();
       }, DEBOUNCE_MS);
     });
+    const onVisibility = () => {
+      if (!document.hidden) void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      cancelled = true;
       if (timer) clearTimeout(timer);
       cancelStatus();
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [visible]);
+  }, []);
+}
 
-  return usePaneStatus(entries);
+/** The global Terminals' statuses folded per tab, for painting the tab strip. */
+export function useGlobalTerminalStatus(): PaneStatus {
+  return usePaneStatus(useGlobalAgentStatus((s) => s.entries));
 }

@@ -9,14 +9,23 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../bridge/commands", () => ({
   ListAllJobs: mocks.listAllJobs,
+  GetProject: vi.fn(),
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
 }));
 
+import { useCollapsedAgents } from "../sidebarCollapsed";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import type { Settings } from "../store/settings";
 import { useSettingsStore } from "../store/settings";
+import { useTerminalTitles } from "../store/terminalTitles";
+import { STATUS_ERROR, STATUS_RUNNING, STATUS_WAITING, type StatusEntry } from "../types";
 import { SidebarFooterNav } from "./SidebarFooterNav";
+
+function entry(value: string, paneID?: string): StatusEntry {
+  return { key: `claude_code_${paneID ?? "loose"}`, value, priority: 0, timestamp: Date.now(), paneID };
+}
 
 let container: HTMLDivElement;
 let root: Root;
@@ -29,6 +38,7 @@ function renderNav(overrides: Partial<Parameters<typeof SidebarFooterNav>[0]> = 
       <SidebarFooterNav
         showTerminals={false}
         onTerminals={noop}
+        onOpenTerminalTab={noop}
         showActivity={false}
         onActivity={noop}
         needsYou={0}
@@ -71,6 +81,9 @@ const pick = (text: string) => act(() => buttonWithText(text)!.click());
 
 beforeEach(() => {
   mocks.listAllJobs.mockResolvedValue([]);
+  useGlobalAgentStatus.setState({ entries: [] });
+  useTerminalTitles.setState({ byProject: {}, focusedByProject: {} });
+  useCollapsedAgents.setState({ collapsed: new Set() });
   useSettingsStore.setState({
     hotkeys: undefined,
     sidebarNavInSidebar: undefined,
@@ -232,5 +245,79 @@ describe("SidebarFooterNav", () => {
 
     expect(useSettingsStore.getState().sidebarNavInSidebar).toBeUndefined();
     expect(moreButton()).toBeDefined();
+  });
+});
+
+describe("SidebarFooterNav Terminals agents", () => {
+  const seed = (entries: StatusEntry[], titles: Record<string, string> = {}) => {
+    useGlobalAgentStatus.setState({ entries });
+    useTerminalTitles.setState({ byProject: { __global__: titles } });
+  };
+
+  it("paints the Terminals label with its agents' state and lists their tabs", () => {
+    const onOpenTerminalTab = vi.fn();
+    seed([entry(STATUS_RUNNING, "t1")], { t1: "Mac storage" });
+    renderNav({ onOpenTerminalTab });
+
+    const terminals = buttonWithText("Terminals")!;
+    expect(terminals.querySelector(".sidebar-shimmer")?.textContent).toBe("Terminals");
+
+    const tab = buttonWithText("Mac storage");
+    expect(tab).toBeDefined();
+    act(() => tab!.click());
+    expect(onOpenTerminalTab).toHaveBeenCalledWith("t1");
+  });
+
+  it("pulses amber while one waits and names a problem on the row", () => {
+    seed([entry(STATUS_WAITING, "t1"), entry(STATUS_ERROR, "t2")]);
+    renderNav();
+
+    const terminals = buttonWithText("Terminals")!;
+    expect(terminals.querySelector(".text-\\[var\\(--accent-red-text\\)\\]")?.textContent).toBe(
+      "Terminals",
+    );
+    expect(terminals.textContent).toContain("Problem");
+  });
+
+  it("sends an agent with no tab to the Terminals view", () => {
+    const onTerminals = vi.fn();
+    const onOpenTerminalTab = vi.fn();
+    seed([entry(STATUS_RUNNING)]);
+    renderNav({ onTerminals, onOpenTerminalTab });
+
+    act(() => buttonWithText("Claude Code")!.click());
+    expect(onTerminals).toHaveBeenCalledOnce();
+    expect(onOpenTerminalTab).not.toHaveBeenCalled();
+  });
+
+  it("folds the list away from the chevron and remembers it", () => {
+    seed([entry(STATUS_RUNNING, "t1")], { t1: "Mac storage" });
+    renderNav();
+
+    act(() => byLabel("Hide agents in Terminals")!.click());
+    expect(buttonWithText("Mac storage")).toBeUndefined();
+    expect(useCollapsedAgents.getState().collapsed.has("__global__")).toBe(true);
+
+    act(() => byLabel("Show agents in Terminals")!.click());
+    expect(buttonWithText("Mac storage")).toBeDefined();
+  });
+
+  it("keeps the list out of the More menu but the label's state in it", () => {
+    seed([entry(STATUS_RUNNING, "t1")], { t1: "Mac storage" });
+    useSettingsStore.setState({ sidebarNavInSidebar: [] });
+    renderNav();
+
+    openMore();
+    const terminals = buttonWithText("Terminals")!;
+    expect(terminals.querySelector(".sidebar-shimmer")).not.toBeNull();
+    expect(buttonWithText("Mac storage")).toBeUndefined();
+  });
+
+  it("shows a plain row while no agent reports", () => {
+    renderNav();
+
+    const terminals = buttonWithText("Terminals")!;
+    expect(terminals.querySelector(".sidebar-shimmer")).toBeNull();
+    expect(byLabel("Hide agents in Terminals")).toBeUndefined();
   });
 });

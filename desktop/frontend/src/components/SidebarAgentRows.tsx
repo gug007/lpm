@@ -13,6 +13,9 @@ export interface SidebarAgentRowsProps {
   /** Set when the project row above sits inside an expanded folder, so its
    *  tasks take the same disclosure step and stay under its name. */
   indented?: boolean;
+  /** Set under a footer nav row, whose icon is wider than a project's dot, so
+   *  the names still start where the label above them does. */
+  underNav?: boolean;
   /** The terminal on screen right now, or null when this project isn't the one
    *  being looked at. The row that owns it is marked as where the user is. */
   activeTerminalId?: string | null;
@@ -41,9 +44,11 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   label,
   agents,
   indented,
+  underNav,
   activeTerminalId,
   onOpenAgent,
 }: SidebarAgentRowsProps) {
+  const lead = indented ? "pl-[25px]" : underNav ? "pl-3" : "pl-2.5";
   return (
     <div className="mb-0.5 flex flex-col">
       {agents.map((agent) => (
@@ -53,9 +58,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           onPointerDown={(e) => e.stopPropagation()}
           // Padding + mark + gap add up to the project row's own text offset,
           // so a task's name sits directly under the project's.
-          className={`flex w-full select-none items-center gap-2 rounded-md py-1 pr-3 text-left text-[12px] outline-none transition-colors ${
-            indented ? "pl-[25px]" : "pl-2.5"
-          } ${
+          className={`flex w-full select-none items-center gap-2 rounded-md py-1 pr-3 text-left text-[12px] outline-none transition-colors ${lead} ${
             agent.terminalId !== null && agent.terminalId === activeTerminalId
               ? ACTIVE_CLASS
               : RESTING_CLASS

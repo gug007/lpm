@@ -32,6 +32,7 @@ import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
+import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useSshEnvMismatchToasts } from "./hooks/useSshEnvMismatchToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
@@ -125,6 +126,7 @@ export default function App() {
   }, [isTerminalsView]);
 
   useProjectsSync();
+  useGlobalAgentStatusSync();
   useAppEvents();
   usePeerDispatcher();
   const { state: peerState } = usePeerState();

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAppStore } from "../store/app";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { ActionView } from "./ActionView";
 import { Header } from "./project-detail/Header";
@@ -39,7 +40,27 @@ export function GlobalTerminalsView({
   const headerInnerRef = useRef<HTMLDivElement>(null);
   const { theme: terminalTheme, themeStyle } = useTerminalTheme();
   const { fontSize, zoomIn, zoomOut } = useTerminalFontSize();
-  const paneStatus = useGlobalTerminalStatus(visible);
+  const paneStatus = useGlobalTerminalStatus();
+
+  // The sidebar asked to put one of these tabs on screen. The store switched to
+  // this view; focus the tab once per nonce, and only once the view is showing.
+  const pendingFocusTerminal = useAppStore((s) => s.pendingFocusTerminal);
+  const clearPendingFocusTerminal = useAppStore((s) => s.clearPendingFocusTerminal);
+  const focusTerminalConsumed = useRef(0);
+  useEffect(() => {
+    if (
+      !visible ||
+      !pendingFocusTerminal ||
+      pendingFocusTerminal.projectName !== GLOBAL_TERMINALS_KEY ||
+      focusTerminalConsumed.current === pendingFocusTerminal.nonce
+    ) {
+      return;
+    }
+    focusTerminalConsumed.current = pendingFocusTerminal.nonce;
+    const { terminalId } = pendingFocusTerminal;
+    clearPendingFocusTerminal();
+    terminalRef.current?.focusTerminalById(terminalId);
+  }, [visible, pendingFocusTerminal, clearPendingFocusTerminal]);
 
   const [actions, setActions] = useState<ActionInfo[]>([]);
   useEffect(() => {

@@ -74,7 +74,12 @@ import {
   layoutsEqual,
 } from "../components/sidebarLayout";
 import { mergeWithDisk } from "../components/sidebarMerge";
-import { forgetProjectTerminals, appendPersistedTab, removePersistedTabById } from "../terminals";
+import {
+  GLOBAL_TERMINALS_KEY,
+  forgetProjectTerminals,
+  appendPersistedTab,
+  removePersistedTabById,
+} from "../terminals";
 import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
 import { adoptedProject, adoptionNotice, folderBaseName, type AdoptedProject } from "./adoptProject";
 import { activeChatStorageKey } from "../components/NotesView";
@@ -1273,18 +1278,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   pendingFocusTerminal: null,
 
   focusProjectTerminal: (projectName, terminalId) =>
-    set((s) => ({
-      selected: projectName,
-      selectedTemplate: null,
-      view: "projects",
-      visited: new Set([...s.visited, projectName]),
-      mruProjects: [projectName, ...s.mruProjects.filter((n) => n !== projectName)],
-      pendingFocusTerminal: {
+    set((s) => {
+      const pendingFocusTerminal = {
         projectName,
         terminalId,
         nonce: ++remoteRequestNonce,
-      },
-    })),
+      };
+      // The global Terminals are a view of their own, not a project: nothing to
+      // select, and no place in the recently-used list.
+      if (projectName === GLOBAL_TERMINALS_KEY) {
+        return { view: "terminals", pendingFocusTerminal };
+      }
+      return {
+        selected: projectName,
+        selectedTemplate: null,
+        view: "projects",
+        visited: new Set([...s.visited, projectName]),
+        mruProjects: [projectName, ...s.mruProjects.filter((n) => n !== projectName)],
+        pendingFocusTerminal,
+      };
+    }),
 
   clearPendingFocusTerminal: () => set({ pendingFocusTerminal: null }),
 

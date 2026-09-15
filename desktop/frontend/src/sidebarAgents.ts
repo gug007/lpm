@@ -44,7 +44,7 @@ export interface SidebarAgentRow {
  *  against no tab at all (`lpm set-status` leaves `--pane` optional) is nobody's
  *  duplicate and always keeps its own line. */
 export function projectAgentRows(
-  project: ProjectInfo,
+  project: Pick<ProjectInfo, "statusEntries">,
   now: number,
   tabTitles: Record<string, string> = {},
 ): SidebarAgentRow[] {

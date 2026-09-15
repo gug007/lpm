@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { computeProjectStatus } from "../agentStatus";
 import { useAgentOverviewShortcut } from "../hooks/useAgentOverviewShortcut";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
+import { projectAgentRows, sidebarProjectAlert } from "../sidebarAgents";
+import { useCollapsedAgents } from "../sidebarCollapsed";
 import {
   DEFAULT_SIDEBAR_NAV,
   isDefaultSidebarNav,
@@ -8,7 +11,10 @@ import {
   withSidebarNav,
   type NavItemId,
 } from "../sidebarNav";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
+import { useTerminalTitles } from "../store/terminalTitles";
+import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
   HistoryIcon,
   LayersIcon,
@@ -19,6 +25,7 @@ import {
   TerminalIcon,
   ZapIcon,
 } from "./icons";
+import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
 import { SidebarNavRow, type SidebarNavEntry } from "./SidebarNavRow";
@@ -28,6 +35,8 @@ import { CountBadge } from "./ui/CountBadge";
 interface SidebarFooterNavProps {
   showTerminals: boolean;
   onTerminals: () => void;
+  // Puts one of the global Terminals' tabs on screen, from its agent row.
+  onOpenTerminalTab: (terminalId: string) => void;
   showActivity: boolean;
   onActivity: () => void;
   needsYou: number;
@@ -56,6 +65,7 @@ interface RowMenu {
 export function SidebarFooterNav({
   showTerminals,
   onTerminals,
+  onOpenTerminalTab,
   showActivity,
   onActivity,
   needsYou,
@@ -79,6 +89,23 @@ export function SidebarFooterNav({
   // Bound here rather than on the Activity row so the shortcut keeps working
   // wherever that row currently lives, menu closed or open.
   const shortcut = useAgentOverviewShortcut(onActivity);
+
+  // Agents in the global Terminals report under the reserved key, which no
+  // project row speaks for — so the Terminals row does, the way a project row
+  // speaks for its own: its label wears their state and lists them underneath.
+  const terminalEntries = useGlobalAgentStatus((s) => s.entries);
+  const terminalTitles = useTerminalTitles((s) => s.byProject[GLOBAL_TERMINALS_KEY]);
+  const focusedTerminal = useTerminalTitles(
+    (s) => s.focusedByProject[GLOBAL_TERMINALS_KEY] ?? null,
+  );
+  const collapsedAgents = useCollapsedAgents((s) => s.collapsed);
+  const toggleAgents = useCollapsedAgents((s) => s.toggle);
+  const terminalStatus = useMemo(() => computeProjectStatus(terminalEntries), [terminalEntries]);
+  const terminalAgents = useMemo(
+    () => projectAgentRows({ statusEntries: terminalEntries }, Date.now(), terminalTitles),
+    [terminalEntries, terminalTitles],
+  );
+  const terminalAlert = sidebarProjectAlert(terminalAgents);
 
   const isDefault = isDefaultSidebarNav(inSidebar);
   // Read the layout at click time, not at render time: a write goes through the
@@ -112,6 +139,21 @@ export function SidebarFooterNav({
       onSelect: onTerminals,
       description:
         "Quick shells for scripts, system commands, and anything not tied to a project.",
+      status: terminalStatus,
+      trailing: terminalAlert ? <SidebarAgentSummary agent={terminalAlert} /> : undefined,
+      agents: {
+        projectName: GLOBAL_TERMINALS_KEY,
+        rows: terminalAgents,
+        expanded: !collapsedAgents.has(GLOBAL_TERMINALS_KEY),
+        onToggle: () => toggleAgents(GLOBAL_TERMINALS_KEY),
+        // Only while the Terminals are on screen is the focused tab the one
+        // being looked at; otherwise it is just where they were left.
+        activeTerminalId: showTerminals ? focusedTerminal : null,
+        // A status whose tab the backend never named can still only take you
+        // to the Terminals.
+        onOpen: (agent) =>
+          agent.terminalId ? onOpenTerminalTab(agent.terminalId) : onTerminals(),
+      },
     },
     activity: {
       id: "activity",

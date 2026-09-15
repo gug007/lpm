@@ -20,14 +20,21 @@ vi.mock("../../bridge/runtime", () => ({
   },
 }));
 
-import { useGlobalTerminalStatus } from "./useGlobalTerminalStatus";
+import { useGlobalAgentStatus } from "../store/globalAgentStatus";
+import { useGlobalAgentStatusSync, useGlobalTerminalStatus } from "./useGlobalTerminalStatus";
 
 function entry(paneID: string, value: string): StatusEntry {
   return { key: `claude_code_${paneID}`, value, priority: 0, timestamp: Date.now(), paneID } as StatusEntry;
 }
 
-function Probe({ visible }: { visible: boolean }) {
-  const status = useGlobalTerminalStatus(visible);
+// The sync runs once for the window; a reader anywhere in it sees the rows.
+function Sync() {
+  useGlobalAgentStatusSync();
+  return null;
+}
+
+function Probe() {
+  const status = useGlobalTerminalStatus();
   return (
     <div id="out">
       {[...status.running].join(",")}|{[...status.done].join(",")}
@@ -38,9 +45,14 @@ function Probe({ visible }: { visible: boolean }) {
 let container: HTMLDivElement;
 let root: Root;
 
-async function render(visible: boolean) {
+async function render(withSync: boolean) {
   await act(async () => {
-    root.render(<Probe visible={visible} />);
+    root.render(
+      <>
+        {withSync && <Sync />}
+        <Probe />
+      </>,
+    );
   });
 }
 
@@ -61,6 +73,7 @@ beforeEach(() => {
   mocks.getProject.mockImplementation(() =>
     Promise.resolve({ name: "__global__", statusEntries: mocks.entries }),
   );
+  useGlobalAgentStatus.setState({ entries: [] });
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -72,8 +85,8 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-describe("useGlobalTerminalStatus", () => {
-  it("fetches the reserved project's rows when shown and refetches on its status events", async () => {
+describe("useGlobalAgentStatusSync", () => {
+  it("fetches the reserved project's rows up front and refetches on its status events", async () => {
     await render(true);
     expect(mocks.getProject).toHaveBeenCalledWith("__global__");
     expect(out()).toBe("|");
@@ -101,15 +114,22 @@ describe("useGlobalTerminalStatus", () => {
     expect(out()).toBe("t1|");
   });
 
-  it("stops listening while hidden and reloads when shown again", async () => {
+  it("serves a reader that never mounted the sync from the shared store", async () => {
+    await render(false);
+    expect(mocks.getProject).not.toHaveBeenCalled();
+    expect(mocks.listeners.has("status-changed")).toBe(false);
+
+    await act(async () => {
+      useGlobalAgentStatus.setState({ entries: [entry("t1", "Done")] });
+    });
+    expect(out()).toBe("|t1");
+  });
+
+  it("stops listening once unmounted", async () => {
     await render(true);
     expect(mocks.listeners.has("status-changed")).toBe(true);
 
     await render(false);
     expect(mocks.listeners.has("status-changed")).toBe(false);
-
-    mocks.entries = [entry("t1", "Done")];
-    await render(true);
-    expect(out()).toBe("|t1");
   });
 });

@@ -74,6 +74,7 @@ export function SidebarFooterMore({ entries, signals, badge, hints, isDefault, o
               <SidebarNavRow
                 entry={{
                   ...entry,
+                  agents: undefined,
                   onSelect: () => {
                     close();
                     entry.onSelect();

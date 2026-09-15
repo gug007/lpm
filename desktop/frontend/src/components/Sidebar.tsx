@@ -16,6 +16,7 @@ import { SortableContext, verticalListSortingStrategy, type SortingStrategy } fr
 import { StatusDot, dotKind } from "./StatusDot";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
+import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
 import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
@@ -1725,6 +1726,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       <SidebarFooterNav
         showTerminals={showTerminals}
         onTerminals={onTerminals}
+        onOpenTerminalTab={(terminalId) => focusProjectTerminal(GLOBAL_TERMINALS_KEY, terminalId)}
         showActivity={showFleet}
         onActivity={onFleet}
         needsYou={ambient.needsYou}
