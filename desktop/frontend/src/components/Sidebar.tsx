@@ -23,6 +23,7 @@ import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
 import {
   isDuplicate,
   type DuplicateMode,
+  type PendingDuplicate,
   type ProjectGroup,
   type ProjectInfo,
 } from "../types";
@@ -32,6 +33,8 @@ import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { ChevronRightIcon } from "./icons";
 import { SidebarDeckRun } from "./SidebarDeckRun";
+import { SidebarDuplicateSkeletonRow } from "./SidebarDuplicateSkeletonRow";
+import { ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS } from "./sidebarRowClass";
 import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
@@ -106,16 +109,6 @@ import {
 import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 
-const ROW_SHARED_CLASS =
-  "flex w-full select-none gap-3 rounded-md px-3 text-left text-sm outline-none transition-colors";
-const ROW_BASE_CLASS = `${ROW_SHARED_CLASS} items-center py-2`;
-// `py-1` around a 20px name and a 13px line: 42px, the rhythm SidebarHeaderShell
-// gives a folder with something to report.
-const ROW_TWO_LINE_CLASS = `${ROW_SHARED_CLASS} items-start py-1`;
-// One disclosure step: `px-3` (12px) plus 15px, applied to the rows inside an
-// expanded folder. Overrides ROW_BASE_CLASS's `px-3` the same way `pr-*` does.
-// The folder tree's elbows land on the status dot this leaves room for.
-const ROW_INDENT_CLASS = "pl-[27px]";
 // Half a row: `py-2` (8px twice) around `text-sm`'s 20px line. The elbows meet a
 // row here, and a row showing its agents is taller than the block it sits in, so
 // this cannot be expressed as a fraction of that block.
@@ -178,6 +171,7 @@ interface SidebarProps {
   showScheduled: boolean;
   showSettings: boolean;
   duplicatingNames: string[];
+  pendingDuplicates: PendingDuplicate[];
   removingNames: Set<string>;
 }
 
@@ -200,13 +194,15 @@ type TreeItem =
       kind: "deck";
       parent: ProjectInfo;
       children: ProjectInfo[];
+      // Copies still being made, dealt after the children as skeleton rows.
+      pending: PendingDuplicate[];
       collapsed: boolean;
       folderId?: string;
     }
   | { kind: "empty"; group: ProjectGroup }
   | { kind: "peer"; section: PeerSection };
 
-export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, removingNames }: SidebarProps) {
+export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(-1); // -1 = no progress yet
@@ -386,6 +382,17 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       }
     }
     const groupsById = new Map(groups.map((g) => [g.id, g]));
+    // A copy on its way joins its parent's deck as a skeleton. Select mode lists
+    // what can be ticked, and a copy that isn't there yet can't be.
+    const pendingByParent = new Map<string, PendingDuplicate[]>();
+    if (!selectMode) {
+      for (const p of pendingDuplicates) {
+        if (!byName.has(p.parent)) continue;
+        const arr = pendingByParent.get(p.parent);
+        if (arr) arr.push(p);
+        else pendingByParent.set(p.parent, [p]);
+      }
+    }
 
     const out: TreeItem[] = [];
     const ids: string[] = [];
@@ -395,11 +402,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       ids.push(p.name);
       rendered.add(p.name);
       const children = childrenByParent.get(p.name) ?? [];
-      if (children.length === 0) return;
+      const pending = pendingByParent.get(p.name) ?? [];
+      if (children.length === 0 && pending.length === 0) return;
       // Select mode deals every deck out: the fold's control is the status dot,
       // and that slot belongs to the checkbox while a selection is being made.
-      const collapsed = !selectMode && collapsedDecks.has(p.name);
-      out.push({ kind: "deck", parent: p, children, collapsed, folderId });
+      // A deck holding nothing but skeletons has no fold control, so it can't
+      // be left shut by a stale collapse.
+      const collapsed = !selectMode && children.length > 0 && collapsedDecks.has(p.name);
+      out.push({ kind: "deck", parent: p, children, pending, collapsed, folderId });
       for (const child of children) {
         rendered.add(child.name);
         if (!collapsed) ids.push(child.name);
@@ -480,7 +490,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       childProjectsOf: childrenByParent,
       childOf,
     };
-  }, [localProjects, groups, order, peerSections, collapsedDecks, selectMode]);
+  }, [localProjects, groups, order, peerSections, pendingDuplicates, collapsedDecks, selectMode]);
 
   // Project names in rendered top-to-bottom order — the axis a shift-click
   // range is measured along. Collapsed-folder members aren't rendered, so they
@@ -1089,10 +1099,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     connector?: (isLast: boolean, twoLine?: boolean) => React.ReactNode,
     endsBlock = false,
   ) => {
-    const { parent, children, collapsed } = item;
+    const { parent, children, pending, collapsed } = item;
     const indented = item.folderId !== undefined;
     const runId = deckRunDomId(parent.name);
-    const lastIndex = children.length - 1;
+    const lastIndex = children.length + pending.length - 1;
 
     const rows = children.map((child, i) => {
       const row = renderProjectRow(child, indented);
@@ -1111,10 +1121,33 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         </SortableItem>
       );
     });
+    // The skeletons take the slots the copies will: after the children, in
+    // creation order, with the same elbow off a folder's trunk.
+    const parentLabel = projectDisplayName(parent, undefined);
+    const skeletons = pending.map((copy, i) => {
+      const row = (
+        <SidebarDuplicateSkeletonRow
+          parentLabel={parentLabel}
+          label={copy.label}
+          worktree={copy.worktree}
+          indented={indented}
+        />
+      );
+      const body = connector ? (
+        <div className="relative">
+          {connector(endsBlock && children.length + i === lastIndex)}
+          {row}
+        </div>
+      ) : (
+        row
+      );
+      return <div key={`pending-${copy.id}`}>{body}</div>;
+    });
 
     return (
       <SidebarDeckRun key={`deck-${parent.name}`} runId={runId} collapsed={collapsed}>
         {rows}
+        {skeletons}
       </SidebarDeckRun>
     );
   };

@@ -9,6 +9,7 @@ import {
   type ActionsLayout,
   type DuplicateMode,
   type GeneratorRunSpec,
+  type PendingDuplicate,
   type ProjectGroup,
   type ProjectInfo,
   type SpawnTask,
@@ -156,6 +157,9 @@ interface AppState {
   // several copies of the same source can run at once and each finishing only
   // clears its own entry. Duplications never block one another.
   duplicatingNames: string[];
+  // One entry per copy still to be created, in creation order; each leaves as
+  // its copy enters the project list.
+  pendingDuplicates: PendingDuplicate[];
   removingNames: Set<string>;
   // Per-project queue of tasks (actions or ad-hoc commands) to auto-run once
   // the project's detail mounts. Seeded by "Bulk Duplicate" (fan work across
@@ -636,6 +640,7 @@ let remoteRequestNonce = 0;
 // consumed-then-recreated entry never restarts below the consumer's latch and
 // gets silently dropped — the same hazard `remoteRequestNonce` guards against.
 let spawnTaskNonce = 0;
+let pendingDuplicateNonce = 0;
 
 // Monotonic ids for the list refreshes. Overlapping calls (the 10s poll,
 // debounced events, post-invoke refreshes) can resolve out of order, and
@@ -863,6 +868,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   visited: new Set<string>(),
   mruProjects: [],
   duplicatingNames: [],
+  pendingDuplicates: [],
   spawnTasks: {},
   removingNames: new Set<string>(),
   addProjectPickerOpen: false,
@@ -1477,6 +1483,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       ] as const;
     const worktreeArgs = (i: number) =>
       [(opts.labels?.[i] ?? "").trim(), opts.reinstallDeps ?? false] as const;
+    const pending: PendingDuplicate[] = Array.from({ length: count }, (_, i) => ({
+      id: ++pendingDuplicateNonce,
+      parent: sourceAt(i),
+      label: copyArgs(i)[0],
+      worktree,
+    }));
+    set((s) => ({ pendingDuplicates: [...s.pendingDuplicates, ...pending] }));
+    const settlePending = (ids: Set<number>) =>
+      set((s) => ({ pendingDuplicates: s.pendingDuplicates.filter((p) => !ids.has(p.id)) }));
     const collectors = new Map<string, ReturnType<typeof collectRemoteDuplicates>>();
     for (let i = 0; i < count; i++) {
       const slug = peerSlugOf(sourceAt(i));
@@ -1541,6 +1556,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           }));
         }
         await get().refreshProjects();
+        settlePending(new Set([pending[i].id]));
         get().markVisited(copyName);
         if (created.length === 1) set({ selected: copyName, view: "projects" });
       }
@@ -1590,6 +1606,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       toast.error(`Failed to duplicate ${name}: ${err}`, { id: toastId });
     } finally {
       for (const collector of collectors.values()) collector.dispose();
+      settlePending(new Set(pending.map((p) => p.id)));
       set((s) => {
         const i = s.duplicatingNames.indexOf(name);
         if (i < 0) return s;

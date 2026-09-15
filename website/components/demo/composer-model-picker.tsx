@@ -1,6 +1,7 @@
 "use client";
 
-import { useLayoutEffect, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import type { AgentKind } from "./agent-script";
 import {
@@ -19,13 +20,29 @@ import { FOCUS_RING, PRESS } from "./ui";
 
 const PANEL_W = 232;
 const FLYOUT_W = 174; // 168 of box plus the 6px gap its wrapper pads.
+const GAP = 8;
 
 const ROW =
   "mx-1 flex w-[calc(100%-8px)] items-center gap-2 rounded-md px-2 py-[5px] text-left text-[12.5px] leading-4 transition-colors";
-const BOX =
-  "menu-pop rounded-xl border border-[#2e2e2e] bg-[#1a1a1a] shadow-2xl";
+// No overflow-hidden here: the panel is the containing block for the flyout that
+// hangs outside it, and clipping the panel clips the flyout out of existence.
+const BOX = "menu-pop rounded-xl border border-[#2e2e2e] bg-[#1a1a1a] shadow-2xl";
 
 type Column = "model" | "level";
+
+/** Where the menu goes. Terminal panes clip their overflow, so a menu left in
+ *  the composer loses its flyout as soon as the pane is narrower than the two
+ *  boxes side by side — a split pane, exactly. It is lifted into the demo
+ *  window instead, which is what the app does with its own: the window is the
+ *  only clipping edge, and the flyout hangs over whatever sits beside the pane. */
+type Placement = {
+  frame: HTMLElement;
+  right: number;
+  bottom: number;
+  // Left by default — the button sits at the pane's right edge — but a pane at
+  // the window's left edge can leave less room there than the flyout needs.
+  flyoutLeft: boolean;
+};
 
 /** The composer's model switcher, beside Send. Models are the list; the levels
  *  for whichever one is highlighted sit in a flyout opening leftward, since the
@@ -46,35 +63,28 @@ export function ComposerModelPicker({
   // Highlight only — nothing is applied until a row is clicked.
   const [cursorModel, setCursorModel] = useState(pick.model);
   const [cursorLevel, setCursorLevel] = useState(pick.effort);
-  // Which side the flyout opens on. Left by default — the button sits at the
-  // pane's right edge — but a split pane can leave less room there than the
-  // flyout needs, and the demo window clips whatever overflows it.
-  const [flyoutLeft, setFlyoutLeft] = useState(true);
+  const [placement, setPlacement] = useState<Placement | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    const trigger = ref.current?.getBoundingClientRect();
-    // The demo window is the clipping edge, not the viewport.
-    const frame = ref.current?.closest(".replica-ui")?.getBoundingClientRect();
-    if (!trigger || !frame) return;
-    const room = trigger.right - PANEL_W - frame.left;
-    setFlyoutLeft(room >= FLYOUT_W || room >= frame.right - trigger.right);
-  }, [open]);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    const close = () => setOpen(false);
     const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!ref.current?.contains(target) && !menuRef.current?.contains(target)) close();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
+    // The menu is placed by measurement, so a relayout would leave it adrift.
+    window.addEventListener("resize", close);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", close);
     };
   }, [open]);
 
@@ -94,13 +104,126 @@ export function ComposerModelPicker({
     onPick(next);
   };
 
+  // Measured as the menu opens, before it first paints, so it never flashes at
+  // an unplaced spot. Outside the demo window there is nothing to lift it into,
+  // and it stays anchored to the button.
+  const place = (): Placement | null => {
+    const trigger = ref.current?.getBoundingClientRect();
+    const frame = ref.current?.closest<HTMLElement>(".replica-ui");
+    if (!trigger || !frame) return null;
+    const box = frame.getBoundingClientRect();
+    const room = trigger.right - PANEL_W - box.left;
+    return {
+      frame,
+      right: box.right - trigger.right,
+      bottom: box.bottom - trigger.top + GAP,
+      flyoutLeft: room >= FLYOUT_W || room >= box.right - trigger.right,
+    };
+  };
+
   const toggle = () => {
     if (open) return setOpen(false);
     setColumn("model");
     setCursorModel(pick.model);
     setCursorLevel(pick.effort);
+    setPlacement(place());
     setOpen(true);
   };
+
+  const flyoutLeft = placement?.flyoutLeft ?? true;
+
+  const menu = (
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label="Model"
+      style={placement ? { right: placement.right, bottom: placement.bottom } : undefined}
+      className={`absolute z-50 w-[232px] ${placement ? "" : "bottom-full right-0 mb-2"} ${BOX}`}
+    >
+      <Header label="Model" />
+      <div className="max-h-[236px] overflow-y-auto pb-1">
+        {models.map((m) => (
+          <Row
+            key={m.value}
+            label={m.label}
+            checked={pick.model === m.value}
+            cursor={cursorModel === m.value}
+            dim={column === "level"}
+            onEnter={() => {
+              setColumn("model");
+              setCursorModel(m.value);
+            }}
+            onClick={() =>
+              commit({
+                model: m.value,
+                effort: levelAfterModelPick(agent, m.value, pick.effort),
+              })
+            }
+          />
+        ))}
+      </div>
+
+      {/* What the highlighted row means, and what clicking it will send. The
+          second line is the only place the model-only vs model+level split
+          is ever stated — the rows alone can't show it. */}
+      <div className="border-t border-[#2e2e2e] px-3 py-2">
+        <div className="h-[30px] text-[11px] leading-[15px]">
+          {blurb ? (
+            <>
+              <p className="truncate text-[#b3b3b3]">{blurb}</p>
+              <p className="truncate text-[#8e8e8e]">{effect}</p>
+            </>
+          ) : (
+            <p className="line-clamp-2 text-[#8e8e8e]">{effect}</p>
+          )}
+        </div>
+      </div>
+
+      {agent === "codex" && (
+        // Codex's picker is the only way in, and confirming it writes
+        // ~/.codex/config.toml — so a pick here moves every later codex
+        // session too, not just this terminal.
+        <p className="border-t border-[#2e2e2e] px-3 py-1.5 text-[10.5px] leading-snug text-[#8e8e8e]">
+          Codex saves this as your default for new sessions too.
+        </p>
+      )}
+
+      {/* Pinned to the panel, not to the hovered row: a flyout that
+          re-anchors per row jumps down the screen as the pointer scans the
+          list. Only its contents change, so running the list is still. The
+          6px gap is padding on this wrapper, not space between two boxes, so
+          leaving a row sideways lands the pointer straight in the flyout. */}
+      <div
+        className={`absolute top-0 z-10 w-[174px] ${
+          flyoutLeft ? "right-full pr-1.5" : "left-full pl-1.5"
+        }`}
+      >
+        <div className={`flex max-h-[290px] flex-col overflow-hidden ${BOX}`}>
+          <Header label="Level" />
+          <div className="pb-1">
+            {levels.map((l) => {
+              const ok = offers(agent, cursorModel, l.value);
+              return (
+                <Row
+                  key={l.value}
+                  label={l.label}
+                  checked={ok && pick.model === cursorModel && pick.effort === l.value}
+                  cursor={column === "level" && level === l.value}
+                  disabled={!ok}
+                  onEnter={() => {
+                    if (!ok) return;
+                    setColumn("level");
+                    setCursorLevel(l.value);
+                  }}
+                  onClick={() => commit({ model: cursorModel, effort: l.value })}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div ref={ref} className="relative">
@@ -132,96 +255,7 @@ export function ComposerModelPicker({
         </button>
       </Tooltip>
 
-      {open && (
-        <div
-          role="menu"
-          aria-label="Model"
-          className={`absolute bottom-full right-0 z-50 mb-2 w-[232px] ${BOX}`}
-        >
-          <Header label="Model" />
-          <div className="max-h-[236px] overflow-y-auto pb-1">
-            {models.map((m) => (
-              <Row
-                key={m.value}
-                label={m.label}
-                checked={pick.model === m.value}
-                cursor={cursorModel === m.value}
-                dim={column === "level"}
-                onEnter={() => {
-                  setColumn("model");
-                  setCursorModel(m.value);
-                }}
-                onClick={() =>
-                  commit({
-                    model: m.value,
-                    effort: levelAfterModelPick(agent, m.value, pick.effort),
-                  })
-                }
-              />
-            ))}
-          </div>
-
-          {/* What the highlighted row means, and what clicking it will send. The
-              second line is the only place the model-only vs model+level split
-              is ever stated — the rows alone can't show it. */}
-          <div className="border-t border-[#2e2e2e] px-3 py-2">
-            <div className="h-[30px] text-[11px] leading-[15px]">
-              {blurb ? (
-                <>
-                  <p className="truncate text-[#b3b3b3]">{blurb}</p>
-                  <p className="truncate text-[#8e8e8e]">{effect}</p>
-                </>
-              ) : (
-                <p className="line-clamp-2 text-[#8e8e8e]">{effect}</p>
-              )}
-            </div>
-          </div>
-
-          {agent === "codex" && (
-            // Codex's picker is the only way in, and confirming it writes
-            // ~/.codex/config.toml — so a pick here moves every later codex
-            // session too, not just this terminal.
-            <p className="border-t border-[#2e2e2e] px-3 py-1.5 text-[10.5px] leading-snug text-[#8e8e8e]">
-              Codex saves this as your default for new sessions too.
-            </p>
-          )}
-
-          {/* Pinned to the panel, not to the hovered row: a flyout that
-              re-anchors per row jumps down the screen as the pointer scans the
-              list. Only its contents change, so running the list is still. The
-              6px gap is padding on this wrapper, not space between two boxes, so
-              leaving a row sideways lands the pointer straight in the flyout. */}
-          <div
-            className={`absolute top-0 z-10 w-[174px] ${
-              flyoutLeft ? "right-full pr-1.5" : "left-full pl-1.5"
-            }`}
-          >
-            <div className={`flex max-h-[290px] flex-col ${BOX}`}>
-              <Header label="Level" />
-              <div className="pb-1">
-                {levels.map((l) => {
-                  const ok = offers(agent, cursorModel, l.value);
-                  return (
-                    <Row
-                      key={l.value}
-                      label={l.label}
-                      checked={ok && pick.model === cursorModel && pick.effort === l.value}
-                      cursor={column === "level" && level === l.value}
-                      disabled={!ok}
-                      onEnter={() => {
-                        if (!ok) return;
-                        setColumn("level");
-                        setCursorLevel(l.value);
-                      }}
-                      onClick={() => commit({ model: cursorModel, effort: l.value })}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {open && (placement ? createPortal(menu, placement.frame) : menu)}
     </div>
   );
 }
@@ -277,7 +311,7 @@ function Row({
       <span
         aria-hidden
         className={`h-[9px] w-[9px] shrink-0 rounded-full border-[1.5px] ${
-          checked ? "border-[#06b6d4] bg-[#06b6d4]" : "border-[#8e8e8e] opacity-60"
+          checked ? "border-[#22d3ee] bg-[#22d3ee]" : "border-[#8e8e8e] opacity-60"
         }`}
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>

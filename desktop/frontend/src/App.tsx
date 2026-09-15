@@ -59,6 +59,7 @@ export default function App() {
   const detached = useAppStore((s) => s.detached);
   const mruProjects = useAppStore((s) => s.mruProjects);
   const duplicatingNames = useAppStore((s) => s.duplicatingNames);
+  const pendingDuplicates = useAppStore((s) => s.pendingDuplicates);
   const removingNames = useAppStore((s) => s.removingNames);
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
   const theme = useResolvedTheme();
@@ -295,6 +296,7 @@ export default function App() {
           showScheduled={isScheduledView}
           showSettings={isSettingsView}
           duplicatingNames={duplicatingNames}
+          pendingDuplicates={pendingDuplicates}
           removingNames={removingNames}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">

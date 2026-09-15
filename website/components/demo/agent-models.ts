@@ -74,6 +74,8 @@ const CATALOGUE: Record<AgentKind, { models: Model[]; levels: Level[] }> = {
       codex("gpt-5.6-luna", "GPT-5.6 Luna"),
       codex("gpt-5.5", "GPT-5.5"),
       codex("gpt-5.4", "GPT-5.4"),
+      codex("gpt-5.4-mini", "GPT-5.4 Mini"),
+      codex("gpt-5.4-nano", "GPT-5.4 Nano"),
       codex("gpt-5.3-codex", "GPT-5.3 Codex"),
     ],
     levels: CODEX_LEVELS,

@@ -107,6 +107,16 @@ export type RunMode = "none" | "action" | "command";
 
 export type DuplicateMode = "copy" | "worktree";
 
+// A copy the "Bulk Duplicate" flow has promised but not yet created. The sidebar
+// deals a skeleton row into `parent`'s deck for each, so the list shows where the
+// copy is going to land while it is being made.
+export interface PendingDuplicate {
+  id: number;
+  parent: string;
+  label: string;
+  worktree: boolean;
+}
+
 // A copy's per-run override of the shared default. `null` at the call site means
 // the copy inherits the default; an override carries its own prompt — the same
 // composer value as the shared default, including any attached images.

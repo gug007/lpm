@@ -52,7 +52,7 @@ vi.mock("../../bridge/runtime", () =>
   }));
 
 import { useAppStore } from "./app";
-import type { SpawnTask } from "../types";
+import type { PendingDuplicate, SpawnTask } from "../types";
 
 const SLUG = "aaaaaaaa";
 const peerApp = `peer-${SLUG}-app`;
@@ -71,6 +71,7 @@ describe("bulkDuplicate per-copy targets", () => {
       projects: [],
       spawnTasks: {},
       duplicatingNames: [],
+      pendingDuplicates: [],
       selected: null,
     });
   });
@@ -159,6 +160,41 @@ describe("bulkDuplicate per-copy targets", () => {
     expect(h.StartDuplicateWorktreeProject).toHaveBeenCalledTimes(1);
     expect(h.DuplicateProject).not.toHaveBeenCalled();
     expect(h.DuplicateWorktreeProject).not.toHaveBeenCalled();
+  });
+
+  it("holds a pending entry per copy until that copy is in the list", async () => {
+    const seen: Array<Array<Pick<PendingDuplicate, "parent" | "label" | "worktree">>> = [];
+    let n = 0;
+    h.DuplicateProject.mockImplementation(async () => {
+      seen.push(
+        useAppStore.getState().pendingDuplicates.map(({ parent, label, worktree }) => ({
+          parent,
+          label,
+          worktree,
+        })),
+      );
+      return `app-copy-${++n}`;
+    });
+
+    await useAppStore.getState().bulkDuplicate("app", 2, { labels: ["first", ""] });
+
+    expect(seen).toEqual([
+      [
+        { parent: "app", label: "first", worktree: false },
+        { parent: "app", label: "", worktree: false },
+      ],
+      [{ parent: "app", label: "", worktree: false }],
+    ]);
+    expect(useAppStore.getState().pendingDuplicates).toEqual([]);
+  });
+
+  it("drops every pending entry when a copy fails", async () => {
+    h.DuplicateProject.mockRejectedValue("disk full");
+
+    await useAppStore.getState().bulkDuplicate("app", 3, {});
+
+    expect(useAppStore.getState().pendingDuplicates).toEqual([]);
+    expect(useAppStore.getState().duplicatingNames).toEqual([]);
   });
 
   it("surfaces a failed peer duplicate without creating later copies", async () => {

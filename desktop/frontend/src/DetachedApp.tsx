@@ -28,6 +28,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
   const detached = useAppStore((s) => s.detached);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const duplicatingNames = useAppStore((s) => s.duplicatingNames);
+  const pendingDuplicates = useAppStore((s) => s.pendingDuplicates);
   const removingNames = useAppStore((s) => s.removingNames);
   const theme = useResolvedTheme();
 
@@ -149,6 +150,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
           showScheduled={false}
           showSettings={false}
           duplicatingNames={duplicatingNames}
+          pendingDuplicates={pendingDuplicates}
           removingNames={removingNames}
         />
         <main className="flex flex-1 flex-col overflow-hidden bg-[var(--bg-primary)] px-6 pb-6">
