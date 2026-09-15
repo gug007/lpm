@@ -6,6 +6,8 @@ import { INITIAL_AI_STATUS, type ReplyContext } from "./projects";
 import { FOCUS_RING, PRESS } from "./ui";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
 import { AgentComposer } from "./agent-composer";
+import { ComposerModelPicker } from "./composer-model-picker";
+import { INITIAL_PICK, statusModel, switchNotices, type ModelPick } from "./agent-models";
 import { AgentTurn } from "./agent-turn";
 import {
   AFFIRMATIVE,
@@ -323,6 +325,27 @@ export function AgentTerminal({
     inputRef.current?.focus();
   };
 
+  // What this terminal's agent runs now. The composer's picker moves it, and the
+  // status line follows — the banner above keeps what it printed at launch.
+  const [pick, setPick] = useState<ModelPick>(() => INITIAL_PICK[agent]);
+  // The lines the CLI printed to confirm a switch. They carry ids from the same
+  // counter as the turns, so the transcript can put them back in the order they
+  // happened rather than always at the end.
+  const [notices, setNotices] = useState<{ id: number; text: string }[]>([]);
+
+  const applyPick = (next: ModelPick) => {
+    const lines = switchNotices(agent, pick, next);
+    setPick(next);
+    if (lines.length === 0) return;
+    setNotices((current) => [
+      ...current,
+      ...lines.map((text) => {
+        nextIdRef.current += 1;
+        return { id: nextIdRef.current, text };
+      }),
+    ]);
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const text = input.trim();
@@ -344,6 +367,12 @@ export function AgentTerminal({
   const project = projectName(cwd);
   // Drives the status line's context/cost readouts, so they drift with the work
   // on screen instead of sitting at a constant.
+  // One timeline: turns and switch confirmations, in the order they happened.
+  const feed = [
+    ...history.map((item) => ({ kind: "turn" as const, id: item.id, item })),
+    ...notices.map((n) => ({ kind: "notice" as const, id: n.id, text: n.text })),
+  ].sort((a, b) => a.id - b.id);
+
   const work = history.reduce(
     (total, item) =>
       total +
@@ -373,46 +402,58 @@ export function AgentTerminal({
 
         <div className="h-3" />
 
-        {history.map((item) => (
+        {feed.map((entry) =>
+          entry.kind === "notice" ? (
+            <div key={`n${entry.id}`} className="py-1 text-[#919191]">
+              {agent === "codex" && <span className="mr-1.5">{b.bullet}</span>}
+              {entry.text}
+            </div>
+          ) : (
           <AgentTurn
-            key={item.id}
+            key={entry.item.id}
             agent={agent}
-            query={item.query}
-            steps={item.steps}
-            revealed={item.revealed}
-            finished={item.finished}
+            query={entry.item.query}
+            steps={entry.item.steps}
+            revealed={entry.item.revealed}
+            finished={entry.item.finished}
             footer={
-              !item.finished ? (
+              !entry.item.finished ? (
                 <WorkingLine
                   agent={agent}
-                  seed={item.id}
-                  startedAt={item.startedAt}
-                  tokens={tokensFor(item)}
+                  seed={entry.item.id}
+                  startedAt={entry.item.startedAt}
+                  tokens={tokensFor(entry.item)}
                 />
               ) : agent === "claude" ? (
                 <TurnFooter
-                  seed={item.id}
-                  seconds={Math.max(1, Math.round(item.doneMs / 1000))}
+                  seed={entry.item.id}
+                  seconds={Math.max(1, Math.round(entry.item.doneMs / 1000))}
                 />
               ) : null
             }
           />
-        ))}
+          ),
+        )}
       </div>
-      <AgentStatusLine agent={agent} project={project} work={work} />
+      <AgentStatusLine
+        agent={agent}
+        project={project}
+        work={work}
+        model={statusModel(agent, pick)}
+      />
       <AgentComposer
         value={input}
         onChange={setInput}
         onSubmit={onSubmit}
-        onStop={stop}
         busy={busy}
-        placeholder={busy ? "Working… press Stop to interrupt" : `Send to ${b.name}…`}
+        placeholder={busy ? "Working… send to interrupt" : `Send to ${b.name}…`}
         inputRef={inputRef}
         onRecall={() => fillInput(lastQuery)}
         canRecall={!!lastQuery}
         workingSince={history[history.length - 1]?.finished === false
           ? history[history.length - 1].startedAt
           : undefined}
+        trailing={<ComposerModelPicker agent={agent} pick={pick} onPick={applyPick} />}
       >
         {history.length === 0 && !busy && (
           <div className="mb-2 flex flex-wrap gap-1.5">

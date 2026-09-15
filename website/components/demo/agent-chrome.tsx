@@ -124,10 +124,15 @@ export function AgentStatusLine({
   agent,
   project,
   work,
+  model,
 }: {
   agent: AgentKind;
   project: string;
   work: number;
+  // What the session runs now — the status line is the one piece of CLI
+  // furniture that tracks a mid-session switch. The banner above keeps what it
+  // printed at launch, because that is history.
+  model: string;
 }) {
   const dot = <span className="text-[#8a8a8a]"> · </span>;
 
@@ -135,7 +140,7 @@ export function AgentStatusLine({
     const context = Math.max(41, 100 - work * 2);
     return (
       <div className="shrink-0 px-3 pb-1.5 font-mono text-[12px] text-[#919191]">
-        <span className="text-[#f6e2b7]">{BRAND.codex.model}</span>
+        <span className="text-[#f6e2b7]">{model}</span>
         {dot}
         <span className="text-[#f2b590]">Context {context}% left</span>
         {dot}
@@ -154,7 +159,7 @@ export function AgentStatusLine({
     <div className="shrink-0 px-3 pb-1.5 font-mono text-[12px] text-[#919191]">
       <span>{project}</span>
       {dot}
-      <span className="text-[#d78787]">{BRAND.claude.model}</span>
+      <span className="text-[#d78787]">{model}</span>
       {dot}
       <span className="text-[#8a8a8a]">ctx </span>
       <span>{context}%</span>

@@ -14,7 +14,6 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onSubmit: (e: FormEvent) => void;
-  onStop: () => void;
   busy: boolean;
   placeholder: string;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -23,6 +22,8 @@ type Props = {
   /** When the turn in flight began, so the composer can say how long the agent
    *  has been at it — what the app shows here instead of a spinner. */
   workingSince?: number;
+  // Rendered in the footer row, to the left of Send.
+  trailing?: ReactNode;
   // Rendered above the box, inside the composer's own padding.
   children?: ReactNode;
 };
@@ -31,13 +32,13 @@ export function AgentComposer({
   value,
   onChange,
   onSubmit,
-  onStop,
   busy,
   placeholder,
   inputRef,
   onRecall,
   canRecall,
   workingSince,
+  trailing,
   children,
 }: Props) {
   const focusField = () => inputRef.current?.focus();
@@ -102,11 +103,10 @@ export function AgentComposer({
                   <WorkingFor since={workingSince} />
                 )}
               </div>
-              <ComposerSendButton
-                busy={busy}
-                disabled={!value.trim()}
-                onStop={onStop}
-              />
+              <div className="flex items-center gap-1.5">
+                {trailing}
+                <ComposerSendButton disabled={!value.trim()} />
+              </div>
             </div>
           </div>
         </div>

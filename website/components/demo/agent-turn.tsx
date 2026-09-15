@@ -77,7 +77,10 @@ function ClaudeTurn({ query, steps, revealed, footer }: TurnProps) {
 function CodexTurn({ query, steps, revealed, finished, footer }: TurnProps) {
   const visible = steps.slice(0, revealed);
   const blocks: ReactNode[] = [];
-  const closing = finished ? closingRange(steps) : null;
+  // Against what is on screen, not the whole reply: an interrupted turn is
+  // finished with steps still unrevealed, and ruling off a closing message that
+  // never renders leaves an opening rule with nothing under it.
+  const closing = finished ? closingRange(visible) : null;
   let explored: string[] = [];
 
   const flush = (key: string) => {

@@ -43,7 +43,7 @@ export const BRAND: Record<AgentKind, Brand> = {
     cmd: "codex",
     name: "Codex",
     version: "v0.147.0",
-    model: "gpt-5.6-sol max",
+    model: "gpt-6-astra max",
     account: "",
     prompt: "›",
     bullet: "•",
