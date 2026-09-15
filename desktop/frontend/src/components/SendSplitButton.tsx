@@ -6,7 +6,7 @@ import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import { SEND_SHELL_CLASS, sendFaceClass, sendGlow, sendShellTint } from "./composerSendStyles";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
-import { ChevronUpIcon, CopyIcon, SendIcon, SquarePenIcon } from "./icons";
+import { ChevronUpIcon, CopyIcon, ForwardIcon, SendIcon, SquarePenIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 
 interface SendSplitButtonProps {
@@ -16,6 +16,9 @@ interface SendSplitButtonProps {
   busy: boolean;
   onSend: () => void;
   onSaveDraft: () => void;
+  // Open the picker for a tab elsewhere — another tab here, or one in another
+  // open project — to send this prompt to instead.
+  onSendElsewhere: () => void;
   // Spin up `count` project duplicates that each run this prompt in parallel.
   onRunInDuplicates: (count: number) => void;
 }
@@ -32,7 +35,7 @@ const MAX_DUPES = 10;
 // prompt as a draft or run it across several parallel duplicates instead. The
 // menu is anchored above the button (the composer sits at the bottom of the
 // pane) and portaled so the composer's rounded, clipping ancestors can't cut it off.
-export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDuplicates }: SendSplitButtonProps) {
+export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendElsewhere, onRunInDuplicates }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
   // How many copies "Run in duplicates" spins up; adjusted inline in the menu
   // and carried over as the seeded Copies count when the dialog opens.
@@ -120,6 +123,15 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onRunInDu
               onClick={() => {
                 setOpen(false);
                 onSaveDraft();
+              }}
+            />
+            <ContextMenuItem
+              label="Send to another tab"
+              description="Pick a tab in this or another open project"
+              icon={<ForwardIcon size={13} />}
+              onClick={() => {
+                setOpen(false);
+                onSendElsewhere();
               }}
             />
             <div className="flex w-full items-start gap-2 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">

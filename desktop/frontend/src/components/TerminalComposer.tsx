@@ -20,7 +20,6 @@ import {
   RenameMemorySession,
   SaveClipboardImage,
   TransformText,
-  UploadAndQuoteForTerminal,
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
@@ -41,16 +40,24 @@ import { ComposerMicButton } from "./ComposerMicButton";
 import { ComposerMemoryButton } from "./ComposerMemoryButton";
 import {
   createInputTab,
+  deliverPromptDraft,
   loadComposerDraft,
   saveComposerDraft,
+  subscribeInboundPrompt,
   subscribeRemoteDraft,
+  tabFromPrompt,
   type ComposerHistoryEntry,
   type ComposerInputTab,
 } from "../store/composerDrafts";
 import { stepRecall } from "./composerRecall";
 import { COLLECTION_DRAFTS, recordMessage, saveDraft } from "../store/messageHistory";
+import { buildTerminalPayload } from "../composerPayload";
+import { sendToTerminal } from "../store/terminalTargets";
+import type { SendTargetRow } from "../sendTargets";
+import { useAppStore } from "../store/app";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
 import { SendSplitButton } from "./SendSplitButton";
+import { SendToTerminalModal, type SendTargetMode } from "./SendToTerminalModal";
 import { AgentStatusChip } from "./AgentStatusChip";
 import type { PaneAgentStatus } from "../hooks/usePaneStatus";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
@@ -64,8 +71,6 @@ import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
-import { quoteImagePathForPaste } from "../composerValue";
-import { shellQuote } from "../terminal-io";
 import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 import {
   caretEdges,
@@ -247,6 +252,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [transformingId, setTransformingId] = useState<string | null>(null);
   const gen = useAIGeneration();
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
+  // The target picker for "Send to another tab". Null while closed; open it with
+  // the prompt's image count, which decides whether a tab on another Mac can take
+  // it at all. `sendingAway` holds the picker open but inert while the send is in
+  // flight — a target's image upload is a round-trip that can still fail.
+  const [sendTarget, setSendTarget] = useState<{ hasImages: boolean } | null>(null);
+  const [sendingAway, setSendingAway] = useState(false);
   // Set while the multi-result variant picker is open. `startedId` pins the tab
   // the rewrites belong to, and `images` rehydrates whichever one is committed.
   const [variants, setVariants] = useState<{
@@ -602,6 +613,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       syncState();
     });
   }, [terminalId, syncState]);
+
+  // Take in a prompt moved here from another composer. It never displaces what is
+  // in the field: it arrives as its own prepared prompt, and only becomes the one
+  // on screen when the user isn't mid-sentence in this one.
+  useEffect(() => {
+    return subscribeInboundPrompt(terminalId, (text: string, images: Record<string, string>) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      // Park the visible prompt first, exactly as opening a new input does, so
+      // nothing typed here is lost by the arrival.
+      syncState();
+      const tab = tabFromPrompt(text, images);
+      tabs.current.push(tab);
+      const typingHere = document.activeElement === editor && Date.now() - lastLocalEditAt.current < 1500;
+      // The field also isn't ours to swap while an action is rewriting it.
+      if (!typingHere && !transforming.current) loadTab(tab);
+      refreshTabView();
+      syncState();
+    });
+  }, [terminalId, syncState, loadTab, refreshTabView]);
 
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
@@ -1004,35 +1035,20 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editor.focus();
   };
 
-  // Resolve a message (its serialized text + token→path image map) into what the
-  // terminal receives: plain text when there are no images, or an ordered array
-  // of text runs and per-image bracketed pastes. Each image path is uploaded
-  // (scp'd) for a remote pane and passed through for a local one, kept in
-  // segment order and padded so a path-attaching agent keeps order; blank runs
-  // between chips are dropped. A literal "[Image #N]" the user typed (no mapped
-  // path) rides along as plain text. Shared by live sends and history re-sends.
-  const buildTerminalPayload = async (
-    text: string,
-    images: Record<string, string>,
-  ): Promise<string | string[]> => {
-    const segments = splitByImageTokens(text);
-    const hasImages = segments.some((s) => s.image !== null && images[s.image] !== undefined);
-    if (!hasImages) return text;
-    const parts = await Promise.all(
-      segments.map(async (s) => {
-        const path = s.image === null ? undefined : images[s.image];
-        if (path === undefined) return s.text;
-        // For a peer terminal the path is already host-valid — the host wrote the
-        // file when the chip was attached — so there is nothing to upload here,
-        // only the same paste formatting the host would have applied.
-        if (isRemotePeer) {
-          return ` ${isImagePath(path) ? quoteImagePathForPaste(path) : shellQuote(path)} `;
-        }
-        const uploaded = await UploadAndQuoteForTerminal(terminalId, [path]).catch(() => "");
-        return ` ${uploaded || quoteImagePathForPaste(path)} `;
-      }),
-    );
-    return parts.filter((p) => p.trim().length > 0);
+  // What this terminal receives for a given message. Resolved against whichever
+  // terminal it is going to — this one for a live send, the picked one for a
+  // prompt sent to another tab — since each image is uploaded for that pane's
+  // host. Shared by live sends and history re-sends.
+  const buildPayloadForHere = (text: string, images: Record<string, string>) =>
+    buildTerminalPayload(terminalId, text, images);
+
+  // Put a just-sent prompt at the head of this terminal's recall ring. The
+  // prepend shifts every existing entry up by one; nudge each recall cursor
+  // (per-tab and the live one) so it stays anchored to its message.
+  const rememberSent = (text: string, images: Record<string, string>) => {
+    history.current.unshift({ text, images });
+    for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
+    if (histIdx.current >= 0) histIdx.current += 1;
   };
 
   // Deliver a prompt (its text + token→local-path image map) to the target
@@ -1051,13 +1067,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     if (sending.current.has(sentId)) return;
     sending.current.add(sentId);
     try {
-      const payload = await buildTerminalPayload(text, images);
+      const payload = await buildPayloadForHere(text, images);
       if (!onSubmit(payload)) return;
-      history.current.unshift({ text, images });
-      // The prepend shifts every existing entry up by one; nudge each recall
-      // cursor (per-tab and the live one) so it stays anchored to its message.
-      for (const t of tabs.current) if (t.histIdx >= 0) t.histIdx += 1;
-      if (histIdx.current >= 0) histIdx.current += 1;
+      rememberSent(text, images);
       recordMessage({
         text,
         projectName,
@@ -1087,7 +1099,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // then focus moves to the terminal to watch the result.
   const sendFromHistory = async (text: string, images: Record<string, string>) => {
     if (!text.trim()) return;
-    const payload = await buildTerminalPayload(text, images);
+    const payload = await buildPayloadForHere(text, images);
     if (!onSubmit(payload)) return;
     recordMessage({ text, projectName, terminalId: historyKey, terminalLabel: targetLabel, images });
     onFocusTerminal();
@@ -1148,6 +1160,67 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       { prompt: { text, images, pending: false }, count: count - 1, command: launchCmd, actionName },
       runHere,
     );
+  };
+
+  // Hand the current prompt to a tab somewhere else — another tab here, or one in
+  // another open project — and retire it here exactly as a send does. "send" runs
+  // it there straight away; "move" parks it in that tab's input to be edited and
+  // sent by hand. The prompt is only cleared once it has actually landed, so a
+  // target that refuses input keeps it here to try again.
+  const sendToAnotherTab = async (row: SendTargetRow, mode: SendTargetMode) => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    const text = serializeEditor(editor);
+    if (!text.trim()) return;
+    const sentId = activeId.current;
+    if (sending.current.has(sentId)) return;
+    // Present chips only: a path whose chip was deleted is no longer part of the
+    // prompt, and must not be carried to the target.
+    const present = presentImageTokens(editor);
+    const images: Record<string, string> = {};
+    for (const [token, path] of imagePaths.current) {
+      if (present.has(token)) images[token] = path;
+    }
+    if (row.offHost && Object.keys(images).length > 0) {
+      toast.error("Images can't be sent to a tab on another Mac.");
+      return;
+    }
+    sending.current.add(sentId);
+    setSendingAway(true);
+    try {
+      if (mode === "move") {
+        deliverPromptDraft(row.terminalId, row.historyKey, text, images);
+      } else {
+        const payload = await buildTerminalPayload(row.terminalId, text, images);
+        if (!sendToTerminal(row.projectName, row.terminalId, payload)) {
+          toast.error(`${row.label} isn't accepting input right now.`);
+          return;
+        }
+        // It was typed here, so ↑ still brings it back here — but it RAN over
+        // there, so durable history files it against that tab.
+        rememberSent(text, images);
+        recordMessage({
+          text,
+          projectName: row.projectName,
+          terminalId: row.historyKey,
+          terminalLabel: row.label,
+          images,
+        });
+      }
+      finishSend(sentId, editor);
+      setSendTarget(null);
+      toast.success(mode === "move" ? `Moved to ${row.label}` : `Sent to ${row.label}`, {
+        action: {
+          label: "Open",
+          onClick: () => useAppStore.getState().focusProjectTerminal(row.projectName, row.terminalId),
+        },
+      });
+    } catch (err) {
+      toast.error(`Couldn't reach ${row.label}: ${String(err)}`);
+    } finally {
+      sending.current.delete(sentId);
+      setSendingAway(false);
+    }
   };
 
   // Rebuild the field from a recalled/saved message: a chip for each token with
@@ -2196,11 +2269,24 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             busy={busy}
             onSend={() => void send()}
             onSaveDraft={() => void saveCurrentDraft()}
+            onSendElsewhere={() => {
+              const editor = editorRef.current;
+              setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
+            }}
             onRunInDuplicates={runInDuplicates}
           />
         </div>
       </div>
       </div>
+      <SendToTerminalModal
+        open={sendTarget !== null}
+        onClose={() => setSendTarget(null)}
+        sourceProject={projectName}
+        sourceTerminalId={terminalId}
+        hasImages={sendTarget?.hasImages ?? false}
+        busy={sendingAway}
+        onPick={(row, mode) => void sendToAnotherTab(row, mode)}
+      />
       {preview?.kind === "image" && (
         <ImagePreviewPopover path={preview.path} anchor={preview.rect} slug={peerSlug} />
       )}

@@ -47,6 +47,7 @@ import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { registerProjectSubmit, useTerminalTargets } from "../store/terminalTargets";
 import { useTTSHotkeys } from "../hooks/useTTSHotkeys";
 import { TTSControls } from "./TTSControls";
 import { joinAbs } from "../path";
@@ -324,7 +325,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // for plain shells), used only by the remote push. Identity-stabilized (the tree
   // gets a fresh reference each drag frame) so consumers/effects don't churn.
   const allTerminalsRef = useRef<
-    { id: string; label: string; cli: string; pinned: boolean; emoji: string }[]
+    { id: string; label: string; cli: string; pinned: boolean; emoji: string; historyKey: string }[]
   >([]);
   const allTerminals = useMemo(() => {
     const next = tree
@@ -336,6 +337,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             cli: detectAICLI(t.startCmd) ?? "",
             pinned: t.pinned === true,
             emoji: t.emoji ?? "",
+            // Same fallback the composer uses: an older persisted tree can carry
+            // a tab that predates history keys.
+            historyKey: t.historyKey ?? t.id,
           }))
       : [];
     const prev = allTerminalsRef.current;
@@ -347,7 +351,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
           p.label === next[i].label &&
           p.cli === next[i].cli &&
           p.pinned === next[i].pinned &&
-          p.emoji === next[i].emoji,
+          p.emoji === next[i].emoji &&
+          p.historyKey === next[i].historyKey,
       )
     ) {
       return prev;
@@ -372,6 +377,29 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   useEffect(
     () => () => useTerminalTitles.getState().clearProject(projectName),
+    [projectName],
+  );
+
+  // Offer these tabs as targets for a prompt composed somewhere else. A composer
+  // reaches its own terminal through this view's handle map, which no other
+  // project's view can see — so each one publishes its tabs and its submit, and a
+  // cross-project send goes through the owning view rather than around it.
+  useEffect(() => {
+    useTerminalTargets.getState().setProjectTargets(
+      projectName,
+      allTerminals.map((t) => ({
+        id: t.id,
+        label: t.label,
+        emoji: t.emoji,
+        historyKey: t.historyKey,
+      })),
+    );
+  }, [projectName, allTerminals]);
+
+  // Withdrawing the list is its own effect, so a change to what the submit below
+  // closes over can never take the project out of every picker as a side effect.
+  useEffect(
+    () => () => useTerminalTargets.getState().clearProject(projectName),
     [projectName],
   );
 
@@ -831,6 +859,25 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const focusTerminalInput = useCallback((terminalId: string) => {
     terminalHandles.current.get(terminalId)?.focus();
   }, []);
+
+  // Deliver a prompt composed in another project's composer. Same robust path a
+  // manual send takes, minus the toast: the sending composer names the tab it
+  // picked, so a failure is reported there rather than twice.
+  const submitPromptFromElsewhere = useCallback(
+    (terminalId: string, input: string | string[]): boolean => {
+      const ok = terminalHandles.current.get(terminalId)?.submitInput(input) ?? false;
+      if (ok) noteMemoryFromInput(terminalId, input);
+      return ok;
+    },
+    [noteMemoryFromInput],
+  );
+
+  // Declared here, below the submit it publishes: the effect's dependency list is
+  // read during render, so it can't sit next to the target list above.
+  useEffect(() => {
+    registerProjectSubmit(projectName, submitPromptFromElsewhere);
+    return () => registerProjectSubmit(projectName, null);
+  }, [projectName, submitPromptFromElsewhere]);
 
   // Stopping a running service is a toggle — the service tab only exists while
   // the service runs, so toggling it from that tab always stops it.

@@ -123,3 +123,68 @@ export function applyRemoteDraft(terminalId: string, text: string): void {
     drafts.set(terminalId, { tabs: [tab], activeTabId: tab.id, history: [] });
   }
 }
+
+// A prompt handed to this terminal from another composer ("move to another
+// tab"). Unlike a remote draft it never overwrites what is already typed there:
+// it arrives as its own prepared prompt, so the target keeps whatever it had.
+type InboundPromptCallback = (text: string, images: Record<string, string>) => void;
+const inboundPromptSubs = new Map<string, InboundPromptCallback>();
+
+export function subscribeInboundPrompt(terminalId: string, cb: InboundPromptCallback): () => void {
+  inboundPromptSubs.set(terminalId, cb);
+  return () => {
+    if (inboundPromptSubs.get(terminalId) === cb) inboundPromptSubs.delete(terminalId);
+  };
+}
+
+export function tabFromPrompt(text: string, images: Record<string, string>): ComposerInputTab {
+  const tab = createInputTab();
+  tab.text = text;
+  for (const [token, path] of Object.entries(images)) {
+    const n = Number(token);
+    if (!Number.isFinite(n) || !path) continue;
+    tab.imagePaths.set(n, path);
+    // A later paste in the target must not hand out a token this prompt already
+    // brought with it, which would point two chips at one path.
+    tab.imgCounter = Math.max(tab.imgCounter, n);
+  }
+  return tab;
+}
+
+// Park a prompt in another terminal's composer as a new prepared prompt. A
+// mounted composer takes it live (and switches to it); an unmounted one gets it
+// in its parked draft, persisted under `historyKey` so a move still arrives when
+// the app is quit before that terminal is ever looked at.
+//
+// Parking is window-local: a detached window holds its own copy of these drafts,
+// so a move aimed at a tab whose composer is live in the OTHER window lands in
+// this one's parked copy and is overwritten when that window next saves. A tab
+// mounted here — the ordinary case — goes through the callback instead and is
+// never affected.
+export function deliverPromptDraft(
+  terminalId: string,
+  historyKey: string,
+  text: string,
+  images: Record<string, string>,
+): void {
+  const cb = inboundPromptSubs.get(terminalId);
+  if (cb) {
+    cb(text, images);
+    return;
+  }
+  const tab = tabFromPrompt(text, images);
+  // A tab old enough to predate history keys falls back to its pty id, which Rust
+  // re-mints every launch — durable storage under that key would resurface this
+  // prompt in whatever tab inherits the id next, so it stays in memory only.
+  const durable = historyKey === terminalId ? undefined : historyKey;
+  const draft = loadComposerDraft(terminalId, durable);
+  if (draft && draft.tabs.length > 0) {
+    // A lone blank prompt is the empty state, not something the user prepared;
+    // the moved prompt takes its place rather than leaving an empty tab behind.
+    const only = draft.tabs.length === 1 ? draft.tabs[0] : null;
+    const tabs = only && only.text.trim() === "" ? [tab] : [...draft.tabs, tab];
+    saveComposerDraft(terminalId, { ...draft, tabs, activeTabId: tab.id }, durable);
+    return;
+  }
+  saveComposerDraft(terminalId, { tabs: [tab], activeTabId: tab.id, history: [] }, durable);
+}

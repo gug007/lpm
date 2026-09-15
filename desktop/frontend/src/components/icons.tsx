@@ -63,6 +63,7 @@ export function ImageIcon({ size = 13 }: { size?: number } = {}) { return <svg {
 export function FileIcon({ size = 13 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>; }
 export function PaperclipIcon() { return <svg {...iconProps}><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>; }
 export function SendIcon() { return <svg {...iconProps}><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4z" /></svg>; }
+export function ForwardIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size}><polyline points="15 17 20 12 15 7" /><path d="M4 18v-2a4 4 0 0 1 4-4h12" /></svg>; }
 export function ArrowUpIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size} strokeWidth={2}><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>; }
 export function ComposerIcon() { return <svg {...iconProps}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>; }
 export function MicIcon({ size = 14 }: { size?: number } = {}) { return <svg {...iconProps} width={size} height={size}><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="22" /></svg>; }
