@@ -133,13 +133,49 @@ fn add_unacked(sess: &Arc<PtySession>, n: i64) {
     }
 }
 
+/// Length of a multibyte UTF-8 sequence that the end of `bytes` cuts short.
+/// Reads and flushes split output at arbitrary byte offsets, so a character
+/// straddling two chunks would otherwise decode as U+FFFD once per fragment;
+/// the fragment is held back until the next chunk completes it.
+fn incomplete_utf8_tail(bytes: &[u8]) -> usize {
+    for back in 1..=bytes.len().min(3) {
+        let byte = bytes[bytes.len() - back];
+        if byte & 0xC0 == 0x80 {
+            continue;
+        }
+        let width = match byte {
+            0xF0..=0xF7 => 4,
+            0xE0..=0xEF => 3,
+            0xC0..=0xDF => 2,
+            _ => 1,
+        };
+        return if width > back { back } else { 0 };
+    }
+    0
+}
+
+/// Emit every complete character in `pending`; a trailing partial one stays
+/// buffered for the next chunk.
 fn flush(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
-    if pending.is_empty() {
+    let complete = pending.len() - incomplete_utf8_tail(pending);
+    emit_output(&pending[..complete], app, sess);
+    pending.drain(..complete);
+}
+
+/// Emit everything, including a partial trailing character that can no longer
+/// be completed because the pty has hit EOF.
+fn flush_all(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
+    emit_output(pending, app, sess);
+    pending.clear();
+}
+
+fn emit_output(bytes: &[u8], app: &AppHandle, sess: &Arc<PtySession>) {
+    if bytes.is_empty() {
         return;
     }
     // from_utf8_lossy == strings.ToValidUTF8(..., "\u{FFFD}"): invalid byte runs
-    // (incl. partial multibyte chars at a chunk boundary) become U+FFFD.
-    let text = String::from_utf8_lossy(pending).into_owned();
+    // become U+FFFD.
+    let text = String::from_utf8_lossy(bytes).into_owned();
     let runes = text.chars().count() as i64; // RuneCountInString — MUST be runes
     let _ = app.emit(&format!("pty-output-{}", sess.id), &text);
     // Mirror the same chunk to any connected mobile client (no-op when the
@@ -154,7 +190,6 @@ fn flush(pending: &mut Vec<u8>, app: &AppHandle, sess: &Arc<PtySession>) {
     if sess.remote {
         crate::portforward::sniff_pane_output(app, &sess.project_name, &sess.declared, &text);
     }
-    pending.clear();
     add_unacked(sess, runes);
 }
 
@@ -195,30 +230,37 @@ fn spawn_io_threads(
 
     // Flush thread: accumulate, flush on >=32KB or after 4ms idle (recv_timeout
     // collapses Go's one-shot timer). The timer is armed only while a flush is
-    // owed; with nothing pending there is nothing to flush on timeout, so an
-    // idle pane blocks in recv() rather than waking 250x/s to no-op — that cost
-    // is per-pane and dominates the app's idle wakeups. On EOF, wait the child
-    // and emit exit.
+    // owed — new bytes since the last flush — so an idle pane blocks in recv()
+    // rather than waking 250x/s to no-op; that cost is per-pane and dominates
+    // the app's idle wakeups. A held partial character alone owes nothing: it
+    // can only be completed by more input, which recv() delivers. On EOF, wait
+    // the child and emit exit.
     std::thread::spawn(move || {
         let mut pending: Vec<u8> = Vec::with_capacity(PENDING_CAP);
+        let mut flush_owed = false;
         loop {
-            let next = if pending.is_empty() {
-                rx.recv().map_err(|_| RecvTimeoutError::Disconnected)
-            } else {
+            let next = if flush_owed {
                 rx.recv_timeout(Duration::from_millis(FLUSH_MS))
+            } else {
+                rx.recv().map_err(|_| RecvTimeoutError::Disconnected)
             };
             match next {
                 Ok(Ok(chunk)) => {
                     pending.extend_from_slice(&chunk);
+                    flush_owed = true;
                     if pending.len() >= FLUSH_SIZE {
                         flush(&mut pending, &app, &sess);
+                        flush_owed = false;
                     }
                 }
                 Ok(Err(())) | Err(RecvTimeoutError::Disconnected) => {
-                    flush(&mut pending, &app, &sess);
+                    flush_all(&mut pending, &app, &sess);
                     break;
                 }
-                Err(RecvTimeoutError::Timeout) => flush(&mut pending, &app, &sess),
+                Err(RecvTimeoutError::Timeout) => {
+                    flush(&mut pending, &app, &sess);
+                    flush_owed = false;
+                }
             }
         }
         let code = sess
@@ -870,7 +912,7 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
 
 #[cfg(test)]
 mod tests {
-    use super::{env_lacks_locale, event_safe};
+    use super::{env_lacks_locale, event_safe, incomplete_utf8_tail};
     use crate::sys::login_shell;
 
     // The shell a terminal opens with must exist on the machine it opens on. A
@@ -926,5 +968,22 @@ mod tests {
         assert!(!env_lacks_locale(env(&[("LC_ALL", "C")])));
         assert!(!env_lacks_locale(env(&[("LC_CTYPE", "UTF-8")])));
         assert!(!env_lacks_locale(env(&[("PATH", "/bin"), ("LANG", "C")])));
+    }
+
+    #[test]
+    fn incomplete_utf8_tail_holds_only_split_sequences() {
+        let dash = "─".as_bytes();
+        let emoji = "🤖".as_bytes();
+        assert_eq!(incomplete_utf8_tail(b""), 0);
+        assert_eq!(incomplete_utf8_tail(b"abc"), 0);
+        assert_eq!(incomplete_utf8_tail(dash), 0);
+        assert_eq!(incomplete_utf8_tail(emoji), 0);
+        assert_eq!(incomplete_utf8_tail(&dash[..1]), 1);
+        assert_eq!(incomplete_utf8_tail(&dash[..2]), 2);
+        assert_eq!(incomplete_utf8_tail(&emoji[..1]), 1);
+        assert_eq!(incomplete_utf8_tail(&emoji[..3]), 3);
+        assert_eq!(incomplete_utf8_tail(&[b'a', 0xE2]), 1);
+        assert_eq!(incomplete_utf8_tail(&[0x80, 0x80, 0x80]), 0);
+        assert_eq!(incomplete_utf8_tail(&[0xE9, b' ']), 0);
     }
 }
