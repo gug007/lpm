@@ -108,8 +108,16 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER_ID }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+        # The DMG step drives Finder over AppleScript, which intermittently fails
+        # on hosted runners ("Can't get disk (-1728)") after the app is already
+        # built, signed and notarized. Cargo is a no-op on the retry, so a second
+        # pass only re-signs and re-notarizes.
         run: |
-          npx tauri build --target ${{ matrix.target }} --config "{\"version\":\"$VERSION\"}" -- --timings
+          for attempt in 1 2 3; do
+            npx tauri build --target ${{ matrix.target }} --config "{\"version\":\"$VERSION\"}" -- --timings && exit 0
+            echo "::warning::tauri build failed (attempt $attempt of 3)"
+          done
+          exit 1
 
       # Per-crate build timings for the run above — open the HTML to see which
       # crates dominate and whether the warm cache actually hit.
