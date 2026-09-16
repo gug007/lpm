@@ -3463,3 +3463,27 @@ mod project_order_tests {
         assert_eq!(ordered(&[], projects), ["web", "api", "api-1"]);
     }
 }
+
+#[cfg(test)]
+mod seeded_global_tests {
+    use super::*;
+
+    #[test]
+    fn first_launch_defaults_resolve_to_terminal_actions() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("global.yml");
+        std::fs::write(&path, crate::firstlaunch::DEFAULT_GLOBAL_YML).unwrap();
+
+        let layer = build_layer(&load_actions_yaml(&path).expect("seeded yaml parses"));
+        let names: Vec<&String> = layer.keys().collect();
+        assert_eq!(names, vec!["claude", "codex"]);
+        for (name, act) in &layer {
+            let info = build_action_info(name, name, act);
+            assert_eq!(info.cmd, *name);
+            assert_eq!(info.kind, "terminal");
+            assert!(!info.label.is_empty());
+            assert!(!info.emoji.is_empty());
+            assert!(info.children.is_empty());
+        }
+    }
+}

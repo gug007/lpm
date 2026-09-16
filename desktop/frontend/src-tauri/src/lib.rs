@@ -28,6 +28,7 @@ mod daemonize;
 mod detached;
 mod dockmenu;
 mod files;
+mod firstlaunch;
 mod fonts;
 mod fsatomic;
 mod generated_commands;
@@ -271,6 +272,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            firstlaunch::seed_global_actions();
             let handle = app.handle().clone();
             if let Err(e) = menu::build_and_set(&handle) {
                 eprintln!("warning: failed to set app menu: {e}");
