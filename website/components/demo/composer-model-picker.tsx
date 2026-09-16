@@ -310,7 +310,7 @@ function Row({
           same line and the filled one is found by shape. */}
       <span
         aria-hidden
-        className={`h-[9px] w-[9px] shrink-0 rounded-full border-[1.5px] ${
+        className={`h-[7px] w-[7px] shrink-0 rounded-full border-[1.5px] ${
           checked ? "border-[#22d3ee] bg-[#22d3ee]" : "border-[#8e8e8e] opacity-60"
         }`}
       />

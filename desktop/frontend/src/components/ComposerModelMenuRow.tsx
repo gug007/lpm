@@ -52,7 +52,7 @@ export function ComposerModelMenuRow({
           starts on the same line and the filled one is found by shape. */}
       <span
         aria-hidden
-        className={`h-[9px] w-[9px] shrink-0 rounded-full border-[1.5px] ${
+        className={`h-[7px] w-[7px] shrink-0 rounded-full border-[1.5px] ${
           checked
             ? "border-[var(--accent-cyan)] bg-[var(--accent-cyan)]"
             : "border-[var(--text-muted)] opacity-60"
