@@ -6,6 +6,7 @@ import type { MouseEvent } from "react";
 export function ComposerModelMenuRow({
   id,
   label,
+  prefix,
   checked,
   cursor,
   dim,
@@ -16,6 +17,7 @@ export function ComposerModelMenuRow({
 }: {
   id: string;
   label: string;
+  prefix?: string;
   checked: boolean;
   cursor: boolean;
   dim?: boolean;
@@ -58,7 +60,10 @@ export function ComposerModelMenuRow({
             : "border-[var(--text-muted)] opacity-60"
         }`}
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">
+        {prefix && <span className="text-[var(--text-muted)] opacity-60">{prefix} </span>}
+        {label}
+      </span>
     </button>
   );
 }

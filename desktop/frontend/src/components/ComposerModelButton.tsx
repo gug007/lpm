@@ -20,7 +20,9 @@ import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
 const PANEL_WIDTH = 232;
-const FLYOUT_WIDTH = 168;
+// Fits the longest "<model> <level>" row, so the flyout keeps one width as the
+// cursor moves between models instead of resizing under the pointer.
+const FLYOUT_WIDTH = 220;
 const FLYOUT_GAP = 6;
 // Codex's nine models scroll past this rather than pushing the panel over the
 // terminal output behind it.
@@ -81,6 +83,7 @@ export function ComposerModelButton({
   useOverlay(open);
 
   const models = useMemo(() => switchModels(cli), [cli]);
+  const cursorModelLabel = models.find((m) => m.value === cursorModel)?.label ?? cursorModel;
   // Every level any model of this CLI offers. The flyout renders the union and
   // greys out what the highlighted model can't take, so it keeps one height as
   // the pointer runs down the model list instead of growing and shrinking under
@@ -330,6 +333,7 @@ export function ComposerModelButton({
                       <Row
                         key={e.value}
                         id={`${rowId}-effort-${e.value}`}
+                        prefix={cursorModelLabel}
                         label={e.label}
                         checked={offered && pick.model === cursorModel && pick.effort === e.value}
                         cursor={column === "effort" && effortCursor === e.value}

@@ -19,7 +19,7 @@ import { Tooltip } from "./tooltip";
 import { FOCUS_RING, PRESS } from "./ui";
 
 const PANEL_W = 232;
-const FLYOUT_W = 174; // 168 of box plus the 6px gap its wrapper pads.
+const FLYOUT_W = 226; // 220 of box plus the 6px gap its wrapper pads.
 const GAP = 8;
 
 const ROW =
@@ -194,7 +194,7 @@ export function ComposerModelPicker({
           6px gap is padding on this wrapper, not space between two boxes, so
           leaving a row sideways lands the pointer straight in the flyout. */}
       <div
-        className={`absolute top-0 z-10 w-[174px] ${
+        className={`absolute top-0 z-10 w-[226px] ${
           flyoutLeft ? "right-full pr-1.5" : "left-full pl-1.5"
         }`}
       >
@@ -206,6 +206,7 @@ export function ComposerModelPicker({
               return (
                 <Row
                   key={l.value}
+                  prefix={models.find((m) => m.value === cursorModel)?.label ?? cursorModel}
                   label={l.label}
                   checked={ok && pick.model === cursorModel && pick.effort === l.value}
                   cursor={column === "level" && level === l.value}
@@ -262,14 +263,15 @@ export function ComposerModelPicker({
 
 function Header({ label }: { label: string }) {
   return (
-    <div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[#8e8e8e]">
-      {label}
+    <div className="flex items-baseline gap-1.5 px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[#8e8e8e]">
+      <span>{label}</span>
     </div>
   );
 }
 
 function Row({
   label,
+  prefix,
   checked,
   cursor,
   dim,
@@ -278,6 +280,7 @@ function Row({
   onClick,
 }: {
   label: string;
+  prefix?: string;
   checked: boolean;
   cursor: boolean;
   dim?: boolean;
@@ -314,7 +317,10 @@ function Row({
           checked ? "border-[#22d3ee] bg-[#22d3ee]" : "border-[#8e8e8e] opacity-60"
         }`}
       />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">
+        {prefix && <span className="text-[#8e8e8e] opacity-60">{prefix} </span>}
+        {label}
+      </span>
     </button>
   );
 }
