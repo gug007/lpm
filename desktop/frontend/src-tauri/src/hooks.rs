@@ -634,8 +634,8 @@ fn merge_codex_feature(content: &str) -> Option<String> {
 /// unchanged. Shared by the local and remote installs.
 fn merge_codex_hooks(data: &[u8]) -> Option<Vec<u8>> {
     // Per-pane key, same reason as the Claude hooks.
-    let set_running = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
-    let set_done = send_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
+    let set_running = codex_status_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Running --icon=sparkle --color=#10A37F --pane=$LPM_PANE_ID");
+    let set_done = codex_status_cmd("set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID Done --icon=checkmark --color=#4ade80 --pane=$LPM_PANE_ID");
     let set_resume = capture_resume_cmd("codex");
     let pre_tool = codex_pre_tool_use_cmd();
     let permission = codex_permission_request_cmd();
@@ -707,6 +707,32 @@ fn send_cmd(cmd: &str) -> String {
     let deliver = crate::sockdeliver::delivery_group();
     format!(
         "[ -t 0 ] || cat >/dev/null 2>&1; {recover} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+    )
+}
+
+/// Codex runs the tab's UserPromptSubmit/PreToolUse/PostToolUse hooks inside
+/// thread-spawned sub-agents (`spawn_agent`) as well, under the same LPM_* env,
+/// but a sub-agent's turn ends in `SubagentStop`, never `Stop`. One that outlives
+/// the root thread's Stop re-reported Running right after the tab's Done, and
+/// nothing ever ended that turn (observed: a tab pinned at Running long after
+/// the final answer). Sub-agent payloads carry `agent_id`; the root thread's
+/// never do. Codex serializes it ahead of `transcript_path`, so only that
+/// structural prefix is inspected — `tool_input`/`prompt` prose can't match.
+/// Reading through `head` drains stdin like `send_cmd`, and the `[ -t 0 ]` guard
+/// keeps an interactive run from blocking. Leaves the prefix in `h` for callers
+/// that read other leading fields.
+fn codex_root_gate() -> &'static str {
+    "[ -t 0 ] || h=$(head -c 8192; cat >/dev/null 2>&1); case \"${h%%transcript_path*}\" in *agent_id*) exit 0;; esac;"
+}
+
+/// `send_cmd` for a Codex status frame: the same recover/stage/deliver chain
+/// behind [`codex_root_gate`], so only the tab's root thread speaks for it.
+fn codex_status_cmd(cmd: &str) -> String {
+    let gate = codex_root_gate();
+    let recover = crate::sockdeliver::env_recover_group();
+    let deliver = crate::sockdeliver::delivery_group();
+    format!(
+        "{gate} {recover} m=\"{cmd}{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -862,11 +888,14 @@ fn codex_permission_request_cmd() -> String {
 /// it flips the badge to Waiting instead. The `tool_name` extraction anchors on
 /// the preceding `permission_mode` field because `tool_input` carries arbitrary
 /// text (file contents, prompts) that could embed a bare `"tool_name"` key.
+/// Runs behind [`codex_root_gate`], reading the name from the prefix it kept
+/// (cut ahead of `tool_input`), so a sub-agent's tools never speak for the tab.
 fn codex_pre_tool_use_cmd() -> String {
+    let gate = codex_root_gate();
     let recover = crate::sockdeliver::env_recover_group();
     let deliver = crate::sockdeliver::delivery_group();
     format!(
-        "{recover} tn=$(sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
+        "{gate} {recover} tn=$(printf '%s' \"${{h%%tool_input*}}\" | sed -n 's/.*\"permission_mode\"[[:space:]]*:[[:space:]]*\"[^\"]*\"[[:space:]]*,[[:space:]]*\"tool_name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n1); st=\"Running --icon=sparkle --color=#10A37F\"; [ \"$tn\" = \"request_user_input\" ] && st=\"Waiting --icon=bell --color=#f59e0b\"; m=\"set_status '$LPM_PROJECT_NAME' codex_$LPM_PANE_ID $st --pane=$LPM_PANE_ID{REPORTER_PID_OPT}\"; {{ [ -n \"$LPM_SOCKET_PATH\" ] && [ -S \"$LPM_SOCKET_PATH\" ] && [ -n \"$LPM_PROJECT_NAME\" ] && [ -n \"$LPM_PANE_ID\" ] && {deliver} & }} >/dev/null 2>&1; {MARKER}"
     )
 }
 
@@ -2337,6 +2366,7 @@ mod tests {
         for cmd in [
             send_cmd("set_status 'p' k Running"),
             send_cmd_with_sid("set_status 'p' k Running"),
+            codex_status_cmd("set_status 'p' k Running"),
             claude_stop_cmd(),
             capture_resume_cmd("claude"),
             codex_pre_tool_use_cmd(),
@@ -2693,6 +2723,94 @@ mod tests {
             cmd.contains("codex_$LPM_PANE_ID Running"),
             "PostToolUse must set Running: {cmd}"
         );
+    }
+
+    fn installed_codex_cmd(event: &str) -> String {
+        let v: Value = serde_json::from_slice(&merge_codex_hooks(b"{}").unwrap()).unwrap();
+        v["hooks"][event][0]["hooks"][0]["command"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    }
+
+    /// A tool hook payload as Codex 0.154 serializes it; `subagent` adds the
+    /// `agent_id`/`agent_type` pair a thread-spawned sub-agent carries.
+    fn tool_payload(event: &str, subagent: bool, tool_name: &str, tool_input: &str) -> String {
+        let agent = if subagent {
+            r#""agent_id":"01a0aac0-2a49-75c2-96de-c3b2e22e1396","agent_type":"default","#
+        } else {
+            ""
+        };
+        format!(
+            r#"{{"session_id":"s1","turn_id":"t1",{agent}"transcript_path":"/tmp/r.jsonl","cwd":"/tmp/p","hook_event_name":"{event}","model":"gpt-5","permission_mode":"default","tool_name":"{tool_name}","tool_input":{tool_input},"tool_response":"ok","tool_use_id":"c1"}}"#
+        )
+    }
+
+    /// Codex fires the tab's tool hooks inside thread-spawned sub-agents too,
+    /// and one that outlived the root thread's Stop re-reported Running after
+    /// the tab's Done — with no Stop of its own to ever end it.
+    #[test]
+    fn codex_status_hooks_ignore_thread_spawned_subagents() {
+        let shell = r#"{"command":["echo","hi"]}"#;
+        let post = installed_codex_cmd("PostToolUse");
+        let msg =
+            run_codex_hook(&post, &tool_payload("PostToolUse", false, "shell", shell)).unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Running"),
+            "root thread reports: {msg}"
+        );
+        assert_eq!(
+            run_codex_hook(&post, &tool_payload("PostToolUse", true, "shell", shell)),
+            None,
+            "a sub-agent's tool must not speak for the tab"
+        );
+
+        let ask = r#"{"questions":[]}"#;
+        let pre = installed_codex_cmd("PreToolUse");
+        let msg = run_codex_hook(
+            &pre,
+            &tool_payload("PreToolUse", false, "request_user_input", ask),
+        )
+        .unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Waiting"),
+            "root question waits on the user: {msg}"
+        );
+        let msg = run_codex_hook(&pre, &tool_payload("PreToolUse", false, "shell", shell)).unwrap();
+        assert!(
+            msg.contains("codex_pane-1 Running"),
+            "root tool runs: {msg}"
+        );
+        assert_eq!(
+            run_codex_hook(
+                &pre,
+                &tool_payload("PreToolUse", true, "request_user_input", ask)
+            ),
+            None,
+            "a sub-agent's question goes to its parent, not the user"
+        );
+    }
+
+    /// The gate reads only the structural prefix ahead of `transcript_path`:
+    /// prose in `tool_input` naming the field is not a sub-agent.
+    #[test]
+    fn codex_root_gate_ignores_agent_id_in_tool_input() {
+        let post = installed_codex_cmd("PostToolUse");
+        let grep = r#"{"command":"grep -rn \"agent_id\" src/"}"#;
+        let msg =
+            run_codex_hook(&post, &tool_payload("PostToolUse", false, "shell", grep)).unwrap();
+        assert!(msg.contains("codex_pane-1 Running"), "{msg}");
+    }
+
+    /// A tool result larger than the pipe buffer must still be drained, or Codex
+    /// reports a broken hook stdin; the gate reads a prefix and sinks the rest.
+    #[test]
+    fn codex_status_hooks_drain_bulky_payloads() {
+        let post = installed_codex_cmd("PostToolUse");
+        let bulky = format!(r#"{{"command":"{}"}}"#, "x".repeat(512 * 1024));
+        let msg =
+            run_codex_hook(&post, &tool_payload("PostToolUse", false, "shell", &bulky)).unwrap();
+        assert!(msg.contains("codex_pane-1 Running"), "{msg}");
     }
 
     /// Runs a generated hook command under `sh` with `payload` on stdin and a
