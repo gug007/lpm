@@ -26,7 +26,7 @@ describe("filesChord", () => {
     expect(
       filesChord(key({ key: "Ç", code: "KeyC", metaKey: true, altKey: true, shiftKey: true })),
     ).toBe("copyRelativePath");
-    expect(filesChord(key({ key: "∫", code: "KeyB", metaKey: true, altKey: true }))).toBe("toggleTree");
+    expect(filesChord(key({ key: "∫", code: "KeyB", metaKey: true, altKey: true }))).toBeNull();
     expect(filesChord(key({ key: "r", code: "KeyR", metaKey: true }))).toBeNull();
     expect(filesChord(key({ key: "r", code: "KeyR", altKey: true }))).toBeNull();
   });

@@ -134,15 +134,7 @@ export function FilesHeader({
           setSideMenu({ x: e.clientX, y: e.clientY });
         }}
       >
-        <Tooltip
-          content={
-            <span>
-              {treeLabel}
-              <kbd className="ml-1 text-[10px] opacity-70">⌘⌥B</kbd>
-            </span>
-          }
-          side="bottom"
-        >
+        <Tooltip content={treeLabel} side="bottom">
           <button
             type="button"
             onClick={onToggleTree}

@@ -1,0 +1,101 @@
+// @vitest-environment happy-dom
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FilesTree } from "./FilesTree";
+import type { Listing, TreeRow } from "./treeModel";
+
+let container: HTMLDivElement;
+let root: Root;
+
+const row = (path: string, isDir: boolean, depth: number): TreeRow => ({
+  path,
+  isDir,
+  name: path.split("/").pop() ?? path,
+  depth,
+  expanded: isDir,
+  loading: false,
+  error: null,
+});
+const ROWS = [row("src", true, 0), row("src/a.ts", false, 1), row("src/b.ts", false, 1)];
+const ROOT: Listing = { status: "ready", entries: [{ name: "src", isDir: true }] };
+
+function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
+  const onActivate = vi.fn();
+  const onCursorChange = vi.fn();
+  const props = {
+    rows: ROWS,
+    rootListing: ROOT,
+    selectedPath: null,
+    dirtyPaths: new Set<string>(),
+    query: "",
+    onQueryChange: vi.fn(),
+    results: null,
+    cursorRequest: null,
+    filterFocusRequest: 0,
+    onActivate,
+    onToggleDir: vi.fn(),
+    onRowMenu: vi.fn(),
+    onCursorChange,
+    ...over,
+  };
+  act(() => root.render(<FilesTree {...props} />));
+  const list = container.querySelector<HTMLElement>('[role="tree"]')!;
+  const input = container.querySelector<HTMLInputElement>('input[aria-label="Filter files"]')!;
+  return { list, input, onActivate, onCursorChange, rerender: (next: Partial<typeof props>) => act(() => root.render(<FilesTree {...props} {...next} />)) };
+}
+
+function press(target: Element, key: string) {
+  act(() => {
+    target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  });
+}
+
+beforeEach(() => {
+  Element.prototype.scrollIntoView ??= () => {};
+  container = document.createElement("div");
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+});
+
+describe("FilesTree keyboard", () => {
+  it("moves focus from the list to the filter on /", () => {
+    const { list, input } = render();
+    act(() => list.focus());
+    press(list, "/");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("opens into the editor on Enter and previews on Space", () => {
+    const { list, onActivate } = render();
+    act(() => list.focus());
+    press(list, "ArrowDown");
+    press(list, "ArrowDown");
+    press(list, "Enter");
+    expect(onActivate).toHaveBeenLastCalledWith(ROWS[1], { focusEditor: true });
+    press(list, " ");
+    expect(onActivate).toHaveBeenLastCalledWith(ROWS[1], undefined);
+  });
+
+  it("reports the cursor row only while the list has focus", () => {
+    const { list, onCursorChange } = render();
+    act(() => list.focus());
+    press(list, "ArrowDown");
+    expect(onCursorChange).toHaveBeenLastCalledWith(ROWS[0]);
+    act(() => list.blur());
+    expect(onCursorChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("focuses and selects the filter when asked", () => {
+    const { input, rerender } = render({ query: "tree" });
+    const select = vi.spyOn(input, "select");
+    rerender({ filterFocusRequest: 1 });
+    expect(document.activeElement).toBe(input);
+    expect(select).toHaveBeenCalled();
+  });
+});

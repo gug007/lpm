@@ -238,7 +238,6 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       const path = chordPath();
       if (path) void copyText(path);
     },
-    toggleTree: () => showTree(!treeOpen),
   });
 
   const rail = treeOpen && (

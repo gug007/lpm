@@ -6,17 +6,16 @@ export type FilesChord =
   | "prevFile"
   | "reveal"
   | "copyPath"
-  | "copyRelativePath"
-  | "toggleTree";
+  | "copyRelativePath";
 
 function insideMonaco(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest(".monaco-editor") !== null;
 }
 
 // ⌘S saves; ⌃⌥↓ / ⌃⌥↑ step through files (⌥-arrows alone are Monaco's
-// move-line); ⌘⌥R / ⌘⌥C / ⌘⌥⇧C act on the file's path; ⌘⌥B shows or hides
-// the tree. With ⌥ held macOS reports the composed character ("ç" for ⌥C) in
-// `key`, so the letter chords match the physical key instead.
+// move-line); ⌘⌥R / ⌘⌥C / ⌘⌥⇧C act on the file's path. With ⌥ held macOS
+// reports the composed character ("ç" for ⌥C) in `key`, so the letter chords
+// match the physical key instead.
 export function filesChord(e: KeyboardEvent): FilesChord | null {
   if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey) {
     if (e.key === "ArrowDown") return "nextFile";
@@ -30,8 +29,6 @@ export function filesChord(e: KeyboardEvent): FilesChord | null {
       return e.shiftKey ? null : "reveal";
     case "KeyC":
       return e.shiftKey ? "copyRelativePath" : "copyPath";
-    case "KeyB":
-      return e.shiftKey ? null : "toggleTree";
     default:
       return null;
   }
