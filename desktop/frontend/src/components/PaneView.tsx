@@ -20,7 +20,6 @@ import { IconBtn } from "./terminal/IconBtn";
 import {
   SplitRightIcon,
   SplitDownIcon,
-  ClearIcon,
   ExpandIcon,
   ShrinkIcon,
 } from "./terminal/icons";
@@ -165,7 +164,7 @@ export interface PaneViewProps {
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
-  onClearPane: (paneId: string) => void;
+  onToggleFiles: (paneId: string) => void;
   onToggleFullscreen: (paneId: string) => void;
   onRegisterTerminalHandle: (
     terminalId: string,
@@ -235,7 +234,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onTogglePinTab,
     onSplit,
     onClosePane,
-    onClearPane,
+    onToggleFiles,
     onToggleFullscreen,
     onRegisterTerminalHandle,
     onRegisterServiceHandle,
@@ -284,6 +283,7 @@ function PaneViewImpl(props: PaneViewProps) {
       ? -1
       : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
+  const filesShowing = activeServiceName === null && activeTerm?.kind === "files";
   const composerTab =
     activeServiceName === null && activeTerm && isTerminalTab(activeTerm)
       ? activeTerm
@@ -495,9 +495,21 @@ function PaneViewImpl(props: PaneViewProps) {
               <SplitDownIcon />
             </IconBtn>
           </Tooltip>
-          <Tooltip content="Clear" side="bottom" align="end">
-            <IconBtn onClick={() => onClearPane(pane.id)} ariaLabel="Clear">
-              <ClearIcon />
+          <Tooltip
+            content={
+              <>
+                Files <span className="ml-1 opacity-70">⌘⇧E</span>
+              </>
+            }
+            side="bottom"
+            align="end"
+          >
+            <IconBtn
+              onClick={() => onToggleFiles(pane.id)}
+              ariaLabel="Files"
+              active={filesShowing}
+            >
+              <FolderIcon />
             </IconBtn>
           </Tooltip>
           <Tooltip

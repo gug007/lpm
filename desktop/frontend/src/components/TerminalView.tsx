@@ -458,13 +458,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [getPane],
   );
 
-  const handleClearPane = useCallback(
-    (paneId: string) => {
-      resolveActiveHandle(paneId)?.clear();
-    },
-    [resolveActiveHandle],
-  );
-
   const handleToggleFullscreen = useCallback((paneId: string) => {
     setFullscreenPaneId((current) => (current === paneId ? null : paneId));
   }, []);
@@ -555,9 +548,10 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
 
   // ⌘⇧R / ⌘⇧M open the tab, then put the pane back the way it was: the second
   // press closes it and re-focuses whatever the first press was fired from.
+  // The shortcuts act on the focused pane; a pane header's button names its own.
   const toggleUtilityTab = useCallback(
-    (tabKind: UtilityTabKind, openInPane: (paneId: string) => void) => {
-      const pane = getFocusedPane();
+    (tabKind: UtilityTabKind, openInPane: (paneId: string) => void, paneId?: string) => {
+      const pane = paneId ? getPane(paneId) : getFocusedPane();
       if (!pane) return;
       const key = `${pane.id}:${tabKind}`;
       const resolved = resolveUtilityTabAction(
@@ -579,7 +573,12 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (resolved.back?.kind === "tab") setFocusRequest(resolved.back.id);
       else if (resolved.back) setServiceFocusRequest({ paneId: pane.id, name: resolved.back.name });
     },
-    [getFocusedPane, stableServices, closeTerminal],
+    [getPane, getFocusedPane, stableServices, closeTerminal],
+  );
+
+  const toggleFilesInPane = useCallback(
+    (paneId: string) => toggleUtilityTab("files", openFilesInPane, paneId),
+    [toggleUtilityTab, openFilesInPane],
   );
 
   const findInPane = useCallback(
@@ -1051,7 +1050,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
             onClosePane={closePane}
-            onClearPane={handleClearPane}
+            onToggleFiles={toggleFilesInPane}
             onToggleFullscreen={handleToggleFullscreen}
             onRegisterTerminalHandle={registerTerminalHandle}
             onRegisterServiceHandle={registerServiceHandle}
