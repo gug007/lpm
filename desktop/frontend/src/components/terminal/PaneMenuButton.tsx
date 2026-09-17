@@ -1,30 +1,36 @@
 import { useRef, useState } from "react";
-import { CodeIcon, FolderIcon, GlobeIcon, HistoryIcon, LayersIcon, MoreHorizontalIcon } from "../icons";
+import { Pin } from "lucide-react";
+import type { PaneActionId } from "../../paneActions";
+import { MoreHorizontalIcon, UndoIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
+import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { Tooltip } from "../ui/Tooltip";
 import { IconBtn } from "./IconBtn";
+import { PaneActionRowMenu } from "./PaneActionRowMenu";
+import { PANE_ACTION_META } from "./paneActionMeta";
 
 interface PaneMenuButtonProps {
-  onAddBrowser: () => void;
-  onAddReview: () => void;
-  onAddToolkit: () => void;
-  onAddFiles: () => void;
-  onResumeSession?: () => void;
+  actions: PaneActionId[];
+  isDefault: boolean;
+  onRun: (id: PaneActionId) => void;
+  onMove: (id: PaneActionId) => void;
+  onReset: () => void;
 }
 
-// The pane's "more" menu: the tabs that aren't terminals, plus resuming a
-// session. Sits in the header's right-hand group, so the menu hangs from its
-// right edge.
-export function PaneMenuButton({
-  onAddBrowser,
-  onAddReview,
-  onAddToolkit,
-  onAddFiles,
-  onResumeSession,
-}: PaneMenuButtonProps) {
+interface RowMenu {
+  id: PaneActionId;
+  x: number;
+  y: number;
+}
+
+// The pane's "more" menu: the actions not given a toolbar button. It sits in
+// the header's right-hand group, so the menu hangs from its right edge. Each
+// row's pin (or a right-click on it) gives the action a button of its own.
+export function PaneMenuButton({ actions, isDefault, onRun, onMove, onReset }: PaneMenuButtonProps) {
   const ref = useRef<HTMLSpanElement>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
 
   const toggleMenu = () => {
     if (menu) {
@@ -51,14 +57,52 @@ export function PaneMenuButton({
       </Tooltip>
       {menu && (
         <ContextMenuShell x={menu.x} y={menu.y} align="end" minWidth={180} onClose={() => setMenu(null)}>
-          <ContextMenuItem label="Review changes" icon={<CodeIcon />} shortcut="⌘⇧R" onClick={pick(onAddReview)} />
-          <ContextMenuItem label="Files" icon={<FolderIcon />} shortcut="⌘⇧E" onClick={pick(onAddFiles)} />
-          <ContextMenuItem label="Skills & tools" icon={<LayersIcon />} shortcut="⌘⇧K" onClick={pick(onAddToolkit)} />
-          <ContextMenuItem label="Open browser" icon={<GlobeIcon />} onClick={pick(onAddBrowser)} />
-          {onResumeSession && (
-            <ContextMenuItem label="Resume session" icon={<HistoryIcon />} onClick={pick(onResumeSession)} />
+          {actions.map((id) => (
+            <div
+              key={id}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setMenu(null);
+                setRowMenu({ id, x: e.clientX, y: e.clientY });
+              }}
+            >
+              <ContextMenuItem
+                label={PANE_ACTION_META[id].label}
+                icon={PANE_ACTION_META[id].icon}
+                shortcut={PANE_ACTION_META[id].shortcut}
+                onClick={pick(() => onRun(id))}
+                trailingAction={{
+                  label: "Show as a button",
+                  icon: <Pin size={12} strokeWidth={1.75} />,
+                  onClick: pick(() => onMove(id)),
+                }}
+              />
+            </div>
+          ))}
+          {!isDefault && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                label="Reset to default"
+                icon={<UndoIcon />}
+                title="Put every action back where it started"
+                onClick={pick(onReset)}
+              />
+            </>
           )}
         </ContextMenuShell>
+      )}
+      {rowMenu && (
+        <PaneActionRowMenu
+          x={rowMenu.x}
+          y={rowMenu.y}
+          label={PANE_ACTION_META[rowMenu.id].label}
+          onToolbar={false}
+          isDefault={isDefault}
+          onMove={() => onMove(rowMenu.id)}
+          onReset={onReset}
+          onClose={() => setRowMenu(null)}
+        />
       )}
     </span>
   );
