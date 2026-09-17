@@ -33,7 +33,7 @@ export function useDetailView({ projectName, visible }: UseDetailViewOptions): U
   );
 
   useKeyboardShortcut(
-    { key: "e", meta: true },
+    { key: "e", meta: true, shift: false },
     () => switchDetailView(detailView === "config" ? "terminal" : "config"),
     visible,
   );

@@ -4,6 +4,9 @@ interface ResizableWidthOptions {
   initial: number | (() => number);
   min: number;
   max: number;
+  // The edge the handle sits on. A panel on the right side of the layout is
+  // dragged from its left edge, so the same motion narrows instead of widens.
+  edge?: "left" | "right";
   // Called once on mouse-up with the final width, for persistence.
   onCommit?: (width: number) => void;
 }
@@ -13,6 +16,7 @@ export function useResizableWidth({
   initial,
   min,
   max,
+  edge = "right",
   onCommit,
 }: ResizableWidthOptions) {
   const [width, setWidth] = useState(initial);
@@ -23,9 +27,10 @@ export function useResizableWidth({
     e.preventDefault();
     const startX = e.clientX;
     const startWidth = widthRef.current;
+    const sign = edge === "left" ? -1 : 1;
     const onMove = (ev: MouseEvent) => {
       setWidth(
-        Math.min(max, Math.max(min, startWidth + (ev.clientX - startX))),
+        Math.min(max, Math.max(min, startWidth + sign * (ev.clientX - startX))),
       );
     };
     const onUp = () => {

@@ -123,6 +123,7 @@ export function useTerminals(
     addReviewToPane,
     addMemoryToPane,
     addToolkitToPane,
+    addFilesToPane,
   } = useTabCreation({
     projectName,
     treeRef,
@@ -208,6 +209,7 @@ export function useTerminals(
     addReviewToPane,
     addMemoryToPane,
     addToolkitToPane,
+    addFilesToPane,
     closeTerminalById,
     closeOthersById,
     focusTerminal,
@@ -284,6 +286,7 @@ export function useTerminals(
     addReviewToPane,
     addMemoryToPane,
     addToolkitToPane,
+    addFilesToPane,
     closeTerminal,
     closeOtherTerminals,
     focusTerminal,

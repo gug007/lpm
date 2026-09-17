@@ -42,6 +42,7 @@ export interface UseTerminalsResult {
   addReviewToPane: (paneId?: string) => void;
   addMemoryToPane: (paneId?: string) => void;
   addToolkitToPane: (paneId?: string) => void;
+  addFilesToPane: (paneId?: string) => void;
   closeTerminal: (paneId: string, tabIdx: number) => void;
   closeOtherTerminals: (paneId: string, tabIdx: number) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;

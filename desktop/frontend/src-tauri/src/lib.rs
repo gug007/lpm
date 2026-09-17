@@ -27,6 +27,7 @@ mod control;
 mod daemonize;
 mod detached;
 mod dockmenu;
+mod file_browser;
 mod files;
 mod firstlaunch;
 mod fonts;
@@ -144,6 +145,7 @@ use commands_real::*;
 use config_cmds::*;
 use control::*;
 use detached::*;
+use file_browser::*;
 use files::*;
 use fonts::*;
 #[allow(unused_imports)]

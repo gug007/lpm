@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { PlusIcon } from "./icons";
-import { ChevronDownIcon, GlobeIcon, CodeIcon, HistoryIcon, LayersIcon } from "../icons";
+import { ChevronDownIcon, GlobeIcon, CodeIcon, HistoryIcon, LayersIcon, FolderIcon } from "../icons";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { Tooltip } from "../ui/Tooltip";
@@ -10,6 +10,7 @@ interface AddTabSplitButtonProps {
   onAddBrowser: () => void;
   onAddReview: () => void;
   onAddToolkit: () => void;
+  onAddFiles: () => void;
   onResumeSession?: () => void;
 }
 
@@ -18,6 +19,7 @@ export function AddTabSplitButton({
   onAddBrowser,
   onAddReview,
   onAddToolkit,
+  onAddFiles,
   onResumeSession,
 }: AddTabSplitButtonProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -73,6 +75,15 @@ export function AddTabSplitButton({
             shortcut="⌘⇧R"
             onClick={() => {
               onAddReview();
+              setMenu(null);
+            }}
+          />
+          <ContextMenuItem
+            label="Files"
+            icon={<FolderIcon />}
+            shortcut="⌘⇧E"
+            onClick={() => {
+              onAddFiles();
               setMenu(null);
             }}
           />

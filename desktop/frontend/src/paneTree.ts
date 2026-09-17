@@ -47,7 +47,7 @@ export interface TerminalInstance {
   peerAdopted?: boolean;
   // Absent == terminal; "browser" tabs render an in-pane web browser, "review"
   // tabs render the git diff review pane. Neither has a PTY.
-  kind?: "terminal" | "browser" | "review" | "memory" | "toolkit";
+  kind?: "terminal" | "browser" | "review" | "memory" | "toolkit" | "files";
 }
 
 // True for real PTY-backed terminal tabs (the default kind). Browser and review
@@ -189,6 +189,10 @@ export function makeMemory(id: string, label = "Memory"): TerminalInstance {
 
 export function makeToolkit(id: string, label = "Skills & tools"): TerminalInstance {
   return { id, label, kind: "toolkit" };
+}
+
+export function makeFiles(id: string, label = "Files"): TerminalInstance {
+  return { id, label, kind: "files" };
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {
