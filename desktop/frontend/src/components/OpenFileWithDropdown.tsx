@@ -18,9 +18,11 @@ interface OpenFileWithDropdownProps {
   absPath: string;
   line: number;
   col: number;
+  // Header-sized: a shorter button that reads "Open" beside the app's icon.
+  compact?: boolean;
 }
 
-export function OpenFileWithDropdown({ absPath, line, col }: OpenFileWithDropdownProps) {
+export function OpenFileWithDropdown({ absPath, line, col, compact = false }: OpenFileWithDropdownProps) {
   const [open, setOpen] = useState(false);
   const editorTargets = useOpenInTargets();
   const targets = useMemo<OpenInTarget[]>(
@@ -59,19 +61,21 @@ export function OpenFileWithDropdown({ absPath, line, col }: OpenFileWithDropdow
 
   return (
     <div ref={ref} className="relative shrink-0">
-      <div className="inline-flex items-stretch rounded-lg border border-[var(--border)]">
+      <div className={`inline-flex items-stretch border border-[var(--border)] ${compact ? "rounded-md" : "rounded-lg"}`}>
         <button
           onClick={() => void launch(selected)}
           title={`Open in ${selected.label}`}
-          className="flex items-center gap-2 rounded-l-lg border-r border-[var(--border)] px-2.5 py-1.5 text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          className={`flex items-center border-r border-[var(--border)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+            compact ? "gap-1.5 rounded-l-md px-2 py-1 text-[11px]" : "gap-2 rounded-l-lg px-2.5 py-1.5 text-[13px]"
+          }`}
         >
           <TargetIcon target={selected} />
-          <span>Open in {selected.label}</span>
+          <span>{compact ? "Open" : `Open in ${selected.label}`}</span>
         </button>
         <button
           onClick={() => setOpen((v) => !v)}
           title="Choose app"
-          className={`flex items-center rounded-r-lg px-1.5 transition-colors hover:bg-[var(--bg-hover)] ${
+          className={`flex items-center transition-colors hover:bg-[var(--bg-hover)] ${compact ? "rounded-r-md px-1" : "rounded-r-lg px-1.5"} ${
             open ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-secondary)]"
           }`}
         >

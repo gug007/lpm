@@ -24,6 +24,7 @@ import {
   makeMemory,
   makeToolkit,
   makeReview,
+  makeFiles,
   isTerminalTab,
   collectPanes,
   collectTerminals,
@@ -405,6 +406,15 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
+  // Files tabs have no PTY either — they render the project file browser.
+  const addFilesToPane = useCallback(
+    (paneId?: string) => {
+      if (IS_MIRROR_WINDOW) return forward("addFilesToPane", paneId);
+      addTerminal(makeFiles(nextId("files")), paneId);
+    },
+    [addTerminal, forward],
+  );
+
   return {
     createTerminal,
     adoptTerminal,
@@ -417,5 +427,6 @@ export function useTabCreation({
     addReviewToPane,
     addMemoryToPane,
     addToolkitToPane,
+    addFilesToPane,
   };
 }

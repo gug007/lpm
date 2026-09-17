@@ -23,6 +23,7 @@ interface MonacoEditorProps {
   modelUri: string;
   onSave?: () => void;
   onToggleView?: () => void;
+  readOnly?: boolean;
 }
 
 export function MonacoEditor({
@@ -32,6 +33,7 @@ export function MonacoEditor({
   modelUri,
   onSave,
   onToggleView,
+  readOnly = false,
 }: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
@@ -39,6 +41,7 @@ export function MonacoEditor({
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onToggleViewRef = useRef(onToggleView);
+  const readOnlyRef = useRef(readOnly);
   const suppressChangeRef = useRef(false);
   const [ready, setReady] = useState(false);
   const fontSizeRef = useRef(
@@ -48,6 +51,7 @@ export function MonacoEditor({
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onToggleViewRef.current = onToggleView;
+  readOnlyRef.current = readOnly;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -91,6 +95,8 @@ export function MonacoEditor({
         horizontalScrollbarSize: 10,
       },
       fixedOverflowWidgets: true,
+      readOnly: readOnlyRef.current,
+      domReadOnly: readOnlyRef.current,
     });
     editorRef.current = editor;
 
@@ -221,6 +227,11 @@ export function MonacoEditor({
     model.setValue(value);
     suppressChangeRef.current = false;
   }, [value, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    editorRef.current?.updateOptions({ readOnly, domReadOnly: readOnly });
+  }, [readOnly, ready]);
 
   const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
   const showFormatHint = language === "yaml";

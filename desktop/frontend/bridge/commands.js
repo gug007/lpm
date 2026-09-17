@@ -193,6 +193,9 @@ export function ExportConfig() {
 export function FileExists(absPath) {
   return invoke("file_exists", { absPath });
 }
+export function ListDirEntries(root, rel) {
+  return invoke("list_dir_entries", { root, rel });
+}
 export function ListDirFiles(root) {
   return invoke("list_dir_files", { root });
 }
@@ -591,6 +594,12 @@ export function ReadCommitInstructions() {
 }
 export function ReadConfig(name) {
   return invoke("read_config", { name });
+}
+export function ReadProjectFile(root, rel) {
+  return invoke("read_project_file", { root, rel });
+}
+export function RevealInFinder(absPath) {
+  return invoke("reveal_in_finder", { absPath });
 }
 export function ReadFile(absPath) {
   return invoke("read_file", { absPath });
