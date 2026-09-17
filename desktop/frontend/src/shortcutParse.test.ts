@@ -57,6 +57,10 @@ describe("isReservedShortcut", () => {
     expect(isReservedShortcut(parseShortcut("cmd+t")!)).toBe(true);
     expect(isReservedShortcut(parseShortcut("cmd+1")!)).toBe(true);
     expect(isReservedShortcut(parseShortcut("cmd+,")!)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+p")!)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+shift+e")!)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("cmd+alt+shift+c")!)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("ctrl+alt+arrowdown")!)).toBe(true);
   });
 
   it("allows free combos", () => {

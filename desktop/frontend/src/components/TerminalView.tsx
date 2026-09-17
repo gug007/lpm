@@ -45,6 +45,7 @@ import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
+import { useFilesFocus } from "../store/filesFocus";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { registerProjectSubmit, useTerminalTargets } from "../store/terminalTargets";
@@ -727,6 +728,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "m", meta: true, shift: true },
       { key: "k", meta: true, shift: true },
       { key: "e", meta: true, shift: true },
+      { key: "p", meta: true, shift: false, alt: false },
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
@@ -736,6 +738,14 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       if (matched.key === "m") return toggleUtilityTab("memory", openMemoryInPane);
       if (matched.key === "k") return toggleUtilityTab("toolkit", openToolkitInPane);
       if (matched.key === "e") return toggleUtilityTab("files", openFilesInPane);
+      if (matched.key === "p") {
+        // Go to file: never a toggle — a second press just lands in the filter.
+        const pane = getFocusedPane();
+        if (!pane) return;
+        openFilesInPane(pane.id);
+        useFilesFocus.getState().requestFilter(pane.id);
+        return;
+      }
       if (matched.key === "i") {
         if (focusedComposerTerminalId) useComposerStore.getState().toggle();
         return;

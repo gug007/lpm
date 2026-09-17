@@ -26,6 +26,7 @@ export const APP_TIPS: AppTip[] = [
   { id: "move-tab", segments: ["Drag a tab into another pane to rearrange your workspace"] },
   { id: "search", segments: ["Search output with ", { kbd: "⌘F" }, " · ", { kbd: "↵" }, " next, ", { kbd: "⇧↵" }, " previous"] },
   { id: "review-diff", segments: ["Press ", { kbd: "⌘⇧R" }, " to review changed files in a diff tab"] },
+  { id: "files-tab", segments: ["Press ", { kbd: "⌘⇧E" }, " to browse project files, or ", { kbd: "⌘P" }, " to jump to one by name"] },
   { id: "ai-commit", segments: ["Generate a commit message from your diff with AI"] },
   { id: "review-changes", segments: ["Hit Review Changes to scan your diff before committing"] },
   { id: "smart-sync", segments: ["Use the branch sync button to pull or push in one click"] },

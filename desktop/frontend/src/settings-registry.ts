@@ -244,6 +244,14 @@ export const ROWS = {
     description: "Show the message input below each terminal. Toggle anytime with ⌘I",
     keywords: ["composer", "message", "prompt"],
   },
+  "terminal.filesTreeSide": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.filesTreeSide",
+    label: "Files tree position",
+    description: "Which side of the Files tab holds the folder tree",
+    keywords: ["files", "tree", "sidebar", "left", "right", "browser"],
+  },
   "terminal.autoCloseComposer": {
     kind: "row",
     tab: "terminal",

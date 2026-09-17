@@ -1,9 +1,12 @@
-import { Fragment } from "react";
-import { PanelRight, PanelRightClose } from "lucide-react";
+import { Fragment, useRef, useState } from "react";
+import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from "lucide-react";
 import { basename } from "../../path";
-import { ChevronRightIcon } from "../icons";
+import type { FilesTreeSide } from "../../store/settings";
+import { CheckIcon, ChevronRightIcon, MoreHorizontalIcon } from "../icons";
 import { OpenFileWithDropdown } from "../OpenFileWithDropdown";
 import { DirtyDot } from "../treeRow";
+import { ContextMenuItem } from "../ui/ContextMenuItem";
+import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { Tooltip } from "../ui/Tooltip";
 import { ancestorsOf } from "./treeModel";
 
@@ -15,9 +18,11 @@ interface FilesHeaderProps {
   saving: boolean;
   readOnly: boolean;
   treeOpen: boolean;
+  treeSide: FilesTreeSide;
   onSave: () => void;
   onRevealDir: (dir: string) => void;
   onToggleTree: () => void;
+  onTreeSide: (side: FilesTreeSide) => void;
 }
 
 const CRUMB_CLASS =
@@ -33,12 +38,32 @@ export function FilesHeader({
   saving,
   readOnly,
   treeOpen,
+  treeSide,
   onSave,
   onRevealDir,
   onToggleTree,
+  onTreeSide,
 }: FilesHeaderProps) {
   const folders = path ? ancestorsOf(path) : [];
   const treeLabel = treeOpen ? "Hide file tree" : "Show file tree";
+  const [sideMenu, setSideMenu] = useState<{ x: number; y: number } | null>(null);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const toggleMore = () => {
+    if (sideMenu) {
+      setSideMenu(null);
+      return;
+    }
+    const r = moreRef.current?.getBoundingClientRect();
+    if (r) setSideMenu({ x: r.right, y: r.bottom + 4 });
+  };
+  const PanelIcon =
+    treeSide === "left"
+      ? treeOpen
+        ? PanelLeftClose
+        : PanelLeft
+      : treeOpen
+        ? PanelRightClose
+        : PanelRight;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)]/20 px-2">
@@ -102,21 +127,73 @@ export function FilesHeader({
       )}
       {absPath && <OpenFileWithDropdown absPath={absPath} line={0} col={0} compact />}
       <div className="h-4 w-px shrink-0 bg-[var(--border)]" />
-      <Tooltip content={treeLabel} side="bottom">
-        <button
-          type="button"
-          onClick={onToggleTree}
-          aria-label={treeLabel}
-          aria-pressed={treeOpen}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+      <span
+        className="inline-flex"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setSideMenu({ x: e.clientX, y: e.clientY });
+        }}
+      >
+        <Tooltip
+          content={
+            <span>
+              {treeLabel}
+              <kbd className="ml-1 text-[10px] opacity-70">⌘⌥B</kbd>
+            </span>
+          }
+          side="bottom"
         >
-          {treeOpen ? (
-            <PanelRightClose size={14} strokeWidth={1.75} />
-          ) : (
-            <PanelRight size={14} strokeWidth={1.75} />
-          )}
-        </button>
-      </Tooltip>
+          <button
+            type="button"
+            onClick={onToggleTree}
+            aria-label={treeLabel}
+            aria-pressed={treeOpen}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+          >
+            <PanelIcon size={14} strokeWidth={1.75} />
+          </button>
+        </Tooltip>
+      </span>
+      {/* The mousedown must not reach the menu's outside-click listener, or a
+          click on the open button would close and reopen it. */}
+      <span className="inline-flex" onMouseDown={(e) => e.stopPropagation()}>
+        <Tooltip content="More options" side="bottom" align="end">
+          <button
+            ref={moreRef}
+            type="button"
+            onClick={toggleMore}
+            aria-label="More options"
+            aria-haspopup="menu"
+            aria-expanded={!!sideMenu}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+              sideMenu ? "bg-[var(--bg-active)] text-[var(--text-primary)]" : "text-[var(--text-muted)]"
+            }`}
+          >
+            <MoreHorizontalIcon />
+          </button>
+        </Tooltip>
+        {sideMenu && (
+          <ContextMenuShell
+            x={sideMenu.x}
+            y={sideMenu.y}
+            align="end"
+            minWidth={160}
+            onClose={() => setSideMenu(null)}
+          >
+            {(["left", "right"] as const).map((side) => (
+              <ContextMenuItem
+                key={side}
+                label={side === "left" ? "Tree on the left" : "Tree on the right"}
+                trailing={treeSide === side ? <CheckIcon /> : undefined}
+                onClick={() => {
+                  setSideMenu(null);
+                  onTreeSide(side);
+                }}
+              />
+            ))}
+          </ContextMenuShell>
+        )}
+      </span>
     </div>
   );
 }

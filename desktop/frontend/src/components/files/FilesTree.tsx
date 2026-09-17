@@ -10,6 +10,14 @@ export interface CursorRequest {
   seq: number;
 }
 
+export interface ActivateOptions {
+  // Enter opens a file and moves on to editing it; Space and a click keep the
+  // tree, so a browse stays a browse.
+  focusEditor?: boolean;
+}
+
+const NO_ITEMS: Item[] = [];
+
 interface FilesTreeProps {
   rows: TreeRow[];
   rootListing: Listing | undefined;
@@ -20,9 +28,14 @@ interface FilesTreeProps {
   // null while the index is still being built.
   results: IndexEntry[] | null;
   cursorRequest: CursorRequest | null;
-  onActivate: (item: Item) => void;
+  // Bumped to put the caret in the filter box with its text selected.
+  filterFocusRequest: number;
+  onActivate: (item: Item, opts?: ActivateOptions) => void;
   onToggleDir: (path: string) => void;
   onRowMenu: (target: RowTarget) => void;
+  // The row the keyboard cursor sits on while the list has focus, else null:
+  // the target of the path chords when they fire from the tree.
+  onCursorChange?: (item: Item | null) => void;
 }
 
 const INPUT_CLASS =
@@ -39,12 +52,14 @@ export function FilesTree({
   onQueryChange,
   results,
   cursorRequest,
+  filterFocusRequest,
   onActivate,
   onToggleDir,
   onRowMenu,
+  onCursorChange,
 }: FilesTreeProps) {
   const filtering = query.trim() !== "";
-  const items: Item[] = filtering ? (results ?? []) : rows;
+  const items: Item[] = filtering ? (results ?? NO_ITEMS) : rows;
   const [cursorPath, setCursorPath] = useState<string | null>(null);
   const [listFocused, setListFocused] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -66,10 +81,24 @@ export function FilesTree({
     list.focus();
   }, [cursorRequest]);
 
+  useEffect(() => {
+    if (!filterFocusRequest) return;
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [filterFocusRequest]);
+
+  useEffect(() => {
+    if (!onCursorChange) return;
+    const current = items.find((it) => it.path === cursorPath) ?? null;
+    onCursorChange(listFocused ? current : null);
+  }, [onCursorChange, items, cursorPath, listFocused]);
+
   const activate = useCallback(
-    (item: Item) => {
+    (item: Item, opts?: ActivateOptions) => {
       setCursorPath(item.path);
-      onActivate(item);
+      onActivate(item, opts);
     },
     [onActivate],
   );
@@ -114,8 +143,14 @@ export function FilesTree({
         break;
       }
       case "Enter":
+        if (current) activate(current, { focusEditor: true });
+        break;
       case " ":
         if (current) activate(current);
+        break;
+      case "/":
+        inputRef.current?.focus();
+        inputRef.current?.select();
         break;
       default:
         return;
@@ -130,7 +165,7 @@ export function FilesTree({
       listRef.current?.focus();
     } else if (e.key === "Enter") {
       const target = items.find((it) => it.path === cursorPath) ?? items[0];
-      if (filtering && target) activate(target);
+      if (filtering && target) activate(target, { focusEditor: true });
     } else if (e.key === "Escape" && query) {
       e.preventDefault();
       e.stopPropagation();
