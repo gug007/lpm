@@ -103,12 +103,11 @@ const RESERVED = new Set<string>([
   "cmd++",
   "cmd+-",
   "cmd+0",
-  // useFilesChords.ts — path chords and the tree toggle in the Files tab;
-  // ⌃⌥↑ / ⌃⌥↓ step files there and in the review tab (Ctrl parses as cmd)
+  // useFilesChords.ts — path chords in the Files tab; ⌃⌥↑ / ⌃⌥↓ step files
+  // there and in the review tab (Ctrl parses as cmd)
   "cmd+alt+r",
   "cmd+alt+c",
   "cmd+alt+shift+c",
-  "cmd+alt+b",
   "cmd+alt+arrowup",
   "cmd+alt+arrowdown",
   // useDetailView.ts (Cmd+E / Cmd+Shift+N) + useYamlEditor (Cmd+S)
