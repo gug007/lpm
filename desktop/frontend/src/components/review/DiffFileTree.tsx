@@ -1,13 +1,12 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import {
-  BASE_LEFT_PX,
   DEFAULT_STATUS,
   FolderNode,
   FileNode,
-  INDENT_PX,
   STATUS_DISPLAY,
   TreeNode,
 } from "../ChangedFilesTree";
+import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 
 interface DiffFileTreeProps {
   tree: TreeNode[];
@@ -79,13 +78,7 @@ function FolderRow({
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className="flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors hover:bg-[var(--bg-hover)]"
     >
-      <span
-        className={`w-3 shrink-0 text-center text-[10px] text-[var(--text-muted)] transition-transform duration-150 ${
-          isOpen ? "rotate-90" : ""
-        }`}
-      >
-        &#9654;
-      </span>
+      <TreeChevron open={isOpen} />
       <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-secondary)]">
         {node.name}
       </span>
@@ -141,12 +134,7 @@ function FileRow({
       >
         {node.name}
       </span>
-      {dirty && (
-        <span
-          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-cyan)]"
-          title="Unsaved changes"
-        />
-      )}
+      {dirty && <DirtyDot />}
     </div>
   );
 }

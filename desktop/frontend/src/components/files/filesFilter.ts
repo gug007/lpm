@@ -2,16 +2,20 @@
 // project index rather than a pruned tree, so a match never hides under a
 // collapsed folder. Space-separated terms must all appear in the path; the last
 // term decides the rank, the way a quick-open box narrows as you type.
+import { basename } from "../../path";
+import type { Item } from "./treeModel";
 
-export interface IndexEntry {
-  path: string;
-  isDir: boolean;
+export interface IndexEntry extends Item {
+  // Lower-cased once at index time: the filter runs on every keystroke.
+  lower: string;
+  lowerName: string;
 }
 
 export const FILTER_LIMIT = 200;
 
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
+export function indexEntry(path: string, isDir: boolean): IndexEntry {
+  const lower = path.toLowerCase();
+  return { path, isDir, lower, lowerName: basename(lower) };
 }
 
 // The characters of `q` appear in `text` in order — quick-open's fallback.
@@ -24,34 +28,45 @@ export function isSubsequence(q: string, text: string): boolean {
 }
 
 // Lower is better; null is no match.
-function rankOf(entry: IndexEntry, terms: string[]): number | null {
-  const path = entry.path.toLowerCase();
-  const name = baseName(path);
-  for (const term of terms.slice(0, -1)) {
-    if (!path.includes(term)) return null;
+function rankOf(entry: IndexEntry, head: string[], last: string): number | null {
+  for (const term of head) {
+    if (!entry.lower.includes(term)) return null;
   }
-  const last = terms[terms.length - 1];
-  if (name.startsWith(last)) return 0;
-  if (name.includes(last)) return 1;
-  if (path.includes(last)) return 2;
-  if (terms.length === 1 && isSubsequence(last, path)) return 3;
+  if (entry.lowerName.startsWith(last)) return 0;
+  if (entry.lowerName.includes(last)) return 1;
+  if (entry.lower.includes(last)) return 2;
+  if (head.length === 0 && isSubsequence(last, entry.lower)) return 3;
   return null;
+}
+
+// Within a rank: files before folders, then the shortest path.
+function compare(a: IndexEntry, b: IndexEntry): number {
+  return (
+    Number(a.isDir) - Number(b.isDir) ||
+    a.path.length - b.path.length ||
+    (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)
+  );
 }
 
 export function rankFiles(index: IndexEntry[], query: string, limit = FILTER_LIMIT): IndexEntry[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return [];
-  const scored: { entry: IndexEntry; rank: number }[] = [];
+  const head = terms.slice(0, -1);
+  const last = terms[terms.length - 1];
+  const buckets: IndexEntry[][] = [[], [], [], []];
   for (const entry of index) {
-    const rank = rankOf(entry, terms);
-    if (rank !== null) scored.push({ entry, rank });
+    const rank = rankOf(entry, head, last);
+    if (rank !== null) buckets[rank].push(entry);
   }
-  scored.sort(
-    (a, b) =>
-      a.rank - b.rank ||
-      Number(a.entry.isDir) - Number(b.entry.isDir) ||
-      a.entry.path.length - b.entry.path.length ||
-      (a.entry.path < b.entry.path ? -1 : a.entry.path > b.entry.path ? 1 : 0),
-  );
-  return scored.slice(0, limit).map((s) => s.entry);
+  // Only the ranks that reach the cut get sorted; the top one usually fills it.
+  const out: IndexEntry[] = [];
+  for (const bucket of buckets) {
+    if (out.length >= limit) break;
+    bucket.sort(compare);
+    for (const entry of bucket) {
+      if (out.length >= limit) break;
+      out.push(entry);
+    }
+  }
+  return out;
 }

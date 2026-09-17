@@ -5,6 +5,7 @@ import {
   flattenTree,
   foldersTouchedBy,
   parentPath,
+  sameEntries,
   sortEntries,
   type Listing,
 } from "./treeModel";
@@ -22,7 +23,12 @@ describe("path helpers", () => {
     expect(parentPath("src")).toBe("");
     expect(ancestorsOf("a/b/c.ts")).toEqual(["a", "a/b"]);
     expect(ancestorsOf("top.ts")).toEqual([]);
-    expect(foldersTouchedBy("a/b/c.ts")).toEqual(["", "a", "a/b"]);
+  });
+
+  it("names the folder a change lands in and that folder's parent", () => {
+    expect(foldersTouchedBy("a/b/c.ts")).toEqual(["a/b", "a"]);
+    expect(foldersTouchedBy("a/b")).toEqual(["a", ""]);
+    expect(foldersTouchedBy("top.ts")).toEqual([""]);
   });
 });
 
@@ -46,6 +52,13 @@ describe("sortEntries", () => {
     ];
     sortEntries(input);
     expect(input.map((e) => e.name)).toEqual(["b", "a"]);
+  });
+
+  it("compares listings by name and kind in order", () => {
+    const a = [{ name: "x", isDir: true }, { name: "y", isDir: false }];
+    expect(sameEntries(a, [{ name: "x", isDir: true }, { name: "y", isDir: false }])).toBe(true);
+    expect(sameEntries(a, [{ name: "x", isDir: false }, { name: "y", isDir: false }])).toBe(false);
+    expect(sameEntries(a, a.slice(0, 1))).toBe(false);
   });
 });
 

@@ -25,6 +25,50 @@ fn match_remote_root(path: &str, roots: &[(String, SshSettings)]) -> Option<SshS
         .map(|(_, ssh)| ssh.clone())
 }
 
+/// The SSH project whose root is `path` or contains it — for commands handed a
+/// file path rather than a project root.
+pub fn remote_project_containing(path: &str) -> Option<SshSettings> {
+    match_remote_containing(path, &config::remote_project_roots())
+}
+
+fn match_remote_containing(path: &str, roots: &[(String, SshSettings)]) -> Option<SshSettings> {
+    if path.is_empty() {
+        return None;
+    }
+    roots
+        .iter()
+        .find(|(root, _)| {
+            let root = root.trim_end_matches('/');
+            path == root
+                || path
+                    .strip_prefix(root)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        })
+        .map(|(_, ssh)| ssh.clone())
+}
+
+/// Run `program` in `dir` on the host and hand back its stdout; a failure
+/// reports the host's stderr so the caller can show why.
+pub fn remote_output(
+    ssh: &SshSettings,
+    dir: &str,
+    program: &str,
+    args: &[&str],
+) -> Result<Vec<u8>, String> {
+    let out = remote_command(ssh, dir, program, args, &[])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        return Err(if err.is_empty() {
+            format!("{program} failed on the host")
+        } else {
+            err
+        });
+    }
+    Ok(out.stdout)
+}
+
 /// Build `ssh <exec_args> "cd <dir> && export … && exec <program> <args…>"`,
 /// every path/arg/value shell-quoted. `dir` follows the same `~`-expands-on-the-
 /// remote-side rule as terminal spawns. The program name is resolved to an
@@ -119,6 +163,16 @@ mod tests {
             key: String::new(),
             dir: dir.into(),
         }
+    }
+
+    #[test]
+    fn containing_matches_the_root_and_paths_beneath_it() {
+        let roots = vec![("/srv/app".to_string(), ssh("/srv/app"))];
+        assert!(match_remote_containing("/srv/app", &roots).is_some());
+        assert!(match_remote_containing("/srv/app/src/main.rs", &roots).is_some());
+        assert!(match_remote_containing("/srv/application", &roots).is_none());
+        assert!(match_remote_containing("/srv", &roots).is_none());
+        assert!(match_remote_containing("", &roots).is_none());
     }
 
     #[test]

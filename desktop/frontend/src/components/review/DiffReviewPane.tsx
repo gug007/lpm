@@ -132,13 +132,10 @@ export function DiffReviewPane({
   });
 
   const { width: treeWidth, handleResizeStart } = useResizableWidth({
-    initial: () => {
-      const v = Number(localStorage.getItem(TREE_WIDTH_KEY));
-      return v >= TREE_WIDTH_MIN && v <= TREE_WIDTH_MAX ? v : 256;
-    },
+    initial: 256,
     min: TREE_WIDTH_MIN,
     max: TREE_WIDTH_MAX,
-    onCommit: (w) => localStorage.setItem(TREE_WIDTH_KEY, String(w)),
+    storageKey: TREE_WIDTH_KEY,
   });
 
   const hostRef = useRef<HTMLDivElement>(null);

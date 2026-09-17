@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { STATUS_DISPLAY, DEFAULT_STATUS } from "../ChangedFilesTree";
+import { DirtyDot } from "../treeRow";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
 
@@ -65,12 +66,7 @@ function DiffPoolRowInner({
             (excluded)
           </span>
         )}
-        {dirty && (
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-cyan)]"
-            title="Unsaved changes"
-          />
-        )}
+        {dirty && <DirtyDot />}
         <span className="flex-1" />
         {editable && dirty && (
           <button

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { basename } from "../../path";
 import { SearchIcon, XIcon } from "../icons";
-import { FilesResultRow } from "./FilesResultRow";
-import { FilesTreeRow, type RowTarget } from "./FilesTreeRow";
+import { FilesRow, type RowTarget } from "./FilesRow";
 import type { IndexEntry } from "./filesFilter";
-import { parentPath, type Listing, type TreeRow } from "./treeModel";
+import { parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
 
 export interface CursorRequest {
   path: string;
@@ -20,13 +20,10 @@ interface FilesTreeProps {
   // null while the index is still being built.
   results: IndexEntry[] | null;
   cursorRequest: CursorRequest | null;
+  onActivate: (item: Item) => void;
   onToggleDir: (path: string) => void;
-  onOpenFile: (path: string) => void;
-  onRevealDir: (path: string) => void;
   onRowMenu: (target: RowTarget) => void;
 }
-
-type Item = { path: string; isDir: boolean };
 
 const INPUT_CLASS =
   "h-7 w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] pl-7 pr-6 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]";
@@ -42,9 +39,8 @@ export function FilesTree({
   onQueryChange,
   results,
   cursorRequest,
+  onActivate,
   onToggleDir,
-  onOpenFile,
-  onRevealDir,
   onRowMenu,
 }: FilesTreeProps) {
   const filtering = query.trim() !== "";
@@ -54,25 +50,28 @@ export function FilesTree({
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keyboard travel starts from the open file, or from a folder the breadcrumb
-  // just revealed.
+  // Keyboard travel starts from the open file.
   useEffect(() => {
     if (selectedPath) setCursorPath(selectedPath);
   }, [selectedPath]);
+
+  // A breadcrumb reveal lands the cursor on that folder and hands the list
+  // focus, so the arrow keys continue from there.
   useEffect(() => {
     if (!cursorRequest) return;
     setCursorPath(cursorRequest.path);
-    if (cursorRequest.path === "") listRef.current?.scrollTo({ top: 0 });
+    const list = listRef.current;
+    if (!list) return;
+    if (cursorRequest.path === "") list.scrollTo({ top: 0 });
+    list.focus();
   }, [cursorRequest]);
 
   const activate = useCallback(
     (item: Item) => {
       setCursorPath(item.path);
-      if (!item.isDir) onOpenFile(item.path);
-      else if (filtering) onRevealDir(item.path);
-      else onToggleDir(item.path);
+      onActivate(item);
     },
-    [filtering, onOpenFile, onRevealDir, onToggleDir],
+    [onActivate],
   );
 
   const moveCursor = (index: number) => {
@@ -139,45 +138,46 @@ export function FilesTree({
     }
   };
 
-  const list = filtering ? (
-    results === null ? (
-      <Note>Indexing files…</Note>
-    ) : results.length === 0 ? (
-      <Note>No matching files</Note>
-    ) : (
-      results.map((entry) => (
-        <FilesResultRow
+  const renderList = (): ReactNode => {
+    if (filtering) {
+      if (results === null) return <Note>Indexing files…</Note>;
+      if (results.length === 0) return <Note>No matching files</Note>;
+      return results.map((entry) => (
+        <FilesRow
           key={entry.path}
-          entry={entry}
+          item={entry}
+          name={basename(entry.path)}
+          subtitle={parentPath(entry.path)}
           selected={entry.path === selectedPath}
-          cursor={entry.path === cursorPath}
-          focused={listFocused}
+          cursor={listFocused && entry.path === cursorPath}
           dirty={dirtyPaths.has(entry.path)}
           onActivate={activate}
           onContextMenu={onRowMenu}
         />
-      ))
-    )
-  ) : rootListing?.status === "error" ? (
-    <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>
-  ) : !rootListing || rootListing.status === "loading" ? (
-    <Note>Loading…</Note>
-  ) : rows.length === 0 ? (
-    <Note>This folder is empty</Note>
-  ) : (
-    rows.map((row) => (
-      <FilesTreeRow
+      ));
+    }
+    if (rootListing?.status === "error") {
+      return <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>;
+    }
+    if (!rootListing || rootListing.status === "loading") return <Note>Loading…</Note>;
+    if (rows.length === 0) return <Note>This folder is empty</Note>;
+    return rows.map((row) => (
+      <FilesRow
         key={row.path}
-        row={row}
+        item={row}
+        name={row.name}
+        depth={row.depth}
+        expanded={row.expanded}
+        loading={row.loading}
+        error={row.error}
         selected={row.path === selectedPath}
-        cursor={row.path === cursorPath}
-        focused={listFocused}
+        cursor={listFocused && row.path === cursorPath}
         dirty={dirtyPaths.has(row.path)}
         onActivate={activate}
         onContextMenu={onRowMenu}
       />
-    ))
-  );
+    ));
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -225,13 +225,13 @@ export function FilesTree({
         onBlur={() => setListFocused(false)}
         className="min-h-0 flex-1 overflow-y-auto py-1 outline-none"
       >
-        {list}
+        {renderList()}
       </div>
     </div>
   );
 }
 
-function Note({ tone = "muted", children }: { tone?: "muted" | "bad"; children: React.ReactNode }) {
+function Note({ tone = "muted", children }: { tone?: "muted" | "bad"; children: ReactNode }) {
   return (
     <p
       className={`break-words px-4 py-6 text-center text-[11px] ${

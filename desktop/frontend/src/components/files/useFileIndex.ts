@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListDirFiles } from "../../../bridge/commands";
 import { useGitChanged } from "../../hooks/useGitChanged";
-import type { IndexEntry } from "./filesFilter";
+import { indexEntry, type IndexEntry } from "./filesFilter";
 
 // Refetch at most once per window: an agent mid-refactor fires a change every
 // few hundred milliseconds, and the walk is the expensive part.
@@ -9,35 +9,32 @@ const REFRESH_DELAY_MS = 1500;
 
 // The flat project index behind "Filter files": the same walk the composer's
 // @-mention picker uses, fetched the first time a filter is typed and refetched
-// (debounced) as the project changes while a filter is live.
-export function useFileIndex(root: string, wanted: boolean) {
+// (debounced) as the project changes while a filter is live. null until then.
+export function useFileIndex(root: string, wanted: boolean, active: boolean): IndexEntry[] | null {
   const [index, setIndex] = useState<IndexEntry[] | null>(null);
-  const [loading, setLoading] = useState(false);
   const wantedRef = useRef(wanted);
   wantedRef.current = wanted;
   const staleRef = useRef(true);
   const inflightRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const epochRef = useRef(0);
 
   const fetchIndex = useCallback(async () => {
     if (inflightRef.current) return;
     inflightRef.current = true;
     staleRef.current = false;
-    const epoch = epochRef.current;
-    setLoading(true);
-    let next: IndexEntry[] = [];
     try {
       const raw = (await ListDirFiles(root)) as { path: string; isDir: boolean }[];
-      next = Array.isArray(raw) ? raw.map((e) => ({ path: e.path, isDir: !!e.isDir })) : [];
+      setIndex(Array.isArray(raw) ? raw.map((e) => indexEntry(e.path, !!e.isDir)) : []);
     } catch {
       staleRef.current = true;
+      setIndex([]);
     }
     inflightRef.current = false;
-    if (epoch !== epochRef.current) return;
-    setIndex(next);
-    setLoading(false);
   }, [root]);
+
+  useEffect(() => {
+    if (wanted && staleRef.current) void fetchIndex();
+  }, [wanted, fetchIndex]);
 
   const onChanged = useCallback(() => {
     staleRef.current = true;
@@ -48,19 +45,7 @@ export function useFileIndex(root: string, wanted: boolean) {
       if (wantedRef.current) void fetchIndex();
     }, REFRESH_DELAY_MS);
   }, [fetchIndex]);
-  useGitChanged(root, onChanged);
-
-  useEffect(() => {
-    epochRef.current += 1;
-    staleRef.current = true;
-    inflightRef.current = false;
-    setIndex(null);
-    setLoading(false);
-  }, [root]);
-
-  useEffect(() => {
-    if (wanted && staleRef.current) void fetchIndex();
-  }, [wanted, fetchIndex]);
+  useGitChanged(root, onChanged, active);
 
   useEffect(
     () => () => {
@@ -69,5 +54,5 @@ export function useFileIndex(root: string, wanted: boolean) {
     [],
   );
 
-  return { index, loading };
+  return index;
 }

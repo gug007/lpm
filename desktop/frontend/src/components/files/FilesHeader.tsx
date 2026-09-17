@@ -1,9 +1,11 @@
-import { Fragment, useLayoutEffect, useRef, useState } from "react";
+import { Fragment } from "react";
 import { PanelRight, PanelRightClose } from "lucide-react";
+import { basename } from "../../path";
 import { ChevronRightIcon } from "../icons";
 import { OpenFileWithDropdown } from "../OpenFileWithDropdown";
+import { DirtyDot } from "../treeRow";
 import { Tooltip } from "../ui/Tooltip";
-import { ancestorsOf, baseName } from "./treeModel";
+import { ancestorsOf } from "./treeModel";
 
 interface FilesHeaderProps {
   rootName: string;
@@ -35,35 +37,19 @@ export function FilesHeader({
   onRevealDir,
   onToggleTree,
 }: FilesHeaderProps) {
-  const navRef = useRef<HTMLElement>(null);
-  const trailRef = useRef<HTMLDivElement>(null);
-  const [tight, setTight] = useState(false);
-
-  // When the trail outgrows the header, anchor it to its end so the file name,
-  // not the project name, is what survives the clipping.
-  useLayoutEffect(() => {
-    const nav = navRef.current;
-    const trail = trailRef.current;
-    if (!nav || !trail) return;
-    const measure = () => setTight(trail.offsetWidth > nav.clientWidth);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(nav);
-    observer.observe(trail);
-    return () => observer.disconnect();
-  }, []);
-
   const folders = path ? ancestorsOf(path) : [];
   const treeLabel = treeOpen ? "Hide file tree" : "Show file tree";
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-secondary)]/20 px-2">
+      {/* The auto margin keeps the trail left while it fits; once it overflows
+          the margin collapses and the end alignment keeps the file name in
+          view, clipping the project name instead. */}
       <nav
-        ref={navRef}
         aria-label="File path"
-        className={`flex min-w-0 flex-1 items-center overflow-hidden ${tight ? "justify-end" : ""}`}
+        className="flex min-w-0 flex-1 items-center justify-end overflow-hidden"
       >
-        <div ref={trailRef} className="flex shrink-0 items-center whitespace-nowrap">
+        <div className="mr-auto flex shrink-0 items-center whitespace-nowrap">
           <button
             type="button"
             onClick={() => onRevealDir("")}
@@ -81,20 +67,15 @@ export function FilesHeader({
                 className={CRUMB_CLASS}
                 title={dir}
               >
-                {baseName(dir)}
+                {basename(dir)}
               </button>
             </Fragment>
           ))}
           <Separator />
           {path ? (
             <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-[var(--text-primary)]">
-              {baseName(path)}
-              {dirty && (
-                <span
-                  className="h-1.5 w-1.5 rounded-full bg-[var(--accent-cyan)]"
-                  title="Unsaved changes"
-                />
-              )}
+              {basename(path)}
+              {dirty && <DirtyDot />}
             </span>
           ) : (
             <span className="shrink-0 px-1 text-xs text-[var(--text-muted)]">Select a file</span>

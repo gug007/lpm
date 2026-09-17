@@ -469,50 +469,33 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     setFullscreenPaneId((current) => (current === paneId ? null : paneId));
   }, []);
 
-  // Open the review tab in a pane, or focus it if one already exists, so the
-  // dropdown never spawns duplicate review tabs (⌘⇧R adds the close half).
+  // Focus a pane's utility tab of `kind`, or add one, so the dropdown never
+  // spawns duplicates (the ⌘⇧ toggles add the close half).
+  const focusOrAddUtility = useCallback(
+    (paneId: string, kind: UtilityTabKind, add: (paneId: string) => void) => {
+      const pane = getPane(paneId);
+      if (!pane) return;
+      const idx = pane.tabs.findIndex((t) => t.kind === kind);
+      if (idx < 0) add(paneId);
+      else focusTerminal(paneId, idx);
+    },
+    [getPane, focusTerminal],
+  );
   const openReviewInPane = useCallback(
-    (paneId: string) => {
-      const pane = getPane(paneId);
-      if (!pane) return;
-      const reviewIdx = pane.tabs.findIndex((t) => t.kind === "review");
-      if (reviewIdx < 0) addReviewToPane(paneId);
-      else focusTerminal(paneId, reviewIdx);
-    },
-    [getPane, addReviewToPane, focusTerminal],
+    (paneId: string) => focusOrAddUtility(paneId, "review", addReviewToPane),
+    [focusOrAddUtility, addReviewToPane],
   );
-
   const openMemoryInPane = useCallback(
-    (paneId: string) => {
-      const pane = getPane(paneId);
-      if (!pane) return;
-      const memoryIdx = pane.tabs.findIndex((t) => t.kind === "memory");
-      if (memoryIdx < 0) addMemoryToPane(paneId);
-      else focusTerminal(paneId, memoryIdx);
-    },
-    [getPane, addMemoryToPane, focusTerminal],
+    (paneId: string) => focusOrAddUtility(paneId, "memory", addMemoryToPane),
+    [focusOrAddUtility, addMemoryToPane],
   );
-
   const openToolkitInPane = useCallback(
-    (paneId: string) => {
-      const pane = getPane(paneId);
-      if (!pane) return;
-      const toolkitIdx = pane.tabs.findIndex((t) => t.kind === "toolkit");
-      if (toolkitIdx < 0) addToolkitToPane(paneId);
-      else focusTerminal(paneId, toolkitIdx);
-    },
-    [getPane, addToolkitToPane, focusTerminal],
+    (paneId: string) => focusOrAddUtility(paneId, "toolkit", addToolkitToPane),
+    [focusOrAddUtility, addToolkitToPane],
   );
-
   const openFilesInPane = useCallback(
-    (paneId: string) => {
-      const pane = getPane(paneId);
-      if (!pane) return;
-      const filesIdx = pane.tabs.findIndex((t) => t.kind === "files");
-      if (filesIdx < 0) addFilesToPane(paneId);
-      else focusTerminal(paneId, filesIdx);
-    },
-    [getPane, addFilesToPane, focusTerminal],
+    (paneId: string) => focusOrAddUtility(paneId, "files", addFilesToPane),
+    [focusOrAddUtility, addFilesToPane],
   );
 
   // Sidebar menu entry: focus the memory tab wherever it lives in the layout,

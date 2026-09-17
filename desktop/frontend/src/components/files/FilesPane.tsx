@@ -1,15 +1,14 @@
-import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { basename, joinAbs } from "../../path";
-import { useAppStore } from "../../store/app";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
 import { FilesEditor } from "./FilesEditor";
 import { FilesHeader } from "./FilesHeader";
+import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
 import { FilesTree, type CursorRequest } from "./FilesTree";
-import type { RowTarget } from "./FilesTreeRow";
 import { rankFiles } from "./filesFilter";
-import { ancestorsOf, flattenTree } from "./treeModel";
+import { ancestorsOf, flattenTree, type Item } from "./treeModel";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
 import { useFileIndex } from "./useFileIndex";
@@ -21,26 +20,22 @@ const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
 
 interface FilesPaneProps {
-  tabId: string;
   projectRoot: string;
   projectName: string;
   active: boolean;
 }
 
 // The Files tab (`kind: "files"`, like the review and toolkit tabs): the
-// project tree on the right, one file in an editor on the left.
-export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPaneProps) {
-  // An SSH host's files are read through the host; nothing writes them yet.
-  const readOnly = useAppStore(
-    (s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false,
-  );
-  const { listings, load, ensure } = useDirListings(projectRoot, active);
-  const buffer = useFileBuffer(projectRoot, active, readOnly);
+// project tree on the right, one file in an editor on the left. Keyed by the
+// project root where it is rendered, so every piece of state is per root.
+export function FilesPane({ projectRoot, projectName, active }: FilesPaneProps) {
+  const { listings, load, ensure, forget } = useDirListings(projectRoot, active);
+  const buffer = useFileBuffer(projectRoot, active);
   const { open: openBuffer } = buffer;
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const filtering = query.trim() !== "";
-  const { index } = useFileIndex(projectRoot, filtering);
+  const index = useFileIndex(projectRoot, filtering, active);
   const results = useMemo(
     () => (filtering && index ? rankFiles(index, query) : null),
     [filtering, index, query],
@@ -50,20 +45,17 @@ export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPane
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
   const [menu, setMenu] = useState<RowTarget | null>(null);
   const { width: treeWidth, handleResizeStart } = useResizableWidth({
-    initial: () => {
-      const v = Number(localStorage.getItem(TREE_WIDTH_KEY));
-      return v >= TREE_WIDTH_MIN && v <= TREE_WIDTH_MAX ? v : TREE_WIDTH_DEFAULT;
-    },
+    initial: TREE_WIDTH_DEFAULT,
     min: TREE_WIDTH_MIN,
     max: TREE_WIDTH_MAX,
     edge: "left",
-    onCommit: (w) => localStorage.setItem(TREE_WIDTH_KEY, String(w)),
+    storageKey: TREE_WIDTH_KEY,
   });
 
   const expandDirs = useCallback(
     (dirs: string[]) => {
-      if (dirs.length === 0) return;
       setExpanded((prev) => {
+        if (dirs.every((dir) => prev.has(dir))) return prev;
         const next = new Set(prev);
         for (const dir of dirs) next.add(dir);
         return next;
@@ -81,14 +73,13 @@ export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPane
           next.delete(path);
           return next;
         });
+        forget(path);
         return;
       }
       setExpanded((prev) => new Set(prev).add(path));
-      // Opening a folder re-lists it: the natural way to refresh a folder the
-      // watcher ignores (dependencies, build output).
       void load(path);
     },
-    [expanded, load],
+    [expanded, load, forget],
   );
 
   const openFile = useCallback(
@@ -115,35 +106,35 @@ export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPane
     [showTree, expandDirs],
   );
 
-  const onKeyDownCapture = (e: KeyboardEvent<HTMLDivElement>) => {
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "s") {
-      e.preventDefault();
-      e.stopPropagation();
-      void buffer.save();
-    }
-  };
+  // One rule for every list and menu: a file opens; a folder is revealed
+  // while filtering and toggled otherwise.
+  const activate = useCallback(
+    (item: Item) => {
+      if (!item.isDir) openFile(item.path);
+      else if (filtering) revealDir(item.path);
+      else toggleDir(item.path);
+    },
+    [filtering, openFile, revealDir, toggleDir],
+  );
 
   const selectedPath = buffer.file?.path ?? null;
   const absPath = selectedPath ? joinAbs(projectRoot, selectedPath) : null;
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]"
-      onKeyDownCapture={onKeyDownCapture}
-    >
+    <div className="flex h-full min-h-0 flex-col bg-[var(--bg-primary)]">
       <FilesHeader
         rootName={basename(projectRoot) || projectName}
         path={selectedPath}
         absPath={absPath}
         dirty={buffer.draft !== null}
         saving={buffer.saving}
-        readOnly={readOnly}
+        readOnly={buffer.readOnly}
         treeOpen={treeOpen}
         onSave={() => void buffer.save()}
         onRevealDir={revealDir}
         onToggleTree={() => showTree(!treeOpen)}
       />
-      {buffer.conflict && !readOnly && (
+      {buffer.conflict && (
         <DiffConflictBanner
           path={buffer.conflict.path}
           onOverwrite={() => void buffer.resolveConflict("overwrite")}
@@ -154,12 +145,9 @@ export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPane
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1">
           <FilesEditor
-            instanceId={tabId}
             file={buffer.file}
             value={buffer.value}
             absPath={absPath ?? ""}
-            active={active}
-            readOnly={readOnly}
             onChange={buffer.setDraft}
             onSave={() => void buffer.save()}
           />
@@ -178,9 +166,8 @@ export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPane
               onQueryChange={setQuery}
               results={results}
               cursorRequest={cursorRequest}
+              onActivate={activate}
               onToggleDir={toggleDir}
-              onOpenFile={openFile}
-              onRevealDir={revealDir}
               onRowMenu={setMenu}
             />
             <div
@@ -195,11 +182,7 @@ export function FilesPane({ tabId, projectRoot, projectName, active }: FilesPane
         <FilesRowMenu
           target={menu}
           absPath={joinAbs(projectRoot, menu.path)}
-          onOpen={() => {
-            if (!menu.isDir) openFile(menu.path);
-            else if (filtering) revealDir(menu.path);
-            else toggleDir(menu.path);
-          }}
+          onOpen={() => activate(menu)}
           onClose={() => setMenu(null)}
         />
       )}

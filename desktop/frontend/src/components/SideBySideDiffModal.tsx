@@ -14,12 +14,11 @@ import {
   CheckboxBox,
   STATUS_DISPLAY,
   DEFAULT_STATUS,
-  INDENT_PX,
-  BASE_LEFT_PX,
   type FileNode,
   type FolderNode,
   type TreeNode,
 } from "./ChangedFilesTree";
+import { BASE_LEFT_PX, INDENT_PX, TreeChevron } from "./treeRow";
 
 type ChangedFile = main.ChangedFile;
 
@@ -265,13 +264,7 @@ function NavFolderRow({
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className="flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors hover:bg-[var(--bg-hover)]"
     >
-      <span
-        className={`w-3 shrink-0 text-center text-[10px] text-[var(--text-muted)] transition-transform duration-150 ${
-          isOpen ? "rotate-90" : ""
-        }`}
-      >
-        &#9654;
-      </span>
+      <TreeChevron open={isOpen} />
       <label
         className="flex shrink-0 cursor-pointer items-center"
         onClick={(e) => e.stopPropagation()}

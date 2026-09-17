@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { main } from "../../bridge/models";
 import { UndoIcon } from "./icons";
+import { BASE_LEFT_PX, INDENT_PX, TreeChevron } from "./treeRow";
 import { DiffViewer } from "./DiffViewer";
 
 type ChangedFile = main.ChangedFile;
@@ -16,8 +17,6 @@ export const STATUS_DISPLAY: Record<
   modified: { label: "M", color: "text-[var(--accent-blue-text)]", dot: "bg-[var(--accent-blue)]" },
 };
 export const DEFAULT_STATUS = STATUS_DISPLAY.modified;
-export const INDENT_PX = 14;
-export const BASE_LEFT_PX = 10;
 
 export type FileNode = {
   kind: "file";
@@ -315,13 +314,7 @@ function FolderRow({
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
       className="group flex cursor-pointer items-center gap-2 py-[5px] pr-2.5 transition-colors hover:bg-[var(--bg-hover)]"
     >
-      <span
-        className={`w-3 shrink-0 text-center text-[10px] text-[var(--text-muted)] transition-transform duration-150 ${
-          isOpen ? "rotate-90" : ""
-        }`}
-      >
-        &#9654;
-      </span>
+      <TreeChevron open={isOpen} />
       <TriStateCheckbox
         state={state}
         onToggle={() => onSetSelection(fileDescendants(node), state !== "all")}

@@ -15,7 +15,7 @@ import { ImageFileView } from "./ImageFileView";
 import { useImagePreview } from "./imagePreview";
 import { VideoFileView } from "./VideoFileView";
 import { useVideoPreview } from "./videoPreview";
-import { mediaKind } from "./fileMedia";
+import { isSourceImage, mediaKind } from "./fileMedia";
 import {
   ContentView,
   SideBySideDiff,
@@ -30,10 +30,6 @@ import {
 } from "./fileViewerDiff";
 
 const BASE_FONT_PX = 12;
-
-// SVG is the one image extension that is also reviewable, editable source, so
-// it keeps a way back to the diff instead of only ever being rasterised.
-const SOURCE_IMAGE_RE = /\.svg$/i;
 
 const VIEW_OPTIONS = [
   { value: "preview", label: "Preview" },
@@ -81,7 +77,7 @@ export function FileViewerModal({
   const [showSource, setShowSource] = useState(false);
   const wide = useIsWide(SIDE_BY_SIDE_MIN_PX);
   const kind = mediaKind(absPath);
-  const canViewSource = kind === "image" && SOURCE_IMAGE_RE.test(absPath);
+  const canViewSource = kind === "image" && isSourceImage(absPath);
   const isImage = kind === "image" && !showSource;
   const isVideo = kind === "video";
   const isMedia = isImage || isVideo;
