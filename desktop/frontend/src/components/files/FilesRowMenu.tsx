@@ -1,9 +1,7 @@
-import { toast } from "sonner";
-import { RevealInFinder, SetClipboardText } from "../../../bridge/commands";
-import { stripMarker } from "../../peer/markers";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
+import { FILE_CHORDS, copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
 import type { RowTarget } from "./FilesRow";
 
 interface FilesRowMenuProps {
@@ -14,11 +12,6 @@ interface FilesRowMenuProps {
 }
 
 export function FilesRowMenu({ target, absPath, onOpen, onClose }: FilesRowMenuProps) {
-  const copy = (text: string) =>
-    SetClipboardText(text)
-      .then(() => toast.success("Copied"))
-      .catch((err: unknown) => toast.error(String(err)));
-  const reveal = () => RevealInFinder(absPath).catch((err: unknown) => toast.error(String(err)));
   return (
     <ContextMenuShell x={target.x} y={target.y} minWidth={180} onClose={onClose}>
       <ContextMenuItem
@@ -31,22 +24,25 @@ export function FilesRowMenu({ target, absPath, onOpen, onClose }: FilesRowMenuP
       <ContextMenuSeparator />
       <ContextMenuItem
         label="Copy path"
+        shortcut={FILE_CHORDS.copyPath}
         onClick={() => {
-          void copy(stripMarker(absPath));
+          void copyAbsolutePath(absPath);
           onClose();
         }}
       />
       <ContextMenuItem
         label="Copy relative path"
+        shortcut={FILE_CHORDS.copyRelativePath}
         onClick={() => {
-          void copy(target.path);
+          void copyText(target.path);
           onClose();
         }}
       />
       <ContextMenuItem
         label="Reveal in Finder"
+        shortcut={FILE_CHORDS.reveal}
         onClick={() => {
-          void reveal();
+          void revealInFinder(absPath);
           onClose();
         }}
       />

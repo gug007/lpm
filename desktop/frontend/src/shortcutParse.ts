@@ -88,17 +88,29 @@ const RESERVED = new Set<string>([
   // App.tsx — sidebar + new terminal (Cmd+1..9 added below)
   "cmd+b",
   "cmd+t",
-  // TerminalView.tsx — tabs, panes, search, composer, review, zoom
+  // TerminalView.tsx — tabs, panes, search, composer, utility tabs, zoom
   "cmd+w",
   "cmd+d",
   "cmd+shift+d",
   "cmd+f",
   "cmd+i",
   "cmd+shift+r",
+  "cmd+shift+m",
+  "cmd+shift+k",
+  "cmd+shift+e",
+  "cmd+p",
   "cmd+=",
   "cmd++",
   "cmd+-",
   "cmd+0",
+  // useFilesChords.ts — path chords and the tree toggle in the Files tab;
+  // ⌃⌥↑ / ⌃⌥↓ step files there and in the review tab (Ctrl parses as cmd)
+  "cmd+alt+r",
+  "cmd+alt+c",
+  "cmd+alt+shift+c",
+  "cmd+alt+b",
+  "cmd+alt+arrowup",
+  "cmd+alt+arrowdown",
   // useDetailView.ts (Cmd+E / Cmd+Shift+N) + useYamlEditor (Cmd+S)
   "cmd+e",
   "cmd+shift+n",
@@ -121,7 +133,6 @@ const RESERVED = new Set<string>([
   "cmd+h",
   "cmd+n",
   "cmd+o",
-  "cmd+p",
   // Modal submit (CommitModal / PRModal / FeedbackModal)
   "cmd+enter",
 ]);

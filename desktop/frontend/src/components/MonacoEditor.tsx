@@ -121,9 +121,13 @@ export function MonacoEditor({
       onSaveRef.current?.();
     });
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, () => {
-      onToggleViewRef.current?.();
-    });
+    // Bound only when the host has a view to toggle; otherwise ⌘E stays a
+    // project-level chord instead of dying in the editor.
+    if (onToggleViewRef.current) {
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, () => {
+        onToggleViewRef.current?.();
+      });
+    }
 
     const applyFontSize = (size: number) => {
       const clamped = Math.max(
@@ -249,7 +253,7 @@ export function MonacoEditor({
 
   return (
     <div className="relative h-full w-full">
-      <div ref={hostRef} className="h-full w-full" />
+      <div ref={hostRef} data-text-scope="" className="h-full w-full" />
       {showFormatHint && (
         <div
           className="pointer-events-none absolute top-3 right-4 select-none font-mono text-[10px] font-medium uppercase tracking-wider text-neutral-500/70 dark:text-neutral-400/60"

@@ -25,6 +25,8 @@ export interface DetachedWindowState {
   height?: number;
 }
 
+export type FilesTreeSide = "left" | "right";
+
 export interface Settings {
   theme: Theme;
   browserTheme?: "light" | "dark"; // unset = follow the app theme
@@ -54,6 +56,8 @@ export interface Settings {
   // Which pane actions have a button in the pane header; the rest are in its
   // menu. Unset means the default layout.
   paneToolbar?: PaneActionId[];
+  // Which side of the Files tab holds the folder tree. Unset means the right.
+  filesTreeSide?: FilesTreeSide;
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
   claudeLimitsEnabled?: boolean;
@@ -139,6 +143,7 @@ function normalize(s: main.Settings): Settings {
     sidebarWidth: s.sidebarWidth,
     sidebarNavInSidebar: normalizeSidebarNav(s.sidebarNavInSidebar),
     paneToolbar: normalizePaneToolbar(s.paneToolbar),
+    filesTreeSide: s.filesTreeSide === "left" || s.filesTreeSide === "right" ? s.filesTreeSide : undefined,
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,
     claudeLimitsEnabled: s.claudeLimitsEnabled,

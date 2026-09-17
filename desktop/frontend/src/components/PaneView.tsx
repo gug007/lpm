@@ -645,9 +645,11 @@ function PaneViewImpl(props: PaneViewProps) {
                 <ErrorBoundary resetKey={t.id} scope="files">
                   <FilesPane
                     key={interactiveCwd}
+                    paneId={pane.id}
                     projectRoot={interactiveCwd}
                     projectName={projectName}
                     active={visible && isActive}
+                    focused={focused}
                   />
                 </ErrorBoundary>
               ) : (

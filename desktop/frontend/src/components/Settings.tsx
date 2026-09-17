@@ -171,6 +171,7 @@ export function Settings({
   const ttsEnabled = useSettingsStore((s) => s.ttsEnabled ?? false);
   const ttsVoice = useSettingsStore((s) => s.ttsVoice ?? "af_heart");
   const ttsEngine = useSettingsStore((s) => s.ttsEngine ?? "kokoro");
+  const filesTreeSide = useSettingsStore((s) => s.filesTreeSide ?? "right");
   const ttsOpenAiVoice = useSettingsStore((s) => s.ttsOpenAiVoice ?? "alloy");
   const ttsSpeed = useSettingsStore((s) => s.ttsSpeed ?? 1.0);
   const openFilesInDefaultApp = useSettingsStore(
@@ -803,6 +804,18 @@ export function Settings({
                   enabled={terminalInputOpen}
                   onChange={(v) => useComposerStore.getState().setOpen(v)}
                 />
+              </SettingsRow>
+              <SettingsRow {...rowProps("terminal.filesTreeSide")}>
+                <SettingsSelect
+                  value={filesTreeSide}
+                  onChange={(e) =>
+                    updateSettings({ filesTreeSide: e.target.value === "left" ? "left" : "right" })
+                  }
+                  aria-label="Files tree position"
+                >
+                  <option value="right">Right</option>
+                  <option value="left">Left</option>
+                </SettingsSelect>
               </SettingsRow>
               <SettingsRow {...rowProps("terminal.autoCloseComposer")}>
                 <Toggle
