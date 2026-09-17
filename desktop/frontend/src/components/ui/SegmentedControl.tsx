@@ -3,7 +3,7 @@ import { Tooltip } from "./Tooltip";
 
 interface SegmentedOption<T extends string> {
   value: T;
-  label: string;
+  label: ReactNode;
   tooltip?: ReactNode;
   disabled?: boolean;
 }

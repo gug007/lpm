@@ -115,14 +115,36 @@ describe("FilesTree keyboard", () => {
 });
 
 describe("FilesTree changes only", () => {
-  const toggle = () =>
-    container.querySelector<HTMLButtonElement>('button[aria-label="Uncommitted files only"]')!;
+  const view = (text: string) =>
+    [...container.querySelectorAll<HTMLButtonElement>('[aria-label="Files view"] button')].find(
+      (button) => button.textContent?.startsWith(text),
+    )!;
 
-  it("switches the rail from the toolbar button", () => {
-    const { onChangesOnlyChange } = render();
-    expect(toggle().getAttribute("aria-pressed")).toBe("false");
-    act(() => toggle().click());
+  it("switches views from the segmented control above the filter", () => {
+    const { onChangesOnlyChange, rerender } = render();
+    expect(view("Files").getAttribute("aria-pressed")).toBe("true");
+    expect(view("Changes").getAttribute("aria-pressed")).toBe("false");
+    act(() => view("Changes").click());
     expect(onChangesOnlyChange).toHaveBeenCalledWith(true);
+    rerender({ changesOnly: true });
+    expect(view("Changes").getAttribute("aria-pressed")).toBe("true");
+    act(() => view("Files").click());
+    expect(onChangesOnlyChange).toHaveBeenCalledWith(false);
+  });
+
+  it("counts the uncommitted files on the Changes segment", () => {
+    const { rerender } = render({
+      changes: {
+        status: "ready",
+        files: [
+          { path: "src/a.ts", status: "modified" },
+          { path: "src/b.ts", status: "untracked" },
+        ],
+      },
+    });
+    expect(view("Changes").textContent).toBe("Changes2");
+    rerender({ changes: NO_CHANGES });
+    expect(view("Changes").textContent).toBe("Changes");
   });
 
   it("marks changed files with a letter and their folders with a dot", () => {
@@ -141,7 +163,6 @@ describe("FilesTree changes only", () => {
 
   it("says so when the working tree is clean", () => {
     const { list } = render({ changesOnly: true, rows: [] });
-    expect(toggle().getAttribute("aria-pressed")).toBe("true");
     expect(list.textContent).toContain("No uncommitted changes");
   });
 

@@ -8,22 +8,32 @@ import { useImagePreview } from "../imagePreview";
 import { BinaryFilePlaceholder } from "../review/BinaryFilePlaceholder";
 import { EmptyState } from "../ui/EmptyState";
 import { useVideoPreview } from "../videoPreview";
+import { FilesDiffEditor } from "./FilesDiffEditor";
+import type { DiffSource } from "./useDiffView";
 import type { OpenFile } from "./useFileBuffer";
 
 interface FilesEditorProps {
   file: OpenFile | null;
   value: string;
   absPath: string;
+  // Set to show the file against HEAD instead of on its own.
+  diff: DiffSource | null;
   onChange: (text: string) => void;
   onSave: () => void;
 }
+
+const LOADING = (
+  <div className="flex h-full items-center justify-center text-[11px] text-[var(--text-muted)]">
+    Loading…
+  </div>
+);
 
 // Here, where files are edited, an SVG opens as the source it is.
 function mediaOf(path: string | null) {
   return path && !isSourceImage(path) ? mediaKind(path) : null;
 }
 
-export function FilesEditor({ file, value, absPath, onChange, onSave }: FilesEditorProps) {
+export function FilesEditor({ file, value, absPath, diff, onChange, onSave }: FilesEditorProps) {
   const media = mediaOf(file?.path ?? null);
   // A preview stays decoded while its tab is hidden; a tab comes back often.
   const preview = useImagePreview(absPath, media === "image");
@@ -40,12 +50,28 @@ export function FilesEditor({ file, value, absPath, onChange, onSave }: FilesEdi
       </div>
     );
   }
-  if (file.loading) {
-    return (
-      <div className="flex h-full items-center justify-center text-[11px] text-[var(--text-muted)]">
-        Loading…
-      </div>
-    );
+  if (file.loading) return LOADING;
+  if (diff) {
+    const { head, deleted } = diff;
+    if (head.status === "loading") return LOADING;
+    if (head.status === "error") {
+      return <BinaryFilePlaceholder path={file.path} message={head.message} />;
+    }
+    // A deleted file has nothing on disk to read; its diff is HEAD against
+    // nothing. Anything else needs readable text on both sides.
+    const textual = deleted || (!file.error && !file.binary && !file.tooLarge);
+    if (head.status === "ready" && textual) {
+      return (
+        <FilesDiffEditor
+          path={file.path}
+          original={head.original}
+          value={deleted ? "" : value}
+          onChange={onChange}
+          onSave={onSave}
+          readOnly={deleted || !file.writable}
+        />
+      );
+    }
   }
   if (file.error) return <BinaryFilePlaceholder path={file.path} message={file.error} />;
   if (media === "video") return <VideoFileView video={video} />;

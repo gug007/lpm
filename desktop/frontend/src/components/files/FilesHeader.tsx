@@ -7,6 +7,7 @@ import { OpenFileWithDropdown } from "../OpenFileWithDropdown";
 import { DirtyDot } from "../treeRow";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
+import { SegmentedControl } from "../ui/SegmentedControl";
 import { Tooltip } from "../ui/Tooltip";
 import { decorationOf } from "./gitDecorations";
 import { ancestorsOf } from "./treeModel";
@@ -17,6 +18,10 @@ interface FilesHeaderProps {
   absPath: string | null;
   // The open file's git status, shown the way its tree row shows it.
   status?: string;
+  // A changed file can show as a diff against HEAD or as itself.
+  diffAvailable: boolean;
+  showDiff: boolean;
+  onShowDiff: (show: boolean) => void;
   dirty: boolean;
   saving: boolean;
   readOnly: boolean;
@@ -28,6 +33,11 @@ interface FilesHeaderProps {
   onTreeSide: (side: FilesTreeSide) => void;
 }
 
+const VIEW_OPTIONS = [
+  { value: "diff", label: "Diff" },
+  { value: "file", label: "File" },
+] as const;
+
 const CRUMB_CLASS =
   "shrink-0 rounded px-1 py-0.5 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
 
@@ -38,6 +48,9 @@ export function FilesHeader({
   path,
   absPath,
   status,
+  diffAvailable,
+  showDiff,
+  onShowDiff,
   dirty,
   saving,
   readOnly,
@@ -123,6 +136,15 @@ export function FilesHeader({
           )}
         </div>
       </nav>
+      {diffAvailable && (
+        <SegmentedControl
+          value={showDiff ? "diff" : "file"}
+          options={VIEW_OPTIONS}
+          onChange={(view) => onShowDiff(view === "diff")}
+          variant="subtle"
+          ariaLabel="Editor view"
+        />
+      )}
       {readOnly && path && (
         <span
           className="shrink-0 rounded bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]"

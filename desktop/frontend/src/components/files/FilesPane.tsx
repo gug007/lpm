@@ -21,6 +21,7 @@ import { indexEntry, rankFiles, type IndexEntry } from "./filesFilter";
 import { decorate } from "./gitDecorations";
 import { ancestorsOf, buildMatchTree, flattenTree, type Item } from "./treeModel";
 import { useChangedFiles } from "./useChangedFiles";
+import { useDiffView } from "./useDiffView";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
 import { useFileIndex } from "./useFileIndex";
@@ -68,6 +69,10 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     () => localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const selectedPath = buffer.file?.path ?? null;
+  const selectedStatus = selectedPath ? decorations.get(selectedPath) : undefined;
+  const diffView = useDiffView(projectRoot, selectedPath, selectedStatus, active);
+  const { setWanted: setDiffWanted } = diffView;
   const changeItems = useMemo<IndexEntry[] | null>(
     () =>
       changesOnly && changes.status === "ready"
@@ -156,13 +161,15 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     [changesOnly, expanded, load, forget],
   );
 
+  // A file opened from the git view opens as its diff.
   const openFile = useCallback(
     (path: string) => {
       void openBuffer(path);
+      setDiffWanted(changesOnly);
       expandDirs(ancestorsOf(path));
       uncollapse(ancestorsOf(path));
     },
-    [openBuffer, expandDirs, uncollapse],
+    [openBuffer, changesOnly, setDiffWanted, expandDirs, uncollapse],
   );
 
   const showTree = useCallback((open: boolean) => {
@@ -193,10 +200,12 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     focusFilter();
   }, [filterNonce, paneId, focusFilter]);
 
+  // A diff editor has two inputs; the editable one comes last.
   const focusEditor = useCallback(() => {
-    rootRef.current
-      ?.querySelector<HTMLTextAreaElement>(".monaco-editor textarea.inputarea")
-      ?.focus();
+    const inputs = rootRef.current?.querySelectorAll<HTMLTextAreaElement>(
+      ".monaco-editor textarea.inputarea",
+    );
+    inputs?.[inputs.length - 1]?.focus();
   }, []);
 
   // The editor for a file that had to load mounts in the same commit the
@@ -255,7 +264,6 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     [filtering, openFile, revealDir, toggleDir, focusEditor],
   );
 
-  const selectedPath = buffer.file?.path ?? null;
   const absPath = selectedPath ? joinAbs(projectRoot, selectedPath) : null;
 
   const stepFile = useCallback(
@@ -342,7 +350,10 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         rootName={basename(projectRoot) || projectName}
         path={selectedPath}
         absPath={absPath}
-        status={selectedPath ? decorations.get(selectedPath) : undefined}
+        status={selectedStatus}
+        diffAvailable={diffView.available}
+        showDiff={diffView.diff !== null}
+        onShowDiff={setDiffWanted}
         dirty={buffer.draft !== null}
         saving={buffer.saving}
         readOnly={buffer.readOnly}
@@ -368,6 +379,7 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
             file={buffer.file}
             value={buffer.value}
             absPath={absPath ?? ""}
+            diff={diffView.diff}
             onChange={buffer.setDraft}
             onSave={() => void buffer.save()}
           />

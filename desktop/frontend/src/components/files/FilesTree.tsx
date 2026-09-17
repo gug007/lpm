@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { FileDiff } from "lucide-react";
 import { SearchIcon, XIcon } from "../icons";
-import { Tooltip } from "../ui/Tooltip";
 import { FilesRow, type RowTarget } from "./FilesRow";
+import { FilesViewSwitch } from "./FilesViewSwitch";
 import type { IndexEntry } from "./filesFilter";
 import { buildMatchTree, parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
 import type { Changes } from "./useChangedFiles";
@@ -232,12 +231,15 @@ export function FilesTree({
     return renderRows(rows);
   };
 
-  const changesLabel = changesOnly ? "Show all files" : "Show uncommitted files only";
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1 px-2 pb-1 pt-2">
-        <div className="relative min-w-0 flex-1">
+      <FilesViewSwitch
+        changesOnly={changesOnly}
+        count={changes.status === "ready" ? changes.files.length : null}
+        onChange={onChangesOnlyChange}
+      />
+      <div className="shrink-0 px-2 pb-1 pt-2">
+        <div className="relative">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] [&>svg]:h-3 [&>svg]:w-3">
             <SearchIcon />
           </span>
@@ -269,21 +271,6 @@ export function FilesTree({
             </button>
           )}
         </div>
-        <Tooltip content={changesLabel} side="bottom" align="end">
-          <button
-            type="button"
-            onClick={() => onChangesOnlyChange(!changesOnly)}
-            aria-label="Uncommitted files only"
-            aria-pressed={changesOnly}
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
-              changesOnly
-                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-                : "text-[var(--text-muted)]"
-            }`}
-          >
-            <FileDiff size={14} strokeWidth={1.75} />
-          </button>
-        </Tooltip>
       </div>
       <div
         ref={listRef}
