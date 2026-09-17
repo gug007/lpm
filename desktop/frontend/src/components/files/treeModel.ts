@@ -58,11 +58,61 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 
 // Folders first, then files, each in natural order (file2 before file10) so the
 // tree reads like Finder and VS Code.
+function compareEntries(a: { name: string; isDir: boolean }, b: { name: string; isDir: boolean }): number {
+  if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+  return collator.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+}
+
 export function sortEntries(entries: DirEntry[]): DirEntry[] {
-  return [...entries].sort((a, b) => {
-    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-    return collator.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
-  });
+  return [...entries].sort(compareEntries);
+}
+
+interface MatchNode {
+  path: string;
+  name: string;
+  isDir: boolean;
+  children: Map<string, MatchNode>;
+}
+
+// The filter's matches as a pruned tree: every match sits under its folders,
+// all of them open, so a hit reads with its location instead of a path string.
+export function buildMatchTree(matches: readonly Item[]): TreeRow[] {
+  const root: MatchNode = { path: "", name: "", isDir: true, children: new Map() };
+  for (const match of matches) {
+    const parts = match.path.split("/");
+    let node = root;
+    parts.forEach((name, i) => {
+      let child = node.children.get(name);
+      if (!child) {
+        const last = i === parts.length - 1;
+        child = {
+          path: parts.slice(0, i + 1).join("/"),
+          name,
+          isDir: last ? match.isDir : true,
+          children: new Map(),
+        };
+        node.children.set(name, child);
+      }
+      node = child;
+    });
+  }
+  const rows: TreeRow[] = [];
+  const walk = (node: MatchNode, depth: number) => {
+    for (const child of [...node.children.values()].sort(compareEntries)) {
+      rows.push({
+        path: child.path,
+        name: child.name,
+        isDir: child.isDir,
+        depth,
+        expanded: child.children.size > 0,
+        loading: false,
+        error: null,
+      });
+      walk(child, depth + 1);
+    }
+  };
+  walk(root, 0);
+  return rows;
 }
 
 export function sameEntries(a: DirEntry[], b: DirEntry[]): boolean {

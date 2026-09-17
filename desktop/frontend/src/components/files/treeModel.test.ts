@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ancestorsOf,
+  buildMatchTree,
   childPath,
   flattenTree,
   foldersTouchedBy,
@@ -97,5 +98,41 @@ describe("flattenTree", () => {
 
   it("renders nothing while the root itself is missing", () => {
     expect(flattenTree(new Map(), new Set(["src"]))).toEqual([]);
+  });
+});
+
+describe("buildMatchTree", () => {
+  it("nests matches under open folders in tree order", () => {
+    const rows = buildMatchTree([
+      { path: "website/app/quick.tsx", isDir: false },
+      { path: "src/quick.ts", isDir: false },
+      { path: "quick.md", isDir: false },
+      { path: "src/components/Quick.tsx", isDir: false },
+    ]);
+    expect(rows.map((r) => [r.path, r.depth, r.isDir, r.expanded])).toEqual([
+      ["src", 0, true, true],
+      ["src/components", 1, true, true],
+      ["src/components/Quick.tsx", 2, false, false],
+      ["src/quick.ts", 1, false, false],
+      ["website", 0, true, true],
+      ["website/app", 1, true, true],
+      ["website/app/quick.tsx", 2, false, false],
+      ["quick.md", 0, false, false],
+    ]);
+  });
+
+  it("keeps a matched folder as a folder, open only when something matched inside it", () => {
+    const rows = buildMatchTree([
+      { path: "src/components", isDir: true },
+      { path: "docs/components", isDir: true },
+      { path: "docs/components/list.md", isDir: false },
+    ]);
+    expect(rows.find((r) => r.path === "src/components")).toMatchObject({
+      isDir: true,
+      expanded: false,
+      depth: 1,
+    });
+    expect(rows.find((r) => r.path === "docs/components")).toMatchObject({ isDir: true, expanded: true });
+    expect(buildMatchTree([])).toEqual([]);
   });
 });

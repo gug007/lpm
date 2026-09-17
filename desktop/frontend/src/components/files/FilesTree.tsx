@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { basename } from "../../path";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { SearchIcon, XIcon } from "../icons";
 import { FilesRow, type RowTarget } from "./FilesRow";
 import type { IndexEntry } from "./filesFilter";
-import { parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
+import { buildMatchTree, parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
 
 export interface CursorRequest {
   path: string;
@@ -16,7 +15,7 @@ export interface ActivateOptions {
   focusEditor?: boolean;
 }
 
-const NO_ITEMS: Item[] = [];
+const NO_ROWS: TreeRow[] = [];
 
 interface FilesTreeProps {
   rows: TreeRow[];
@@ -41,8 +40,8 @@ interface FilesTreeProps {
 const INPUT_CLASS =
   "h-7 w-full rounded-md border border-[var(--border)] bg-[var(--bg-secondary)] pl-7 pr-6 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)]";
 
-// The rail: a filter box over either the folder tree or, while a filter is
-// typed, the ranked matches. One keyboard cursor serves both lists.
+// The rail: a filter box over the folder tree, or, while a filter is typed,
+// over the matches shown under their folders. One keyboard cursor serves both.
 export function FilesTree({
   rows,
   rootListing,
@@ -59,7 +58,8 @@ export function FilesTree({
   onCursorChange,
 }: FilesTreeProps) {
   const filtering = query.trim() !== "";
-  const items: Item[] = filtering ? (results ?? NO_ITEMS) : rows;
+  const matchRows = useMemo(() => (results ? buildMatchTree(results) : NO_ROWS), [results]);
+  const items: TreeRow[] = filtering ? matchRows : rows;
   const [cursorPath, setCursorPath] = useState<string | null>(null);
   const [listFocused, setListFocused] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -127,14 +127,15 @@ export function FilesTree({
         moveCursor(items.length - 1);
         break;
       case "ArrowRight": {
-        if (!current || filtering || !current.isDir) return;
-        if ((current as TreeRow).expanded) moveCursor(index + 1);
+        if (!current || !current.isDir) return;
+        // Matched folders are already open; there is nothing to toggle.
+        if (filtering || current.expanded) moveCursor(index + 1);
         else onToggleDir(current.path);
         break;
       }
       case "ArrowLeft": {
-        if (!current || filtering) return;
-        if (current.isDir && (current as TreeRow).expanded) {
+        if (!current) return;
+        if (!filtering && current.isDir && current.expanded) {
           onToggleDir(current.path);
           break;
         }
@@ -164,7 +165,9 @@ export function FilesTree({
       moveCursor(Math.max(0, items.findIndex((it) => it.path === cursorPath)));
       listRef.current?.focus();
     } else if (e.key === "Enter") {
-      const target = items.find((it) => it.path === cursorPath) ?? items[0];
+      // The cursor's row, else the best-ranked match rather than the tree's
+      // first row, which is whichever folder sorts first.
+      const target: Item | undefined = items.find((it) => it.path === cursorPath) ?? results?.[0];
       if (filtering && target) activate(target, { focusEditor: true });
     } else if (e.key === "Escape" && query) {
       e.preventDefault();
@@ -173,30 +176,8 @@ export function FilesTree({
     }
   };
 
-  const renderList = (): ReactNode => {
-    if (filtering) {
-      if (results === null) return <Note>Indexing files…</Note>;
-      if (results.length === 0) return <Note>No matching files</Note>;
-      return results.map((entry) => (
-        <FilesRow
-          key={entry.path}
-          item={entry}
-          name={basename(entry.path)}
-          subtitle={parentPath(entry.path)}
-          selected={entry.path === selectedPath}
-          cursor={listFocused && entry.path === cursorPath}
-          dirty={dirtyPaths.has(entry.path)}
-          onActivate={activate}
-          onContextMenu={onRowMenu}
-        />
-      ));
-    }
-    if (rootListing?.status === "error") {
-      return <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>;
-    }
-    if (!rootListing || rootListing.status === "loading") return <Note>Loading…</Note>;
-    if (rows.length === 0) return <Note>This folder is empty</Note>;
-    return rows.map((row) => (
+  const renderRows = (list: TreeRow[]): ReactNode =>
+    list.map((row) => (
       <FilesRow
         key={row.path}
         item={row}
@@ -212,6 +193,19 @@ export function FilesTree({
         onContextMenu={onRowMenu}
       />
     ));
+
+  const renderList = (): ReactNode => {
+    if (filtering) {
+      if (results === null) return <Note>Indexing files…</Note>;
+      if (results.length === 0) return <Note>No matching files</Note>;
+      return renderRows(matchRows);
+    }
+    if (rootListing?.status === "error") {
+      return <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>;
+    }
+    if (!rootListing || rootListing.status === "loading") return <Note>Loading…</Note>;
+    if (rows.length === 0) return <Note>This folder is empty</Note>;
+    return renderRows(rows);
   };
 
   return (
@@ -252,7 +246,7 @@ export function FilesTree({
       </div>
       <div
         ref={listRef}
-        role={filtering ? "listbox" : "tree"}
+        role="tree"
         aria-label={filtering ? "Matching files" : "Project files"}
         tabIndex={0}
         onKeyDown={onListKeyDown}

@@ -1,7 +1,7 @@
-// Ranking for the tree's "Filter files" box: a flat, ranked slice of the
-// project index rather than a pruned tree, so a match never hides under a
-// collapsed folder. Space-separated terms must all appear in the path; the last
-// term decides the rank, the way a quick-open box narrows as you type.
+// Ranking for the tree's "Filter files" box: the best matches from the project
+// index, which the rail then shows under their folders. Space-separated terms
+// must all appear in the path; the last term decides the rank, the way a
+// quick-open box narrows as you type.
 import { basename } from "../../path";
 import type { Item } from "./treeModel";
 
