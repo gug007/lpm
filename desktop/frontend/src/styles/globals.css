@@ -931,3 +931,27 @@ body[data-lpm-drag] [data-actions-zone] * {
     animation: none;
   }
 }
+
+/* VS Code's Seti file icons (src/assets/seti), drawn as font glyphs by the
+   Files tab. Each icon carries its own colour per theme. */
+@font-face {
+  font-family: "seti";
+  src: url("../assets/seti/seti.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.seti-icon {
+  font-family: "seti";
+  font-size: 16px;
+  line-height: 1;
+  font-style: normal;
+  font-weight: normal;
+  -webkit-font-smoothing: antialiased;
+  color: var(--seti-dark, currentColor);
+}
+
+[data-theme="light"] .seti-icon {
+  color: var(--seti-light, currentColor);
+}
