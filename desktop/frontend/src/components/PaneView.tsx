@@ -23,7 +23,8 @@ import {
   ExpandIcon,
   ShrinkIcon,
 } from "./terminal/icons";
-import { AddTabSplitButton } from "./terminal/AddTabSplitButton";
+import { AddTerminalButton } from "./terminal/AddTerminalButton";
+import { PaneMenuButton } from "./terminal/PaneMenuButton";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon, BrainIcon, LayersIcon, FolderIcon } from "./icons";
 import { Columns2 } from "lucide-react";
@@ -453,14 +454,7 @@ function PaneViewImpl(props: PaneViewProps) {
               );
             })}
           </TabStrip>
-          <AddTabSplitButton
-            onAddTerminal={() => onAddTerminal(pane.id)}
-            onAddBrowser={() => onAddBrowser(pane.id)}
-            onAddReview={() => onAddReview(pane.id)}
-            onAddToolkit={() => onAddToolkit(pane.id)}
-            onAddFiles={() => onAddFiles(pane.id)}
-            onResumeSession={onResumeSession}
-          />
+          <AddTerminalButton onAddTerminal={() => onAddTerminal(pane.id)} />
           </div>
           <ScrollFadeEdges
             canScrollLeft={canScrollLeft}
@@ -469,6 +463,13 @@ function PaneViewImpl(props: PaneViewProps) {
           />
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
+          <PaneMenuButton
+            onAddBrowser={() => onAddBrowser(pane.id)}
+            onAddReview={() => onAddReview(pane.id)}
+            onAddToolkit={() => onAddToolkit(pane.id)}
+            onAddFiles={() => onAddFiles(pane.id)}
+            onResumeSession={onResumeSession}
+          />
           <Tooltip
             content={
               <>
