@@ -6,8 +6,35 @@ use tauri_plugin_dialog::DialogExt;
 
 /// Carries a status transition to the machines paired with this one, so a host
 /// with nobody at it can still be heard. Forwarded verbatim to authed peers
-/// (`peer::FORWARDED_EVENTS`); the payload is the status value.
+/// (`peer::FORWARDED_EVENTS`); the payload is a `StatusSound` object, and every
+/// reader also accepts the bare status value older hosts sent.
 pub const STATUS_SOUND_EVENT: &str = "status-sound";
+
+/// What a paired Mac needs to chime and post a banner for a host's agent: the
+/// status value plus the names the host shows for the project and the tab, so
+/// the banner reads the same as it would on the host's own screen.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Default)]
+pub struct StatusSound {
+    pub value: String,
+    #[serde(default)]
+    pub project: String,
+    #[serde(default)]
+    pub terminal: String,
+}
+
+impl StatusSound {
+    /// Reads either payload shape: the object above, or the bare value string
+    /// a host from before names rode along still emits.
+    pub fn from_payload(payload: &serde_json::Value) -> Option<Self> {
+        if let Some(value) = payload.as_str() {
+            return Some(Self {
+                value: value.to_string(),
+                ..Self::default()
+            });
+        }
+        serde_json::from_value(payload.clone()).ok()
+    }
+}
 
 const SOUNDS_DIR: &str = "/System/Library/Sounds";
 
@@ -32,11 +59,16 @@ fn status_meta(value: &str) -> Option<(&'static str, &'static str)> {
 /// Macs paired with it, which play it where the person actually is. Those Macs
 /// apply their own sound settings to it, which is the right owner of that choice:
 /// it's their speaker.
-pub fn announce_status(app: &AppHandle, value: &str) {
+pub fn announce_status(app: &AppHandle, project: &str, value: &str, pane_id: &str) {
     if cfg!(target_os = "macos") {
         play_status_sound(value);
     } else if status_meta(value).is_some() {
-        let _ = app.emit(STATUS_SOUND_EVENT, value);
+        let sound = StatusSound {
+            value: value.to_string(),
+            project: config::project_display_name(project),
+            terminal: crate::remote::terminal_label(app, pane_id).unwrap_or_default(),
+        };
+        let _ = app.emit(STATUS_SOUND_EVENT, sound);
     }
 }
 
@@ -189,6 +221,37 @@ mod tests {
         );
         assert_eq!(status_meta(STATUS_ERROR), Some(("errorSound", "error")));
         assert_eq!(status_meta("Running"), None);
+    }
+
+    #[test]
+    fn status_sound_reads_both_payload_shapes() {
+        let bare = serde_json::json!("Done");
+        assert_eq!(
+            StatusSound::from_payload(&bare),
+            Some(StatusSound {
+                value: "Done".into(),
+                ..StatusSound::default()
+            })
+        );
+        let named = serde_json::json!({
+            "value": "Waiting",
+            "project": "Web App-a1b2c3",
+            "terminal": "refactor auth",
+        });
+        assert_eq!(
+            StatusSound::from_payload(&named),
+            Some(StatusSound {
+                value: "Waiting".into(),
+                project: "Web App-a1b2c3".into(),
+                terminal: "refactor auth".into(),
+            })
+        );
+        assert_eq!(StatusSound::from_payload(&serde_json::json!(null)), None);
+        assert_eq!(
+            StatusSound::from_payload(&serde_json::json!({ "project": "x" })),
+            None,
+            "a value is the one required field"
+        );
     }
 
     #[test]

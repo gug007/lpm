@@ -1945,15 +1945,10 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                 // this Mac's sound settings. Only hosts that can't play send it, so
                 // a peer Mac chiming for itself is never doubled up here.
                 //
-                // Read both shapes. A later release may want to say which project
-                // or pane chimed, and a client that only understood the bare string
-                // would answer None and go silent — a mute that looks like the
-                // feature was never built. Accepting the object now is what lets
-                // that change ship later without a flag day.
+                // Both payload shapes are read: a host from before names rode
+                // along sends the bare value, and going silent on it would look
+                // like the feature was never built.
                 if name == crate::sound::STATUS_SOUND_EVENT {
-                    let value = payload
-                        .as_str()
-                        .or_else(|| payload.get("value").and_then(Value::as_str));
                     // Off this thread: it is the peer's single read loop, and it
                     // also drains outbound frames. Blocking it on a sound would
                     // stall terminal output for the whole connection.
@@ -1962,13 +1957,16 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
                     // chime is gone the moment it plays, so on its own it only
                     // reaches someone already at the machine — which is the one
                     // case a headless host's agent doesn't need help reaching.
-                    // The payload carries no project or terminal yet, so the
-                    // notice names neither.
-                    if let Some(value) = value.map(str::to_string) {
+                    if let Some(sound) = crate::sound::StatusSound::from_payload(&payload) {
                         let app = app.clone();
                         std::thread::spawn(move || {
-                            crate::sound::play_status_sound(&value);
-                            crate::statusnotify::notify_status(&app, "", &value, "");
+                            crate::sound::play_status_sound(&sound.value);
+                            crate::statusnotify::notify_status_named(
+                                &app,
+                                &sound.project,
+                                &sound.value,
+                                &sound.terminal,
+                            );
                         });
                     }
                 }

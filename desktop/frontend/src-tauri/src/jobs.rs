@@ -2498,33 +2498,25 @@ fn notify_if_unattended(
     result: &str,
     detail: Option<&str>,
 ) {
+    let (title, verb) = match result {
+        COMPLETED => ("Automation finished", "is done"),
+        FOUND_WORK => ("Automation found work", "started working"),
+        ERROR => ("Automation hit a problem", "needs a look"),
+        TIMED_OUT => ("Automation stopped", "ran too long and was stopped"),
+        _ => return,
+    };
+    if !crate::statusnotify::should_notify(app) {
+        return;
+    }
     let at = if project.is_empty() {
         String::new()
     } else {
-        format!(" in {project}")
+        format!(" in {}", crate::config::project_display_name(project))
     };
-    let (title, mut body) = match result {
-        COMPLETED => ("Automation finished", format!("\"{label}\"{at} is done.")),
-        FOUND_WORK => (
-            "Automation found work",
-            format!("\"{label}\"{at} started working."),
-        ),
-        ERROR => (
-            "Automation hit a problem",
-            format!("\"{label}\"{at} needs a look."),
-        ),
-        TIMED_OUT => (
-            "Automation stopped",
-            format!("\"{label}\"{at} ran too long and was stopped."),
-        ),
-        _ => return,
-    };
+    let mut body = format!("\"{label}\"{at} {verb}.");
     if let Some(d) = detail {
         body.push(' ');
         body.push_str(d);
-    }
-    if !crate::statusnotify::should_notify(app) {
-        return;
     }
     crate::statusnotify::notify(app, title, &body);
 }

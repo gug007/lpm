@@ -47,10 +47,11 @@ fn status_copy(value: &str) -> Option<(&'static str, &'static str)> {
 
 /// Named after the tab when the frontend has told us what it's called, since a
 /// project can have several agents running at once.
-fn status_body(terminal: Option<&str>, project: &str, verb: &str) -> String {
-    let subject = match terminal {
-        Some(t) if !t.is_empty() => format!("\"{t}\""),
-        _ => "An agent".to_string(),
+fn status_body(terminal: &str, project: &str, verb: &str) -> String {
+    let subject = if terminal.is_empty() {
+        "An agent".to_string()
+    } else {
+        format!("\"{terminal}\"")
     };
     let at = if project.is_empty() {
         String::new()
@@ -61,7 +62,8 @@ fn status_body(terminal: Option<&str>, project: &str, verb: &str) -> String {
 }
 
 /// One banner per status transition worth interrupting for. Running is a
-/// progress detail, never a notification.
+/// progress detail, never a notification. `project` is the file name; the banner
+/// says what the sidebar calls it, since a duplicate's file name is an id.
 pub fn notify_status(app: &AppHandle, project: &str, value: &str, pane_id: &str) {
     let Some((title, verb)) = status_copy(value) else {
         return;
@@ -69,8 +71,21 @@ pub fn notify_status(app: &AppHandle, project: &str, value: &str, pane_id: &str)
     if !should_notify(app) {
         return;
     }
-    let terminal = crate::remote::terminal_label(app, pane_id);
-    notify(app, title, &status_body(terminal.as_deref(), project, verb));
+    let terminal = crate::remote::terminal_label(app, pane_id).unwrap_or_default();
+    let name = config::project_display_name(project);
+    notify(app, title, &status_body(&terminal, &name, verb));
+}
+
+/// The same banner for a transition on a paired host, which already resolved
+/// the names it wants shown (either may be empty on an older host).
+pub fn notify_status_named(app: &AppHandle, project: &str, value: &str, terminal: &str) {
+    let Some((title, verb)) = status_copy(value) else {
+        return;
+    };
+    if !should_notify(app) {
+        return;
+    }
+    notify(app, title, &status_body(terminal, project, verb));
 }
 
 #[cfg(test)]
@@ -89,7 +104,7 @@ mod tests {
     #[test]
     fn body_names_the_terminal_when_known() {
         assert_eq!(
-            status_body(Some("refactor auth"), "myapp", "is done"),
+            status_body("refactor auth", "myapp", "is done"),
             "\"refactor auth\" in myapp is done."
         );
     }
@@ -97,13 +112,9 @@ mod tests {
     #[test]
     fn body_falls_back_when_terminal_or_project_is_unknown() {
         assert_eq!(
-            status_body(None, "myapp", "is done"),
+            status_body("", "myapp", "is done"),
             "An agent in myapp is done."
         );
-        assert_eq!(
-            status_body(Some(""), "myapp", "is done"),
-            "An agent in myapp is done."
-        );
-        assert_eq!(status_body(None, "", "is done"), "An agent is done.");
+        assert_eq!(status_body("", "", "is done"), "An agent is done.");
     }
 }

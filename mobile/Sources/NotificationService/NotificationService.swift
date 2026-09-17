@@ -30,8 +30,11 @@ final class NotificationService: UNNotificationServiceExtension {
         let terminal = payload["terminal"] as? String ?? ""
         let status = payload["status"] as? String ?? ""
         let statusKey = payload["key"] as? String ?? ""
+        // The Mac names the project the way its sidebar does; `project` itself is
+        // the file name (an id for a duplicate) and absent-label Macs predate it.
+        let label = payload["projectLabel"] as? String ?? ""
 
-        mutable.title = project
+        mutable.title = label.isEmpty ? project : label
         mutable.body = body(terminal: terminal, status: status)
         // Group notifications per project in Notification Center.
         mutable.threadIdentifier = project

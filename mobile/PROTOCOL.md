@@ -528,10 +528,15 @@ found-work/pending-window, completed, and error/timed-out results respectively.
 
 **Payload encryption.** The notification plaintext is JSON:
 ```
-{ "serverId": "<uuid>", "project": "<name>", "target": "terminal"|"automation", "terminal": "<tab label or automation id>", "terminalId": "<terminal id>", "automationId": "<automation id>", "status": "<agent status or automation outcome>", "ts": <unix millis>, "key": "<status entry key>" }
+{ "serverId": "<uuid>", "project": "<name>", "projectLabel": "<display name>", "target": "terminal"|"automation", "terminal": "<tab label or automation id>", "terminalId": "<terminal id>", "automationId": "<automation id>", "status": "<agent status or automation outcome>", "ts": <unix millis>, "key": "<status entry key>" }
 ```
 (`terminalId` is present for terminal notifications and `automationId` is present
 for automation notifications, allowing a tap to open the exact destination.
+`project` is the project's file name — an id for a duplicate — and is what every
+match, clear, and deep link keys off; `projectLabel` is the name the Mac's sidebar
+shows for it (its label, else a duplicate's inherited parent label, else the
+file name) and is what the notification title should display. It is **absent**
+on older desktop builds; fall back to `project`.
 `terminal` may be empty when the pane label is unknown; `key` identifies the
 status entry so a later clear can find this notification. `serverId` is this Mac's
 stable identity — the phone scopes notification matching by `(serverId, project,

@@ -123,6 +123,79 @@ pub fn peek_worktree(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// The name the sidebar shows for a project, mirroring `projectDisplayName` in
+/// ProjectNameDisplay.tsx: its label, else a duplicate's parent label with the
+/// copy suffix kept, else the file name. Unknown names come back as given, so a
+/// notice about a project that no longer exists still says something.
+pub fn project_display_name(name: &str) -> String {
+    let Ok(yaml) = parse_project_yaml(name) else {
+        return name.to_string();
+    };
+    let parent_display = if yaml.parent_name.is_empty() {
+        None
+    } else {
+        parse_project_yaml(&yaml.parent_name)
+            .ok()
+            .map(|p| display_name_of(&yaml.parent_name, &p.label, None))
+    };
+    display_name_of(
+        name,
+        &yaml.label,
+        parent_display
+            .as_deref()
+            .map(|display| (yaml.parent_name.as_str(), display)),
+    )
+}
+
+fn display_name_of(name: &str, label: &str, parent: Option<(&str, &str)>) -> String {
+    if !label.is_empty() {
+        return label.to_string();
+    }
+    if let Some((parent_name, parent_display)) = parent {
+        if let Some(suffix) = name.strip_prefix(parent_name) {
+            if suffix.starts_with('-') {
+                return format!("{parent_display}{suffix}");
+            }
+        }
+    }
+    name.to_string()
+}
+
+#[cfg(test)]
+mod display_name_tests {
+    use super::display_name_of;
+
+    #[test]
+    fn label_wins_over_everything() {
+        assert_eq!(
+            display_name_of("web-a1b2c3", "Auth refactor", Some(("web", "Web App"))),
+            "Auth refactor"
+        );
+    }
+
+    #[test]
+    fn unlabelled_duplicate_inherits_the_parent_label_with_its_suffix() {
+        assert_eq!(
+            display_name_of("web-a1b2c3", "", Some(("web", "Web App"))),
+            "Web App-a1b2c3"
+        );
+        assert_eq!(
+            display_name_of("web-a1b2c3", "", Some(("web", "web"))),
+            "web-a1b2c3"
+        );
+    }
+
+    #[test]
+    fn falls_back_to_the_file_name() {
+        assert_eq!(display_name_of("web", "", None), "web");
+        assert_eq!(
+            display_name_of("webapp", "", Some(("web", "Web App"))),
+            "webapp",
+            "a shared prefix without the copy dash is not a duplicate"
+        );
+    }
+}
+
 /// Project file names whose `parent_name` == `name` (i.e. duplicates of it).
 pub fn duplicates_of(name: &str) -> Result<Vec<String>, String> {
     Ok(project_names()

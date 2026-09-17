@@ -4670,11 +4670,14 @@ struct PushJob {
 
 /// The sealed plaintext for an alert push: the status entry plus this Mac's
 /// `serverId`, which the phone uses to scope notification matching so a same-named
-/// project on another paired Mac isn't confused with this one.
-fn alert_payload(server_id: &str, project: &str, job: &PushJob) -> String {
+/// project on another paired Mac isn't confused with this one. `project` stays
+/// the file name every match keys off; `projectLabel` is what the phone shows,
+/// since a duplicate's file name is an id.
+fn alert_payload(server_id: &str, project: &str, project_label: &str, job: &PushJob) -> String {
     json!({
         "serverId": server_id,
         "project": project,
+        "projectLabel": project_label,
         "target": "terminal",
         "terminal": job.terminal,
         "terminalId": job.terminal_id,
@@ -4688,6 +4691,7 @@ fn alert_payload(server_id: &str, project: &str, job: &PushJob) -> String {
 fn automation_alert_payload(
     server_id: &str,
     project: &str,
+    project_label: &str,
     job_id: &str,
     name: &str,
     status: &str,
@@ -4696,6 +4700,7 @@ fn automation_alert_payload(
     json!({
         "serverId": server_id,
         "project": project,
+        "projectLabel": project_label,
         "target": "automation",
         // What the phone shows. `automationId` stays the id — it is the key the
         // phone matches on to deep-link and to withdraw the notification.
@@ -4848,12 +4853,13 @@ fn send_alert_pushes(
     hub: &RemoteHub,
     server_id: &str,
     project: &str,
+    project_label: &str,
     recipients: &[PushDevice],
     jobs: &[PushJob],
 ) {
     for dev in recipients {
         for job in jobs.iter().filter(|j| dev.wants(&j.value)) {
-            let plaintext = alert_payload(server_id, project, job);
+            let plaintext = alert_payload(server_id, project, project_label, job);
             let Some(blob) = seal_push(&dev.key, plaintext.as_bytes()) else {
                 continue;
             };
@@ -4878,10 +4884,12 @@ fn spawn_deferred_codex_pushes(
     hub: &RemoteHub,
     app: &AppHandle,
     project: &str,
+    project_label: &str,
     jobs: Vec<PushJob>,
 ) {
     let hub = hub.clone();
     let project = project.to_string();
+    let project_label = project_label.to_string();
     let store: Arc<StatusStore> = app.state::<Arc<StatusStore>>().inner().clone();
     std::thread::spawn(move || {
         std::thread::sleep(CODEX_WAITING_PUSH_GRACE);
@@ -4933,6 +4941,7 @@ fn spawn_deferred_codex_pushes(
             &hub,
             &server_id,
             &project,
+            &project_label,
             &recipients,
             &jobs,
         );
@@ -5084,8 +5093,13 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         build_jobs(deltas)
     };
     let deferred_jobs = build_jobs(deferred_deltas);
+    let project_label = if jobs.is_empty() && deferred_jobs.is_empty() {
+        String::new()
+    } else {
+        crate::config::project_display_name(project)
+    };
     if !deferred_jobs.is_empty() {
-        spawn_deferred_codex_pushes(hub, app, project, deferred_jobs);
+        spawn_deferred_codex_pushes(hub, app, project, &project_label, deferred_jobs);
     }
     if jobs.is_empty() && clear_recipients.is_empty() {
         return;
@@ -5110,6 +5124,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
             &hub,
             &server_id,
             &project,
+            &project_label,
             &recipients,
             &jobs,
         );
@@ -5192,6 +5207,7 @@ fn push_automation_notification(
     let plaintext = automation_alert_payload(
         &server_id,
         project,
+        &crate::config::project_display_name(project),
         job_id,
         name,
         &status,
@@ -6987,9 +7003,17 @@ mod tests {
             key: "pane-1".into(),
             collapse_id: "ignored".into(),
         };
-        let v: Value = serde_json::from_str(&alert_payload("srv-a", "web-app", &job)).unwrap();
+        let v: Value = serde_json::from_str(&alert_payload(
+            "srv-a",
+            "web-app-a1b2c3",
+            "Web App-a1b2c3",
+            &job,
+        ))
+        .unwrap();
         assert_eq!(v["serverId"], "srv-a");
-        assert_eq!(v["project"], "web-app");
+        // Matching keys off the file name; the phone shows the label.
+        assert_eq!(v["project"], "web-app-a1b2c3");
+        assert_eq!(v["projectLabel"], "Web App-a1b2c3");
         assert_eq!(v["target"], "terminal");
         assert_eq!(v["terminal"], "Ultracode");
         assert_eq!(v["terminalId"], "term-42");
@@ -7015,6 +7039,7 @@ mod tests {
         let v: Value = serde_json::from_str(&automation_alert_payload(
             "srv-a",
             "web-app",
+            "Web App",
             "daily-review",
             "Daily review",
             "Automation finished · Nothing needed changing · $0.04",
@@ -7023,6 +7048,7 @@ mod tests {
         .unwrap();
         assert_eq!(v["serverId"], "srv-a");
         assert_eq!(v["project"], "web-app");
+        assert_eq!(v["projectLabel"], "Web App");
         assert_eq!(v["target"], "automation");
         // The phone shows the name the user gave the job...
         assert_eq!(v["terminal"], "Daily review");
