@@ -29,9 +29,10 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
   const props = {
     rows: ROWS,
     rootListing: ROOT,
+    changes: NO_CHANGES,
+    decorations: new Map<string, string>(),
     changesOnly: false,
     onChangesOnlyChange,
-    changes: NO_CHANGES,
     selectedPath: null,
     dirtyPaths: new Set<string>(),
     query: "",
@@ -124,26 +125,23 @@ describe("FilesTree changes only", () => {
     expect(onChangesOnlyChange).toHaveBeenCalledWith(true);
   });
 
-  it("marks each file with its git status", () => {
+  it("marks changed files with a letter and their folders with a dot", () => {
     render({
-      changesOnly: true,
-      changes: {
-        status: "ready",
-        files: [
-          { path: "src/a.ts", status: "modified" },
-          { path: "src/b.ts", status: "untracked" },
-        ],
-      },
+      decorations: new Map([
+        ["src", "modified"],
+        ["src/a.ts", "modified"],
+        ["src/b.ts", "untracked"],
+      ]),
     });
-    expect(toggle().getAttribute("aria-pressed")).toBe("true");
     const marks = [...container.querySelectorAll('[role="treeitem"] span[title]')].map(
       (el) => `${el.getAttribute("title")}:${el.textContent}`,
     );
-    expect(marks).toEqual(["modified:M", "untracked:U"]);
+    expect(marks).toEqual(["Contains changes:", "modified:M", "untracked:U"]);
   });
 
   it("says so when the working tree is clean", () => {
     const { list } = render({ changesOnly: true, rows: [] });
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
     expect(list.textContent).toContain("No uncommitted changes");
   });
 

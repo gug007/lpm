@@ -19,16 +19,16 @@ export interface ActivateOptions {
 }
 
 const NO_ROWS: TreeRow[] = [];
-const NO_STATUSES: ReadonlyMap<string, string> = new Map();
 
 interface FilesTreeProps {
   rows: TreeRow[];
   rootListing: Listing | undefined;
-  // The rail shows the working tree's uncommitted files only; `changes` is
-  // where they come from and lends every row its git status.
+  // The working tree's git status: `decorations` marks every row with it,
+  // and with `changesOnly` it is all the rail shows.
+  changes: Changes;
+  decorations: ReadonlyMap<string, string>;
   changesOnly: boolean;
   onChangesOnlyChange: (on: boolean) => void;
-  changes: Changes;
   selectedPath: string | null;
   dirtyPaths: ReadonlySet<string>;
   query: string;
@@ -54,9 +54,10 @@ const INPUT_CLASS =
 export function FilesTree({
   rows,
   rootListing,
+  changes,
+  decorations,
   changesOnly,
   onChangesOnlyChange,
-  changes,
   selectedPath,
   dirtyPaths,
   query,
@@ -72,13 +73,6 @@ export function FilesTree({
   const filtering = query.trim() !== "";
   const matchRows = useMemo(() => (results ? buildMatchTree(results) : NO_ROWS), [results]);
   const items: TreeRow[] = filtering ? matchRows : rows;
-  const statuses = useMemo(
-    () =>
-      changesOnly && changes.status === "ready"
-        ? new Map(changes.files.map((f) => [f.path, f.status]))
-        : NO_STATUSES,
-    [changesOnly, changes],
-  );
   const [cursorPath, setCursorPath] = useState<string | null>(null);
   const [listFocused, setListFocused] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -208,7 +202,7 @@ export function FilesTree({
         selected={row.path === selectedPath}
         cursor={listFocused && row.path === cursorPath}
         dirty={dirtyPaths.has(row.path)}
-        status={statuses.get(row.path)}
+        status={decorations.get(row.path)}
         onActivate={activate}
         onContextMenu={onRowMenu}
       />

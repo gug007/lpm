@@ -18,6 +18,7 @@ import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
 import { indexEntry, rankFiles, type IndexEntry } from "./filesFilter";
+import { decorate } from "./gitDecorations";
 import { ancestorsOf, buildMatchTree, flattenTree, type Item } from "./treeModel";
 import { useChangedFiles } from "./useChangedFiles";
 import { useDirListings } from "./useDirListings";
@@ -29,6 +30,7 @@ const TREE_WIDTH_KEY = "lpm:filesTreeWidth";
 const TREE_OPEN_KEY = "lpm:filesTreeOpen";
 const CHANGES_ONLY_KEY = "lpm:filesChangesOnly";
 const NO_ITEMS: IndexEntry[] = [];
+const NO_DECORATIONS: ReadonlyMap<string, string> = new Map();
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
@@ -54,13 +56,18 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const filtering = query.trim() !== "";
-  // "Changes only" swaps the folder tree for the uncommitted files under their
-  // folders, and the filter then ranks those instead of the project index.
+  // Git status colours the tree; "Changes only" swaps the folder tree for
+  // the uncommitted files under their folders, and the filter then ranks
+  // those instead of the project index.
+  const changes = useChangedFiles(projectRoot, active);
+  const decorations = useMemo(
+    () => (changes.status === "ready" ? decorate(changes.files) : NO_DECORATIONS),
+    [changes],
+  );
   const [changesOnly, setChangesOnly] = useState(
     () => localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
-  const changes = useChangedFiles(projectRoot, changesOnly, active);
   const changeItems = useMemo<IndexEntry[] | null>(
     () =>
       changesOnly && changes.status === "ready"
@@ -299,9 +306,10 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       <FilesTree
         rows={rows}
         rootListing={listings.get("")}
+        changes={changes}
+        decorations={decorations}
         changesOnly={changesOnly}
         onChangesOnlyChange={showChangesOnly}
-        changes={changes}
         selectedPath={selectedPath}
         dirtyPaths={buffer.dirtyPaths}
         query={query}
@@ -334,6 +342,7 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         rootName={basename(projectRoot) || projectName}
         path={selectedPath}
         absPath={absPath}
+        status={selectedPath ? decorations.get(selectedPath) : undefined}
         dirty={buffer.draft !== null}
         saving={buffer.saving}
         readOnly={buffer.readOnly}

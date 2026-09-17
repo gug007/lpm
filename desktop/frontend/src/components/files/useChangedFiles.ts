@@ -23,15 +23,13 @@ function sameChanges(a: Changes, b: Changes): boolean {
   );
 }
 
-// The working tree's uncommitted files behind the rail's "changes only" view:
-// fetched when the view is switched on and kept fresh from the project
-// watcher while it stays on. Off or hidden, changes only mark the list stale,
-// and the next showing fetches once.
-export function useChangedFiles(root: string, wanted: boolean, active: boolean): Changes {
+// The working tree's uncommitted files, fetched while the tab is shown and
+// kept fresh from the project watcher. Hidden, a change only marks the list
+// stale, and the next showing fetches once.
+export function useChangedFiles(root: string, active: boolean): Changes {
   const [changes, setChanges] = useState<Changes>(IDLE);
-  const live = wanted && active;
-  const liveRef = useRef(live);
-  liveRef.current = live;
+  const liveRef = useRef(active);
+  liveRef.current = active;
   const staleRef = useRef(true);
   const inflightRef = useRef(false);
   const againRef = useRef(false);
@@ -64,8 +62,8 @@ export function useChangedFiles(root: string, wanted: boolean, active: boolean):
   }, [root]);
 
   useEffect(() => {
-    if (live && staleRef.current) void refresh();
-  }, [live, refresh]);
+    if (active && staleRef.current) void refresh();
+  }, [active, refresh]);
 
   useEventListener("focus", () => void refresh());
   useGitChanged(root, refresh);

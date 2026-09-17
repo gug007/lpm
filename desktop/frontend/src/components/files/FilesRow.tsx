@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useRef } from "react";
-import { DEFAULT_STATUS, STATUS_DISPLAY } from "../ChangedFilesTree";
 import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
+import { decorationOf } from "./gitDecorations";
 import type { Item } from "./treeModel";
 
 export interface RowTarget extends Item {
@@ -20,7 +20,7 @@ interface FilesRowProps {
   // The keyboard cursor sits here and the list has focus.
   cursor: boolean;
   dirty: boolean;
-  // The file's git status while the rail shows uncommitted files only.
+  // The git status of the file, or of the changes inside the folder.
   status?: string;
   onActivate: (item: Item) => void;
   onContextMenu: (target: RowTarget) => void;
@@ -44,6 +44,14 @@ export const FilesRow = memo(function FilesRow({
   useLayoutEffect(() => {
     if (selected || cursor) ref.current?.scrollIntoView({ block: "nearest" });
   }, [selected, cursor]);
+  const decoration = status ? decorationOf(status) : null;
+  const nameClass = error
+    ? "text-[var(--accent-red-text)]"
+    : decoration
+      ? `${decoration.text}${decoration.strike ? " line-through" : ""}`
+      : selected
+        ? "text-[var(--text-primary)]"
+        : "text-[var(--text-secondary)]";
   return (
     <div
       ref={ref}
@@ -69,37 +77,40 @@ export const FilesRow = memo(function FilesRow({
           <TreeChevron open={expanded} />
         </span>
       )}
-      <span
-        className={`min-w-0 flex-1 truncate text-xs ${
-          selected
-            ? "text-[var(--text-primary)]"
-            : error
-              ? "text-[var(--accent-red-text)]"
-              : "text-[var(--text-secondary)]"
-        }`}
-      >
-        {name}
-      </span>
+      <span className={`min-w-0 flex-1 truncate text-xs ${nameClass}`}>{name}</span>
       {loading && (
         <span className="shrink-0 text-[10px] text-[var(--text-muted)]" aria-label="Loading">
           …
         </span>
       )}
-      {status && <StatusMark status={status} />}
+      {status && (item.isDir ? <ChangeDot status={status} /> : <StatusMark status={status} />)}
       {dirty && <DirtyDot />}
     </div>
   );
 });
 
 function StatusMark({ status }: { status: string }) {
-  const { label, color } = STATUS_DISPLAY[status] ?? DEFAULT_STATUS;
+  const { letter, text } = decorationOf(status);
   return (
     <span
-      className={`w-3 shrink-0 text-center text-[11px] font-bold ${color}`}
+      className={`w-3 shrink-0 text-center text-[11px] font-semibold ${text}`}
       title={status}
       aria-label={status}
     >
-      {label}
+      {letter}
+    </span>
+  );
+}
+
+function ChangeDot({ status }: { status: string }) {
+  const { dot } = decorationOf(status);
+  return (
+    <span className="flex w-3 shrink-0 justify-center">
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${dot}`}
+        title="Contains changes"
+        aria-label="Contains changes"
+      />
     </span>
   );
 }

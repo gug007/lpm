@@ -8,12 +8,15 @@ import { DirtyDot } from "../treeRow";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { Tooltip } from "../ui/Tooltip";
+import { decorationOf } from "./gitDecorations";
 import { ancestorsOf } from "./treeModel";
 
 interface FilesHeaderProps {
   rootName: string;
   path: string | null;
   absPath: string | null;
+  // The open file's git status, shown the way its tree row shows it.
+  status?: string;
   dirty: boolean;
   saving: boolean;
   readOnly: boolean;
@@ -34,6 +37,7 @@ export function FilesHeader({
   rootName,
   path,
   absPath,
+  status,
   dirty,
   saving,
   readOnly,
@@ -45,6 +49,7 @@ export function FilesHeader({
   onTreeSide,
 }: FilesHeaderProps) {
   const folders = path ? ancestorsOf(path) : [];
+  const decoration = status ? decorationOf(status) : null;
   const treeLabel = treeOpen ? "Hide file tree" : "Show file tree";
   const [sideMenu, setSideMenu] = useState<{ x: number; y: number } | null>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
@@ -98,8 +103,19 @@ export function FilesHeader({
           ))}
           <Separator />
           {path ? (
-            <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-[var(--text-primary)]">
-              {basename(path)}
+            <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium">
+              <span className={decoration ? decoration.text : "text-[var(--text-primary)]"}>
+                {basename(path)}
+              </span>
+              {decoration && (
+                <span
+                  className={`text-[11px] font-semibold ${decoration.text}`}
+                  title={status}
+                  aria-label={status}
+                >
+                  {decoration.letter}
+                </span>
+              )}
               {dirty && <DirtyDot />}
             </span>
           ) : (
