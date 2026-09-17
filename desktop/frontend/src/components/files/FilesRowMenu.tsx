@@ -4,7 +4,7 @@ import { stripMarker } from "../../peer/markers";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
-import type { RowTarget } from "./FilesTreeRow";
+import type { RowTarget } from "./FilesRow";
 
 interface FilesRowMenuProps {
   target: RowTarget;

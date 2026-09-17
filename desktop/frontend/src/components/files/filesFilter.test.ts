@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isSubsequence, rankFiles, type IndexEntry } from "./filesFilter";
+import { indexEntry, isSubsequence, rankFiles } from "./filesFilter";
 
-const file = (path: string): IndexEntry => ({ path, isDir: false });
-const dir = (path: string): IndexEntry => ({ path, isDir: true });
+const file = (path: string) => indexEntry(path, false);
+const dir = (path: string) => indexEntry(path, true);
 
-const index: IndexEntry[] = [
+const index = [
   file("src/components/Sidebar.tsx"),
   file("src/components/SidebarUsage.tsx"),
   file("docs/sidebar-notes.md"),
@@ -58,7 +58,11 @@ describe("rankFiles", () => {
     expect(rankFiles(index, "s", 2)).toHaveLength(2);
   });
 
-  it("is case-insensitive", () => {
+  it("is case-insensitive and lower-cases once at index time", () => {
     expect(rankFiles(index, "readme")[0].path).toBe("README.md");
+    expect(indexEntry("Docs/README.md", false)).toMatchObject({
+      lower: "docs/readme.md",
+      lowerName: "readme.md",
+    });
   });
 });

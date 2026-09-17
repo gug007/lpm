@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
@@ -19,8 +19,13 @@ type Monaco = typeof monacoNs;
 interface MonacoEditorProps {
   value: string;
   onChange: (value: string) => void;
-  language: string;
+  // Omitted, Monaco infers it from the model URI's extension.
+  language?: string;
   modelUri: string;
+  // Give this mount its own model even when another editor shows the same
+  // URI: the editor adopts an existing model for its URI and disposes it on
+  // unmount, so two instances on one file would tear each other down.
+  perInstance?: boolean;
   onSave?: () => void;
   onToggleView?: () => void;
   readOnly?: boolean;
@@ -31,6 +36,7 @@ export function MonacoEditor({
   onChange,
   language,
   modelUri,
+  perInstance = false,
   onSave,
   onToggleView,
   readOnly = false,
@@ -41,9 +47,12 @@ export function MonacoEditor({
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onToggleViewRef = useRef(onToggleView);
-  const readOnlyRef = useRef(readOnly);
+  // The text the model holds as far as this component knows — typed by the
+  // user or set from `value` — so the value effect can skip its own echo.
+  const lastEmittedRef = useRef(value);
   const suppressChangeRef = useRef(false);
   const [ready, setReady] = useState(false);
+  const instanceId = useId().replace(/\W/g, "");
   const fontSizeRef = useRef(
     getSettings().editorFontSize || DEFAULT_EDITOR_FONT_SIZE,
   );
@@ -51,7 +60,6 @@ export function MonacoEditor({
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
   onToggleViewRef.current = onToggleView;
-  readOnlyRef.current = readOnly;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -59,19 +67,21 @@ export function MonacoEditor({
     monacoRef.current = monaco;
     defineMonacoThemes(monaco);
 
-    const modelLang = language || "plaintext";
-    const uri = monaco.Uri.parse(modelUri);
+    const baseUri = monaco.Uri.parse(modelUri);
+    const uri = perInstance
+      ? baseUri.with({ authority: [baseUri.authority, instanceId].filter(Boolean).join("-") })
+      : baseUri;
     const existing = monaco.editor.getModel(uri);
-    const model =
-      existing ?? monaco.editor.createModel(value, modelLang, uri);
-    if (existing && existing.getLanguageId() !== modelLang) {
-      monaco.editor.setModelLanguage(existing, modelLang);
+    const model = existing ?? monaco.editor.createModel(value, language, uri);
+    if (existing && language && existing.getLanguageId() !== language) {
+      monaco.editor.setModelLanguage(existing, language);
     }
     if (model.getValue() !== value) {
       suppressChangeRef.current = true;
       model.setValue(value);
       suppressChangeRef.current = false;
     }
+    lastEmittedRef.current = value;
 
     const editor = monaco.editor.create(hostRef.current, {
       model,
@@ -95,14 +105,16 @@ export function MonacoEditor({
         horizontalScrollbarSize: 10,
       },
       fixedOverflowWidgets: true,
-      readOnly: readOnlyRef.current,
-      domReadOnly: readOnlyRef.current,
+      readOnly,
+      domReadOnly: readOnly,
     });
     editorRef.current = editor;
 
     const sub = model.onDidChangeContent(() => {
       if (suppressChangeRef.current) return;
-      onChangeRef.current(model.getValue());
+      const text = model.getValue();
+      lastEmittedRef.current = text;
+      onChangeRef.current(text);
     });
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -172,7 +184,7 @@ export function MonacoEditor({
     };
     window.addEventListener("lpm-menu-select-all", menuSelectAllHandler);
 
-    if (modelLang === "yaml") {
+    if (model.getLanguageId() === "yaml") {
       editor.addCommand(
         monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
         () => {
@@ -217,11 +229,10 @@ export function MonacoEditor({
   }, [modelUri]);
 
   useEffect(() => {
-    if (!ready) return;
-    const editor = editorRef.current;
-    if (!editor) return;
-    const model = editor.getModel();
+    if (!ready || value === lastEmittedRef.current) return;
+    const model = editorRef.current?.getModel();
     if (!model) return;
+    lastEmittedRef.current = value;
     if (model.getValue() === value) return;
     suppressChangeRef.current = true;
     model.setValue(value);

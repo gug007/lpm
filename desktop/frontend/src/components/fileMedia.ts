@@ -21,6 +21,14 @@ export function isVideoPath(path: string): boolean {
   return VIDEO_EXT_RE.test(path);
 }
 
+// SVG is an image the app can render and source it can edit; a viewer that
+// offers editing treats it as text, one that only previews rasterises it.
+const SOURCE_IMAGE_RE = /\.svg$/i;
+
+export function isSourceImage(path: string): boolean {
+  return SOURCE_IMAGE_RE.test(path);
+}
+
 export function mediaKind(path: string): MediaKind | null {
   if (isImagePath(path)) return "image";
   if (isVideoPath(path)) return "video";

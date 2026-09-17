@@ -686,7 +686,7 @@ pub struct FileDiff {
 // them; past it we render a placeholder instead (like the binary case).
 const MAX_DIFF_SIDE_BYTES: usize = 4 * 1024 * 1024;
 
-fn is_binary(bytes: &[u8]) -> bool {
+pub(crate) fn is_binary(bytes: &[u8]) -> bool {
     bytes.iter().take(8000).any(|&b| b == 0)
 }
 

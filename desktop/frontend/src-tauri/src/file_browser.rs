@@ -1,16 +1,13 @@
 // The Files tab: browse a project one directory at a time and read one file
-// with the verdicts the editor needs up front (binary, too large). Local
-// projects read the disk; SSH projects run the same listing and read on the
-// host through sshexec, the way list_dir_files does for the mention picker.
+// with the verdicts the editor needs up front (binary, too large, writable).
+// Local projects read the disk; SSH projects run the same listing and read on
+// the host through sshexec, the way list_dir_files does for the mention picker.
 use crate::config::{expand_home, SshSettings};
-use crate::sshexec::{remote_command, remote_project_for_path};
+use crate::files::READ_FILE_MAX_BYTES;
+use crate::git::is_binary;
+use crate::sshexec::{remote_output, remote_project_for_path};
 use std::path::{Component, Path, PathBuf};
 
-/// Same ceiling as files.rs's read_file, so the editor and the file viewer
-/// agree on what "too large" means.
-const READ_MAX_BYTES: usize = 5 * 1024 * 1024;
-/// A NUL in the first 8 KiB is the classic binary tell (what git uses).
-const BINARY_SNIFF_BYTES: usize = 8 * 1024;
 /// VCS internals are never worth browsing and are dangerous to edit by hand.
 const HIDDEN_DIRS: &[&str] = &[".git", ".svn", ".hg"];
 
@@ -29,6 +26,8 @@ pub struct ProjectFileContent {
     pub binary: bool,
     pub too_large: bool,
     pub size: u64,
+    /// False on an SSH host, where nothing writes files back yet.
+    pub writable: bool,
 }
 
 /// A project-relative path handed back from a listing, normalised and confined
@@ -53,10 +52,6 @@ fn resolve(root: &str, rel: &str) -> Result<PathBuf, String> {
     }
     let base = expand_home(root);
     Ok(Path::new(&base).join(checked_rel(rel)?))
-}
-
-fn looks_binary(bytes: &[u8]) -> bool {
-    bytes.iter().take(BINARY_SNIFF_BYTES).any(|&b| b == 0)
 }
 
 fn hidden(name: &str, is_dir: bool) -> bool {
@@ -113,11 +108,11 @@ pub fn read_project_file(root: String, rel: String) -> Result<ProjectFileContent
     if meta.is_dir() {
         return Err(format!("not a file: {rel}"));
     }
-    if meta.len() > READ_MAX_BYTES as u64 {
-        return Ok(verdict(false, true, meta.len()));
+    if meta.len() > READ_FILE_MAX_BYTES as u64 {
+        return Ok(verdict(false, true, meta.len(), true));
     }
     let bytes = std::fs::read(&path).map_err(|e| format!("cannot read {rel}: {e}"))?;
-    Ok(content_of(bytes))
+    Ok(content_of(bytes, true))
 }
 
 /// Show the file in Finder, selected. macOS only — a Linux host reports that
@@ -144,28 +139,30 @@ pub fn reveal_in_finder(abs_path: String) -> Result<(), String> {
     }
 }
 
-fn verdict(binary: bool, too_large: bool, size: u64) -> ProjectFileContent {
+fn verdict(binary: bool, too_large: bool, size: u64, writable: bool) -> ProjectFileContent {
     ProjectFileContent {
         content: String::new(),
         binary,
         too_large,
         size,
+        writable,
     }
 }
 
-fn content_of(bytes: Vec<u8>) -> ProjectFileContent {
+fn content_of(bytes: Vec<u8>, writable: bool) -> ProjectFileContent {
     let size = bytes.len() as u64;
-    if bytes.len() > READ_MAX_BYTES {
-        return verdict(false, true, size);
+    if bytes.len() > READ_FILE_MAX_BYTES {
+        return verdict(false, true, size, writable);
     }
-    if looks_binary(&bytes) {
-        return verdict(true, false, size);
+    if is_binary(&bytes) {
+        return verdict(true, false, size, writable);
     }
     ProjectFileContent {
         content: String::from_utf8_lossy(&bytes).into_owned(),
         binary: false,
         too_large: false,
         size,
+        writable,
     }
 }
 
@@ -177,50 +174,51 @@ fn join_remote(root: &str, rel: &str) -> String {
     }
 }
 
-fn run_remote(
-    ssh: &SshSettings,
-    dir: &str,
-    program: &str,
-    args: &[&str],
-) -> Result<Vec<u8>, String> {
-    let out = remote_command(ssh, dir, program, args, &[])
-        .output()
-        .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        return Err(if err.is_empty() {
-            format!("{program} failed on the host")
-        } else {
-            err
-        });
-    }
-    Ok(out.stdout)
-}
-
-/// One `find` per entry kind, as remote_dir_files does, but one level deep.
-/// Symlinks report as files: `-type d` doesn't follow them.
+/// One `find` per folder: each entry comes back as a kind tag and its path,
+/// NUL-separated, via POSIX `-exec … {} +`. Symlinks report as files, since
+/// `-type d` doesn't follow them.
 fn remote_list(ssh: &SshSettings, root: &str, rel: &str) -> Result<Vec<DirEntryInfo>, String> {
     let dir = join_remote(root, &checked_rel(rel)?);
+    let args = [
+        ".",
+        "-mindepth",
+        "1",
+        "-maxdepth",
+        "1",
+        "-type",
+        "d",
+        "-exec",
+        "printf",
+        "d\\0%s\\0",
+        "{}",
+        "+",
+        "-o",
+        "-exec",
+        "printf",
+        "f\\0%s\\0",
+        "{}",
+        "+",
+    ];
+    let stdout = remote_output(ssh, &dir, "find", &args)?;
+    Ok(parse_tagged_listing(&String::from_utf8_lossy(&stdout)))
+}
+
+fn parse_tagged_listing(text: &str) -> Vec<DirEntryInfo> {
     let mut out = Vec::new();
-    let kinds: [(bool, &[&str]); 2] = [(true, &["-type", "d"]), (false, &["!", "-type", "d"])];
-    for (is_dir, kind) in kinds {
-        let mut args = vec![".", "-mindepth", "1", "-maxdepth", "1"];
-        args.extend_from_slice(kind);
-        args.push("-print0");
-        let stdout = run_remote(ssh, &dir, "find", &args)?;
-        for name in String::from_utf8_lossy(&stdout).split('\0') {
-            let name = name.strip_prefix("./").unwrap_or(name);
-            if name.is_empty() || hidden(name, is_dir) {
-                continue;
-            }
-            out.push(DirEntryInfo {
-                name: name.to_string(),
-                is_dir,
-                is_symlink: false,
-            });
+    let mut fields = text.split('\0');
+    while let (Some(kind), Some(path)) = (fields.next(), fields.next()) {
+        let is_dir = kind == "d";
+        let name = path.strip_prefix("./").unwrap_or(path);
+        if name.is_empty() || hidden(name, is_dir) {
+            continue;
         }
+        out.push(DirEntryInfo {
+            name: name.to_string(),
+            is_dir,
+            is_symlink: false,
+        });
     }
-    Ok(out)
+    out
 }
 
 /// `head -c` caps the transfer at the same ceiling the local read enforces; one
@@ -230,10 +228,10 @@ fn remote_read(ssh: &SshSettings, root: &str, rel: &str) -> Result<ProjectFileCo
     if rel.is_empty() {
         return Err("not a file".into());
     }
-    let limit = (READ_MAX_BYTES + 1).to_string();
+    let limit = (READ_FILE_MAX_BYTES + 1).to_string();
     let target = format!("./{rel}");
-    let bytes = run_remote(ssh, root, "head", &["-c", &limit, &target])?;
-    Ok(content_of(bytes))
+    let bytes = remote_output(ssh, root, "head", &["-c", &limit, &target])?;
+    Ok(content_of(bytes, false))
 }
 
 #[cfg(test)]
@@ -248,15 +246,6 @@ mod tests {
         assert!(checked_rel("../x").is_err());
         assert!(checked_rel("src/../../x").is_err());
         assert!(checked_rel("/etc/passwd").is_err());
-    }
-
-    #[test]
-    fn binary_sniff_reads_only_the_head() {
-        assert!(!looks_binary(b"plain text\n"));
-        assert!(looks_binary(b"\x89PNG\0\0"));
-        let mut late = vec![b'a'; BINARY_SNIFF_BYTES + 1];
-        late.push(0);
-        assert!(!looks_binary(&late));
     }
 
     #[test]
@@ -293,15 +282,30 @@ mod tests {
         let root = dir.path().to_string_lossy().into_owned();
         let text = read_project_file(root.clone(), "a.txt".into()).unwrap();
         assert_eq!(text.content, "hello");
-        assert!(!text.binary && !text.too_large);
+        assert!(!text.binary && !text.too_large && text.writable);
         assert_eq!(text.size, 5);
         let bin = read_project_file(root.clone(), "b.bin".into()).unwrap();
         assert!(bin.binary);
         assert!(bin.content.is_empty());
         assert!(read_project_file(root, String::new()).is_err());
-        let big = content_of(vec![b'x'; READ_MAX_BYTES + 1]);
-        assert!(big.too_large);
+        let big = content_of(vec![b'x'; READ_FILE_MAX_BYTES + 1], false);
+        assert!(big.too_large && !big.writable);
         assert!(big.content.is_empty());
+    }
+
+    #[test]
+    fn tagged_listing_parses_kinds_and_hides_vcs_internals() {
+        let entries = parse_tagged_listing("d\0./src\0d\0./.git\0f\0./a.rs\0f\0./.env\0");
+        let names: Vec<(String, bool)> = entries.into_iter().map(|e| (e.name, e.is_dir)).collect();
+        assert_eq!(
+            names,
+            vec![
+                ("src".to_string(), true),
+                ("a.rs".to_string(), false),
+                (".env".to_string(), false),
+            ]
+        );
+        assert!(parse_tagged_listing("").is_empty());
     }
 
     #[test]

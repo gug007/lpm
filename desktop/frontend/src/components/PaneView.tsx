@@ -607,7 +607,7 @@ function PaneViewImpl(props: PaneViewProps) {
               ) : t.kind === "files" ? (
                 <ErrorBoundary resetKey={t.id} scope="files">
                   <FilesPane
-                    tabId={t.id}
+                    key={interactiveCwd}
                     projectRoot={interactiveCwd}
                     projectName={projectName}
                     active={visible && isActive}

@@ -6,7 +6,7 @@ use std::process::Command;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, FilePath};
 
-const READ_FILE_MAX_BYTES: usize = 5 * 1024 * 1024;
+pub(crate) const READ_FILE_MAX_BYTES: usize = 5 * 1024 * 1024;
 
 /// Run a native file/folder picker off the main thread and return the chosen
 /// path (None if cancelled). The plugin's `blocking_pick_*` calls must NOT run
@@ -298,14 +298,10 @@ fn remote_find(
 ) -> Vec<String> {
     let mut args: Vec<&str> = prune.iter().map(String::as_str).collect();
     args.extend_from_slice(tail);
-    let Some(out) = crate::sshexec::remote_command(ssh, dir, "find", &args, &[])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-    else {
+    let Ok(out) = crate::sshexec::remote_output(ssh, dir, "find", &args) else {
         return Vec::new();
     };
-    String::from_utf8_lossy(&out.stdout)
+    String::from_utf8_lossy(&out)
         .split('\0')
         .filter_map(|p| {
             let p = p.strip_prefix("./").unwrap_or(p);
@@ -327,11 +323,21 @@ pub fn read_file(abs_path: String) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+/// Writes never cross to an SSH host: a remote project's paths arrive verbatim
+/// and would otherwise land on a same-named local path.
+fn refuse_remote_write(abs_path: &str) -> Result<(), String> {
+    if crate::sshexec::remote_project_containing(abs_path).is_some() {
+        return Err("Editing files on an SSH host isn't supported yet".into());
+    }
+    Ok(())
+}
+
 #[tauri::command(async)]
 pub fn write_file(abs_path: String, content: String) -> Result<(), String> {
     if abs_path.is_empty() {
         return Err("empty file path".into());
     }
+    refuse_remote_write(&abs_path)?;
     if content.len() > READ_FILE_MAX_BYTES {
         return Err(format!("content too large ({} bytes)", content.len()));
     }
@@ -367,6 +373,7 @@ pub fn write_file_if_unchanged(
     if abs_path.is_empty() {
         return Err("empty file path".into());
     }
+    refuse_remote_write(&abs_path)?;
     if content.len() > READ_FILE_MAX_BYTES {
         return Err(format!("content too large ({} bytes)", content.len()));
     }

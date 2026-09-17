@@ -1,6 +1,13 @@
 // Pure state for the Files tab's tree: listings arrive one directory at a
 // time, the user opens folders, and the visible rows are derived from both.
 
+// What every list in the tab is made of: a project-relative path that is
+// either a folder or a file.
+export interface Item {
+  path: string;
+  isDir: boolean;
+}
+
 export interface DirEntry {
   name: string;
   isDir: boolean;
@@ -12,10 +19,8 @@ export type Listing =
   | { status: "ready"; entries: DirEntry[] }
   | { status: "error"; message: string };
 
-export interface TreeRow {
-  path: string;
+export interface TreeRow extends Item {
   name: string;
-  isDir: boolean;
   depth: number;
   expanded: boolean;
   loading: boolean;
@@ -31,10 +36,6 @@ export function parentPath(path: string): string {
   return i < 0 ? "" : path.slice(0, i);
 }
 
-export function baseName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
-}
-
 // Every folder above `path`, outermost first. The root ("") is implied.
 export function ancestorsOf(path: string): string[] {
   const out: string[] = [];
@@ -46,10 +47,11 @@ export function ancestorsOf(path: string): string[] {
   return out;
 }
 
-// The folders a change under `path` can have altered: its own folder and every
-// one above it (a new folder shows up in its parent's listing).
+// The folders a change at `path` can have altered: the one holding it, and
+// that folder's own parent, where it appears or disappears as an entry.
 export function foldersTouchedBy(path: string): string[] {
-  return ["", ...ancestorsOf(path)];
+  const dir = parentPath(path);
+  return dir ? [dir, parentPath(dir)] : [""];
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -61,6 +63,13 @@ export function sortEntries(entries: DirEntry[]): DirEntry[] {
     if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
     return collator.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
   });
+}
+
+export function sameEntries(a: DirEntry[], b: DirEntry[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((entry, i) => entry.name === b[i].name && entry.isDir === b[i].isDir)
+  );
 }
 
 // Depth-first walk of the open folders. A folder whose listing hasn't arrived
