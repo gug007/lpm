@@ -74,9 +74,15 @@ interface MatchNode {
   children: Map<string, MatchNode>;
 }
 
+const NO_PATHS: ReadonlySet<string> = new Set();
+
 // The filter's matches as a pruned tree: every match sits under its folders,
-// all of them open, so a hit reads with its location instead of a path string.
-export function buildMatchTree(matches: readonly Item[]): TreeRow[] {
+// all of them open unless listed in `collapsed`, so a hit reads with its
+// location instead of a path string.
+export function buildMatchTree(
+  matches: readonly Item[],
+  collapsed: ReadonlySet<string> = NO_PATHS,
+): TreeRow[] {
   const root: MatchNode = { path: "", name: "", isDir: true, children: new Map() };
   for (const match of matches) {
     const parts = match.path.split("/");
@@ -99,16 +105,17 @@ export function buildMatchTree(matches: readonly Item[]): TreeRow[] {
   const rows: TreeRow[] = [];
   const walk = (node: MatchNode, depth: number) => {
     for (const child of [...node.children.values()].sort(compareEntries)) {
+      const open = child.children.size > 0 && !collapsed.has(child.path);
       rows.push({
         path: child.path,
         name: child.name,
         isDir: child.isDir,
         depth,
-        expanded: child.children.size > 0,
+        expanded: open,
         loading: false,
         error: null,
       });
-      walk(child, depth + 1);
+      if (open) walk(child, depth + 1);
     }
   };
   walk(root, 0);

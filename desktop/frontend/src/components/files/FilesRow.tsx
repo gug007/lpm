@@ -1,4 +1,5 @@
 import { memo, useLayoutEffect, useRef } from "react";
+import { DEFAULT_STATUS, STATUS_DISPLAY } from "../ChangedFilesTree";
 import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
 import type { Item } from "./treeModel";
@@ -19,6 +20,8 @@ interface FilesRowProps {
   // The keyboard cursor sits here and the list has focus.
   cursor: boolean;
   dirty: boolean;
+  // The file's git status while the rail shows uncommitted files only.
+  status?: string;
   onActivate: (item: Item) => void;
   onContextMenu: (target: RowTarget) => void;
 }
@@ -33,6 +36,7 @@ export const FilesRow = memo(function FilesRow({
   selected,
   cursor,
   dirty,
+  status,
   onActivate,
   onContextMenu,
 }: FilesRowProps) {
@@ -81,7 +85,21 @@ export const FilesRow = memo(function FilesRow({
           …
         </span>
       )}
+      {status && <StatusMark status={status} />}
       {dirty && <DirtyDot />}
     </div>
   );
 });
+
+function StatusMark({ status }: { status: string }) {
+  const { label, color } = STATUS_DISPLAY[status] ?? DEFAULT_STATUS;
+  return (
+    <span
+      className={`w-3 shrink-0 text-center text-[11px] font-bold ${color}`}
+      title={status}
+      aria-label={status}
+    >
+      {label}
+    </span>
+  );
+}

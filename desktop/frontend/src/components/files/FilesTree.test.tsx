@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FilesTree } from "./FilesTree";
 import type { Listing, TreeRow } from "./treeModel";
+import type { Changes } from "./useChangedFiles";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -19,13 +20,18 @@ const row = (path: string, isDir: boolean, depth: number): TreeRow => ({
 });
 const ROWS = [row("src", true, 0), row("src/a.ts", false, 1), row("src/b.ts", false, 1)];
 const ROOT: Listing = { status: "ready", entries: [{ name: "src", isDir: true }] };
+const NO_CHANGES: Changes = { status: "ready", files: [] };
 
 function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
   const onActivate = vi.fn();
   const onCursorChange = vi.fn();
+  const onChangesOnlyChange = vi.fn();
   const props = {
     rows: ROWS,
     rootListing: ROOT,
+    changesOnly: false,
+    onChangesOnlyChange,
+    changes: NO_CHANGES,
     selectedPath: null,
     dirtyPaths: new Set<string>(),
     query: "",
@@ -42,7 +48,14 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
   act(() => root.render(<FilesTree {...props} />));
   const list = container.querySelector<HTMLElement>('[role="tree"]')!;
   const input = container.querySelector<HTMLInputElement>('input[aria-label="Filter files"]')!;
-  return { list, input, onActivate, onCursorChange, rerender: (next: Partial<typeof props>) => act(() => root.render(<FilesTree {...props} {...next} />)) };
+  return {
+    list,
+    input,
+    onActivate,
+    onCursorChange,
+    onChangesOnlyChange,
+    rerender: (next: Partial<typeof props>) => act(() => root.render(<FilesTree {...props} {...next} />)),
+  };
 }
 
 function press(target: Element, key: string) {
@@ -97,5 +110,49 @@ describe("FilesTree keyboard", () => {
     rerender({ filterFocusRequest: 1 });
     expect(document.activeElement).toBe(input);
     expect(select).toHaveBeenCalled();
+  });
+});
+
+describe("FilesTree changes only", () => {
+  const toggle = () =>
+    container.querySelector<HTMLButtonElement>('button[aria-label="Uncommitted files only"]')!;
+
+  it("switches the rail from the toolbar button", () => {
+    const { onChangesOnlyChange } = render();
+    expect(toggle().getAttribute("aria-pressed")).toBe("false");
+    act(() => toggle().click());
+    expect(onChangesOnlyChange).toHaveBeenCalledWith(true);
+  });
+
+  it("marks each file with its git status", () => {
+    render({
+      changesOnly: true,
+      changes: {
+        status: "ready",
+        files: [
+          { path: "src/a.ts", status: "modified" },
+          { path: "src/b.ts", status: "untracked" },
+        ],
+      },
+    });
+    expect(toggle().getAttribute("aria-pressed")).toBe("true");
+    const marks = [...container.querySelectorAll('[role="treeitem"] span[title]')].map(
+      (el) => `${el.getAttribute("title")}:${el.textContent}`,
+    );
+    expect(marks).toEqual(["modified:M", "untracked:U"]);
+  });
+
+  it("says so when the working tree is clean", () => {
+    const { list } = render({ changesOnly: true, rows: [] });
+    expect(list.textContent).toContain("No uncommitted changes");
+  });
+
+  it("shows the git error instead of an empty list", () => {
+    const { list } = render({
+      changesOnly: true,
+      rows: [],
+      changes: { status: "error", message: "not a git repository" },
+    });
+    expect(list.textContent).toContain("not a git repository");
   });
 });

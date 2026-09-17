@@ -17,8 +17,9 @@ import { FilesHeader } from "./FilesHeader";
 import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
-import { rankFiles } from "./filesFilter";
-import { ancestorsOf, flattenTree, type Item } from "./treeModel";
+import { indexEntry, rankFiles, type IndexEntry } from "./filesFilter";
+import { ancestorsOf, buildMatchTree, flattenTree, type Item } from "./treeModel";
+import { useChangedFiles } from "./useChangedFiles";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
 import { useFileIndex } from "./useFileIndex";
@@ -26,6 +27,8 @@ import { useFilesChords } from "./useFilesChords";
 
 const TREE_WIDTH_KEY = "lpm:filesTreeWidth";
 const TREE_OPEN_KEY = "lpm:filesTreeOpen";
+const CHANGES_ONLY_KEY = "lpm:filesChangesOnly";
+const NO_ITEMS: IndexEntry[] = [];
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
@@ -51,12 +54,33 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const filtering = query.trim() !== "";
-  const index = useFileIndex(projectRoot, filtering, active);
-  const results = useMemo(
-    () => (filtering && index ? rankFiles(index, query) : null),
-    [filtering, index, query],
+  // "Changes only" swaps the folder tree for the uncommitted files under their
+  // folders, and the filter then ranks those instead of the project index.
+  const [changesOnly, setChangesOnly] = useState(
+    () => localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
-  const rows = useMemo(() => flattenTree(listings, expanded), [listings, expanded]);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const changes = useChangedFiles(projectRoot, changesOnly, active);
+  const changeItems = useMemo<IndexEntry[] | null>(
+    () =>
+      changesOnly && changes.status === "ready"
+        ? changes.files.map((f) => indexEntry(f.path, false))
+        : null,
+    [changesOnly, changes],
+  );
+  const index = useFileIndex(projectRoot, filtering && !changesOnly, active);
+  const results = useMemo(() => {
+    if (!filtering) return null;
+    const source = changesOnly ? changeItems : index;
+    return source ? rankFiles(source, query) : null;
+  }, [filtering, changesOnly, changeItems, index, query]);
+  const rows = useMemo(
+    () =>
+      changesOnly
+        ? buildMatchTree(changeItems ?? NO_ITEMS, collapsed)
+        : flattenTree(listings, expanded),
+    [changesOnly, changeItems, collapsed, listings, expanded],
+  );
   const [treeOpen, setTreeOpen] = useState(() => localStorage.getItem(TREE_OPEN_KEY) !== "0");
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
   const [filterFocusRequest, setFilterFocusRequest] = useState(0);
@@ -91,8 +115,25 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     [ensure],
   );
 
+  const uncollapse = useCallback((dirs: string[]) => {
+    setCollapsed((prev) => {
+      if (!dirs.some((dir) => prev.has(dir))) return prev;
+      const next = new Set(prev);
+      for (const dir of dirs) next.delete(dir);
+      return next;
+    });
+  }, []);
+
   const toggleDir = useCallback(
     (path: string) => {
+      if (changesOnly) {
+        setCollapsed((prev) => {
+          const next = new Set(prev);
+          if (!next.delete(path)) next.add(path);
+          return next;
+        });
+        return;
+      }
       if (expanded.has(path)) {
         setExpanded((prev) => {
           const next = new Set(prev);
@@ -105,20 +146,26 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       setExpanded((prev) => new Set(prev).add(path));
       void load(path);
     },
-    [expanded, load, forget],
+    [changesOnly, expanded, load, forget],
   );
 
   const openFile = useCallback(
     (path: string) => {
       void openBuffer(path);
       expandDirs(ancestorsOf(path));
+      uncollapse(ancestorsOf(path));
     },
-    [openBuffer, expandDirs],
+    [openBuffer, expandDirs, uncollapse],
   );
 
   const showTree = useCallback((open: boolean) => {
     localStorage.setItem(TREE_OPEN_KEY, open ? "1" : "0");
     setTreeOpen(open);
+  }, []);
+
+  const showChangesOnly = useCallback((on: boolean) => {
+    localStorage.setItem(CHANGES_ONLY_KEY, on ? "1" : "0");
+    setChangesOnly(on);
   }, []);
 
   const focusFilter = useCallback(() => {
@@ -175,10 +222,12 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     (dir: string) => {
       setQuery("");
       showTree(true);
-      expandDirs(dir ? [...ancestorsOf(dir), dir] : []);
+      const dirs = dir ? [...ancestorsOf(dir), dir] : [];
+      if (changesOnly) uncollapse(dirs);
+      else expandDirs(dirs);
       setCursorRequest((prev) => ({ path: dir, seq: (prev?.seq ?? 0) + 1 }));
     },
-    [showTree, expandDirs],
+    [showTree, changesOnly, uncollapse, expandDirs],
   );
 
   // One rule for every list and menu: a file opens; a folder is revealed
@@ -250,6 +299,9 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       <FilesTree
         rows={rows}
         rootListing={listings.get("")}
+        changesOnly={changesOnly}
+        onChangesOnlyChange={showChangesOnly}
+        changes={changes}
         selectedPath={selectedPath}
         dirtyPaths={buffer.dirtyPaths}
         query={query}

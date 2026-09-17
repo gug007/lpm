@@ -135,4 +135,20 @@ describe("buildMatchTree", () => {
     expect(rows.find((r) => r.path === "docs/components")).toMatchObject({ isDir: true, expanded: true });
     expect(buildMatchTree([])).toEqual([]);
   });
+
+  it("keeps a collapsed folder's row and hides what is under it", () => {
+    const rows = buildMatchTree(
+      [
+        { path: "src/a/one.ts", isDir: false },
+        { path: "src/b/two.ts", isDir: false },
+      ],
+      new Set(["src/a"]),
+    );
+    expect(rows.map((r) => [r.path, r.expanded])).toEqual([
+      ["src", true],
+      ["src/a", false],
+      ["src/b", true],
+      ["src/b/two.ts", false],
+    ]);
+  });
 });

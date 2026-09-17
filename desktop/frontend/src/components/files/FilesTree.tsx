@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { FileDiff } from "lucide-react";
 import { SearchIcon, XIcon } from "../icons";
+import { Tooltip } from "../ui/Tooltip";
 import { FilesRow, type RowTarget } from "./FilesRow";
 import type { IndexEntry } from "./filesFilter";
 import { buildMatchTree, parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
+import type { Changes } from "./useChangedFiles";
 
 export interface CursorRequest {
   path: string;
@@ -16,10 +19,16 @@ export interface ActivateOptions {
 }
 
 const NO_ROWS: TreeRow[] = [];
+const NO_STATUSES: ReadonlyMap<string, string> = new Map();
 
 interface FilesTreeProps {
   rows: TreeRow[];
   rootListing: Listing | undefined;
+  // The rail shows the working tree's uncommitted files only; `changes` is
+  // where they come from and lends every row its git status.
+  changesOnly: boolean;
+  onChangesOnlyChange: (on: boolean) => void;
+  changes: Changes;
   selectedPath: string | null;
   dirtyPaths: ReadonlySet<string>;
   query: string;
@@ -45,6 +54,9 @@ const INPUT_CLASS =
 export function FilesTree({
   rows,
   rootListing,
+  changesOnly,
+  onChangesOnlyChange,
+  changes,
   selectedPath,
   dirtyPaths,
   query,
@@ -60,6 +72,13 @@ export function FilesTree({
   const filtering = query.trim() !== "";
   const matchRows = useMemo(() => (results ? buildMatchTree(results) : NO_ROWS), [results]);
   const items: TreeRow[] = filtering ? matchRows : rows;
+  const statuses = useMemo(
+    () =>
+      changesOnly && changes.status === "ready"
+        ? new Map(changes.files.map((f) => [f.path, f.status]))
+        : NO_STATUSES,
+    [changesOnly, changes],
+  );
   const [cursorPath, setCursorPath] = useState<string | null>(null);
   const [listFocused, setListFocused] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -189,6 +208,7 @@ export function FilesTree({
         selected={row.path === selectedPath}
         cursor={listFocused && row.path === cursorPath}
         dirty={dirtyPaths.has(row.path)}
+        status={statuses.get(row.path)}
         onActivate={activate}
         onContextMenu={onRowMenu}
       />
@@ -196,9 +216,19 @@ export function FilesTree({
 
   const renderList = (): ReactNode => {
     if (filtering) {
-      if (results === null) return <Note>Indexing files…</Note>;
-      if (results.length === 0) return <Note>No matching files</Note>;
+      if (results === null) return <Note>{changesOnly ? "Loading…" : "Indexing files…"}</Note>;
+      if (results.length === 0) {
+        return <Note>{changesOnly ? "No matching changed files" : "No matching files"}</Note>;
+      }
       return renderRows(matchRows);
+    }
+    if (changesOnly) {
+      if (changes.status === "error") {
+        return <Note tone="bad">Couldn't list the changes: {changes.message}</Note>;
+      }
+      if (changes.status === "loading") return <Note>Loading…</Note>;
+      if (rows.length === 0) return <Note>No uncommitted changes</Note>;
+      return renderRows(rows);
     }
     if (rootListing?.status === "error") {
       return <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>;
@@ -208,10 +238,12 @@ export function FilesTree({
     return renderRows(rows);
   };
 
+  const changesLabel = changesOnly ? "Show all files" : "Show uncommitted files only";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 px-2 pb-1 pt-2">
-        <div className="relative">
+      <div className="flex shrink-0 items-center gap-1 px-2 pb-1 pt-2">
+        <div className="relative min-w-0 flex-1">
           <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] [&>svg]:h-3 [&>svg]:w-3">
             <SearchIcon />
           </span>
@@ -221,7 +253,7 @@ export function FilesTree({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             onKeyDown={onInputKeyDown}
-            placeholder="Filter files…"
+            placeholder={changesOnly ? "Filter changed files…" : "Filter files…"}
             aria-label="Filter files"
             spellCheck={false}
             autoCorrect="off"
@@ -243,11 +275,26 @@ export function FilesTree({
             </button>
           )}
         </div>
+        <Tooltip content={changesLabel} side="bottom" align="end">
+          <button
+            type="button"
+            onClick={() => onChangesOnlyChange(!changesOnly)}
+            aria-label="Uncommitted files only"
+            aria-pressed={changesOnly}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] ${
+              changesOnly
+                ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
+                : "text-[var(--text-muted)]"
+            }`}
+          >
+            <FileDiff size={14} strokeWidth={1.75} />
+          </button>
+        </Tooltip>
       </div>
       <div
         ref={listRef}
         role="tree"
-        aria-label={filtering ? "Matching files" : "Project files"}
+        aria-label={filtering ? "Matching files" : changesOnly ? "Changed files" : "Project files"}
         tabIndex={0}
         onKeyDown={onListKeyDown}
         onFocus={() => setListFocused(true)}
