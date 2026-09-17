@@ -14,6 +14,7 @@ import {
 import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
 import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
 import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
+import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
 import type { PeerRowOrder } from "../components/peerRowOrder";
 
 export interface DetachedWindowState {
@@ -50,6 +51,9 @@ export interface Settings {
   // Which footer nav items sit in the sidebar itself; the rest are in the More
   // menu. Unset means the default layout.
   sidebarNavInSidebar?: NavItemId[];
+  // Which pane actions have a button in the pane header; the rest are in its
+  // menu. Unset means the default layout.
+  paneToolbar?: PaneActionId[];
   autoGenerateCommitMessage?: boolean;
   autoGeneratePRDescription?: boolean;
   claudeLimitsEnabled?: boolean;
@@ -134,6 +138,7 @@ function normalize(s: main.Settings): Settings {
     windowHeight: s.windowHeight,
     sidebarWidth: s.sidebarWidth,
     sidebarNavInSidebar: normalizeSidebarNav(s.sidebarNavInSidebar),
+    paneToolbar: normalizePaneToolbar(s.paneToolbar),
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,
     claudeLimitsEnabled: s.claudeLimitsEnabled,

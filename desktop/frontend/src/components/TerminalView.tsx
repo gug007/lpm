@@ -576,9 +576,19 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [getPane, getFocusedPane, stableServices, closeTerminal],
   );
 
-  const toggleFilesInPane = useCallback(
-    (paneId: string) => toggleUtilityTab("files", openFilesInPane, paneId),
-    [toggleUtilityTab, openFilesInPane],
+  // The pane header's toolbar buttons: the same toggles as the shortcuts, for
+  // that pane.
+  const toggleUtilityInPane = useCallback(
+    (paneId: string, kind: UtilityTabKind) => {
+      const open = {
+        review: openReviewInPane,
+        memory: openMemoryInPane,
+        toolkit: openToolkitInPane,
+        files: openFilesInPane,
+      }[kind];
+      toggleUtilityTab(kind, open, paneId);
+    },
+    [toggleUtilityTab, openReviewInPane, openMemoryInPane, openToolkitInPane, openFilesInPane],
   );
 
   const findInPane = useCallback(
@@ -1050,7 +1060,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onTogglePinTab={toggleTabPinned}
             onSplit={splitPane}
             onClosePane={closePane}
-            onToggleFiles={toggleFilesInPane}
+            onToggleUtility={toggleUtilityInPane}
             onToggleFullscreen={handleToggleFullscreen}
             onRegisterTerminalHandle={registerTerminalHandle}
             onRegisterServiceHandle={registerServiceHandle}

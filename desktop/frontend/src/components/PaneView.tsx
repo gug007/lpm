@@ -25,6 +25,10 @@ import {
 } from "./terminal/icons";
 import { AddTerminalButton } from "./terminal/AddTerminalButton";
 import { PaneMenuButton } from "./terminal/PaneMenuButton";
+import { PaneToolbar } from "./terminal/PaneToolbar";
+import { usePaneToolbar } from "../hooks/usePaneToolbar";
+import type { PaneActionId } from "../paneActions";
+import type { UtilityTabKind } from "./terminal/utilityTabToggle";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
 import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon, BrainIcon, LayersIcon, FolderIcon } from "./icons";
 import { Columns2 } from "lucide-react";
@@ -165,7 +169,7 @@ export interface PaneViewProps {
   onTogglePinTab: (paneId: string, tabIdx: number) => void;
   onSplit: (paneId: string, direction: SplitDirection) => void;
   onClosePane: (paneId: string) => void;
-  onToggleFiles: (paneId: string) => void;
+  onToggleUtility: (paneId: string, kind: UtilityTabKind) => void;
   onToggleFullscreen: (paneId: string) => void;
   onRegisterTerminalHandle: (
     terminalId: string,
@@ -235,7 +239,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onTogglePinTab,
     onSplit,
     onClosePane,
-    onToggleFiles,
+    onToggleUtility,
     onToggleFullscreen,
     onRegisterTerminalHandle,
     onRegisterServiceHandle,
@@ -284,7 +288,34 @@ function PaneViewImpl(props: PaneViewProps) {
       ? -1
       : Math.min(pane.activeTabIdx, pane.tabs.length - 1);
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
-  const filesShowing = activeServiceName === null && activeTerm?.kind === "files";
+  const activeUtilityTab: UtilityTabKind | null =
+    activeServiceName === null &&
+    (activeTerm?.kind === "review" ||
+      activeTerm?.kind === "memory" ||
+      activeTerm?.kind === "toolkit" ||
+      activeTerm?.kind === "files")
+      ? activeTerm.kind
+      : null;
+  const paneActions = usePaneToolbar(!!onResumeSession);
+  // From the menu an action opens its tab; from a toolbar button it toggles,
+  // so the button both shows and dismisses the tab.
+  const runPaneAction = useCallback(
+    (id: PaneActionId, fromToolbar: boolean) => {
+      switch (id) {
+        case "review":
+          return fromToolbar ? onToggleUtility(pane.id, "review") : onAddReview(pane.id);
+        case "files":
+          return fromToolbar ? onToggleUtility(pane.id, "files") : onAddFiles(pane.id);
+        case "toolkit":
+          return fromToolbar ? onToggleUtility(pane.id, "toolkit") : onAddToolkit(pane.id);
+        case "browser":
+          return onAddBrowser(pane.id);
+        case "resume":
+          return onResumeSession?.();
+      }
+    },
+    [pane.id, onToggleUtility, onAddReview, onAddFiles, onAddToolkit, onAddBrowser, onResumeSession],
+  );
   const composerTab =
     activeServiceName === null && activeTerm && isTerminalTab(activeTerm)
       ? activeTerm
@@ -463,13 +494,15 @@ function PaneViewImpl(props: PaneViewProps) {
           />
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <PaneMenuButton
-            onAddBrowser={() => onAddBrowser(pane.id)}
-            onAddReview={() => onAddReview(pane.id)}
-            onAddToolkit={() => onAddToolkit(pane.id)}
-            onAddFiles={() => onAddFiles(pane.id)}
-            onResumeSession={onResumeSession}
-          />
+          {paneActions.menu.length > 0 && (
+            <PaneMenuButton
+              actions={paneActions.menu}
+              isDefault={paneActions.isDefault}
+              onRun={(id) => runPaneAction(id, false)}
+              onMove={(id) => paneActions.move(id, true)}
+              onReset={paneActions.reset}
+            />
+          )}
           <Tooltip
             content={
               <>
@@ -496,23 +529,14 @@ function PaneViewImpl(props: PaneViewProps) {
               <SplitDownIcon />
             </IconBtn>
           </Tooltip>
-          <Tooltip
-            content={
-              <>
-                Files <span className="ml-1 opacity-70">⌘⇧E</span>
-              </>
-            }
-            side="bottom"
-            align="end"
-          >
-            <IconBtn
-              onClick={() => onToggleFiles(pane.id)}
-              ariaLabel="Files"
-              active={filesShowing}
-            >
-              <FolderIcon />
-            </IconBtn>
-          </Tooltip>
+          <PaneToolbar
+            actions={paneActions.toolbar}
+            activeTab={activeUtilityTab}
+            isDefault={paneActions.isDefault}
+            onRun={(id) => runPaneAction(id, true)}
+            onMove={(id) => paneActions.move(id, false)}
+            onReset={paneActions.reset}
+          />
           <Tooltip
             content={fullscreen ? "Exit fullscreen" : "Fullscreen"}
             side="bottom"
