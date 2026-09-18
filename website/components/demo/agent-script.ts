@@ -77,12 +77,6 @@ export function settledVerb(seed: number): string {
 
 export const CLAUDE_STARS = ["✢", "✳", "∗", "✻", "✽", "✻", "∗", "✳"];
 
-export const SUGGESTIONS = [
-  "What does this project do?",
-  "Run the tests",
-  "Fix the TODOs",
-];
-
 // A canned session that streams agent work and then holds on a live "Thinking…"
 // spinner — used to show a project mid-task ("in progress") the moment you open
 // it. It never resolves on its own, so the sidebar stays in the running state.

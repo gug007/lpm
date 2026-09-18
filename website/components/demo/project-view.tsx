@@ -24,6 +24,7 @@ import { resolveUtilityTabAction } from "./utility-tab";
 import { ServiceLabelBar, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
+import { agentDriveKey } from "./agent-drive";
 import {
   AgentTerminal,
   type AgentStatus,
@@ -894,6 +895,8 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
         autoSteps={action.autoSteps}
         autoIntent={action.autoIntent}
         autoAnswerSteps={action.autoAnswerSteps}
+        autoDeferred={action.autoDeferred}
+        driveKey={agentDriveKey(ctx.project.name, action.agent)}
         onStatus={(status, timing) =>
           ctx.onAgentTabStatus(key, tab.label, status, timing)
         }

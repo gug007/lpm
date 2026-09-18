@@ -1,4 +1,4 @@
-export type TourStepId = "start" | "agent" | "codex";
+export type TourStepId = "start" | "agent" | "prompt" | "codex" | "codexPrompt";
 
 export type TourStep = {
   id: TourStepId;
@@ -9,7 +9,17 @@ export type TourStep = {
   beatMs: number;
 };
 
-export const TOUR_BEAT_MS = { start: 1700, agent: 6200, codex: 10200 } as const;
+export const TOUR_BEAT_MS = {
+  start: 1700,
+  agent: 5800,
+  prompt: 7400,
+  codex: 14000,
+  codexPrompt: 15800,
+} as const;
+
+// What the tour types when a project's agent action carries no prompt of its
+// own — every canned session knows how to answer it.
+export const TOUR_FALLBACK_PROMPT = "Run the tests";
 
 export const TOUR_STEPS: TourStep[] = [
   {
@@ -25,10 +35,22 @@ export const TOUR_STEPS: TourStep[] = [
     beatMs: TOUR_BEAT_MS.agent,
   },
   {
+    id: "prompt",
+    title: "Enter and send a prompt",
+    body: "Ask for the change in the composer. The turn streams back in the tab: files read, edits made, tests run.",
+    beatMs: TOUR_BEAT_MS.prompt,
+  },
+  {
     id: "codex",
-    title: "Add Codex beside it",
-    body: "A second agent lands in a tab next to the first. Two agents, one project.",
+    title: "Open Codex alongside it",
+    body: "A second agent lands in a tab next to the first. Same project, same working tree.",
     beatMs: TOUR_BEAT_MS.codex,
+  },
+  {
+    id: "codexPrompt",
+    title: "Enter and send a prompt",
+    body: "Codex takes a task of its own and starts on it. Two agents working the project at once.",
+    beatMs: TOUR_BEAT_MS.codexPrompt,
   },
 ];
 

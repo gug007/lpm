@@ -35,6 +35,9 @@ export type DemoAction = {
   // sent — "progress" streams an unfinished reply, "done" shows it complete.
   autoPrompt?: string;
   autoMode?: "progress" | "done" | "waiting";
+  // Opens on an empty composer instead, holding the prompt back until it is
+  // asked for — the tour types it in as a step of its own.
+  autoDeferred?: boolean;
   // The work that reply streams. Falls back to a generic canned session.
   autoSteps?: AgentStep[];
   // For a "waiting" session, what answering yes carries out.
@@ -278,6 +281,7 @@ const PROJECTS: DemoProject[] = [
         ...CLAUDE_ACTION,
         autoPrompt: "Add a 14-day trial to the billing flow",
         autoMode: "progress",
+        autoDeferred: true,
         // Mirrors saas-app's seeded working-tree diff, so the Review tab shows
         // exactly the changes the visitor just watched Claude make.
         autoSteps: [
@@ -298,6 +302,7 @@ const PROJECTS: DemoProject[] = [
         ...CODEX_ACTION,
         autoPrompt: "Move the plans table to integer cents",
         autoMode: "progress",
+        autoDeferred: true,
         // Reads only: saas-app's working tree is the three files the Claude
         // session above already accounts for, so a finished edit here would be
         // one the Review tab and `git status` both deny. This session is caught

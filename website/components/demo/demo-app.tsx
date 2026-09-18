@@ -47,8 +47,15 @@ import {
   collectLeaves,
   setActiveTab,
   syncServiceTabs,
+  tabKey,
   type PaneNode,
 } from "./pane-tree";
+import {
+  agentDrive,
+  agentDriveKey,
+  typingMs,
+  withAgentDrive,
+} from "./agent-drive";
 import { DemoActiveProvider, usePageVisible } from "./demo-active";
 import { GlobalTerminalsView } from "./global-terminals-view";
 import { SettingsView } from "./settings-view";
@@ -71,6 +78,7 @@ import {
 } from "./project-factory";
 import {
   TOUR_BEAT_MS,
+  TOUR_FALLBACK_PROMPT,
   TOUR_STEPS,
   type TourHandle,
   type TourState,
@@ -179,6 +187,9 @@ export function DemoApp({
   // Read by the mimed tour at the moment it would press Start, which is long
   // after the effect that owns it last re-ran.
   const servicesRunningRef = useRef(false);
+  // The selected project's name and the prompt each of its agents opens with,
+  // for the beats that type into a composer.
+  const tourPromptsRef = useRef({ project: "", claude: "", codex: "" });
   // Stamped once when the demo mounts, so the seeded sessions all date from
   // the same moment rather than drifting apart as the tree re-renders.
   const [mountedAt] = useState(() => Date.now());
@@ -200,20 +211,57 @@ export function DemoApp({
   // The step list counts what has happened in the window, whoever did it: a
   // visitor pressing the buttons advances it the same as the tour does. It
   // only moves forward — stopping a project again is not unlearning Start.
+  // An open session and a session that has been given a prompt are separate
+  // steps, so the count reads the panes rather than the status map alone: an
+  // agent waiting on its first prompt reports no status at all.
   useEffect(() => {
-    const started = Object.values(runningByProject).some((s) => s.size > 0);
-    const agentsPerProject = Object.values(agentTabStatusByProject).map(
-      (tabs) => new Set(Object.values(tabs).map((t) => t.label)).size,
-    );
-    const reached = agentsPerProject.some((n) => n > 1)
-      ? 3
-      : agentsPerProject.some((n) => n > 0)
-        ? 2
-        : started
-          ? 1
-          : 0;
+    const reachedIn = (name: string): number => {
+      const terminals = actionTerminalsByProject[name] ?? EMPTY_ACTIONS;
+      const statuses = agentTabStatusByProject[name] ?? EMPTY_STATUS;
+      const open = new Set<string>();
+      const asked = new Set<string>();
+      for (const leaf of collectLeaves(treeByProject[name] ?? null)) {
+        for (const tab of leaf.tabs) {
+          if (tab.kind !== "action") continue;
+          const agent = terminals[tab.key]?.agent;
+          if (!agent) continue;
+          open.add(agent);
+          if (statuses[tabKey(tab)]) asked.add(agent);
+        }
+      }
+      const done = [
+        (runningByProject[name]?.size ?? 0) > 0,
+        open.size > 0,
+        asked.size > 0,
+        open.size > 1,
+        asked.size > 1,
+      ];
+      const pending = done.indexOf(false);
+      return pending === -1 ? done.length : pending;
+    };
+    const reached = Math.max(0, ...projects.map((p) => reachedIn(p.name)));
     setTourStage((cur) => Math.max(cur, reached));
-  }, [runningByProject, agentTabStatusByProject]);
+  }, [
+    projects,
+    runningByProject,
+    treeByProject,
+    actionTerminalsByProject,
+    agentTabStatusByProject,
+  ]);
+
+  // What the tour types, read at the beat rather than when its effect armed —
+  // the visitor may have selected another project in the meantime.
+  useEffect(() => {
+    const current = projects.find((p) => p.name === selected) ?? projects[0];
+    const promptFor = (agent: "claude" | "codex") =>
+      current?.actions.find((a) => a.agent === agent)?.autoPrompt ??
+      TOUR_FALLBACK_PROMPT;
+    tourPromptsRef.current = {
+      project: current?.name ?? "",
+      claude: promptFor("claude"),
+      codex: promptFor("codex"),
+    };
+  }, [projects, selected]);
 
   useEffect(() => {
     onTour?.({ stage: tourStage, playing: tourPlaying });
@@ -301,13 +349,39 @@ export function DemoApp({
       setHintVisible(true);
     };
 
+    // An open agent with an empty composer is only half the point, so the tour
+    // asks each one for something. The session registers itself a render after
+    // the chip that opened it was clicked, so the prompt waits for the field.
+    const prompted = { claude: false, codex: false };
+    let driveWaits: (() => void)[] = [];
+    const promptAgentIfIdle = (agent: "claude" | "codex", instant?: boolean) => {
+      if (prompted[agent]) return;
+      prompted[agent] = true;
+      const { project: name, [agent]: text } = tourPromptsRef.current;
+      const cancelWait = withAgentDrive(agentDriveKey(name, agent), (drive) => {
+        if (drive.idle()) drive.send(text, instant ? { instant: true } : undefined);
+      });
+      // A landing prompt has to outlive the teardown that asked for it; a
+      // mimed one is cancelled with the rest of the sequence.
+      if (!instant) driveWaits.push(cancelWait);
+    };
+
+    // What the sequence was heading for, landed at once: a visitor who scrolls
+    // away or has motion turned down comes back to a finished demo rather than
+    // a project half set up.
+    const landRemaining = () => {
+      startIfIdle();
+      launchAgentIfIdle();
+      launchCodexIfIdle();
+      promptAgentIfIdle("claude", true);
+      promptAgentIfIdle("codex", true);
+    };
+
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     if (prefersReducedMotion) {
-      startIfIdle();
-      launchAgentIfIdle();
-      launchCodexIfIdle();
+      landRemaining();
       return;
     }
 
@@ -318,6 +392,8 @@ export function DemoApp({
     const clearTimers = () => {
       for (const t of timers) clearTimeout(t);
       timers = [];
+      for (const cancel of driveWaits) cancel();
+      driveWaits = [];
     };
 
     const hideCursor = () => {
@@ -394,7 +470,25 @@ export function DemoApp({
         if (!cursorHidden) fn();
       });
 
-    const { start: startMs, agent: agentMs, codex: codexMs } = TOUR_BEAT_MS;
+    const {
+      start: startMs,
+      agent: agentMs,
+      prompt: promptMs,
+      codex: codexMs,
+      codexPrompt: codexPromptMs,
+    } = TOUR_BEAT_MS;
+    // Where the composer of a given agent's session sits, for the beats that
+    // type into it. Null until that session is on screen.
+    const composerAt = (agent: "claude" | "codex") => {
+      const { project: name } = tourPromptsRef.current;
+      const field = agentDrive(agentDriveKey(name, agent))?.field();
+      return field ? at(field) : null;
+    };
+    const aimAtComposer =
+      (agent: "claude" | "codex", phase: "travel" | "tap") => () => {
+        const pos = composerAt(agent);
+        if (pos) setAutoCursor({ phase, ...pos });
+      };
     mime(0, () => setRingPulseOn(true));
     mime(600, () => setAutoCursor({ phase: "travel", ...from }));
     mime(680, () => setAutoCursor({ phase: "travel", ...start }));
@@ -423,7 +517,16 @@ export function DemoApp({
       launchAgentIfIdle();
     });
 
-    // Third beat: Claude has been streaming long enough to read, so the other
+    // Third beat: the session is open on an empty composer, which is where the
+    // work is actually asked for. The cursor lands in the field and the prompt
+    // is typed there, rather than a reply appearing on its own.
+    mime(promptMs - 700, aimAtComposer("claude", "travel"));
+    step(promptMs, () => {
+      if (!cursorHidden) aimAtComposer("claude", "tap")();
+      promptAgentIfIdle("claude");
+    });
+
+    // Fourth beat: Claude has been streaming long enough to read, so the other
     // agent joins it in the same project.
     const codexAt = () => {
       const el = codexButtonRef.current;
@@ -463,14 +566,25 @@ export function DemoApp({
       if (!cursorHidden && revealCodex()) moveToCodex("tap")();
       launchCodexIfIdle();
     });
-    // Fades from wherever the cursor actually is, which is the agent chip when
-    // Codex could not be reached.
-    mime(codexMs + 500, () =>
+    // Last beat: the second agent gets a task of its own, so the window ends on
+    // two sessions working the same project rather than one working and one
+    // sitting open.
+    mime(codexPromptMs - 700, aimAtComposer("codex", "travel"));
+    step(codexPromptMs, () => {
+      if (!cursorHidden) aimAtComposer("codex", "tap")();
+      promptAgentIfIdle("codex");
+    });
+
+    // The cursor stays in the field until the prompt it typed has gone, then
+    // fades from wherever it actually is — the agent chip, when Codex could not
+    // be reached.
+    const endMs = codexPromptMs + typingMs(tourPromptsRef.current.codex);
+    mime(endMs, () =>
       setAutoCursor((cur) =>
         cur.phase === "hidden" ? cur : { phase: "fade", x: cur.x, y: cur.y },
       ),
     );
-    step(codexMs + 1000, () => {
+    step(endMs + 500, () => {
       if (!cursorHidden) setAutoCursor({ phase: "hidden" });
       setTourPlaying(false);
     });
@@ -480,11 +594,7 @@ export function DemoApp({
       // screen and abandon the sequence half-done — the effect never re-arms,
       // so the visitor would come back to a project that never got its agent.
       // Skip the remaining animation, but land on the state it was heading for.
-      if (!cancelled) {
-        startIfIdle();
-        launchAgentIfIdle();
-        launchCodexIfIdle();
-      }
+      if (!cancelled) landRemaining();
       cancelled = true;
       clearTimers();
       hideCursor();
@@ -921,20 +1031,29 @@ export function DemoApp({
       if (!project) return;
       const name = project.name;
       const upTo = TOUR_STEPS.findIndex((s) => s.id === id);
-      const tree = treeByProject[name];
-      const hasTab = (agent: "claude" | "codex") => {
-        const label = project.actions.find((a) => a.agent === agent)?.label;
-        return (
-          !!tree &&
-          collectLeaves(tree).some((leaf) =>
-            leaf.tabs.some((t) => t.kind === "action" && t.label === label),
-          )
+      const terminals = actionTerminalsByProject[name] ?? EMPTY_ACTIONS;
+      const hasTab = (agent: "claude" | "codex") =>
+        collectLeaves(treeByProject[name] ?? null).some((leaf) =>
+          leaf.tabs.some(
+            (t) => t.kind === "action" && terminals[t.key]?.agent === agent,
+          ),
         );
+      // The chip above may have opened the tab in this same click, so the
+      // prompt waits for the session rather than for the next render.
+      const promptTab = (agent: "claude" | "codex") => {
+        const text =
+          project.actions.find((a) => a.agent === agent)?.autoPrompt ??
+          TOUR_FALLBACK_PROMPT;
+        withAgentDrive(agentDriveKey(name, agent), (drive) => {
+          if (drive.idle()) drive.send(text);
+        });
       };
       if (upTo >= 0 && !runningByProject[name]?.size)
         startButtonRef.current?.click();
       if (upTo >= 1 && !hasTab("claude")) agentButtonRef.current?.click();
-      if (upTo >= 2 && !hasTab("codex")) codexButtonRef.current?.click();
+      if (upTo >= 2) promptTab("claude");
+      if (upTo >= 3 && !hasTab("codex")) codexButtonRef.current?.click();
+      if (upTo >= 4) promptTab("codex");
     },
   }));
 

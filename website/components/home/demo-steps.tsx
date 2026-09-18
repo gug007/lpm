@@ -117,7 +117,7 @@ export function DemoSteps({ tour, onRun, onRestart }: Props) {
           className="hidden text-[12px] text-gray-500 lg:block dark:text-gray-400"
         >
           {allDone
-            ? "All three done. Click around the window yourself, or restart the demo."
+            ? "All five done. Click around the window yourself, or restart the demo."
             : tour.playing
               ? "The tour is running. Click any step to take over."
               : "Click a step to run it in the window."}

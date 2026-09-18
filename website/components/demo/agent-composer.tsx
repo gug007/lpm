@@ -24,8 +24,6 @@ type Props = {
   workingSince?: number;
   // Rendered in the footer row, to the left of Send.
   trailing?: ReactNode;
-  // Rendered above the box, inside the composer's own padding.
-  children?: ReactNode;
 };
 
 export function AgentComposer({
@@ -39,13 +37,11 @@ export function AgentComposer({
   canRecall,
   workingSince,
   trailing,
-  children,
 }: Props) {
   const focusField = () => inputRef.current?.focus();
 
   return (
     <div className="shrink-0 border-t border-[rgba(204,204,204,0.18)] bg-[#1a1a1a] px-3 pb-1 pt-2">
-      {children}
       <form onSubmit={onSubmit} autoComplete="off">
         {/* The box stays neutral while the agent works. In the app the spinning
             ring belongs to a composer transform, not to a turn in flight; what

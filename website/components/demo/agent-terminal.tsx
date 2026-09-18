@@ -3,9 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useStickToBottom } from "./use-stick-to-bottom";
 import { INITIAL_AI_STATUS, type ReplyContext } from "./projects";
-import { FOCUS_RING, PRESS } from "./ui";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
 import { AgentComposer } from "./agent-composer";
+import {
+  TYPE_CHAR_MS,
+  TYPE_LEAD_MS,
+  TYPE_SEND_MS,
+  registerAgentDrive,
+} from "./agent-drive";
 import { ComposerModelPicker } from "./composer-model-picker";
 import { INITIAL_PICK, statusModel, switchNotices, type ModelPick } from "./agent-models";
 import { AgentTurn } from "./agent-turn";
@@ -15,7 +20,6 @@ import {
   DONE_STEPS,
   GENERIC_REPLY_CONTEXT,
   IN_PROGRESS_STEPS,
-  SUGGESTIONS,
   buildReply,
   keepAliveSteps,
   settleStep,
@@ -106,6 +110,12 @@ type AgentTerminalProps = {
   autoIntent?: ReplyIntent;
   autoAnswerSteps?: Step[];
   autoSteps?: Step[];
+  // Holds the autoPrompt back: the session opens on an empty composer, and the
+  // prompt is typed into it when the tour — or the visitor clicking that step —
+  // asks for it.
+  autoDeferred?: boolean;
+  // Registers this session with the tour, which types into its composer.
+  driveKey?: string;
 };
 
 export function AgentTerminal({
@@ -118,6 +128,8 @@ export function AgentTerminal({
   autoSteps,
   autoIntent,
   autoAnswerSteps,
+  autoDeferred,
+  driveKey,
 }: AgentTerminalProps) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -249,7 +261,7 @@ export function AgentTerminal({
     startedRef.current = true;
     // The agent launches idle, awaiting your first prompt — unless it opens
     // with work in flight (progress) or already finished (done) via autoPrompt.
-    if (autoPrompt && autoMode === "progress") {
+    if (autoPrompt && autoMode === "progress" && !autoDeferred) {
       runQuery(autoPrompt, {
         steps: autoSteps ?? IN_PROGRESS_STEPS,
         keepBusy: true,
@@ -298,6 +310,69 @@ export function AgentTerminal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The tour types a prompt in rather than filling the field: the visitor is
+  // watching the composer, and a prompt that simply appears reads as a script.
+  const typingRef = useRef<number | null>(null);
+  const cancelTyping = () => {
+    if (typingRef.current === null) return;
+    window.clearTimeout(typingRef.current);
+    typingRef.current = null;
+  };
+  useEffect(() => cancelTyping, []);
+
+  const runQueryRef = useRef(runQuery);
+  const driveRef = useRef<{
+    send: (text: string, opts?: { instant?: boolean }) => void;
+    idle: () => boolean;
+  }>({ send: () => {}, idle: () => false });
+
+  const idle = () =>
+    history.length === 0 && !busy && typingRef.current === null;
+
+  const sendTyped = (text: string, opts?: { instant?: boolean }) => {
+    if (!idle()) return;
+    // A prompt the session was opened with keeps the reply it was written for;
+    // anything else goes through the same canned reply a visitor's own prompt
+    // would get.
+    const runOpts =
+      text === autoPrompt && autoSteps
+        ? { steps: autoSteps, keepBusy: true }
+        : undefined;
+    const send = () => {
+      typingRef.current = null;
+      setInput("");
+      runQueryRef.current(text, runOpts);
+    };
+    if (opts?.instant) return send();
+    // preventScroll: the field is inside the demo's own frame, and pulling it
+    // into view would scroll the marketing page out from under the visitor.
+    inputRef.current?.focus({ preventScroll: true });
+    let typed = 0;
+    const tick = () => {
+      typed += 1;
+      setInput(text.slice(0, typed));
+      typingRef.current = window.setTimeout(
+        typed < text.length ? tick : send,
+        typed < text.length ? TYPE_CHAR_MS : TYPE_SEND_MS,
+      );
+    };
+    typingRef.current = window.setTimeout(tick, TYPE_LEAD_MS);
+  };
+
+  useEffect(() => {
+    runQueryRef.current = runQuery;
+    driveRef.current = { send: sendTyped, idle };
+  });
+
+  useEffect(() => {
+    if (!driveKey) return;
+    return registerAgentDrive(driveKey, {
+      send: (text, opts) => driveRef.current.send(text, opts),
+      idle: () => driveRef.current.idle(),
+      field: () => inputRef.current,
+    });
+  }, [driveKey]);
 
   // Mirrors the app's interrupt: the turn in flight settles where it stands
   // and the composer is free again.
@@ -348,6 +423,7 @@ export function AgentTerminal({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    cancelTyping();
     const text = input.trim();
     if (!text) return;
     if (busy) stop();
@@ -443,7 +519,12 @@ export function AgentTerminal({
       />
       <AgentComposer
         value={input}
-        onChange={setInput}
+        onChange={(value) => {
+          // Typing over a prompt the tour is still entering is the visitor
+          // taking the composer back.
+          cancelTyping();
+          setInput(value);
+        }}
         onSubmit={onSubmit}
         busy={busy}
         placeholder={busy ? "Working… send to interrupt" : `Send to ${b.name}…`}
@@ -454,25 +535,7 @@ export function AgentTerminal({
           ? history[history.length - 1].startedAt
           : undefined}
         trailing={<ComposerModelPicker agent={agent} pick={pick} onPick={applyPick} />}
-      >
-        {history.length === 0 && !busy && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => {
-                  setInput("");
-                  runQuery(suggestion);
-                }}
-                className={`rounded-full border border-[#2e2e2e] bg-[#242424] px-2.5 py-1 text-[10px] hover:bg-[#2a2a2a] ${b.color} ${PRESS} ${FOCUS_RING}`}
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        )}
-      </AgentComposer>
+      />
     </div>
   );
 }
