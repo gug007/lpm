@@ -11,7 +11,7 @@
 // A change to any provider emits `agent-limits-changed` with the full snapshot,
 // suppressing no-op re-emits like status.rs's should_replace.
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
@@ -24,7 +24,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 const CODEX_TAIL_BYTES: u64 = 1 << 20; // read at most the last 1 MiB of a rollout
 const WATCH_SETTLE: Duration = Duration::from_millis(500);
 
-#[derive(Serialize, Clone, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LimitWindow {
     pub used_percent: f64,
@@ -34,7 +34,7 @@ pub struct LimitWindow {
 /// One provider's latest limits. `provider` is "claude" or "codex"; `account_id`
 /// is set for Claude (per CLAUDE_CONFIG_DIR account) and absent for Codex.
 /// `updated_at` is unix millis, used by the UI to dim stale meters.
-#[derive(Serialize, Clone, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderLimits {
     pub provider: String,
@@ -144,6 +144,55 @@ impl AgentLimitsStore {
 
     pub fn snapshot(&self) -> HashMap<String, ProviderLimits> {
         self.entries.read().unwrap().clone()
+    }
+}
+
+/// Claude limits reach the app only through a live session's status line, so
+/// the last reading is kept on disk and shown again right after a relaunch,
+/// the way Codex's meter comes straight from its own session files.
+fn limits_path() -> PathBuf {
+    crate::config::lpm_dir().join("agent-limits.json")
+}
+
+fn persist_claude(store: &AgentLimitsStore) {
+    let claude: HashMap<String, ProviderLimits> = store
+        .snapshot()
+        .into_iter()
+        .filter(|(k, _)| k.starts_with("claude:"))
+        .collect();
+    if let Err(e) = persist_claude_at(&limits_path(), &claude) {
+        eprintln!("warning: failed to save agent limits: {e}");
+    }
+}
+
+fn persist_claude_at(path: &Path, claude: &HashMap<String, ProviderLimits>) -> std::io::Result<()> {
+    let bytes = serde_json::to_vec_pretty(claude).map_err(std::io::Error::other)?;
+    crate::fsatomic::write(path, &bytes, crate::fsatomic::Mode::Preserve(0o644))
+}
+
+/// The saved readings with any window that has already reset dropped; a reading
+/// left with no window is not worth a row.
+fn load_claude_at(path: &Path, now: i64) -> HashMap<String, ProviderLimits> {
+    let Ok(bytes) = std::fs::read(path) else {
+        return HashMap::new();
+    };
+    let saved: HashMap<String, ProviderLimits> = serde_json::from_slice(&bytes).unwrap_or_default();
+    let live = |w: Option<LimitWindow>| w.filter(|w| w.resets_at == 0 || w.resets_at > now);
+    saved
+        .into_iter()
+        .filter(|(k, _)| k.starts_with("claude:"))
+        .filter_map(|(k, mut l)| {
+            l.five_hour = live(l.five_hour.take());
+            l.weekly = live(l.weekly.take());
+            (l.five_hour.is_some() || l.weekly.is_some()).then_some((k, l))
+        })
+        .collect()
+}
+
+pub fn load_persisted(store: &AgentLimitsStore) {
+    let now = now_secs();
+    for (k, l) in load_claude_at(&limits_path(), now) {
+        store.set(&k, l, now);
     }
 }
 
@@ -323,6 +372,8 @@ fn refresh_codex(app: &AppHandle, store: &AgentLimitsStore) {
 /// filesystem work runs off the UI thread.
 pub fn start(app: AppHandle) {
     let store = app.state::<Arc<AgentLimitsStore>>().inner().clone();
+    load_persisted(&store);
+    emit_snapshot(&app, &store);
 
     let dir = codex_sessions_dir();
     if !dir.exists() {
@@ -444,8 +495,12 @@ pub fn ingest_from_socket(
         return "ERROR: invalid JSON payload".into();
     };
     if let Some(limits) = parse_claude_payload(account_id, &payload, now_millis()) {
-        if store.set(&claude_store_key(account_id), limits, now_secs()) {
+        let changed = store.set(&claude_store_key(account_id), limits, now_secs());
+        if changed {
             emit_snapshot(app, store);
+        }
+        if changed || !limits_path().exists() {
+            persist_claude(store);
         }
     }
     "OK".into()
@@ -455,6 +510,57 @@ pub fn ingest_from_socket(
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn claude_readings_round_trip_and_drop_reset_windows() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("agent-limits.json");
+        let window = |used_percent: f64, resets_at: i64| LimitWindow {
+            used_percent,
+            resets_at,
+        };
+        let mut saved = HashMap::new();
+        saved.insert(
+            "claude:default".to_string(),
+            ProviderLimits {
+                provider: "claude".into(),
+                account_id: Some("default".into()),
+                label: Some("max".into()),
+                five_hour: Some(window(40.0, 50)),
+                weekly: Some(window(22.0, 5_000)),
+                updated_at: 7,
+            },
+        );
+        saved.insert(
+            "claude:old".to_string(),
+            ProviderLimits {
+                provider: "claude".into(),
+                five_hour: Some(window(90.0, 10)),
+                ..Default::default()
+            },
+        );
+        saved.insert(
+            "codex".to_string(),
+            ProviderLimits {
+                provider: "codex".into(),
+                ..Default::default()
+            },
+        );
+        persist_claude_at(&path, &saved).unwrap();
+
+        let loaded = load_claude_at(&path, 100);
+        assert_eq!(
+            loaded.len(),
+            1,
+            "the fully reset account and the codex entry are gone"
+        );
+        let l = &loaded["claude:default"];
+        assert!(l.five_hour.is_none(), "the five-hour window had reset");
+        assert_eq!(l.weekly.as_ref().unwrap().used_percent, 22.0);
+        assert_eq!(l.label.as_deref(), Some("max"));
+        assert_eq!(l.updated_at, 7);
+        assert!(load_claude_at(&dir.path().join("missing.json"), 100).is_empty());
+    }
 
     #[test]
     fn codex_maps_windows_by_duration_not_position() {

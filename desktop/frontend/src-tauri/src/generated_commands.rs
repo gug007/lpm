@@ -137,6 +137,7 @@ macro_rules! all_command_handlers {
             delete_job_history,
             job_history,
             job_live_output,
+            lesson_reply,
             list_all_jobs,
             list_jobs,
             mark_job_seen,

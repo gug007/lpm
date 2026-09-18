@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// node make.js <lesson-slug> [--no-audio] [--frames] [--mux-only]
+// node make.js <lesson-slug> [--no-audio] [--frames] [--mux-only] [--demo|--app]
+//                             [--keep-state] [--lpm-dir <dir>] [--dom-mouse]
 //                             [--variant name] [--voice ash] [--style "how to read it"]
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
-const { openStage, alignWords, OUT } = require("./stage");
-const { Recorder } = require("./recorder");
+const { OUT, FRAME, ZOOM } = require("./stage");
+const { alignWords } = require("./words");
+const { recordDemo, recordApp, renderTimelineCards } = require("./record");
+const { videoGraph, frameAssets } = require("./compose");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -14,10 +17,10 @@ const opt = (name, def) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : def;
 };
-const VALUE_FLAGS = ["--voice", "--style", "--variant", "--music"];
+const VALUE_FLAGS = ["--voice", "--style", "--variant", "--music", "--lpm-dir"];
 const slug = args.find((a, i) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[i - 1]));
 if (!slug) {
-  console.error("usage: node make.js <lesson-slug> [--no-audio] [--frames] [--mux-only] [--variant name] [--voice ash] [--style text]");
+  console.error("usage: node make.js <lesson-slug> [--no-audio] [--frames] [--mux-only] [--demo|--app] [--keep-state] [--variant name] [--voice ash] [--style text]");
   process.exit(1);
 }
 
@@ -29,13 +32,11 @@ const DEFAULT_VOICE = "marin";
 const DEFAULT_STYLE =
   "Talk like a real person casually showing a colleague the app over their shoulder: relaxed, natural, everyday intonation with small pauses. Not a voiceover artist or announcer, no over-enunciation, moderate pace.";
 const MUSIC_UNDER_VOICE_LU = 14;
-const GAP_MS = 450;
-const LEAD_MS = 500;
 const SILENT_MS = 3000;
-const TAIL_MS = 1800;
 
 const lesson = JSON.parse(fs.readFileSync(path.join(DIR, "lesson.json"), "utf8"));
 const beats = require(path.join(DIR, "beats.js"));
+const source = flag("--demo") ? "demo" : flag("--app") ? "app" : lesson.source || "app";
 const VOICE = opt("--voice", lesson.voice || DEFAULT_VOICE);
 const TTS_STYLE = opt("--style", lesson.style || DEFAULT_STYLE);
 const variant = opt("--variant", null);
@@ -157,56 +158,39 @@ async function record(lines) {
     fs.rmSync(framesDir, { recursive: true, force: true });
     fs.mkdirSync(framesDir, { recursive: true });
   }
-  const { stage, page, close } = await openStage({
-    url: DEMO_URL,
-    framesDir: flag("--frames") ? framesDir : null,
-    log: (m) => console.log(`  ${((Date.now() - t0) / 1000).toFixed(2)}s ${m}`),
-  });
-  let t0 = Date.now();
-  await stage.frame("stage");
-  await stage.cover();
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const rec = new Recorder(raw);
-  await page.screencast.start({ size: OUT, quality: 92, onFrame: (f) => rec.frame(f) });
-  const startedAt = Date.now();
-  for (let n = 0; !rec.started && Date.now() - startedAt < 5000; n++) {
-    await stage.repaint(n);
-    await stage.hold(20);
-  }
-  if (!rec.started) throw new Error("screencast never moved past its first frame");
-  t0 = rec.startWall;
-  await stage.hold(LEAD_MS);
-  const timeline = [];
-  for (const [i, line] of lines.entries()) {
-    const beat = beats[line.id];
-    if (!beat) throw new Error(`no beat for narration line "${line.id}"`);
-    const startMs = Date.now() - t0;
-    console.log(`beat ${line.id} @ ${(startMs / 1000).toFixed(2)}s`);
-    stage.beginLine(line);
-    await beat(stage, line);
-    if (process.env.DEBUG_CARD) console.log(`  card after ${line.id}:`, JSON.stringify(await stage.cardState()));
-    if (i === 0 && (await stage.isCovered())) await stage.reveal();
-    await stage.frame(line.id);
-    const rest = startMs + line.ms + GAP_MS - (Date.now() - t0);
-    if (rest > 0) await stage.hold(rest);
-    timeline.push({ id: line.id, startMs, ms: line.ms });
-  }
-  await stage.hold(TAIL_MS);
-  if (process.env.DEBUG_CARD) console.log("  card at end:", JSON.stringify(await stage.cardState()));
-  await stage.frame("end");
-  const totalMs = Date.now() - t0;
-  await page.screencast.stop();
-  await rec.stop(totalMs);
-  await close();
-  fs.writeFileSync(timelineFile, JSON.stringify({ totalMs, lines: timeline }, null, 2));
-  console.log(`recorded ${(totalMs / 1000).toFixed(1)}s (${VOICE}) -> ${raw}`);
+  const common = { lines, beats, raw, framesDir: flag("--frames") ? framesDir : null, voice: VOICE };
+  const timeline =
+    source === "demo"
+      ? await recordDemo({ ...common, url: DEMO_URL })
+      : await recordApp({
+          ...common,
+          lesson,
+          dir: DIR,
+          lpmDir: opt("--lpm-dir", process.env.LPM_LESSON_DIR || path.join(os.homedir(), ".lpm-lessons")),
+          keepState: flag("--keep-state"),
+          mouse: flag("--dom-mouse") ? "dom" : "real",
+        });
+  fs.writeFileSync(timelineFile, JSON.stringify(timeline, null, 2));
+  console.log(`recorded ${(timeline.totalMs / 1000).toFixed(1)}s (${VOICE}) -> ${raw}`);
 }
 
-// Integrated loudness (LUFS) of a file, or of a filter graph's [out] label.
+// An app take's topic cards as clips, rendered once per take (or again when
+// their files are gone).
+async function ensureCards() {
+  if (source === "demo") return;
+  const timeline = JSON.parse(fs.readFileSync(timelineFile, "utf8"));
+  const have = timeline.cardFiles && timeline.cardFiles.length === (timeline.cards || []).length && timeline.cardFiles.every((f) => fs.existsSync(f));
+  if (have) return;
+  timeline.cardFiles = await renderTimelineCards(timeline, DIR);
+  fs.writeFileSync(timelineFile, JSON.stringify(timeline, null, 2));
+  console.log(`cards: ${timeline.cardFiles.length} clip(s)`);
+}
+
+// Integrated loudness (LUFS) of a filter graph's [out] label over `inputs`.
 function lufs(inputs, filter) {
   const r = spawnSync(
     "ffmpeg",
-    ["-hide_banner", "-nostats", ...inputs, ...(filter ? ["-filter_complex", `${filter};[out]ebur128=framelog=quiet[m]`, "-map", "[m]"] : ["-af", "ebur128=framelog=quiet"]), "-f", "null", "-"],
+    ["-hide_banner", "-nostats", ...inputs, "-filter_complex", `${filter};[out]ebur128=framelog=quiet[m]`, "-map", "[m]", "-f", "null", "-"],
     { encoding: "utf8" },
   );
   const m = /I:\s+(-?[\d.]+) LUFS/.exec(r.stderr.split("Summary").pop() || "");
@@ -214,42 +198,55 @@ function lufs(inputs, filter) {
   return parseFloat(m[1]);
 }
 
-function mux(lines) {
-  const { totalMs, lines: timeline } = JSON.parse(fs.readFileSync(timelineFile, "utf8"));
+// The narration bus: every clip delayed to its slot, summed. `base` is the
+// ffmpeg input index of the first clip.
+function voiceGraph(spokenLines, base) {
+  const delays = spokenLines.map((l, n) => `[${base + n}]adelay=${l.startMs}|${l.startMs}[a${n}]`);
+  const labels = spokenLines.map((_, n) => `[a${n}]`).join("");
+  return `${delays.join(";")};${labels}amix=inputs=${spokenLines.length}:normalize=0:dropout_transition=0`;
+}
+
+async function mux(lines) {
+  const timeline = JSON.parse(fs.readFileSync(timelineFile, "utf8"));
+  const { totalMs } = timeline;
+  const spokenLines = timeline.lines
+    .map((t) => ({ ...t, line: lines.find((l) => l.id === t.id) }))
+    .filter((t) => !t.line.silent);
   const inputs = ["-i", raw];
-  const delays = [];
-  const labels = [];
-  for (const t of timeline) {
-    const line = lines.find((l) => l.id === t.id);
-    if (line.silent) continue;
-    const n = labels.length;
-    inputs.push("-i", line.wav);
-    delays.push(`[${n + 1}]adelay=${t.startMs}|${t.startMs}[a${n}]`);
-    labels.push(`[a${n}]`);
+  let video = { filter: null, label: "0:v" };
+  if (source !== "demo") {
+    const box = { x: ((OUT.width / ZOOM - FRAME.width) / 2) * ZOOM, y: ((OUT.height / ZOOM - FRAME.height) / 2) * ZOOM, w: FRAME.width * ZOOM, h: FRAME.height * ZOOM };
+    const assets = await frameAssets(path.join(ROOT, "_frame"), { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
+    video = videoGraph({ ...assets, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], totalMs });
+    inputs.push(...video.inputs);
   }
-  const voice = `${delays.join(";")};${labels.join("")}amix=inputs=${labels.length}:normalize=0:dropout_transition=0`;
-  let filter = `${voice},apad[a]`;
+  const base = 1 + (video.count || 0);
+  for (const t of spokenLines) inputs.push("-i", t.line.wav);
+  const voice = voiceGraph(spokenLines, base);
+  let audio = `${voice},apad[a]`;
   const bed = music && fs.existsSync(music) ? music : null;
   if (music && !bed) console.log(`no music: ${music} is missing`);
   if (bed) {
     // The bed sits a fixed distance under the narration's own loudness, ducks
     // further while a line is spoken, and fades over the opening and closing cards.
-    const voiceLufs = lufs(inputs.slice(2), voice.replace(/\[(\d+)\]adelay/g, (_, i) => `[${i - 1}]adelay`) + "[out]");
-    const gainDb = voiceLufs - MUSIC_UNDER_VOICE_LU - lufs(["-i", bed]);
+    const wavInputs = spokenLines.flatMap((t) => ["-i", t.line.wav]);
+    const voiceLufs = lufs(wavInputs, voiceGraph(spokenLines, 0) + "[out]");
+    const gainDb = voiceLufs - MUSIC_UNDER_VOICE_LU - lufs(["-i", bed], "[0:a]anull[out]");
     const T = (totalMs / 1000).toFixed(3);
-    const m = inputs.length / 2;
+    const m = base + spokenLines.length;
     inputs.push("-stream_loop", "-1", "-i", bed);
-    filter =
+    audio =
       `${voice},apad,asplit=2[v1][v2];` +
       `[${m}]atrim=0:${T},volume=${gainDb.toFixed(1)}dB,afade=t=in:st=0:d=2.5,afade=t=out:st=${(totalMs / 1000 - 2).toFixed(3)}:d=2[m0];` +
       `[m0][v2]sidechaincompress=threshold=0.03:ratio=4:attack=150:release=600[m1];` +
       `[v1][m1]amix=inputs=2:normalize=0:dropout_transition=0,apad[a]`;
     console.log(`music: ${path.basename(bed)} at ${gainDb.toFixed(1)} dB (voice ${voiceLufs.toFixed(1)} LUFS)`);
   }
+  const filter = video.filter ? `${video.filter};${audio}` : audio;
   const argv = [
     "-y", ...inputs,
     "-filter_complex", filter,
-    "-map", "0:v", "-map", "[a]",
+    "-map", video.label, "-map", "[a]",
     "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", "30",
     "-c:a", "aac", "-b:a", "192k",
     "-t", (totalMs / 1000).toFixed(3),
@@ -264,7 +261,10 @@ function mux(lines) {
 (async () => {
   const lines = await prepareAudio();
   if (!flag("--mux-only")) await record(lines);
-  if (!flag("--no-audio")) mux(lines);
+  if (!flag("--no-audio")) {
+    await ensureCards();
+    await mux(lines);
+  }
 })().catch((e) => {
   console.error(e);
   process.exit(1);

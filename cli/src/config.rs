@@ -21,12 +21,21 @@ pub struct Ctx {
 }
 
 impl Ctx {
-    /// The real `~/.lpm` (falls back to `./.lpm` if there's no home dir).
-    /// LPM_SOCKET_PATH (injected into lpm-spawned terminals) overrides the
-    /// socket so the CLI talks to the instance that owns the terminal — e.g. a
-    /// dev build running beside the installed app.
+    /// The real `~/.lpm` (falls back to `./.lpm` if there's no home dir), or
+    /// LPM_DIR when set — the same override the desktop app honours, so a
+    /// terminal spawned by an app instance on its own data directory sees that
+    /// instance's projects. LPM_SOCKET_PATH (injected into lpm-spawned
+    /// terminals) overrides the socket so the CLI talks to the instance that
+    /// owns the terminal — e.g. a dev build running beside the installed app.
     pub fn from_home() -> Self {
-        let lpm_dir = dirs::home_dir().unwrap_or_default().join(".lpm");
+        let home = dirs::home_dir().unwrap_or_default();
+        let lpm_dir = match std::env::var_os("LPM_DIR").filter(|v| !v.is_empty()) {
+            Some(v) => match v.to_string_lossy().strip_prefix("~/") {
+                Some(rest) => home.join(rest),
+                None => PathBuf::from(v),
+            },
+            None => home.join(".lpm"),
+        };
         let socket_override = std::env::var_os("LPM_SOCKET_PATH")
             .filter(|p| !p.is_empty())
             .map(PathBuf::from);

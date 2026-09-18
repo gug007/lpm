@@ -9,8 +9,29 @@ use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
+/// Overrides the data directory. A second instance pointed at its own directory
+/// (a lesson recording, a test) runs beside the real app without touching its
+/// projects, settings, sockets or history.
+pub const DIR_ENV: &str = "LPM_DIR";
+
 pub fn lpm_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join(".lpm")
+    resolve_lpm_dir(
+        std::env::var_os(DIR_ENV),
+        dirs::home_dir().unwrap_or_default(),
+    )
+}
+
+fn resolve_lpm_dir(env: Option<std::ffi::OsString>, home: PathBuf) -> PathBuf {
+    match env.filter(|v| !v.is_empty()) {
+        Some(v) => {
+            let raw = v.to_string_lossy();
+            match raw.strip_prefix("~/") {
+                Some(rest) => home.join(rest),
+                None => PathBuf::from(v),
+            }
+        }
+        None => home.join(".lpm"),
+    }
 }
 
 pub fn projects_dir() -> PathBuf {
@@ -3558,5 +3579,34 @@ mod seeded_global_tests {
             assert!(!info.emoji.is_empty());
             assert!(info.children.is_empty());
         }
+    }
+}
+
+#[cfg(test)]
+mod lpm_dir_tests {
+    use super::resolve_lpm_dir;
+    use std::path::PathBuf;
+
+    #[test]
+    fn defaults_to_dot_lpm_under_home() {
+        let home = PathBuf::from("/Users/x");
+        assert_eq!(resolve_lpm_dir(None, home.clone()), home.join(".lpm"));
+        assert_eq!(
+            resolve_lpm_dir(Some("".into()), home.clone()),
+            home.join(".lpm")
+        );
+    }
+
+    #[test]
+    fn env_override_absolute_and_tilde() {
+        let home = PathBuf::from("/Users/x");
+        assert_eq!(
+            resolve_lpm_dir(Some("/tmp/lessons".into()), home.clone()),
+            PathBuf::from("/tmp/lessons")
+        );
+        assert_eq!(
+            resolve_lpm_dir(Some("~/.lpm-lessons".into()), home.clone()),
+            home.join(".lpm-lessons")
+        );
     }
 }

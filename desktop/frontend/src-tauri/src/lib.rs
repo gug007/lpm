@@ -47,6 +47,7 @@ mod gitwatchhost;
 mod gitworkstate;
 mod hooks;
 mod jobs;
+mod lesson;
 mod log_streaming;
 mod mainwindow;
 mod mdns;
@@ -156,6 +157,7 @@ use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitsync::{sync_project_cancel, sync_project_start};
 use hooks::*;
 use jobs::*;
+use lesson::*;
 use log_streaming::*;
 use message_history::*;
 use notes_cmds::*;
@@ -259,6 +261,7 @@ pub fn run() {
         .manage(sshsync::SyncState::default())
         .manage(browser::BrowserState::default())
         .manage(remote::RemoteHub::default())
+        .manage(lesson::LessonState::default())
         .manage(peer_hub.clone())
         .manage(peer_client_hub)
         .on_menu_event(menu::handle_event)
@@ -277,6 +280,7 @@ pub fn run() {
         .setup(|app| {
             firstlaunch::seed_global_actions();
             let handle = app.handle().clone();
+            lesson::start(handle.clone());
             if let Err(e) = menu::build_and_set(&handle) {
                 eprintln!("warning: failed to set app menu: {e}");
             }
@@ -345,20 +349,29 @@ pub fn run() {
             follow.start();
             app.manage(follow);
 
+            // A lesson recording runs on a throwaway data directory and has to
+            // leave the rest of the machine alone: nothing below that writes into
+            // the user's own Claude/Codex setup, CLI symlink or tmux runs there.
+            let chores = !lesson::active();
+
             // Install agent status hooks (Claude Code / Codex) so they report to
             // the socket. Backgrounded — touches files, never blocks startup.
-            std::thread::spawn(hooks::install_agent_hooks);
+            if chores {
+                std::thread::spawn(hooks::install_agent_hooks);
+            }
 
             // Silently refresh what the user already opted into installing:
             // stale agent skills and active status-line presets get re-written,
             // and a stale CLI symlink gets repointed. Foreign installs stay alone.
             // On a headless host the skills are installed here outright — there
             // is no pane to opt in from; see refresh_at_startup.
-            std::thread::spawn(|| {
-                skill_install::refresh_at_startup();
-                cli_install::repair_symlink_quietly();
-                hooks::reapply_claude_limits_if_enabled();
-                hooks::refresh_active_claude_statusline_template();
+            std::thread::spawn(move || {
+                if chores {
+                    skill_install::refresh_at_startup();
+                    cli_install::repair_symlink_quietly();
+                    hooks::reapply_claude_limits_if_enabled();
+                    hooks::refresh_active_claude_statusline_template();
+                }
                 session_memory::cleanup_at_startup();
                 session_memory_scope::adopt_duplicate_memory_at_startup();
             });
@@ -366,7 +379,10 @@ pub fn run() {
             // Check for updates on startup, then every 24h while the app runs
             // (the window may be hidden). The Sidebar also pulls on mount, so the
             // launch notification never depends on the startup emit's timing.
-            updates::start_auto_check(handle.clone());
+            // A lesson recording must not surface an update banner mid-video.
+            if chores {
+                updates::start_auto_check(handle.clone());
+            }
 
             // Scheduled-jobs runner: a wall-clock tick that fires per-project
             // jobs on their schedule. Same sleep-survival model as the updater.
@@ -381,7 +397,9 @@ pub fn run() {
                 // Before anything else on this thread: services left running by
                 // the tmux-era build are invisible to this one, and a start
                 // would collide with the ports they still hold.
-                tmuxmigrate::run_once();
+                if chores {
+                    tmuxmigrate::run_once();
+                }
                 clipboard::reap_stale_clipboard_images();
                 sshsync::prune_orphan_sync_dirs(&config::project_names().into_iter().collect());
                 portforward::resume_port_pollers(&h2);
