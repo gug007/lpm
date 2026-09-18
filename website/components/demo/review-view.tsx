@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
-import type { ChangedFile, DemoGit, DemoProject, DiffLine } from "./projects";
+import { numberDiff } from "./diff-lines";
+import type { ChangedFile, DemoGit, DemoProject } from "./projects";
 import { ReviewFileTree } from "./review-file-tree";
 import { FOCUS_RING, PRESS } from "./ui";
 import { SegmentedControl } from "./ui-kit";
@@ -26,28 +27,6 @@ const STATUS_DOT = {
 } as const;
 
 const ZOOM_BUTTON = `flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sm leading-none text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#919191] ${FOCUS_RING}`;
-
-type DiffRow = { line: DiffLine; oldNo: number | null; newNo: number | null };
-
-// Monaco shows the original and modified line numbers side by side; the hunk
-// header is what re-seeds both counters.
-function numberDiff(lines: DiffLine[]): DiffRow[] {
-  let oldNo = 1;
-  let newNo = 1;
-  return lines.map((line) => {
-    if (line.t === "hunk") {
-      const at = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line.text);
-      if (at) {
-        oldNo = Number(at[1]);
-        newNo = Number(at[2]);
-      }
-      return { line, oldNo: null, newNo: null };
-    }
-    if (line.t === "add") return { line, oldNo: null, newNo: newNo++ };
-    if (line.t === "del") return { line, oldNo: oldNo++, newNo: null };
-    return { line, oldNo: oldNo++, newNo: newNo++ };
-  });
-}
 
 function ReviewHeader({
   project,

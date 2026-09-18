@@ -2,12 +2,11 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
+import { MenuButton } from "./menu-button";
+import { MENU_PANEL_CLASS, MenuLayer } from "./menu-layer";
 import { Tooltip } from "./tooltip";
 import { FOCUS_RING, PRESS } from "./ui";
 import {
-  ChevronDown,
-  Code,
-  Globe,
   Pencil,
   Pin,
   PinOff,
@@ -22,91 +21,21 @@ export const SUGGESTED_EMOJIS = [
   "📦", "🛠️", "💻", "🎨", "⭐", "💡", "📁", "📊",
 ];
 
-const MENU_PANEL_CLASS =
-  "menu-pop fixed z-[70] overflow-hidden rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] py-1 shadow-lg";
-
-/** The "+" new-tab control, now a split button: terminal by default, with a
- *  dropdown for opening an in-pane browser. Mirrors the desktop app. */
-export function AddTabSplitButton({
-  onAddTerminal,
-  onAddBrowser,
-  onAddReview,
-}: {
-  onAddTerminal: () => void;
-  onAddBrowser: () => void;
-  onAddReview: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-
-  const toggle = () => {
-    if (menu) {
-      setMenu(null);
-      return;
-    }
-    const r = ref.current?.getBoundingClientRect();
-    if (r) setMenu({ x: r.left, y: r.bottom + 4 });
-  };
-
-  const half = `flex h-6 items-center justify-center rounded-md text-[#8e8e8e] hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`;
-
+/** The "+" new-tab control. A plain button, the way the app's
+ *  AddTerminalButton is: everything else a pane can open lives in the header's
+ *  "more" menu now. */
+export function AddTabButton({ onAddTerminal }: { onAddTerminal: () => void }) {
   return (
-    <div ref={ref} className="ml-1.5 flex shrink-0 items-center gap-px">
-      <Tooltip content="New terminal  ·  ⌘T" side="bottom">
-        <button
-          type="button"
-          onClick={onAddTerminal}
-          aria-label="New terminal"
-          className={`${half} px-1.5`}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      </Tooltip>
-      <span className="h-3 w-px shrink-0 bg-[rgba(255,255,255,0.09)]" />
-      <Tooltip content="More options" side="bottom">
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label="More options"
-          aria-haspopup="menu"
-          aria-expanded={!!menu}
-          className={`${half} px-1 ${
-            menu
-              ? "bg-[rgba(255,255,255,0.1)] text-[#e5e5e5]"
-              : "opacity-70 hover:opacity-100"
-          }`}
-        >
-          <ChevronDown className="h-3 w-3" />
-        </button>
-      </Tooltip>
-      {menu && (
-        <MenuLayer onClose={() => setMenu(null)}>
-          <div
-            role="menu"
-            style={{ left: menu.x, top: menu.y, minWidth: 180 }}
-            className={MENU_PANEL_CLASS}
-          >
-            <MenuButton
-              icon={<Code className="h-3.5 w-3.5" />}
-              label="Review changes"
-              hint="⌘⇧R"
-              onClick={() => {
-                onAddReview();
-                setMenu(null);
-              }}
-            />
-            <MenuButton
-              icon={<Globe className="h-3.5 w-3.5" />}
-              label="Open browser"
-              onClick={() => {
-                onAddBrowser();
-                setMenu(null);
-              }}
-            />
-          </div>
-        </MenuLayer>
-      )}
-    </div>
+    <Tooltip content="New terminal  ·  ⌘T" side="bottom">
+      <button
+        type="button"
+        onClick={onAddTerminal}
+        aria-label="New terminal"
+        className={`ml-1.5 flex h-6 shrink-0 items-center justify-center rounded-md px-1.5 text-[#8e8e8e] transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
+    </Tooltip>
   );
 }
 
@@ -307,58 +236,6 @@ function TabRenameForm({
   );
 }
 
-function MenuLayer({
-  children,
-  onClose,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  const anchorRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      onClose();
-    };
-    // The menu sits at coordinates captured on open, so a scroll that moves its
-    // trigger strands it. Only scrollers that contain the trigger count — the
-    // terminal panes stream output and scroll themselves constantly.
-    const onScroll = (e: Event) => {
-      const anchor = anchorRef.current;
-      const target = e.target as Node | null;
-      if (!anchor || !target || !target.contains(anchor)) return;
-      onClose();
-    };
-    const dismiss = () => onClose();
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", dismiss);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", dismiss);
-    };
-  }, [onClose]);
-  return (
-    <>
-      <button
-        ref={anchorRef}
-        type="button"
-        aria-label="Close menu"
-        onMouseDown={onClose}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          onClose();
-        }}
-        className="fixed inset-0 z-[65] cursor-default"
-      />
-      {children}
-    </>
-  );
-}
-
 /** Text field with a leading emoji-picker trigger and a popover of suggested
  *  icons. Render the `<input>` (or any field) as the child. */
 export function EmojiPickerField({
@@ -436,36 +313,5 @@ export function EmojiPickerField({
         </div>
       )}
     </div>
-  );
-}
-
-function MenuButton({
-  icon,
-  label,
-  onClick,
-  danger,
-  hint,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  danger?: boolean;
-  hint?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitem"
-      onClick={onClick}
-      className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-[#2a2a2a] ${
-        danger ? "text-[#f87171]" : "text-[#b3b3b3] hover:text-[#e5e5e5]"
-      }`}
-    >
-      <span className="shrink-0 text-[#919191]">{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
-      {hint && (
-        <span className="shrink-0 font-mono text-[10px] text-[#919191]">{hint}</span>
-      )}
-    </button>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Terminal } from "lucide-react";
 import { InteractiveTerminal } from "./interactive-terminal";
-import { PaneHeader, type TabInfo } from "./terminal-pane";
+import { PaneHeader, type TabInfo } from "./pane-header";
 import { FOCUS_RING, PRESS } from "./ui";
 
 type Split = "none" | "right" | "down";

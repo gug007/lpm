@@ -65,6 +65,7 @@ export type DemoBranch = {
 export type ReplyContext = {
   manifest: string;
   manifestLines: string;
+  readmeLines: string;
   sourceGlob: string;
   sourceMatches: string;
   overview: string;
@@ -77,6 +78,7 @@ export type ReplyContext = {
   focusArea: string;
   hotspotDir: string;
   deployFile: string;
+  deployLines: string;
   deployCmd: string;
   draftFile: string;
   wireTarget: string;
@@ -301,7 +303,7 @@ const PROJECTS: DemoProject[] = [
         // one the Review tab and `git status` both deny. This session is caught
         // earlier, still sizing the migration up.
         autoSteps: [
-          { kind: "tool", label: "Read", arg: "db/schema.rb", result: "212 lines" },
+          { kind: "tool", label: "Read", arg: "db/schema.rb", result: "25 lines" },
           {
             kind: "tool",
             label: "Bash",
@@ -312,7 +314,7 @@ const PROJECTS: DemoProject[] = [
             kind: "text",
             text: "Storing prices as floats rounds badly at the seam between Stripe and the ledger. Moving the column to integer cents needs a migration and a backfill — reading what the model does with it today first.",
           },
-          { kind: "tool", label: "Read", arg: "app/models/plan.rb", result: "88 lines" },
+          { kind: "tool", label: "Read", arg: "app/models/plan.rb", result: "14 lines" },
           {
             kind: "tool",
             label: "Ran",
@@ -337,12 +339,12 @@ const PROJECTS: DemoProject[] = [
           { text: "$ pnpm test", color: "green", delay: 50 },
           { text: "> vitest run", color: "muted", delay: 150 },
           { text: "", delay: 300 },
-          { text: " ✓ src/lib/auth.test.ts (4)", color: "green", delay: 500 },
-          { text: " ✓ src/lib/utils.test.ts (7)", color: "green", delay: 750 },
+          { text: " ✓ src/lib/auth.test.ts (3)", color: "green", delay: 500 },
+          { text: " ✓ src/lib/utils.test.ts (3)", color: "green", delay: 750 },
           { text: " ✓ src/components/button.test.tsx (3)", color: "green", delay: 950 },
           { text: "", delay: 1000 },
           { text: " Test Files  3 passed (3)", color: "default", delay: 1100 },
-          { text: "      Tests  14 passed (14)", color: "default", delay: 1150 },
+          { text: "      Tests  9 passed (9)", color: "default", delay: 1150 },
         ],
       },
       {
@@ -387,22 +389,24 @@ const PROJECTS: DemoProject[] = [
     ],
     replyContext: {
       manifest: "package.json",
-      manifestLines: "42 lines",
+      readmeLines: "28 lines",
+      manifestLines: "26 lines",
       sourceGlob: "src/**/*.ts",
-      sourceMatches: "86 matches",
+      sourceMatches: "10 matches",
       overview:
         "Next.js frontend in `src/`, Rails API at the repo root (`app/`, `db/`, `bin/`), Sidekiq workers for async jobs.",
       flows:
         "Main flows: auth, billing, dashboard, teams. Want a deeper dive on any of them?",
       testCmd: "pnpm test",
-      testResult: "14 passed in 2.1s",
+      testResult: "9 passed in 2.1s",
       testSummary:
-        "All 14 tests green. Auth, utils, and the button component all passed.",
+        "All 9 tests green. Auth, utils, and the button component all passed.",
       focusFile: "src/lib/billing.ts",
-      focusLines: "142 lines",
+      focusLines: "29 lines",
       focusArea: "the billing module",
       hotspotDir: "src/lib/",
       deployFile: "scripts/deploy.sh",
+      deployLines: "16 lines",
       deployCmd: "./scripts/deploy.sh production",
       draftFile: "src/lib/entitlements.ts",
       wireTarget: "the router",
@@ -412,12 +416,13 @@ const PROJECTS: DemoProject[] = [
         path: "src/lib/billing.ts",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -14,5 +14,6 @@ export async function createSubscription(" },
+          { t: "hunk", text: "@@ -14,6 +14,7 @@ export async function createSubscription(" },
           { t: "ctx", text: "   const customer = await stripe.customers.create({ email });" },
           { t: "del", text: "-  const price = PRICES[plan];" },
           { t: "add", text: "+  const price = PRICES[plan] ?? PRICES.starter;" },
           { t: "ctx", text: "   return stripe.subscriptions.create({" },
           { t: "ctx", text: "     customer: customer.id," },
+          { t: "ctx", text: "     items: [{ price }]," },
           { t: "add", text: "+    trial_period_days: 14," },
           { t: "ctx", text: "   });" },
         ],
@@ -426,13 +431,14 @@ const PROJECTS: DemoProject[] = [
         path: "src/components/PlanCard.tsx",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -8,4 +8,5 @@ export function PlanCard({ plan }: Props) {" },
+          { t: "hunk", text: "@@ -8,5 +8,6 @@ export function PlanCard({ plan }: Props) {" },
           { t: "ctx", text: "   return (" },
           { t: "del", text: '-    <div className="rounded-lg border p-4">' },
           { t: "add", text: '+    <div className="rounded-xl border p-5 shadow-sm">' },
           { t: "add", text: "+      {plan.popular && <Badge>Most popular</Badge>}" },
           { t: "ctx", text: "       <h3>{plan.name}</h3>" },
-          { t: "ctx", text: "     </div>" },
+          { t: "ctx", text: '       <p className="text-2xl font-semibold">{plan.price}</p>' },
+          { t: "ctx", text: '       <button className="mt-4 w-full rounded-md bg-black py-2 text-white">' },
         ],
       },
       {
@@ -552,9 +558,10 @@ const PROJECTS: DemoProject[] = [
     ],
     replyContext: {
       manifest: "go.mod",
-      manifestLines: "28 lines",
+      readmeLines: "24 lines",
+      manifestLines: "19 lines",
       sourceGlob: "**/*.go",
-      sourceMatches: "64 matches",
+      sourceMatches: "22 matches",
       overview:
         "Go HTTP service in `cmd/server`, JWT auth in `internal/auth`, Postgres access in `internal/db`, Redis for sessions.",
       flows:
@@ -564,10 +571,11 @@ const PROJECTS: DemoProject[] = [
       testSummary:
         "All green across internal/auth, internal/db, and internal/api.",
       focusFile: "internal/auth/jwt.go",
-      focusLines: "212 lines",
+      focusLines: "122 lines",
       focusArea: "internal/auth",
       hotspotDir: "internal/",
       deployFile: "k8s/auth-service.yaml",
+      deployLines: "51 lines",
       deployCmd: "kubectl rollout restart deploy/auth-service",
       draftFile: "internal/auth/handler.go",
       wireTarget: "the router",
@@ -577,7 +585,7 @@ const PROJECTS: DemoProject[] = [
         path: "internal/auth/rotation.go",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -18,7 +18,14 @@ func (m *Manager) Rotate(ctx context.Context, now time.Time) error {" },
+          { t: "hunk", text: "@@ -17,7 +17,14 @@ func (m *Manager) Rotate(ctx context.Context, now time.Time) error {" },
           { t: "ctx", text: " \tnext, err := newSigningKey()" },
           { t: "ctx", text: " \tif err != nil {" },
           { t: "ctx", text: ' \t\treturn fmt.Errorf("rotate signing key: %w", err)' },
@@ -593,7 +601,7 @@ const PROJECTS: DemoProject[] = [
           { t: "add", text: "+\tm.keys = append([]signingKey{next}, m.unexpired(now)...)" },
           { t: "ctx", text: " \tm.activeKID = next.KID" },
           { t: "ctx", text: " \treturn m.store.Put(ctx, m.keys)" },
-          { t: "hunk", text: "@@ -41,0 +48,10 @@" },
+          { t: "hunk", text: "@@ -35,0 +42,10 @@" },
           { t: "add", text: "+// unexpired keeps the keys still inside their grace window." },
           { t: "add", text: "+func (m *Manager) unexpired(now time.Time) []signingKey {" },
           { t: "add", text: "+\tkept := make([]signingKey, 0, len(m.keys))" },
@@ -610,7 +618,7 @@ const PROJECTS: DemoProject[] = [
         path: "internal/auth/jwt.go",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -96,6 +96,11 @@ func Parse(raw string, keys *KeySet) (*Claims, error) {" },
+          { t: "hunk", text: "@@ -102,6 +102,11 @@ func Parse(raw string, keys *KeySet) (*Claims, error) {" },
           { t: "ctx", text: " \ttok, err := jwt.ParseWithClaims(raw, &Claims{}, func(t *jwt.Token) (any, error) {" },
           { t: "del", text: "-\t\treturn keys.Active().Public(), nil" },
           { t: "add", text: '+\t\tkid, _ := t.Header["kid"].(string)' },
@@ -716,7 +724,8 @@ const PROJECTS: DemoProject[] = [
     profiles: [{ name: "default", services: ["site"] }],
     replyContext: {
       manifest: "package.json",
-      manifestLines: "31 lines",
+      readmeLines: "25 lines",
+      manifestLines: "21 lines",
       sourceGlob: "src/content/**/*.mdx",
       sourceMatches: "42 matches",
       overview:
@@ -727,10 +736,11 @@ const PROJECTS: DemoProject[] = [
       testResult: "42 pages in 1.6s",
       testSummary: "Build clean — all 42 pages generated, no broken links.",
       focusFile: "src/content/docs/api/authentication.mdx",
-      focusLines: "96 lines",
+      focusLines: "16 lines",
       focusArea: "the API reference",
       hotspotDir: "src/components/",
       deployFile: "vercel.json",
+      deployLines: "28 lines",
       deployCmd: "vercel deploy --prod",
       draftFile: "src/content/docs/guides/new-guide.mdx",
       wireTarget: "the sidebar nav",
@@ -788,7 +798,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/content/docs/index.mdx",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -12,2 +12,3 @@ Start here if you're new." },
+          { t: "hunk", text: "@@ -17,2 +17,3 @@ Start here if you're new." },
           { t: "ctx", text: " - [Quickstart](/docs/quickstart)" },
           { t: "ctx", text: " - [Authentication](/docs/api/authentication)" },
           { t: "add", text: "+- [Webhooks](/docs/api/webhooks)" },
@@ -798,7 +808,7 @@ const PROJECTS: DemoProject[] = [
         path: "astro.config.mjs",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -6,4 +6,5 @@ export default defineConfig({" },
+          { t: "hunk", text: "@@ -7,4 +7,5 @@ export default defineConfig({" },
           { t: "ctx", text: "   integrations: [" },
           { t: "ctx", text: "     mdx()," },
           { t: "add", text: "+    sitemap()," },
@@ -890,7 +900,7 @@ const PROJECTS: DemoProject[] = [
         ],
         autoAnswerSteps: [
           { kind: "thinking" },
-          { kind: "tool", label: "Bash", arg: "pytest -q", result: "23 passed in 4.8s" },
+          { kind: "tool", label: "Bash", arg: "pytest -q", result: "9 passed in 4.8s" },
           {
             kind: "tool",
             label: "Bash",
@@ -946,22 +956,24 @@ const PROJECTS: DemoProject[] = [
     ],
     replyContext: {
       manifest: "pyproject.toml",
-      manifestLines: "38 lines",
+      readmeLines: "25 lines",
+      manifestLines: "24 lines",
       sourceGlob: "pipeline/**/*.py",
-      sourceMatches: "51 matches",
+      sourceMatches: "15 matches",
       overview:
         "Python training pipeline in `pipeline/`, exploratory notebooks in `notebooks/`, checkpoints under `runs/`.",
       flows:
         "Main stages: ingest, features, train, eval. Want a deeper dive on any of them?",
       testCmd: "pytest -q",
-      testResult: "23 passed in 4.8s",
+      testResult: "9 passed in 4.8s",
       testSummary:
-        "All 23 tests green across features, training, and eval.",
+        "All 9 tests green across features, training, and eval.",
       focusFile: "pipeline/features.py",
-      focusLines: "184 lines",
+      focusLines: "32 lines",
       focusArea: "the feature builder",
       hotspotDir: "pipeline/",
       deployFile: "Makefile",
+      deployLines: "13 lines",
       deployCmd: "make train-full",
       draftFile: "pipeline/transforms.py",
       wireTarget: "the pipeline config",
@@ -971,7 +983,7 @@ const PROJECTS: DemoProject[] = [
         path: "pipeline/features.py",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -28,4 +28,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:" },
+          { t: "hunk", text: "@@ -27,4 +27,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:" },
           { t: "ctx", text: "     df = df.dropna(subset=[\"user_id\"])" },
           { t: "del", text: "-    df[\"amount_norm\"] = df[\"amount\"] / df[\"amount\"].max()" },
           { t: "add", text: "+    # max() leaks the test set into training — scale on the train split only" },
@@ -985,7 +997,7 @@ const PROJECTS: DemoProject[] = [
         path: "pipeline/train.py",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -41,4 +41,6 @@ def train(cfg: Config) -> Path:" },
+          { t: "hunk", text: "@@ -40,4 +40,6 @@ def train(cfg: Config) -> Path:" },
           { t: "ctx", text: "     model = GradientBoosting(**cfg.params)" },
           { t: "ctx", text: "     model.fit(X_train, y_train)" },
           { t: "add", text: "+    mlflow.log_metric(\"val_f1\", f1_score(y_val, model.predict(X_val)))" },
@@ -1075,7 +1087,7 @@ const PROJECTS: DemoProject[] = [
           { text: " PASS  src/screens/PlansScreen.test.tsx", color: "green", delay: 1050 },
           { text: "", delay: 1100 },
           { text: "Test Suites: 2 passed, 2 total", color: "default", delay: 1200 },
-          { text: "Tests:       11 passed, 11 total", color: "default", delay: 1250 },
+          { text: "Tests:       6 passed, 6 total", color: "default", delay: 1250 },
           { text: "Snapshots:   0 total", color: "default", delay: 1300 },
           { text: "Time:        2.31 s", color: "muted", delay: 1350 },
           { text: "Ran all test suites.", color: "muted", delay: 1450 },
@@ -1125,22 +1137,24 @@ const PROJECTS: DemoProject[] = [
     ],
     replyContext: {
       manifest: "package.json",
-      manifestLines: "36 lines",
+      readmeLines: "23 lines",
+      manifestLines: "28 lines",
       sourceGlob: "src/**/*.tsx",
-      sourceMatches: "38 matches",
+      sourceMatches: "8 matches",
       overview:
         "Expo app for iOS and Android — screens in `src/screens`, the API client in `src/lib/api.ts`, native projects in `ios/` and `android/`. It reads the same `/v1` API saas-app serves.",
       flows:
         "Main flows: sign-in, plans, usage, push notifications. Want a deeper dive on any of them?",
       testCmd: "pnpm test",
-      testResult: "11 passed in 2.3s",
+      testResult: "6 passed in 2.3s",
       testSummary:
-        "All 11 tests green across the session store and the plans screen.",
+        "All 6 tests green across the session store and the plans screen.",
       focusFile: "src/lib/api.ts",
-      focusLines: "118 lines",
+      focusLines: "54 lines",
       focusArea: "the API client",
       hotspotDir: "src/screens/",
       deployFile: "eas.json",
+      deployLines: "42 lines",
       deployCmd: "eas update --branch preview",
       draftFile: "src/lib/offline-queue.ts",
       wireTarget: "the API client",
@@ -1152,7 +1166,7 @@ const PROJECTS: DemoProject[] = [
         path: "src/lib/api.ts",
         status: "modified",
         diff: [
-          { t: "hunk", text: "@@ -22,6 +22,8 @@ export type Plan = {" },
+          { t: "hunk", text: "@@ -20,6 +20,8 @@ export type Plan = {" },
           { t: "ctx", text: "   id: string;" },
           { t: "ctx", text: "   name: string;" },
           { t: "ctx", text: "   priceCents: number;" },
@@ -1161,7 +1175,7 @@ const PROJECTS: DemoProject[] = [
           { t: "ctx", text: " };" },
           { t: "ctx", text: "" },
           { t: "ctx", text: " export async function fetchPlans(): Promise<Plan[]> {" },
-          { t: "hunk", text: "@@ -38,6 +40,7 @@ function toPlan(row: PlanRow): Plan {" },
+          { t: "hunk", text: "@@ -40,6 +42,7 @@ function toPlan(row: PlanRow): Plan {" },
           { t: "ctx", text: "     id: row.id," },
           { t: "ctx", text: "     name: row.name," },
           { t: "ctx", text: "     priceCents: Math.round(row.price * 100)," },
@@ -1190,7 +1204,7 @@ const PROJECTS: DemoProject[] = [
           { t: "ctx", text: "       </Pressable>" },
           { t: "ctx", text: "     </View>" },
           { t: "ctx", text: "   );" },
-          { t: "hunk", text: "@@ -79,6 +84,11 @@ const styles = StyleSheet.create({" },
+          { t: "hunk", text: "@@ -80,6 +85,11 @@ const styles = StyleSheet.create({" },
           { t: "ctx", text: "     fontSize: 28," },
           { t: "ctx", text: '     fontWeight: "600",' },
           { t: "ctx", text: "   }," },

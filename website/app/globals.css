@@ -582,3 +582,23 @@ html {
     transform: scaleX(1);
   }
 }
+
+/* VS Code's Seti file icons, drawn as font glyphs by the demo's Files tab.
+   Only that tab uses them, and the demo chunk is lazy-loaded, so the font is
+   never fetched on a page the visitor doesn't open the demo on. */
+@font-face {
+  font-family: "seti";
+  src: url("/fonts/seti.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.seti-icon {
+  font-family: "seti";
+  font-size: 16px;
+  line-height: 1;
+  font-style: normal;
+  font-weight: normal;
+  -webkit-font-smoothing: antialiased;
+}

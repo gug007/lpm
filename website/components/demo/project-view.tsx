@@ -8,19 +8,20 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Globe, Terminal } from "lucide-react";
+import { Folder, Globe, Terminal } from "lucide-react";
 import type {
   DemoAction,
   DemoBranch,
   DemoGit,
   DemoProject,
 } from "./projects";
-import {
-  PaneHeader,
-  ServiceLabelBar,
-  StreamingOutput,
-  type TabInfo,
-} from "./terminal-pane";
+import { FilesView } from "./files-view";
+import { PaneHeader, type PaneActionsProps, type TabInfo } from "./pane-header";
+import type { UtilityTabKind } from "./pane-action-meta";
+import type { PaneActionId } from "./pane-actions";
+import { usePaneToolbar } from "./use-pane-toolbar";
+import { resolveUtilityTabAction } from "./utility-tab";
+import { ServiceLabelBar, StreamingOutput } from "./terminal-pane";
 import { DemoActionModal } from "./action-modal";
 import { DemoAddActionModal, type NewActionInput } from "./add-action-modal";
 import {
@@ -43,6 +44,7 @@ import {
   type PaneNode,
   type PaneSplit,
   type SplitDirection,
+  activateTabByKey,
   addTabToLeaf,
   appendLeaf,
   collectLeaves,
@@ -52,6 +54,7 @@ import {
   isServiceTab,
   makeLeaf,
   newBrowserContent,
+  newFilesContent,
   newReviewContent,
   newShellContent,
   removeLeaf,
@@ -194,6 +197,10 @@ export function DemoProjectView({
     tabIdx: number;
   } | null>(null);
   const [focusedLeafId, setFocusedLeafId] = useState<string | null>(null);
+  const [fullscreenLeafId, setFullscreenLeafId] = useState<string | null>(null);
+  // Where each pane's utility toggle was pressed from, by `${leafId}:${kind}`.
+  const utilityReturns = useRef<Map<string, string>>(new Map());
+  const paneToolbar = usePaneToolbar();
   // Each pane's bodies are portaled into a host element this view owns, not
   // into the pane's own div. Splitting rebuilds the pane, and a portal whose
   // container changes remounts its children — the host survives instead and is
@@ -214,6 +221,16 @@ export function DemoProjectView({
     if (host.parentNode !== el) el.appendChild(host);
   }, []);
   const closeStart = useCallback(() => setStartOpen(false), []);
+
+  useEffect(() => {
+    if (!fullscreenLeafId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      setFullscreenLeafId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullscreenLeafId]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -245,6 +262,10 @@ export function DemoProjectView({
     setTree((prev) => appendLeaf(prev, makeLeaf(newBrowserContent())));
   };
 
+  const openNewPaneWithFiles = () => {
+    setTree((prev) => appendLeaf(prev, makeLeaf(newFilesContent())));
+  };
+
   const addTerminalToLeaf = (leafId: string) => {
     setTree((prev) =>
       prev ? addTabToLeaf(prev, leafId, newShellContent(prev)) : prev,
@@ -259,6 +280,47 @@ export function DemoProjectView({
 
   const addReviewToLeaf = (leafId: string) => {
     setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newReviewContent()) : prev));
+  };
+
+  const addFilesToLeaf = (leafId: string) => {
+    setTree((prev) => (prev ? addTabToLeaf(prev, leafId, newFilesContent()) : prev));
+  };
+
+  // A toolbar button both shows its tab and dismisses it; dismissing returns to
+  // whatever the visitor was reading when they pressed it.
+  const toggleUtilityInLeaf = (leafId: string, kind: UtilityTabKind) => {
+    const leaf = tree ? findLeaf(tree, leafId) : null;
+    if (!leaf) return;
+    const key = `${leafId}:${kind}`;
+    const resolved = resolveUtilityTabAction(
+      leaf,
+      kind,
+      utilityReturns.current.get(key) ?? null,
+    );
+    if (resolved.action === "open") {
+      if (resolved.remember) utilityReturns.current.set(key, resolved.remember);
+      else utilityReturns.current.delete(key);
+      const existing = leaf.tabs.findIndex((tab) => tab.kind === kind);
+      if (existing >= 0) handleSelectTab(leafId, existing);
+      else if (kind === "files") addFilesToLeaf(leafId);
+      else addReviewToLeaf(leafId);
+      return;
+    }
+    utilityReturns.current.delete(key);
+    handleCloseTab(leafId, resolved.tabIdx);
+    // The close renumbers the tabs, so the return trip has to be made against
+    // the tree the close produced rather than the one it was read from.
+    const back = resolved.back;
+    if (back) setTree((prev) => activateTabByKey(prev, back));
+  };
+
+  const runPaneAction = (leafId: string, id: PaneActionId, fromToolbar: boolean) => {
+    if (id === "browser") return addBrowserToLeaf(leafId);
+    if (!fromToolbar) {
+      if (id === "files") return addFilesToLeaf(leafId);
+      return addReviewToLeaf(leafId);
+    }
+    toggleUtilityInLeaf(leafId, id);
   };
 
   const openActionTerminal = (action: DemoAction) => {
@@ -421,6 +483,11 @@ export function DemoProjectView({
   const handleClosePane = (leafId: string) => {
     setTree((prev) => (prev ? removeLeaf(prev, leafId) : prev));
     setFocusedLeafId((id) => (id === leafId ? null : id));
+    setFullscreenLeafId((id) => (id === leafId ? null : id));
+  };
+
+  const handleToggleFullscreen = (leafId: string) => {
+    setFullscreenLeafId((id) => (id === leafId ? null : leafId));
   };
 
   const handleSelectTab = (leafId: string, tabIdx: number) => {
@@ -470,6 +537,12 @@ export function DemoProjectView({
   const leaves = collectLeaves(tree);
   const focusedPaneId = leaves.length > 1 ? focusedLeafId ?? leaves[0].id : null;
 
+  // A pane can go away without passing through handleClosePane — closing its
+  // last tab removes it — so the fullscreen id is only honoured while the pane
+  // it names is still in the tree.
+  const fullscreenPaneId =
+    fullscreenLeafId && tree && findLeaf(tree, fullscreenLeafId) ? fullscreenLeafId : null;
+
   const leafCtx: LeafContext = {
     project,
     git,
@@ -516,7 +589,10 @@ export function DemoProjectView({
             onSelectTab={handleSelectTab}
             onNewTab={addTerminalToLeaf}
             onNewBrowser={addBrowserToLeaf}
-            onNewReview={addReviewToLeaf}
+            onPaneAction={runPaneAction}
+            paneToolbar={paneToolbar}
+            fullscreenLeafId={fullscreenPaneId}
+            onToggleFullscreen={handleToggleFullscreen}
             onTabContextMenu={handleTabContextMenu}
             onRatioChange={handleRatioChange}
             onResizeStart={handleResizeStart}
@@ -545,6 +621,7 @@ export function DemoProjectView({
           projectName={project.name}
           onOpenTerminal={openNewPaneWithShell}
           onOpenBrowser={openNewPaneWithBrowser}
+          onOpenFiles={openNewPaneWithFiles}
         />
       )}
 
@@ -621,6 +698,7 @@ export function DemoProjectView({
         const hasEmoji = tab.kind === "shell" || tab.kind === "action";
         const initialLabel =
           tab.kind === "review" ? defaultLabel(tab) : tab.label ?? defaultLabel(tab);
+
         return (
           <TabRenameModal
             open
@@ -649,7 +727,10 @@ type PaneLayoutProps = {
   onSelectTab: (leafId: string, tabIdx: number) => void;
   onNewTab: (leafId: string) => void;
   onNewBrowser: (leafId: string, url?: string) => void;
-  onNewReview: (leafId: string) => void;
+  onPaneAction: (leafId: string, id: PaneActionId, fromToolbar: boolean) => void;
+  paneToolbar: ReturnType<typeof usePaneToolbar>;
+  fullscreenLeafId: string | null;
+  onToggleFullscreen: (leafId: string) => void;
   onTabContextMenu: (leafId: string, tabIdx: number, x: number, y: number) => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onResizeStart: (dir: SplitDirection) => void;
@@ -777,6 +858,18 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
       body: <ReviewView key={tab.id} project={ctx.project} git={ctx.git} />,
     };
   }
+  if (tab.kind === "files") {
+    return {
+      info: {
+        key,
+        label: tab.label ?? defaultLabel(tab),
+        type: "files",
+        running: true,
+        pinned: tab.pinned,
+      },
+      body: <FilesView key={tab.id} project={ctx.project} git={ctx.git} />,
+    };
+  }
   const action = ctx.actionTerminals[tab.key];
   const info: TabInfo = {
     key,
@@ -821,7 +914,10 @@ function Leaf({
   onSelectTab,
   onNewTab,
   onNewBrowser,
-  onNewReview,
+  onPaneAction,
+  paneToolbar,
+  fullscreenLeafId,
+  onToggleFullscreen,
   onTabContextMenu,
   agentTabStatus,
   onAgentTabStatus,
@@ -838,10 +934,27 @@ function Leaf({
     onAgentTabStatus,
   };
   const resolved = leaf.tabs.map((tab) => resolveTab(tab, ctx));
+  const active = leaf.tabs[leaf.activeTabIdx];
+  const activeUtilityTab: UtilityTabKind | null =
+    active?.kind === "review" || active?.kind === "files" ? active.kind : null;
+  const paneActions: PaneActionsProps = {
+    menu: paneToolbar.menu,
+    toolbar: paneToolbar.toolbar,
+    isDefault: paneToolbar.isDefault,
+    activeTab: activeUtilityTab,
+    onRun: (id, fromToolbar) => onPaneAction(leaf.id, id, fromToolbar),
+    onMove: paneToolbar.move,
+    onReset: paneToolbar.reset,
+  };
+  const fullscreen = fullscreenLeafId === leaf.id;
   return (
     <div
       onMouseDownCapture={() => onFocusPane(leaf.id)}
-      className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden border-x border-t border-[#2e2e2e]"
+      className={
+        fullscreen
+          ? "absolute inset-0 z-30 flex flex-col overflow-hidden bg-[#1a1a1a]"
+          : "flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden border-x border-t border-[#2e2e2e]"
+      }
     >
       <PaneHeader
         focused={focusedLeafId === leaf.id}
@@ -850,14 +963,15 @@ function Leaf({
         onSelectTab={(i) => onSelectTab(leaf.id, i)}
         onCloseTab={(i) => onCloseTab(leaf.id, i)}
         onNewTab={() => onNewTab(leaf.id)}
-        onNewBrowser={() => onNewBrowser(leaf.id)}
-        onNewReview={() => onNewReview(leaf.id)}
         onOpenPort={(port) =>
           onNewBrowser(leaf.id, `http://localhost:${port}`)
         }
         onTabContextMenu={(i, x, y) => onTabContextMenu(leaf.id, i, x, y)}
         onSplitRight={() => onSplit(leaf.id, "row")}
         onSplitDown={() => onSplit(leaf.id, "col")}
+        paneActions={paneActions}
+        fullscreen={fullscreen}
+        onToggleFullscreen={() => onToggleFullscreen(leaf.id)}
         onClosePane={onClosePane ? () => onClosePane(leaf.id) : undefined}
       />
       {/* Only a slot: the bodies are mounted once, outside the tree, and
@@ -1031,10 +1145,12 @@ function EmptyState({
   projectName,
   onOpenTerminal,
   onOpenBrowser,
+  onOpenFiles,
 }: {
   projectName: string;
   onOpenTerminal: () => void;
   onOpenBrowser: () => void;
+  onOpenFiles: () => void;
 }) {
   return (
     <div className="relative flex flex-1 min-h-0 flex-col items-center justify-center overflow-hidden px-8">
@@ -1083,6 +1199,17 @@ function EmptyState({
             Open browser
           </button>
         </div>
+        {/* Tertiary, the way the app keeps "Resume a past session" under its
+            two buttons. */}
+        <button
+          type="button"
+          onClick={onOpenFiles}
+          className={`-mt-1 flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-[#919191] transition-colors hover:text-[#b3b3b3] ${FOCUS_RING}`}
+        >
+          <Folder className="h-3 w-3" strokeWidth={1.75} />
+          Browse the project files
+          <kbd className="ml-1 text-[10px] opacity-70">⌘⇧E</kbd>
+        </button>
       </div>
     </div>
   );

@@ -11,24 +11,25 @@ const NOT_A_REPO =
   "fatal: not a git repository (or any of the parent directories): .git";
 
 // One listing per project so the Go service does not answer `ls` with
-// package.json. Each one has to name every path the project's own transcripts
-// read, its actions run, and its services load — a visitor who finds a file the
-// agent read missing from `ls` has caught the demo out. The global Terminals
-// view has no project and lists a home.
+// package.json. Each one is the root of the same tree the Files tab shows, and
+// has to name every path the project's own transcripts read, its actions run,
+// and its services load — a visitor who finds a file the agent read missing
+// from `ls` has caught the demo out. The global Terminals view has no project
+// and lists a home.
 const DEFAULT_LISTING = "README.md  package.json  src/  scripts/  tests/";
 const HOME_LISTING = "Applications  Desktop  Downloads  Projects  go  bin";
 
 const LISTINGS: Record<string, string> = {
   "saas-app":
-    "Gemfile  package.json  README.md  app/  bin/  db/  scripts/  src/",
+    "Gemfile  Gemfile.lock  next.config.ts  package.json  pnpm-lock.yaml  README.md  tsconfig.json  vitest.config.ts  app/  bin/  config/  db/  public/  scripts/  src/",
   "auth-service":
     "docker-compose.yml  go.mod  go.sum  Makefile  README.md  cmd/  internal/  k8s/",
   "docs-site":
-    "astro.config.mjs  package.json  README.md  vercel.json  public/  src/",
+    "astro.config.mjs  package.json  pnpm-lock.yaml  README.md  tsconfig.json  vercel.json  public/  src/",
   "ml-pipeline":
     "Makefile  pyproject.toml  README.md  data/  notebooks/  pipeline/  runs/",
   "mobile-app":
-    "app.json  App.tsx  eas.json  index.ts  package.json  README.md  tsconfig.json  android/  ios/  src/",
+    "app.json  App.tsx  babel.config.js  eas.json  index.ts  jest.config.js  metro.config.js  package.json  pnpm-lock.yaml  README.md  tsconfig.json  android/  ios/  src/",
 };
 
 // `git log` is the second thing anyone types in a shell, so each project

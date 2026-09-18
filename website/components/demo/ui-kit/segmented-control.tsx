@@ -5,7 +5,7 @@ import { FOCUS_RING } from "../ui";
 
 export type SegmentedOption<T extends string> = {
   value: T;
-  label: string;
+  label: ReactNode;
   icon?: ReactNode;
   disabled?: boolean;
 };

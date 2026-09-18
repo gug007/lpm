@@ -90,7 +90,7 @@ export const SUGGESTIONS = [
 // count, so its Review tab shows exactly the work this session claims.
 export const IN_PROGRESS_STEPS: AgentStep[] = [
   { kind: "thinking" },
-  { kind: "tool", label: "Read", arg: "internal/auth/jwt.go", result: "212 lines" },
+  { kind: "tool", label: "Read", arg: "internal/auth/jwt.go", result: "122 lines" },
   { kind: "tool", label: "Grep", arg: "RotateSigningKey", result: "6 matches" },
   {
     kind: "text",
@@ -134,12 +134,12 @@ export function settleStep(ctx: ReplyContext): AgentStep {
 // so its Review tab lists exactly what this session says it wrote.
 export const DONE_STEPS: AgentStep[] = [
   { kind: "thinking" },
-  { kind: "tool", label: "Glob", arg: "src/pages/api/**/*.ts", result: "24 routes" },
+  { kind: "tool", label: "Glob", arg: "src/pages/api/**/*.ts", result: "4 routes" },
   {
     kind: "tool",
     label: "Read",
     arg: "src/content/docs/api/authentication.mdx",
-    result: "96 lines",
+    result: "16 lines",
   },
   {
     kind: "tool",
@@ -164,7 +164,8 @@ export const DONE_STEPS: AgentStep[] = [
 
 export const GENERIC_REPLY_CONTEXT: ReplyContext = {
   manifest: "README.md",
-  manifestLines: "64 lines",
+  manifestLines: "9 lines",
+  readmeLines: "9 lines",
   sourceGlob: "**/*",
   sourceMatches: "37 matches",
   overview: "Fresh project — nothing indexed yet beyond the files on disk.",
@@ -173,10 +174,11 @@ export const GENERIC_REPLY_CONTEXT: ReplyContext = {
   testResult: "no tests configured",
   testSummary: "No test suite wired up yet. Want me to scaffold one?",
   focusFile: "README.md",
-  focusLines: "64 lines",
+  focusLines: "9 lines",
   focusArea: "this project",
   hotspotDir: "./",
   deployFile: "README.md",
+  deployLines: "9 lines",
   deployCmd: "make deploy",
   draftFile: "src/new-feature.ts",
   wireTarget: "the entry point",
@@ -302,7 +304,7 @@ export function buildReply(
       steps: [
         { kind: "thinking" },
         { kind: "tool", label: "Read", arg: ctx.manifest, result: ctx.manifestLines },
-        { kind: "tool", label: "Read", arg: "README.md", result: "108 lines" },
+        { kind: "tool", label: "Read", arg: "README.md", result: ctx.readmeLines },
         { kind: "tool", label: "Glob", arg: ctx.sourceGlob, result: ctx.sourceMatches },
         { kind: "text", text: ctx.overview },
         { kind: "text", text: "", style: "muted" },
@@ -345,7 +347,7 @@ export function buildReply(
       steps: [
         { kind: "thinking" },
         { kind: "tool", label: "Bash", arg: "git status --porcelain", result: "clean" },
-        { kind: "tool", label: "Read", arg: ctx.deployFile, result: "68 lines" },
+        { kind: "tool", label: "Read", arg: ctx.deployFile, result: ctx.deployLines },
         {
           kind: "text",
           text: `Tree is clean. I can run \`${ctx.deployCmd}\` when you're ready — but you'll want to run the full test suite first.`,
@@ -388,7 +390,7 @@ export function buildReply(
       intent: "docs",
       steps: [
         { kind: "thinking" },
-        { kind: "tool", label: "Read", arg: "README.md", result: "108 lines" },
+        { kind: "tool", label: "Read", arg: "README.md", result: ctx.readmeLines },
         {
           kind: "text",
           text: "README covers setup but the API section is stale. I can regenerate it from the current routes if that's useful.",

@@ -8,7 +8,8 @@ type TipPart = { text: string } | { key: string };
 
 const TIPS: TipPart[][] = [
   [{ text: "Right-click a tab to rename or pin it" }],
-  [{ text: "The + arrow opens a diff or a browser" }],
+  [{ text: "The pane menu opens a diff or a browser" }],
+  [{ text: "Pin a pane action to give it its own button" }],
   [{ text: "Split a pane sideways or stacked" }],
   [{ text: "Drag the divider to resize the panes" }],
   [{ text: "Click a service tab to watch its log" }],
