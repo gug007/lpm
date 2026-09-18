@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Cpu, Loader2 } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import {
@@ -15,7 +15,9 @@ import {
 } from "../agentModelSwitch";
 import { effortBlurb, menuEffect, type MenuCursor } from "../agentModelMenu";
 import { useAgentModelMenuKeys } from "../hooks/useAgentModelMenuKeys";
+import type { ComposerToolPresentation } from "../composerTools";
 import { ComposerModelMenuRow as Row } from "./ComposerModelMenuRow";
+import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
@@ -30,7 +32,7 @@ const LIST_MAX_HEIGHT = 236;
 
 type Column = "model" | "effort";
 
-interface ComposerModelButtonProps {
+export interface ComposerModelButtonProps {
   // Which agent runs in the target terminal — it decides both the model list and
   // how a pick is delivered.
   cli: SwitchableCLI;
@@ -56,7 +58,9 @@ export function ComposerModelButton({
   applying,
   onOpen,
   onPick,
-}: ComposerModelButtonProps) {
+  variant = "button",
+  onOpenChange,
+}: ComposerModelButtonProps & ComposerToolPresentation) {
   const [open, setOpen] = useState(false);
   const [column, setColumn] = useState<Column>("model");
   // Which model the flyout is showing, and which level is highlighted in it.
@@ -69,18 +73,24 @@ export function ComposerModelButton({
   const keyboardUsed = useRef(false);
   const rowId = useId();
 
+  // The button sits at the composer's right edge beside Send, so the panel
+  // hangs off its right edge and the flyout opens leftward, into the pane. As
+  // a row in the More menu it hangs off the left edge instead, at the
+  // composer's left, and the flyout opens rightward for the same reason.
+  const flyoutSide = variant === "row" ? "right" : "left";
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLDivElement, HTMLDivElement>({
     open,
     onClose: () => setOpen(false),
     width: PANEL_WIDTH,
     side: "above",
-    // The button sits at the composer's right edge beside Send, so the panel
-    // hangs off its right edge and the flyout opens leftward, into the pane.
-    align: "right",
+    align: flyoutSide === "left" ? "right" : "left",
     flip: true,
   });
 
   useOverlay(open);
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   const models = useMemo(() => switchModels(cli), [cli]);
   const cursorModelLabel = models.find((m) => m.value === cursorModel)?.label ?? cursorModel;
@@ -146,7 +156,7 @@ export function ComposerModelButton({
     list: column === "model" ? models.map((m) => m.value) : effortValues,
     current: column === "model" ? cursorModel : effortCursor,
     hasOtherColumn: column === "model" && effortValues.length > 0,
-    flyoutSide: "left",
+    flyoutSide,
     used: keyboardUsed,
     move,
     toOtherColumn,
@@ -188,7 +198,19 @@ export function ComposerModelButton({
   const effect = cursorModel ? menuEffect(cli, cursor, pick) : "";
 
   return (
-    <div ref={triggerRef}>
+    <div ref={triggerRef} className={variant === "row" ? "min-w-0 flex-1" : undefined}>
+      {variant === "row" ? (
+        <ContextMenuItem
+          label="Model"
+          description={summary || "Not reported yet"}
+          icon={<Cpu size={13} strokeWidth={1.75} />}
+          trailing={applying ? <Loader2 size={12} className="animate-spin" /> : undefined}
+          expanded={open}
+          onMouseDown={keepEditorFocus}
+          onClick={toggle}
+          disabled={applying}
+        />
+      ) : (
       <Tooltip
         content={summary ? `Model  ·  ${summary}` : "Model"}
         delay={COMPOSER_TOOLTIP_DELAY_MS}
@@ -234,6 +256,7 @@ export function ComposerModelButton({
           )}
         </button>
       </Tooltip>
+      )}
 
       {open &&
         style &&
@@ -316,9 +339,10 @@ export function ComposerModelButton({
               style={{
                 position: "absolute",
                 top: 0,
-                right: "100%",
                 width: FLYOUT_WIDTH + FLYOUT_GAP,
-                paddingRight: FLYOUT_GAP,
+                ...(flyoutSide === "left"
+                  ? { right: "100%", paddingRight: FLYOUT_GAP }
+                  : { left: "100%", paddingLeft: FLYOUT_GAP }),
               }}
               className="z-[81]"
             >

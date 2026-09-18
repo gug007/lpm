@@ -9,7 +9,7 @@ import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ChevronUpIcon, CopyIcon, ForwardIcon, SendIcon, SquarePenIcon } from "./icons";
 import { Tooltip } from "./ui/Tooltip";
 
-interface SendSplitButtonProps {
+export interface SendSplitButtonProps {
   // Nothing to send (empty/whitespace) — disables both the send and draft paths.
   disabled: boolean;
   // A composer action transform is running; the field is locked, so hold off.

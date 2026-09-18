@@ -7,8 +7,10 @@ import { useOverlay } from "../store/overlay";
 import { useVoiceDictation } from "../hooks/useVoiceDictation";
 import { composerActionIcon, type ComposerAction } from "../store/composerActions";
 import { MAX_VARIANTS } from "../composerVariants";
+import type { ComposerToolPresentation } from "../composerTools";
 import { MicIcon, StopIcon } from "./icons";
 import { VoiceToTextInstallModal } from "./VoiceToTextInstallModal";
+import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
@@ -17,7 +19,7 @@ const CUSTOM_KEY = "__custom__";
 
 const PANEL_WIDTH = 352;
 
-interface ComposerActionsButtonProps {
+export interface ComposerActionsButtonProps {
   // Enabled actions, in order. May be empty — the popover then offers setup.
   enabledActions: ComposerAction[];
   busy: boolean;
@@ -47,7 +49,9 @@ export function ComposerActionsButton({
   onRun,
   onManage,
   align = "right",
-}: ComposerActionsButtonProps) {
+  variant = "button",
+  onOpenChange,
+}: ComposerActionsButtonProps & ComposerToolPresentation) {
   const [open, setOpen] = useState(false);
   // A one-off instruction typed into the popover, run immediately as a transient
   // action without being saved to the shared action list.
@@ -73,6 +77,9 @@ export function ComposerActionsButton({
   const [stopHover, setStopHover] = useState(false);
 
   useOverlay(open);
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   const countFor = (id: string) => counts[id] ?? 1;
   const setCount = (id: string, n: number) =>
@@ -142,7 +149,25 @@ export function ComposerActionsButton({
   const showStop = canStop && stopHover;
 
   return (
-    <div ref={triggerRef}>
+    <div ref={triggerRef} className={variant === "row" ? "min-w-0 flex-1" : undefined}>
+      {variant === "row" ? (
+        <ContextMenuItem
+          label={canStop ? "Stop refining" : "Refine with AI"}
+          icon={
+            canStop ? (
+              <StopIcon />
+            ) : busy ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Sparkles size={13} strokeWidth={1.75} />
+            )
+          }
+          expanded={open}
+          onMouseDown={keepEditorFocus}
+          onClick={() => (canStop ? onStop?.() : setOpen((v) => !v))}
+          disabled={busy && !canStop}
+        />
+      ) : (
       <Tooltip
         content={showStop ? "Stop" : busy ? "Refining…" : "Refine with AI"}
         delay={COMPOSER_TOOLTIP_DELAY_MS}
@@ -173,6 +198,7 @@ export function ComposerActionsButton({
           )}
         </button>
       </Tooltip>
+      )}
 
       {open &&
         style &&

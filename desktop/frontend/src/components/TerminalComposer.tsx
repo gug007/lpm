@@ -33,12 +33,9 @@ import {
 } from "../store/composerActions";
 import { generateVariants, resolveTransformParams } from "../composerVariants";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
-import { ComposerActionsButton } from "./ComposerActionsButton";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
-import { ComposerMicButton } from "./ComposerMicButton";
-import { ComposerMemoryButton } from "./ComposerMemoryButton";
-import { ComposerModelButton } from "./ComposerModelButton";
+import { ComposerToolbar } from "./ComposerToolbar";
 import { EMPTY_PICK, switchableCLI } from "../agentModelSwitch";
 import { isSwitchingModel, useAgentModelSwitch } from "../hooks/useAgentModelSwitch";
 import { useAgentModelPicks } from "../store/agentModelPicks";
@@ -54,28 +51,22 @@ import {
   type ComposerInputTab,
 } from "../store/composerDrafts";
 import { stepRecall } from "./composerRecall";
-import { COLLECTION_DRAFTS, recordMessage, saveDraft } from "../store/messageHistory";
+import { recordMessage, saveDraft } from "../store/messageHistory";
 import { buildTerminalPayload } from "../composerPayload";
 import { sendToTerminal } from "../store/terminalTargets";
 import type { SendTargetRow } from "../sendTargets";
 import { useAppStore } from "../store/app";
 import { ComposerTabStrip, type ComposerTabView } from "./ComposerTabStrip";
-import { SendSplitButton } from "./SendSplitButton";
 import { SendToTerminalModal, type SendTargetMode } from "./SendToTerminalModal";
-import { AgentStatusChip } from "./AgentStatusChip";
-import type { PaneAgentStatus } from "../hooks/usePaneStatus";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
-import { PlusIcon, SquarePenIcon } from "./icons";
 import { ImagePreviewPopover } from "./ImagePreviewPopover";
 import { MemoryPreviewPopover } from "./MemoryPreviewPopover";
 import { ImageLightbox } from "./ImageLightbox";
 import { loadImageDataUrl, seedImageDataUrl } from "./imageDataUrl";
-import { TerminalHistoryButton } from "./TerminalHistoryButton";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { TERMINAL_FONT_FAMILY } from "./terminal-utils";
-import { Tooltip } from "./ui/Tooltip";
 import { basename } from "../path";
-import { composerPlaceholder, COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
+import { composerPlaceholder } from "../composerText";
 import {
   caretEdges,
   caretInside,
@@ -159,10 +150,13 @@ interface TerminalComposerProps {
   actionName?: string;
   // Terminal font size; the composer text scales to match it.
   fontSize: number;
-  // What the agent in the target terminal is doing, and since when — null when
-  // it reports nothing. Read out in the button row, the one surface that is
-  // always on screen while you wait for the terminal it belongs to.
-  agentStatus?: PaneAgentStatus | null;
+  // Whether the terminal's agent session can be forked, and how: into a new
+  // tab here, or into a fresh copy of the project. Both live in the button
+  // row's More menu unless the user gives them a button.
+  canFork: boolean;
+  onFork: () => void;
+  canForkCopy: boolean;
+  onForkCopy: () => void;
   // Returns false when the input could not be delivered (e.g. a dead session),
   // so the draft is kept rather than cleared. An array carries ordered segments
   // (text runs and image paths) to be delivered as separate pastes.
@@ -229,7 +223,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, agentStatus, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine, so an attachment is
   // uploaded to the host at attach time and the chip holds the host-valid path
   // that comes back — images via UploadClipboardImageForTerminal, any other file
@@ -2223,94 +2217,68 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             {hint.text}
           </div>
         )}
-        <div className="flex items-center justify-between px-2 pb-1">
-          <div className="flex items-center gap-1">
-            <ComposerMicButton />
-            {showActions && (
-              <ComposerActionsButton
-                align="left"
-                enabledActions={enabledActions}
-                busy={busy}
-                onStop={gen.generating ? gen.cancel : undefined}
-                canRun={!disabled}
-                cliLabel={ai.cliLabel}
-                onRun={runAction}
-                onManage={() => setActionsModalOpen(true)}
-              />
-            )}
-            <Tooltip content="New prompt  ·  ⌘⇧T" delay={COMPOSER_TOOLTIP_DELAY_MS}>
-              <button
-                type="button"
-                onClick={addTab}
-                aria-label="New input"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--composer-fg-muted)] transition-colors hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)]"
-              >
-                <PlusIcon />
-              </button>
-            </Tooltip>
-            <TerminalHistoryButton
-              terminalId={historyKey}
-              projectName={projectName}
-              terminalLabel={targetLabel}
-              onPick={loadFromHistory}
-              onSend={sendFromHistory}
-              initialCollection={COLLECTION_DRAFTS}
-              icon={<SquarePenIcon />}
-              tooltip="Drafts"
-              ariaLabel="Drafts"
-            />
-            <TerminalHistoryButton
-              terminalId={historyKey}
-              projectName={projectName}
-              terminalLabel={targetLabel}
-              onPick={loadFromHistory}
-              onSend={sendFromHistory}
-            />
-            {memoryAvailable && (
-              <ComposerMemoryButton
-                sessions={memorySessions}
-                infoById={memorySessionById}
-                attached={memory}
-                onOpen={reloadMemorySessions}
-                onPick={insertMemorySession}
-                onView={(item) => onOpenMemorySession(item.insert)}
-                onRename={(item, name) => void renameMemorySession(item, name)}
-                onDelete={(item) => void deleteMemorySession(item)}
-                onDetach={onDetachMemory}
-              />
-            )}
-            {agentStatus && (
-              <AgentStatusChip
-                status={agentStatus}
-                className="pl-1.5 pr-0.5"
-                fontSize={inputFontSize}
-                compact
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {switchCli && (
-              <ComposerModelButton
-                cli={switchCli}
-                pick={modelPick}
-                applying={modelSwitch.applying}
-                onOpen={modelSwitch.refresh}
-                onPick={modelSwitch.apply}
-              />
-            )}
-            <SendSplitButton
-              disabled={disabled}
-              busy={busy}
-              onSend={() => void send()}
-              onSaveDraft={() => void saveCurrentDraft()}
-              onSendElsewhere={() => {
-                const editor = editorRef.current;
-                setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
-              }}
-              onRunInDuplicates={runInDuplicates}
-            />
-          </div>
-        </div>
+        <ComposerToolbar
+          boxRef={containerRef}
+          history={{
+            terminalId: historyKey,
+            projectName,
+            terminalLabel: targetLabel,
+            onPick: loadFromHistory,
+            onSend: sendFromHistory,
+          }}
+          onNewInput={addTab}
+          actions={
+            showActions
+              ? {
+                  enabledActions,
+                  busy,
+                  onStop: gen.generating ? gen.cancel : undefined,
+                  canRun: !disabled,
+                  cliLabel: ai.cliLabel,
+                  onRun: runAction,
+                  onManage: () => setActionsModalOpen(true),
+                }
+              : null
+          }
+          memory={
+            memoryAvailable
+              ? {
+                  sessions: memorySessions,
+                  infoById: memorySessionById,
+                  attached: memory,
+                  onOpen: reloadMemorySessions,
+                  onPick: insertMemorySession,
+                  onView: (item) => onOpenMemorySession(item.insert),
+                  onRename: (item, name) => void renameMemorySession(item, name),
+                  onDelete: (item) => void deleteMemorySession(item),
+                  onDetach: onDetachMemory,
+                }
+              : null
+          }
+          model={
+            switchCli
+              ? {
+                  cli: switchCli,
+                  pick: modelPick,
+                  applying: modelSwitch.applying,
+                  onOpen: modelSwitch.refresh,
+                  onPick: modelSwitch.apply,
+                }
+              : null
+          }
+          fork={{ canFork, onFork, canForkCopy, onForkCopy }}
+          send={{
+            disabled,
+            busy,
+            onSend: () => void send(),
+            onSaveDraft: () => void saveCurrentDraft(),
+            onSendElsewhere: () => {
+              const editor = editorRef.current;
+              setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
+            },
+            onRunInDuplicates: runInDuplicates,
+          }}
+        />
       </div>
       </div>
       <SendToTerminalModal

@@ -6,10 +6,12 @@ import { useOverlay } from "../store/overlay";
 import type { MemorySessionInfo } from "../hooks/useMemorySessions";
 import type { MentionItem } from "../mentions";
 import type { TerminalMemoryRef } from "../terminalMemory";
+import type { ComposerToolPresentation } from "../composerTools";
 import { BrainIcon, SearchIcon } from "./icons";
 import { ComposerMemoryRow } from "./ComposerMemoryRow";
 import { MemoryRenameDialog } from "./MemoryRenameDialog";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
@@ -18,7 +20,7 @@ const PANEL_WIDTH = 320;
 // a row and save nothing.
 const SEARCH_FROM = 4;
 
-interface ComposerMemoryButtonProps {
+export interface ComposerMemoryButtonProps {
   // Saved sessions, newest first, as the mention pool carries them: `insert` is
   // the session id the invocation takes as its argument.
   sessions: MentionItem[];
@@ -58,7 +60,9 @@ export function ComposerMemoryButton({
   onDelete,
   attached,
   onDetach,
-}: ComposerMemoryButtonProps) {
+  variant = "button",
+  onOpenChange,
+}: ComposerMemoryButtonProps & ComposerToolPresentation) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -74,6 +78,9 @@ export function ComposerMemoryButton({
   });
 
   useOverlay(open);
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   const searchable = sessions.length >= SEARCH_FROM;
   const needle = query.trim().toLowerCase();
@@ -171,7 +178,21 @@ export function ComposerMemoryButton({
       : "Recording a new session";
 
   return (
-    <div ref={triggerRef}>
+    <div ref={triggerRef} className={variant === "row" ? "min-w-0 flex-1" : undefined}>
+      {variant === "row" ? (
+        <ContextMenuItem
+          label="Memory"
+          description={attachedText ?? undefined}
+          icon={
+            <span className={attached ? "text-[var(--accent-purple)]" : undefined}>
+              <BrainIcon size={13} />
+            </span>
+          }
+          expanded={open}
+          onMouseDown={keepEditorFocus}
+          onClick={toggle}
+        />
+      ) : (
       <Tooltip
         content={attachedText ? `Memory  ·  ${attachedText}` : "Memory"}
         delay={COMPOSER_TOOLTIP_DELAY_MS}
@@ -196,6 +217,7 @@ export function ComposerMemoryButton({
           <BrainIcon size={15} />
         </button>
       </Tooltip>
+      )}
 
       {open &&
         style &&

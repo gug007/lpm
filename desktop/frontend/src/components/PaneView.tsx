@@ -325,6 +325,7 @@ function PaneViewImpl(props: PaneViewProps) {
       ? activeTerm
       : null;
   const composerStatus = paneAgentStatus(paneStatus, composerTab?.id);
+  const composerForkable = composerTab !== null && canForkSession(composerTab.resumeCmd);
   // The agent conversation behind the active terminal, when its transcript is
   // readable on this Mac — what both copy-last-answer buttons act on.
   const composerSession =
@@ -699,8 +700,13 @@ function PaneViewImpl(props: PaneViewProps) {
             cwd={interactiveCwd}
             launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
             actionName={composerTab.actionName}
-            agentStatus={composerStatus}
             fontSize={fontSize}
+            canFork={composerForkable}
+            onFork={() => onForkTerminal(pane.id, composerTab.id)}
+            canForkCopy={composerForkable && canForkIntoCopy}
+            onForkCopy={() =>
+              onForkTerminalIntoCopy(pane.id, composerTab.id, terminalDisplayLabel(composerTab))
+            }
             onSubmit={(input) => onSubmitInput(composerTab.id, input)}
             onFocusTerminal={() => onFocusTerminalInput(composerTab.id)}
             onRunInDuplicates={onRunInDuplicates}

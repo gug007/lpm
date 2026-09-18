@@ -5,15 +5,18 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { useOverlay } from "../store/overlay";
+import type { ComposerToolPresentation } from "../composerTools";
 import { HistoryIcon } from "./icons";
 import { TerminalHistoryPopover } from "./TerminalHistoryPopover";
+import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { Tooltip } from "./ui/Tooltip";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
 
-interface TerminalHistoryButtonProps {
+export interface TerminalHistoryButtonProps {
   terminalId: string;
   projectName: string;
   terminalLabel: string;
@@ -27,6 +30,9 @@ interface TerminalHistoryButtonProps {
   icon?: ReactNode;
   tooltip?: string;
   ariaLabel?: string;
+  // The composer box the popover spans. The button finds it by walking up
+  // when it sits inside; a row in a portaled menu has to be handed it.
+  boxRef?: RefObject<HTMLElement | null>;
 }
 
 const GAP = 10;
@@ -43,14 +49,24 @@ export function TerminalHistoryButton({
   icon = <HistoryIcon />,
   tooltip = "Recent messages",
   ariaLabel = "Message history",
-}: TerminalHistoryButtonProps) {
+  boxRef,
+  variant = "button",
+  onOpenChange,
+}: TerminalHistoryButtonProps & ComposerToolPresentation) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<DOMRect | null>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
+  // The trigger: the icon button, or the row's box when the button is a row.
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const setTrigger = (el: HTMLElement | null) => {
+    triggerRef.current = el;
+  };
   const popRef = useRef<HTMLDivElement>(null);
   const lastGeom = useRef<{ top: number; left: number; right: number } | null>(null);
 
   useOverlay(open);
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   const close = () => {
     setOpen(false);
@@ -62,7 +78,8 @@ export function TerminalHistoryButton({
   // re-render) when the box hasn't moved — otherwise scrolling the history list,
   // which a capture-phase scroll listener also sees, would churn.
   const reposition = () => {
-    const r = btnRef.current?.closest("[data-composer-box]")?.getBoundingClientRect();
+    const box = boxRef?.current ?? triggerRef.current?.closest("[data-composer-box]");
+    const r = box?.getBoundingClientRect();
     if (!r) return;
     const prev = lastGeom.current;
     if (prev && prev.top === r.top && prev.left === r.left && prev.right === r.right) return;
@@ -104,7 +121,7 @@ export function TerminalHistoryButton({
     const onDown = (e: MouseEvent) => {
       const t = e.target as Element;
       if (
-        btnRef.current?.contains(t) ||
+        triggerRef.current?.contains(t) ||
         t.closest?.("[data-history-overlay]") ||
         t.closest?.("[data-modal-overlay]")
       )
@@ -140,9 +157,14 @@ export function TerminalHistoryButton({
 
   return (
     <>
+      {variant === "row" ? (
+        <div ref={setTrigger} className="min-w-0 flex-1">
+          <ContextMenuItem label={tooltip} icon={icon} expanded={open} onClick={toggleOpen} />
+        </div>
+      ) : (
       <Tooltip content={tooltip} delay={COMPOSER_TOOLTIP_DELAY_MS}>
         <button
-          ref={btnRef}
+          ref={setTrigger}
           type="button"
           onClick={toggleOpen}
           aria-label={ariaLabel}
@@ -157,6 +179,7 @@ export function TerminalHistoryButton({
           {icon}
         </button>
       </Tooltip>
+      )}
 
       {open &&
         rect &&

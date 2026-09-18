@@ -15,6 +15,7 @@ import { normalizeHotkeys, type HotkeysConfig } from "../hotkeys";
 import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
 import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
 import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
+import { normalizeComposerToolbar, type ComposerToolId } from "../composerTools";
 import type { PeerRowOrder } from "../components/peerRowOrder";
 
 export interface DetachedWindowState {
@@ -56,6 +57,9 @@ export interface Settings {
   // Which pane actions have a button in the pane header; the rest are in its
   // menu. Unset means the default layout.
   paneToolbar?: PaneActionId[];
+  // Which terminal-input tools have a button under the field; the rest are in
+  // its More menu. Unset means the default layout.
+  composerToolbar?: ComposerToolId[];
   // Which side of the Files tab holds the folder tree. Unset means the right.
   filesTreeSide?: FilesTreeSide;
   autoGenerateCommitMessage?: boolean;
@@ -143,6 +147,7 @@ function normalize(s: main.Settings): Settings {
     sidebarWidth: s.sidebarWidth,
     sidebarNavInSidebar: normalizeSidebarNav(s.sidebarNavInSidebar),
     paneToolbar: normalizePaneToolbar(s.paneToolbar),
+    composerToolbar: normalizeComposerToolbar(s.composerToolbar),
     filesTreeSide: s.filesTreeSide === "left" || s.filesTreeSide === "right" ? s.filesTreeSide : undefined,
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,
     autoGeneratePRDescription: s.autoGeneratePRDescription,
