@@ -13,6 +13,7 @@ import { Tooltip } from "../ui/Tooltip";
 import { ZoomControl } from "../ui/ZoomControl";
 import { decorationOf } from "./gitDecorations";
 import { ancestorsOf } from "./treeModel";
+import type { FileView, FileViewOption } from "./useFileView";
 
 interface FilesHeaderProps {
   rootName: string;
@@ -20,13 +21,15 @@ interface FilesHeaderProps {
   absPath: string | null;
   // The open file's git status, shown the way its tree row shows it.
   status?: string;
-  // A changed file can show as a diff against HEAD or as itself.
-  diffAvailable: boolean;
-  showDiff: boolean;
-  onShowDiff: (show: boolean) => void;
+  // The views the open file has — diff against HEAD, rendered, source — when
+  // there is more than one to choose from.
+  view: FileView;
+  viewOptions: readonly FileViewOption[] | null;
+  onView: (view: FileView) => void;
   // Every change as one stack of diffs, in place of the open file.
   allChanges: boolean;
-  zoom: ContentZoom;
+  // Reader zoom, for the views that have one: the diff stack and the preview.
+  zoom: ContentZoom | null;
   sideBySide: boolean;
   onSideBySide: (sideBySide: boolean) => void;
   dirty: boolean;
@@ -39,11 +42,6 @@ interface FilesHeaderProps {
   onToggleTree: () => void;
   onTreeSide: (side: FilesTreeSide) => void;
 }
-
-const VIEW_OPTIONS = [
-  { value: "diff", label: "Diff" },
-  { value: "file", label: "File" },
-] as const;
 
 const LAYOUT_OPTIONS = [
   { value: "split", label: "Split" },
@@ -60,9 +58,9 @@ export function FilesHeader({
   path,
   absPath,
   status,
-  diffAvailable,
-  showDiff,
-  onShowDiff,
+  view,
+  viewOptions,
+  onView,
   allChanges,
   zoom,
   sideBySide,
@@ -156,30 +154,30 @@ export function FilesHeader({
           )}
         </div>
       </nav>
+      {zoom && (
+        <ZoomControl
+          percent={zoom.percent}
+          onZoomIn={zoom.zoomIn}
+          onZoomOut={zoom.zoomOut}
+          onReset={zoom.zoomReset}
+          canZoomIn={zoom.canZoomIn}
+          canZoomOut={zoom.canZoomOut}
+        />
+      )}
       {allChanges ? (
-        <>
-          <ZoomControl
-            percent={zoom.percent}
-            onZoomIn={zoom.zoomIn}
-            onZoomOut={zoom.zoomOut}
-            onReset={zoom.zoomReset}
-            canZoomIn={zoom.canZoomIn}
-            canZoomOut={zoom.canZoomOut}
-          />
-          <SegmentedControl
-            value={sideBySide ? "split" : "unified"}
-            options={LAYOUT_OPTIONS}
-            onChange={(layout) => onSideBySide(layout === "split")}
-            variant="subtle"
-            ariaLabel="Diff layout"
-          />
-        </>
+        <SegmentedControl
+          value={sideBySide ? "split" : "unified"}
+          options={LAYOUT_OPTIONS}
+          onChange={(layout) => onSideBySide(layout === "split")}
+          variant="subtle"
+          ariaLabel="Diff layout"
+        />
       ) : (
-        diffAvailable && (
+        viewOptions && (
           <SegmentedControl
-            value={showDiff ? "diff" : "file"}
-            options={VIEW_OPTIONS}
-            onChange={(view) => onShowDiff(view === "diff")}
+            value={view}
+            options={viewOptions}
+            onChange={onView}
             variant="subtle"
             ariaLabel="Editor view"
           />

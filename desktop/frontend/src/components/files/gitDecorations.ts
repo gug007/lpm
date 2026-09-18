@@ -39,6 +39,14 @@ export function decorationOf(status: string): Decoration {
   return DECORATIONS[status] ?? DECORATIONS.modified;
 }
 
+export const IGNORED_TEXT = "text-[var(--git-ignored)]";
+
+// A path is ignored when git said so of it or of any folder above it: a
+// filter match deep in an ignored folder greys like the folder does.
+export function underIgnored(path: string, ignored: ReadonlySet<string>): boolean {
+  return ignored.has(path) || ancestorsOf(path).some((dir) => ignored.has(dir));
+}
+
 // Which status a folder shows when the files under it disagree.
 const PRIORITY = ["modified", "deleted", "renamed", "added", "untracked"];
 

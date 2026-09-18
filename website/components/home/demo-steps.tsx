@@ -1,13 +1,14 @@
 "use client";
 
 import { Check, RotateCcw } from "lucide-react";
-import {
-  TOUR_STEPS,
-  type TourState,
-  type TourStepId,
+import type {
+  TourState,
+  TourStep,
+  TourStepId,
 } from "@/components/demo/tour";
 
 type Props = {
+  steps: TourStep[];
   tour: TourState;
   onRun: (id: TourStepId) => void;
   onRestart: () => void;
@@ -16,9 +17,27 @@ type Props = {
 // How long the active step's bar takes to fill: the gap between its beat and
 // the one before it on the tour's clock, so it reaches the end as the click
 // lands.
-function fillDuration(index: number): number {
-  const before = index > 0 ? TOUR_STEPS[index - 1].beatMs : 0;
-  return TOUR_STEPS[index].beatMs - before;
+function fillDuration(steps: TourStep[], index: number): number {
+  const before = index > 0 ? steps[index - 1].beatMs : 0;
+  return steps[index].beatMs - before;
+}
+
+const COUNT_WORDS = [
+  "none",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+];
+
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
 }
 
 function Marker({ done, active }: { done: boolean; active: boolean }) {
@@ -42,8 +61,8 @@ function Marker({ done, active }: { done: boolean; active: boolean }) {
   );
 }
 
-export function DemoSteps({ tour, onRun, onRestart }: Props) {
-  const allDone = tour.stage >= TOUR_STEPS.length;
+export function DemoSteps({ steps, tour, onRun, onRestart }: Props) {
+  const allDone = tour.stage >= steps.length;
   const activeIndex = allDone ? -1 : tour.stage;
 
   return (
@@ -52,10 +71,11 @@ export function DemoSteps({ tour, onRun, onRestart }: Props) {
         aria-label="What the demo is doing"
         className="scrollbar-none flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible"
       >
-        {TOUR_STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const done = i < tour.stage;
           const active = i === activeIndex;
-          const fillMs = active && tour.playing ? fillDuration(i) : null;
+          const fillMs =
+            active && tour.playing ? fillDuration(steps, i) : null;
           return (
             <li key={step.id} className="shrink-0 lg:shrink">
               <button
@@ -117,7 +137,7 @@ export function DemoSteps({ tour, onRun, onRestart }: Props) {
           className="hidden text-[12px] text-gray-500 lg:block dark:text-gray-400"
         >
           {allDone
-            ? "All five done. Click around the window yourself, or restart the demo."
+            ? `All ${countWord(steps.length)} done. Click around the window yourself, or restart the demo.`
             : tour.playing
               ? "The tour is running. Click any step to take over."
               : "Click a step to run it in the window."}

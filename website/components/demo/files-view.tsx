@@ -18,6 +18,7 @@ import {
 import { FilesTree } from "./files-tree";
 import { decorate, type GitStatus } from "./git-decorations";
 import type { DemoGit, DemoProject } from "./projects";
+import { useFileView } from "./use-file-view";
 
 const TREE_WIDTH = 248;
 const FONT_SIZE = 12;
@@ -143,6 +144,14 @@ export function FilesView({ project, git }: { project: DemoProject; git?: DemoGi
   const changedFile = changed.find((file) => file.path === selectedPath) ?? null;
   const binary = selectedPath !== null && isBinary(selectedPath);
   const content = selectedPath && !binary ? tree.read(selectedPath) : "";
+  const fileView = useFileView(selectedPath, changedFile !== null, showDiff, setShowDiff);
+  // A README's relative link opens the file it names, if the tree has it.
+  const openLinked = useCallback(
+    (path: string) => {
+      if (tree.paths.includes(path)) openFile(path);
+    },
+    [tree.paths, openFile],
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#1a1a1a]">
@@ -150,9 +159,10 @@ export function FilesView({ project, git }: { project: DemoProject; git?: DemoGi
         rootName={basename(project.root) || project.name}
         path={selectedPath}
         status={status}
-        diffAvailable={changedFile !== null}
-        showDiff={showDiff}
-        onShowDiff={setShowDiff}
+        view={fileView.view}
+        viewOptions={fileView.options}
+        onView={fileView.select}
+        zoom={fileView.previewing ? fileView.zoom : null}
         treeOpen={treeOpen}
         onRevealDir={revealDir}
         onToggleTree={() => setTreeOpen((open) => !open)}
@@ -164,6 +174,7 @@ export function FilesView({ project, git }: { project: DemoProject; git?: DemoGi
             content={content}
             binary={binary}
             diff={changedFile && showDiff ? changedFile : null}
+            markdown={fileView.previewing ? { zoom: fileView.zoom, onOpenFile: openLinked } : null}
             fontSize={FONT_SIZE}
           />
         </div>

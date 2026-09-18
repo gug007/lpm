@@ -9,6 +9,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { flushSync } from "react-dom";
 import { MousePointer2 } from "lucide-react";
 import INITIAL_PROJECTS, {
   INITIAL_AI_STATUS,
@@ -50,12 +51,7 @@ import {
   tabKey,
   type PaneNode,
 } from "./pane-tree";
-import {
-  agentDrive,
-  agentDriveKey,
-  typingMs,
-  withAgentDrive,
-} from "./agent-drive";
+import { agentDriveKey, withAgentDrive } from "./agent-drive";
 import { DemoActiveProvider, usePageVisible } from "./demo-active";
 import { GlobalTerminalsView } from "./global-terminals-view";
 import { SettingsView } from "./settings-view";
@@ -77,13 +73,18 @@ import {
   worktreeBranch,
 } from "./project-factory";
 import {
-  TOUR_BEAT_MS,
+  HOME_TOUR,
   TOUR_FALLBACK_PROMPT,
-  TOUR_STEPS,
+  TOUR_NEW_PROJECT_FOLDER,
+  type Tour,
   type TourHandle,
+  type TourHint,
   type TourState,
   type TourStepId,
 } from "./tour";
+import { tourStepMoves, type TourContext, type TourMove } from "./tour-moves";
+import { AutoCursor, type AutoCursorState } from "./auto-cursor";
+import { seededRandom } from "./natural";
 
 type DemoAppProps = {
   heightCss?: string;
@@ -92,6 +93,9 @@ type DemoAppProps = {
   // and presses the window's controls through tourRef.
   tourRef?: React.Ref<TourHandle>;
   onTour?: (state: TourState) => void;
+  // Which steps the opening tour plays, in what order — a page's own list, or
+  // the home page's.
+  tour?: Tour;
 };
 
 type HintStage = "invite" | "next";
@@ -110,22 +114,36 @@ const HEADER_ROW_H = 40;
 // tab strip, the two hairlines around it, and a little air. The hint pill hangs
 // below the pair, so it never covers the tabs its own line points at.
 const PILL_DROP_BELOW_HEADER = 40;
+// How long before the tour presses Start its ring starts pulsing.
+const RING_LEAD_MS = 1700;
+// Having clicked into a field, a hand moves the pointer off the text it is
+// about to type: this long after the click, and this far.
+const ASIDE_DELAY_MS = 350;
+const ASIDE_OFFSET = { x: 44, y: 16 };
 
 // What a branch is ahead/behind its upstream by. git keeps this per branch, so
 // the demo has to park it when a checkout leaves the branch.
 type BranchSync = { ahead: number; behind: number };
 
-type AutoCursorState =
-  | { phase: "hidden" }
-  | { phase: "travel"; x: number; y: number }
-  | { phase: "tap"; x: number; y: number }
-  | { phase: "fade"; x: number; y: number };
+// The selected project's name and the prompt each of its agents opens with,
+// for the tour's beats that type into a composer.
+function tourPromptsFor(project: DemoProject | undefined) {
+  const promptFor = (agent: "claude" | "codex") =>
+    project?.actions.find((a) => a.agent === agent)?.autoPrompt ??
+    TOUR_FALLBACK_PROMPT;
+  return {
+    project: project?.name ?? "",
+    claude: promptFor("claude"),
+    codex: promptFor("codex"),
+  };
+}
 
 export function DemoApp({
   heightCss,
   heightCssSm,
   tourRef,
   onTour,
+  tour = HOME_TOUR,
 }: DemoAppProps) {
   const [projects, setProjects] = useState<DemoProject[]>(INITIAL_PROJECTS);
   const [selected, setSelected] = useState<string>(INITIAL_PROJECTS[0].name);
@@ -165,7 +183,10 @@ export function DemoApp({
   const [autoCursor, setAutoCursor] = useState<AutoCursorState>({
     phase: "hidden",
   });
-  const [hint, setHint] = useState<HintStage>("invite");
+  const [hint, setHint] = useState<{ text: TourHint; stage: HintStage }>({
+    text: tour.hint,
+    stage: "invite",
+  });
   const [headerHeight, setHeaderHeight] = useState(HEADER_ROW_H);
   // Visibility is held apart from the stage so the pill keeps drawing the line
   // it was showing all the way through its half-second fade.
@@ -187,9 +208,7 @@ export function DemoApp({
   // Read by the mimed tour at the moment it would press Start, which is long
   // after the effect that owns it last re-ran.
   const servicesRunningRef = useRef(false);
-  // The selected project's name and the prompt each of its agents opens with,
-  // for the beats that type into a composer.
-  const tourPromptsRef = useRef({ project: "", claude: "", codex: "" });
+  const tourPromptsRef = useRef(tourPromptsFor(undefined));
   // Stamped once when the demo mounts, so the seeded sessions all date from
   // the same moment rather than drifting apart as the tree re-renders.
   const [mountedAt] = useState(() => Date.now());
@@ -198,6 +217,27 @@ export function DemoApp({
   // Lets a step clicked in the list stop the mimed tour mid-flight, so the
   // click it was about to land does not double the visitor's.
   const tourCancelRef = useRef<(() => void) | null>(null);
+  // Read when the tour arms rather than on every render: a page hands the same
+  // tour in for the life of the frame, and re-arming on it would end the tour.
+  const tourConfigRef = useRef(tour);
+  // Whether a project has been added this visit, whoever did it. A ref so the
+  // tour can read it the moment it happens, ahead of the render.
+  const addedProjectRef = useRef(false);
+  const addProjectNowRef = useRef<((folder: string) => DemoProject) | null>(
+    null,
+  );
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    tourConfigRef.current = tour;
+  });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const markInteracted = () => {
     setAutoCursor({ phase: "hidden" });
@@ -213,14 +253,24 @@ export function DemoApp({
   // only moves forward — stopping a project again is not unlearning Start.
   // An open session and a session that has been given a prompt are separate
   // steps, so the count reads the panes rather than the status map alone: an
-  // agent waiting on its first prompt reports no status at all.
+  // agent waiting on its first prompt reports no status at all. A step counts
+  // once its earlier steps have, so the list never shows a later step done
+  // with an earlier one still pending.
   useEffect(() => {
-    const reachedIn = (name: string): number => {
-      const terminals = actionTerminalsByProject[name] ?? EMPTY_ACTIONS;
-      const statuses = agentTabStatusByProject[name] ?? EMPTY_STATUS;
+    const done: Record<TourStepId, boolean> = {
+      addProject: addedProjectRef.current,
+      start: false,
+      agent: false,
+      prompt: false,
+      codex: false,
+      codexPrompt: false,
+    };
+    for (const p of projects) {
+      const terminals = actionTerminalsByProject[p.name] ?? EMPTY_ACTIONS;
+      const statuses = agentTabStatusByProject[p.name] ?? EMPTY_STATUS;
       const open = new Set<string>();
       const asked = new Set<string>();
-      for (const leaf of collectLeaves(treeByProject[name] ?? null)) {
+      for (const leaf of collectLeaves(treeByProject[p.name] ?? null)) {
         for (const tab of leaf.tabs) {
           if (tab.kind !== "action") continue;
           const agent = terminals[tab.key]?.agent;
@@ -229,19 +279,17 @@ export function DemoApp({
           if (statuses[tabKey(tab)]) asked.add(agent);
         }
       }
-      const done = [
-        (runningByProject[name]?.size ?? 0) > 0,
-        open.size > 0,
-        asked.size > 0,
-        open.size > 1,
-        asked.size > 1,
-      ];
-      const pending = done.indexOf(false);
-      return pending === -1 ? done.length : pending;
-    };
-    const reached = Math.max(0, ...projects.map((p) => reachedIn(p.name)));
+      done.start ||= (runningByProject[p.name]?.size ?? 0) > 0;
+      done.agent ||= open.size > 0;
+      done.prompt ||= asked.size > 0;
+      done.codex ||= open.size > 1;
+      done.codexPrompt ||= asked.size > 1;
+    }
+    const pending = tour.steps.findIndex((s) => !done[s.id]);
+    const reached = pending === -1 ? tour.steps.length : pending;
     setTourStage((cur) => Math.max(cur, reached));
   }, [
+    tour,
     projects,
     runningByProject,
     treeByProject,
@@ -252,15 +300,9 @@ export function DemoApp({
   // What the tour types, read at the beat rather than when its effect armed —
   // the visitor may have selected another project in the meantime.
   useEffect(() => {
-    const current = projects.find((p) => p.name === selected) ?? projects[0];
-    const promptFor = (agent: "claude" | "codex") =>
-      current?.actions.find((a) => a.agent === agent)?.autoPrompt ??
-      TOUR_FALLBACK_PROMPT;
-    tourPromptsRef.current = {
-      project: current?.name ?? "",
-      claude: promptFor("claude"),
-      codex: promptFor("codex"),
-    };
+    tourPromptsRef.current = tourPromptsFor(
+      projects.find((p) => p.name === selected) ?? projects[0],
+    );
   }, [projects, selected]);
 
   useEffect(() => {
@@ -308,73 +350,43 @@ export function DemoApp({
     if (!container) return;
     if (typeof window === "undefined") return;
 
-    const startBtn = startButtonRef.current;
-    if (!startBtn) return;
+    // Nothing to tour without a project on screen.
+    if (!startButtonRef.current) return;
     autoCursorRanRef.current = true;
 
-    // The mimed cursor clicks real buttons, but each beat must fire at most
-    // once: Start is a toggle, so a second click would stop what it started,
-    // and a second agent click would open a duplicate tab.
-    let started = false;
-    let launched = false;
-    let paired = false;
-
-    const startIfIdle = () => {
-      if (started) return;
-      started = true;
-      // Start is a toggle: once the visitor's own click has booted the project
-      // this same button reads Stop, and pressing it would shut it all down.
-      if (!servicesRunningRef.current) startBtn.click();
-    };
-
-    // The agent is the product's whole point, so the mimed cursor launches it
-    // too — a passive visitor otherwise only ever sees service logs, which any
-    // process manager can show.
-    const launchAgentIfIdle = () => {
-      const btn = agentButtonRef.current;
-      if (launched || !btn) return;
-      launched = true;
-      btn.click();
-    };
-
-    // The headline claim is two agents at once, so the last beat opens the
-    // other CLI too. It lands as a tab beside Claude's, the way an action
-    // always opens — the tour never rearranges the visitor's panes.
-    const launchCodexIfIdle = () => {
-      const btn = codexButtonRef.current;
-      if (paired || !btn) return;
-      paired = true;
-      btn.click();
-      setHint("next");
-      setHintVisible(true);
-    };
-
-    // An open agent with an empty composer is only half the point, so the tour
-    // asks each one for something. The session registers itself a render after
-    // the chip that opened it was clicked, so the prompt waits for the field.
-    const prompted = { claude: false, codex: false };
+    const { steps } = tourConfigRef.current;
     let driveWaits: (() => void)[] = [];
-    const promptAgentIfIdle = (agent: "claude" | "codex", instant?: boolean) => {
-      if (prompted[agent]) return;
-      prompted[agent] = true;
-      const { project: name, [agent]: text } = tourPromptsRef.current;
-      const cancelWait = withAgentDrive(agentDriveKey(name, agent), (drive) => {
-        if (drive.idle()) drive.send(text, instant ? { instant: true } : undefined);
-      });
-      // A landing prompt has to outlive the teardown that asked for it; a
-      // mimed one is cancelled with the rest of the sequence.
-      if (!instant) driveWaits.push(cancelWait);
+    const ctx: TourContext = {
+      container,
+      startButton: () => startButtonRef.current,
+      chip: (agent) =>
+        agent === "claude" ? agentButtonRef.current : codexButtonRef.current,
+      servicesRunning: () => servicesRunningRef.current,
+      prompts: () => tourPromptsRef.current,
+      addProject: (folder) => {
+        addProjectNowRef.current?.(folder);
+      },
+      onWait: (cancel) => driveWaits.push(cancel),
+      onStepDone: (id) => {
+        const text = steps.find((s) => s.id === id)?.hint;
+        if (!text) return;
+        setHint({ text, stage: "next" });
+        setHintVisible(true);
+      },
     };
+    // The mimed cursor clicks real buttons, and each step presses its control
+    // at most once — the moves keep that count between the mime and a landing.
+    const plan = steps.map((step) => ({
+      step,
+      ...tourStepMoves(step.id, ctx),
+    }));
+    const startEntry = plan.find((entry) => entry.step.id === "start");
 
     // What the sequence was heading for, landed at once: a visitor who scrolls
     // away or has motion turned down comes back to a finished demo rather than
     // a project half set up.
     const landRemaining = () => {
-      startIfIdle();
-      launchAgentIfIdle();
-      launchCodexIfIdle();
-      promptAgentIfIdle("claude", true);
-      promptAgentIfIdle("codex", true);
+      for (const entry of plan) entry.land();
     };
 
     const prefersReducedMotion = window.matchMedia(
@@ -422,16 +434,16 @@ export function DemoApp({
     // opens or uses that menu, so the boot is neither wanted here nor spent —
     // a later click elsewhere still lands it.
     const inStartMenu = (node: Node) =>
-      !!startBtn.parentElement?.contains(node) ||
+      !!startButtonRef.current?.parentElement?.contains(node) ||
       (node instanceof Element && !!node.closest('[role="menu"]'));
-    // Pressing Start IS the boot, so it latches the flag rather than injecting
-    // one: the browser delivers pointerdown and click in separate tasks, so a
-    // click here would flip the button to Stop before the visitor's own click
+    // Pressing Start IS the boot, so it latches the step rather than injecting
+    // a click: the browser delivers pointerdown and click in separate tasks, so
+    // a click here would flip the button to Stop before the visitor's own click
     // lands on it and shut the project straight back down.
     const onPointerDown = (event: PointerEvent) => {
       const node = event.target instanceof Node ? event.target : null;
-      if (node && startBtn.contains(node)) started = true;
-      else if (!node || !inStartMenu(node)) startIfIdle();
+      if (node && startButtonRef.current?.contains(node)) startEntry?.latch();
+      else if (!node || !inStartMenu(node)) startEntry?.land();
       cancel();
     };
     const onKeyDown = () => cancel();
@@ -440,17 +452,29 @@ export function DemoApp({
     container.addEventListener("keydown", onKeyDown);
 
     const containerRect = container.getBoundingClientRect();
-    // Re-read the frame every beat: the visitor is usually still scrolling it
-    // into place, and a stale origin would land the cursor on the wrong control.
-    const at = (el: HTMLElement) => {
+    // Where on a control the click lands. Re-read every beat: the visitor is
+    // usually still scrolling the frame into place, and a stale origin would
+    // land the cursor on the wrong control. Nobody hits dead centre, so the
+    // point sits a little off it — the same little off it for the tap as for
+    // the reach, on every visit — and a text field is clicked where its text
+    // starts rather than halfway along it.
+    const pointOn = (el: HTMLElement, move: TourMove, seed: string) => {
       const frame = container.getBoundingClientRect();
       const r = el.getBoundingClientRect();
+      const rng = seededRandom(seed);
+      const left = r.left - frame.left;
+      const top = r.top - frame.top;
+      if (move.anchor === "start")
+        return {
+          x: left + 18 + rng() * 12,
+          y: top + r.height / 2 + (rng() - 0.5) * r.height * 0.3,
+        };
+      const play = Math.min(r.width, r.height) * 0.3;
       return {
-        x: r.left + r.width / 2 - frame.left,
-        y: r.top + r.height / 2 - frame.top,
+        x: left + r.width / 2 + (rng() - 0.5) * play,
+        y: top + r.height / 2 + (rng() - 0.5) * play,
       };
     };
-    const start = at(startBtn);
     const from = {
       x: containerRect.width * 0.45,
       y: containerRect.height * 0.65,
@@ -469,116 +493,69 @@ export function DemoApp({
       step(ms, () => {
         if (!cursorHidden) fn();
       });
-
-    const {
-      start: startMs,
-      agent: agentMs,
-      prompt: promptMs,
-      codex: codexMs,
-      codexPrompt: codexPromptMs,
-    } = TOUR_BEAT_MS;
-    // Where the composer of a given agent's session sits, for the beats that
-    // type into it. Null until that session is on screen.
-    const composerAt = (agent: "claude" | "codex") => {
-      const { project: name } = tourPromptsRef.current;
-      const field = agentDrive(agentDriveKey(name, agent))?.field();
-      return field ? at(field) : null;
-    };
-    const aimAtComposer =
-      (agent: "claude" | "codex", phase: "travel" | "tap") => () => {
-        const pos = composerAt(agent);
-        if (pos) setAutoCursor({ phase, ...pos });
-      };
-    mime(0, () => setRingPulseOn(true));
-    mime(600, () => setAutoCursor({ phase: "travel", ...from }));
-    mime(680, () => setAutoCursor({ phase: "travel", ...start }));
-    step(startMs, () => {
-      if (!cursorHidden) setAutoCursor({ phase: "tap", ...start });
-      startIfIdle();
-    });
-    mime(startMs + 300, () => setRingPulseOn(false));
-
-    // Second beat: hand the freshly started project to Claude Code. It waits on
-    // the services long enough for a visitor to watch them boot — jumping
-    // straight to the agent buries the thing the first click just did. The
-    // button can shift as services open panes, so each beat re-reads it.
-    const agentAt = () => {
-      const el = agentButtonRef.current;
-      return el ? at(el) : null;
-    };
-    const moveToAgent = (phase: "travel" | "tap" | "fade") => () => {
-      const pos = agentAt();
-      if (pos) setAutoCursor({ phase, ...pos });
+    // A control can shift as panes open, so every beat re-reads where it is.
+    // One that is not on screen leaves the cursor where it was.
+    const aim = (move: TourMove, phase: "travel" | "tap", seed: string) => {
+      const el = move.target();
+      if (!el) return null;
+      const point = pointOn(el, move, seed);
+      setAutoCursor(
+        phase === "travel"
+          ? { phase, ...point, withinMs: move.travelMs, seed }
+          : { phase, ...point },
+      );
+      return point;
     };
 
-    mime(agentMs - 1000, moveToAgent("travel"));
-    step(agentMs, () => {
-      if (!cursorHidden) moveToAgent("tap")();
-      launchAgentIfIdle();
-    });
+    // Start rings ahead of the click on it, wherever in the tour that comes.
+    if (startEntry) {
+      const startMs = startEntry.step.beatMs;
+      mime(Math.max(0, startMs - RING_LEAD_MS), () => setRingPulseOn(true));
+      mime(startMs + 300, () => setRingPulseOn(false));
+    }
 
-    // Third beat: the session is open on an empty composer, which is where the
-    // work is actually asked for. The cursor lands in the field and the prompt
-    // is typed there, rather than a reply appearing on its own.
-    mime(promptMs - 700, aimAtComposer("claude", "travel"));
-    step(promptMs, () => {
-      if (!cursorHidden) aimAtComposer("claude", "tap")();
-      promptAgentIfIdle("claude");
-    });
+    // Every step waits on the one before it long enough for a visitor to watch
+    // what that click did — jumping straight on buries the thing it just did.
+    let entered = false;
+    for (const entry of plan) {
+      entry.moves.forEach((move, index) => {
+        const seed = `${entry.step.id}:${index}`;
+        const clickMs = entry.step.beatMs + move.offsetMs;
+        const travelMs = clickMs - move.travelMs;
+        if (!entered) {
+          entered = true;
+          mime(travelMs - 80, () =>
+            setAutoCursor({ phase: "travel", ...from, withinMs: 0, seed }),
+          );
+        }
+        mime(travelMs, () => {
+          if (move.reveal?.() ?? true) aim(move, "travel", seed);
+        });
+        step(clickMs, () => {
+          const point =
+            !cursorHidden && (move.reveal?.() ?? true)
+              ? aim(move, "tap", seed)
+              : null;
+          move.act();
+          if (point && move.anchor === "start")
+            mime(ASIDE_DELAY_MS, () =>
+              setAutoCursor({
+                phase: "travel",
+                x: point.x + ASIDE_OFFSET.x,
+                y: point.y + ASIDE_OFFSET.y,
+                withinMs: ASIDE_DELAY_MS * 2,
+                seed: `${seed}:aside`,
+              }),
+            );
+        });
+      });
+    }
 
-    // Fourth beat: Claude has been streaming long enough to read, so the other
-    // agent joins it in the same project.
-    const codexAt = () => {
-      const el = codexButtonRef.current;
-      return el ? at(el) : null;
-    };
-    const moveToCodex = (phase: "travel" | "tap") => () => {
-      const pos = codexAt();
-      if (pos) setAutoCursor({ phase, ...pos });
-    };
-
-    // The action strip scrolls sideways on a narrow stage, so the chip has to
-    // be brought inside it before the cursor aims — the strip's own scrollLeft,
-    // never scrollIntoView, which walks to the document and would yank the
-    // marketing page. If it still will not fit, the tab opens without a mime
-    // rather than tapping whatever chip happens to be under that point.
-    const revealCodex = () => {
-      const btn = codexButtonRef.current;
-      if (!btn) return false;
-      let strip = btn.parentElement;
-      while (strip && strip !== container && strip.scrollWidth <= strip.clientWidth)
-        strip = strip.parentElement;
-      if (!strip || strip === container) return true;
-      const box = strip.getBoundingClientRect();
-      const left = btn.getBoundingClientRect().left - box.left + strip.scrollLeft;
-      const right = left + btn.offsetWidth;
-      if (left < strip.scrollLeft) strip.scrollLeft = left;
-      else if (right > strip.scrollLeft + strip.clientWidth)
-        strip.scrollLeft = right - strip.clientWidth;
-      const chip = btn.getBoundingClientRect();
-      return chip.left >= box.left - 1 && chip.right <= box.right + 1;
-    };
-
-    mime(codexMs - 800, () => {
-      if (revealCodex()) moveToCodex("travel")();
-    });
-    step(codexMs, () => {
-      if (!cursorHidden && revealCodex()) moveToCodex("tap")();
-      launchCodexIfIdle();
-    });
-    // Last beat: the second agent gets a task of its own, so the window ends on
-    // two sessions working the same project rather than one working and one
-    // sitting open.
-    mime(codexPromptMs - 700, aimAtComposer("codex", "travel"));
-    step(codexPromptMs, () => {
-      if (!cursorHidden) aimAtComposer("codex", "tap")();
-      promptAgentIfIdle("codex");
-    });
-
-    // The cursor stays in the field until the prompt it typed has gone, then
-    // fades from wherever it actually is — the agent chip, when Codex could not
-    // be reached.
-    const endMs = codexPromptMs + typingMs(tourPromptsRef.current.codex);
+    // The cursor stays on the last step until it has visibly happened — for a
+    // typed prompt, until the prompt has gone — then fades from wherever it
+    // actually is.
+    const last = plan[plan.length - 1];
+    const endMs = last ? last.step.beatMs + last.tailMs() : 0;
     mime(endMs, () =>
       setAutoCursor((cur) =>
         cur.phase === "hidden" ? cur : { phase: "fade", x: cur.x, y: cur.y },
@@ -593,8 +570,13 @@ export function DemoApp({
       // Scrolling away mid-flight would otherwise strand the mimed cursor on
       // screen and abandon the sequence half-done — the effect never re-arms,
       // so the visitor would come back to a project that never got its agent.
-      // Skip the remaining animation, but land on the state it was heading for.
-      if (!cancelled) landRemaining();
+      // Skip the remaining animation, but land on the state it was heading
+      // for: a moment later, from outside this teardown, so a step that has to
+      // render before the next one can. Not for a frame that is going away.
+      if (!cancelled)
+        window.setTimeout(() => {
+          if (mountedRef.current) landRemaining();
+        }, 0);
       cancelled = true;
       clearTimers();
       hideCursor();
@@ -1002,9 +984,12 @@ export function DemoApp({
       setVisited,
     });
 
-  const handleAddProject = (input: NewProjectInput) => {
-    const newProject = buildProjectFromInput(input, projects);
+  const commitProject = (newProject: DemoProject) => {
     const pane = initialPaneState(newProject);
+    addedProjectRef.current = true;
+    // The tour may prompt this project in the same task that added it, ahead
+    // of the render that would otherwise point it here.
+    tourPromptsRef.current = tourPromptsFor(newProject);
     setProjects((prev) => [...prev, newProject]);
     setRunningByProject((prev) => ({ ...prev, [newProject.name]: new Set() }));
     setTreeByProject((prev) => ({ ...prev, [newProject.name]: pane.tree }));
@@ -1019,6 +1004,24 @@ export function DemoApp({
     setAdding(false);
   };
 
+  const handleAddProject = (input: NewProjectInput) =>
+    commitProject(buildProjectFromInput(input, projects));
+
+  // Adopts a folder the way the picker would, rendered before it returns so
+  // that a click straight after finds the new project's controls rather than
+  // the old one's.
+  const addProjectNow = (folder: string): DemoProject => {
+    const newProject = buildProjectFromInput(
+      { kind: "local", name: folder },
+      projects,
+    );
+    flushSync(() => commitProject(newProject));
+    return newProject;
+  };
+  useEffect(() => {
+    addProjectNowRef.current = addProjectNow;
+  });
+
   // A step clicked in the list runs everything up to it, so the list never
   // shows a later step done with an earlier one still pending. Each control is
   // pressed at most once: Start is a toggle, and a second click on an agent
@@ -1029,31 +1032,51 @@ export function DemoApp({
       tourCancelRef.current?.();
       markInteracted();
       if (!project) return;
-      const name = project.name;
-      const upTo = TOUR_STEPS.findIndex((s) => s.id === id);
-      const terminals = actionTerminalsByProject[name] ?? EMPTY_ACTIONS;
-      const hasTab = (agent: "claude" | "codex") =>
-        collectLeaves(treeByProject[name] ?? null).some((leaf) =>
+      // Adding a project moves the run onto it; every step after works there.
+      let target = project;
+      const hasTab = (agent: "claude" | "codex") => {
+        const terminals = actionTerminalsByProject[target.name] ?? EMPTY_ACTIONS;
+        return collectLeaves(treeByProject[target.name] ?? null).some((leaf) =>
           leaf.tabs.some(
             (t) => t.kind === "action" && terminals[t.key]?.agent === agent,
           ),
         );
+      };
       // The chip above may have opened the tab in this same click, so the
       // prompt waits for the session rather than for the next render.
       const promptTab = (agent: "claude" | "codex") => {
         const text =
-          project.actions.find((a) => a.agent === agent)?.autoPrompt ??
+          target.actions.find((a) => a.agent === agent)?.autoPrompt ??
           TOUR_FALLBACK_PROMPT;
-        withAgentDrive(agentDriveKey(name, agent), (drive) => {
+        withAgentDrive(agentDriveKey(target.name, agent), (drive) => {
           if (drive.idle()) drive.send(text);
         });
       };
-      if (upTo >= 0 && !runningByProject[name]?.size)
-        startButtonRef.current?.click();
-      if (upTo >= 1 && !hasTab("claude")) agentButtonRef.current?.click();
-      if (upTo >= 2) promptTab("claude");
-      if (upTo >= 3 && !hasTab("codex")) codexButtonRef.current?.click();
-      if (upTo >= 4) promptTab("codex");
+      const upTo = tour.steps.findIndex((s) => s.id === id);
+      for (const step of tour.steps.slice(0, upTo + 1)) {
+        switch (step.id) {
+          case "addProject":
+            if (!addedProjectRef.current)
+              target = addProjectNow(TOUR_NEW_PROJECT_FOLDER);
+            break;
+          case "start":
+            if (!runningByProject[target.name]?.size)
+              startButtonRef.current?.click();
+            break;
+          case "agent":
+            if (!hasTab("claude")) agentButtonRef.current?.click();
+            break;
+          case "prompt":
+            promptTab("claude");
+            break;
+          case "codex":
+            if (!hasTab("codex")) codexButtonRef.current?.click();
+            break;
+          case "codexPrompt":
+            promptTab("codex");
+            break;
+        }
+      }
     },
   }));
 
@@ -1064,7 +1087,7 @@ export function DemoApp({
     if (!hintVisible || !isParked) return;
     const id = window.setTimeout(
       () => setHintVisible(false),
-      hint === "next" ? 8000 : 12000,
+      hint.stage === "next" ? 8000 : 12000,
     );
     return () => window.clearTimeout(id);
   }, [hint, hintVisible, isParked]);
@@ -1205,34 +1228,9 @@ export function DemoApp({
           />
         )}
 
-        {autoCursor.phase !== "hidden" && (
-          <div
-            aria-hidden
-            className={`pointer-events-none absolute z-40 transition-[transform,opacity] ${
-              autoCursor.phase === "travel"
-                ? "duration-[1000ms] ease-[cubic-bezier(0.22,1,0.36,1)] opacity-100"
-                : autoCursor.phase === "fade"
-                  ? "duration-[400ms] ease-out opacity-0"
-                  : "duration-150 ease-out opacity-100"
-            }`}
-            style={{
-              top: 0,
-              left: 0,
-              transform: `translate3d(${autoCursor.x}px, ${autoCursor.y}px, 0)`,
-            }}
-          >
-            <div className="relative">
-              {autoCursor.phase === "tap" && (
-                <span className="auto-cursor-tap absolute -left-2 -top-2 h-9 w-9 rounded-full border-2 border-[#60a5fa]/70 bg-[#60a5fa]/20" />
-              )}
-              <MousePointer2
-                className="relative h-5 w-5 text-[#e5e5e5] drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-                strokeWidth={1.75}
-                fill="#e5e5e5"
-              />
-            </div>
-          </div>
-        )}
+        {/* Above every overlay in the frame: the cursor stands in for the
+          visitor, and the picker it clicks through would otherwise hide it. */}
+        <AutoCursor state={autoCursor} />
 
         {/* Clear of the header and the tab strip: for the ten seconds it is up
           the pill would otherwise sit on the split-layout buttons and the tabs
@@ -1251,24 +1249,8 @@ export function DemoApp({
               className="h-3.5 w-3.5 text-[#60a5fa] shrink-0"
               strokeWidth={2.25}
             />
-            {hint === "next" ? (
-              <>
-                <span className="sm:hidden">
-                  Two agents at once — switch tabs
-                </span>
-                <span className="hidden sm:inline">
-                  Two agents on one project — switch tabs. ml-pipeline is asking
-                  you something.
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="sm:hidden">Booting saas-app…</span>
-                <span className="hidden sm:inline">
-                  Booting saas-app — every pane is live. Click anything.
-                </span>
-              </>
-            )}
+            <span className="sm:hidden">{hint.text.short}</span>
+            <span className="hidden sm:inline">{hint.text.long}</span>
           </div>
         </div>
       </div>

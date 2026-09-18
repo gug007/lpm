@@ -31,6 +31,8 @@ interface FilesTreeProps {
   // and with `changesOnly` it is all the rail shows.
   changes: Changes;
   decorations: ReadonlyMap<string, string>;
+  // Every listed path git ignores; its rows grey out.
+  ignoredPaths: ReadonlySet<string>;
   changesOnly: boolean;
   onChangesOnlyChange: (on: boolean) => void;
   // The whole working tree as one diff stack, in place of a single file.
@@ -64,6 +66,7 @@ export function FilesTree({
   rootListing,
   changes,
   decorations,
+  ignoredPaths,
   changesOnly,
   onChangesOnlyChange,
   allChanges,
@@ -238,6 +241,7 @@ export function FilesTree({
       paddingTop={virtual.paddingTop}
       paddingBottom={virtual.paddingBottom}
       decorations={decorations}
+      ignoredPaths={ignoredPaths}
       dirtyPaths={dirtyPaths}
       cursorStore={cursorStore}
       onActivate={activate}

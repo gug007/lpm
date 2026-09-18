@@ -34,6 +34,7 @@ mod fonts;
 mod fsatomic;
 mod generated_commands;
 mod git;
+mod gitignore;
 mod gitbring;
 mod gitbringapply;
 mod gitbringhost;

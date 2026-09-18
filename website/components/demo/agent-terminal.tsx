@@ -5,12 +5,8 @@ import { useStickToBottom } from "./use-stick-to-bottom";
 import { INITIAL_AI_STATUS, type ReplyContext } from "./projects";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
 import { AgentComposer } from "./agent-composer";
-import {
-  TYPE_CHAR_MS,
-  TYPE_LEAD_MS,
-  TYPE_SEND_MS,
-  registerAgentDrive,
-} from "./agent-drive";
+import { registerAgentDrive } from "./agent-drive";
+import { typingSchedule } from "./natural";
 import { ComposerModelPicker } from "./composer-model-picker";
 import { INITIAL_PICK, statusModel, switchNotices, type ModelPick } from "./agent-models";
 import { AgentTurn } from "./agent-turn";
@@ -348,16 +344,17 @@ export function AgentTerminal({
     // preventScroll: the field is inside the demo's own frame, and pulling it
     // into view would scroll the marketing page out from under the visitor.
     inputRef.current?.focus({ preventScroll: true });
+    const { delays, sendMs } = typingSchedule(text);
     let typed = 0;
     const tick = () => {
       typed += 1;
       setInput(text.slice(0, typed));
       typingRef.current = window.setTimeout(
         typed < text.length ? tick : send,
-        typed < text.length ? TYPE_CHAR_MS : TYPE_SEND_MS,
+        typed < text.length ? delays[typed] : sendMs,
       );
     };
-    typingRef.current = window.setTimeout(tick, TYPE_LEAD_MS);
+    typingRef.current = window.setTimeout(tick, delays[0]);
   };
 
   useEffect(() => {

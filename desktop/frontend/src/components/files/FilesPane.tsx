@@ -20,11 +20,19 @@ import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
 import { rankFiles, type IndexEntry } from "./filesFilter";
-import { ancestorsOf, buildMatchTree, flattenTree, type Item } from "./treeModel";
+import {
+  adjacentFile,
+  ancestorsOf,
+  buildMatchTree,
+  flattenTree,
+  ignoredPathsOf,
+  type Item,
+} from "./treeModel";
 import { useChangesView } from "./useChangesView";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
 import { useFileIndex } from "./useFileIndex";
+import { useFileView } from "./useFileView";
 import { useFilesPaneRequests } from "./useFilesPaneRequests";
 import { useFilesChords } from "./useFilesChords";
 
@@ -71,6 +79,7 @@ export function FilesPane({
   const selectedPath = buffer.file?.path ?? null;
   const git = useChangesView(projectRoot, selectedPath, active);
   const { changesOnly, decorations, showAllChanges } = git;
+  const fileView = useFileView(selectedPath, git.diff, active && focused);
   const { treeOpen, showTree, filterFocusRequest } = useFilesPaneRequests(tabId, paneId, git);
   const { setWanted: setDiffWanted } = git.diff;
   // The stack of diffs zooms on its own; the shortcuts are taken only while it
@@ -89,6 +98,7 @@ export function FilesPane({
         : flattenTree(listings, expanded),
     [changesOnly, git.items, collapsed, listings, expanded],
   );
+  const ignoredPaths = useMemo(() => ignoredPathsOf(listings), [listings]);
   // Which file the diff stack is scrolled to, so the rail follows the reading.
   const [stackPath, setStackPath] = useState<string | null>(null);
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
@@ -169,10 +179,11 @@ export function FilesPane({
     [openBuffer, changesOnly, setDiffWanted, showAllChanges, expandDirs, uncollapse],
   );
 
-  // A diff editor has two inputs; the editable one comes last.
+  // A diff editor has two inputs; the editable one comes last. A preview has
+  // none and takes the focus itself, so keys scroll it.
   const focusEditor = useCallback(() => {
-    const inputs = rootRef.current?.querySelectorAll<HTMLTextAreaElement>(
-      ".monaco-editor textarea.inputarea",
+    const inputs = rootRef.current?.querySelectorAll<HTMLElement>(
+      ".monaco-editor textarea.inputarea, [data-files-preview]",
     );
     inputs?.[inputs.length - 1]?.focus();
   }, []);
@@ -196,7 +207,8 @@ export function FilesPane({
   // Esc with nothing left for Monaco to cancel hands focus back to the tree.
   const onRootKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.key !== "Escape") return;
-    if (!(e.target instanceof Element) || !e.target.closest(".monaco-editor")) return;
+    if (!(e.target instanceof Element)) return;
+    if (!e.target.closest(".monaco-editor, [data-files-preview]")) return;
     e.preventDefault();
     e.stopPropagation();
     focusTree();
@@ -237,17 +249,8 @@ export function FilesPane({
 
   const stepFile = useCallback(
     (delta: 1 | -1) => {
-      const items: Item[] = filtering ? (results ?? []) : rows;
-      const files = items.filter((it) => !it.isDir);
-      if (files.length === 0) return;
-      const at = selectedPath ? files.findIndex((f) => f.path === selectedPath) : -1;
-      const next =
-        at < 0
-          ? delta > 0
-            ? 0
-            : files.length - 1
-          : Math.min(files.length - 1, Math.max(0, at + delta));
-      openFile(files[next].path);
+      const next = adjacentFile(filtering ? (results ?? []) : rows, selectedPath, delta);
+      if (next) openFile(next);
     },
     [filtering, results, rows, selectedPath, openFile],
   );
@@ -257,6 +260,7 @@ export function FilesPane({
   const chordPath = () => cursorRef.current?.path ?? selectedPath;
   useFilesChords(active && focused, {
     save: () => void buffer.save(),
+    togglePreview: fileView.togglePreview,
     nextFile: () => stepFile(1),
     prevFile: () => stepFile(-1),
     reveal: () => {
@@ -285,6 +289,7 @@ export function FilesPane({
         rootListing={listings.get("")}
         changes={git.changes}
         decorations={decorations}
+        ignoredPaths={ignoredPaths}
         changesOnly={changesOnly}
         onChangesOnlyChange={git.showChangesOnly}
         allChanges={git.allChanges}
@@ -323,11 +328,11 @@ export function FilesPane({
         path={selectedPath}
         absPath={absPath}
         status={git.status}
-        diffAvailable={git.diff.available}
-        showDiff={git.diff.diff !== null}
-        onShowDiff={setDiffWanted}
+        view={fileView.view}
+        viewOptions={fileView.options}
+        onView={fileView.select}
         allChanges={git.allChanges}
-        zoom={zoom}
+        zoom={git.allChanges ? zoom : fileView.previewing ? fileView.zoom : null}
         sideBySide={git.sideBySide}
         onSideBySide={git.showSideBySide}
         dirty={buffer.draft !== null}
@@ -366,6 +371,11 @@ export function FilesPane({
               value={buffer.value}
               absPath={absPath ?? ""}
               diff={git.diff.diff}
+              markdown={
+                fileView.previewing
+                  ? { zoom: fileView.zoom, projectRoot, onOpenFile: openFile }
+                  : null
+              }
               onChange={buffer.setDraft}
               onSave={() => void buffer.save()}
             />

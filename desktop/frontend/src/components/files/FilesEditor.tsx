@@ -9,6 +9,7 @@ import { BinaryFilePlaceholder } from "../review/BinaryFilePlaceholder";
 import { EmptyState } from "../ui/EmptyState";
 import { useVideoPreview } from "../videoPreview";
 import { FilesDiffEditor } from "./FilesDiffEditor";
+import { FilesMarkdownPreview, type MarkdownPreviewOptions } from "./FilesMarkdownPreview";
 import type { DiffSource } from "./useDiffView";
 import type { OpenFile } from "./useFileBuffer";
 
@@ -18,6 +19,8 @@ interface FilesEditorProps {
   absPath: string;
   // Set to show the file against HEAD instead of on its own.
   diff: DiffSource | null;
+  // Set to render the file (Markdown) instead of editing its source.
+  markdown: MarkdownPreviewOptions | null;
   onChange: (text: string) => void;
   onSave: () => void;
 }
@@ -33,7 +36,15 @@ function mediaOf(path: string | null) {
   return path && !isSourceImage(path) ? mediaKind(path) : null;
 }
 
-export function FilesEditor({ file, value, absPath, diff, onChange, onSave }: FilesEditorProps) {
+export function FilesEditor({
+  file,
+  value,
+  absPath,
+  diff,
+  markdown,
+  onChange,
+  onSave,
+}: FilesEditorProps) {
   const media = mediaOf(file?.path ?? null);
   // A preview stays decoded while its tab is hidden; a tab comes back often.
   const preview = useImagePreview(absPath, media === "image");
@@ -84,6 +95,9 @@ export function FilesEditor({ file, value, absPath, diff, onChange, onSave }: Fi
         message={`Too large to open here (${formatBytes(file.size)}) — use Open to view it elsewhere`}
       />
     );
+  }
+  if (markdown) {
+    return <FilesMarkdownPreview text={value} path={file.path} {...markdown} />;
   }
   return (
     <MonacoEditor

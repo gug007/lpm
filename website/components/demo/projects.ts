@@ -167,7 +167,7 @@ const WATCH_T0 = clock12Ago(3);
 const WATCH_T1 = clock12Ago(1);
 const runId = (clock: string) => `${YMD}-${clock.replace(/:/g, "")}`;
 
-const CLAUDE_ACTION: DemoAction = {
+export const CLAUDE_ACTION: DemoAction = {
   name: "claude",
   label: "Claude Code",
   emoji: "✻",
@@ -179,7 +179,7 @@ const CLAUDE_ACTION: DemoAction = {
   output: [],
 };
 
-const CODEX_ACTION: DemoAction = {
+export const CODEX_ACTION: DemoAction = {
   name: "codex",
   label: "Codex",
   emoji: "◆",

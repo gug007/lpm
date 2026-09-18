@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { NO_AUTOFILL } from "./no-autofill";
 import { FOCUS_RING, PRESS } from "./ui";
 import {
@@ -239,7 +246,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   const sshNameRef = useRef<HTMLInputElement>(null);
   const cloneUrlRef = useRef<HTMLInputElement>(null);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setPhase("pick");
     setName("");
     setHost("");
@@ -252,12 +259,20 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
     setNameEdited(false);
     setShowAdvanced(false);
     setPath(["Projects"]);
-  };
+  }, []);
 
   const handleClose = () => {
     reset();
     onClose();
   };
+
+  // The frame can close the picker from outside — the tour adopting a folder
+  // while it is open — so the next opening starts from the top again.
+  const wasOpenRef = useRef(open);
+  useEffect(() => {
+    if (wasOpenRef.current && !open) reset();
+    wasOpenRef.current = open;
+  }, [open, reset]);
 
   useEffect(() => {
     if (phase === "ssh") sshNameRef.current?.focus();
@@ -333,6 +348,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 label="Local Folder"
                 desc="A project on this machine — pick a folder on disk"
                 onClick={() => setPhase("local")}
+                tourTarget="source-local"
               />
               <SourceOption
                 icon={<Cloud size={22} strokeWidth={1.5} />}
@@ -666,17 +682,20 @@ function SourceOption({
   label,
   desc,
   onClick,
+  tourTarget,
 }: {
   icon: ReactNode;
   color: string;
   label: string;
   desc: string;
   onClick: () => void;
+  tourTarget?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      data-tour={tourTarget}
       className={`group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[#2a2a2a] ${FOCUS_RING}`}
     >
       <div
@@ -841,6 +860,10 @@ function FolderPicker({
                             type="button"
                             onClick={() => navigateInColumn(colIdx, node)}
                             disabled={!isFolder}
+                            data-tour={
+                              isFolder ? `folder:${node.name}` : undefined
+                            }
+                            data-selected={selected || undefined}
                             className={`flex w-full items-center gap-1.5 px-2.5 py-[3px] text-left text-[12px] ${rowClassName(selected, isFolder)}`}
                           >
                             {isFolder ? (
@@ -892,6 +915,7 @@ function FolderPicker({
             type="button"
             onClick={() => selectedFolder && onOpenFolder(selectedFolder)}
             disabled={!selectedFolder}
+            data-tour="picker-open"
             className="rounded-md bg-[#2563eb] px-4 py-1 text-[12px] font-medium text-white transition-colors hover:bg-[#1d4ed8] disabled:cursor-not-allowed disabled:bg-[#1e3a8a] disabled:text-[#9ca3af]"
           >
             Open

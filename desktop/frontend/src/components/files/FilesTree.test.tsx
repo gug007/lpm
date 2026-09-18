@@ -31,6 +31,7 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
     rootListing: ROOT,
     changes: NO_CHANGES,
     decorations: new Map<string, string>(),
+    ignoredPaths: new Set<string>(),
     changesOnly: false,
     onChangesOnlyChange,
     allChanges: false,

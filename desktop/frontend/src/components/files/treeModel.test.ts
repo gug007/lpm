@@ -1,17 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  adjacentFile,
   ancestorsOf,
   buildMatchTree,
   childPath,
   flattenTree,
   foldersTouchedBy,
+  ignoredPathsOf,
   parentPath,
   sameEntries,
   sortEntries,
+  type DirEntry,
   type Listing,
 } from "./treeModel";
 
-const ready = (entries: { name: string; isDir: boolean }[]): Listing => ({
+const ready = (entries: DirEntry[]): Listing => ({
   status: "ready",
   entries,
 });
@@ -60,6 +63,18 @@ describe("sortEntries", () => {
     expect(sameEntries(a, [{ name: "x", isDir: true }, { name: "y", isDir: false }])).toBe(true);
     expect(sameEntries(a, [{ name: "x", isDir: false }, { name: "y", isDir: false }])).toBe(false);
     expect(sameEntries(a, a.slice(0, 1))).toBe(false);
+    expect(sameEntries(a, [{ name: "x", isDir: true, isIgnored: true }, a[1]])).toBe(false);
+  });
+});
+
+describe("ignoredPathsOf", () => {
+  it("collects the ignored entries of every ready listing under their folders", () => {
+    const listings = new Map<string, Listing>([
+      ["", ready([{ name: "node_modules", isDir: true, isIgnored: true }, { name: "src", isDir: true }])],
+      ["src", ready([{ name: "out.log", isDir: false, isIgnored: true }, { name: "a.ts", isDir: false }])],
+      ["docs", { status: "loading" }],
+    ]);
+    expect([...ignoredPathsOf(listings)].sort()).toEqual(["node_modules", "src/out.log"]);
   });
 });
 
@@ -150,5 +165,22 @@ describe("buildMatchTree", () => {
       ["src/b", true],
       ["src/b/two.ts", false],
     ]);
+  });
+});
+
+describe("adjacentFile", () => {
+  const item = (path: string, isDir = false) => ({ path, isDir });
+  const items = [item("src", true), item("src/a.ts"), item("src/b.ts"), item("README.md")];
+
+  it("steps over folders and clamps at the ends", () => {
+    expect(adjacentFile(items, "src/a.ts", 1)).toBe("src/b.ts");
+    expect(adjacentFile(items, "src/a.ts", -1)).toBe("src/a.ts");
+    expect(adjacentFile(items, "README.md", 1)).toBe("README.md");
+  });
+
+  it("starts from either end with nothing selected", () => {
+    expect(adjacentFile(items, null, 1)).toBe("src/a.ts");
+    expect(adjacentFile(items, null, -1)).toBe("README.md");
+    expect(adjacentFile([item("src", true)], null, 1)).toBeNull();
   });
 });

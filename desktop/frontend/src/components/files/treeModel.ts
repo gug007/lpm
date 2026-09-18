@@ -12,6 +12,7 @@ export interface DirEntry {
   name: string;
   isDir: boolean;
   isSymlink?: boolean;
+  isIgnored?: boolean;
 }
 
 export type Listing =
@@ -61,6 +62,20 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "bas
 function compareEntries(a: { name: string; isDir: boolean }, b: { name: string; isDir: boolean }): number {
   if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
   return collator.compare(a.name, b.name) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+}
+
+// The file `delta` places from the selected one in a list, clamped to the
+// list's ends; with nothing selected, its first or last file.
+export function adjacentFile(
+  items: readonly Item[],
+  selectedPath: string | null,
+  delta: 1 | -1,
+): string | null {
+  const files = items.filter((it) => !it.isDir);
+  if (files.length === 0) return null;
+  const at = selectedPath ? files.findIndex((f) => f.path === selectedPath) : -1;
+  if (at < 0) return files[delta > 0 ? 0 : files.length - 1].path;
+  return files[Math.min(files.length - 1, Math.max(0, at + delta))].path;
 }
 
 export function sortEntries(entries: DirEntry[]): DirEntry[] {
@@ -125,8 +140,25 @@ export function buildMatchTree(
 export function sameEntries(a: DirEntry[], b: DirEntry[]): boolean {
   return (
     a.length === b.length &&
-    a.every((entry, i) => entry.name === b[i].name && entry.isDir === b[i].isDir)
+    a.every(
+      (entry, i) =>
+        entry.name === b[i].name &&
+        entry.isDir === b[i].isDir &&
+        !!entry.isIgnored === !!b[i].isIgnored,
+    )
   );
+}
+
+// Every listed path git ignores, across the open folders.
+export function ignoredPathsOf(listings: ReadonlyMap<string, Listing>): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const [dir, listing] of listings) {
+    if (listing.status !== "ready") continue;
+    for (const entry of listing.entries) {
+      if (entry.isIgnored) out.add(childPath(dir, entry.name));
+    }
+  }
+  return out;
 }
 
 // Depth-first walk of the open folders. A folder whose listing hasn't arrived

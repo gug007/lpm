@@ -9,6 +9,10 @@ import {
   type Listing,
 } from "./treeModel";
 
+function isIgnoreFile(path: string): boolean {
+  return path === ".gitignore" || path.endsWith("/.gitignore");
+}
+
 // One listing per open folder, fetched on demand and kept fresh from the
 // project watcher; a hidden tab catches up when it is shown again.
 export function useDirListings(root: string, active: boolean) {
@@ -82,10 +86,14 @@ export function useDirListings(root: string, active: boolean) {
   }, []);
 
   // Re-list what a change can have altered: the changed paths' own folders
-  // and their parents. An unknown change re-lists every open folder.
+  // and their parents. An unknown change, or an edited .gitignore, whose
+  // rules reach every folder below it, re-lists every open folder.
   const onChanged = useCallback(
     (changed: string[] | null) => {
-      const touched = changed === null ? null : new Set(changed.flatMap(foldersTouchedBy));
+      const touched =
+        changed === null || changed.some(isIgnoreFile)
+          ? null
+          : new Set(changed.flatMap(foldersTouchedBy));
       for (const dir of listingsRef.current.keys()) {
         if (!touched || touched.has(dir)) void load(dir);
       }

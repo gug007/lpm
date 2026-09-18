@@ -1,9 +1,12 @@
-import type {
-  DemoAction,
-  DemoGit,
-  DemoProject,
-  OutputLine,
-  ReplyContext,
+import {
+  CLAUDE_ACTION,
+  CODEX_ACTION,
+  type DemoAction,
+  type DemoGit,
+  type DemoProject,
+  type DemoService,
+  type OutputLine,
+  type ReplyContext,
 } from "./projects";
 import { initialPaneState, type ActionTerminalMap } from "./project-view";
 import type { PaneNode } from "./pane-tree";
@@ -158,6 +161,18 @@ export function buildActionFromInput(
   };
 }
 
+// What the app writes for a folder it has just adopted: one placeholder
+// service to replace with the real command — projects_crud.rs's dev_services —
+// while the agent actions come from the global config every project shares.
+const PLACEHOLDER_SERVICE: DemoService = {
+  name: "dev",
+  cmd: "echo 'configure me'",
+  output: [
+    { text: "$ echo 'configure me'", color: "green", delay: 50 },
+    { text: "configure me", delay: 300 },
+  ],
+};
+
 export function buildProjectFromInput(
   input: NewProjectInput,
   existing: DemoProject[],
@@ -171,7 +186,7 @@ export function buildProjectFromInput(
       root: `ssh://${input.host}/~/${name}`,
       stack: `SSH · ${input.host}`,
       services: [],
-      actions: [],
+      actions: [CLAUDE_ACTION, CODEX_ACTION],
       profiles: [],
     };
   }
@@ -180,8 +195,8 @@ export function buildProjectFromInput(
     label: name,
     root: `~/Projects/${name}`,
     stack: "Local project",
-    services: [],
-    actions: [],
+    services: [PLACEHOLDER_SERVICE],
+    actions: [CLAUDE_ACTION, CODEX_ACTION],
     profiles: [],
   };
 }

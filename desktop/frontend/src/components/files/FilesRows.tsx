@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { FilesRow, type RowTarget } from "./FilesRow";
+import { underIgnored } from "./gitDecorations";
 import type { TreeCursorStore } from "./treeCursor";
 import type { Item, TreeRow } from "./treeModel";
 
@@ -11,6 +12,7 @@ interface FilesRowsProps {
   paddingTop: number;
   paddingBottom: number;
   decorations: ReadonlyMap<string, string>;
+  ignoredPaths: ReadonlySet<string>;
   dirtyPaths: ReadonlySet<string>;
   cursorStore: TreeCursorStore;
   onActivate: (item: Item) => void;
@@ -28,6 +30,7 @@ export const FilesRows = memo(function FilesRows({
   paddingTop,
   paddingBottom,
   decorations,
+  ignoredPaths,
   dirtyPaths,
   cursorStore,
   onActivate,
@@ -49,6 +52,7 @@ export const FilesRows = memo(function FilesRows({
             error={row.error}
             dirty={dirtyPaths.has(row.path)}
             status={status}
+            ignored={underIgnored(row.path, ignoredPaths)}
             cursorStore={cursorStore}
             onActivate={onActivate}
             onContextMenu={onContextMenu}

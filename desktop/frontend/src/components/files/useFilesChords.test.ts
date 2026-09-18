@@ -20,6 +20,12 @@ describe("filesChord", () => {
     expect(filesChord(key({ key: "s", ctrlKey: true }))).toBeNull();
   });
 
+  it("flips the Markdown preview on ⌘⇧V", () => {
+    expect(filesChord(key({ key: "V", metaKey: true, shiftKey: true }))).toBe("togglePreview");
+    expect(filesChord(key({ key: "v", metaKey: true }))).toBeNull();
+    expect(filesChord(key({ key: "V", ctrlKey: true, shiftKey: true }))).toBeNull();
+  });
+
   it("matches the ⌥ letter chords by physical key", () => {
     expect(filesChord(key({ key: "‰", code: "KeyR", metaKey: true, altKey: true }))).toBe("reveal");
     expect(filesChord(key({ key: "ç", code: "KeyC", metaKey: true, altKey: true }))).toBe("copyPath");

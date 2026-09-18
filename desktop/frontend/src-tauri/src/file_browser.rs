@@ -5,7 +5,9 @@
 use crate::config::{expand_home, SshSettings};
 use crate::files::READ_FILE_MAX_BYTES;
 use crate::git::is_binary;
+use crate::gitignore::{ignored_names, remote_ignored_names};
 use crate::sshexec::{remote_output, remote_project_for_path};
+use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 
 /// VCS internals are never worth browsing and are dangerous to edit by hand.
@@ -17,6 +19,8 @@ pub struct DirEntryInfo {
     pub name: String,
     pub is_dir: bool,
     pub is_symlink: bool,
+    /// Matched by a .gitignore rule and not tracked: shown greyed, like VS Code.
+    pub is_ignored: bool,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -58,6 +62,16 @@ fn hidden(name: &str, is_dir: bool) -> bool {
     is_dir && HIDDEN_DIRS.contains(&name)
 }
 
+fn names_of(entries: &[DirEntryInfo]) -> Vec<&str> {
+    entries.iter().map(|e| e.name.as_str()).collect()
+}
+
+fn mark_ignored(entries: &mut [DirEntryInfo], ignored: &HashSet<String>) {
+    for entry in entries {
+        entry.is_ignored = ignored.contains(&entry.name);
+    }
+}
+
 /// The immediate children of `root/rel`, unsorted — the frontend orders them
 /// (folders first, natural order) so that rule lives in one testable place. A
 /// symlink to a directory browses like one; nothing below it is walked until it
@@ -91,8 +105,11 @@ pub fn list_dir_entries(root: String, rel: String) -> Result<Vec<DirEntryInfo>, 
             name,
             is_dir,
             is_symlink,
+            is_ignored: false,
         });
     }
+    let ignored = ignored_names(&dir, &names_of(&out));
+    mark_ignored(&mut out, &ignored);
     Ok(out)
 }
 
@@ -200,7 +217,10 @@ fn remote_list(ssh: &SshSettings, root: &str, rel: &str) -> Result<Vec<DirEntryI
         "+",
     ];
     let stdout = remote_output(ssh, &dir, "find", &args)?;
-    Ok(parse_tagged_listing(&String::from_utf8_lossy(&stdout)))
+    let mut entries = parse_tagged_listing(&String::from_utf8_lossy(&stdout));
+    let ignored = remote_ignored_names(ssh, &dir, &names_of(&entries));
+    mark_ignored(&mut entries, &ignored);
+    Ok(entries)
 }
 
 fn parse_tagged_listing(text: &str) -> Vec<DirEntryInfo> {
@@ -216,6 +236,7 @@ fn parse_tagged_listing(text: &str) -> Vec<DirEntryInfo> {
             name: name.to_string(),
             is_dir,
             is_symlink: false,
+            is_ignored: false,
         });
     }
     out
@@ -272,6 +293,36 @@ mod tests {
         );
         assert!(list_dir_entries(root.clone(), "../".into()).is_err());
         assert!(list_dir_entries(root, "missing".into()).is_err());
+    }
+
+    #[test]
+    fn greys_what_the_repo_ignores() {
+        let dir = tempfile::tempdir().unwrap();
+        let ok = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(dir.path())
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok);
+        std::fs::write(dir.path().join(".gitignore"), "dist/\n").unwrap();
+        std::fs::create_dir(dir.path().join("dist")).unwrap();
+        std::fs::create_dir(dir.path().join("src")).unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        let mut flags: Vec<(String, bool)> = list_dir_entries(root, String::new())
+            .unwrap()
+            .into_iter()
+            .map(|e| (e.name, e.is_ignored))
+            .collect();
+        flags.sort();
+        assert_eq!(
+            flags,
+            vec![
+                (".gitignore".to_string(), false),
+                ("dist".to_string(), true),
+                ("src".to_string(), false),
+            ]
+        );
     }
 
     #[test]

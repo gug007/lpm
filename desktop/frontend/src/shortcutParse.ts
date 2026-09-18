@@ -103,8 +103,10 @@ const RESERVED = new Set<string>([
   "cmd++",
   "cmd+-",
   "cmd+0",
-  // useFilesChords.ts — path chords in the Files tab; ⌃⌥↑ / ⌃⌥↓ step files
-  // there and in the review tab (Ctrl parses as cmd)
+  // useFilesChords.ts — path chords and the Markdown preview flip in the
+  // Files tab; ⌃⌥↑ / ⌃⌥↓ step files there and in the review tab (Ctrl parses
+  // as cmd)
+  "cmd+shift+v",
   "cmd+alt+r",
   "cmd+alt+c",
   "cmd+alt+shift+c",

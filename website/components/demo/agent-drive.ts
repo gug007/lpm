@@ -59,14 +59,3 @@ export function withAgentDrive(
     if (timer !== null) window.clearTimeout(timer);
   };
 }
-
-// The composer types at a human clip: a lead-in while the field takes focus,
-// then the characters, then a beat before the prompt goes.
-export const TYPE_LEAD_MS = 260;
-export const TYPE_CHAR_MS = 55;
-export const TYPE_SEND_MS = 420;
-
-/** How long typing a prompt takes, from the tap to the send. */
-export function typingMs(text: string): number {
-  return TYPE_LEAD_MS + text.length * TYPE_CHAR_MS + TYPE_SEND_MS;
-}

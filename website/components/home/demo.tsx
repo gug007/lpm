@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AutoVideo } from "@/components/auto-video";
 import { useInView } from "@/components/config/playground/hooks";
-import type {
-  TourHandle,
-  TourState,
-  TourStepId,
+import {
+  HOME_TOUR,
+  type Tour,
+  type TourHandle,
+  type TourState,
+  type TourStepId,
 } from "@/components/demo/tour";
 import { DownloadLink } from "@/components/download-link";
 import { DemoSteps } from "@/components/home/demo-steps";
@@ -136,7 +138,7 @@ function useIdle() {
   return idle;
 }
 
-function DemoStage() {
+function DemoStage({ tour: script }: { tour: Tour }) {
   // null until the media query is read on the client. While null, both shells
   // stay mounted and CSS picks the visible one, so the first paint matches the
   // server HTML at every width (hidden subtrees don't fetch their media); once
@@ -182,7 +184,12 @@ function DemoStage() {
             Skip the interactive demo
           </a>
           <div className="lg:grid lg:grid-cols-[272px_minmax(0,1fr)] lg:items-start lg:gap-6">
-            <DemoSteps tour={tour} onRun={runStep} onRestart={restart} />
+            <DemoSteps
+              steps={script.steps}
+              tour={tour}
+              onRun={runStep}
+              onRestart={restart}
+            />
             <div className="min-w-0">
               {isDesktop && inView && idle ? (
                 <DemoApp
@@ -191,6 +198,7 @@ function DemoStage() {
                   heightCssSm={DEMO_HEIGHT_DESKTOP}
                   tourRef={tourRef}
                   onTour={setTour}
+                  tour={script}
                 />
               ) : (
                 <DemoPlaceholder />
@@ -246,7 +254,9 @@ function DemoCaption() {
   );
 }
 
-export function DemoSection() {
+// A page picks which steps its demo walks through — see the tours defined in
+// components/demo/tour.ts, or build one with defineTour.
+export function DemoSection({ tour = HOME_TOUR }: { tour?: Tour }) {
   return (
     <section
       id="demo"
@@ -256,7 +266,7 @@ export function DemoSection() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:max-w-7xl">
         <DemoCaption />
         <div data-nosnippet>
-          <DemoStage />
+          <DemoStage tour={tour} />
         </div>
       </div>
     </section>

@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import { UndoIcon } from "../icons";
 import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
-import { decorationOf } from "./gitDecorations";
+import { IGNORED_TEXT, decorationOf } from "./gitDecorations";
 import type { TreeCursorStore } from "./treeCursor";
 import type { Item } from "./treeModel";
 
@@ -23,6 +23,8 @@ interface FilesRowProps {
   dirty: boolean;
   // The git status of the file, or of the changes inside the folder.
   status?: string;
+  // Matched by a .gitignore rule: the name greys, the icon keeps its colour.
+  ignored?: boolean;
   onActivate: (item: Item) => void;
   onContextMenu: (target: RowTarget) => void;
   // Given only for rows that hold uncommitted changes.
@@ -39,6 +41,7 @@ export const FilesRow = memo(function FilesRow({
   cursorStore,
   dirty,
   status,
+  ignored = false,
   onActivate,
   onContextMenu,
   onDiscard,
@@ -51,9 +54,11 @@ export const FilesRow = memo(function FilesRow({
     ? "text-[var(--accent-red-text)]"
     : decoration
       ? `${decoration.text}${decoration.strike ? " line-through" : ""}`
-      : selected
-        ? "text-[var(--text-primary)]"
-        : "text-[var(--text-secondary)]";
+      : ignored
+        ? IGNORED_TEXT
+        : selected
+          ? "text-[var(--text-primary)]"
+          : "text-[var(--text-secondary)]";
   return (
     <div
       role="treeitem"

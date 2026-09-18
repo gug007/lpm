@@ -82,7 +82,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   return (
     <div className="markdown-body select-text text-sm text-[var(--text-primary)]">
       <SpeakingLineContext.Provider value={speakingLine}>
-        <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
           {text}
         </ReactMarkdown>
       </SpeakingLineContext.Provider>
@@ -90,7 +90,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   );
 });
 
-const components: Components = {
+export const markdownComponents: Components = {
   code({ className, children, ...rest }) {
     const raw = String(children ?? "");
     const inline = !/\n/.test(raw) && !(className ?? "").startsWith("language-");

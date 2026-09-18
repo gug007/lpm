@@ -4,8 +4,10 @@ import { useMemo } from "react";
 import { Folder } from "lucide-react";
 import { highlight, langOf } from "./code-highlight";
 import { numberDiff } from "./diff-lines";
+import { FilesMarkdownPreview } from "./files-markdown-preview";
 import { basename } from "./files-model";
 import type { ChangedFile } from "./projects";
+import type { ReaderZoom } from "./use-file-view";
 
 const GUTTER =
   "sticky left-0 shrink-0 select-none bg-[#1a1a1a] px-2 text-right tabular-nums text-[#8e8e8e]";
@@ -15,6 +17,7 @@ export function FilesEditor({
   content,
   binary,
   diff,
+  markdown,
   fontSize,
 }: {
   path: string | null;
@@ -22,14 +25,16 @@ export function FilesEditor({
   binary: boolean;
   // Set to show the file against HEAD instead of on its own.
   diff: ChangedFile | null;
+  // Set to render the file (Markdown) instead of showing its source.
+  markdown: { zoom: ReaderZoom; onOpenFile: (path: string) => void } | null;
   fontSize: number;
 }) {
   const lines = useMemo(
     () =>
-      path && !diff && !binary
+      path && !diff && !binary && !markdown
         ? highlight(content.replace(/\n$/, ""), langOf(basename(path)))
         : [],
-    [path, content, diff, binary],
+    [path, content, diff, binary, markdown],
   );
   const rows = useMemo(() => (diff ? numberDiff(diff.diff) : []), [diff]);
 
@@ -102,6 +107,17 @@ export function FilesEditor({
           })}
         </div>
       </div>
+    );
+  }
+
+  if (markdown) {
+    return (
+      <FilesMarkdownPreview
+        text={content}
+        path={path}
+        zoom={markdown.zoom}
+        onOpenFile={markdown.onOpenFile}
+      />
     );
   }
 

@@ -7,6 +7,7 @@ import type { ChangedFile, DemoGit, DemoProject } from "./projects";
 import { ReviewFileTree } from "./review-file-tree";
 import { FOCUS_RING, PRESS } from "./ui";
 import { SegmentedControl } from "./ui-kit";
+import { ZoomControl } from "./zoom-control";
 
 type ReviewSource = "working" | "base" | "staged";
 
@@ -25,8 +26,6 @@ const STATUS_DOT = {
   added: "bg-[#4ade80]",
   deleted: "bg-[#f87171]",
 } as const;
-
-const ZOOM_BUTTON = `flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-sm leading-none text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#919191] ${FOCUS_RING}`;
 
 function ReviewHeader({
   project,
@@ -59,34 +58,14 @@ function ReviewHeader({
       <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-[#919191]">
         {project.root}
       </span>
-      <div className="flex shrink-0 items-center rounded-lg bg-[#242424]/70 p-0.5">
-        <button
-          type="button"
-          onClick={() => onZoom(-1)}
-          disabled={fontSize <= MIN_FONT_SIZE}
-          aria-label="Zoom out"
-          className={ZOOM_BUTTON}
-        >
-          &#8722;
-        </button>
-        <button
-          type="button"
-          onClick={onResetZoom}
-          aria-label="Reset zoom"
-          className={`h-6 min-w-[2.75rem] rounded-md px-1 text-[10px] font-medium tabular-nums text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${FOCUS_RING}`}
-        >
-          {Math.round((fontSize / BASE_FONT_SIZE) * 100)}%
-        </button>
-        <button
-          type="button"
-          onClick={() => onZoom(1)}
-          disabled={fontSize >= MAX_FONT_SIZE}
-          aria-label="Zoom in"
-          className={ZOOM_BUTTON}
-        >
-          +
-        </button>
-      </div>
+      <ZoomControl
+        percent={Math.round((fontSize / BASE_FONT_SIZE) * 100)}
+        canZoomIn={fontSize < MAX_FONT_SIZE}
+        canZoomOut={fontSize > MIN_FONT_SIZE}
+        onZoomIn={() => onZoom(1)}
+        onZoomOut={() => onZoom(-1)}
+        onReset={onResetZoom}
+      />
       <div className="h-4 w-px shrink-0 bg-[#2e2e2e]" />
       <button
         type="button"

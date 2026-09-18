@@ -107,6 +107,7 @@ export function DemoSidebar({
           onClick={onAddProject}
           title="Add project"
           aria-label="Add project"
+          data-tour="add-project"
           className={`flex h-5 w-5 items-center justify-center rounded text-[#919191] hover:bg-[#2a2a2a] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />

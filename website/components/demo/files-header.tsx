@@ -7,6 +7,8 @@ import { decorationOf, type GitStatus } from "./git-decorations";
 import { Tooltip } from "./tooltip";
 import { SegmentedControl } from "./ui-kit";
 import { FOCUS_RING } from "./ui";
+import type { FileView, FileViewOption, ReaderZoom } from "./use-file-view";
+import { ZoomControl } from "./zoom-control";
 
 const CRUMB_CLASS =
   "shrink-0 rounded px-1 py-0.5 text-xs text-[#919191] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5]";
@@ -17,9 +19,10 @@ export function FilesHeader({
   rootName,
   path,
   status,
-  diffAvailable,
-  showDiff,
-  onShowDiff,
+  view,
+  viewOptions,
+  onView,
+  zoom,
   treeOpen,
   onRevealDir,
   onToggleTree,
@@ -28,10 +31,13 @@ export function FilesHeader({
   path: string | null;
   // The open file's git status, shown the way its tree row shows it.
   status?: GitStatus;
-  // A changed file can show as a diff against HEAD or as itself.
-  diffAvailable: boolean;
-  showDiff: boolean;
-  onShowDiff: (show: boolean) => void;
+  // The views the open file has — diff against HEAD, rendered, source — when
+  // there is more than one to choose from.
+  view: FileView;
+  viewOptions: readonly FileViewOption[] | null;
+  onView: (view: FileView) => void;
+  // Reader zoom, for the view that has one: the Markdown preview.
+  zoom: ReaderZoom | null;
   treeOpen: boolean;
   onRevealDir: (dir: string) => void;
   onToggleTree: () => void;
@@ -90,14 +96,21 @@ export function FilesHeader({
           )}
         </div>
       </nav>
-      {diffAvailable && (
-        <SegmentedControl<"diff" | "file">
-          value={showDiff ? "diff" : "file"}
-          options={[
-            { value: "diff", label: "Diff" },
-            { value: "file", label: "File" },
-          ]}
-          onChange={(view) => onShowDiff(view === "diff")}
+      {zoom && (
+        <ZoomControl
+          percent={zoom.percent}
+          canZoomIn={zoom.canZoomIn}
+          canZoomOut={zoom.canZoomOut}
+          onZoomIn={zoom.zoomIn}
+          onZoomOut={zoom.zoomOut}
+          onReset={zoom.reset}
+        />
+      )}
+      {viewOptions && (
+        <SegmentedControl<FileView>
+          value={view}
+          options={viewOptions}
+          onChange={onView}
           ariaLabel="Editor view"
           className="shrink-0"
         />
