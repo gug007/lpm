@@ -5,7 +5,6 @@ import { InteractiveTab } from "./InteractiveTab";
 import { BrowserPane } from "./BrowserPane";
 import { BrowserMirrorPlaceholder } from "./BrowserMirrorPlaceholder";
 import { IS_MIRROR_WINDOW } from "../mirror";
-import { DiffReviewPane } from "./review/DiffReviewPane";
 import { MemoryView } from "./MemoryView";
 import { ToolkitView } from "./toolkit/ToolkitView";
 import { FilesPane } from "./files/FilesPane";
@@ -30,7 +29,7 @@ import { usePaneToolbar } from "../hooks/usePaneToolbar";
 import type { PaneActionId } from "../paneActions";
 import type { UtilityTabKind } from "./terminal/utilityTabToggle";
 import { TerminalSearchBar } from "./terminal/TerminalSearchBar";
-import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, CodeIcon, BrainIcon, LayersIcon, FolderIcon } from "./icons";
+import { XIcon, GlobeIcon, TerminalIcon, ZapIcon, BrainIcon, LayersIcon, FolderIcon, SourceControlIcon } from "./icons";
 import { Columns2 } from "lucide-react";
 import { Tooltip } from "./ui/Tooltip";
 import { SortableTab, TabStrip } from "./TerminalTabDnd";
@@ -46,6 +45,7 @@ import {
   followsAgentTitle,
   isTerminalTab,
   terminalDisplayLabel,
+  filesTabLabel,
   terminalOriginLabel,
   type PaneLeaf,
   type SplitDirection,
@@ -57,6 +57,7 @@ import { TerminalCopyAnswerOverlay } from "./TerminalCopyAnswerOverlay";
 import { useClearStatusOnInteraction } from "../hooks/useClearStatusOnInteraction";
 import { paneAgentStatus, type PaneStatus } from "../hooks/usePaneStatus";
 import { useBrowserUrls } from "../store/browserUrls";
+import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
 
@@ -93,12 +94,16 @@ function BrowserTabIcon({ id }: { id: string }) {
   );
 }
 
+function FilesTabIcon({ id }: { id: string }) {
+  const changesOnly = useFilesView((s) => s.changesOnly[id]);
+  return changesOnly ? <SourceControlIcon /> : <FolderIcon />;
+}
+
 function TabIcon({ tab }: { tab: TerminalInstance }) {
   if (tab.kind === "browser") return <BrowserTabIcon id={tab.id} />;
-  if (tab.kind === "review") return <CodeIcon />;
   if (tab.kind === "memory") return <BrainIcon />;
   if (tab.kind === "toolkit") return <LayersIcon />;
-  if (tab.kind === "files") return <FolderIcon />;
+  if (tab.kind === "files") return <FilesTabIcon id={tab.id} />;
   if (tab.emoji)
     return (
       <span
@@ -147,7 +152,7 @@ export interface PaneViewProps {
   onStopService: (serviceName: string) => void;
   onAddTerminal: (paneId: string) => void;
   onAddBrowser: (paneId: string) => void;
-  onAddReview: (paneId: string) => void;
+  onReviewChanges: (paneId: string) => void;
   onAddToolkit: (paneId: string) => void;
   onAddFiles: (paneId: string) => void;
   onResumeSession?: () => void;
@@ -225,7 +230,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onStopService,
     onAddTerminal,
     onAddBrowser,
-    onAddReview,
+    onReviewChanges,
     onAddToolkit,
     onAddFiles,
     onResumeSession,
@@ -290,8 +295,7 @@ function PaneViewImpl(props: PaneViewProps) {
   const activeTerm = terminalIdx >= 0 ? pane.tabs[terminalIdx] : null;
   const activeUtilityTab: UtilityTabKind | null =
     activeServiceName === null &&
-    (activeTerm?.kind === "review" ||
-      activeTerm?.kind === "memory" ||
+    (activeTerm?.kind === "memory" ||
       activeTerm?.kind === "toolkit" ||
       activeTerm?.kind === "files")
       ? activeTerm.kind
@@ -303,7 +307,7 @@ function PaneViewImpl(props: PaneViewProps) {
     (id: PaneActionId, fromToolbar: boolean) => {
       switch (id) {
         case "review":
-          return fromToolbar ? onToggleUtility(pane.id, "review") : onAddReview(pane.id);
+          return onReviewChanges(pane.id);
         case "files":
           return fromToolbar ? onToggleUtility(pane.id, "files") : onAddFiles(pane.id);
         case "toolkit":
@@ -314,7 +318,7 @@ function PaneViewImpl(props: PaneViewProps) {
           return onResumeSession?.();
       }
     },
-    [pane.id, onToggleUtility, onAddReview, onAddFiles, onAddToolkit, onAddBrowser, onResumeSession],
+    [pane.id, onToggleUtility, onReviewChanges, onAddFiles, onAddToolkit, onAddBrowser, onResumeSession],
   );
   const composerTab =
     activeServiceName === null && activeTerm && isTerminalTab(activeTerm)
@@ -344,6 +348,7 @@ function PaneViewImpl(props: PaneViewProps) {
   );
 
   const tabIds = useMemo(() => pane.tabs.map((t) => t.id), [pane.tabs]);
+  const filesChangesOnly = useFilesView((s) => s.changesOnly);
 
   const { ref: scrollRef, canScrollLeft, canScrollRight } = useScrollFade<HTMLDivElement>([
     pane.tabs,
@@ -458,7 +463,11 @@ function PaneViewImpl(props: PaneViewProps) {
               return (
                 <SortableTab key={t.id} id={t.id} paneId={pane.id} index={i}>
                   <HeaderTab
-                    label={terminalDisplayLabel(t)}
+                    label={
+                      t.kind === "files"
+                        ? filesTabLabel(t, filesChangesOnly[t.id] ?? false)
+                        : terminalDisplayLabel(t)
+                    }
                     origin={terminalOriginLabel(t)}
                     icon={<TabIcon tab={t} />}
                     active={isActive}
@@ -619,13 +628,6 @@ function PaneViewImpl(props: PaneViewProps) {
                 ) : (
                   <BrowserPane id={t.id} active={visible && isActive} />
                 )
-              ) : t.kind === "review" ? (
-                <ErrorBoundary resetKey={t.id} scope="diff-review">
-                  <DiffReviewPane
-                    projectRoot={interactiveCwd}
-                    active={visible && isActive}
-                  />
-                </ErrorBoundary>
               ) : t.kind === "memory" ? (
                 <MemoryView
                   projectName={projectName}
@@ -645,6 +647,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 <ErrorBoundary resetKey={t.id} scope="files">
                   <FilesPane
                     key={interactiveCwd}
+                    tabId={t.id}
                     paneId={pane.id}
                     projectRoot={interactiveCwd}
                     projectName={projectName}

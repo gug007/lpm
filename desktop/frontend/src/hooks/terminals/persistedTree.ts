@@ -243,8 +243,8 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
       kind: "leaf",
       activeTabIdx: node.activeTabIdx,
       ...(node.activeServiceName ? { activeServiceName: node.activeServiceName } : {}),
-      // Only terminal tabs persist; non-PTY tabs (browser webviews, review
-      // diffs) are ephemeral and don't survive restart.
+      // Only terminal tabs persist; non-PTY tabs (browser webviews, files,
+      // memory) are ephemeral and don't survive restart.
       tabs: node.tabs
         .filter(isTerminalTab)
         .map((t) => ({

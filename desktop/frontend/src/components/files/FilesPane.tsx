@@ -6,9 +6,9 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { useContentZoom } from "../../hooks/useContentZoom";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
 import { basename, joinAbs } from "../../path";
-import { useFilesFocus } from "../../store/filesFocus";
 import { useSettingsStore } from "../../store/settings";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
@@ -25,16 +25,18 @@ import { useChangesView } from "./useChangesView";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
 import { useFileIndex } from "./useFileIndex";
+import { useFilesPaneRequests } from "./useFilesPaneRequests";
 import { useFilesChords } from "./useFilesChords";
 
 const TREE_WIDTH_KEY = "lpm:filesTreeWidth";
-const TREE_OPEN_KEY = "lpm:filesTreeOpen";
+const CHANGES_ZOOM_KEY = "lpm:filesChangesZoom";
 const NO_ITEMS: IndexEntry[] = [];
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
 
 interface FilesPaneProps {
+  tabId: string;
   paneId: string;
   projectRoot: string;
   projectName: string;
@@ -46,7 +48,14 @@ interface FilesPaneProps {
 // The Files tab (`kind: "files"`, like the review and toolkit tabs): the
 // project tree on the right, one file in an editor on the left. Keyed by the
 // project root where it is rendered, so every piece of state is per root.
-export function FilesPane({ paneId, projectRoot, projectName, active, focused }: FilesPaneProps) {
+export function FilesPane({
+  tabId,
+  paneId,
+  projectRoot,
+  projectName,
+  active,
+  focused,
+}: FilesPaneProps) {
   const treeSide = useSettingsStore((s) => s.filesTreeSide ?? "right");
   const updateSettings = useSettingsStore((s) => s.update);
   const { listings, load, ensure, forget } = useDirListings(projectRoot, active);
@@ -62,7 +71,11 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
   const selectedPath = buffer.file?.path ?? null;
   const git = useChangesView(projectRoot, selectedPath, active);
   const { changesOnly, decorations, showAllChanges } = git;
+  const { treeOpen, showTree, filterFocusRequest } = useFilesPaneRequests(tabId, paneId, git);
   const { setWanted: setDiffWanted } = git.diff;
+  // The stack of diffs zooms on its own; the shortcuts are taken only while it
+  // is the focused pane's view, so ⌘+ elsewhere still sizes the terminal.
+  const zoom = useContentZoom(active && focused && git.allChanges, CHANGES_ZOOM_KEY);
   const index = useFileIndex(projectRoot, filtering && !changesOnly, active);
   const results = useMemo(() => {
     if (!filtering) return null;
@@ -76,11 +89,9 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         : flattenTree(listings, expanded),
     [changesOnly, git.items, collapsed, listings, expanded],
   );
-  const [treeOpen, setTreeOpen] = useState(() => localStorage.getItem(TREE_OPEN_KEY) !== "0");
   // Which file the diff stack is scrolled to, so the rail follows the reading.
   const [stackPath, setStackPath] = useState<string | null>(null);
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
-  const [filterFocusRequest, setFilterFocusRequest] = useState(0);
   const [menu, setMenu] = useState<RowTarget | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const shownRef = useRef(buffer.file);
@@ -157,29 +168,6 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     },
     [openBuffer, changesOnly, setDiffWanted, showAllChanges, expandDirs, uncollapse],
   );
-
-  const showTree = useCallback((open: boolean) => {
-    localStorage.setItem(TREE_OPEN_KEY, open ? "1" : "0");
-    setTreeOpen(open);
-  }, []);
-
-  const focusFilter = useCallback(() => {
-    showTree(true);
-    setFilterFocusRequest((n) => n + 1);
-  }, [showTree]);
-
-  // Consumed in the same commit the tree acts on it, so a later remount of the
-  // tree doesn't replay it.
-  useEffect(() => {
-    if (filterFocusRequest) setFilterFocusRequest(0);
-  }, [filterFocusRequest]);
-
-  const filterNonce = useFilesFocus((s) => s.filterNonce[paneId] ?? 0);
-  useEffect(() => {
-    if (!filterNonce) return;
-    useFilesFocus.getState().clearFilter(paneId);
-    focusFilter();
-  }, [filterNonce, paneId, focusFilter]);
 
   // A diff editor has two inputs; the editable one comes last.
   const focusEditor = useCallback(() => {
@@ -339,6 +327,7 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         showDiff={git.diff.diff !== null}
         onShowDiff={setDiffWanted}
         allChanges={git.allChanges}
+        zoom={zoom}
         sideBySide={git.sideBySide}
         onSideBySide={git.showSideBySide}
         dirty={buffer.draft !== null}
@@ -361,11 +350,12 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       )}
       <div className="flex min-h-0 flex-1">
         {treeSide === "left" && rail}
-        <div className="relative min-w-0 flex-1">
+        <div ref={zoom.surfaceRef} className="relative min-w-0 flex-1">
           {git.allChanges ? (
             <FilesAllChanges
               projectRoot={projectRoot}
               files={git.files}
+              zoom={zoom.zoom}
               sideBySide={git.sideBySide}
               active={active}
               onActiveFileChange={setStackPath}

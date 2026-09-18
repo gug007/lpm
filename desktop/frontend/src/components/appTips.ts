@@ -25,7 +25,7 @@ export const APP_TIPS: AppTip[] = [
   { id: "split", segments: ["Split a pane with ", { kbd: "⌘D" }, " sideways or ", { kbd: "⌘⇧D" }, " stacked"] },
   { id: "move-tab", segments: ["Drag a tab into another pane to rearrange your workspace"] },
   { id: "search", segments: ["Search output with ", { kbd: "⌘F" }, " · ", { kbd: "↵" }, " next, ", { kbd: "⇧↵" }, " previous"] },
-  { id: "review-diff", segments: ["Press ", { kbd: "⌘⇧R" }, " to review changed files in a diff tab"] },
+  { id: "review-diff", segments: ["Press ", { kbd: "⌘⇧R" }, " to review every uncommitted change as one diff"] },
   { id: "files-tab", segments: ["Press ", { kbd: "⌘⇧E" }, " to browse project files, or ", { kbd: "⌘P" }, " to jump to one by name"] },
   { id: "ai-commit", segments: ["Generate a commit message from your diff with AI"] },
   { id: "review-changes", segments: ["Hit Review Changes to scan your diff before committing"] },

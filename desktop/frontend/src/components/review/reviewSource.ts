@@ -72,8 +72,6 @@ export const REVIEW_SOURCES: Record<ReviewMode, ReviewSource> = {
   },
 };
 
-export const REVIEW_MODES = Object.keys(REVIEW_SOURCES) as ReviewMode[];
-
 // `authority` namespaces the model URI so the single-file pane and the all-files
 // pool can hold independent models for the same (mode, path) without colliding.
 export function makeDiffModels(

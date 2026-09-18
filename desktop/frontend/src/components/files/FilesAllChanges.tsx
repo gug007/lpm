@@ -8,6 +8,8 @@ import type { ChangedFile } from "./useChangedFiles";
 interface FilesAllChangesProps {
   projectRoot: string;
   files: readonly ChangedFile[];
+  // Reader zoom as a factor of the configured editor font size.
+  zoom: number;
   sideBySide: boolean;
   active: boolean;
   // The file at the top of the viewport as the stack is scrolled, so the rail
@@ -21,11 +23,12 @@ interface FilesAllChangesProps {
 export function FilesAllChanges({
   projectRoot,
   files,
+  zoom,
   sideBySide,
   active,
   onActiveFileChange,
 }: FilesAllChangesProps) {
-  const fontSize = useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
+  const baseFontSize = useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
   // Tree order — folders first, alphabetical — so the stack reads in the order
   // the rail lists it.
   const ordered = useMemo(() => {
@@ -42,7 +45,7 @@ export function FilesAllChanges({
       files={ordered}
       mode="working"
       baseBranch=""
-      fontSize={fontSize}
+      fontSize={baseFontSize * zoom}
       sideBySide={sideBySide}
       active={active}
       authority="files"

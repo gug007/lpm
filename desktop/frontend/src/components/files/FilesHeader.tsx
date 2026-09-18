@@ -1,5 +1,6 @@
 import { Fragment, useRef, useState } from "react";
 import { PanelLeft, PanelLeftClose, PanelRight, PanelRightClose } from "lucide-react";
+import type { ContentZoom } from "../../hooks/useContentZoom";
 import { basename } from "../../path";
 import type { FilesTreeSide } from "../../store/settings";
 import { CheckIcon, ChevronRightIcon, MoreHorizontalIcon } from "../icons";
@@ -9,6 +10,7 @@ import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { Tooltip } from "../ui/Tooltip";
+import { ZoomControl } from "../ui/ZoomControl";
 import { decorationOf } from "./gitDecorations";
 import { ancestorsOf } from "./treeModel";
 
@@ -24,6 +26,7 @@ interface FilesHeaderProps {
   onShowDiff: (show: boolean) => void;
   // Every change as one stack of diffs, in place of the open file.
   allChanges: boolean;
+  zoom: ContentZoom;
   sideBySide: boolean;
   onSideBySide: (sideBySide: boolean) => void;
   dirty: boolean;
@@ -61,6 +64,7 @@ export function FilesHeader({
   showDiff,
   onShowDiff,
   allChanges,
+  zoom,
   sideBySide,
   onSideBySide,
   dirty,
@@ -153,13 +157,23 @@ export function FilesHeader({
         </div>
       </nav>
       {allChanges ? (
-        <SegmentedControl
-          value={sideBySide ? "split" : "unified"}
-          options={LAYOUT_OPTIONS}
-          onChange={(layout) => onSideBySide(layout === "split")}
-          variant="subtle"
-          ariaLabel="Diff layout"
-        />
+        <>
+          <ZoomControl
+            percent={zoom.percent}
+            onZoomIn={zoom.zoomIn}
+            onZoomOut={zoom.zoomOut}
+            onReset={zoom.zoomReset}
+            canZoomIn={zoom.canZoomIn}
+            canZoomOut={zoom.canZoomOut}
+          />
+          <SegmentedControl
+            value={sideBySide ? "split" : "unified"}
+            options={LAYOUT_OPTIONS}
+            onChange={(layout) => onSideBySide(layout === "split")}
+            variant="subtle"
+            ariaLabel="Diff layout"
+          />
+        </>
       ) : (
         diffAvailable && (
           <SegmentedControl

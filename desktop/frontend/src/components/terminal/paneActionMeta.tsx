@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { PaneActionId } from "../../paneActions";
-import { CodeIcon, FolderIcon, GlobeIcon, HistoryIcon, LayersIcon } from "../icons";
+import { FolderIcon, GlobeIcon, HistoryIcon, LayersIcon, SourceControlIcon } from "../icons";
 import type { UtilityTabKind } from "./utilityTabToggle";
 
 export interface PaneActionMeta {
@@ -13,7 +13,7 @@ export interface PaneActionMeta {
 }
 
 export const PANE_ACTION_META: Record<PaneActionId, PaneActionMeta> = {
-  review: { label: "Review changes", icon: <CodeIcon />, shortcut: "⌘⇧R", tab: "review" },
+  review: { label: "Review changes", icon: <SourceControlIcon />, shortcut: "⌘⇧R" },
   files: { label: "Files", icon: <FolderIcon />, shortcut: "⌘⇧E", tab: "files" },
   toolkit: { label: "Skills & tools", icon: <LayersIcon />, shortcut: "⌘⇧K", tab: "toolkit" },
   browser: { label: "Open browser", icon: <GlobeIcon /> },

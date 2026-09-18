@@ -23,7 +23,6 @@ import {
   makeBrowser,
   makeMemory,
   makeToolkit,
-  makeReview,
   makeFiles,
   isTerminalTab,
   collectPanes,
@@ -379,16 +378,7 @@ export function useTabCreation({
     [addTerminal, forward],
   );
 
-  // Review tabs have no PTY — they render the git diff review pane keyed by id.
-  const addReviewToPane = useCallback(
-    (paneId?: string) => {
-      if (IS_MIRROR_WINDOW) return forward("addReviewToPane", paneId);
-      addTerminal(makeReview(nextId("review")), paneId);
-    },
-    [addTerminal, forward],
-  );
-
-  // Memory tabs have no PTY either — they render the session-memory page.
+  // Memory tabs have no PTY — they render the session-memory page.
   const addMemoryToPane = useCallback(
     (paneId?: string) => {
       if (IS_MIRROR_WINDOW) return forward("addMemoryToPane", paneId);
@@ -424,7 +414,6 @@ export function useTabCreation({
     forkTerminalIntoCopy,
     addTerminalToPane,
     addBrowserToPane,
-    addReviewToPane,
     addMemoryToPane,
     addToolkitToPane,
     addFilesToPane,

@@ -39,7 +39,6 @@ export interface UseTerminalsResult {
   forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;
   addTerminalToPane: (paneId: string) => Promise<void>;
   addBrowserToPane: (paneId?: string) => void;
-  addReviewToPane: (paneId?: string) => void;
   addMemoryToPane: (paneId?: string) => void;
   addToolkitToPane: (paneId?: string) => void;
   addFilesToPane: (paneId?: string) => void;

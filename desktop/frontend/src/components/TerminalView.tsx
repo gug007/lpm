@@ -18,6 +18,7 @@ import {
   isTabPinned,
   isTerminalTab,
   terminalDisplayLabel,
+  type TerminalInstance,
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
 import { scanMemoryInvocation } from "../terminalMemory";
@@ -45,7 +46,8 @@ import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
 import { useComposerStore } from "../store/composer";
-import { useFilesFocus } from "../store/filesFocus";
+import { useFilesFocus, type FilesView } from "../store/filesFocus";
+import { useFilesView } from "../store/filesView";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { registerProjectSubmit, useTerminalTargets } from "../store/terminalTargets";
@@ -120,7 +122,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const [memoryTarget, setMemoryTarget] = useState<{ name: string; seq: number } | null>(null);
   const [focusRequest, setFocusRequest] = useState<string | null>(null);
   const [serviceFocusRequest, setServiceFocusRequest] = useState<{ paneId: string; name: string } | null>(null);
-  // Per pane and per utility tab (⌘⇧R review, ⌘⇧M memory): the header entry the
+  // Per pane and per utility tab (⌘⇧M memory, ⌘⇧K toolkit): the header entry the
   // toggle was opened from, so the closing press lands back there.
   const utilityReturns = useRef<Map<string, UtilityReturn>>(new Map());
 
@@ -171,7 +173,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     forkTerminalIntoCopy,
     addTerminalToPane,
     addBrowserToPane,
-    addReviewToPane,
     addMemoryToPane,
     addToolkitToPane,
     addFilesToPane,
@@ -475,10 +476,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     },
     [getPane, focusTerminal],
   );
-  const openReviewInPane = useCallback(
-    (paneId: string) => focusOrAddUtility(paneId, "review", addReviewToPane),
-    [focusOrAddUtility, addReviewToPane],
-  );
   const openMemoryInPane = useCallback(
     (paneId: string) => focusOrAddUtility(paneId, "memory", addMemoryToPane),
     [focusOrAddUtility, addMemoryToPane],
@@ -490,6 +487,14 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   const openFilesInPane = useCallback(
     (paneId: string) => focusOrAddUtility(paneId, "files", addFilesToPane),
     [focusOrAddUtility, addFilesToPane],
+  );
+  // The Files tab has two views; ⌘⇧E asks for the tree and ⌘⇧R for the changes.
+  const showFilesView = useCallback(
+    (paneId: string, view: FilesView) => {
+      openFilesInPane(paneId);
+      useFilesFocus.getState().request(paneId, view);
+    },
+    [openFilesInPane],
   );
 
   // Sidebar menu entry: focus the memory tab wherever it lives in the layout,
@@ -551,7 +556,12 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // press closes it and re-focuses whatever the first press was fired from.
   // The shortcuts act on the focused pane; a pane header's button names its own.
   const toggleUtilityTab = useCallback(
-    (tabKind: UtilityTabKind, openInPane: (paneId: string) => void, paneId?: string) => {
+    (
+      tabKind: UtilityTabKind,
+      openInPane: (paneId: string) => void,
+      paneId?: string,
+      showsView?: (tab: TerminalInstance) => boolean,
+    ) => {
       const pane = paneId ? getPane(paneId) : getFocusedPane();
       if (!pane) return;
       const key = `${pane.id}:${tabKind}`;
@@ -560,6 +570,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         tabKind,
         utilityReturns.current.get(key) ?? null,
         stableServices.map((s) => s.name),
+        showsView,
       );
       if (resolved.action === "open") {
         if (resolved.remember) utilityReturns.current.set(key, resolved.remember);
@@ -577,19 +588,26 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     [getPane, getFocusedPane, stableServices, closeTerminal],
   );
 
+  // A Files toggle closes the tab only from the view it names; from the other
+  // view it switches.
+  const toggleFilesView = useCallback(
+    (view: FilesView, paneId?: string) => {
+      const onView = (tab: TerminalInstance) =>
+        (useFilesView.getState().changesOnly[tab.id] ?? false) === (view === "changes");
+      toggleUtilityTab("files", (id) => showFilesView(id, view), paneId, onView);
+    },
+    [toggleUtilityTab, showFilesView],
+  );
+
   // The pane header's toolbar buttons: the same toggles as the shortcuts, for
   // that pane.
   const toggleUtilityInPane = useCallback(
     (paneId: string, kind: UtilityTabKind) => {
-      const open = {
-        review: openReviewInPane,
-        memory: openMemoryInPane,
-        toolkit: openToolkitInPane,
-        files: openFilesInPane,
-      }[kind];
+      if (kind === "files") return toggleFilesView("files", paneId);
+      const open = { memory: openMemoryInPane, toolkit: openToolkitInPane }[kind];
       toggleUtilityTab(kind, open, paneId);
     },
-    [toggleUtilityTab, openReviewInPane, openMemoryInPane, openToolkitInPane, openFilesInPane],
+    [toggleUtilityTab, toggleFilesView, openMemoryInPane, openToolkitInPane],
   );
 
   const findInPane = useCallback(
@@ -734,16 +752,16 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
     (event, matched) => {
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
-      if (matched.key === "r") return toggleUtilityTab("review", openReviewInPane);
+      if (matched.key === "r") return toggleFilesView("changes");
       if (matched.key === "m") return toggleUtilityTab("memory", openMemoryInPane);
       if (matched.key === "k") return toggleUtilityTab("toolkit", openToolkitInPane);
-      if (matched.key === "e") return toggleUtilityTab("files", openFilesInPane);
+      if (matched.key === "e") return toggleFilesView("files");
       if (matched.key === "p") {
         // Go to file: never a toggle — a second press just lands in the filter.
         const pane = getFocusedPane();
         if (!pane) return;
         openFilesInPane(pane.id);
-        useFilesFocus.getState().requestFilter(pane.id);
+        useFilesFocus.getState().request(pane.id, "filter");
         return;
       }
       if (matched.key === "i") {
@@ -1056,9 +1074,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             onStopService={stopService}
             onAddTerminal={addTerminalToPane}
             onAddBrowser={addBrowserToPane}
-            onAddReview={openReviewInPane}
+            onReviewChanges={(paneId) => showFilesView(paneId, "changes")}
             onAddToolkit={openToolkitInPane}
-            onAddFiles={openFilesInPane}
+            onAddFiles={(paneId) => showFilesView(paneId, "files")}
             onResumeSession={onResumeSession}
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}

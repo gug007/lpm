@@ -45,9 +45,8 @@ export interface TerminalInstance {
   // `id` therefore has to persist: restore re-adopts the running session instead
   // of relaunching it, and a close arriving from the peer can still find the tab.
   peerAdopted?: boolean;
-  // Absent == terminal; "browser" tabs render an in-pane web browser, "review"
-  // tabs render the git diff review pane. Neither has a PTY.
-  kind?: "terminal" | "browser" | "review" | "memory" | "toolkit" | "files";
+  // Absent == terminal; the other kinds render in-pane views without a PTY.
+  kind?: "terminal" | "browser" | "memory" | "toolkit" | "files";
 }
 
 // True for real PTY-backed terminal tabs (the default kind). Browser and review
@@ -179,10 +178,6 @@ export function makeBrowser(id: string, label = "Browser"): TerminalInstance {
   return { id, label, kind: "browser" };
 }
 
-export function makeReview(id: string, label = "Review"): TerminalInstance {
-  return { id, label, kind: "review" };
-}
-
 export function makeMemory(id: string, label = "Memory"): TerminalInstance {
   return { id, label, kind: "memory" };
 }
@@ -193,6 +188,12 @@ export function makeToolkit(id: string, label = "Skills & tools"): TerminalInsta
 
 export function makeFiles(id: string, label = "Files"): TerminalInstance {
   return { id, label, kind: "files" };
+}
+
+// A Files tab is named after its view unless the user named it themselves.
+export function filesTabLabel(t: TerminalInstance, changesOnly: boolean): string {
+  if (changesOnly && followsAgentTitle(t)) return "Changes";
+  return terminalDisplayLabel(t);
 }
 
 export function walkPanes(node: PaneNode, fn: (pane: PaneLeaf) => void): void {

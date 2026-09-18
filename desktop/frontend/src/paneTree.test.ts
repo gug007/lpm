@@ -7,6 +7,8 @@ import {
   findTerminalLocation,
   paneHeaderItems,
   terminalDisplayLabel,
+  filesTabLabel,
+  makeFiles,
   terminalOriginLabel,
   type PaneLeaf,
   type PaneNode,
@@ -216,5 +218,18 @@ describe("clearManualTerminalTitle", () => {
   it("leaves a tab that never was renamed untouched", () => {
     const tab = { id: "t0", label: "Codex", sessionTitle: "Ship it" };
     expect(clearManualTerminalTitle(tab)).toBe(tab);
+  });
+});
+
+describe("filesTabLabel", () => {
+  it("names the tab after the view it shows", () => {
+    const tab = makeFiles("f1");
+    expect(filesTabLabel(tab, false)).toBe("Files");
+    expect(filesTabLabel(tab, true)).toBe("Changes");
+  });
+
+  it("keeps a name the user gave the tab", () => {
+    const renamed = applyManualTerminalRename(makeFiles("f1"), "Mine");
+    expect(filesTabLabel(renamed, true)).toBe("Mine");
   });
 });
