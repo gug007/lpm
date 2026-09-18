@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { DEFAULT_MONACO_FONT_SIZE } from "../../monaco-theme";
 import { useSettingsStore } from "../../store/settings";
 import { MonacoDiffPool } from "../review/MonacoDiffPool";
@@ -17,10 +17,11 @@ interface FilesAllChangesProps {
   onActiveFileChange: (path: string) => void;
 }
 
-// Every uncommitted file as one scrolling stack of diffs, the way the review
-// tab shows them. Its own Monaco authority keeps its models apart from the
-// review tab's pool, which holds the same paths under the same mode.
-export function FilesAllChanges({
+// Every uncommitted file as one scrolling stack of diffs. Its own Monaco
+// authority keeps its models apart from the commit modal's pool, which holds
+// the same paths under the same mode. Memoized so the pane re-rendering for
+// its rail (the scroll spy moves the selection) leaves the stack alone.
+export const FilesAllChanges = memo(function FilesAllChanges({
   projectRoot,
   files,
   zoom,
@@ -52,4 +53,4 @@ export function FilesAllChanges({
       onActiveFileChange={onActiveFileChange}
     />
   );
-}
+});

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { SearchIcon, XIcon } from "../icons";
 import { FilesAllChangesRow } from "./FilesAllChangesRow";
-import { FilesRow, type RowTarget } from "./FilesRow";
+import type { RowTarget } from "./FilesRow";
+import { FilesRows } from "./FilesRows";
 import { FilesViewSwitch } from "./FilesViewSwitch";
 import type { IndexEntry } from "./filesFilter";
+import { createTreeCursorStore } from "./treeCursor";
+import { useVirtualList } from "./useVirtualList";
 import { buildMatchTree, parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
 import type { Changes } from "./useChangedFiles";
 
@@ -19,6 +22,7 @@ export interface ActivateOptions {
 }
 
 const NO_ROWS: TreeRow[] = [];
+const DEFAULT_ROW_PX = 26;
 
 interface FilesTreeProps {
   rows: TreeRow[];
@@ -80,15 +84,36 @@ export function FilesTree({
   const filtering = query.trim() !== "";
   const matchRows = useMemo(() => (results ? buildMatchTree(results) : NO_ROWS), [results]);
   const items: TreeRow[] = filtering ? matchRows : rows;
-  const [cursorPath, setCursorPath] = useState<string | null>(null);
-  const [listFocused, setListFocused] = useState(false);
+  const [cursorStore] = useState(createTreeCursorStore);
+  const setCursorPath = useCallback(
+    (cursorPath: string | null) => cursorStore.setState({ cursorPath }),
+    [cursorStore],
+  );
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Rows are one height; the first mounted one says which.
+  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_PX);
+  const virtual = useVirtualList(listRef, items.length, rowHeight);
+  const { ensureVisible } = virtual;
+  useEffect(() => {
+    const row = listRef.current?.querySelector<HTMLElement>('[role="treeitem"]');
+    if (row?.offsetHeight) setRowHeight(row.offsetHeight);
+  }, [virtual.first, virtual.last]);
 
   // Keyboard travel starts from the open file.
   useEffect(() => {
-    if (selectedPath) setCursorPath(selectedPath);
-  }, [selectedPath]);
+    cursorStore.setState(selectedPath ? { selectedPath, cursorPath: selectedPath } : { selectedPath });
+  }, [selectedPath, cursorStore]);
+
+  // The selected row, and the cursor while the list has focus, stay in view.
+  useEffect(() => {
+    const indexOf = (path: string | null) => (path ? items.findIndex((it) => it.path === path) : -1);
+    ensureVisible(indexOf(cursorStore.getState().selectedPath));
+    return cursorStore.subscribe((s, prev) => {
+      if (s.selectedPath !== prev.selectedPath) ensureVisible(indexOf(s.selectedPath));
+      if (s.listFocused && s.cursorPath !== prev.cursorPath) ensureVisible(indexOf(s.cursorPath));
+    });
+  }, [items, cursorStore, ensureVisible]);
 
   // A breadcrumb reveal lands the cursor on that folder and hands the list
   // focus, so the arrow keys continue from there.
@@ -111,16 +136,23 @@ export function FilesTree({
 
   useEffect(() => {
     if (!onCursorChange) return;
-    const current = items.find((it) => it.path === cursorPath) ?? null;
-    onCursorChange(listFocused ? current : null);
-  }, [onCursorChange, items, cursorPath, listFocused]);
+    const report = () => {
+      const { cursorPath, listFocused } = cursorStore.getState();
+      const current = items.find((it) => it.path === cursorPath) ?? null;
+      onCursorChange(listFocused ? current : null);
+    };
+    report();
+    return cursorStore.subscribe((s, prev) => {
+      if (s.cursorPath !== prev.cursorPath || s.listFocused !== prev.listFocused) report();
+    });
+  }, [onCursorChange, items, cursorStore]);
 
   const activate = useCallback(
     (item: Item, opts?: ActivateOptions) => {
       setCursorPath(item.path);
       onActivate(item, opts);
     },
-    [onActivate],
+    [onActivate, setCursorPath],
   );
 
   const moveCursor = (index: number) => {
@@ -130,6 +162,7 @@ export function FilesTree({
 
   const onListKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const { cursorPath } = cursorStore.getState();
     const index = items.findIndex((it) => it.path === cursorPath);
     const current = index >= 0 ? items[index] : null;
     switch (e.key) {
@@ -180,6 +213,7 @@ export function FilesTree({
   };
 
   const onInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    const { cursorPath } = cursorStore.getState();
     if (e.key === "ArrowDown") {
       e.preventDefault();
       moveCursor(Math.max(0, items.findIndex((it) => it.path === cursorPath)));
@@ -196,28 +230,21 @@ export function FilesTree({
     }
   };
 
-  const renderRows = (list: TreeRow[]): ReactNode =>
-    list.map((row) => {
-      const status = decorations.get(row.path);
-      return (
-        <FilesRow
-          key={row.path}
-          item={row}
-          name={row.name}
-          depth={row.depth}
-          expanded={row.expanded}
-          loading={row.loading}
-          error={row.error}
-          selected={row.path === selectedPath}
-          cursor={listFocused && row.path === cursorPath}
-          dirty={dirtyPaths.has(row.path)}
-          status={status}
-          onActivate={activate}
-          onContextMenu={onRowMenu}
-          onDiscard={status ? onDiscard : undefined}
-        />
-      );
-    });
+  const renderRows = (list: TreeRow[]): ReactNode => (
+    <FilesRows
+      rows={list}
+      first={virtual.first}
+      last={virtual.last}
+      paddingTop={virtual.paddingTop}
+      paddingBottom={virtual.paddingBottom}
+      decorations={decorations}
+      dirtyPaths={dirtyPaths}
+      cursorStore={cursorStore}
+      onActivate={activate}
+      onContextMenu={onRowMenu}
+      onDiscard={onDiscard}
+    />
+  );
 
   const renderList = (): ReactNode => {
     if (filtering) {
@@ -297,8 +324,8 @@ export function FilesTree({
         aria-label={filtering ? "Matching files" : changesOnly ? "Changed files" : "Project files"}
         tabIndex={0}
         onKeyDown={onListKeyDown}
-        onFocus={() => setListFocused(true)}
-        onBlur={() => setListFocused(false)}
+        onFocus={() => cursorStore.setState({ listFocused: true })}
+        onBlur={() => cursorStore.setState({ listFocused: false })}
         className="min-h-0 flex-1 overflow-y-auto py-1 outline-none"
       >
         {renderList()}

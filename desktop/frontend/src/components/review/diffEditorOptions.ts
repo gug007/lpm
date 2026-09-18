@@ -18,4 +18,9 @@ export const READ_HEAVY_DIFF_OPTIONS: monacoNs.editor.IStandaloneDiffEditorConst
     contextmenu: false,
     colorDecorators: false,
     renderLineHighlight: "none",
+    // The hunk gutter has no actions in standalone Monaco, yet its renderer
+    // forces a layout on every editor change; the EditContext input does the
+    // same to place its bounds. Both are pure cost in a stacked diff.
+    renderGutterMenu: false,
+    editContext: false,
   };

@@ -1,48 +1,44 @@
 import { memo } from "react";
+import { useStore } from "zustand";
 import { STATUS_DISPLAY, DEFAULT_STATUS } from "../ChangedFilesTree";
 import { DirtyDot } from "../treeRow";
 import { DiffConflictBanner } from "./DiffConflictBanner";
 import { BinaryFilePlaceholder } from "./BinaryFilePlaceholder";
+import { EMPTY_ROW, type DiffRowsStore } from "./diffPoolRows";
+import { isPathEditable, type ReviewMode } from "./reviewSource";
 
 export type ConflictResolution = "overwrite" | "theirs" | "dismiss";
 
 interface DiffPoolRowProps {
   path: string;
   status: string;
-  dirty: boolean;
-  editable: boolean;
-  binary: boolean;
-  tooLarge: boolean;
-  revealed: boolean;
+  mode: ReviewMode;
   excluded: boolean;
-  theirs: string | undefined;
-  placeholderHeight: number;
+  store: DiffRowsStore;
   frameRef: (el: HTMLDivElement | null) => void;
   bodyRef: (el: HTMLDivElement | null) => void;
   onSave: (path: string) => void;
   onResolve: (path: string, kind: ConflictResolution) => void;
 }
 
-// One changed-file row. Memoized so a single editor settling — which bumps
-// pool-level height/reveal/dirty state — re-renders only the file that changed,
-// not all N rows. Every prop is a primitive or a per-path-stable callback, so
-// React.memo's shallow compare skips untouched rows.
+// One changed-file row. It reads its own height/reveal/dirty state from the
+// store, so an editor settling re-renders the file that changed and no other;
+// the memo keeps the pool's own renders (a new file list) from touching rows
+// whose props are unchanged.
 function DiffPoolRowInner({
   path,
   status,
-  dirty,
-  editable,
-  binary,
-  tooLarge,
-  revealed,
+  mode,
   excluded,
-  theirs,
-  placeholderHeight,
+  store,
   frameRef,
   bodyRef,
   onSave,
   onResolve,
 }: DiffPoolRowProps) {
+  const row = useStore(store, (s) => s.rows[path]) ?? EMPTY_ROW;
+  const { dirty, revealed, binary, tooLarge, theirs, height: placeholderHeight } = row;
+  const editable = isPathEditable(mode, status, binary || tooLarge);
   const { dot } = STATUS_DISPLAY[status] ?? DEFAULT_STATUS;
   return (
     <div

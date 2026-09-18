@@ -31,6 +31,8 @@ import {
   type ReviewMode,
 } from "./reviewSource";
 import { DiffPoolRow, type ConflictResolution } from "./DiffPoolRow";
+import { createDiffRowsStore, DEFAULT_SLOT_HEIGHT, type DiffRowState } from "./diffPoolRows";
+import { StackLayout } from "./stackLayout";
 
 type Monaco = typeof monacoNs;
 type ChangedFile = main.ChangedFile;
@@ -69,18 +71,31 @@ type Slot = {
   disposed: boolean;
 };
 
-// A frame pinned across a height change: keep this file's top edge a fixed
-// distance below the scroll-container top so settling editors don't move it.
-type ScrollAnchor = { path: string; offset: number };
-
 const POOL_SIZE = 10;
-const LAZY_ROOT_MARGIN_PX = 500;
-const DEFAULT_SLOT_HEIGHT = 220;
+// Rows this close to the viewport get an editor...
+const ASSIGN_MARGIN_PX = 500;
+// ...and rows this close are mounted at all. Wider than the assignment margin,
+// so a row with an editor is always in the DOM.
+const MOUNT_MARGIN_PX = 900;
+// A row's header and border, for rows that have never been measured.
+const ROW_CHROME_PX = 34;
+// A scroll that carries more than a viewport in this window is a fling: frames
+// passing by are left as placeholders, since each editor assigned mid-fling
+// would queue a diff in the worker that lands long after the frame has gone,
+// delaying the diffs of wherever the fling stops.
+const FLING_WINDOW_MS = 150;
+// No scroll event for this long means the scrolling has stopped.
+const FLING_SETTLE_MS = 150;
+const FLING_RECHECK_MS = 100;
 // Reveal once the editor stops resizing for this long (hideUnchangedRegions
 // collapses in several passes, so we wait for quiet, not the first event)...
 const REVEAL_QUIET_MS = 70;
-// ...but never wait longer than this, so a never-quiet file still reveals.
+// ...but never wait longer than this once the diff is in, so a never-quiet file
+// still reveals.
 const REVEAL_MAX_MS = 500;
+// A diff that never arrives (a worker failure) reveals the editor as is, so a
+// frame can't stay a placeholder forever.
+const REVEAL_FALLBACK_MS = 5000;
 
 export interface MonacoDiffPoolHandle {
   scrollToFile: (path: string) => void;
@@ -131,7 +146,17 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     const holdingRef = useRef<HTMLDivElement>(null);
     const frameBodyRef = useRef<Map<string, HTMLDivElement>>(new Map());
     const frameRef = useRef<Map<string, HTMLDivElement>>(new Map());
-    const observerRef = useRef<IntersectionObserver | null>(null);
+    const frameObserverRef = useRef<ResizeObserver | null>(null);
+    // Where every row sits, from measured heights. Only rows near the viewport
+    // are mounted, so nothing else can say; and it answers without reading the
+    // DOM, so no scroll frame forces a layout.
+    const layoutRef = useRef(new StackLayout(DEFAULT_SLOT_HEIGHT + ROW_CHROME_PX));
+    const layoutFilesRef = useRef<ChangedFile[] | null>(null);
+    const layoutDirtyRef = useRef(true);
+    const scrollTopRef = useRef(0);
+    const frameRafRef = useRef<number | null>(null);
+    const sampleVelocityRef = useRef(false);
+    const compensatingRef = useRef(false);
     const monacoRef = useRef<Monaco | null>(null);
     // True only while the pool mount effect is live. Guards lazy slot creation so
     // a torn-down (StrictMode remount) instance can never build editors.
@@ -141,15 +166,23 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     // Shared in-flight fetch per path so a batch fetch and a stray single-file
     // fetch for the same file never both build an entry.
     const inflightRef = useRef<Map<string, Promise<Entry | null>>>(new Map());
-    const visibleRef = useRef<Set<string>>(new Set());
     const suppressRef = useRef(false);
     const savingRef = useRef<Set<string>>(new Set());
     const pendingLayoutRef = useRef<Set<Slot>>(new Set());
     const layoutRafRef = useRef<number | null>(null);
     const suppressAnchorRef = useRef(false);
     const scrollSuppressTimerRef = useRef<number | null>(null);
-    const spyRafRef = useRef<number | null>(null);
     const lastActiveRef = useRef<string | null>(null);
+    // The scroller's inner size, kept by its ResizeObserver. Every frame body
+    // spans its width, so editors lay out from this number instead of reading
+    // clientWidth right after a DOM write, which would force a layout each time.
+    const viewportRef = useRef({ width: 0, height: 0 });
+    // Scroll velocity, sampled per frame while scrolling, and the time of the
+    // last scroll event, which says whether the scrolling has stopped.
+    const scrollSampleRef = useRef({ t: 0, y: 0, v: 0 });
+    const lastScrollEventRef = useRef(0);
+    const deferredSyncRef = useRef<number | null>(null);
+    const syncRef = useRef<() => void>(() => {});
     const activeRef = useRef(active);
     // Latest fontSize, read at lazy slot creation so a slot born after a font-size
     // change starts at the current size (the eager path baked it into construction).
@@ -172,36 +205,31 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       [files],
     );
     statusRef.current = statusMap;
+    if (layoutFilesRef.current !== files) {
+      layoutFilesRef.current = files;
+      layoutRef.current.setRows(files.map((f) => f.path));
+      layoutDirtyRef.current = true;
+    }
 
     const [ready, setReady] = useState(false);
-    const [heights, setHeights] = useState<Map<string, number>>(new Map());
-    const [revealed, setRevealed] = useState<Set<string>>(new Set());
-    const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(new Set());
-    const [binaryPaths, setBinaryPaths] = useState<Set<string>>(new Set());
-    const [tooLargePaths, setTooLargePaths] = useState<Set<string>>(new Set());
-    const [conflicts, setConflicts] = useState<Map<string, string>>(new Map());
-
-    const slotHeight = (path: string) => heights.get(path) ?? DEFAULT_SLOT_HEIGHT;
-
-    const setDirty = useCallback((path: string, dirty: boolean) => {
-      setDirtyPaths((prev) => {
-        if (dirty === prev.has(path)) return prev;
-        const next = new Set(prev);
-        if (dirty) next.add(path);
-        else next.delete(path);
-        return next;
-      });
-    }, []);
-
-    const markRevealed = useCallback((path: string, on: boolean) => {
-      setRevealed((prev) => {
-        if (on === prev.has(path)) return prev;
-        const next = new Set(prev);
-        if (on) next.add(path);
-        else next.delete(path);
-        return next;
-      });
-    }, []);
+    // The mounted rows, as an inclusive index range.
+    const [view, setView] = useState({ first: 0, last: -1 });
+    const viewRef = useRef(view);
+    // Per-file row state lives in a store the rows subscribe to, so a settle
+    // re-renders one row rather than the whole stack.
+    const [rowStore] = useState(createDiffRowsStore);
+    const patchRow = useCallback(
+      (path: string, patch: Partial<DiffRowState>) => rowStore.getState().patch(path, patch),
+      [rowStore],
+    );
+    const setDirty = useCallback(
+      (path: string, dirty: boolean) => patchRow(path, { dirty }),
+      [patchRow],
+    );
+    const markRevealed = useCallback(
+      (path: string, on: boolean) => patchRow(path, { revealed: on }),
+      [patchRow],
+    );
 
     const isEditable = useCallback(
       (path: string, binary: boolean) =>
@@ -238,15 +266,10 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           viewState: null,
         };
         entriesRef.current.set(path, entry);
-        if (binary) {
-          setBinaryPaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
-        }
-        if (tooLarge) {
-          setTooLargePaths((prev) => (prev.has(path) ? prev : new Set(prev).add(path)));
-        }
+        if (noEditor) patchRow(path, { binary, tooLarge });
         return entry;
       },
-      [mode, authority, isEditable],
+      [mode, authority, isEditable, patchRow],
     );
 
     // Fetch every not-yet-fetched path in ONE batch call, registering a shared
@@ -280,7 +303,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
 
     // Lazily fetch a single file's diff and build its entry, sharing any in-flight
     // batch/single fetch for the same path. The fallback for paths requested
-    // outside a batch (e.g. scrollToFile racing the intersection observer).
+    // outside a batch (e.g. scrollToFile racing the assignment pass).
     const ensureEntry = useCallback(
       async (path: string): Promise<Entry | null> => {
         const existing = entriesRef.current.get(path);
@@ -312,8 +335,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     );
 
     // Size a slot's editor to its content and cache the height for the placeholder
-    // shown when the editor later recycles away from this file. Pure: never touches
-    // scroll — that is the scheduler's job, so it can anchor around the change.
+    // shown when the editor later recycles away from this file. Never touches
+    // scroll: the frame observer keeps the viewport in place as the row resizes.
     const applyLayout = useCallback((slot: Slot) => {
       if (slot.disposed || !slot.path) return;
       const body = frameBodyRef.current.get(slot.path);
@@ -322,120 +345,46 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       const mod = slot.editor.getModifiedEditor();
       const h = Math.max(40, orig.getContentHeight(), mod.getContentHeight());
       slot.host.style.height = `${h}px`;
-      slot.editor.layout({ width: body.clientWidth, height: h });
+      slot.editor.layout({ width: viewportRef.current.width, height: h });
       // Only a revealed slot drives the frame's height; a hidden (settling) one
       // is out of flow, so committing its height would wrongly resize the
       // placeholder before the diff is even shown.
       if (!slot.revealed) return;
-      const path = slot.path;
-      setHeights((prev) => (prev.get(path) === h ? prev : new Map(prev).set(path, h)));
-    }, []);
+      patchRow(slot.path, { height: h });
+    }, [patchRow]);
 
-    // Manual scroll anchoring. WKWebView (macOS Safari ≤26) has no CSS
-    // overflow-anchor, so when a diff frame settles shorter — monaco collapses
-    // hideUnchangedRegions asynchronously after its worker diff, firing
-    // onDidContentSizeChange/onDidUpdateDiff several times — content above the
-    // viewport shrinks and scrollTop is clamped upward, snapping the user away
-    // from the bottom. Pin the topmost visible frame across every height change.
-    // Resolve a binary-search midpoint to the nearest frame that has a live DOM
-    // element, searching outward but staying within [lo, hi]. Frames render in
-    // document order so their rects are monotonic; a path whose element is
-    // transiently missing is skipped rather than treated as a boundary.
-    const probeFrame = useCallback(
-      (mid: number, lo: number, hi: number): { idx: number; rect: DOMRect } | null => {
-        const files = filesRef.current;
-        for (let d = 0; ; d++) {
-          const a = mid + d;
-          const b = mid - d;
-          const aIn = a <= hi;
-          const bIn = b >= lo;
-          if (!aIn && !bIn) return null;
-          if (aIn) {
-            const el = frameRef.current.get(files[a].path);
-            if (el) return { idx: a, rect: el.getBoundingClientRect() };
-          }
-          if (bIn && b !== a) {
-            const el = frameRef.current.get(files[b].path);
-            if (el) return { idx: b, rect: el.getBoundingClientRect() };
-          }
-        }
-      },
-      [],
-    );
-
-    const captureAnchor = useCallback((): ScrollAnchor | null => {
-      const c = scrollRef.current;
-      if (!c) return null;
-      const top = c.getBoundingClientRect().top;
-      // First frame (document order) whose bottom edge is still below the
-      // container top: the topmost one with anything left in view.
-      let lo = 0;
-      let hi = filesRef.current.length - 1;
-      let ans = -1;
-      let ansRect: DOMRect | null = null;
-      while (lo <= hi) {
-        const probe = probeFrame((lo + hi) >> 1, lo, hi);
-        if (!probe) break;
-        if (probe.rect.bottom > top + 1) {
-          ans = probe.idx;
-          ansRect = probe.rect;
-          hi = probe.idx - 1;
-        } else {
-          lo = probe.idx + 1;
-        }
+    // The rows to mount for the current scroll position; true when it changed.
+    const updateView = useCallback((): boolean => {
+      const top = scrollTopRef.current;
+      const range = layoutRef.current.range(
+        top - MOUNT_MARGIN_PX,
+        top + viewportRef.current.height + MOUNT_MARGIN_PX,
+      );
+      const next = range ? { first: range[0], last: range[1] } : { first: 0, last: -1 };
+      const prev = viewRef.current;
+      if (!layoutDirtyRef.current && prev.first === next.first && prev.last === next.last) {
+        return false;
       }
-      if (ans < 0 || !ansRect) return null;
-      return { path: filesRef.current[ans].path, offset: ansRect.top - top };
-    }, [probeFrame]);
-
-    const restoreAnchor = useCallback((anchor: ScrollAnchor | null) => {
-      const c = scrollRef.current;
-      if (!c || !anchor) return;
-      const el = frameRef.current.get(anchor.path);
-      if (!el) return;
-      const top = c.getBoundingClientRect().top;
-      const delta = el.getBoundingClientRect().top - top - anchor.offset;
-      if (delta) c.scrollTop += delta;
+      layoutDirtyRef.current = false;
+      viewRef.current = next;
+      setView(next);
+      return true;
     }, []);
 
-    // The file occupying the top of the viewport: the last one (document order)
-    // whose frame top has scrolled to or above the container's top edge.
+    // The file occupying the top of the viewport.
     const activePath = useCallback((): string | null => {
-      const c = scrollRef.current;
-      if (!c) return null;
-      const top = c.getBoundingClientRect().top + 4;
-      // Last frame (document order) whose top edge has scrolled to or above the
-      // container top: the file occupying the top of the viewport.
-      let lo = 0;
-      let hi = filesRef.current.length - 1;
-      let ans = -1;
-      while (lo <= hi) {
-        const probe = probeFrame((lo + hi) >> 1, lo, hi);
-        if (!probe) break;
-        if (probe.rect.top <= top) {
-          ans = probe.idx;
-          lo = probe.idx + 1;
-        } else {
-          hi = probe.idx - 1;
-        }
-      }
-      const candidate = ans >= 0 ? filesRef.current[ans].path : null;
-      return candidate ?? filesRef.current[0]?.path ?? null;
-    }, [probeFrame]);
+      const i = layoutRef.current.indexAt(scrollTopRef.current + 4);
+      return i >= 0 ? filesRef.current[i]?.path ?? null : null;
+    }, []);
 
-    // Coalesce a burst of settles into one reflow: capture before, apply all, then
-    // restore so the cumulative height change above the anchor is corrected once.
+    // A settled editor lays out at its content height. Pure: the frame's
+    // ResizeObserver sees the new height and keeps the viewport in place.
     const flushLayouts = useCallback(() => {
       layoutRafRef.current = null;
       const batch = [...pendingLayoutRef.current];
       pendingLayoutRef.current.clear();
-      if (batch.length === 0) return;
-      const anchor = suppressAnchorRef.current ? null : captureAnchor();
       for (const slot of batch) applyLayout(slot);
-      restoreAnchor(anchor);
-    }, [captureAnchor, restoreAnchor, applyLayout]);
-
-    const scheduleLayout = useCallback(
+    }, [applyLayout]);    const scheduleLayout = useCallback(
       (slot: Slot) => {
         pendingLayoutRef.current.add(slot);
         if (layoutRafRef.current != null) return;
@@ -453,7 +402,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (entry) entry.viewState = slot.editor.saveViewState();
         // Pin the placeholder height synchronously before the host detaches, so
         // the body doesn't collapse to 0 for the frame before React (markRevealed)
-        // restores its min-height — an unanchored jump when parking above the fold.
+        // restores its min-height — a jump the frame observer would then undo.
         if (slot.revealed) {
           const b = frameBodyRef.current.get(slot.path);
           if (b) b.style.minHeight = `${slot.host.offsetHeight}px`;
@@ -532,47 +481,49 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           lineDecorationsWidth: added ? 0 : 10,
         });
         if (entry.viewState) editor.restoreViewState(entry.viewState);
-        editor.layout({ width: body.clientWidth, height: DEFAULT_SLOT_HEIGHT });
+        editor.layout({ width: viewportRef.current.width, height: DEFAULT_SLOT_HEIGHT });
 
         const orig = editor.getOriginalEditor();
         const mod = editor.getModifiedEditor();
 
         let quietTimer = 0;
         let maxTimer = 0;
+        let fallbackTimer = 0;
         const clearRevealTimers = () => {
           if (quietTimer) clearTimeout(quietTimer);
           if (maxTimer) clearTimeout(maxTimer);
+          if (fallbackTimer) clearTimeout(fallbackTimer);
           quietTimer = 0;
           maxTimer = 0;
+          fallbackTimer = 0;
         };
         const reveal = () => {
           clearRevealTimers();
           if (slot.disposed || slot.token !== token || slot.revealed || slot.path !== path) return;
           slot.revealed = true;
           const h = Math.max(40, orig.getContentHeight(), mod.getContentHeight());
-          // Anchor the placeholder→editor swap so a file that settles while above
-          // the viewport (fast up-scroll, slow diff) doesn't shove content. Set the
-          // body min-height synchronously too, so a short file doesn't keep the
-          // taller placeholder floor for the frame until React drops it.
-          const anchor = suppressAnchorRef.current ? null : captureAnchor();
+          // Set the body min-height synchronously too, so a short file doesn't
+          // keep the taller placeholder floor for the frame until React drops it.
           slot.host.style.position = "";
           slot.host.style.top = "";
           slot.host.style.visibility = "";
           slot.host.style.height = `${h}px`;
-          editor.layout({ width: body.clientWidth, height: h });
+          editor.layout({ width: viewportRef.current.width, height: h });
           body.style.minHeight = `${h}px`;
-          restoreAnchor(anchor);
-          setHeights((prev) => (prev.get(path) === h ? prev : new Map(prev).set(path, h)));
-          markRevealed(path, true);
+          patchRow(path, { height: h, revealed: true });
         };
-        // Re-arm the quiet timer on every settle so we reveal at the FINAL
-        // collapsed height, not the first (still-tall) pass.
+        // Until the worker hands back the diff, the editor holds both files at
+        // full height: revealing then would paint every line and pin that height
+        // on the placeholder for good. So the timers only start once the diff is
+        // in, and the quiet timer re-arms on every settle after that, so we
+        // reveal at the FINAL collapsed height, not the first (still-tall) pass.
         const bumpReveal = () => {
-          if (slot.revealed) return;
+          if (slot.revealed || editor.getLineChanges() === null) return;
+          if (!maxTimer) maxTimer = window.setTimeout(reveal, REVEAL_MAX_MS);
           if (quietTimer) clearTimeout(quietTimer);
           quietTimer = window.setTimeout(reveal, REVEAL_QUIET_MS);
         };
-        maxTimer = window.setTimeout(reveal, REVEAL_MAX_MS);
+        fallbackTimer = window.setTimeout(reveal, REVEAL_FALLBACK_MS);
         bumpReveal();
 
         const onSize = () => {
@@ -597,7 +548,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           }),
         );
       },
-      [parkSlot, ensureEntry, scheduleLayout, markRevealed, setDirty, captureAnchor, restoreAnchor],
+      [parkSlot, ensureEntry, scheduleLayout, patchRow, setDirty],
     );
 
     // Build one pool editor on demand and register it, up to POOL_SIZE. Editors
@@ -657,17 +608,45 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     // Assign pool editors to the visible files (document order, capped at the pool
     // size), recycling editors off files that scrolled away and creating new ones
     // (up to the cap) when no free editor is available.
+    const flinging = useCallback(() => {
+      if (performance.now() - lastScrollEventRef.current > FLING_SETTLE_MS) return false;
+      return scrollSampleRef.current.v * FLING_WINDOW_MS > viewportRef.current.height;
+    }, []);
+
+    const deferSync = useCallback(() => {
+      if (deferredSyncRef.current != null) return;
+      deferredSyncRef.current = window.setTimeout(() => {
+        deferredSyncRef.current = null;
+        syncRef.current();
+      }, FLING_RECHECK_MS);
+    }, []);
+
     const syncAssignments = useCallback(() => {
       if (!poolLiveRef.current) return;
+      if (flinging()) {
+        deferSync();
+        return;
+      }
       const slots = slotsRef.current;
-      const targets = filesRef.current
-        .map((f) => f.path)
-        .filter((p) => {
-          if (!visibleRef.current.has(p)) return false;
-          const e = entriesRef.current.get(p);
-          return !e?.binary && !e?.tooLarge;
-        })
-        .slice(0, POOL_SIZE);
+      // Rows in the viewport first, then the margins: the worker diffs in
+      // request order, so what is on screen never waits behind what is not.
+      const layout = layoutRef.current;
+      const top = scrollTopRef.current;
+      const height = viewportRef.current.height;
+      const inView = layout.range(top, top + height);
+      const inReach = layout.range(top - ASSIGN_MARGIN_PX, top + height + ASSIGN_MARGIN_PX);
+      const targets: string[] = [];
+      const consider = (i: number) => {
+        const path = filesRef.current[i].path;
+        const e = entriesRef.current.get(path);
+        if (!e?.binary && !e?.tooLarge && !targets.includes(path)) targets.push(path);
+      };
+      for (let i = inView?.[0] ?? 0; inView && i <= inView[1] && targets.length < POOL_SIZE; i++) {
+        consider(i);
+      }
+      for (let i = inReach?.[0] ?? 0; inReach && i <= inReach[1] && targets.length < POOL_SIZE; i++) {
+        consider(i);
+      }
       // Fetch every visible target still missing an entry in one batch call; each
       // attachSlot below then resolves from the shared per-path promise.
       fetchBatch(targets);
@@ -689,7 +668,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       for (const slot of free.slice(fi)) {
         if (slot.path) parkSlot(slot);
       }
-    }, [attachSlot, parkSlot, fetchBatch, createSlot]);
+    }, [attachSlot, parkSlot, fetchBatch, createSlot, flinging, deferSync]);
+    syncRef.current = syncAssignments;
 
     // --- save / conflict / reconcile (per file, mirrors the single-file pane) ---
 
@@ -710,20 +690,14 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (res?.written) {
           entry.diskBaseline = content;
           entry.cleanVersionId = entry.models.modified.getAlternativeVersionId();
-          setDirty(path, false);
-          setConflicts((prev) => {
-            if (!prev.has(path)) return prev;
-            const next = new Map(prev);
-            next.delete(path);
-            return next;
-          });
+          patchRow(path, { dirty: false, theirs: undefined });
           toast.success("Saved");
         } else {
-          setConflicts((prev) => new Map(prev).set(path, res?.currentContent ?? ""));
+          patchRow(path, { theirs: res?.currentContent ?? "" });
         }
         savingRef.current.delete(path);
       },
-      [projectRoot, setDirty],
+      [projectRoot, patchRow],
     );
 
     const saveFile = useCallback(
@@ -732,7 +706,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (
           !entry?.models ||
           entry.binary ||
-          !dirtyPaths.has(path) ||
+          !rowStore.getState().rows[path]?.dirty ||
           !isEditable(path, entry.binary) ||
           savingRef.current.has(path)
         ) {
@@ -740,21 +714,15 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         }
         casWrite(path, entry.diskBaseline);
       },
-      [casWrite, dirtyPaths, isEditable],
+      [casWrite, rowStore, isEditable],
     );
     saveRef.current = saveFile;
 
     const resolveConflict = useCallback(
       (path: string, kind: ConflictResolution) => {
-        const theirs = conflicts.get(path);
+        const theirs = rowStore.getState().rows[path]?.theirs;
         const entry = entriesRef.current.get(path);
-        const dismiss = () =>
-          setConflicts((prev) => {
-            if (!prev.has(path)) return prev;
-            const next = new Map(prev);
-            next.delete(path);
-            return next;
-          });
+        const dismiss = () => patchRow(path, { theirs: undefined });
         if (theirs === undefined || !entry?.models || kind === "dismiss") {
           dismiss();
           return;
@@ -765,13 +733,12 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           suppressRef.current = false;
           entry.diskBaseline = theirs;
           entry.cleanVersionId = entry.models.modified.getAlternativeVersionId();
-          setDirty(path, false);
-          dismiss();
+          patchRow(path, { dirty: false, theirs: undefined });
           return;
         }
         casWrite(path, theirs);
       },
-      [conflicts, casWrite, setDirty],
+      [rowStore, patchRow, casWrite],
     );
     resolveRef.current = resolveConflict;
 
@@ -837,7 +804,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         const dirty =
           entry.models.modified.getAlternativeVersionId() !== entry.cleanVersionId;
         if (dirty) {
-          setConflicts((prev) => new Map(prev).set(path, disk));
+          patchRow(path, { theirs: disk });
           continue;
         }
         suppressRef.current = true;
@@ -846,7 +813,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         entry.diskBaseline = disk;
         entry.cleanVersionId = entry.models.modified.getAlternativeVersionId();
       }
-    }, [projectRoot, mode, baseBranch, isEditable]);
+    }, [projectRoot, mode, baseBranch, isEditable, patchRow]);
 
     useGitChanged(projectRoot, reconcile);
     useEffect(() => {
@@ -907,7 +874,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     // Push a Split/Unified toggle to every already-attached editor. Added files
     // stay pinned to their true-inline rendering; only normal/modified/deleted
     // files follow the toggle. Content height changes with the layout, so route
-    // the re-measure through the shared anchored layout path.
+    // the re-measure through the shared layout path.
     useEffect(() => {
       for (const slot of slotsRef.current) {
         if (!slot.path) continue;
@@ -922,40 +889,88 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
     }, [sideBySide, scheduleLayout]);
 
     useEffect(() => {
-      onDirtyPathsChange?.(dirtyPaths);
-    }, [dirtyPaths, onDirtyPathsChange]);
+      if (!onDirtyPathsChange) return;
+      onDirtyPathsChange(rowStore.getState().dirtyPaths);
+      return rowStore.subscribe((s, prev) => {
+        if (s.dirtyPaths !== prev.dirtyPaths) onDirtyPathsChange(s.dirtyPaths);
+      });
+    }, [rowStore, onDirtyPathsChange]);
 
-    // Observe each file frame; drive assignment off what is near the viewport.
+    // Runs once per animation frame at most: reads the scroll position (the one
+    // DOM read per frame), assigns editors, mounts the rows now in reach, and
+    // reports the file under the viewport top.
+    const runFrame = useCallback(() => {
+      frameRafRef.current = null;
+      const c = scrollRef.current;
+      if (!c) return;
+      const y = c.scrollTop;
+      if (sampleVelocityRef.current) {
+        sampleVelocityRef.current = false;
+        const sample = scrollSampleRef.current;
+        const t = performance.now();
+        if (sample.t) sample.v = Math.abs(y - sample.y) / Math.max(1, t - sample.t);
+        scrollSampleRef.current = { t, y, v: sample.v };
+      }
+      scrollTopRef.current = y;
+      // A changed view assigns from its effect, once the rows are in the DOM.
+      if (!updateView()) syncRef.current();
+      if (!onActiveFileChange || suppressAnchorRef.current) return;
+      const p = activePath();
+      if (p && p !== lastActiveRef.current) {
+        lastActiveRef.current = p;
+        onActiveFileChange(p);
+      }
+    }, [updateView, activePath, onActiveFileChange]);
+    const runFrameRef = useRef(runFrame);
+    runFrameRef.current = runFrame;
+
+    const scheduleFrame = useCallback(() => {
+      if (frameRafRef.current != null) return;
+      frameRafRef.current = requestAnimationFrame(() => runFrameRef.current());
+    }, []);
+
     useEffect(() => {
-      if (!ready) return;
-      const root = scrollRef.current;
-      if (!root) return;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          let changed = false;
-          for (const entry of entries) {
-            const path = (entry.target as HTMLElement).dataset.path;
-            if (!path) continue;
-            if (entry.isIntersecting) {
-              if (!visibleRef.current.has(path)) {
-                visibleRef.current.add(path);
-                changed = true;
-              }
-            } else if (visibleRef.current.delete(path)) {
-              changed = true;
-            }
-          }
-          if (changed) syncAssignments();
-        },
-        { root, rootMargin: `${LAZY_ROOT_MARGIN_PX}px 0px` },
-      );
-      observerRef.current = observer;
+      if (ready) syncAssignments();
+    }, [view, ready, syncAssignments]);
+
+    // Measured row heights feed the layout. A row above the viewport's top row
+    // changing height would shove the viewport (WKWebView has no CSS
+    // overflow-anchor), so the scroll position moves with it, before paint.
+    useEffect(() => {
+      const observer = new ResizeObserver((entries) => {
+        const layout = layoutRef.current;
+        const c = scrollRef.current;
+        const anchor = layout.indexAt(scrollTopRef.current);
+        let shift = 0;
+        let changed = false;
+        for (const entry of entries) {
+          const el = entry.target as HTMLElement;
+          const path = el.dataset.path;
+          if (!path) continue;
+          const i = layout.indexOf(path);
+          if (i < 0) continue;
+          const delta = layout.setHeight(path, entry.borderBoxSize?.[0]?.blockSize ?? el.offsetHeight);
+          if (delta === 0) continue;
+          changed = true;
+          if (i < anchor) shift += delta;
+        }
+        if (!changed) return;
+        layoutDirtyRef.current = true;
+        if (shift && c && !suppressAnchorRef.current) {
+          compensatingRef.current = true;
+          c.scrollTop += shift;
+          scrollTopRef.current += shift;
+          scrollSampleRef.current.y += shift;
+        }
+        scheduleFrame();
+      });
+      frameObserverRef.current = observer;
       frameRef.current.forEach((el) => observer.observe(el));
       return () => {
         observer.disconnect();
-        observerRef.current = null;
+        frameObserverRef.current = null;
       };
-    }, [ready, syncAssignments]);
+    }, [scheduleFrame]);
 
     // Drop bookkeeping for files that left the changeset; keep everything else so
     // unsaved edits survive an unrelated list change.
@@ -971,7 +986,6 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         entry?.models?.original.dispose();
         entry?.models?.modified.dispose();
         entriesRef.current.delete(path);
-        visibleRef.current.delete(path);
       }
       for (const path of [...frameRefCbs.current.keys()]) {
         if (!valid.has(path)) frameRefCbs.current.delete(path);
@@ -979,44 +993,30 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       for (const path of [...frameBodyRefCbs.current.keys()]) {
         if (!valid.has(path)) frameBodyRefCbs.current.delete(path);
       }
-      // Prune per-file React state for departed files too, or a stale
-      // classification (e.g. was-binary) lingers if the path returns, and
-      // onDirtyPathsChange reports files no longer in the changeset.
-      if (departed.size > 0) {
-        const dropFromSet = (prev: Set<string>) => {
-          let changed = false;
-          const next = new Set(prev);
-          for (const p of departed) if (next.delete(p)) changed = true;
-          return changed ? next : prev;
-        };
-        const dropFromMap = <V,>(prev: Map<string, V>) => {
-          let changed = false;
-          const next = new Map(prev);
-          for (const p of departed) if (next.delete(p)) changed = true;
-          return changed ? next : prev;
-        };
-        setDirtyPaths(dropFromSet);
-        setBinaryPaths(dropFromSet);
-        setTooLargePaths(dropFromSet);
-        setRevealed(dropFromSet);
-        setConflicts(dropFromMap);
-        setHeights(dropFromMap);
-      }
-      if (ready) syncAssignments();
-    }, [files, ready, parkSlot, syncAssignments]);
+      // Prune the row state of departed files too, or a stale classification
+      // (e.g. was-binary) lingers if the path returns, and onDirtyPathsChange
+      // reports files no longer in the changeset.
+      if (departed.size > 0) rowStore.getState().drop(departed);
+      scheduleFrame();
+    }, [files, parkSlot, rowStore, scheduleFrame]);
 
     // Relayout attached editors when the container width changes (split drag etc.).
     useEffect(() => {
       const root = scrollRef.current;
       if (!root || typeof ResizeObserver === "undefined") return;
-      const ro = new ResizeObserver(() => {
+      viewportRef.current = { width: root.clientWidth, height: root.clientHeight };
+      scheduleFrame();
+      const ro = new ResizeObserver((entries) => {
+        const rect = entries[0]?.contentRect;
+        if (rect) viewportRef.current = { width: rect.width, height: rect.height };
         slotsRef.current.forEach((s) => {
           if (s.path) scheduleLayout(s);
         });
+        scheduleFrame();
       });
       ro.observe(root);
       return () => ro.disconnect();
-    }, [scheduleLayout]);
+    }, [scheduleLayout, scheduleFrame]);
 
     // Drop any queued layout RAF / scroll-suppress timer on unmount so a
     // StrictMode double-mount can't flush against disposed slots.
@@ -1028,62 +1028,59 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         if (scrollSuppressTimerRef.current != null)
           clearTimeout(scrollSuppressTimerRef.current);
         scrollSuppressTimerRef.current = null;
-        if (spyRafRef.current != null) cancelAnimationFrame(spyRafRef.current);
-        spyRafRef.current = null;
+        if (frameRafRef.current != null) cancelAnimationFrame(frameRafRef.current);
+        frameRafRef.current = null;
+        if (deferredSyncRef.current != null) clearTimeout(deferredSyncRef.current);
+        deferredSyncRef.current = null;
       },
       [],
     );
 
-    // Scroll-spy: highlight the file under the viewport top in the changes tree.
-    // Skipped while a programmatic scrollToFile animates (suppressAnchorRef) so the
-    // tree doesn't strobe through every file the smooth scroll passes.
+    // A scroll runs the frame; the one our own compensation causes is not a
+    // user scroll, so it counts for neither the velocity nor the settle time.
     useEffect(() => {
       const c = scrollRef.current;
-      if (!c || !onActiveFileChange) return;
+      if (!c) return;
       const onScroll = () => {
-        if (spyRafRef.current != null) return;
-        spyRafRef.current = requestAnimationFrame(() => {
-          spyRafRef.current = null;
-          if (suppressAnchorRef.current) return;
-          const p = activePath();
-          if (p && p !== lastActiveRef.current) {
-            lastActiveRef.current = p;
-            onActiveFileChange(p);
-          }
-        });
+        if (compensatingRef.current) {
+          compensatingRef.current = false;
+          return;
+        }
+        lastScrollEventRef.current = performance.now();
+        sampleVelocityRef.current = true;
+        scheduleFrame();
       };
       c.addEventListener("scroll", onScroll, { passive: true });
       return () => c.removeEventListener("scroll", onScroll);
-    }, [onActiveFileChange, activePath]);
+    }, [scheduleFrame]);
 
     useImperativeHandle(
       ref,
       () => ({
         scrollToFile: (path: string) => {
-          if (!visibleRef.current.has(path)) {
-            visibleRef.current.add(path);
-            syncAssignments();
-          }
-          // Let the smooth scroll own scrollTop; resume anchoring once it lands so
-          // a neighbor settling mid-flight can't yank the animation off target.
+          const c = scrollRef.current;
+          const i = layoutRef.current.indexOf(path);
+          if (!c || i < 0) return;
+          // Let the smooth scroll own scrollTop; resume anchoring once it lands,
+          // and land exactly: rows measured on the way may have moved the target.
           suppressAnchorRef.current = true;
           if (scrollSuppressTimerRef.current != null)
             clearTimeout(scrollSuppressTimerRef.current);
           scrollSuppressTimerRef.current = window.setTimeout(() => {
             suppressAnchorRef.current = false;
             scrollSuppressTimerRef.current = null;
+            const target = layoutRef.current.top(i);
+            if (Math.abs(c.scrollTop - target) > 1) c.scrollTo({ top: target });
           }, 500);
-          requestAnimationFrame(() => {
-            frameRef.current.get(path)?.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
+          c.scrollTo({ top: layoutRef.current.top(i), behavior: "smooth" });
         },
       }),
-      [syncAssignments],
+      [],
     );
 
     // Memoize per path so React invokes the ref only on real mount/unmount; an
-    // inline ref is a new function each render, re-observing every frame (and
-    // re-delivering IntersectionObserver entries) on unrelated state changes.
+    // inline ref is a new function each render, re-observing every frame on
+    // unrelated state changes.
     const frameRefCbs = useRef<Map<string, (el: HTMLDivElement | null) => void>>(
       new Map(),
     );
@@ -1091,14 +1088,12 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       let cb = frameRefCbs.current.get(path);
       if (!cb) {
         cb = (el: HTMLDivElement | null) => {
+          const prev = frameRef.current.get(path);
+          if (prev && prev !== el) frameObserverRef.current?.unobserve(prev);
           if (el) {
-            const prev = frameRef.current.get(path);
-            if (prev && prev !== el) observerRef.current?.unobserve(prev);
             frameRef.current.set(path, el);
-            observerRef.current?.observe(el);
+            frameObserverRef.current?.observe(el);
           } else {
-            const prev = frameRef.current.get(path);
-            if (prev) observerRef.current?.unobserve(prev);
             frameRef.current.delete(path);
           }
         };
@@ -1109,20 +1104,30 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
 
     // Per-path-stable body ref, same reasoning as frameRefFor: a fresh ref
     // callback each render would defeat the row memo and thrash frameBodyRef.
+    // A body unmounting (its row scrolled out of reach) hands its editor back
+    // first, so no editor is left inside a detached subtree.
     const frameBodyRefCbs = useRef<Map<string, (el: HTMLDivElement | null) => void>>(
       new Map(),
     );
-    const frameBodyRefFor = useCallback((path: string) => {
-      let cb = frameBodyRefCbs.current.get(path);
-      if (!cb) {
-        cb = (el: HTMLDivElement | null) => {
-          if (el) frameBodyRef.current.set(path, el);
-          else frameBodyRef.current.delete(path);
-        };
-        frameBodyRefCbs.current.set(path, cb);
-      }
-      return cb;
-    }, []);
+    const frameBodyRefFor = useCallback(
+      (path: string) => {
+        let cb = frameBodyRefCbs.current.get(path);
+        if (!cb) {
+          cb = (el: HTMLDivElement | null) => {
+            if (el) {
+              frameBodyRef.current.set(path, el);
+              return;
+            }
+            frameBodyRef.current.delete(path);
+            const slot = slotsRef.current.find((s) => s.path === path);
+            if (slot) parkSlot(slot);
+          };
+          frameBodyRefCbs.current.set(path, cb);
+        }
+        return cb;
+      },
+      [parkSlot],
+    );
 
     return (
       <div
@@ -1141,30 +1146,27 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
             </p>
           </div>
         ) : (
-          files.map((file) => {
-            const path = file.path;
-            const isBinary = binaryPaths.has(path);
-            const isTooLarge = tooLargePaths.has(path);
-            return (
+          <div
+            style={{
+              paddingTop: layoutRef.current.top(view.first),
+              paddingBottom: layoutRef.current.total() - layoutRef.current.top(view.last + 1),
+            }}
+          >
+            {files.slice(view.first, view.last + 1).map((file) => (
               <DiffPoolRow
-                key={`${mode}-${path}`}
-                path={path}
+                key={`${mode}-${file.path}`}
+                path={file.path}
                 status={file.status}
-                dirty={dirtyPaths.has(path)}
-                editable={isEditable(path, isBinary || isTooLarge)}
-                binary={isBinary}
-                tooLarge={isTooLarge}
-                revealed={revealed.has(path)}
-                excluded={selected ? !selected.has(path) : false}
-                theirs={conflicts.get(path)}
-                placeholderHeight={slotHeight(path)}
-                frameRef={frameRefFor(path)}
-                bodyRef={frameBodyRefFor(path)}
+                mode={mode}
+                excluded={selected ? !selected.has(file.path) : false}
+                store={rowStore}
+                frameRef={frameRefFor(file.path)}
+                bodyRef={frameBodyRefFor(file.path)}
                 onSave={onSaveRow}
                 onResolve={onResolveRow}
               />
-            );
-          })
+            ))}
+          </div>
         )}
       </div>
     );

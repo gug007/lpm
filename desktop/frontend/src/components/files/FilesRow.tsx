@@ -1,8 +1,10 @@
-import { memo, useLayoutEffect, useRef } from "react";
+import { memo } from "react";
+import { useStore } from "zustand";
 import { UndoIcon } from "../icons";
 import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { decorationOf } from "./gitDecorations";
+import type { TreeCursorStore } from "./treeCursor";
 import type { Item } from "./treeModel";
 
 export interface RowTarget extends Item {
@@ -17,9 +19,7 @@ interface FilesRowProps {
   expanded?: boolean;
   loading?: boolean;
   error?: string | null;
-  selected: boolean;
-  // The keyboard cursor sits here and the list has focus.
-  cursor: boolean;
+  cursorStore: TreeCursorStore;
   dirty: boolean;
   // The git status of the file, or of the changes inside the folder.
   status?: string;
@@ -36,18 +36,16 @@ export const FilesRow = memo(function FilesRow({
   expanded = false,
   loading = false,
   error = null,
-  selected,
-  cursor,
+  cursorStore,
   dirty,
   status,
   onActivate,
   onContextMenu,
   onDiscard,
 }: FilesRowProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (selected || cursor) ref.current?.scrollIntoView({ block: "nearest" });
-  }, [selected, cursor]);
+  const selected = useStore(cursorStore, (s) => s.selectedPath === item.path);
+  // The keyboard cursor sits here and the list has focus.
+  const cursor = useStore(cursorStore, (s) => s.listFocused && s.cursorPath === item.path);
   const decoration = status ? decorationOf(status) : null;
   const nameClass = error
     ? "text-[var(--accent-red-text)]"
@@ -58,7 +56,6 @@ export const FilesRow = memo(function FilesRow({
         : "text-[var(--text-secondary)]";
   return (
     <div
-      ref={ref}
       role="treeitem"
       aria-level={depth + 1}
       aria-selected={selected}
