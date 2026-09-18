@@ -125,6 +125,15 @@ export const ADD_PROJECT_TOUR = defineTour(["addProject", "agent", "prompt"], {
 // Boot a project and run Claude Code in it.
 export const AGENT_TOUR = defineTour(["start", "agent", "prompt"]);
 
+// Nothing plays: the frame opens on an empty workspace and waits for the
+// visitor to add the first project.
+export const EMPTY_TOUR = defineTour([], {
+  hint: {
+    short: "No projects yet — add one",
+    long: "An empty lpm, same as a fresh install. Add a project to begin.",
+  },
+});
+
 // How many steps have happened in the window, whoever did them, and whether
 // the mimed tour is still doing them.
 export type TourState = { stage: number; playing: boolean };

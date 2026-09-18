@@ -6,7 +6,7 @@ export function NoProjectsPane({ onAddProject }: { onAddProject: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
       <p className="text-[13px] text-[#919191]">
-        No projects left. Point lpm at a folder to get one back.
+        No projects yet. Point lpm at a folder to add one.
       </p>
       <button
         type="button"

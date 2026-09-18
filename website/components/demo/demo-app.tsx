@@ -96,6 +96,10 @@ type DemoAppProps = {
   // Which steps the opening tour plays, in what order — a page's own list, or
   // the home page's.
   tour?: Tour;
+  // What the frame opens with. A page that wants an untouched install hands in
+  // empty lists, and the visitor starts by adding a project of their own.
+  seedProjects?: DemoProject[];
+  seedJobs?: DemoJob[];
 };
 
 type HintStage = "invite" | "next";
@@ -138,20 +142,35 @@ function tourPromptsFor(project: DemoProject | undefined) {
   };
 }
 
+// The canned statuses belong to the seeded projects; a frame that opens with
+// its own list takes only the ones it actually shows.
+function seededAiStatus(projects: DemoProject[]): Record<string, AiStatus> {
+  const status: Record<string, AiStatus> = {};
+  for (const project of projects) {
+    const seeded = INITIAL_AI_STATUS[project.name];
+    if (seeded) status[project.name] = seeded;
+  }
+  return status;
+}
+
 export function DemoApp({
   heightCss,
   heightCssSm,
   tourRef,
   onTour,
   tour = HOME_TOUR,
+  seedProjects = INITIAL_PROJECTS,
+  seedJobs = INITIAL_JOBS,
 }: DemoAppProps) {
-  const [projects, setProjects] = useState<DemoProject[]>(INITIAL_PROJECTS);
-  const [selected, setSelected] = useState<string>(INITIAL_PROJECTS[0].name);
+  const [projects, setProjects] = useState<DemoProject[]>(seedProjects);
+  const [selected, setSelected] = useState<string>(
+    seedProjects[0]?.name ?? "",
+  );
   const [runningByProject, setRunningByProject] = useState<
     Record<string, Set<string>>
-  >(() => initialRunningState(INITIAL_PROJECTS));
+  >(() => initialRunningState(seedProjects));
   const [gitByProject, setGitByProject] = useState<Record<string, DemoGit>>(
-    () => initialGitState(INITIAL_PROJECTS),
+    () => initialGitState(seedProjects),
   );
   // Only the branch on screen has its counts in gitByProject; every branch left
   // behind keeps its own here, so a round trip returns to what it had. Nothing
@@ -161,24 +180,24 @@ export function DemoApp({
   >({});
   const [aiStatusByProject, setAiStatusByProject] = useState<
     Record<string, AiStatus>
-  >(() => ({ ...INITIAL_AI_STATUS }));
+  >(() => seededAiStatus(seedProjects));
   const [treeByProject, setTreeByProject] = useState<
     Record<string, PaneNode | null>
-  >(() => initialTreeState(INITIAL_PROJECTS));
+  >(() => initialTreeState(seedProjects));
   const [actionTerminalsByProject, setActionTerminalsByProject] = useState<
     Record<string, ActionTerminalMap>
-  >(() => initialActionTerminalState(INITIAL_PROJECTS));
+  >(() => initialActionTerminalState(seedProjects));
   const [agentTabStatusByProject, setAgentTabStatusByProject] = useState<
     Record<string, Record<string, AgentTabState>>
   >({});
   const [view, setView] = useState<DemoView>("project");
-  const [jobs, setJobs] = useState<DemoJob[]>(INITIAL_JOBS);
+  const [jobs, setJobs] = useState<DemoJob[]>(seedJobs);
   const [usageSettings, setUsageSettings] = useState<UsageSidebarSettings>(
     DEFAULT_USAGE_SETTINGS,
   );
   const [adding, setAdding] = useState(false);
   const [visited, setVisited] = useState<Set<string>>(
-    () => new Set([INITIAL_PROJECTS[0].name]),
+    () => new Set(seedProjects[0] ? [seedProjects[0].name] : []),
   );
   const [autoCursor, setAutoCursor] = useState<AutoCursorState>({
     phase: "hidden",
