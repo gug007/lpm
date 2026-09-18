@@ -92,6 +92,17 @@ class Timing {
   cardMs(opts = {}) {
     return opts.ms ?? Math.max(2800, this.lineStart + this.line.ms + 400 - Date.now());
   }
+
+  // A zoom keyframe for the compositor: the picture eases to `scale` around
+  // (cx, cy) in output pixels over `ms`, finishing on the cue word when one is
+  // given, and stays there until the next keyframe.
+  async recordZoom(scale, cx, cy, opts = {}) {
+    const ms = opts.ms ?? 700;
+    if (opts.cue) await this.holdUntil(this.cueMs(opts.cue) - ms);
+    this.zooms = this.zooms || [];
+    this.zooms.push({ startMs: Date.now() - this.t0, ms, scale: Math.min(3, Math.max(1, scale)), cx: Math.round(cx), cy: Math.round(cy) });
+    this.log(`zoom ${scale === 1 ? "out" : `${scale}x at ${Math.round(cx)},${Math.round(cy)}`} over ${ms}ms`);
+  }
 }
 
 module.exports = { sleep, norm, alignWords, Timing };

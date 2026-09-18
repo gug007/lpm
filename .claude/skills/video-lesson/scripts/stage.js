@@ -36,6 +36,7 @@ class Stage extends Timing {
     this.page = page;
     this.framesDir = opts.framesDir;
     this.frameNo = 0;
+    this.zooms = [];
   }
 
   async waitFor(sel, timeout = 8000) {
@@ -73,6 +74,15 @@ class Stage extends Timing {
     this.log(`click ${sel}`);
     await sleep(opts.settle ?? 350);
     return p;
+  }
+
+  async zoom(sel, opts = {}) {
+    const p = await this.point(sel, opts.at);
+    await this.recordZoom(opts.scale ?? 1.8, p.x, p.y, opts);
+  }
+
+  async zoomOut(opts = {}) {
+    await this.recordZoom(1, OUT.width / 2, OUT.height / 2, opts);
   }
 
   // Shows a topic card for `ms`, by default until the line's narration ends.

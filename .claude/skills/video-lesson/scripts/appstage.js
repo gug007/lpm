@@ -36,6 +36,25 @@ class AppStage extends Timing {
     this.covered = false;
     this.mouse = opts.mouse;
     this.origin = opts.origin;
+    this.box = opts.box;
+    this.out = opts.out;
+    this.zooms = [];
+  }
+
+  // Page coordinates → the finished video's pixels (the window sits in `box`).
+  outPoint(p) {
+    return { x: this.box.x + (p.x * this.box.w) / this.origin.w, y: this.box.y + (p.y * this.box.h) / this.origin.h };
+  }
+
+  // Push the picture in on `sel` (compose.js does the actual zoom); 1.6–2 reads
+  // well for a button or a sidebar row. Stays until zoomOut.
+  async zoom(sel, opts = {}) {
+    const o = this.outPoint(await this.point(sel, opts.at));
+    await this.recordZoom(opts.scale ?? 1.8, o.x, o.y, opts);
+  }
+
+  async zoomOut(opts = {}) {
+    await this.recordZoom(1, this.out.width / 2, this.out.height / 2, opts);
   }
 
   static async open(app, capture, opts = {}) {

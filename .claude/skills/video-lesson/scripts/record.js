@@ -5,7 +5,8 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { openStage, OUT, FRAME } = require("./stage");
+const { openStage, OUT, FRAME, ZOOM } = require("./stage");
+const { frameBox } = require("./compose");
 const { Recorder } = require("./recorder");
 const { launchApp } = require("./app");
 const { Capture } = require("./capture");
@@ -68,13 +69,14 @@ async function recordDemo({ url, lines, beats, raw, framesDir }) {
   await page.screencast.start({ size: OUT, quality: 92, onFrame: (f) => rec.frame(f) });
   await waitForFrames(rec, (n) => stage.repaint(n));
   t0 = rec.startWall;
+  stage.t0 = t0;
   await stage.hold(LEAD_MS);
   const timeline = await runBeats(stage, lines, beats, t0);
   const totalMs = Date.now() - t0;
   await page.screencast.stop();
   await rec.stop(totalMs);
   await close();
-  return { totalMs, lines: timeline };
+  return { totalMs, lines: timeline, zooms: stage.zooms };
 }
 
 // A pristine data directory for every take, so the app opens the way it does
@@ -127,7 +129,7 @@ async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, ke
   const capture = new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, onFrame: (f) => rec.frame(f) });
   let stage;
   try {
-    stage = await AppStage.open(app, capture, { framesDir, log, mouse, origin });
+    stage = await AppStage.open(app, capture, { framesDir, log, mouse, origin, out: OUT, box: frameBox(OUT, FRAME, ZOOM) });
     await stage.frame("stage");
     await stage.cover();
     await waitForFrames(rec, async () => {});
@@ -140,7 +142,7 @@ async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, ke
     await rec.stop(totalMs);
     stage.finish();
     await app.close();
-    return { totalMs, lines: timeline, cards: stage.cards, box: { w: b.w, h: b.h, scale: b.scale } };
+    return { totalMs, lines: timeline, cards: stage.cards, zooms: stage.zooms, box: { w: b.w, h: b.h, scale: b.scale } };
   } catch (e) {
     // The screen at the moment of failure, next to the dry-run frames.
     if (framesDir && capture.latest) fs.writeFileSync(path.join(framesDir, "99-error.jpg"), capture.latest);

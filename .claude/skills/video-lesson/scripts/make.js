@@ -9,7 +9,7 @@ const { execFileSync, spawnSync } = require("child_process");
 const { OUT, FRAME, ZOOM } = require("./stage");
 const { alignWords } = require("./words");
 const { recordDemo, recordApp, renderTimelineCards } = require("./record");
-const { videoGraph, frameAssets } = require("./compose");
+const { videoGraph, frameAssets, frameBox } = require("./compose");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -213,13 +213,16 @@ async function mux(lines) {
     .map((t) => ({ ...t, line: lines.find((l) => l.id === t.id) }))
     .filter((t) => !t.line.silent);
   const inputs = ["-i", raw];
-  let video = { filter: null, label: "0:v" };
-  if (source !== "demo") {
-    const box = { x: ((OUT.width / ZOOM - FRAME.width) / 2) * ZOOM, y: ((OUT.height / ZOOM - FRAME.height) / 2) * ZOOM, w: FRAME.width * ZOOM, h: FRAME.height * ZOOM };
+  const zooms = timeline.zooms || [];
+  let video;
+  if (source === "demo") {
+    video = videoGraph({ out: OUT, zooms, totalMs, composite: false });
+  } else {
+    const box = frameBox(OUT, FRAME, ZOOM);
     const assets = await frameAssets(path.join(ROOT, "_frame"), { out: OUT, frame: { ...FRAME, zoom: ZOOM }, box });
-    video = videoGraph({ ...assets, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], totalMs });
-    inputs.push(...video.inputs);
+    video = videoGraph({ ...assets, out: OUT, box, cards: timeline.cards || [], cardFiles: timeline.cardFiles || [], zooms, totalMs });
   }
+  inputs.push(...video.inputs);
   const base = 1 + (video.count || 0);
   for (const t of spokenLines) inputs.push("-i", t.line.wav);
   const voice = voiceGraph(spokenLines, base);
