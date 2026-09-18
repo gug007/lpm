@@ -33,6 +33,8 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
     decorations: new Map<string, string>(),
     changesOnly: false,
     onChangesOnlyChange,
+    allChanges: false,
+    onAllChangesChange: vi.fn(),
     selectedPath: null,
     dirtyPaths: new Set<string>(),
     query: "",
@@ -165,6 +167,25 @@ describe("FilesTree changes only", () => {
   it("says so when the working tree is clean", () => {
     const { list } = render({ changesOnly: true, rows: [] });
     expect(list.textContent).toContain("No uncommitted changes");
+  });
+
+  it("offers the whole diff stack above the changed files", () => {
+    const changes: Changes = {
+      status: "ready",
+      files: [{ path: "src/a.ts", status: "modified" }],
+    };
+    const onAllChangesChange = vi.fn();
+    const { rerender } = render({ changesOnly: true, changes, onAllChangesChange });
+    const row = () =>
+      container.querySelector<HTMLButtonElement>('button[title="Show every change as one diff"]');
+    expect(row()!.textContent).toBe("View all changes1");
+    act(() => row()!.click());
+    expect(onAllChangesChange).toHaveBeenCalledWith(true);
+    rerender({ allChanges: true });
+    act(() => row()!.click());
+    expect(onAllChangesChange).toHaveBeenLastCalledWith(false);
+    rerender({ allChanges: false, changes: NO_CHANGES });
+    expect(row()).toBe(null);
   });
 
   it("shows the git error instead of an empty list", () => {

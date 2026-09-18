@@ -12,28 +12,24 @@ import { useFilesFocus } from "../../store/filesFocus";
 import { useSettingsStore } from "../../store/settings";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
+import { FilesAllChanges } from "./FilesAllChanges";
 import { FilesDiscardDialog } from "./FilesDiscardDialog";
 import { FilesEditor } from "./FilesEditor";
 import { FilesHeader } from "./FilesHeader";
 import type { RowTarget } from "./FilesRow";
 import { FilesRowMenu } from "./FilesRowMenu";
 import { FilesTree, type ActivateOptions, type CursorRequest } from "./FilesTree";
-import { indexEntry, rankFiles, type IndexEntry } from "./filesFilter";
-import { decorate } from "./gitDecorations";
+import { rankFiles, type IndexEntry } from "./filesFilter";
 import { ancestorsOf, buildMatchTree, flattenTree, type Item } from "./treeModel";
-import { useChangedFiles } from "./useChangedFiles";
-import { useDiffView } from "./useDiffView";
+import { useChangesView } from "./useChangesView";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
-import { useFileDiscard } from "./useFileDiscard";
 import { useFileIndex } from "./useFileIndex";
 import { useFilesChords } from "./useFilesChords";
 
 const TREE_WIDTH_KEY = "lpm:filesTreeWidth";
 const TREE_OPEN_KEY = "lpm:filesTreeOpen";
-const CHANGES_ONLY_KEY = "lpm:filesChangesOnly";
 const NO_ITEMS: IndexEntry[] = [];
-const NO_DECORATIONS: ReadonlyMap<string, string> = new Map();
 const TREE_WIDTH_MIN = 180;
 const TREE_WIDTH_MAX = 480;
 const TREE_WIDTH_DEFAULT = 260;
@@ -59,44 +55,30 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const filtering = query.trim() !== "";
-  // Git status colours the tree; "Changes only" swaps the folder tree for
-  // the uncommitted files under their folders, and the filter then ranks
-  // those instead of the project index.
-  const changes = useChangedFiles(projectRoot, active);
-  const decorations = useMemo(
-    () => (changes.status === "ready" ? decorate(changes.files) : NO_DECORATIONS),
-    [changes],
-  );
-  const [changesOnly, setChangesOnly] = useState(
-    () => localStorage.getItem(CHANGES_ONLY_KEY) === "1",
-  );
-  const discard = useFileDiscard(projectRoot, changes);
+  // Git status colours the tree; the git view swaps the folder tree for the
+  // uncommitted files under their folders, and the filter then ranks those
+  // instead of the project index.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const selectedPath = buffer.file?.path ?? null;
-  const selectedStatus = selectedPath ? decorations.get(selectedPath) : undefined;
-  const diffView = useDiffView(projectRoot, selectedPath, selectedStatus, active);
-  const { setWanted: setDiffWanted } = diffView;
-  const changeItems = useMemo<IndexEntry[] | null>(
-    () =>
-      changesOnly && changes.status === "ready"
-        ? changes.files.map((f) => indexEntry(f.path, false))
-        : null,
-    [changesOnly, changes],
-  );
+  const git = useChangesView(projectRoot, selectedPath, active);
+  const { changesOnly, decorations, showAllChanges } = git;
+  const { setWanted: setDiffWanted } = git.diff;
   const index = useFileIndex(projectRoot, filtering && !changesOnly, active);
   const results = useMemo(() => {
     if (!filtering) return null;
-    const source = changesOnly ? changeItems : index;
+    const source = changesOnly ? git.items : index;
     return source ? rankFiles(source, query) : null;
-  }, [filtering, changesOnly, changeItems, index, query]);
+  }, [filtering, changesOnly, git.items, index, query]);
   const rows = useMemo(
     () =>
       changesOnly
-        ? buildMatchTree(changeItems ?? NO_ITEMS, collapsed)
+        ? buildMatchTree(git.items ?? NO_ITEMS, collapsed)
         : flattenTree(listings, expanded),
-    [changesOnly, changeItems, collapsed, listings, expanded],
+    [changesOnly, git.items, collapsed, listings, expanded],
   );
   const [treeOpen, setTreeOpen] = useState(() => localStorage.getItem(TREE_OPEN_KEY) !== "0");
+  // Which file the diff stack is scrolled to, so the rail follows the reading.
+  const [stackPath, setStackPath] = useState<string | null>(null);
   const [cursorRequest, setCursorRequest] = useState<CursorRequest | null>(null);
   const [filterFocusRequest, setFilterFocusRequest] = useState(0);
   const [menu, setMenu] = useState<RowTarget | null>(null);
@@ -169,20 +151,16 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
     (path: string) => {
       void openBuffer(path);
       setDiffWanted(changesOnly);
+      showAllChanges(false);
       expandDirs(ancestorsOf(path));
       uncollapse(ancestorsOf(path));
     },
-    [openBuffer, changesOnly, setDiffWanted, expandDirs, uncollapse],
+    [openBuffer, changesOnly, setDiffWanted, showAllChanges, expandDirs, uncollapse],
   );
 
   const showTree = useCallback((open: boolean) => {
     localStorage.setItem(TREE_OPEN_KEY, open ? "1" : "0");
     setTreeOpen(open);
-  }, []);
-
-  const showChangesOnly = useCallback((on: boolean) => {
-    localStorage.setItem(CHANGES_ONLY_KEY, on ? "1" : "0");
-    setChangesOnly(on);
   }, []);
 
   const focusFilter = useCallback(() => {
@@ -317,11 +295,13 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       <FilesTree
         rows={rows}
         rootListing={listings.get("")}
-        changes={changes}
+        changes={git.changes}
         decorations={decorations}
         changesOnly={changesOnly}
-        onChangesOnlyChange={showChangesOnly}
-        selectedPath={selectedPath}
+        onChangesOnlyChange={git.showChangesOnly}
+        allChanges={git.allChanges}
+        onAllChangesChange={showAllChanges}
+        selectedPath={git.allChanges ? stackPath : selectedPath}
         dirtyPaths={buffer.dirtyPaths}
         query={query}
         onQueryChange={setQuery}
@@ -331,7 +311,7 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         onActivate={activate}
         onToggleDir={toggleDir}
         onRowMenu={setMenu}
-        onDiscard={discard.request}
+        onDiscard={git.discard.request}
         onCursorChange={onCursorChange}
       />
       <div
@@ -354,10 +334,13 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         rootName={basename(projectRoot) || projectName}
         path={selectedPath}
         absPath={absPath}
-        status={selectedStatus}
-        diffAvailable={diffView.available}
-        showDiff={diffView.diff !== null}
+        status={git.status}
+        diffAvailable={git.diff.available}
+        showDiff={git.diff.diff !== null}
         onShowDiff={setDiffWanted}
+        allChanges={git.allChanges}
+        sideBySide={git.sideBySide}
+        onSideBySide={git.showSideBySide}
         dirty={buffer.draft !== null}
         saving={buffer.saving}
         readOnly={buffer.readOnly}
@@ -379,14 +362,24 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
       <div className="flex min-h-0 flex-1">
         {treeSide === "left" && rail}
         <div className="relative min-w-0 flex-1">
-          <FilesEditor
-            file={buffer.file}
-            value={buffer.value}
-            absPath={absPath ?? ""}
-            diff={diffView.diff}
-            onChange={buffer.setDraft}
-            onSave={() => void buffer.save()}
-          />
+          {git.allChanges ? (
+            <FilesAllChanges
+              projectRoot={projectRoot}
+              files={git.files}
+              sideBySide={git.sideBySide}
+              active={active}
+              onActiveFileChange={setStackPath}
+            />
+          ) : (
+            <FilesEditor
+              file={buffer.file}
+              value={buffer.value}
+              absPath={absPath ?? ""}
+              diff={git.diff.diff}
+              onChange={buffer.setDraft}
+              onSave={() => void buffer.save()}
+            />
+          )}
         </div>
         {treeSide === "right" && rail}
       </div>
@@ -395,15 +388,15 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
           target={menu}
           absPath={joinAbs(projectRoot, menu.path)}
           onOpen={() => activate(menu)}
-          onDiscard={decorations.has(menu.path) ? () => discard.request(menu) : undefined}
+          onDiscard={decorations.has(menu.path) ? () => git.discard.request(menu) : undefined}
           onClose={() => setMenu(null)}
         />
       )}
       <FilesDiscardDialog
-        target={discard.target}
-        busy={discard.busy}
-        onCancel={discard.cancel}
-        onConfirm={() => void discard.confirm()}
+        target={git.discard.target}
+        busy={git.discard.busy}
+        onCancel={git.discard.cancel}
+        onConfirm={() => void git.discard.confirm()}
       />
     </div>
   );

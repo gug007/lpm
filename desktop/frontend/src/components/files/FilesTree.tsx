@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { SearchIcon, XIcon } from "../icons";
+import { FilesAllChangesRow } from "./FilesAllChangesRow";
 import { FilesRow, type RowTarget } from "./FilesRow";
 import { FilesViewSwitch } from "./FilesViewSwitch";
 import type { IndexEntry } from "./filesFilter";
@@ -28,6 +29,9 @@ interface FilesTreeProps {
   decorations: ReadonlyMap<string, string>;
   changesOnly: boolean;
   onChangesOnlyChange: (on: boolean) => void;
+  // The whole working tree as one diff stack, in place of a single file.
+  allChanges: boolean;
+  onAllChangesChange: (on: boolean) => void;
   selectedPath: string | null;
   dirtyPaths: ReadonlySet<string>;
   query: string;
@@ -58,6 +62,8 @@ export function FilesTree({
   decorations,
   changesOnly,
   onChangesOnlyChange,
+  allChanges,
+  onAllChangesChange,
   selectedPath,
   dirtyPaths,
   query,
@@ -278,6 +284,13 @@ export function FilesTree({
           )}
         </div>
       </div>
+      {changesOnly && !filtering && changes.status === "ready" && changes.files.length > 0 && (
+        <FilesAllChangesRow
+          count={changes.files.length}
+          selected={allChanges}
+          onToggle={() => onAllChangesChange(!allChanges)}
+        />
+      )}
       <div
         ref={listRef}
         role="tree"

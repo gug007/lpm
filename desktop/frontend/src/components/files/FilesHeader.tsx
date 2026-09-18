@@ -22,6 +22,10 @@ interface FilesHeaderProps {
   diffAvailable: boolean;
   showDiff: boolean;
   onShowDiff: (show: boolean) => void;
+  // Every change as one stack of diffs, in place of the open file.
+  allChanges: boolean;
+  sideBySide: boolean;
+  onSideBySide: (sideBySide: boolean) => void;
   dirty: boolean;
   saving: boolean;
   readOnly: boolean;
@@ -38,6 +42,11 @@ const VIEW_OPTIONS = [
   { value: "file", label: "File" },
 ] as const;
 
+const LAYOUT_OPTIONS = [
+  { value: "split", label: "Split" },
+  { value: "unified", label: "Unified" },
+] as const;
+
 const CRUMB_CLASS =
   "shrink-0 rounded px-1 py-0.5 text-xs text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
 
@@ -51,6 +60,9 @@ export function FilesHeader({
   diffAvailable,
   showDiff,
   onShowDiff,
+  allChanges,
+  sideBySide,
+  onSideBySide,
   dirty,
   saving,
   readOnly,
@@ -61,7 +73,7 @@ export function FilesHeader({
   onToggleTree,
   onTreeSide,
 }: FilesHeaderProps) {
-  const folders = path ? ancestorsOf(path) : [];
+  const folders = path && !allChanges ? ancestorsOf(path) : [];
   const decoration = status ? decorationOf(status) : null;
   const treeLabel = treeOpen ? "Hide file tree" : "Show file tree";
   const [sideMenu, setSideMenu] = useState<{ x: number; y: number } | null>(null);
@@ -115,7 +127,11 @@ export function FilesHeader({
             </Fragment>
           ))}
           <Separator />
-          {path ? (
+          {allChanges ? (
+            <span className="shrink-0 px-1 text-xs font-medium text-[var(--text-primary)]">
+              All changes
+            </span>
+          ) : path ? (
             <span className="flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium">
               <span className={decoration ? decoration.text : "text-[var(--text-primary)]"}>
                 {basename(path)}
@@ -136,16 +152,26 @@ export function FilesHeader({
           )}
         </div>
       </nav>
-      {diffAvailable && (
+      {allChanges ? (
         <SegmentedControl
-          value={showDiff ? "diff" : "file"}
-          options={VIEW_OPTIONS}
-          onChange={(view) => onShowDiff(view === "diff")}
+          value={sideBySide ? "split" : "unified"}
+          options={LAYOUT_OPTIONS}
+          onChange={(layout) => onSideBySide(layout === "split")}
           variant="subtle"
-          ariaLabel="Editor view"
+          ariaLabel="Diff layout"
         />
+      ) : (
+        diffAvailable && (
+          <SegmentedControl
+            value={showDiff ? "diff" : "file"}
+            options={VIEW_OPTIONS}
+            onChange={(view) => onShowDiff(view === "diff")}
+            variant="subtle"
+            ariaLabel="Editor view"
+          />
+        )
       )}
-      {readOnly && path && (
+      {readOnly && path && !allChanges && (
         <span
           className="shrink-0 rounded bg-[var(--bg-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]"
           title="Files on an SSH host open read-only"
@@ -153,7 +179,7 @@ export function FilesHeader({
           Read-only
         </span>
       )}
-      {dirty && !readOnly && (
+      {dirty && !readOnly && !allChanges && (
         <button
           type="button"
           onClick={onSave}
@@ -163,7 +189,9 @@ export function FilesHeader({
           {saving ? "Saving…" : "Save"}
         </button>
       )}
-      {absPath && <OpenFileWithDropdown absPath={absPath} line={0} col={0} compact />}
+      {absPath && !allChanges && (
+        <OpenFileWithDropdown absPath={absPath} line={0} col={0} compact />
+      )}
       <div className="h-4 w-px shrink-0 bg-[var(--border)]" />
       <span
         className="inline-flex"
