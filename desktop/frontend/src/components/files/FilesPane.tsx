@@ -12,6 +12,7 @@ import { useFilesFocus } from "../../store/filesFocus";
 import { useSettingsStore } from "../../store/settings";
 import { DiffConflictBanner } from "../review/DiffConflictBanner";
 import { copyAbsolutePath, copyText, revealInFinder } from "./fileActions";
+import { FilesDiscardDialog } from "./FilesDiscardDialog";
 import { FilesEditor } from "./FilesEditor";
 import { FilesHeader } from "./FilesHeader";
 import type { RowTarget } from "./FilesRow";
@@ -24,6 +25,7 @@ import { useChangedFiles } from "./useChangedFiles";
 import { useDiffView } from "./useDiffView";
 import { useDirListings } from "./useDirListings";
 import { useFileBuffer } from "./useFileBuffer";
+import { useFileDiscard } from "./useFileDiscard";
 import { useFileIndex } from "./useFileIndex";
 import { useFilesChords } from "./useFilesChords";
 
@@ -68,6 +70,7 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
   const [changesOnly, setChangesOnly] = useState(
     () => localStorage.getItem(CHANGES_ONLY_KEY) === "1",
   );
+  const discard = useFileDiscard(projectRoot, changes);
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const selectedPath = buffer.file?.path ?? null;
   const selectedStatus = selectedPath ? decorations.get(selectedPath) : undefined;
@@ -328,6 +331,7 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
         onActivate={activate}
         onToggleDir={toggleDir}
         onRowMenu={setMenu}
+        onDiscard={discard.request}
         onCursorChange={onCursorChange}
       />
       <div
@@ -391,9 +395,16 @@ export function FilesPane({ paneId, projectRoot, projectName, active, focused }:
           target={menu}
           absPath={joinAbs(projectRoot, menu.path)}
           onOpen={() => activate(menu)}
+          onDiscard={decorations.has(menu.path) ? () => discard.request(menu) : undefined}
           onClose={() => setMenu(null)}
         />
       )}
+      <FilesDiscardDialog
+        target={discard.target}
+        busy={discard.busy}
+        onCancel={discard.cancel}
+        onConfirm={() => void discard.confirm()}
+      />
     </div>
   );
 }

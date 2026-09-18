@@ -1,3 +1,4 @@
+import { UndoIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
@@ -8,10 +9,12 @@ interface FilesRowMenuProps {
   target: RowTarget;
   absPath: string;
   onOpen: () => void;
+  // Given only when the row holds uncommitted changes.
+  onDiscard?: () => void;
   onClose: () => void;
 }
 
-export function FilesRowMenu({ target, absPath, onOpen, onClose }: FilesRowMenuProps) {
+export function FilesRowMenu({ target, absPath, onOpen, onDiscard, onClose }: FilesRowMenuProps) {
   return (
     <ContextMenuShell x={target.x} y={target.y} minWidth={180} onClose={onClose}>
       <ContextMenuItem
@@ -21,6 +24,20 @@ export function FilesRowMenu({ target, absPath, onOpen, onClose }: FilesRowMenuP
           onClose();
         }}
       />
+      {onDiscard && (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            label={target.isDir ? "Discard changes in folder" : "Discard changes"}
+            icon={<UndoIcon />}
+            destructive
+            onClick={() => {
+              onDiscard();
+              onClose();
+            }}
+          />
+        </>
+      )}
       <ContextMenuSeparator />
       <ContextMenuItem
         label="Copy path"

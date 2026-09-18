@@ -40,6 +40,7 @@ interface FilesTreeProps {
   onActivate: (item: Item, opts?: ActivateOptions) => void;
   onToggleDir: (path: string) => void;
   onRowMenu: (target: RowTarget) => void;
+  onDiscard: (item: Item) => void;
   // The row the keyboard cursor sits on while the list has focus, else null:
   // the target of the path chords when they fire from the tree.
   onCursorChange?: (item: Item | null) => void;
@@ -67,6 +68,7 @@ export function FilesTree({
   onActivate,
   onToggleDir,
   onRowMenu,
+  onDiscard,
   onCursorChange,
 }: FilesTreeProps) {
   const filtering = query.trim() !== "";
@@ -189,23 +191,27 @@ export function FilesTree({
   };
 
   const renderRows = (list: TreeRow[]): ReactNode =>
-    list.map((row) => (
-      <FilesRow
-        key={row.path}
-        item={row}
-        name={row.name}
-        depth={row.depth}
-        expanded={row.expanded}
-        loading={row.loading}
-        error={row.error}
-        selected={row.path === selectedPath}
-        cursor={listFocused && row.path === cursorPath}
-        dirty={dirtyPaths.has(row.path)}
-        status={decorations.get(row.path)}
-        onActivate={activate}
-        onContextMenu={onRowMenu}
-      />
-    ));
+    list.map((row) => {
+      const status = decorations.get(row.path);
+      return (
+        <FilesRow
+          key={row.path}
+          item={row}
+          name={row.name}
+          depth={row.depth}
+          expanded={row.expanded}
+          loading={row.loading}
+          error={row.error}
+          selected={row.path === selectedPath}
+          cursor={listFocused && row.path === cursorPath}
+          dirty={dirtyPaths.has(row.path)}
+          status={status}
+          onActivate={activate}
+          onContextMenu={onRowMenu}
+          onDiscard={status ? onDiscard : undefined}
+        />
+      );
+    });
 
   const renderList = (): ReactNode => {
     if (filtering) {

@@ -43,6 +43,7 @@ function render(over: Partial<Parameters<typeof FilesTree>[0]> = {}) {
     onActivate,
     onToggleDir: vi.fn(),
     onRowMenu: vi.fn(),
+    onDiscard: vi.fn(),
     onCursorChange,
     ...over,
   };

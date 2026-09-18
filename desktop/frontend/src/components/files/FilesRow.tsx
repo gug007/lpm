@@ -1,4 +1,5 @@
 import { memo, useLayoutEffect, useRef } from "react";
+import { UndoIcon } from "../icons";
 import { BASE_LEFT_PX, DirtyDot, INDENT_PX, TreeChevron } from "../treeRow";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { decorationOf } from "./gitDecorations";
@@ -24,6 +25,8 @@ interface FilesRowProps {
   status?: string;
   onActivate: (item: Item) => void;
   onContextMenu: (target: RowTarget) => void;
+  // Given only for rows that hold uncommitted changes.
+  onDiscard?: (item: Item) => void;
 }
 
 export const FilesRow = memo(function FilesRow({
@@ -39,6 +42,7 @@ export const FilesRow = memo(function FilesRow({
   status,
   onActivate,
   onContextMenu,
+  onDiscard,
 }: FilesRowProps) {
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -66,7 +70,7 @@ export const FilesRow = memo(function FilesRow({
         onContextMenu({ path: item.path, isDir: item.isDir, x: e.clientX, y: e.clientY });
       }}
       style={{ paddingLeft: `${depth * INDENT_PX + BASE_LEFT_PX}px` }}
-      className={`flex cursor-pointer select-none items-center gap-1.5 py-[5px] pr-2.5 transition-colors ${
+      className={`group flex cursor-pointer select-none items-center gap-1.5 py-[5px] pr-2.5 transition-colors ${
         selected ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
       } ${cursor ? "ring-1 ring-inset ring-[var(--accent-cyan)]/50" : ""}`}
     >
@@ -82,6 +86,20 @@ export const FilesRow = memo(function FilesRow({
         <span className="shrink-0 text-[10px] text-[var(--text-muted)]" aria-label="Loading">
           …
         </span>
+      )}
+      {onDiscard && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDiscard(item);
+          }}
+          title={item.isDir ? "Discard all changes in this folder" : "Discard changes to this file"}
+          aria-label="Discard changes"
+          className="shrink-0 rounded p-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:text-[var(--accent-red-text)] focus-visible:opacity-100 group-hover:opacity-100 [&>svg]:h-3 [&>svg]:w-3"
+        >
+          <UndoIcon />
+        </button>
       )}
       {status && (item.isDir ? <ChangeDot status={status} /> : <StatusMark status={status} />)}
       {dirty && <DirtyDot />}
