@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   listAllJobs: vi.fn(),
+  browserOpenURL: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -13,6 +14,7 @@ vi.mock("../../bridge/commands", () => ({
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
+  BrowserOpenURL: mocks.browserOpenURL,
 }));
 
 import { useCollapsedAgents } from "../sidebarCollapsed";
@@ -144,6 +146,17 @@ describe("SidebarFooterNav", () => {
     expect(onActivity).toHaveBeenCalledOnce();
   });
 
+  it("opens the lesson playlist in the browser from the Tutorial row", () => {
+    renderNav();
+    openMore();
+    pick("Tutorial (YouTube)");
+
+    expect(mocks.browserOpenURL).toHaveBeenCalledWith(
+      "https://www.youtube.com/playlist?list=PLGgzBw1aFVk8",
+    );
+    expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("starts with Terminals as the only row outside the menu", () => {
     renderNav();
 
@@ -229,6 +242,7 @@ describe("SidebarFooterNav", () => {
         "mobile",
         "settings",
         "feedback",
+        "tutorial",
       ],
     });
     renderNav();

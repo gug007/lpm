@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GitChangedFiles, ListBranches, ListDirFiles } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
 import { isDuplicate } from "../types";
-import { rankMentions, type MentionItem } from "../mentions";
+import { mentionGroup, rankMentions, type MentionItem } from "../mentions";
 import { findParentProject, projectDisplayName } from "../components/ProjectNameDisplay";
 
 interface DirFileEntry {
@@ -40,13 +40,12 @@ export function useMentions(
   terminals: { id: string; label: string }[],
   ownTerminalId: string,
   active: boolean,
-  // Caller-supplied extra items riding the ranked pool — the composer passes
-  // its Memory group row here, so "@" offers it without this hook owning a
-  // second data source.
+  // Caller-supplied rows for a bare "@" — the composer passes its Memory group
+  // row here, so the menu offers it without this hook owning a second source.
   extraItems: MentionItem[] = [],
-  // Extra items that, like branches, join the pool only once a fragment is
-  // typed — the composer's individual memory sessions, which a bare "@" folds
-  // behind the group row but "@<name>" must still find.
+  // Caller-supplied rows that join the pool only once a fragment is typed —
+  // the composer's individual memory sessions, which the bare "@" folds behind
+  // the group row but "@<name>" must still find.
   searchItems: MentionItem[] = [],
 ) {
   const projects = useAppStore((s) => s.projects);
@@ -220,24 +219,42 @@ export function useMentions(
     return files.filter((f) => !changedPaths.has(f.insert));
   }, [changed, files]);
 
-  // The pool the menu ranks; built once per source change rather than per
-  // keystroke. rankMentions orders by group, so a source's array position only
-  // breaks intra-group ties — branches can ride at the tail of the full pool.
-  const basePool = useMemo(
-    () => [...changed, ...extraItems, ...projectItems, ...terminalItems, ...serviceItems, ...plainFiles],
-    [changed, extraItems, projectItems, terminalItems, serviceItems, plainFiles],
+  // A bare "@" folds each bulky source behind one group row (projects,
+  // services, terminals — memory arrives folded via `extraItems`), stacked
+  // under Memory above the working-tree changes and files. A typed
+  // fragment searches the individual rows instead, with branches riding at the
+  // tail so they never flood the unfiltered menu. Both pools are built once per
+  // source change rather than per keystroke; rankMentions orders by group, so a
+  // source's array position only breaks intra-group ties.
+  const groupRows = useMemo<MentionItem[]>(
+    () =>
+      [
+        mentionGroup("project", "Projects", "project", projectItems),
+        mentionGroup("service-log", "Services", "service", serviceItems),
+        mentionGroup("terminal-log", "Terminals", "terminal", terminalItems),
+      ].filter((g): g is MentionItem => g !== null),
+    [projectItems, terminalItems, serviceItems],
   );
-  const fullPool = useMemo(
-    () => [...basePool, ...searchItems, ...branches],
-    [basePool, searchItems, branches],
+  const barePool = useMemo(
+    () => [...changed, ...extraItems, ...groupRows, ...plainFiles],
+    [changed, extraItems, groupRows, plainFiles],
+  );
+  const searchPool = useMemo(
+    () => [
+      ...changed,
+      ...searchItems,
+      ...projectItems,
+      ...terminalItems,
+      ...serviceItems,
+      ...plainFiles,
+      ...branches,
+    ],
+    [changed, searchItems, projectItems, terminalItems, serviceItems, plainFiles, branches],
   );
 
-  // Branches (and the caller's search-only items) would flood a bare "@";
-  // surface them only once the user is actually filtering by name. The terminal
-  // and services are few, so they ride along on a bare "@" like projects do.
   const filter = useCallback(
-    (frag: string) => rankMentions(frag.trim() ? fullPool : basePool, frag),
-    [basePool, fullPool],
+    (frag: string) => rankMentions(frag.trim() ? searchPool : barePool, frag),
+    [barePool, searchPool],
   );
 
   return { filter, refresh };

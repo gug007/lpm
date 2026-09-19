@@ -17,7 +17,6 @@ const KIND_LABEL: Record<MentionKind, string> = {
   changed: "changed",
   branch: "branch",
   memory: "memory",
-  "memory-group": "memory",
   "memory-save": "",
   "service-log": "logs",
   "terminal-log": "logs",
@@ -31,7 +30,6 @@ const KIND_ICON: Record<MentionKind, LucideIcon> = {
   changed: FileDiff,
   branch: GitBranch,
   memory: Brain,
-  "memory-group": Brain,
   "memory-save": Plus,
   "service-log": ScrollText,
   "terminal-log": SquareTerminal,
@@ -44,10 +42,6 @@ interface MentionMenuProps {
   anchorRect: DOMRect | null;
   onSelect: (item: MentionItem) => void;
   onHoverIndex: (i: number) => void;
-  // Children shown in a hover flyout beside a row (null = no submenu). Clicking
-  // a flyout row selects it like any item; Enter on the parent row is the
-  // keyboard path and stays with the composer.
-  submenuFor?: (item: MentionItem) => MentionItem[] | null;
   // Muted, non-interactive hint under the rows. Rendered after every row so
   // listRef.children[selectedIndex] keeps pointing at rows.
   footer?: string;
@@ -55,14 +49,16 @@ interface MentionMenuProps {
 
 // Filterable popover of "@" mention targets, anchored to the composer caret.
 // Presentational only — the composer owns all keyboard handling so the menu's
-// Arrow/Enter/Tab/Escape stay in sync with the contentEditable selection.
+// Arrow/Enter/Tab/Escape stay in sync with the contentEditable selection. A
+// row with children shows them in a hover flyout beside it; clicking a flyout
+// row selects it like any item, while Enter on the parent row is the keyboard
+// path and stays with the composer.
 export function MentionMenu({
   items,
   selectedIndex,
   anchorRect,
   onSelect,
   onHoverIndex,
-  submenuFor,
   footer,
 }: MentionMenuProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -129,7 +125,7 @@ export function MentionMenu({
             aria-selected={i === selectedIndex}
             onMouseEnter={(e) => {
               onHoverIndex(i);
-              const children = submenuFor?.(item);
+              const children = item.children;
               if (children && children.length > 0) {
                 setSubmenu({ index: i, rect: e.currentTarget.getBoundingClientRect() });
               } else {
@@ -182,7 +178,7 @@ export function MentionMenu({
       )}
       </div>
       {submenu && (() => {
-        const children = submenuFor?.(items[submenu.index]) ?? null;
+        const children = items[submenu.index]?.children;
         if (!children || children.length === 0) return null;
         const flipLeft =
           submenu.rect.right + GAP + SUBMENU_WIDTH > window.innerWidth - EDGE_MARGIN;

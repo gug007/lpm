@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MENTION_TRIGGER, rankMentions, type MentionItem } from "./mentions";
+import { MENTION_TRIGGER, mentionGroup, rankMentions, type MentionItem } from "./mentions";
 
 const frag = (line: string): string | null => {
   const m = MENTION_TRIGGER.exec(line);
@@ -130,5 +130,31 @@ describe("rankMentions", () => {
     const t1: MentionItem = { kind: "terminal-log", label: "Terminal 1", insert: "Terminal 1", terminalId: "b" };
     const out = rankMentions([own, t1], "ter");
     expect(out.map((m) => m.label)).toEqual(["terminal", "Terminal 1"]);
+  });
+});
+
+describe("mentionGroup", () => {
+  it("folds children behind one row carrying the count", () => {
+    const a: MentionItem = { kind: "project", label: "a", insert: "/a" };
+    const b: MentionItem = { kind: "project", label: "b", insert: "/b" };
+    const row = mentionGroup("project", "Projects", "project", [a, b]);
+    expect(row).toMatchObject({ kind: "project", label: "Projects", detail: "2 projects ›" });
+    expect(row?.children).toEqual([a, b]);
+    expect(mentionGroup("service-log", "Services", "service", [a])?.detail).toBe("1 service ›");
+  });
+
+  it("is null with nothing to fold", () => {
+    expect(mentionGroup("service-log", "Services", "service", [])).toBeNull();
+  });
+
+  it("stacks group rows under Memory, above changed files, in the pool's order", () => {
+    const changed: MentionItem = { kind: "changed", label: "x.ts", insert: "x.ts" };
+    const memory = mentionGroup("memory", "Memory", "session", [{ kind: "memory", label: "m", insert: "m" }])!;
+    const projects = mentionGroup("project", "Projects", "project", [{ kind: "project", label: "a", insert: "/a" }])!;
+    const services = mentionGroup("service-log", "Services", "service", [{ kind: "service-log", label: "s", insert: "s" }])!;
+    const terminals = mentionGroup("terminal-log", "Terminals", "terminal", [{ kind: "terminal-log", label: "t", insert: "t" }])!;
+    const file: MentionItem = { kind: "file", label: "y.ts", insert: "y.ts" };
+    const out = rankMentions([changed, memory, projects, services, terminals, file], "");
+    expect(out.map((m) => m.label)).toEqual(["Memory", "Projects", "Services", "Terminals", "x.ts", "y.ts"]);
   });
 });

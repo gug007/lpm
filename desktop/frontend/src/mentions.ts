@@ -7,6 +7,11 @@
 // resolves itself; "service-log" and "terminal-log" are the exceptions — lpm
 // captures the live output at pick time and injects it inline, since the agent
 // can't read lpm's in-memory service pane buffer or xterm's scrollback.
+//
+// A bare "@" folds the bulkier sources (memory sessions, projects, terminals,
+// services) behind one group row each — an item carrying `children` — that
+// drills into its list on pick or hover; typing a fragment searches the
+// individual items directly.
 
 import { basename } from "./path";
 
@@ -18,7 +23,6 @@ export type MentionKind =
   | "changed"
   | "branch"
   | "memory"
-  | "memory-group"
   | "memory-save"
   | "service-log"
   | "terminal-log";
@@ -40,6 +44,29 @@ export interface MentionItem {
   // For a "terminal-log", the id of the terminal tab whose xterm scrollback to
   // capture at pick time. Absent on other kinds.
   terminalId?: string;
+  // Present on a group row: the items it drills into instead of inserting
+  // anything itself. The row's kind only picks its icon and tag.
+  children?: MentionItem[];
+}
+
+// A group row folding `children` behind one entry of the bare "@" menu. `kind`
+// picks the icon and tag; the count rides as the detail so the row reads as a
+// drill-in. Null when there is nothing to fold, so the caller can skip the row.
+export function mentionGroup(
+  kind: MentionKind,
+  label: string,
+  noun: string,
+  children: MentionItem[],
+): MentionItem | null {
+  if (children.length === 0) return null;
+  const n = children.length;
+  return {
+    kind,
+    label,
+    insert: label.toLowerCase(),
+    detail: `${n} ${noun}${n === 1 ? "" : "s"} ›`,
+    children,
+  };
 }
 
 // The active "@<frag>" query on the caret's line, or no match. The "@" may sit
@@ -59,7 +86,6 @@ const LIMIT = 50;
 // service's logs, then branches, then plain files.
 const GROUP_ORDER: Record<MentionKind, number> = {
   memory: 0,
-  "memory-group": 0,
   "memory-save": 0,
   changed: 1,
   project: 2,
@@ -71,6 +97,11 @@ const GROUP_ORDER: Record<MentionKind, number> = {
   file: 6,
 };
 
+// Group rows lead regardless of kind, so a bare "@" opens with the drill-ins
+// (Memory, Projects, Services, Terminals, in the caller's order) stacked
+// together above the working-tree changes.
+const order = (it: MentionItem): number => (it.children ? 0 : GROUP_ORDER[it.kind]);
+
 // Rank one pre-ordered pool. Within a match tier a basename-prefix hit beats a
 // full-path prefix beats a substring, so "@comp" surfaces "Composer.tsx" above a
 // deep path that merely contains "comp"; ties keep group order (changed first).
@@ -79,7 +110,7 @@ const GROUP_ORDER: Record<MentionKind, number> = {
 export function rankMentions(pool: MentionItem[], frag: string): MentionItem[] {
   const q = frag.toLowerCase();
   if (!q) {
-    return [...pool].sort((a, b) => GROUP_ORDER[a.kind] - GROUP_ORDER[b.kind]).slice(0, LIMIT);
+    return [...pool].sort((a, b) => order(a) - order(b)).slice(0, LIMIT);
   }
   const buckets: MentionItem[][] = [[], [], [], []];
   for (const it of pool) {
@@ -90,6 +121,6 @@ export function rankMentions(pool: MentionItem[], frag: string): MentionItem[] {
     else if (name.includes(q)) buckets[2].push(it);
     else if (full.includes(q)) buckets[3].push(it);
   }
-  for (const b of buckets) b.sort((a, b2) => GROUP_ORDER[a.kind] - GROUP_ORDER[b2.kind]);
+  for (const b of buckets) b.sort((a, b2) => order(a) - order(b2));
   return buckets.flat().slice(0, LIMIT);
 }

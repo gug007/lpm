@@ -277,10 +277,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [mentionIndex, setMentionIndex] = useState(0);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionRect, setMentionRect] = useState<DOMRect | null>(null);
-  // What the open mention menu completes: an "@" reference, the session-id
-  // argument of "/lpm-memory", or a session drilled into from the "@" menu's
-  // Memory group row. Same menu, keyboard nav, and anchor in every mode.
-  const [mentionMode, setMentionMode] = useState<"at" | "cmdArg" | "memoryPick">("at");
+  // What the open mention menu completes: an "@" reference or the session-id
+  // argument of "/lpm-memory". Same menu, keyboard nav, and anchor in both.
+  const [mentionMode, setMentionMode] = useState<"at" | "cmdArg">("at");
   // Ghost argument-hint shown after a completed "/command "; positioned at the
   // caret (and sized to the caret's line height so it sits on the text baseline),
   // relative to the composer box.
@@ -332,27 +331,29 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     ],
     [memorySessions],
   );
-  // Memory rides the "@" pool as one drill-in group row for every local
+  // Memory rides the bare "@" menu as one drill-in group row for every local
   // project's composer — NOT gated on CLI detection, since agents are often
   // launched by typing `claude`/`codex` into a plain terminal, where startCmd
   // reveals nothing. The insertion picks the form from what IS known: "/" for
-  // a detected Claude terminal, the "$" skill mention otherwise.
+  // a detected Claude terminal, the "$" skill mention otherwise. The row folds
+  // the save action plus every session, so it shows even with no sessions yet.
   const memoryMentionItems = useMemo<MentionItem[]>(
     () =>
       memoryAvailable
         ? [
             {
-              kind: "memory-group",
+              kind: "memory",
               label: "Memory",
               insert: "memory",
               detail:
                 memorySessions.length > 0
                   ? `${memorySessions.length} session${memorySessions.length === 1 ? "" : "s"} ›`
                   : "›",
+              children: memoryMenuItems,
             },
           ]
         : [],
-    [memoryAvailable, memorySessions],
+    [memoryAvailable, memorySessions, memoryMenuItems],
   );
   const { filter: filterMentions, refresh: refreshMentions } = useMentions(
     cwd,
@@ -1578,11 +1579,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       setMentionOpen(false);
       return;
     }
-    // The Memory group row drills into the session list in place — the menu
-    // stays open and anchored; picking a session (or typing) leaves the mode.
-    if (item.kind === "memory-group") {
-      setMentionMode("memoryPick");
-      setMentionItems(memoryMenuItems);
+    // A group row drills into its children in place — the menu stays open and
+    // anchored; picking a child (or typing) leaves the list.
+    if (item.children) {
+      setMentionItems(item.children);
       setMentionIndex(0);
       return;
     }
@@ -2323,7 +2323,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           anchorRect={mentionRect}
           onSelect={insertMention}
           onHoverIndex={setMentionIndex}
-          submenuFor={(item) => (item.kind === "memory-group" ? memoryMenuItems : null)}
           footer={mentionMode === "cmdArg" ? "Type a new name or leave blank to create a new memory" : undefined}
         />
       )}

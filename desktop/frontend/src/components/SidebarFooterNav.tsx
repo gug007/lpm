@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { BrowserOpenURL } from "../../bridge/runtime";
 import { computeProjectStatus } from "../agentStatus";
 import { useAgentOverviewShortcut } from "../hooks/useAgentOverviewShortcut";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
@@ -8,6 +9,7 @@ import {
   DEFAULT_SIDEBAR_NAV,
   isDefaultSidebarNav,
   menuNavItems,
+  TUTORIAL_PLAYLIST_URL,
   withSidebarNav,
   type NavItemId,
 } from "../sidebarNav";
@@ -23,6 +25,7 @@ import {
   SmartphoneIcon,
   StatsIcon,
   TerminalIcon,
+  YoutubeIcon,
   ZapIcon,
 } from "./icons";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
@@ -212,6 +215,14 @@ export function SidebarFooterNav({
       icon: <MessageIcon />,
       active: false,
       onSelect: onFeedback,
+    },
+    tutorial: {
+      id: "tutorial",
+      label: "Tutorial (YouTube)",
+      icon: <YoutubeIcon />,
+      active: false,
+      onSelect: () => BrowserOpenURL(TUTORIAL_PLAYLIST_URL),
+      description: "Short video lessons on lpm, opened in your browser.",
     },
   };
 
