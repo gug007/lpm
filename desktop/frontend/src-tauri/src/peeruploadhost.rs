@@ -164,15 +164,17 @@ fn finish(v: &Value) -> Result<String, String> {
 }
 
 fn abort(v: &Value) -> Result<Value, String> {
-    let entry = registry().lock().unwrap().remove(&str_arg(v, "uploadId"));
-    if let Some(up) = entry {
+    let mut reg = registry().lock().unwrap();
+    if let Some(up) = reg.remove(&str_arg(v, "uploadId")) {
         discard(up);
     }
     Ok(json!({}))
 }
 
 /// Close the handle before unlinking, and take the folder made for this upload
-/// with it — it holds nothing else.
+/// with it — it holds nothing else. Callers unlink inside the critical section:
+/// dropping the entry first and discarding after leaves a window where another
+/// thread sees the upload gone and its file still on disk.
 fn discard(up: Incoming) {
     let path = up.path.clone();
     drop(up);
@@ -182,8 +184,6 @@ fn discard(up: Incoming) {
     }
 }
 
-/// The unlinking happens under the same lock that drops the entry, so a thread
-/// that finds an upload gone from the registry also finds its file gone.
 fn reap_expired() {
     let now = crate::status::now_millis();
     let mut reg = registry().lock().unwrap();

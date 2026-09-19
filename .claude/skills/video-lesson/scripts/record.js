@@ -8,6 +8,7 @@ const path = require("path");
 const { openStage, OUT, FRAME, ZOOM } = require("./stage");
 const { frameBox } = require("./compose");
 const { Recorder } = require("./recorder");
+const { spawnSync } = require("child_process");
 const { launchApp } = require("./app");
 const { Capture } = require("./capture");
 const { AppStage } = require("./appstage");
@@ -79,13 +80,43 @@ async function recordDemo({ url, lines, beats, raw, framesDir }) {
   return { totalMs, lines: timeline, zooms: stage.zooms };
 }
 
+function killTree(pid) {
+  const kids = spawnSync("pgrep", ["-P", String(pid)], { encoding: "utf8" }).stdout || "";
+  for (const kid of kids.split(/\s+/).filter(Boolean)) killTree(Number(kid));
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+}
+
+// Services a take started outlive the app: they belong to lpm's session
+// daemon, a separate process, and wiping the data directory only takes away
+// its socket. Left running it holds their ports, and the next take opens on a
+// port-conflict prompt. The daemon is matched on the LPM_DIR in its own
+// environment, so the one behind the user's real projects is never touched.
+function killStaleServices(lpmDir, log) {
+  const ps = spawnSync("ps", ["-Ao", "pid=,command="], { encoding: "utf8" }).stdout || "";
+  for (const line of ps.split("\n")) {
+    const m = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (!m || !m[2].includes("--session-daemon")) continue;
+    const env = spawnSync("ps", ["eww", "-o", "command=", "-p", m[1]], { encoding: "utf8" }).stdout || "";
+    if (!env.includes(`LPM_DIR=${lpmDir}`)) continue;
+    log(`stopping services left over from an earlier take (daemon ${m[1]})`);
+    killTree(Number(m[1]));
+  }
+}
+
 // A pristine data directory for every take, so the app opens the way it does
 // right after install; the lesson may seed settings and a workspace of demo
 // project folders through `setup` in its beats.
-function prepareState({ lpmDir, lesson, beats, keepState }) {
+function prepareState({ lpmDir, lesson, beats, keepState, log = () => {} }) {
   const real = path.join(os.homedir(), ".lpm");
   if (path.resolve(lpmDir) === real) throw new Error(`refusing to record on the real ${real}; pass --lpm-dir`);
-  if (!keepState) fs.rmSync(lpmDir, { recursive: true, force: true });
+  if (!keepState) {
+    killStaleServices(path.resolve(lpmDir), log);
+    fs.rmSync(lpmDir, { recursive: true, force: true });
+  }
   fs.mkdirSync(lpmDir, { recursive: true });
   const settingsFile = path.join(lpmDir, "settings.json");
   const settings = (patch) => {
@@ -112,10 +143,10 @@ function prepareState({ lpmDir, lesson, beats, keepState }) {
 }
 
 async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, keepState, mouse }) {
-  const { workspace, settings } = prepareState({ lpmDir, lesson, beats, keepState });
-  if (beats.setup) await beats.setup({ lpmDir, workspace, lesson, settings });
   let t0 = Date.now();
   const log = (m) => console.log(`  ${((Date.now() - t0) / 1000).toFixed(2)}s ${m}`);
+  const { workspace, settings } = prepareState({ lpmDir, lesson, beats, keepState, log });
+  if (beats.setup) await beats.setup({ lpmDir, workspace, lesson, settings });
   const app = await launchApp({ lpmDir, log });
   // Sizing is asynchronous on macOS; centring in the same call would use the
   // old size, so the window is sized first and placed once that has settled.
