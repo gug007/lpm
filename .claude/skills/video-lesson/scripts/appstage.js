@@ -5,6 +5,7 @@
 // page. Topic cards are not painted here — they are recorded on the timeline
 // and composited over the video afterwards (compose.js).
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { sleep, Timing } = require("./words");
@@ -167,14 +168,47 @@ class AppStage extends Timing {
     if (opts.after) await sleep(opts.after);
   }
 
-  // Enter, Escape, Tab… as the app's own key handling sees them.
+  // Enter, Escape, Tab… as the app's own key handling sees them. A cliclick
+  // key press (`kp:`) never reaches the page — neither xterm nor the composer
+  // saw one — so the real keyboard goes through System Events.
   async press(key) {
     if (this.mouse === "real") {
-      const names = { Enter: "return", Escape: "esc", Tab: "tab", ArrowDown: "arrow-down", ArrowUp: "arrow-up", Backspace: "delete", " ": "space" };
-      execFileSync("cliclick", [`kp:${names[key] || key.toLowerCase()}`]);
+      const names = { Enter: "return", Escape: "esc", Tab: "tab", ArrowDown: "down", ArrowUp: "up", Backspace: "delete", " ": "space" };
+      await this.keys(names[key] || key.toLowerCase());
     } else {
       await this.control.evaluate((k) => window.__lc.pressKey(k), key);
     }
+  }
+
+  // Resolves once Claude has answered in `projectRoot`: its transcript
+  // (`~/.claude/projects/<slug>/<session>.jsonl`, slug = the path with every
+  // non-alphanumeric character as '-') carries an assistant message with text
+  // written after `since`. False on timeout, so the take goes on regardless.
+  async waitForAgentReply(projectRoot, { since = Date.now(), timeout = 25000 } = {}) {
+    const dir = path.join(os.homedir(), ".claude", "projects", projectRoot.replace(/[^a-zA-Z0-9]/g, "-"));
+    const until = Date.now() + timeout;
+    while (Date.now() < until) {
+      const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl")) : [];
+      for (const name of files) {
+        const file = path.join(dir, name);
+        if (fs.statSync(file).mtimeMs < since - 1000) continue;
+        for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+          if (!line.includes('"type":"assistant"')) continue;
+          try {
+            const content = JSON.parse(line).message?.content;
+            if (Array.isArray(content) && content.some((c) => c.type === "text" && c.text)) {
+              this.log("agent replied");
+              return true;
+            }
+          } catch {
+            // a line still being written
+          }
+        }
+      }
+      await sleep(250);
+    }
+    this.log("no agent reply in the transcript");
+    return false;
   }
 
   // A native shortcut such as "cmd+shift+g", through System Events, for the

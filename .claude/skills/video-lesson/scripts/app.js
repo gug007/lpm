@@ -102,12 +102,29 @@ function hostEnv() {
   );
 }
 
+// An app left behind by an interrupted take (or a manual launch on the lesson
+// directory) would contend with the new one for the data dir and its sockets.
+async function quitStale(sockPath, log) {
+  if (!fs.existsSync(sockPath)) return;
+  try {
+    const old = await connect(sockPath);
+    await old.call("ping", {}, 1500);
+    log("a previous lesson app is still running; asking it to quit");
+    await old.call("quit", {}, 3000).catch(() => {});
+    old.sock.destroy();
+    await sleep(800);
+  } catch {
+    // nothing listening
+  }
+}
+
 async function launchApp({ lpmDir, log = () => {} }) {
   if (!fs.existsSync(APP_BIN)) {
     throw new Error(`no debug app at ${APP_BIN}; build it with \`npm run tauri dev\` in desktop/frontend (or set LPM_APP)`);
   }
   const vite = await ensureDevServer(log);
   const sockPath = path.join(lpmDir, "lesson.sock");
+  await quitStale(sockPath, log);
   fs.rmSync(sockPath, { force: true });
   const logFile = fs.openSync(path.join(lpmDir, "app.log"), "a");
   const proc = spawn(APP_BIN, [], {
@@ -159,4 +176,4 @@ async function launchApp({ lpmDir, log = () => {} }) {
   };
 }
 
-module.exports = { launchApp, APP_BIN };
+module.exports = { launchApp, quitStale, APP_BIN };
