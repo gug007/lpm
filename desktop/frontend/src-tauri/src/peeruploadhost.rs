@@ -182,19 +182,20 @@ fn discard(up: Incoming) {
     }
 }
 
+/// The unlinking happens under the same lock that drops the entry, so a thread
+/// that finds an upload gone from the registry also finds its file gone.
 fn reap_expired() {
     let now = crate::status::now_millis();
-    let stale: Vec<Incoming> = {
-        let mut reg = registry().lock().unwrap();
-        let ids: Vec<String> = reg
-            .iter()
-            .filter(|(_, u)| now - u.touched_at > UPLOAD_TTL_MS)
-            .map(|(id, _)| id.clone())
-            .collect();
-        ids.iter().filter_map(|id| reg.remove(id)).collect()
-    };
-    for up in stale {
-        discard(up);
+    let mut reg = registry().lock().unwrap();
+    let stale: Vec<String> = reg
+        .iter()
+        .filter(|(_, u)| now - u.touched_at > UPLOAD_TTL_MS)
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in stale {
+        if let Some(up) = reg.remove(&id) {
+            discard(up);
+        }
     }
 }
 
