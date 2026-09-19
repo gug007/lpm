@@ -88,9 +88,13 @@ class Timing {
     if (rest > 0) await sleep(rest);
   }
 
-  // How long a topic card stays up: through the line's narration by default.
+  // How long a topic card stays up: through the line's narration by default,
+  // or until the cue word in `until` is spoken, so the rest of the line plays
+  // over the app.
   cardMs(opts = {}) {
-    return opts.ms ?? Math.max(2800, this.lineStart + this.line.ms + 400 - Date.now());
+    if (opts.ms) return opts.ms;
+    const end = opts.until ? this.lineStart + this.cueMs(opts.until) : this.lineStart + this.line.ms + 400;
+    return Math.max(opts.until ? 1200 : 2800, end - Date.now());
   }
 
   // A zoom keyframe for the compositor: the picture eases to `scale` around
