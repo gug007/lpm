@@ -93,6 +93,15 @@ function connect(sockPath) {
   });
 }
 
+// A take started from inside a Claude Code session would otherwise hand the
+// agent it records that session's markers, and Claude then runs as a child
+// session with transcript saving off.
+function hostEnv() {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !/^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_PID|CLAUDE_EFFORT)/.test(k)),
+  );
+}
+
 async function launchApp({ lpmDir, log = () => {} }) {
   if (!fs.existsSync(APP_BIN)) {
     throw new Error(`no debug app at ${APP_BIN}; build it with \`npm run tauri dev\` in desktop/frontend (or set LPM_APP)`);
@@ -102,7 +111,7 @@ async function launchApp({ lpmDir, log = () => {} }) {
   fs.rmSync(sockPath, { force: true });
   const logFile = fs.openSync(path.join(lpmDir, "app.log"), "a");
   const proc = spawn(APP_BIN, [], {
-    env: { ...process.env, LPM_DIR: lpmDir, LPM_LESSON_SOCKET: sockPath, HOME: os.homedir() },
+    env: { ...hostEnv(), LPM_DIR: lpmDir, LPM_LESSON_SOCKET: sockPath, HOME: os.homedir() },
     stdio: ["ignore", logFile, logFile],
   });
   let control = null;
