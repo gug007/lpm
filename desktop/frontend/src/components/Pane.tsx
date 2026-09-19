@@ -28,6 +28,9 @@ interface PaneSession {
   serialize: SerializeAddon | null;
   host: HTMLDivElement;
   prevLines: string[];
+  // The pane went away while its output stayed on screen (a restart replaced
+  // the session); the next capture belongs to a new pane and starts clean.
+  staleBuffer: boolean;
   stickToBottom: boolean;
   cwd: string;
   pathLinkDisposable: IDisposable | null;
@@ -79,6 +82,7 @@ function createPaneSession(opts: {
     serialize,
     host,
     prevLines: [],
+    staleBuffer: false,
     stickToBottom: true,
     cwd: opts.cwd,
     pathLinkDisposable: null,
@@ -123,6 +127,7 @@ function fitPaneSession(session: PaneSession): void {
 function clearPaneSession(session: PaneSession): void {
   session.term.reset();
   session.prevLines = [];
+  session.staleBuffer = false;
   session.onAfterClear?.();
 }
 
@@ -374,12 +379,16 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
       const prevLines = session.prevLines;
       session.prevLines = newLines;
 
-      if (newLines.length === 0) return;
+      if (newLines.length === 0) {
+        if (prevLines.length > 0) session.staleBuffer = true;
+        return;
+      }
 
       const wasStuck = session.stickToBottom;
       const prevBaseY = term.buffer.active.baseY;
 
       if (prevLines.length === 0) {
+        if (session.staleBuffer) term.reset();
         term.write(newLines.join("\n"));
       } else {
         const lastPrev = prevLines[prevLines.length - 1];
@@ -399,6 +408,7 @@ export function Pane({ label, onLabelClick, labelActions, output, visible = true
           term.write(newLines.join("\n"));
         }
       }
+      session.staleBuffer = false;
 
       if (!wasStuck) {
         term.scrollToLine(prevBaseY);

@@ -36,7 +36,7 @@ export function StartMenuPreview({
   const hasProfilesSection = profiles.length > 0;
   return (
     <aside
-      className={`flex flex-col border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-6 lg:shrink-0 lg:border-l lg:border-t-0 ${asideWidthClass}`}
+      className={`flex min-h-0 flex-col overflow-y-auto border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-6 lg:shrink-0 lg:border-l lg:border-t-0 ${asideWidthClass}`}
     >
       <div className="mb-3 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
         Preview
