@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// node make.js <lesson-slug> [--no-audio] [--frames] [--mux-only] [--demo|--app]
+// node make.js <lesson-slug> [--no-audio] [--frames] [--mux-only] [--respeak] [--demo|--app]
 //                             [--keep-state] [--lpm-dir <dir>] [--dom-mouse]
 //                             [--variant name] [--voice ash] [--style "how to read it"]
 const fs = require("fs");
@@ -30,7 +30,7 @@ const DEMO_URL = process.env.DEMO_URL || "http://localhost:3000/demo";
 const MODEL = "gpt-4o-mini-tts";
 const DEFAULT_VOICE = "marin";
 const DEFAULT_STYLE =
-  "Talk like a real person casually showing a colleague the app over their shoulder: relaxed, natural, everyday intonation with small pauses. Not a voiceover artist or announcer, no over-enunciation, moderate pace.";
+  "Talk like a real person casually showing a colleague the app over their shoulder: relaxed, natural, everyday intonation with small pauses. Not a voiceover artist or announcer, no over-enunciation, moderate pace. Keep every word crisp and easy to catch.";
 const MUSIC_UNDER_VOICE_LU = 14;
 const SILENT_MS = 3000;
 
@@ -71,11 +71,28 @@ function durationMs(file) {
 
 const spoken = (text) => text.replace(/\blpm\b/g, "LPM");
 
+// A clip already spoken for this text stays as it is even after the default
+// style changes: a re-spoken line has a different length and would desync the
+// recorded take. `--respeak` re-speaks every line (and needs a new take).
+function keepsSpokenClip(stampText, key) {
+  if (stampText === key || flag("--respeak")) return stampText === key;
+  const [had, , ...hadText] = stampText.split("\n");
+  const [want, , ...wantText] = key.split("\n");
+  return had === want && hadText.join("\n") === wantText.join("\n");
+}
+
 async function tts(line, fresh = false) {
   const wav = path.join(audioDir, `${line.id}.wav`);
   const stamp = path.join(audioDir, `${line.id}.txt`);
   const key = `${MODEL}/${VOICE}\n${TTS_STYLE}\n${spoken(line.text)}`;
-  if (!fresh && fs.existsSync(wav) && fs.existsSync(stamp) && fs.readFileSync(stamp, "utf8") === key) return wav;
+  if (!fresh && fs.existsSync(wav) && fs.existsSync(stamp)) {
+    const had = fs.readFileSync(stamp, "utf8");
+    if (had === key) return wav;
+    if (keepsSpokenClip(had, key)) {
+      console.log(`audio ${line.id}: keeping the clip spoken with the previous style (--respeak to re-speak)`);
+      return wav;
+    }
+  }
   fs.rmSync(path.join(audioDir, `${line.id}.words.json`), { force: true });
   const res = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
