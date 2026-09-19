@@ -354,7 +354,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         : [],
     [memoryAvailable, memorySessions],
   );
-  const { filter: filterMentions, refresh: refreshMentions } = useMentions(cwd, projectName, terminals, terminalId, focused, memoryMentionItems);
+  const { filter: filterMentions, refresh: refreshMentions } = useMentions(
+    cwd,
+    projectName,
+    terminals,
+    terminalId,
+    focused,
+    memoryMentionItems,
+    memorySessions,
+  );
   const editorRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hoverChip = useRef<HTMLElement | null>(null);

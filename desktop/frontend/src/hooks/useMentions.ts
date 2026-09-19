@@ -41,9 +41,13 @@ export function useMentions(
   ownTerminalId: string,
   active: boolean,
   // Caller-supplied extra items riding the ranked pool — the composer passes
-  // its memory sessions here (agent terminals only), so "@" offers them without
-  // this hook owning a second data source.
+  // its Memory group row here, so "@" offers it without this hook owning a
+  // second data source.
   extraItems: MentionItem[] = [],
+  // Extra items that, like branches, join the pool only once a fragment is
+  // typed — the composer's individual memory sessions, which a bare "@" folds
+  // behind the group row but "@<name>" must still find.
+  searchItems: MentionItem[] = [],
 ) {
   const projects = useAppStore((s) => s.projects);
   const project = useMemo(
@@ -223,11 +227,14 @@ export function useMentions(
     () => [...changed, ...extraItems, ...projectItems, ...terminalItems, ...serviceItems, ...plainFiles],
     [changed, extraItems, projectItems, terminalItems, serviceItems, plainFiles],
   );
-  const fullPool = useMemo(() => [...basePool, ...branches], [basePool, branches]);
+  const fullPool = useMemo(
+    () => [...basePool, ...searchItems, ...branches],
+    [basePool, searchItems, branches],
+  );
 
-  // Branches would flood a bare "@"; surface them only once the user is actually
-  // filtering by name. The terminal and services are few, so they ride along on a
-  // bare "@" like projects do.
+  // Branches (and the caller's search-only items) would flood a bare "@";
+  // surface them only once the user is actually filtering by name. The terminal
+  // and services are few, so they ride along on a bare "@" like projects do.
   const filter = useCallback(
     (frag: string) => rankMentions(frag.trim() ? fullPool : basePool, frag),
     [basePool, fullPool],
