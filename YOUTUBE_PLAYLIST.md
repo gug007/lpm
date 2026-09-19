@@ -9,3 +9,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Edit and Add Services in lpm
 - Add an Action in lpm: Turn Any Command Into a One-Click Button
 - Switch Between Profiles in lpm: Run Only the Services You Need
+- Run Agents in Parallel in lpm: Duplicate Your Project into Two, Three, or More Copies
