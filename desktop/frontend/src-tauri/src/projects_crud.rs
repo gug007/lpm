@@ -44,12 +44,35 @@ fn dev_services() -> Yaml {
     Yaml::Mapping(svcs)
 }
 
+/// The folder's own services when its manifests name any, else the placeholder.
+fn services_for(root: &Path) -> (Yaml, Vec<String>) {
+    let found = crate::detect::detect_services(root);
+    if found.is_empty() {
+        return (dev_services(), vec![]);
+    }
+    let mut svcs = Mapping::new();
+    for service in &found {
+        let mut m = Mapping::new();
+        yset(&mut m, "cmd", service.cmd.as_str());
+        if !service.cwd.is_empty() {
+            yset(&mut m, "cwd", service.cwd.as_str());
+        }
+        if let Some(port) = service.port {
+            yset(&mut m, "port", i64::from(port));
+        }
+        svcs.insert(Yaml::from(service.name.as_str()), Yaml::Mapping(m));
+    }
+    let names = found.into_iter().map(|s| s.name).collect();
+    (Yaml::Mapping(svcs), names)
+}
+
 // ---- create -----------------------------------------------------------------
 
 /// Adopt `root` as a project. `name` is the folder's name and only a wish: a
 /// project of that name may already exist under a label that hides it, so the
 /// folder takes the next free name instead of failing; a folder that is already
-/// a project simply answers with that project.
+/// a project simply answers with that project. The services come from the
+/// folder's own manifests, with the placeholder for a folder that has none.
 #[tauri::command(async)]
 pub fn create_project(
     app: AppHandle,
@@ -62,19 +85,22 @@ pub fn create_project(
         return Ok(AdoptedProject {
             name: existing,
             existing: true,
+            services: vec![],
         });
     }
     let name = adopt::available_name(&name, config::project_exists);
     std::fs::create_dir_all(&abs_root).map_err(|e| e.to_string())?;
+    let (services, detected) = services_for(Path::new(&abs_root));
     write_project_yaml(&name, |m| {
         yset(m, "name", name.as_str());
         yset(m, "root", config::collapse_home(&root).as_str());
-        m.insert(Yaml::from("services"), dev_services());
+        m.insert(Yaml::from("services"), services);
     })?;
     let _ = app.emit("projects-changed", ());
     Ok(AdoptedProject {
         name,
         existing: false,
+        services: detected,
     })
 }
 
@@ -201,14 +227,15 @@ fn validate_clone_request(
 
 /// Run the (network-blocking) clone into `dest`; on success write the project
 /// config and emit `projects-changed`, otherwise clean up the partial clone.
-/// `branch` empty means the repository's default branch.
+/// `branch` empty means the repository's default branch. Answers with the
+/// services detected in the fresh checkout.
 fn run_clone(
     app: &AppHandle,
     name: &str,
     url: &str,
     branch: &str,
     dest: &Path,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     let mut argv: Vec<String> = vec!["clone".into(), "--progress".into()];
     if !branch.is_empty() {
         argv.push("--branch".into());
@@ -231,6 +258,7 @@ fn run_clone(
         return Err(map_clone_error(&msg));
     }
 
+    let (services, detected) = services_for(dest);
     let write = write_project_yaml(name, |m| {
         yset(m, "name", name);
         yset(
@@ -238,14 +266,14 @@ fn run_clone(
             "root",
             config::collapse_home(&dest.to_string_lossy()).as_str(),
         );
-        m.insert(Yaml::from("services"), dev_services());
+        m.insert(Yaml::from("services"), services);
     });
     if let Err(e) = write {
         clone_cleanup(dest);
         return Err(e);
     }
     let _ = app.emit("projects-changed", ());
-    Ok(())
+    Ok(detected)
 }
 
 #[tauri::command(async)]
@@ -255,7 +283,7 @@ pub fn create_project_from_clone(
     url: String,
     branch: String,
     dest_parent: String,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     let (branch, dest) = validate_clone_request(&name, &url, &branch, &dest_parent)?;
     run_clone(&app, &name, &url, &branch, &dest)
 }
@@ -627,63 +655,9 @@ fn pull_latest_branch(root: &Path) -> Result<(), String> {
     git_in(root, &["pull", "--ff-only"])
 }
 
-#[derive(Clone, Copy)]
-enum PackageManager {
-    Pnpm,
-    Yarn,
-    Npm,
-    Bun,
-}
-
-impl PackageManager {
-    fn install_cmd(self) -> &'static str {
-        match self {
-            PackageManager::Pnpm => "pnpm install",
-            PackageManager::Yarn => "yarn install",
-            PackageManager::Npm => "npm install",
-            PackageManager::Bun => "bun install",
-        }
-    }
-
-    fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "pnpm" => Some(Self::Pnpm),
-            "yarn" => Some(Self::Yarn),
-            "npm" => Some(Self::Npm),
-            "bun" => Some(Self::Bun),
-            _ => None,
-        }
-    }
-}
-
-fn detect_package_manager(root: &Path) -> Option<PackageManager> {
-    if !root.join("package.json").exists() {
-        return None;
-    }
-    if let Ok(text) = std::fs::read_to_string(root.join("package.json")) {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-            if let Some(spec) = json.get("packageManager").and_then(|v| v.as_str()) {
-                if let Some(pm) = PackageManager::from_name(spec.split('@').next().unwrap_or("")) {
-                    return Some(pm);
-                }
-            }
-        }
-    }
-    let has = |f: &str| root.join(f).exists();
-    if has("bun.lockb") || has("bun.lock") {
-        Some(PackageManager::Bun)
-    } else if has("pnpm-lock.yaml") {
-        Some(PackageManager::Pnpm)
-    } else if has("yarn.lock") {
-        Some(PackageManager::Yarn)
-    } else {
-        Some(PackageManager::Npm)
-    }
-}
-
 /// Login shell (`-ilc`) so PATH and version managers (nvm/fnm/volta, corepack)
 /// resolve the binary, matching how actions run.
-fn run_install(root: &Path, pm: PackageManager) -> Result<(), String> {
+fn run_install(root: &Path, pm: crate::detect::PackageManager) -> Result<(), String> {
     let shell = crate::sys::login_shell();
     let script = format!(
         "cd {} && {} 2>&1",
@@ -804,7 +778,7 @@ pub(crate) fn run_duplicate(
     let _ = app.emit("projects-changed", ());
 
     if reinstall_deps {
-        if let Some(pm) = detect_package_manager(new_root) {
+        if let Some(pm) = crate::detect::package_manager_of(new_root) {
             run_install(new_root, pm)?;
         }
     }
@@ -850,7 +824,7 @@ fn run_worktree_duplicate(
     let _ = app.emit("projects-changed", ());
 
     if reinstall_deps {
-        if let Some(pm) = detect_package_manager(&plan.new_root) {
+        if let Some(pm) = crate::detect::package_manager_of(&plan.new_root) {
             run_install(&plan.new_root, pm)?;
         }
     }

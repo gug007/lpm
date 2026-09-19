@@ -3791,7 +3791,7 @@ fn handle_msg(
             let reply = match crate::projects_crud::create_project(app.clone(), name.clone(), root)
             {
                 Ok(adopted) => json!({ "t": "createProject", "ok": true,
-                "name": adopted.name, "existing": adopted.existing }),
+                "name": adopted.name, "existing": adopted.existing, "services": adopted.services }),
                 Err(e) => json!({ "t": "createProject", "ok": false, "name": name, "error": e }),
             };
             send(ws, reply)?;
@@ -3833,8 +3833,10 @@ fn handle_msg(
                     branch,
                     dest_parent,
                 );
-                let mut reply = result_reply("cloneProject", r);
+                let services = r.clone().unwrap_or_default();
+                let mut reply = result_reply("cloneProject", r.map(|_| ()));
                 reply["name"] = json!(name);
+                reply["services"] = json!(services);
                 let _ = out.try_send(reply.to_string());
             });
         }

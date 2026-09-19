@@ -26,6 +26,7 @@ mod configwatch;
 mod control;
 mod daemonize;
 mod detached;
+mod detect;
 mod dockmenu;
 mod file_browser;
 mod files;

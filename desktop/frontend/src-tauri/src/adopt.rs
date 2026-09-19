@@ -6,12 +6,14 @@ use crate::config;
 use std::path::Path;
 
 /// What adopting a folder produced: the project's name, which is the folder's
-/// unless that was taken, and whether the folder was already a project.
+/// unless that was taken, whether the folder was already a project, and the
+/// services read off its files (none when it got the placeholder).
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AdoptedProject {
     pub name: String,
     pub existing: bool,
+    pub services: Vec<String>,
 }
 
 /// `base` when free, else the first of `base-2`, `base-3`, … that is.

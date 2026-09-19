@@ -82,7 +82,14 @@ import {
   removePersistedTabById,
 } from "../terminals";
 import { isPeerName, peerSlugOf, prefixName, prefixRoot } from "../peer/markers";
-import { adoptedProject, adoptionNotice, folderBaseName, type AdoptedProject } from "./adoptProject";
+import {
+  adoptedProject,
+  adoptionNotice,
+  detectionNotice,
+  folderBaseName,
+  serviceNames,
+  type AdoptedProject,
+} from "./adoptProject";
 import { activeChatStorageKey } from "../components/NotesView";
 import { ACTION_SECTIONS, type ActionSection } from "../actionConfig";
 import { editGlobalDoc, editProjectDoc, editRepoDoc } from "../yamlQueue";
@@ -1188,10 +1195,14 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Say so when a folder didn't land under its own name: it was already a
   // project (shown under whatever label it carries), or that name was taken.
+  // And say what its files turned into, so the user knows there is no
+  // placeholder to replace.
   noteAdoption: (adopted, requested, where) => {
     const label = get().projects.find((p) => p.name === adopted.name)?.label;
     const notice = adoptionNotice(adopted, requested, label, where);
     if (notice) toast.info(notice);
+    const found = detectionNotice(adopted.services);
+    if (found) toast.success(found);
   },
 
   pickAddProjectKind: async (kind) => {
@@ -1410,7 +1421,9 @@ export const useAppStore = create<AppState>((set, get) => ({
         });
         toast.success(`Cloned ${name} on ${target.alias}`);
       } else {
-        await CreateProjectFromClone(name, url, branch, destParent);
+        const services = serviceNames(
+          await CreateProjectFromClone(name, url, branch, destParent),
+        );
         await get().refreshProjects();
         set({
           selected: name,
@@ -1418,6 +1431,8 @@ export const useAppStore = create<AppState>((set, get) => ({
           cloneModalOpen: false,
         });
         toast.success(`Cloned ${name}`);
+        const found = detectionNotice(services);
+        if (found) toast.success(found);
       }
     } catch (err) {
       // A dropped peer surfaces as a toast (the modal error line covers clone
