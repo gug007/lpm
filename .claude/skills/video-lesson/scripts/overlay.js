@@ -3,7 +3,10 @@
 // is serialised into the page, so it must stay self-contained.
 
 const OVERLAY_CSS = `
-#lesson-card { position: fixed; inset: 0; z-index: 2147483640; display: flex; align-items: center; justify-content: center; padding: 0 240px; background: #e8e2d6; color: #141414; font: 600 150px/1.12 "Iowan Old Style", "Palatino", Georgia, serif; letter-spacing: -0.02em; text-align: center; text-wrap: balance; opacity: 0; pointer-events: none; }
+#lesson-card { position: fixed; inset: 0; z-index: 2147483640; isolation: isolate; display: flex; align-items: center; justify-content: center; padding: 0 240px; background: #ebe5d9; color: #141414; font: 600 150px/1.12 "Iowan Old Style", "Palatino", Georgia, serif; letter-spacing: -0.02em; text-align: center; text-wrap: balance; opacity: 0; pointer-events: none; }
+#lesson-card > div { position: relative; z-index: 1; }
+#lesson-card::before { content: ""; position: absolute; inset: -20%; z-index: 0; filter: blur(60px); background: radial-gradient(40% 50% at 20% 30%, #f2d6c2, transparent 70%), radial-gradient(45% 55% at 80% 70%, #e9dcb6, transparent 70%), radial-gradient(35% 45% at 60% 20%, #d7e0cd, transparent 70%); animation: lesson-drift 26s ease-in-out infinite alternate; }
+@keyframes lesson-drift { from { transform: translate(-4%, -3%) rotate(0) scale(1); } to { transform: translate(4%, 3%) rotate(6deg) scale(1.08); } }
 #lesson-tick { position: fixed; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; z-index: 2147483647; opacity: 0.02; animation: lesson-tick 1s linear infinite; }
 @keyframes lesson-tick { from { transform: translateX(0); } to { transform: translateX(1px); } }
 #lesson-cursor { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; width: 40px; height: 40px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.65)); will-change: transform; }

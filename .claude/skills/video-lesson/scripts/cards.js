@@ -8,7 +8,7 @@ const { Recorder } = require("./recorder");
 const { chromium, CHROME } = require("./browser");
 
 const CARD_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
-html, body { margin: 0; background: #e8e2d6; overflow: hidden; }
+html, body { margin: 0; background: #ebe5d9; overflow: hidden; }
 ${OVERLAY_CSS}
 </style></head><body></body></html>`;
 

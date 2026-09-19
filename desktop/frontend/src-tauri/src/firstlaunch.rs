@@ -36,13 +36,20 @@ pub const DEFAULT_GLOBAL_YML: &str = "actions:
 ";
 
 pub fn seed_global_actions() {
-    if let Err(e) = seed_at(&crate::config::lpm_dir()) {
+    if let Err(e) = seed_at(&crate::config::lpm_dir(), crate::lesson::active()) {
         eprintln!("warning: failed to seed default global actions: {e}");
     }
 }
 
-fn seed_at(dir: &Path) -> std::io::Result<bool> {
-    if dir.join(MARKER).exists() || !is_fresh_install(dir) {
+// A lesson take runs on a data directory wiped before launch and pre-filled
+// with settings, so it counts as fresh unless it already carries a global.yml.
+fn seed_at(dir: &Path, lesson: bool) -> std::io::Result<bool> {
+    let fresh = if lesson {
+        !dir.join("global.yml").exists()
+    } else {
+        is_fresh_install(dir)
+    };
+    if dir.join(MARKER).exists() || !fresh {
         return Ok(false);
     }
     std::fs::create_dir_all(dir)?;
@@ -85,7 +92,7 @@ mod tests {
     #[test]
     fn seeds_a_fresh_install_and_backdates_the_file() {
         let (_tmp, dir) = fresh_dir();
-        assert!(seed_at(&dir).unwrap());
+        assert!(seed_at(&dir, false).unwrap());
         let path = dir.join("global.yml");
         assert_eq!(std::fs::read_to_string(&path).unwrap(), DEFAULT_GLOBAL_YML);
         assert!(dir.join(MARKER).exists());
@@ -113,7 +120,7 @@ mod tests {
         let (_tmp, dir) = fresh_dir();
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("global.yml"), "actions:\n  mine:\n    cmd: echo\n").unwrap();
-        assert!(!seed_at(&dir).unwrap());
+        assert!(!seed_at(&dir, false).unwrap());
         assert_eq!(
             std::fs::read_to_string(dir.join("global.yml")).unwrap(),
             "actions:\n  mine:\n    cmd: echo\n"
@@ -126,7 +133,7 @@ mod tests {
         let (_tmp, dir) = fresh_dir();
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("settings.json"), "{}").unwrap();
-        assert!(!seed_at(&dir).unwrap());
+        assert!(!seed_at(&dir, false).unwrap());
         assert!(!dir.join("global.yml").exists());
     }
 
@@ -135,7 +142,7 @@ mod tests {
         let (_tmp, dir) = fresh_dir();
         std::fs::create_dir_all(dir.join("projects")).unwrap();
         std::fs::write(dir.join("projects").join("app.yml"), "root: ~/app\n").unwrap();
-        assert!(!seed_at(&dir).unwrap());
+        assert!(!seed_at(&dir, false).unwrap());
         assert!(!dir.join("global.yml").exists());
     }
 
@@ -143,15 +150,39 @@ mod tests {
     fn empty_projects_dir_still_counts_as_fresh() {
         let (_tmp, dir) = fresh_dir();
         std::fs::create_dir_all(dir.join("projects")).unwrap();
-        assert!(seed_at(&dir).unwrap());
+        assert!(seed_at(&dir, false).unwrap());
+    }
+
+    #[test]
+    fn lesson_take_seeds_despite_prewritten_settings() {
+        let (_tmp, dir) = fresh_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("settings.json"), "{}").unwrap();
+        assert!(seed_at(&dir, true).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("global.yml")).unwrap(),
+            DEFAULT_GLOBAL_YML
+        );
+    }
+
+    #[test]
+    fn lesson_take_keeps_its_own_global_yml() {
+        let (_tmp, dir) = fresh_dir();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("global.yml"), "actions: {}\n").unwrap();
+        assert!(!seed_at(&dir, true).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("global.yml")).unwrap(),
+            "actions: {}\n"
+        );
     }
 
     #[test]
     fn never_seeds_twice() {
         let (_tmp, dir) = fresh_dir();
-        assert!(seed_at(&dir).unwrap());
+        assert!(seed_at(&dir, false).unwrap());
         std::fs::remove_file(dir.join("global.yml")).unwrap();
-        assert!(!seed_at(&dir).unwrap());
+        assert!(!seed_at(&dir, false).unwrap());
         assert!(!dir.join("global.yml").exists());
     }
 }
