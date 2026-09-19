@@ -1,0 +1,1 @@
+- Add Your First Project in lpm: Pick a Local Folder or Clone a Git Repository

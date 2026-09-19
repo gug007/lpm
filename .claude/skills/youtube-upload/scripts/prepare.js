@@ -15,7 +15,10 @@ if (!slug || !outArg) {
 const ROOT = process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons");
 const dir = path.join(ROOT, slug);
 const out = path.resolve(outArg);
-const UPLOAD_CAP = 10 * 1024 * 1024;
+// Chrome's file_upload counts bytes; a 1080p HEVC two-pass copy keeps the
+// terminal text crisp at the bitrate that fits (an H.264 copy smears it).
+const UPLOAD_CAP = 10_000_000;
+const AUDIO_KBPS = 72;
 
 const lesson = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8"));
 const timeline = JSON.parse(fs.readFileSync(path.join(dir, "timeline.json"), "utf8"));
@@ -24,7 +27,28 @@ const title = lesson.title.replace(/[/:]/g, " ").replace(/\s+/g, " ").trim();
 
 fs.mkdirSync(out, { recursive: true });
 const video = path.join(out, `${title}.mp4`);
-fs.copyFileSync(mp4, video);
+const shrunk = fs.statSync(mp4).size > UPLOAD_CAP;
+if (shrunk) shrinkForUpload(mp4, video);
+else fs.copyFileSync(mp4, video);
+
+function durationSec(file) {
+  return parseFloat(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" }));
+}
+
+function shrinkForUpload(src, dest) {
+  const seconds = durationSec(src);
+  const stats = path.join(out, "x265.stats");
+  let kbps = Math.floor(((UPLOAD_CAP * 0.94 * 8) / 1000) / seconds - AUDIO_KBPS);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const common = ["-v", "error", "-y", "-i", src, "-vf", "scale=1920:1080", "-c:v", "libx265", "-preset", "medium", "-b:v", `${kbps}k`];
+    execFileSync("ffmpeg", [...common, "-x265-params", `pass=1:log-level=error:stats=${stats}`, "-an", "-f", "null", "/dev/null"]);
+    execFileSync("ffmpeg", [...common, "-x265-params", `pass=2:log-level=error:stats=${stats}`, "-tag:v", "hvc1", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", `${AUDIO_KBPS}k`, "-movflags", "+faststart", dest]);
+    for (const f of fs.readdirSync(out)) if (f.startsWith("x265.stats")) fs.rmSync(path.join(out, f));
+    if (fs.statSync(dest).size <= UPLOAD_CAP) return;
+    kbps = Math.floor(kbps * 0.9);
+  }
+  throw new Error(`could not fit ${src} under ${UPLOAD_CAP} bytes`);
+}
 
 // A frame from inside the opening card: after its words have animated in,
 // before it starts fading out.
@@ -36,7 +60,7 @@ fs.copyFileSync(thumb, path.join(dir, "thumbnail.jpg"));
 
 const size = fs.statSync(video).size;
 const mmss = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
-console.log(`video      ${video} (${(size / 1048576).toFixed(1)} MB${size > UPLOAD_CAP ? " — over Chrome's 10 MB upload cap" : ""})`);
+console.log(`video      ${video} (${(size / 1e6).toFixed(1)} MB${shrunk ? ", 1080p HEVC upload copy of a larger master" : ""})`);
 console.log(`thumbnail  ${thumb} (frame at ${(at / 1000).toFixed(2)} s)`);
 console.log(`title      ${lesson.title}`);
 console.log("chapters   line starts; first chapter is 0:00, pick 3+ that are 10 s or more apart:");
