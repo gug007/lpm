@@ -1,4 +1,11 @@
 import { SITE_URL } from "@/lib/links";
+import {
+  youtubeEmbedUrl,
+  youtubeLesson,
+  youtubeThumbnailUrl,
+  youtubeWatchUrl,
+  type YouTubeLessonId,
+} from "@/lib/youtube-lessons";
 
 const absoluteUrl = (path: string): string =>
   path === "/" ? SITE_URL : `${SITE_URL}${path}`;
@@ -123,6 +130,20 @@ export function screenRecordingJsonLd(id: ScreenRecordingId) {
     description,
     contentUrl: absoluteUrl(`/screenrecording/${id}.mp4`),
     thumbnailUrl: absoluteUrl(`/screenrecording/${id}-poster.jpg`),
+    uploadDate,
+  };
+}
+
+export function youtubeLessonJsonLd(lesson: YouTubeLessonId) {
+  const { id, name, description, uploadDate } = youtubeLesson(lesson);
+  return {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name,
+    description,
+    contentUrl: youtubeWatchUrl(id),
+    embedUrl: youtubeEmbedUrl(id),
+    thumbnailUrl: youtubeThumbnailUrl(id),
     uploadDate,
   };
 }

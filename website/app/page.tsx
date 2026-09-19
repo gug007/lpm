@@ -19,7 +19,7 @@ import {
   TOKEN_USAGE_PATH,
   vsPath,
 } from "@/lib/links";
-import { jsonLdString, screenRecordingJsonLd } from "@/lib/structured-data";
+import { jsonLdString, youtubeLessonJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   alternates: {
@@ -28,12 +28,12 @@ export const metadata: Metadata = {
 };
 
 const structuredData = [
-  screenRecordingJsonLd("add-project"),
-  screenRecordingJsonLd("start-project"),
-  screenRecordingJsonLd("add-action"),
-  screenRecordingJsonLd("run-profile-project"),
-  screenRecordingJsonLd("start-project-claude"),
-  screenRecordingJsonLd("duplicate-project"),
+  youtubeLessonJsonLd("sixty-seconds"),
+  youtubeLessonJsonLd("add-project"),
+  youtubeLessonJsonLd("start-project"),
+  youtubeLessonJsonLd("add-action"),
+  youtubeLessonJsonLd("switch-profiles"),
+  youtubeLessonJsonLd("parallel-agents"),
 ];
 
 export default function HomePage() {

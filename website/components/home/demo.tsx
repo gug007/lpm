@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AutoVideo } from "@/components/auto-video";
 import { useInView } from "@/components/config/playground/hooks";
 import {
   HOME_TOUR,
@@ -14,6 +13,7 @@ import {
 } from "@/components/demo/tour";
 import { DownloadLink } from "@/components/download-link";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { YouTubeVideo } from "@/components/youtube-video";
 import { MOBILE_PATH } from "@/lib/links";
 
 // Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
@@ -96,12 +96,7 @@ function DemoPlaceholder() {
 function DesktopOnlyPrompt() {
   return (
     <div data-on-dark className={WINDOW_FRAME}>
-      <AutoVideo
-        src="/screenrecording/start-project-claude.mp4"
-        poster="/screenrecording/start-project-claude-poster.jpg"
-        label="lpm starting a project's services, then handing the project to Claude Code in a terminal tab"
-        className="h-auto w-full"
-      />
+      <YouTubeVideo lesson="sixty-seconds" priority />
       <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
         <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
           lpm is a macOS app with a multi-pane terminal workspace. Open this
@@ -243,8 +238,8 @@ function DemoCaption() {
       </div>
       <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 lg:max-w-none lg:whitespace-nowrap lg:text-right dark:text-gray-400">
         <span className="md:hidden">
-          A recording of lpm booting a project and handing it to Claude Code —
-          lpm is a macOS app, so the clickable demo runs on desktop.
+          A one-minute tour of lpm starting projects and handing one to Claude
+          Code — lpm is a macOS app, so the clickable demo runs on desktop.
         </span>
         <span className="hidden md:inline">
           Click anything — it runs live in your browser.

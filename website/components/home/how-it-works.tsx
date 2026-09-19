@@ -1,12 +1,12 @@
-import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
+import { YouTubeVideo } from "@/components/youtube-video";
+import { YOUTUBE_PLAYLIST_URL, type YouTubeLessonId } from "@/lib/youtube-lessons";
 
 type Step = {
   n: number;
   title: string;
   body: React.ReactNode;
-  media: string;
-  label: string;
+  lesson: YouTubeLessonId;
 };
 
 const STEPS: Step[] = [
@@ -15,13 +15,12 @@ const STEPS: Step[] = [
     title: "Add a new project",
     body: (
       <>
-        Click <strong>+</strong> in the sidebar, browse to a directory, and
-        define your services in the built-in editor. Hit Save and the project
-        appears in the sidebar ready to start.
+        Click <strong>+</strong> in the sidebar and pick a local folder, or
+        paste a Git URL and lpm clones it for you. The project appears in the
+        sidebar ready to start.
       </>
     ),
-    media: "/screenrecording/add-project",
-    label: "Adding a new project in lpm desktop app",
+    lesson: "add-project",
   },
   {
     n: 2,
@@ -33,8 +32,7 @@ const STEPS: Step[] = [
         them all at once.
       </>
     ),
-    media: "/screenrecording/start-project",
-    label: "Starting a project in lpm desktop app",
+    lesson: "start-project",
   },
   {
     n: 3,
@@ -46,8 +44,7 @@ const STEPS: Step[] = [
         without leaving the app.
       </>
     ),
-    media: "/screenrecording/add-action",
-    label: "Adding an action to a project in lpm desktop app",
+    lesson: "add-action",
   },
   {
     n: 4,
@@ -60,8 +57,7 @@ const STEPS: Step[] = [
         you need everything running.
       </>
     ),
-    media: "/screenrecording/run-profile-project",
-    label: "Running a project with multiple profiles in lpm desktop app",
+    lesson: "switch-profiles",
   },
   {
     n: 5,
@@ -75,8 +71,7 @@ const STEPS: Step[] = [
         no setup, no excuses. From zero to coding in seconds.
       </>
     ),
-    media: "/screenrecording/start-project-claude",
-    label: "Launching Claude Code on a project in lpm desktop app",
+    lesson: "sixty-seconds",
   },
   {
     n: 6,
@@ -90,8 +85,7 @@ const STEPS: Step[] = [
         context bleed.
       </>
     ),
-    media: "/screenrecording/duplicate-project",
-    label: "Duplicating a project in lpm to run multiple agents in parallel",
+    lesson: "parallel-agents",
   },
 ];
 
@@ -116,15 +110,26 @@ export function HowItWorks() {
                   {step.body}
                 </p>
               </div>
-              <AutoVideo
-                src={`${step.media}.mp4`}
-                poster={`${step.media}-poster.jpg`}
-                label={step.label}
-                className="w-full h-auto rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
+              <YouTubeVideo
+                lesson={step.lesson}
+                className="rounded-lg shadow-2xl shadow-gray-200/60 dark:shadow-black/40"
               />
             </div>
           ))}
         </div>
+
+        <p className="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
+          Want the full series?{" "}
+          <a
+            href={YOUTUBE_PLAYLIST_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-gray-300 underline-offset-4 transition-colors hover:text-gray-900 hover:decoration-current dark:decoration-gray-600 dark:hover:text-white"
+          >
+            Watch every lesson on YouTube
+          </a>
+          .
+        </p>
       </div>
     </section>
   );
