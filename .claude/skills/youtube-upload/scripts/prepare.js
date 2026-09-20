@@ -40,9 +40,13 @@ function shrinkForUpload(src, dest) {
   const stats = path.join(out, "x265.stats");
   let kbps = Math.floor(((UPLOAD_CAP * 0.94 * 8) / 1000) / seconds - AUDIO_KBPS);
   for (let attempt = 0; attempt < 3; attempt++) {
-    const common = ["-v", "error", "-y", "-i", src, "-vf", "scale=1920:1080", "-c:v", "libx265", "-preset", "medium", "-b:v", `${kbps}k`];
-    execFileSync("ffmpeg", [...common, "-x265-params", `pass=1:log-level=error:stats=${stats}`, "-an", "-f", "null", "/dev/null"]);
-    execFileSync("ffmpeg", [...common, "-x265-params", `pass=2:log-level=error:stats=${stats}`, "-tag:v", "hvc1", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", `${AUDIO_KBPS}k`, "-movflags", "+faststart", dest]);
+    // No B-frames, closed 2-second GOPs and limited-range bt709: YouTube's AV1
+    // transcode of a B-pyramid, full-range HEVC upload played the first seconds
+    // out of order (lesson 08, 2026-09-19) while its H.264 renditions were fine.
+    const common = ["-v", "error", "-y", "-i", src, "-vf", "scale=1920:1080:out_range=tv,format=yuv420p", "-c:v", "libx265", "-preset", "medium", "-b:v", `${kbps}k`];
+    const x265 = "bframes=0:keyint=60:min-keyint=60:open-gop=0:log-level=error";
+    execFileSync("ffmpeg", [...common, "-x265-params", `pass=1:${x265}:stats=${stats}`, "-an", "-f", "null", "/dev/null"]);
+    execFileSync("ffmpeg", [...common, "-x265-params", `pass=2:${x265}:stats=${stats}`, "-tag:v", "hvc1", "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-c:a", "aac", "-b:a", `${AUDIO_KBPS}k`, "-movflags", "+faststart", dest]);
     for (const f of fs.readdirSync(out)) if (f.startsWith("x265.stats")) fs.rmSync(path.join(out, f));
     if (fs.statSync(dest).size <= UPLOAD_CAP) return;
     kbps = Math.floor(kbps * 0.9);
