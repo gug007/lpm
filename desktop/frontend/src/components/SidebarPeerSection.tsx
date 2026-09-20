@@ -187,9 +187,11 @@ export function SidebarPeerSection({
   );
 
   // What the machine itself is doing is news at either height — no row can say
-  // it. What its projects are doing is only news while they are hidden.
+  // it. The one exception is a failure: folded, the plate is already red, and a
+  // line of red under the name costs the count of what is hidden to repeat it.
+  // What its projects are doing is only news while they are hidden.
   const line2 = (() => {
-    if (status.tone === "error")
+    if (status.tone === "error" && !collapsed)
       return <span className="text-[var(--accent-red-text)]">{status.text}</span>;
     if (status.tone === "pending") return <span>{status.text}</span>;
     if (status.tone === "off")

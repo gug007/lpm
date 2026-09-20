@@ -35,6 +35,11 @@ import { SidebarPeerSection } from "./SidebarPeerSection";
 
 const LIVE: PeerStatus = { tone: "live", text: "Connected", detail: "" };
 const OFF: PeerStatus = { tone: "off", text: "Off", detail: "" };
+const UNREACHABLE: PeerStatus = {
+  tone: "error",
+  text: "Not responding — it may be asleep or on another network",
+  detail: "Operation timed out (os error 60)",
+};
 
 function project(name: string, running = false): ProjectInfo {
   return {
@@ -152,6 +157,29 @@ describe("SidebarPeerSection header", () => {
       strays: [{ project: project("kb"), label: "kb", follow: {} }],
     });
     expect(header.textContent).toContain("1 copy here");
+  });
+
+  it("says what went wrong with the machine while the section is open", () => {
+    const header = render({
+      connected: false,
+      status: UNREACHABLE,
+      projects: [],
+      strays: [{ project: project("kb"), label: "kb", follow: {} }],
+    });
+    expect(header.textContent).toContain("Not responding");
+  });
+
+  it("drops the failure line when folded, leaving the count the plate's tint stands behind", () => {
+    localStorage.setItem("lpm-peer-sections-collapsed", JSON.stringify({ aabbccdd: true }));
+    const header = render({
+      connected: false,
+      status: UNREACHABLE,
+      projects: [],
+      strays: [{ project: project("kb"), label: "kb", follow: {} }],
+    });
+    expect(header.textContent).not.toContain("Not responding");
+    expect(header.textContent).toContain("1");
+    expect(container.querySelector(".text-\\[var\\(--accent-red-text\\)\\]")).toBeTruthy();
   });
 
   it("stays plain while expanded, since the selected row speaks for itself", () => {
