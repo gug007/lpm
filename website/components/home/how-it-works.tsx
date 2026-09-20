@@ -95,7 +95,7 @@ export function HowItWorks() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="How it works"
-          title="From folder to running agents in six steps"
+          title="Add a folder. Start everything. Run agents in parallel."
         />
 
         <div className="space-y-12">
