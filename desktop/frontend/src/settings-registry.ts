@@ -362,9 +362,9 @@ export const ROWS = {
     kind: "row",
     tab: "ai",
     id: "ai.accounts",
-    label: "Claude accounts",
+    label: "Multiple Claude accounts",
     description: "Keep each project signed in to the right Claude account.",
-    keywords: ["login", "sign in", "account", "claude"],
+    keywords: ["login", "sign in", "account", "accounts", "multiple", "switch", "claude"],
   },
   "ai.statusLine": {
     kind: "row",

@@ -958,7 +958,7 @@ export function Settings({
 
             <SettingsSection
               id="ai.accounts"
-              title="Claude accounts"
+              title="Multiple Claude accounts"
               description="Keep each project signed in to the right Claude account."
               collapsible
               collapsed={accountsCollapsed}
