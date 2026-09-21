@@ -37,6 +37,7 @@ import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerToolbar } from "./ComposerToolbar";
 import { EMPTY_PICK, switchableCLI } from "../agentModelSwitch";
+import type { AgentSessionRef } from "../agentSession";
 import { isSwitchingModel, useAgentModelSwitch } from "../hooks/useAgentModelSwitch";
 import { useAgentModelPicks } from "../store/agentModelPicks";
 import {
@@ -138,6 +139,10 @@ interface TerminalComposerProps {
   // Every terminal tab in the project ({id,label}), so the "@" menu can offer
   // any one's logs — not just this composer's own terminal.
   terminals: { id: string; label: string }[];
+  // The agent conversation running in the target terminal, when its transcript
+  // is readable on this Mac. Lets the model button read the level the session
+  // stands at from the transcript, which outlives what the pane shows.
+  session?: AgentSessionRef | null;
   // Working directory the AI CLI runs in when applying a composer action.
   cwd: string;
   // The target terminal's launch command, if any. Its leading binary tells us
@@ -223,7 +228,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine, so an attachment is
   // uploaded to the host at attach time and the chip holds the host-valid path
   // that comes back — images via UploadClipboardImageForTerminal, any other file
@@ -300,7 +305,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const modelPick = useAgentModelPicks((s) => s.byTerminal[terminalId]) ?? EMPTY_PICK;
   const modelSwitch = useAgentModelSwitch({
     terminalId,
+    projectName,
     cli: switchCli,
+    session: session ?? null,
     submit: (text) => onSubmit(text),
   });
   // "@" mentions work in every terminal composer, not just agent terminals — the

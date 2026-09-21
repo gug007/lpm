@@ -15,6 +15,7 @@ mod autosync;
 mod bounds;
 mod browser;
 mod cli_install;
+mod claude_session_state;
 mod clipboard;
 mod codex_statusline;
 mod commands_real;
@@ -141,6 +142,7 @@ use agent_caps::{
 };
 use aigen::*;
 use browser::*;
+use claude_session_state::*;
 use cli_install::*;
 use clipboard::*;
 use codex_statusline::*;

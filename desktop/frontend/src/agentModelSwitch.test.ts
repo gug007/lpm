@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AI_CLI_OPTIONS } from "./types";
 import {
-  claudeCurrentPick,
-  claudeRefusals,
   claudeSwitchCommand,
   codexChangeBanners,
   codexCurrentPick,
@@ -344,80 +342,5 @@ describe("codexChangeBanners", () => {
     expect(codexChangeBanners("Because Model changed to gpt-5.5 low, the run restarted")).toEqual(
       [],
     );
-  });
-});
-
-describe("claudeCurrentPick", () => {
-  // The welcome banner, as Claude Code 2.1.272 draws it.
-  it("reads model and level from the welcome banner", () => {
-    expect(claudeCurrentPick("  Fable 5.1 with high effort · Claude Max\n  ~/Projects/x")).toEqual({
-      model: "fable",
-      effort: "high",
-    });
-    expect(claudeCurrentPick("▝▜██████▀  Fable 5.1 with xhigh effort · Claude Max")).toEqual({
-      model: "fable",
-      effort: "xhigh",
-    });
-  });
-
-  // lpm's own status line — live at the bottom, so it outranks the banner.
-  it("takes the model from the status line and the level from the banner", () => {
-    const screen = [
-      "  Opus 4.7 with high effort · Claude Max",
-      "",
-      "— karucapatoxic · Fable 5.1 · $0.00",
-      "▶▶ auto mode on (shift+tab to cycle) · ← 1 agent",
-    ].join("\n");
-    expect(claudeCurrentPick(screen)).toEqual({ model: "fable", effort: "high" });
-  });
-
-  it("reads the status line with the model as its first segment too", () => {
-    expect(claudeCurrentPick("— Fable 5.1 · $0.00 · main")).toEqual({ model: "fable", effort: "" });
-    expect(claudeCurrentPick("Opus 4.7 · ~/Projects/x")).toEqual({ model: "opus", effort: "" });
-  });
-
-  it("follows the confirmations /model and /effort print, in either phrasing", () => {
-    expect(claudeCurrentPick("Set model to `Fable 5.1` and saved as your default for new sessions")).toEqual({
-      model: "fable",
-      effort: "",
-    });
-    expect(claudeCurrentPick("Model set to Opus 4.7 (session-scoped, not persisted)")).toEqual({
-      model: "opus",
-      effort: "",
-    });
-    expect(
-      claudeCurrentPick("Set effort level to xhigh (saved as your default for new sessions): Deeper"),
-    ).toEqual({ model: "", effort: "xhigh" });
-    expect(claudeCurrentPick("Effort set to max and saved as your default")).toEqual({
-      model: "",
-      effort: "max",
-    });
-    expect(claudeCurrentPick("Effort level set to auto for this session")).toEqual({
-      model: "",
-      effort: "auto",
-    });
-  });
-
-  it("lets a later confirmation override the banner", () => {
-    const screen = "  Fable 5.1 with high effort · Claude Max\n\nSet effort level to ultracode (this session only): xhigh";
-    expect(claudeCurrentPick(screen)).toEqual({ model: "fable", effort: "ultracode" });
-  });
-
-  it("ignores prose that merely names a model", () => {
-    expect(claudeCurrentPick("I'd recommend Opus 4.7 for this — it handles long refactors well.")).toBeNull();
-    expect(claudeCurrentPick("the model set to use here is unclear")).toBeNull();
-    expect(claudeCurrentPick("")).toBeNull();
-  });
-});
-
-describe("claudeRefusals", () => {
-  it("counts the usage line Claude answers a rejected pick with", () => {
-    expect(claudeRefusals("Usage: /model <name>. Available: sonnet, opus")).toBe(1);
-    expect(claudeRefusals("  Usage: /effort <low|high>\n\n  Usage: /model <name>")).toBe(2);
-  });
-
-  it("does not count prose about the commands", () => {
-    expect(claudeRefusals("Run /model to switch, or see Usage: below")).toBe(0);
-    expect(claudeRefusals("")).toBe(0);
   });
 });

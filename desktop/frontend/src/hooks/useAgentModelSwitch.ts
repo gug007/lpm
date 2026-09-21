@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { claudeCurrentPick, claudeRefusals } from "../claudeReadback";
 import {
-  claudeCurrentPick,
-  claudeRefusals,
   claudeSwitchCommand,
   codexChangeBanners,
   codexCurrentPick,
@@ -31,6 +30,8 @@ import {
   setAgentModelPick,
 } from "../store/agentModelPicks";
 import { sendTerminalInput } from "../terminal-io";
+import type { AgentSessionRef } from "../agentSession";
+import { useClaudeSessionLevel } from "./useClaudeSessionLevel";
 
 // Codex answers a keystroke with a redraw, so every wait below is "poll the pane
 // until it says what we expect". The ceilings are generous — a busy pane can be
@@ -52,10 +53,10 @@ const SUBMIT_FREE_MS = 4000;
 // One retry's worth of cursor walking: the first pass can be written into a
 // redraw that eats it, a second pass almost never is.
 const MOVE_ATTEMPTS = 2;
-// How far back a readback looks for what the agent runs. Claude prints its level
-// only in the welcome banner and in "/effort" confirmations, both of which
-// scroll off the viewport; Codex keeps its own status line live, so for it the
-// viewport alone would do.
+// How far back a readback looks for what the agent runs. Claude's statements of
+// its level — the welcome banner, an "/effort" confirmation, the chip that
+// follows one — all scroll off the viewport; Codex keeps its own status line
+// live, so for it the viewport alone would do.
 const READBACK_LINES = 200;
 // The pane is re-read when its output stamp moves, checked this often; a burst
 // of output is collapsed into one read after it goes quiet.
@@ -98,9 +99,14 @@ export interface AgentModelSwitch {
 
 interface Options {
   terminalId: string;
+  /** Project the terminal belongs to, for reading its agent's transcript. */
+  projectName: string;
   /** Null for a terminal running no switchable agent, which leaves the hook
    *  inert — it is still called, since hooks can't be conditional. */
   cli: SwitchableCLI | null;
+  /** The agent conversation behind this terminal, when its transcript is
+   *  readable on this Mac. Null leaves the readback to the pane alone. */
+  session: AgentSessionRef | null;
   /** The composer's own delivery path — a gated paste plus a verified CR, which
    *  is what gets a slash command past an agent's async redraw. It already warns
    *  the user itself when a terminal won't take input, so a false return here is
@@ -108,7 +114,13 @@ interface Options {
   submit: (text: string) => boolean;
 }
 
-export function useAgentModelSwitch({ terminalId, cli, submit }: Options): AgentModelSwitch {
+export function useAgentModelSwitch({
+  terminalId,
+  projectName,
+  cli,
+  session,
+  submit,
+}: Options): AgentModelSwitch {
   const [applying, setApplying] = useState(false);
   // Only the spinner is tied to this component's life. The switch itself is
   // tracked in the module sets above, so unmounting mid-walk stops the UI
@@ -133,11 +145,20 @@ export function useAgentModelSwitch({ terminalId, cli, submit }: Options): Agent
   const refresh = useCallback(() => {
     if (cli) {
       const recent = captureInteractivePaneLog(terminalId, READBACK_LINES);
-      const now = cli === "codex" ? codexCurrentPick(recent) : claudeCurrentPick(recent);
+      const now =
+        cli === "codex" ? codexCurrentPick(recent) : claudeCurrentPick(recent, screen());
       if (now) mergeAgentModelPick(terminalId, now);
     }
     return agentModelPick(terminalId);
-  }, [cli, terminalId]);
+  }, [cli, screen, terminalId]);
+
+  // The pane names Claude's level only in passing; the session's own transcript
+  // records it on every turn, and keeps saying so for as long as the tab is open.
+  useClaudeSessionLevel({
+    terminalId,
+    projectName,
+    session: cli === "claude" ? session : null,
+  });
 
   // Keep the button's label current without the menu being opened: re-read the
   // pane whenever it has printed something new, once the burst settles. A

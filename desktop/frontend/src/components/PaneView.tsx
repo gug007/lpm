@@ -697,6 +697,7 @@ function PaneViewImpl(props: PaneViewProps) {
             focused={focused}
             targetLabel={terminalDisplayLabel(composerTab)}
             terminals={allTerminals}
+            session={composerSession}
             cwd={interactiveCwd}
             launchCmd={composerTab.startCmd ?? composerTab.resumeCmd}
             actionName={composerTab.actionName}

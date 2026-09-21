@@ -28,6 +28,9 @@ export function AgentSessionTitle(projectName, provider, sessionId) {
 export function AgentLastAnswer(projectName, provider, sessionId) {
   return invoke("agent_last_answer", { projectName, provider, sessionId });
 }
+export function ClaudeSessionState(projectName, sessionId) {
+  return invoke("claude_session_state", { projectName, sessionId });
+}
 export function AgentRecentAnswers(projectName, provider, sessionId, limit) {
   return invoke("agent_recent_answers", {
     projectName,

@@ -98,6 +98,8 @@ export function pickSummary(cli: SwitchableCLI, pick: ModelPick): string {
 }
 
 // ---- Claude: one-shot slash commands ---------------------------------------
+// Reading a Claude pane back is `claudeReadback.ts`: it takes four readouts to
+// Codex's one, and none of them is a readout in the way Codex's status line is.
 
 export function claudeSwitchCommand(kind: "model" | "effort", value: string): string {
   return `/${kind} ${value}`;
@@ -300,64 +302,4 @@ export function codexCurrentPick(screen: string): ModelPick | null {
  *  than trusting one that was already there before it started. */
 export function codexChangeBanners(screen: string): ModelPick[] {
   return [...screen.matchAll(CODEX_CHANGE_BANNER)].map(pickFrom);
-}
-
-// Claude Code answers a "/model" or "/effort" it won't take with its usage line.
-const CLAUDE_USAGE_LINE = /^\s*Usage:\s*\/(?:model|effort)\b/gim;
-
-export function claudeRefusals(screen: string): number {
-  return [...screen.matchAll(CLAUDE_USAGE_LINE)].length;
-}
-
-// Claude names its model by family and version — "Fable 5.1", "Opus 4.7" — and
-// lpm pins models by family alias, so the family word is the whole mapping.
-const CLAUDE_FAMILY = "Fable|Opus|Sonnet|Haiku";
-// The welcome banner: "Fable 5.1 with high effort · Claude Max", drawn beside
-// the logo's block glyphs on the same line — hence "anything but letters" before
-// the name, not just whitespace. The one place Claude prints the level
-// unprompted; it scrolls away, so it is read from recent scrollback rather than
-// the viewport alone.
-const CLAUDE_BANNER = new RegExp(
-  String.raw`^[^A-Za-z]*(${CLAUDE_FAMILY})\s+[\d.]+\s+with\s+([a-z]+)\s+effort\b`,
-  "gim",
-);
-// lpm's own status line, which prints the model's display name as one " · "
-// segment — wherever the user ordered it, first included — and is redrawn live
-// at the bottom of the pane.
-const CLAUDE_STATUS = new RegExp(
-  String.raw`(?:^[^A-Za-z]*|·\s*)(${CLAUDE_FAMILY})\s+[\d.]+\s*(?=·|$)`,
-  "gim",
-);
-// What "/model" and "/effort" print when they land. Claude has two phrasings of
-// each, depending on whether the pick was saved as a default.
-const CLAUDE_MODEL_SET = new RegExp(
-  String.raw`^\s*(?:Model set to|Set model to)\s+\`?(${CLAUDE_FAMILY})\b`,
-  "gim",
-);
-const CLAUDE_EFFORT_SET = /^\s*(?:Effort set to|Set effort level to|Effort level set to)\s+([a-z]+)/gim;
-
-function lastMatch(screen: string, re: RegExp): RegExpMatchArray | undefined {
-  const all = [...screen.matchAll(re)];
-  return all[all.length - 1];
-}
-
-/** What a Claude pane says the session runs, from whichever of its readouts is
- *  visible: the live status line for the model, the welcome banner or the last
- *  "/effort" confirmation for the level. Lower on screen wins — newer. Null
- *  when nothing on screen names either half. */
-export function claudeCurrentPick(screen: string): ModelPick | null {
-  const models = [CLAUDE_STATUS, CLAUDE_MODEL_SET, CLAUDE_BANNER]
-    .map((re) => lastMatch(screen, re))
-    .filter((m): m is RegExpMatchArray => m !== undefined)
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
-  const efforts = [CLAUDE_EFFORT_SET, CLAUDE_BANNER]
-    .map((re) => lastMatch(screen, re))
-    .filter((m): m is RegExpMatchArray => m !== undefined)
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
-  const model = models[models.length - 1]?.[1].toLowerCase() ?? "";
-  const rawEffort = efforts[efforts.length - 1];
-  // The banner's level is its second group; the "/effort" line's is its first.
-  const effort = (rawEffort ? (rawEffort[2] ?? rawEffort[1]) : "").toLowerCase();
-  if (!model && !effort) return null;
-  return { model, effort };
 }
