@@ -151,6 +151,9 @@ export function StartDuplicateWorktreeProject(name, label, reinstallDeps) {
 export function DuplicateStatus(name) {
   return invoke("duplicate_status", { name });
 }
+export function BranchPullRequest(cwd) {
+  return invoke("branch_pull_request", { cwd });
+}
 export function CreatePullRequest(cwd, title, body, base) {
   return invoke("create_pull_request", { cwd, title, body, base });
 }

@@ -258,6 +258,16 @@ export const STATUS_ERROR = "Error";
 
 export const GIT_CHANGED_EVENT = "git-changed";
 
+export type PullRequestState = "OPEN" | "MERGED" | "CLOSED";
+
+export interface PullRequestInfo {
+  number: number;
+  url: string;
+  state: PullRequestState;
+  title: string;
+  isDraft: boolean;
+}
+
 export const MEMORY_CHANGED_EVENT = "memory-changed";
 
 export interface MemorySession {

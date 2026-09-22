@@ -15,7 +15,7 @@ import {
   RenameBranch,
 } from "../../bridge/commands";
 import { getSettings } from "../store/settings";
-import { aiEffectiveEffort, aiEffectiveFast } from "../types";
+import { aiEffectiveEffort, aiEffectiveFast, type PullRequestInfo } from "../types";
 import { runAutoCommit } from "../autoCommit";
 import { useAIPicker } from "../hooks/useAIPicker";
 import {
@@ -34,6 +34,7 @@ import { PullSplitRow, pullConfigScreen } from "./pullMenu";
 import { PushSplitRow, pushConfigScreen } from "./pushMenu";
 import { FetchSplitRow, fetchConfigScreen } from "./fetchMenu";
 import { main } from "../../bridge/models";
+import { BrowserOpenURL } from "../../bridge/runtime";
 import { useOutsideClick } from "../hooks/useOutsideClick";
 import { useEventListener } from "../hooks/useEventListener";
 import type { useGitStatus } from "../hooks/useGitStatus";
@@ -62,11 +63,14 @@ export function BranchSwitcher({
   projectName,
   projectPath,
   gitState,
+  pullRequest = null,
 }: {
   projectName: string;
   projectPath: string;
   gitState: ReturnType<typeof useGitStatus>;
+  pullRequest?: PullRequestInfo | null;
 }) {
+  const openPr = pullRequest?.state === "OPEN" ? pullRequest : null;
   const { status, branches, refresh } = gitState;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -706,12 +710,13 @@ export function BranchSwitcher({
                     <button
                       onClick={() => {
                         setCommitMenuOpen(false);
-                        setCreatingPR(true);
+                        if (openPr) BrowserOpenURL(openPr.url);
+                        else setCreatingPR(true);
                       }}
                       className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
                     >
                       <PRMenuIcon />
-                      Create PR
+                      {openPr ? `Open PR #${openPr.number}` : "Create PR"}
                     </button>
                     <button
                       onClick={() => {

@@ -28,6 +28,7 @@ import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { EventsEmit, BrowserOpenURL } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
+import { rememberCreatedPr } from "../store/branchPr";
 import { Tooltip } from "./ui/Tooltip";
 
 type BranchCommit = main.BranchCommit;
@@ -280,6 +281,7 @@ export function PRModal({
         base,
       );
       setPrURL(url);
+      rememberCreatedPr(projectPath, currentBranch, url, title.trim());
       onCreated();
     } catch (err) {
       toast.error(`Create PR failed: ${err}`);

@@ -79,6 +79,7 @@ macro_rules! all_command_handlers {
             start_duplicate_worktree_project,
             duplicate_status,
             create_pull_request,
+            branch_pull_request,
             create_ssh_project,
             create_template,
             delete_branch,
