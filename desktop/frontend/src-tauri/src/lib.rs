@@ -76,6 +76,7 @@ mod procinfo;
 mod proctree;
 mod projects_crud;
 mod pty;
+mod pull_request;
 mod ptyring;
 mod remote;
 mod remote_memory;
@@ -156,6 +157,7 @@ use fonts::*;
 #[allow(unused_imports)]
 use generated_commands::*;
 use git::*;
+use pull_request::*;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitsync::{sync_project_cancel, sync_project_start};
 use hooks::*;

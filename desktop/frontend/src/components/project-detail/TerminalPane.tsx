@@ -92,6 +92,7 @@ export function TerminalPane({
         />
       )}
       <TerminalFooter
+        active={active && visible}
         projectName={projectName}
         projectPath={projectRoot}
         actions={footerActions}

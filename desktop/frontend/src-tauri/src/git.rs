@@ -17,7 +17,12 @@ use tauri::{AppHandle, Emitter, State};
 /// carry the cwd + env inside the ssh script (see sshexec); local commands set
 /// them on the child directly. Every downstream helper funnels through here, so a
 /// remote project's whole git surface follows without per-command changes.
-fn tool_command(cwd: &str, program: &str, args: &[&str], envs: &[(&str, &str)]) -> Command {
+pub(crate) fn tool_command(
+    cwd: &str,
+    program: &str,
+    args: &[&str],
+    envs: &[(&str, &str)],
+) -> Command {
     match crate::sshexec::remote_project_for_path(cwd) {
         Some(ssh) => crate::sshexec::remote_command(&ssh, cwd, program, args, envs),
         None => {
