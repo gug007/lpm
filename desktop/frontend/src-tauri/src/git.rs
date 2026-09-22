@@ -177,6 +177,9 @@ pub struct GitStatus {
     pub has_upstream: bool,
     pub ahead: i64,
     pub behind: i64,
+    // Whether any remote is configured, so a branch with no upstream can offer
+    // a first push. Implied by an upstream; probed only without one.
+    pub has_remote: bool,
 }
 
 #[derive(Serialize)]
@@ -279,7 +282,16 @@ pub fn git_status(cwd: String) -> GitStatus {
     } else {
         unstaged + untracked
     };
+    fill_has_remote(&mut st, &cwd);
     st
+}
+
+fn fill_has_remote(st: &mut GitStatus, cwd: &str) {
+    st.has_remote = st.has_upstream
+        || (st.is_git_repo
+            && git_out(cwd, &["remote"])
+                .map(|o| !o.is_empty())
+                .unwrap_or(false));
 }
 
 #[tauri::command(async)]
@@ -426,7 +438,9 @@ pub fn git_status_and_files(cwd: &str) -> (GitStatus, Vec<ChangedFile>) {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
         _ => return (GitStatus::default(), Vec::new()),
     };
-    parse_status_and_files(&raw, cwd)
+    let (mut st, files) = parse_status_and_files(&raw, cwd);
+    fill_has_remote(&mut st, cwd);
+    (st, files)
 }
 
 #[tauri::command(async)]
@@ -1686,8 +1700,8 @@ pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String>
 #[cfg(test)]
 mod tests {
     use super::{
-        cat_file_size, cat_file_spec_ok, coalesce, parse_status_and_files, split_diff_by_file,
-        Change, CHANGE_CAP, MAX_COALESCE,
+        cat_file_size, cat_file_spec_ok, coalesce, fill_has_remote, parse_status_and_files,
+        split_diff_by_file, Change, GitStatus, CHANGE_CAP, MAX_COALESCE,
     };
     use std::time::Instant;
 
@@ -1774,6 +1788,41 @@ mod tests {
         let parts = split_diff_by_file(diff);
         assert_eq!(parts.len(), 1);
         assert_eq!(parts[0].0, "");
+    }
+
+    #[test]
+    fn has_remote_follows_the_upstream_or_the_configured_remotes() {
+        let dir = tempfile::tempdir().unwrap();
+        let cwd = dir.path().to_str().unwrap();
+        let git = |args: &[&str]| {
+            assert!(std::process::Command::new("git")
+                .args(args)
+                .current_dir(cwd)
+                .output()
+                .unwrap()
+                .status
+                .success());
+        };
+        git(&["init", "-q"]);
+
+        let mut st = GitStatus {
+            is_git_repo: true,
+            ..Default::default()
+        };
+        fill_has_remote(&mut st, cwd);
+        assert!(!st.has_remote);
+
+        git(&["remote", "add", "origin", "https://example.invalid/o/r.git"]);
+        fill_has_remote(&mut st, cwd);
+        assert!(st.has_remote);
+
+        let mut tracking = GitStatus {
+            is_git_repo: true,
+            has_upstream: true,
+            ..Default::default()
+        };
+        fill_has_remote(&mut tracking, "/nonexistent");
+        assert!(tracking.has_remote);
     }
 
     #[test]

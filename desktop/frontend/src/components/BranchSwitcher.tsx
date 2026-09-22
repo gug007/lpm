@@ -41,6 +41,7 @@ import type { useGitStatus } from "../hooks/useGitStatus";
 import { useBranchSearch } from "../hooks/useBranchSearch";
 import { CreateBranchModal } from "./CreateBranchModal";
 import { CommitModal } from "./CommitModal";
+import { AutoPRModal, type AutoPRAIParams } from "./AutoPRModal";
 import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -54,8 +55,9 @@ import {
   SparkleIcon,
   TrashIcon,
   UndoIcon,
+  UploadIcon,
 } from "./icons";
-import { branchKey, orderBranches, RemoteBadge } from "./branchUtils";
+import { branchKey, isUnpublished, orderBranches, RemoteBadge } from "./branchUtils";
 import { relativeTime } from "../relativeTime";
 import { shouldFetch, recordFetch } from "../gitFetchThrottle";
 
@@ -80,6 +82,7 @@ export function BranchSwitcher({
   const [creating, setCreating] = useState(false);
   const [committing, setCommitting] = useState(false);
   const [creatingPR, setCreatingPR] = useState(false);
+  const [autoPR, setAutoPR] = useState<AutoPRAIParams | null>(null);
   const [merging, setMerging] = useState(false);
   const [commitMenuOpen, setCommitMenuOpen] = useState(false);
   const [confirmDiscardAllOpen, setConfirmDiscardAllOpen] = useState(false);
@@ -257,20 +260,25 @@ export function BranchSwitcher({
   const runFetchDefault = () =>
     runFetch(getSettings().gitFetch ?? DEFAULT_FETCH_CONFIG);
 
-  const runAuto = async (andPush: boolean) => {
-    setCommitMenuOpen(false);
-    const cli = ai.selectedCLI;
-    const model = ai.selectedModel;
-    const effort = aiEffectiveEffort(
+  const aiParams = (): AutoPRAIParams => ({
+    cli: ai.selectedCLI,
+    model: ai.selectedModel,
+    effort: aiEffectiveEffort(
       ai.selectedCLI,
       ai.selectedModel,
       ai.selectedEffort,
-    );
-    const fast = aiEffectiveFast(
-      ai.selectedCLI,
-      ai.selectedModel,
-      ai.selectedFast,
-    );
+    ),
+    fast: aiEffectiveFast(ai.selectedCLI, ai.selectedModel, ai.selectedFast),
+  });
+
+  const startAutoPR = () => {
+    setCommitMenuOpen(false);
+    setAutoPR(aiParams());
+  };
+
+  const runAuto = async (andPush: boolean) => {
+    setCommitMenuOpen(false);
+    const { cli, model, effort, fast } = aiParams();
     let paths: string[];
     try {
       const files = await GitChangedFiles(projectPath);
@@ -401,9 +409,21 @@ export function BranchSwitcher({
 
   const needsSync =
     status.hasUpstream && (status.ahead > 0 || status.behind > 0);
+  const unpublished = isUnpublished(status);
 
   return (
     <div className="flex items-center gap-1">
+      {unpublished && (
+        <button
+          onClick={runPushDefault}
+          disabled={busy}
+          title={busy ? "Pushing…" : "Push this branch to the remote for the first time"}
+          className="flex items-center gap-1 rounded-md border border-[var(--composer-border)] bg-[var(--composer-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--composer-fg-secondary)] transition-all duration-100 hover:bg-[var(--composer-hover-bg)] hover:text-[var(--composer-fg)] active:scale-[0.97] disabled:opacity-40"
+        >
+          {busy ? <SyncIcon spinning /> : <UploadIcon size={12} />}
+          Publish
+        </button>
+      )}
       {needsSync && (
         <button
           onClick={syncToolbarAction}
@@ -766,6 +786,25 @@ export function BranchSwitcher({
                             </span>
                           </span>
                         </button>
+                        {!openPr && (
+                          <button
+                            onClick={startAutoPR}
+                            disabled={busy}
+                            className="group flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <span className="mt-0.5 text-[var(--text-secondary)] [&>svg]:h-3.5 [&>svg]:w-3.5">
+                              <SparkleIcon />
+                            </span>
+                            <span className="flex flex-col">
+                              <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+                                Auto Create PR
+                              </span>
+                              <span className="text-[11px] text-[var(--text-muted)]">
+                                AI names the branch, commits, pushes, and opens the PR
+                              </span>
+                            </span>
+                          </button>
+                        )}
                       </>
                     )}
                     <div className="my-1.5 border-t border-[var(--border)]" />
@@ -810,6 +849,14 @@ export function BranchSwitcher({
         currentBranch={status.branch}
         onClose={() => setCreatingPR(false)}
         onCreated={refresh}
+      />
+      <AutoPRModal
+        open={autoPR !== null}
+        projectName={projectName}
+        projectPath={projectPath}
+        ai={autoPR}
+        onClose={() => setAutoPR(null)}
+        onChanged={refresh}
       />
       <MergeBranchDialog
         open={merging}
