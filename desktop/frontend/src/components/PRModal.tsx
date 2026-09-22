@@ -26,10 +26,11 @@ import { useBranchSearch } from "../hooks/useBranchSearch";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
-import { EventsEmit, BrowserOpenURL } from "../../bridge/runtime";
+import { EventsEmit } from "../../bridge/runtime";
 import { getSettings, saveSettings } from "../store/settings";
 import { rememberCreatedPr } from "../store/branchPr";
 import { Tooltip } from "./ui/Tooltip";
+import { PRCreatedView } from "./PRCreatedView";
 
 type BranchCommit = main.BranchCommit;
 type Branch = main.Branch;
@@ -337,37 +338,17 @@ export function PRModal({
         )}
 
         {prURL ? (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-green)]/10">
-              <svg
-                width={24}
-                height={24}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--accent-green)"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="pr-check-animate"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-base font-medium text-[var(--text-primary)]">
-                Pull request created
-              </span>
-              <span className="text-xs text-[var(--text-muted)]">
-                {currentBranch} &rarr; {base}
-              </span>
-            </div>
-            <button
-              onClick={() => BrowserOpenURL(prURL)}
-              className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90"
-            >
-              Open on GitHub
-            </button>
-          </div>
+          <PRCreatedView
+            projectPath={projectPath}
+            branch={currentBranch}
+            base={base}
+            url={prURL}
+            onSwitched={() => {
+              onCreated();
+              closeModal();
+            }}
+            onBusyChange={setBusy}
+          />
         ) : (
           <>
             <div className="flex items-center gap-2">

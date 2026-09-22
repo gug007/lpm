@@ -4,6 +4,19 @@ export function branchKey(b: main.Branch): string {
   return b.remote ? `${b.remote}/${b.name}` : b.name;
 }
 
+// A local branch nothing tracks yet, in a repo that has somewhere to push it:
+// the footer offers a one-click first push where the sync pill would sit.
+export function isUnpublished(status: main.GitStatus | null): boolean {
+  return (
+    !!status &&
+    !!status.isGitRepo &&
+    !status.detached &&
+    !status.hasUpstream &&
+    !!status.hasRemote &&
+    !!status.branch
+  );
+}
+
 export function branchMatches(b: main.Branch, query: string): boolean {
   return b.name.toLowerCase().includes(query.toLowerCase());
 }
