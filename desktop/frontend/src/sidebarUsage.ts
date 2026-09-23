@@ -1,6 +1,14 @@
 import { providerMeta } from "./agentStatus";
 import { formatTokenCount } from "./agentUsageFormat";
-import { STALE_MS, barColor, fmtPct, resetDurationShort } from "./components/stats/limitsFormat";
+import {
+  FIVE_HOUR_MS,
+  STALE_MS,
+  WEEKLY_MS,
+  barColor,
+  computePace,
+  fmtPct,
+  resetDurationShort,
+} from "./components/stats/limitsFormat";
 import type { AgentLimitsMap, LimitWindow, ProviderLimits } from "./hooks/useAgentLimits";
 import type { AgentUsageStats } from "./types";
 
@@ -37,6 +45,9 @@ export interface UsageRow {
    *  colour when the row is only reporting what it spent. */
   fill: string;
   fraction: number;
+  /** How far through its window the clock is (0–1), where the bar draws its
+   *  pace tick; null with no window, or while it is too early to judge. */
+  pace: number | null;
   /** Trailing line: when the window resets, the day's spend when no window has
    *  been reported for that tool yet, or a dash for an account that is idle. */
   detail: string;
@@ -134,12 +145,12 @@ function pickWindow(
   data: ProviderLimits | undefined,
   choice: UsageWindowChoice,
   now: number,
-): { win?: LimitWindow; windowLabel: string } {
-  if (!data) return { win: undefined, windowLabel: "" };
+): { win?: LimitWindow; windowLabel: string; windowMs: number } {
+  if (!data) return { win: undefined, windowLabel: "", windowMs: 0 };
   const fiveHour = live(data.fiveHour, now);
   const weekly = live(data.weekly, now);
-  const five = { win: fiveHour, windowLabel: "5-hour" };
-  const week = { win: weekly, windowLabel: "weekly" };
+  const five = { win: fiveHour, windowLabel: "5-hour", windowMs: FIVE_HOUR_MS };
+  const week = { win: weekly, windowLabel: "weekly", windowMs: WEEKLY_MS };
   if (choice === "weekly") return weekly ? week : five;
   if (choice === "higher") {
     if (fiveHour && weekly) return weekly.usedPercent > fiveHour.usedPercent ? week : five;
@@ -205,6 +216,8 @@ export function usageRows(
   return candidates.map((row) => {
     const meta = providerMeta(row.provider);
     const win = row.win;
+    const pace = computePace(win, row.windowMs, now);
+    const judged = pace && pace.verdict !== "early" && pace.verdict !== "unknown" ? pace : null;
     return {
       id: row.id,
       provider: row.provider,
@@ -217,6 +230,7 @@ export function usageRows(
         : peak > 0
           ? row.tokens / peak
           : 0,
+      pace: judged ? judged.elapsedPercent / 100 : null,
       // Just the duration — "resets in" costs half the row and the hover card
       // spells it out anyway. The day's spend keeps its unit, which is the word
       // that makes it a token count rather than a countdown.

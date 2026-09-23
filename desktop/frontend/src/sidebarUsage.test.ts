@@ -75,6 +75,46 @@ describe("usageRows", () => {
     expect(codex.fill).toBe("var(--accent-red)");
   });
 
+  it("marks where even use would put the window by now", () => {
+    const HOUR = 60 * 60;
+    const nowS = Math.floor(NOW / 1000);
+    const [claude, codex] = usageRows(
+      {
+        claude: {
+          provider: "claude",
+          weekly: { usedPercent: 61, resetsAt: nowS + 41 * HOUR },
+          updatedAt: NOW,
+        },
+        codex: {
+          provider: "codex",
+          weekly: { usedPercent: 51, resetsAt: nowS + 96 * HOUR },
+          updatedAt: NOW,
+        },
+      },
+      null,
+      NOW,
+    );
+    expect(claude.pace).toBeCloseTo(127 / 168);
+    expect(codex.pace).toBeCloseTo(72 / 168);
+  });
+
+  it("holds the tick back until enough of the window has passed", () => {
+    const nowS = Math.floor(NOW / 1000);
+    const [codex] = usageRows(
+      {
+        codex: {
+          provider: "codex",
+          fiveHour: { usedPercent: 20, resetsAt: nowS + 5 * 60 * 60 - 60 },
+          updatedAt: NOW,
+        },
+      },
+      null,
+      NOW,
+      { window: "fiveHour" },
+    );
+    expect(codex.pace).toBeNull();
+  });
+
   it("follows the chosen window", () => {
     const [fiveHour] = usageRows(limits, null, NOW, { window: "fiveHour" });
     expect(fiveHour.percent).toBe(34);

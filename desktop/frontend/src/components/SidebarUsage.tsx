@@ -20,6 +20,7 @@ function spentLine(row: UsageRow): string {
 }
 
 function RowBody({ row }: { row: UsageRow }) {
+  const width = row.fraction > 0 ? Math.max(2, Math.round(row.fraction * 100)) : 0;
   return (
     <>
       <span className="flex items-center gap-2">
@@ -44,15 +45,24 @@ function RowBody({ row }: { row: UsageRow }) {
           </span>
         )}
       </span>
-      <span className="block h-[3px] w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
-        <span
-          className="block h-full rounded-full transition-[width] duration-500"
-          style={{
-            width: row.fraction > 0 ? `${Math.max(2, Math.round(row.fraction * 100))}%` : "0%",
-            backgroundColor: row.fill,
-            opacity: row.stale ? 0.4 : 1,
-          }}
-        />
+      <span className="relative block">
+        <span className="block h-[3px] w-full overflow-hidden rounded-full bg-[var(--bg-active)]">
+          <span
+            className="block h-full rounded-full transition-[width] duration-500"
+            style={{
+              width: `${width}%`,
+              backgroundColor: row.fill,
+              opacity: row.stale ? 0.4 : 1,
+            }}
+          />
+        </span>
+        {row.pace !== null && (
+          <span
+            aria-hidden="true"
+            className="absolute -top-[3px] h-[9px] w-0.5 -translate-x-1/2 rounded-full bg-[var(--text-primary)]"
+            style={{ left: `${row.pace * 100}%`, opacity: row.stale ? 0.4 : 1 }}
+          />
+        )}
       </span>
     </>
   );
