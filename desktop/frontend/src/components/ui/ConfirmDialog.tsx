@@ -61,7 +61,7 @@ export function ConfirmDialog({
         <h3 className="text-base font-semibold text-[var(--text-primary)]">{title}</h3>
       )}
       <div
-        className={`${title ? "mt-2" : ""} text-sm text-[var(--text-secondary)]`}
+        className={`${title ? "mt-2" : ""} select-text text-sm text-[var(--text-secondary)]`}
       >
         {body}
       </div>
@@ -69,7 +69,7 @@ export function ConfirmDialog({
         <div className="mt-4" key={`${req}-${i}`}>
           <label className="block text-[11px] text-[var(--text-muted)]">
             Type{" "}
-            <span className="font-medium text-[var(--text-secondary)]">
+            <span className="select-all font-medium text-[var(--text-secondary)]">
               {req}
             </span>{" "}
             to confirm
