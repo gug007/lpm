@@ -11,7 +11,7 @@ type Shelf = {
 const SHELF: Shelf[] = [
   {
     name: "iTerm2",
-    body: "the deepest configuration surface on the shelf, and still moving: 3.7 added a Claude Code integration, groups of tabs and a companion iOS app in September 2026.",
+    body: "free under GPLv2, scriptable from Python, and still moving: 3.7 added a Claude Code integration, groups of tabs and a companion iOS app in September 2026.",
   },
   {
     name: "Warp",

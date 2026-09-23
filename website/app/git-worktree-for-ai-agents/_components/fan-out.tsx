@@ -1,14 +1,16 @@
+import Link from "next/link";
 import { AutoVideo } from "@/components/auto-video";
 import { SectionHeader } from "@/components/section-header";
+import { PARALLEL_PATH } from "@/lib/links";
 
 const MODES = [
   {
     name: "lpm Worktree",
     title: "Linked worktrees, created in a batch",
-    body: "Each one is a real Git worktree on its own branch, sharing the repository. Ignored files are not carried over, the same as raw Git — tick the reinstall option when the copy needs its dependencies.",
+    body: "Each one is a real Git worktree on a new branch from your current commit, sharing the repository. Uncommitted and ignored files stay behind, the same as raw Git. Tick Install dependencies when the worktree needs them.",
     points: [
-      "Real linked worktrees, removed with their branch when you delete them",
-      "Lightest option when the checkout is all the agent needs",
+      "Deleting one also deletes its branch, so merge or push anything you want to keep first",
+      "Needs a Git repository with at least one commit, with the project at its root",
     ],
   },
   {
@@ -16,16 +18,16 @@ const MODES = [
     title: "Standalone copies of the project you have now",
     body: "An APFS copy-on-write clone with its own Git repository, carrying uncommitted work, ignored files, and installed dependencies. Regenerable build caches are left behind.",
     points: [
-      "Optionally strip uncommitted changes, pull the latest commit, or reinstall dependencies",
+      "Pulls the latest commits by default; optionally keep committed work only or reinstall dependencies",
       "Each copy is independent, so several can sit on the same branch",
     ],
   },
 ];
 
 const STEPS = [
-  "Open Duplicate, choose worktrees or standalone copies, and set how many — up to 50.",
-  "Label them, group them in the sidebar, and pick the action or command each one should run, with the prompt to send.",
-  "Watch every copy's agent status from the sidebar, review the diffs, and remove the copies you do not keep.",
+  "Right-click a project and choose Duplicate for standalone copies or New Worktree for linked worktrees, then set how many, up to 50.",
+  "Label them, group them in the sidebar, and pick the action or command each one should run, with the prompt to send. Each copy can get its own.",
+  "Watch every copy's agent status from the sidebar, review the diffs, and delete the copies you do not keep. Deleting is permanent.",
 ];
 
 export default function FanOut() {
@@ -35,7 +37,7 @@ export default function FanOut() {
         <SectionHeader
           eyebrow="One prompt, three agents"
           title="Both primitives, the same fan-out"
-          description="lpm does not ask you to give up worktrees. The same dialog creates either kind, queues the work, and cleans up after it."
+          description="lpm does not ask you to give up worktrees. Pick the kind from the project menu, and both share the same fan-out form for queuing the work."
           className="mb-12"
         />
 
@@ -90,9 +92,19 @@ export default function FanOut() {
 
         <p className="mt-8 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
           The agents can drive this themselves. lpm installs skills for Claude
-          Code and Codex, so an agent asked to try three approaches can create
-          its own copies, run the work in them, wait for the others to settle,
-          and clean them up when you have merged the one you want.
+          Code, Codex, Gemini CLI, and OpenCode, so an agent asked to try three
+          approaches can create its own copies, run the work in them, wait for
+          the others to settle, and clean them up when you have merged the one
+          you want. Already typing the prompt? Choose Run in duplicates from the
+          composer&rsquo;s send menu to run it here and in fresh copies at
+          once, or read the full{" "}
+          <Link
+            href={PARALLEL_PATH}
+            className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+          >
+            guide to running Claude Code in parallel
+          </Link>
+          .
         </p>
 
         <div className="mt-10 overflow-hidden rounded-xl border border-gray-200 bg-gray-950 shadow-2xl shadow-gray-200/60 dark:border-gray-800 dark:shadow-black/40">

@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react";
 import type { ReleaseVerification } from "@/lib/release-verification";
+import { SafetyDisclosure } from "./safety-disclosure";
 import { TrackedAssetLink } from "./tracked-asset-link";
 
 function formatDate(value: string | null): string | null {
@@ -22,52 +23,42 @@ export function ReleaseChecksums({
   const publishedAt = formatDate(release.publishedAt);
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-black/20 px-6 py-6 sm:px-8">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            SHA-256 checksums for {release.tag}
-          </p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Compare after downloading with{" "}
-            <code className="font-mono text-[11px]">
-              shasum -a 256 &lt;file&gt;
-            </code>
-            {publishedAt ? ` · Published ${publishedAt}` : ""}
-          </p>
-        </div>
+    <SafetyDisclosure
+      title={`SHA-256 checksums for ${release.tag}`}
+      meta={publishedAt ? <span className="hidden sm:inline">{publishedAt}</span> : null}
+    >
+      <p>
+        Compare after downloading with{" "}
+        <code className="font-mono text-[11px]">shasum -a 256 &lt;file&gt;</code>
+        .{" "}
         <a
           href={release.releaseUrl}
-          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors"
+          className="inline-flex items-center gap-0.5 font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors"
         >
           View release
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+          <ArrowUpRight className="h-3 w-3" aria-hidden />
         </a>
-      </div>
-      <div className="mt-4 grid gap-3">
+      </p>
+      <dl className="mt-3 grid gap-2">
         {release.assets.map((asset) => (
           <div
             key={asset.filename}
-            className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/70 dark:bg-white/[0.03] px-4 py-3"
+            className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-black/20 px-3 py-2"
           >
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <dt className="flex flex-wrap items-baseline justify-between gap-x-4">
               <TrackedAssetLink
                 href={asset.downloadUrl}
                 architecture={asset.architecture}
-                className="text-xs font-semibold text-gray-800 hover:text-black dark:text-gray-200 dark:hover:text-white transition-colors"
+                className="font-semibold text-gray-800 hover:text-black dark:text-gray-200 dark:hover:text-white transition-colors"
               >
                 {asset.label} ({asset.architecture})
               </TrackedAssetLink>
-              <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                {formatSize(asset.size)}
-              </span>
-            </div>
-            <code className="mt-2 block break-all font-mono text-[10px] leading-relaxed text-gray-500 dark:text-gray-400">
-              {asset.sha256}
-            </code>
+              <span className="text-[11px]">{formatSize(asset.size)}</span>
+            </dt>
+            <dd className="mt-1 break-all font-mono text-[10px]">{asset.sha256}</dd>
           </div>
         ))}
-      </div>
-    </div>
+      </dl>
+    </SafetyDisclosure>
   );
 }

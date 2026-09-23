@@ -9,13 +9,13 @@ export default function Hero() {
           Native desktop terminal for AI agents
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          The best terminal for Claude Code and Codex — built for parallel
-          agents.
+          The best terminal for Claude Code and Codex, with every agent in
+          view.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          A native macOS app with live output per service in one window. Watch
-          multiple agents work side by side and switch projects visually —
-          without juggling a wall of terminal tabs.
+          A native macOS app that shows what each Claude Code and Codex session
+          is doing, pings you when one needs an answer, and runs your dev
+          servers in panes right beside them.
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">

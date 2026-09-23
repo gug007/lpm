@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { SectionHeader } from "@/components/section-header";
+import { WORKTREE_AGENTS_PATH } from "@/lib/links";
 
 type Workflow = {
   title: string;
@@ -25,11 +27,20 @@ const WORKFLOWS: Workflow[] = [
     body: (
       <>
         Your team lead asks for a quick review on a branch you haven&rsquo;t
-        touched. Open a second project workspace pointing at the same repo,{" "}
-        <code className="text-xs">git checkout</code> the review branch, start
-        just the services you need to test the change, leave a comment, merge,
-        and switch back to your workspace. Your original branch, its running
-        services, and your open shell sessions are all still there.
+        touched. Choose New Worktree on the project: lpm makes a separate
+        checkout with its own services, listed under the original in the
+        sidebar. Check out the review branch there, start just the services
+        you need to test the change (lpm flags any port the original is still
+        using), and leave your comment. Your original
+        branch, its running services, and your open shell sessions never
+        moved. See how{" "}
+        <Link
+          href={WORKTREE_AGENTS_PATH}
+          className="font-medium text-gray-700 dark:text-gray-300 underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          worktrees work in lpm
+        </Link>
+        .
       </>
     ),
   },
@@ -57,7 +68,7 @@ export default function Workflows() {
         <SectionHeader
           eyebrow="In practice"
           title="Git workflows your Mac terminal should actually support"
-          description="Three scenarios where a split between your git tool and your terminal costs real time — and how lpm collapses them into one window."
+          description="Three scenarios where a split between your git tool and your terminal costs real time, and how lpm keeps them in one window."
         />
 
         <div className="space-y-12">

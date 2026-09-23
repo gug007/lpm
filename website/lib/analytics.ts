@@ -10,6 +10,8 @@ declare global {
 export type DownloadPlatform = MacDownloadPlatform;
 export type DownloadSource =
   | "hero"
+  | "home-cta"
+  | "config-cta"
   | "downloads"
   | "checksums"
   | "best-mac-hero"
@@ -42,6 +44,13 @@ export type DownloadSource =
   | "skills-cta"
   | "token-usage-hero"
   | "token-usage-cta"
+  | "features-hero"
+  | "features-cta"
+  | "automations-hero"
+  | "automations-cta"
+  | "parallel-hero"
+  | "parallel-cta"
+  | "not-found"
   | "mobile-cta"
   | "vs-hub-hero"
   | "vs-hub-cta"
@@ -105,6 +114,9 @@ export type GithubLinkSource =
   | "connect-agents-hero"
   | "connect-agents-cta"
   | "token-usage-cta"
+  | "features-cta"
+  | "automations-cta"
+  | "parallel-cta"
   | "linux-host-cta"
   | "mobile-cta"
   | "vs-hero"
@@ -131,7 +143,13 @@ export function trackGithubVisit({
   });
 }
 
-export type AppStoreSource = "mobile-hero" | "mobile-cta";
+export type AppStoreSource =
+  | "mobile-hero"
+  | "mobile-cta"
+  | "home-devices"
+  | "home-hero"
+  | "features"
+  | "automations";
 
 export function trackAppStoreVisit(source: AppStoreSource): void {
   if (typeof window === "undefined" || !window.gtag) return;

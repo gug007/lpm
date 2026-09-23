@@ -90,8 +90,10 @@ shows it before the reader reaches the table. Nothing else moves.
 
 - eyebrow `cmux alternative · macOS`
 - H1 `A cmux alternative that runs Claude Code and Codex on whole projects.`
-- description = `DESCRIPTION` (the spec supplies one description string for this page; it
-  is reused here rather than inventing a second)
+- description (2026-09-23, replaces the reused meta `DESCRIPTION` so the hero has copy of
+  its own): "cmux is a programmable terminal for agents. lpm is the project they work in: it
+  starts the services, checks the ports, and can split the repo so each Claude Code or Codex
+  session edits its own checkout."
 - verdictLine `cmux owns the terminal. lpm owns the project the agents run inside.`
 - `jumpHref="#matrix"`, `jumpLabel="Jump to the row-by-row table"`
 - `downloadSource="vs-cmux-hero"`
@@ -148,11 +150,13 @@ brief's two strings per card were fitted to the component's three required field
 - the rows and the render moved into `_components/matrix.tsx` this pass, which is what
   `/vs/iterm2` already does; `page.tsx` drops from 399 lines to 294
 - title `cmux and lpm, row by row`
-- description "Sixteen rows. Three go to cmux — the browser it can script, the emulator
-  underneath it, and the longer list of agent CLIs it will launch for you." Sixteen is the
-  row count, three is the count of conceded rows, and naming them means no reader has to
-  reverse-engineer the arithmetic (R2)
-- 16 rows, full table in §4
+- description "Seventeen rows. Two go to cmux — the browser it can script and the emulator
+  underneath it." Seventeen is the row count since the 2026-09-23 PR row, two is the count
+  of conceded rows, and naming them means no reader has to reverse-engineer the arithmetic
+  (R2). The agent-CLI row stopped being a concession on 2026-09-23: the cmux README says any
+  agent that runs in a terminal works, and so does lpm — any CLI runs in a tab or as an
+  action — so the row is a tie; lpm's extra is presets for four.
+- 17 rows, full table in §4
 - footnote carries the two remaining in-body links (`/connect-ai-agents`,
   `/review-changes-in-terminal`) and now says whose rows they belong to — "Two of lpm's
   rows have a page behind them" — because the old wording, "Two of those rows", pointed
@@ -191,9 +195,12 @@ type union). Title `Questions about cmux and lpm` — the old title said "the ho
 
 ### Related pages (`components/related-pages.tsx`)
 
-Exactly five, per §6.1: `/best-terminal-for-claude-code-and-codex`,
+The five §6.1 assigns — `/best-terminal-for-claude-code-and-codex`,
 `/git-worktree-for-ai-agents`, `/connect-ai-agents`, `/review-changes-in-terminal`,
-`/vs/iterm2`.
+`/vs/iterm2` — plus `/mobile` ("Open a terminal tab running on your Mac, type into it, and
+get a push when Claude Code or Codex is waiting on you"), added 2026-09-23: the migrate
+section already promises "a push to your phone" for `lpm set-status`, and nothing linked the
+app that receives it. Six cards fill the `lg:grid-cols-3` row.
 
 ### CTA (`components/vs/cta.tsx`)
 
@@ -207,7 +214,7 @@ Exactly five, per §6.1: `/best-terminal-for-claude-code-and-codex`,
 | --------------- | ----------------------------------------------------------------------- |
 | Eyebrow         | `cmux alternative · macOS`                                              |
 | H1              | `A cmux alternative that runs Claude Code and Codex on whole projects.` |
-| Description     | `DESCRIPTION` (see §1)                                                  |
+| Description     | see §2 Hero (own string since 2026-09-23)                               |
 | Verdict line    | `cmux owns the terminal. lpm owns the project the agents run inside.`   |
 | Jump link       | `Jump to the row-by-row table` → `#matrix`                              |
 | Download source | `vs-cmux-hero`                                                          |
@@ -229,21 +236,23 @@ binding rule for an agent-query page; the retired copy said "AI Agents".
 | Ports checked before the stack starts        | ask, free, or fail per service                                                   | listening ports shown on the tab                                                         |
 | Saved commands for migrate, seed and lint    | a project button, or `lpm run`                                                   | actions and custom commands in `cmux.json`                                               |
 | Config that lives in the repo                | `.lpm.yml` you commit — services and profiles travel with the branch             | user-level `cmux.json`, plus `.cmux/cmux.json` per repo                                  |
-| Drafts the config from your repo             | your installed agent CLI reads package.json, Gemfile, compose files and Makefile | you write it                                                                             |
+| Drafts the config from your repo             | built in: package.json, Procfile, Gemfile, compose files and more, read when you add the repo; an AI redraft is optional | you write it |
 | Isolated checkout per agent                  | linked Git worktree or standalone copy                                           | not documented                                                                           |
 | Fan one prompt out to N agents               | 1–50 copies, the prompt queued on each                                           | no fan-out documented — one prompt per workspace                                         |
 | Reports agent status back to the app         | Claude Code and Codex, via hooks lpm installs                                    | agent hooks, `cmux notify`, notification panel                                           |
-| Agent CLIs it launches for you               | Claude Code, Codex, Gemini CLI, OpenCode                                         | the same four, plus Aider, Cline, Goose, Amp and anything you type in a tab              |
-| Review the diff before you keep it           | side-by-side diff pane                                                           | branch and PR status on the tab; no diff view documented                                 |
+| Agent CLIs it launches for you               | presets for Claude Code, Codex, Gemini CLI and OpenCode; any other CLI in a tab or as a one-click action | the same four, plus Aider, Cline, Goose, Amp and anything you type in a tab |
+| Review the diff before you keep it           | side-by-side diff pane | no diff view documented |
+| From changed files to an open pull request   | branch, commit, push and PR in one flow through the GitHub CLI, text drafted by your agent CLI; the PR link sits in the terminal footer | branch and linked PR status in the sidebar; opening a PR is not documented |
 | Scriptable from outside the app              | the lpm CLI, with `--json` on nearly every verb                                  | cmux CLI + Unix socket                                                                   |
 | Drive a browser from a script                | browser tabs, not scriptable                                                     | snapshot, click, type, evaluate JS                                                       |
 | Terminal-emulator quality                    | a terminal built for services and agents                                         | libghostty rendering, vertical tabs, splits                                              |
 | Work on a remote machine                     | SSH projects with port forwarding, or a paired Linux host driven from your Mac   | `cmux ssh user@remote`                                                                   |
 | License, and what a paid tier buys           | MIT, nothing to buy                                                              | GPL-3.0-or-later, commercial terms on request, a paid Founder's Edition for early access |
 
-**Conceded to cmux — three rows, and the matrix description names all three:** _Drive a
-browser from a script_, _Terminal-emulator quality_, _Agent CLIs it launches for you_. The
-first two are the "why people keep it as their terminal" pair.
+**Conceded to cmux — two rows, and the matrix description names both:** _Drive a browser
+from a script_ and _Terminal-emulator quality_, the "why people keep it as their terminal"
+pair. _Agent CLIs it launches for you_ was the third until 2026-09-23; it is now a tie (see
+§2 Feature matrix).
 
 The earlier count of four also claimed _Work on a remote machine_. It is not a concession:
 lpm's cell in that row describes an SSH project with port forwarding **and** a paired Linux
@@ -306,7 +315,7 @@ switching whole projects."
 
 1. You want the whole project to come up with the agent: services, profiles, a port check at start, and a diff pane before you keep anything.
 2. You keep several repos in play at once and want one window that already knows each one's services and which agents are busy in it. _(re-voiced this pass: the old line, inherited from the retired page, shared a run with `/vs/tmux`)_
-3. You would rather the agent CLI already on your machine wrote the first draft of the service list, and you pruned what it got wrong. _(re-voiced: the old line shared "Claude Code or Codex to draft the" with `/vs/pm2`)_
+3. You want lpm to list the services as the repo is added, with an agent CLI on hand for a second draft. _(2026-09-23: rewritten — the first draft is built in now, `detect/mod.rs:1-4`)_
 4. You want the services in a file the branch carries, so a teammate on that branch gets the same stack.
 5. You fan one prompt out to several copies of the repo, each agent on its own checkout.
 
@@ -335,7 +344,7 @@ All six answers are plain strings, so `FaqItem`'s union needs no `answerText`.
 2. **Is cmux free and open source?** — Yes. cmux ships under GPL-3.0-or-later; its repository adds that commercial terms may be available where the GPL will not do, and that a paid Founder's Edition buys early access to features still in progress. lpm is MIT and has nothing to buy. Cost is not the reason to choose between them.
 3. **Can I run several Claude Code or Codex agents at once?** — In cmux each agent gets its own tab, so two agents in the same folder still edit the same files. lpm splits the repo first — up to 50 copies at a time, each one a linked worktree on a branch of its own or a full folder copy that keeps its Git history — and queues the same prompt in every copy, with working, needs you, done or a problem on the agent tab that owns it. What the copies still share is ports and databases.
 4. **Can lpm and cmux run side by side?** — Yes, and it is a reasonable setup. cmux configures your terminal; lpm describes your projects. Neither reads the other's config.
-5. **How do I move a cmux setup to lpm?** — There is nothing to convert: cmux.json describes your terminal, not your stack. Add the folder in lpm, then hit Generate with AI in its config editor — the Claude Code or Codex you already have reads the repo, compose file included, and drafts the services for you to prune. A command you kept as a cmux action becomes an lpm action: one click, or lpm run.
+5. **How do I move a cmux setup to lpm?** — There is nothing to convert: cmux.json describes your terminal, not your stack. Add the folder in lpm and it lists the services it finds in the repo — package.json scripts, a Procfile or Gemfile, compose files — for you to prune, with Generate with AI in the config editor if you want another draft. A command you kept as a cmux action becomes an lpm action: one click, or lpm run. (2026-09-23: this is the FAQPage JSON-LD text too.)
 6. **Does lpm need tmux?** — No — and cmux does not need it either. lpm never puts your services inside tmux and does not require it on the machine: the services keep running when you quit lpm, reopening the app picks them up again, and there is no .tmux.conf anywhere in that.
 
 **Rewritten against the source this pass, not kept as the spec wrote them:**
@@ -370,9 +379,9 @@ Rust and `desktop/frontend/src/` for TypeScript, spelled out per row.
 | Declared ports are checked before a project starts, with an ask / free / fail policy per service, and the holding process named                                                                   | matrix row 3; QuickAnswer; FanOut honesty panel; verdict card                                        | `desktop/frontend/src-tauri/src/ports.rs:1-8`, `:26`; `desktop/frontend/src-tauri/src/config.rs:574-577`                                                                                                                                                                                                                                                                                                                                                            |
 | A saved command is a button in the project, or `lpm run`; a copy of the project inherits its parent's actions                                                                                     | matrix row 4; Migrate row 5 and its note                                                             | `desktop/frontend/src/components/ActionButton.tsx:1-13`; `cli/src/main.rs:320-338`; `desktop/frontend/src-tauri/src/config.rs:1549-1552` ("resolve_actions already inherits actions from the parent")                                                                                                                                                                                                                                                               |
 | A committed `.lpm.yml` carries services and profiles with the branch                                                                                                                              | matrix row 5; Migrate lead + right CodeBlock; WhenToPick 4                                           | `desktop/frontend/src-tauri/src/config.rs:1508-1520` (`load_repo_yaml`), `:1523-1546` (`merge_repo_services_profiles`)                                                                                                                                                                                                                                                                                                                                              |
-| Your installed agent CLI drafts the config by reading package.json, Gemfile, compose files and Makefile; the config editor's button starts the run                                                | matrix row 6; FAQ 5; WhenToPick 3; Cta                                                               | `desktop/frontend/src-tauri/src/aigen.rs:1-6`, `:32-40`, `:1028`; `desktop/frontend/src/components/ConfigEditor.tsx:182-183` (button reads "Generate with AI")                                                                                                                                                                                                                                                                                                      |
-| A copy per agent is either a linked worktree branched off where the code stands now, or a straight copy of the folder that keeps its own Git history                                              | matrix row 7; QuickAnswer; FanOut cards; FAQ 3                                                       | worktree: `desktop/frontend/src-tauri/src/projects_crud.rs:514-522` (`git worktree add -b <branch> <root> HEAD`); standalone: `:754-759` (`cp_clone` of the whole tree, then `.git/worktrees` registrations dropped, so the copy is its own repository)                                                                                                                                                                                                             |
-| A worktree carries tracked files only — neither `.env` nor installed dependencies — and **Install dependencies** is the switch that adds them                                                     | FanOut card 1                                                                                        | `desktop/frontend/src-tauri/src/projects_crud.rs:514-522` (tracked files only, via `git worktree add`), `:835-841` (`reinstall_deps` → `run_install`); `desktop/frontend/src/components/BulkDuplicateDialog.tsx:925-935` — the switch is titled "Install dependencies" for a worktree and "Reinstall dependencies" for a standalone copy, which is the wording the card uses                                                                                        |
+| lpm drafts the service list itself when the repo is added (matrix "built in: package.json, Procfile, Gemfile, compose files and more, read when you add the repo; an AI redraft is optional", FAQ 5, WhenToPick 3, CTA "Add a repo, let lpm list its services") | matrix row 6; FAQ 5; WhenToPick 3; Cta | `desktop/frontend/src-tauri/src/projects_crud.rs:48-67`, `:93`, `:261`; `detect/mod.rs:1-4` (no AI, no network), `:111-130`; `detect/stacks.rs:21-39` (Procfile), `:41-52` (Gemfile), `:169-179` (compose); `desktop/frontend/src/store/adoptProject.ts:41` (toast). Redraft: `aigen.rs:33-41`, `ConfigEditor.tsx:183` ("Generate with AI") |
+| A copy per agent is either a linked worktree branched off the current commit (was "where the code stands now", which implied uncommitted edits come along), or a straight copy of the folder that keeps its own Git history                                              | matrix row 7; QuickAnswer; FanOut cards; FAQ 3                                                       | worktree: `desktop/frontend/src-tauri/src/projects_crud.rs:514-522` (`git worktree add -b <branch> <root> HEAD`); standalone: `:754-759` (`cp_clone` of the whole tree, then `.git/worktrees` registrations dropped, so the copy is its own repository)                                                                                                                                                                                                             |
+| A worktree carries tracked files only — neither `.env` nor `node_modules` — and flipping on **Install dependencies** runs npm, yarn, pnpm or bun install in each copy | FanOut card 1 | `projects_crud.rs:828` (`create_linked_worktree`), `:851-854` (`reinstall_deps` → `package_manager_of` → `run_install`); `detect/node.rs:123-127` (only when `package.json` exists), `:77-84` (the four install commands); `BulkDuplicateDialog.tsx:937` ("Install dependencies" for a worktree). 2026-09-23: "installed dependencies" narrowed — nothing but Node packages is ever installed. |
 | Two agents can attempt the same branch in standalone copies                                                                                                                                       | FanOut card 2                                                                                        | `desktop/frontend/src-tauri/src/projects_crud.rs:747-759` — an independent repository per copy, so Git's one-checkout-per-branch rule does not apply                                                                                                                                                                                                                                                                                                                |
 | 1–50 copies, with the prompt queued on each                                                                                                                                                       | matrix row 8; QuickAnswer CodeBlock; FanOut body; verdict card; FAQ 3                                | `desktop/frontend/src/components/BulkDuplicateDialog.tsx:41-42` (`MAX_COUNT = 50`); `cli/src/main.rs:242-246`, `:260-262`, `:281-285`, `:300-302`; `desktop/frontend/src-tauri/src/socketsrv.rs:15-18`                                                                                                                                                                                                                                                              |
 | Every copy inherits the project's services and actions                                                                                                                                            | FanOut body                                                                                          | `desktop/frontend/src-tauri/src/config.rs:1548-1576` (`merge_parent_services_profiles`; the doc comment records that actions already inherit)                                                                                                                                                                                                                                                                                                                       |
@@ -535,3 +544,24 @@ reader can check, and none of them softens a concession.
   word takes that line to 40 characters at 84px, level with the longest line in the cluster,
   so the risk of clipping the image outweighs the parity. `alt` and both title strings match
   the H1 verbatim.
+
+## Truth pass, 2026-09-23
+
+| Claim as it ships | Where | Source |
+| --- | --- | --- |
+| "presets for Claude Code, Codex, Gemini CLI and OpenCode; any other CLI in a tab or as a one-click action" | matrix, Agent CLIs row | presets: `desktop/frontend/src-tauri/src/firstlaunch.rs:22-36` (Claude and Codex seeded as global actions), `desktop/frontend/src/components/project-detail/useProjectSuggestions.ts:47-66` (Gemini CLI and OpenCode suggested when on PATH); any CLI: an action is a free `cmd` string (`config.rs:569-582`) and a terminal tab is a login shell |
+| "branch, commit, push and PR in one flow through the GitHub CLI, text drafted by your agent CLI; the PR link sits in the terminal footer" | matrix, PR row (new) | `desktop/frontend/src/autoPR.ts:3-33` (`branch → commit → push → pr` steps; `generateBranchName`, `generateCommitMessage`, `generatePRTitle`, `generatePRDescription`), `desktop/frontend/src/components/AutoPRModal.tsx:160-173` (generators take the chosen agent `cli`; `CreatePullRequest`), `desktop/frontend/src-tauri/src/git.rs:1352`, `:1374` (`gh`); footer link: `desktop/frontend/src/components/TerminalFooter.tsx:59` (`BranchPrLink`) |
+| cmux: "branch and linked PR status in the sidebar; opening a PR is not documented" | matrix, PR row | the cmux README — "Sidebar shows git branch, linked PR status/number, working directory, listening ports, and latest notification text"; no PR-creation, commit or push command is documented (re-read 2026-09-23) |
+| "Open a terminal tab running on your Mac, type into it, and get a push when Claude Code or Codex is waiting on you" | RelatedPages `/mobile` card | `mobile/` (lpm Link: live terminal mirroring with a keyboard); push for needs-you comes from the same agent-status hooks, which exist for Claude Code and Codex only (`hooks.rs:1-9`) |
+| Hero: "it starts the services, checks the ports, and can split the repo so each Claude Code or Codex session edits its own checkout" | hero description | `services.rs:1-7`; `ports.rs:1-8`; `projects_crud.rs:828` (worktree), `BulkDuplicateDialog.tsx:42` (`MAX_COUNT = 50`) |
+
+Counts after this pass: **seventeen rows, two to cmux** — matrix description only (no other
+surface on this page repeats the number). Also rewritten because detection made them false:
+the matrix drafting cell, FAQ 5 (and its JSON-LD), WhenToPick bullet 3 and the CTA ("Add a
+repo, let lpm list its services, and keep cmux open beside it").
+
+## Verifier pass — 2026-09-23
+
+- Verdict "The project": "read working, needs you, done or a problem off each agent's own tab" → "…off each Claude Code or Codex tab". Only those two CLIs get status hooks (`hooks.rs:1-9`); Gemini CLI and OpenCode launch from presets but report nothing.
+- QuickAnswer: the worktree is "branched off the current commit" (`projects_crud.rs:564-577`, `git worktree add -b <branch> <root> HEAD`) — uncommitted edits stay behind; the standalone copy is the one that takes the folder as it sits on disk (`projects_crud.rs:464-487` `cp_clone`).
+- cmux README re-read 2026-09-23: GPL-3.0-or-later, commercial terms "may be available", Founder's Edition for early access; sidebar shows "git branch, linked PR status/number, working directory, listening ports"; no PR creation documented; browser pane can "snapshot the DOM, click, type, evaluate JavaScript"; `cmux ssh user@remote`; libghostty + Ghostty config; tmux optional (`cmux local-tmux`).

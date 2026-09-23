@@ -121,7 +121,7 @@ function EmptyTerminals({ onNewTerminal }: { onNewTerminal: () => void }) {
           <Terminal className="h-[26px] w-[26px]" strokeWidth={1.5} />
         </span>
         <div className="flex flex-col items-center gap-1.5">
-          <h3 className="text-sm font-medium text-[#e5e5e5]">No terminals yet</h3>
+          <p className="text-sm font-medium text-[#e5e5e5]">No terminals yet</p>
           <p className="text-xs leading-relaxed text-[#919191]">
             Quick shells for scripts, system commands, and anything that isn&apos;t tied to a
             single project.

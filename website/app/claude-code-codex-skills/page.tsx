@@ -5,9 +5,7 @@ import {
   Check,
   Code2,
   Gauge,
-  Layers,
   PencilLine,
-  Plus,
   Sparkles,
   Terminal,
 } from "lucide-react";
@@ -16,7 +14,9 @@ import { RelatedPages } from "@/components/related-pages";
 import { SectionHeader } from "@/components/section-header";
 import {
   AI_AGENTS_PATH,
+  CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
+  FEATURES_PATH,
   SKILLS_PATH,
   STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
@@ -29,10 +29,19 @@ import {
 import Cta from "./_components/cta";
 import DialogPreview from "./_components/dialog-preview";
 import Faq from "./_components/faq";
+import {
+  BENEFITS,
+  CLAUDE_ITEMS,
+  CLAUDE_SKILLS_DOCS,
+  CODEX_ITEMS,
+  CODEX_SKILLS_DOCS,
+  STEPS,
+} from "./_components/skills-data";
+import ToolkitOverview from "./_components/toolkit-overview";
 
 const TITLE = "Create & Edit Claude Code and Codex Skills";
 const DESCRIPTION =
-  "Create and edit Claude Code and Codex skills visually in lpm for macOS. Describe the task, let AI draft the SKILL.md, choose who runs it, and see what every skill costs in context.";
+  "Create and edit Claude Code and Codex skills in lpm for Mac: AI drafts the SKILL.md, you pick who runs it, and every skill shows its per-turn context cost.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -54,7 +63,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "Use lpm to create and edit Claude Code and Codex skills with AI drafting, run modes, and per-skill context cost.",
+      "Create and edit Claude Code and Codex skills with AI drafting, run modes, per-skill context cost, and a view of everything each CLI loads.",
     type: "website",
     url: SKILLS_PATH,
     siteName: "lpm",
@@ -82,49 +91,10 @@ const structuredData = [
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "lpm skill editor",
+      name: "Claude Code & Codex Skills",
       path: SKILLS_PATH,
     },
   ]),
-];
-
-const benefits = [
-  {
-    icon: Sparkles,
-    title: "Describe it, AI drafts it",
-    copy: "Type one sentence about the task. lpm reads your repository and drafts the name, description, and instructions to match how your project actually works. Nothing is saved until you click Create.",
-  },
-  {
-    icon: PencilLine,
-    title: "Edit without breaking files",
-    copy: "Reopen any skill — including ones you wrote by hand — and change its description, instructions, or who runs it. lpm rewrites only the fields you touched and leaves everything else exactly as it was.",
-  },
-  {
-    icon: Gauge,
-    title: "See what skills cost",
-    copy: "Skill descriptions are loaded before every turn; instructions only when a skill runs. lpm estimates both, so you know which skills are cheap to keep and which deserve a manual-only switch.",
-  },
-];
-
-const steps = [
-  {
-    step: "01",
-    icon: Layers,
-    title: "Open Skills & tools",
-    copy: "Press ⌘⇧K in any project, or pick Skills & tools from the ˅ menu beside the terminal tabs. lpm scans every folder Claude Code and Codex read skills from and lists what it finds.",
-  },
-  {
-    step: "02",
-    icon: Plus,
-    title: "Create a new skill",
-    copy: "Click New skill, describe the task, and let AI draft the fields — or fill in the name, description, and instructions yourself.",
-  },
-  {
-    step: "03",
-    icon: PencilLine,
-    title: "Refine as you go",
-    copy: "Pick who runs it and press Create. Reopen the same dialog any time to edit, and deleted skills go to the Trash — never gone for good.",
-  },
 ];
 
 export default function ClaudeCodeCodexSkillsPage() {
@@ -146,9 +116,10 @@ export default function ClaudeCodeCodexSkillsPage() {
             <span className="block">Without hand-writing SKILL.md.</span>
           </h1>
           <p className="mx-auto mt-5 max-w-3xl text-pretty text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
-            lpm scans every folder your agents read skills from, shows what each
-            skill costs in context, and gives you one dialog to create and edit
-            them — with AI drafting the fields from a plain-English description.
+            lpm lists the skills Claude Code and Codex load in each project,
+            shows what each one costs in context, and gives you one dialog to
+            create and edit them, with AI drafting the fields from a
+            plain-English description.
           </p>
           <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-2">
@@ -157,7 +128,7 @@ export default function ClaudeCodeCodexSkillsPage() {
             </span>
             <span className="inline-flex items-center gap-2">
               <PencilLine className="h-3.5 w-3.5" aria-hidden />
-              Edit any skill in place
+              Edit skills in place
             </span>
             <span className="inline-flex items-center gap-2">
               <Gauge className="h-3.5 w-3.5" aria-hidden />
@@ -187,8 +158,8 @@ export default function ClaudeCodeCodexSkillsPage() {
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
             eyebrow="One dialog, both CLIs"
-            title="Skills live in folders — lpm knows them all"
-            description="Claude Code and Codex each read skills from their own places. lpm scans every root, shows what is installed for each CLI, and writes new skills where the CLI you pick will read them."
+            title="Skills live in folders — lpm keeps track of them"
+            description="Claude Code and Codex each read skills from their own folders. lpm lists the skills in each one, plugin skills included, and writes new skills where the CLI you pick will read them."
           />
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -211,12 +182,7 @@ export default function ClaudeCodeCodexSkillsPage() {
                 if you had written it by hand.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                {[
-                  "Personal skills in ~/.claude/skills, project skills next to your code",
-                  "Auto-run when the description matches, or manual-only on request",
-                  "Manual-only skills stay out of context entirely — zero tokens up front",
-                  "Per-skill estimates of what each description costs every turn",
-                ].map((item) => (
+                {CLAUDE_ITEMS.map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <Check
                       className="mt-0.5 h-4 w-4 shrink-0 text-[#D97757]"
@@ -227,7 +193,7 @@ export default function ClaudeCodeCodexSkillsPage() {
                 ))}
               </ul>
               <a
-                href="https://code.claude.com/docs/en/skills"
+                href={CLAUDE_SKILLS_DOCS}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-7 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gray-800 transition hover:text-[#B75F40] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-200 dark:hover:text-[#F09978] dark:focus-visible:ring-white"
@@ -256,12 +222,7 @@ export default function ClaudeCodeCodexSkillsPage() {
                 other agent CLIs read too.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                {[
-                  "Skills in ~/.codex/skills, plus the shared ~/.agents/skills folder",
-                  "Invoked with $name — lpm shows the right token for each folder",
-                  "Manual-only supported here too, kept out of context until you call it",
-                  "Descriptions validated against what both CLIs actually accept",
-                ].map((item) => (
+                {CODEX_ITEMS.map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <Check
                       className="mt-0.5 h-4 w-4 shrink-0 text-[#10A37F]"
@@ -272,12 +233,12 @@ export default function ClaudeCodeCodexSkillsPage() {
                 ))}
               </ul>
               <a
-                href="https://learn.chatgpt.com/docs/codex/cli"
+                href={CODEX_SKILLS_DOCS}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-7 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gray-800 transition hover:text-[#087A5E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-200 dark:hover:text-[#4FD1AB] dark:focus-visible:ring-white"
               >
-                OpenAI Codex CLI docs
+                Codex skills docs
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
             </article>
@@ -292,7 +253,7 @@ export default function ClaudeCodeCodexSkillsPage() {
             title="Skills should be easy to write and cheap to keep"
           />
           <div className="grid gap-5 md:grid-cols-3">
-            {benefits.map(({ icon: Icon, title, copy }) => (
+            {BENEFITS.map(({ icon: Icon, title, copy }) => (
               <article
                 key={title}
                 className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151515]"
@@ -319,7 +280,7 @@ export default function ClaudeCodeCodexSkillsPage() {
             title="From idea to installed skill in a minute"
           />
           <div className="grid gap-5 md:grid-cols-3">
-            {steps.map(({ step, icon: Icon, title, copy }) => (
+            {STEPS.map(({ step, icon: Icon, title, copy }) => (
               <article
                 key={step}
                 className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151515]"
@@ -342,21 +303,35 @@ export default function ClaudeCodeCodexSkillsPage() {
         </div>
       </section>
 
+      <ToolkitOverview />
+
       <Faq />
 
       <RelatedPages
         links={[
           {
             href: STATUSLINE_PATH,
-            title: "Claude Code & Codex statusline customization",
+            title: "Claude Code & Codex statusline editor",
             description:
-              "Pick presets, reorder fields, tune colors and meters, and preview the statusline live.",
+              "Pick presets, reorder fields, tune colors and meters, and watch the statusline update live.",
+          },
+          {
+            href: CLAUDE_ACCOUNTS_PATH,
+            title: "Multiple Claude Code accounts",
+            description:
+              "Pin an account to each project; skills, subagents and commands are shared across all of them.",
           },
           {
             href: TOKEN_USAGE_PATH,
-            title: "Claude Code & Codex token usage in lpm",
+            title: "Claude Code & Codex usage and limits",
             description:
-              "Track tokens, estimated cost, cache usage, models, projects, and sessions in a private Mac dashboard.",
+              "Tokens and cost by project, plus live 5-hour and weekly limit meters, in a private Mac app.",
+          },
+          {
+            href: CONNECT_AGENTS_PATH,
+            title: "Connect agents to your dev environment",
+            description:
+              "Give Claude Code and Codex tools to run services, inspect logs, and work across project copies.",
           },
           {
             href: AI_AGENTS_PATH,
@@ -365,10 +340,10 @@ export default function ClaudeCodeCodexSkillsPage() {
               "Run multiple AI coding agents while every project, service, and terminal stays visible.",
           },
           {
-            href: CONNECT_AGENTS_PATH,
-            title: "Connect agents to your dev environment",
+            href: FEATURES_PATH,
+            title: "Everything lpm does",
             description:
-              "Give Claude Code and Codex tools to run services, inspect logs, and work across project copies.",
+              "Every panel in the app, from services and review to automations and remote machines, on one page.",
           },
         ]}
       />

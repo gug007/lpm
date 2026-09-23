@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { MOBILE_PATH, PRIVACY_PATH, REPO_URL } from "@/lib/links";
 
+const DESCRIPTION =
+  "Privacy policy for lpm: what the Mac app, the lpm Link iPhone app, and the lpm.cx website collect, how optional push notifications work, and your rights.";
+
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description:
-    "Privacy policy for lpm — what data the website and software collect, how it's used, and your rights.",
+  description: DESCRIPTION,
   alternates: {
     canonical: PRIVACY_PATH,
   },
   openGraph: {
     title: "Privacy Policy",
-    description:
-      "Privacy policy for lpm — what data the website and software collect, how it's used, and your rights.",
+    description: DESCRIPTION,
     type: "website",
     url: PRIVACY_PATH,
     siteName: "lpm",
@@ -20,8 +21,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Privacy Policy",
-    description:
-      "Privacy policy for lpm — what data the website and software collect, how it's used, and your rights.",
+    description: DESCRIPTION,
   },
 };
 
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Last updated: August 13, 2026
+        Last updated: September 23, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -41,10 +41,11 @@ export default function PrivacyPage() {
         </h2>
         <p>
           lpm is an open-source project. The <strong>software itself</strong>{" "}
-          (the macOS desktop app and the lpm Link iOS app) runs entirely on your
-          machine. It does not collect, transmit, or share any personal data,
-          telemetry, or usage information. The single exception is iPhone push
-          notifications, which you have to turn on yourself — described below.
+          (the macOS desktop app and the lpm Link iOS app) runs on your own
+          machines. It does not collect, transmit, or share any personal data,
+          telemetry, or usage information. Two things reach the network on
+          their own: the desktop app&rsquo;s update check and, if you pair an
+          iPhone, push notifications. Both are described below.
         </p>
         <p>
           This <strong>website</strong> (lpm.cx) uses a small amount of
@@ -63,8 +64,19 @@ export default function PrivacyPage() {
             All project configuration and state stays on your local machine.
           </li>
           <li>
-            <strong>Push notifications are the one exception</strong>, and only
-            if you pair an{" "}
+            <strong>Update checks</strong>: the Mac app asks GitHub&rsquo;s
+            releases API for the latest version at launch and every 24 hours.
+            Updates, and the lpm build a Linux server installs when you add it
+            as a host, download from GitHub Releases.
+          </li>
+          <li>
+            <strong>AI features</strong> (commit and pull request text,
+            Generate with AI, prompt rewrites) run through the agent CLI you
+            installed, under your own account, so that provider receives what
+            you send it. lpm hosts no model of its own.
+          </li>
+          <li>
+            <strong>Push notifications</strong> are sent only if you pair an{" "}
             <Link
               href={MOBILE_PATH}
               className="underline hover:text-gray-900 dark:hover:text-gray-100"
@@ -73,11 +85,11 @@ export default function PrivacyPage() {
             </Link>
             . Apple requires a signing key to deliver them, so those
             notifications are relayed through a server we run. The contents are
-            sealed on your Mac and can only be opened by your iPhone — we can
-            see that a notification was relayed and to which device, never what
-            it says. Nothing else leaves your machine: terminal output,
-            keystrokes, diffs, and files go straight from your Mac to your
-            phone.
+            sealed on your Mac (or the Linux server your phone is paired with)
+            and can only be opened by your iPhone — we can see that a
+            notification was relayed and to which device, never what it says.
+            Terminal output, keystrokes, diffs, and files go straight from your
+            Mac to your phone.
           </li>
           <li>
             Source code is available at{" "}
@@ -99,13 +111,15 @@ export default function PrivacyPage() {
         <ul className="list-disc pl-5 space-y-1">
           <li>No analytics, tracking, or telemetry. No data is collected.</li>
           <li>
-            The app communicates only with your own Mac running lpm, over your
-            local network or your private Tailscale network. Nothing is sent to
-            any server we control.
+            The app talks only to the machines you pair it with, meaning your
+            Mac or a Linux server running lpm, over whatever route reaches them
+            (your home network, Tailscale, or an address you enter). Nothing is
+            sent to any server we control.
           </li>
           <li>
-            Camera access is used solely to scan the pairing QR code shown by
-            lpm on your Mac.
+            Camera access is used to scan the pairing QR code and, when you tap
+            Take Photo, to attach a photo to a prompt or a project note. Photos
+            go only to the Mac or server you paired with.
           </li>
           <li>
             The pairing credential is stored in the iOS Keychain on your device.

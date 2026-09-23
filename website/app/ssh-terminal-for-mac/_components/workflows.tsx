@@ -19,11 +19,10 @@ const WORKFLOWS: Workflow[] = [
         from <code className="text-xs">~/.ssh/config</code> and the form fills
         itself while preserving the <code className="text-xs">devbox</code>{" "}
         alias, so OpenSSH still applies the{" "}
-        <code className="text-xs">ProxyJump</code> rule. The first ssh
-        invocation prompts for your bastion 2FA once; from then on, the
-        multiplexed channel stays open and every service, action, and terminal
-        reuses it. You&rsquo;re inside the dev box without typing a host, a
-        user, a port, or a key path.
+        <code className="text-xs">ProxyJump</code> rule. The first connection
+        prompts for your bastion 2FA once; from then on, every service, action,
+        and terminal reuses it. You&rsquo;re inside the dev box without typing
+        a host, a user, a port, or a key path.
       </>
     ),
   },
@@ -34,13 +33,13 @@ const WORKFLOWS: Workflow[] = [
         Your local <code className="text-xs">frontend</code> and{" "}
         <code className="text-xs">api</code> are streaming logs in two panes. A
         bug needs to ship to staging fast. Open the staging project (already
-        configured against the remote host), run{" "}
-        <code className="text-xs">migrate</code> as an action with{" "}
-        <code className="text-xs">mode: remote</code>, and watch the staging API
-        pane stream the deploy output. Forward the staging API port to localhost
-        from the Ports popover to verify the fix in your browser. Your local
-        panes never stopped — when you&rsquo;re done, click back to the local
-        project and pick up exactly where you were.
+        configured against the remote host) and click your{" "}
+        <code className="text-xs">migrate</code> action. On an SSH project,
+        actions run on the remote host by default, so the staging API pane
+        streams the output. Forward the staging API port to localhost from the
+        Ports popover to verify the fix in your browser. Your local project
+        kept running the whole time; click back to it and pick up exactly where
+        you were.
       </>
     ),
   },
@@ -71,8 +70,8 @@ export default function Workflows() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="In practice"
-          title="Three real remote-dev scenarios your Mac terminal should make trivial"
-          description="Three concrete moments where the local-vs-remote split costs real time — and how lpm collapses them into one window."
+          title="Three remote-dev scenarios your Mac terminal should make trivial"
+          description="Three moments where the local-vs-remote split costs real time, and how lpm keeps them in one app."
         />
 
         <div className="space-y-12">

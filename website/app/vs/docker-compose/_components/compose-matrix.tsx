@@ -70,8 +70,8 @@ const ROWS: MatrixRow[] = [
     competitor: "docker-compose.yml",
   },
   {
-    label: "Spots your compose file and offers to run it",
-    lpm: "suggests a docker compose up -d action",
+    label: "Turns your compose file into something it runs",
+    lpm: "adds docker compose up as a service when you add the folder",
     competitor: "that file is compose's own input",
   },
   {
@@ -81,7 +81,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Free to use inside a large company",
-    lpm: "MIT, always",
+    lpm: "MIT, at any company size",
     competitor:
       "Compose is Apache-2.0; Docker Desktop needs a paid subscription above Docker's size threshold",
   },
@@ -105,7 +105,7 @@ export function ComposeMatrix() {
           then tells you which process is holding it. A linked worktree starts
           from the tracked files only: an ignored{" "}
           <code className="font-mono text-xs">.env</code>{" "}
-          is not in it, and dependencies are installed only if you turn on
+          is not in it, and Node packages are installed only if you turn on
           Install dependencies.{" "}
           <Link
             href={WORKTREE_AGENTS_PATH}

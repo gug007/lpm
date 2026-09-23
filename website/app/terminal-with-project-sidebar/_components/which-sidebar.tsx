@@ -19,7 +19,7 @@ const ANSWERS: {
     verdict: "no",
     label: "No",
     title: "A file explorer or file tree",
-    body: "Rows are projects, not paths. The sidebar lists projects and stops there — no row expands into src/ and none of them previews a file. Files are one level in: open the project for lpm's diff and file views, or open its folder in Finder or your editor. Browsing a tree is your editor's job; lpm sits beside it rather than replacing it.",
+    body: "Rows are projects, not paths. The sidebar lists projects and stops there — no row expands into src/ and none of them previews a file. Files are one level in: open the project's Files tab (⌘⇧E) for a tree and a light editor, its Changes view for diffs, or send the folder to your editor.",
   },
   {
     verdict: "no",

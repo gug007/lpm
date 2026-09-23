@@ -13,9 +13,9 @@ const WORKFLOWS: Workflow[] = [
         Claude Code just refactored your billing module across eight files. Open
         the review pane with{" "}
         <code className="text-xs">⌘⇧R</code>, walk the diff file by file, and
-        catch the one place it dropped a null check. Fix it in the editor pane
-        beside the diff, then commit — all without leaving the agent&rsquo;s
-        window.
+        catch the one place it dropped a null check. Fix the line right in the
+        diff, save with ⌘S, and commit from the Commit dialog, all without
+        leaving the agent&rsquo;s window.
       </>
     ),
   },
@@ -23,9 +23,8 @@ const WORKFLOWS: Workflow[] = [
     title: "Read your own diff before every commit",
     body: (
       <>
-        You&rsquo;ve been heads-down for an hour. Before you{" "}
-        <code className="text-xs">git commit</code>, open the review pane and
-        actually read what you&rsquo;re about to ship. The stray{" "}
+        You&rsquo;ve been heads-down for an hour. Before you commit, open the
+        review pane and actually read what you&rsquo;re about to ship. The stray{" "}
         <code className="text-xs">console.log</code>, the commented-out block,
         the file you didn&rsquo;t mean to touch — you see them here, not in code
         review tomorrow.
@@ -52,7 +51,7 @@ export default function Workflows() {
         <SectionHeader
           eyebrow="In practice"
           title="When reviewing changes in the terminal actually pays off"
-          description="Three moments where jumping to a separate diff tool costs real time — and how lpm keeps the review right where the work is."
+          description="Three moments where jumping to a separate diff tool costs real time, and how lpm keeps the review right where the work is."
         />
 
         <div className="space-y-12">

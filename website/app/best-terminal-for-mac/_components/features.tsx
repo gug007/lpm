@@ -1,22 +1,27 @@
 import {
+  AppWindow,
   Cpu,
   FolderKanban,
+  FolderTree,
   GitBranch,
+  Globe,
   LayoutGrid,
-  Moon,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
-import { PROJECT_SIDEBAR_PATH } from "@/lib/links";
+import { GIT_TERMINAL_MAC_PATH, PROJECT_SIDEBAR_PATH } from "@/lib/links";
 
 type Feature = {
   icon: LucideIcon;
   title: string;
   body: React.ReactNode;
 };
+
+const LINK =
+  "font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100";
 
 const FEATURES: Feature[] = [
   {
@@ -47,26 +52,45 @@ const FEATURES: Feature[] = [
     body: (
       <>
         Every project sits in a{" "}
-        <Link
-          href={PROJECT_SIDEBAR_PATH}
-          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
-        >
+        <Link href={PROJECT_SIDEBAR_PATH} className={LINK}>
           sidebar with live state
         </Link>
-        . Click to jump to a running stack, or start a fresh one. No more{" "}
-        <code className="text-xs">cd ~/code/long/path</code>, no more
-        &ldquo;which Terminal.app window was that?&rdquo;.
+        . Click one, press ⌘1–⌘9, or hold Ctrl and tap Tab for the ones you
+        used last. No more <code className="text-xs">cd ~/code/long/path</code>
+        {", "}no more &ldquo;which Terminal.app window was that?&rdquo;.
       </>
     ),
   },
   {
     icon: Zap,
-    title: "One-command full-stack start",
+    title: "One-click full-stack start",
     body: (
       <>
-        Define your services once, then start the entire stack with a single
-        click. lpm can generate the config for you with AI the first time you
-        open a project — Rails, Next.js, Go, Django, Flask, or Docker Compose.
+        One click starts the whole stack. lpm sets it up from the files already
+        in your repo, whether Rails, Next.js, Django, Go, Laravel or Docker
+        Compose, and the config editor can have AI refine it.
+      </>
+    ),
+  },
+  {
+    icon: FolderTree,
+    title: "A Files tab in the same pane",
+    body: (
+      <>
+        ⌘⇧E opens a folder tree beside your shells, ⌘P jumps to any file by
+        name, and the editor saves with ⌘S. Markdown renders the way GitHub
+        shows it, and images preview inline.
+      </>
+    ),
+  },
+  {
+    icon: Globe,
+    title: "A browser tab next to your shells",
+    body: (
+      <>
+        Open a web page as a tab beside your terminals, with an address bar,
+        back, forward, and reload. A quick look at localhost without switching
+        windows; your real browser is still one click away.
       </>
     ),
   },
@@ -75,20 +99,24 @@ const FEATURES: Feature[] = [
     title: "Great git terminal on macOS",
     body: (
       <>
-        Pair lpm with your favorite shell — zsh, bash, or fish — and run every
-        git workflow inside a pane that also shows your dev servers. Commit,
-        push, and watch CI logs without leaving the window.
+        Run every git command in your own shell, or use the branch switcher in
+        the footer, commit with an AI-drafted message, and open a pull request
+        from the same window. More on lpm as a{" "}
+        <Link href={GIT_TERMINAL_MAC_PATH} className={LINK}>
+          git terminal for Mac
+        </Link>
+        .
       </>
     ),
   },
   {
-    icon: Moon,
-    title: "Dark mode, Finder-native feel",
+    icon: AppWindow,
+    title: "Plays well with your other apps",
     body: (
       <>
-        Respects the system theme, matches macOS window chrome, and opens
-        folders straight in Finder. Feels like it was built on the Mac,
-        because it was.
+        Open any project in Cursor, VS Code, Zed, Xcode, WebStorm, iTerm,
+        Ghostty, Warp, or Finder with one click; only the apps you have are
+        listed. Pick a light or dark theme, or let it follow macOS.
       </>
     ),
   },
@@ -101,7 +129,7 @@ export default function Features() {
         <SectionHeader
           eyebrow="Inside the app"
           title="A Mac-native terminal workspace, not another tab strip"
-          description="Six reasons developers choose lpm as a terminal workspace for Mac."
+          description="What you get beyond a single shell window."
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {FEATURES.map(({ icon, title, body }) => (

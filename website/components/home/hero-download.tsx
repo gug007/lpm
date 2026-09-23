@@ -114,7 +114,7 @@ export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
         onClick={() =>
           trackDownload({ source, platform: primary.platform, href: primary.href })
         }
-        className="group inline-flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[17px] font-medium tracking-tight hover:bg-gray-800 dark:hover:bg-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-[1px] active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950 transition-[background-color,box-shadow,transform] duration-200 ease-out"
+        className="group inline-flex items-center justify-center gap-3 whitespace-nowrap px-7 py-3.5 sm:px-8 sm:py-4 rounded-full bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[17px] font-medium tracking-tight hover:bg-gray-800 dark:hover:bg-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-[1px] active:translate-y-0 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950 transition-[background-color,box-shadow,transform] duration-200 ease-out"
       >
         <svg
           viewBox="0 0 24 24"
@@ -124,7 +124,13 @@ export function HeroDownload({ source = "hero" }: { source?: DownloadSource }) {
         >
           <path d="M17.05 12.536c-.028-2.844 2.325-4.21 2.432-4.275-1.325-1.937-3.385-2.2-4.116-2.229-1.75-.176-3.418 1.03-4.31 1.03-.886 0-2.25-1.005-3.703-.975-1.905.028-3.66 1.108-4.64 2.81-1.977 3.426-.506 8.503 1.42 11.294.94 1.367 2.062 2.902 3.534 2.848 1.42-.057 1.957-.918 3.676-.918 1.72 0 2.202.918 3.702.888 1.53-.028 2.499-1.393 3.432-2.77 1.081-1.587 1.527-3.126 1.554-3.205-.034-.015-2.98-1.142-3.013-4.527l.032-.005zM14.28 4.165c.784-.952 1.31-2.272 1.167-3.589-1.128.047-2.494.75-3.304 1.7-.728.842-1.362 2.186-1.192 3.476 1.26.098 2.544-.64 3.33-1.587z" />
         </svg>
-        <span>{primary.label}</span>
+        <span className="flex flex-col items-start text-left leading-tight sm:hidden">
+          <span>Download for macOS</span>
+          <span className="text-[12px] font-normal opacity-70">
+            {primary.choiceLabel}
+          </span>
+        </span>
+        <span className="hidden sm:inline">{primary.label}</span>
         <ArrowDown
           className="w-4 h-4 opacity-70 transition-transform duration-300 ease-out group-hover:translate-y-0.5"
           aria-hidden

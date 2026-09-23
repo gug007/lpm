@@ -6,7 +6,7 @@ import { RelatedPages } from "@/components/related-pages";
 import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { ComparisonHero } from "@/components/vs/comparison-hero";
 import { Cta } from "@/components/vs/cta";
-import { Faq, type FaqItem } from "@/components/vs/faq";
+import { Faq } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
@@ -26,6 +26,7 @@ import {
   screenRecordingJsonLd,
   webPageJsonLd,
 } from "@/lib/structured-data";
+import { FOREMAN_FAQ } from "./_components/faq-data";
 import { Migrate } from "./_components/migrate";
 import { OneTerminal } from "./_components/one-terminal";
 import { ProcfileMatrix } from "./_components/procfile-matrix";
@@ -76,9 +77,13 @@ css: bin/rails tailwindcss:watch
 worker: bundle exec sidekiq`;
 
 const LPM_SERVICES = `services:
-  web: bin/rails server -p 3000
-  css: bin/rails tailwindcss:watch
-  worker: bundle exec sidekiq`;
+  web:
+    cmd: bin/rails server -p 3000
+    port: 3000
+  css:
+    cmd: bin/rails tailwindcss:watch
+  worker:
+    cmd: bundle exec sidekiq`;
 
 const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
@@ -94,93 +99,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "lpm",
     title: "Switch to lpm",
-    body: "A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. macOS only, and it converts the Procfile rather than reading it.",
-  },
-];
-
-const OVERMIND_FIRST_ANSWER =
-  "Overmind, if you want to attach to or restart one process without touching the rest — it runs each process in its own tmux window to make that possible, and -m web=2,worker=3 scales one of them. Foreman, if one interleaved stream on stdout is all you need, if you would rather not install tmux, or if your deploy depends on foreman export.";
-
-const FAQ_ITEMS: FaqItem[] = [
-  {
-    question: "Foreman or Overmind — which should I use?",
-    answer: (
-      <>
-        <Link
-          href={OVERMIND_PATH}
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          Overmind
-        </Link>
-        , if you want to attach to or restart one process without touching the
-        rest — it runs each process in its own tmux window to make that possible,
-        and <code>-m web=2,worker=3</code> scales one of them. Foreman, if one
-        interleaved stream on stdout is all you need, if you would rather not
-        install tmux, or if your deploy depends on <code>foreman export</code>.
-      </>
-    ),
-    answerText: OVERMIND_FIRST_ANSWER,
-  },
-  {
-    question: "Does lpm read my Procfile?",
-    answer: (
-      <>
-        No. lpm never parses the file. You copy the lines into a{" "}
-        <code>services:</code> block — a minute for a normal Rails app — and the
-        Procfile stays in the repo for Heroku and <code>foreman export</code>.
-      </>
-    ),
-    answerText:
-      "No. lpm never parses the file. You copy the lines into a services: block — a minute for a normal Rails app — and the Procfile stays in the repo for Heroku and foreman export.",
-  },
-  {
-    question: "What replaces bin/dev in a Rails app?",
-    answer: (
-      <>
-        <code>bin/dev</code> shells out to Foreman with{" "}
-        <code>Procfile.dev</code>. With lpm you press Start, or run{" "}
-        <code>lpm start</code>, and the same lines come up as separate panes.
-        Keep <code>bin/dev</code> working — nothing removes it.
-      </>
-    ),
-    answerText:
-      "bin/dev shells out to Foreman with Procfile.dev. With lpm you press Start, or run lpm start, and the same lines come up as separate panes. Keep bin/dev working — nothing removes it.",
-  },
-  {
-    question: "Does lpm load .env the way foreman start does?",
-    answer: (
-      <>
-        No. lpm exports the <code>env:</code> map you write on each service, so
-        move the variables you need there or keep loading <code>.env</code>{" "}
-        inside the command with dotenv.
-      </>
-    ),
-    answerText:
-      "No. lpm exports the env: map you write on each service, so move the variables you need there or keep loading .env inside the command with dotenv.",
-  },
-  {
-    question: "Does lpm replace foreman export?",
-    answer:
-      "No. If you use foreman export to generate upstart, systemd, or launchd unit files for deploy, keep using Foreman for that. lpm is focused on the local dev loop — starting the stack on your machine, viewing live output per service, and switching between projects — not on producing init-system artifacts for servers.",
-  },
-  {
-    question: "Does it run on Linux or Windows?",
-    answer: (
-      <>
-        Foreman is a Ruby gem, so it goes wherever Ruby goes, and Overmind covers
-        Linux, *BSD and macOS. lpm is the odd one out — its window opens on a Mac
-        and nowhere else. A Linux server can still be{" "}
-        <Link
-          href={LINUX_HOST_PATH}
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          where your Rails processes actually run
-        </Link>
-        , with the Mac driving them.
-      </>
-    ),
-    answerText:
-      "Foreman is a Ruby gem, so it goes wherever Ruby goes, and Overmind covers Linux, *BSD and macOS. lpm is the odd one out — its window opens on a Mac and nowhere else. A Linux server can still be where your Rails processes actually run, with the Mac driving them.",
+    body: "A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. Mac only, and it takes Procfile.dev in once, as the project is added, rather than on every start.",
   },
 ];
 
@@ -269,7 +188,9 @@ export default function LpmVsForemanPage() {
           </Link>
           , if you want to attach to or restart one process without touching the
           rest — it runs each process in its own tmux window to make that
-          possible, and <code>-m web=2,worker=3</code> scales one of them.
+          possible, and{" "}
+          <code className="whitespace-nowrap">-m web=2,worker=3</code>{" "}
+          scales one of them.
           Foreman, if one interleaved stream on stdout is all you need, if you
           would rather not install tmux, or if your deploy depends on{" "}
           <code>foreman export</code>.
@@ -280,15 +201,19 @@ export default function LpmVsForemanPage() {
           with it. lpm runs the same <code>web</code>, <code>css</code> and{" "}
           <code>worker</code> lines as separate live panes on macOS — restart
           one, leave the rest alone, and quit the app without killing anything.
-          It will not read your Procfile; you copy the lines into a{" "}
-          <code>services:</code> block once, and the shape is identical.
+          Add the folder and lpm reads <code>Procfile.dev</code>{" "}
+          for you, one service per line, with the{" "}
+          <code className="whitespace-nowrap">-p 3000</code>{" "}
+          kept as the port it watches.
         </p>
         <CodeBlock filename="Procfile.dev">{PROCFILE}</CodeBlock>
-        <CodeBlock filename=".lpm.yml">{LPM_SERVICES}</CodeBlock>
+        <CodeBlock filename="What lpm lists after you add the folder">
+          {LPM_SERVICES}
+        </CodeBlock>
         <p>
-          That is the whole migration. What changes is not the declaration — it
-          is that <code>worker</code> can crash without taking <code>web</code>{" "}
-          down with it.
+          That is the whole migration, and nobody types it. What changes is not
+          the declaration — it is that <code>worker</code>{" "}
+          can crash without taking <code>web</code>{" "}down with it.
         </p>
       </QuickAnswer>
 
@@ -320,7 +245,7 @@ export default function LpmVsForemanPage() {
             "A pane per process beats scrolling one stream to find which one printed the error.",
             "You quit the app at lunch and want the dev servers still up when you get back.",
             "Two or three repos are up at once and you would rather click between them than count terminal tabs.",
-            "Claude Code or Codex is about to want its own checkout of this project — anywhere from 1 to 50 of them, and a linked worktree arrives without your .env or your installed gems.",
+            "Claude Code or Codex is about to want its own checkout of this project — anywhere from 1 to 50 of them. A linked worktree arrives without your .env, and lpm's Install dependencies covers Node packages, not a bundle install.",
             "lpm does not lock the project in — it runs the same commands your Procfile already names.",
           ],
         }}
@@ -333,7 +258,7 @@ export default function LpmVsForemanPage() {
             "foreman export generates the units your deploy depends on (Foreman).",
             "One interleaved stream is genuinely how you read your app (Foreman).",
             "You need overmind connect and per-process restart, and tmux is already installed (Overmind).",
-            "Someone on the team develops on Windows, or on Linux (Foreman runs on both; Overmind on Linux and *BSD).",
+            "Someone on the team develops on Linux (Foreman and Overmind both run there; Overmind on *BSD too).",
           ],
         }}
       />
@@ -342,7 +267,7 @@ export default function LpmVsForemanPage() {
 
       <Faq
         title="Foreman, Overmind and lpm — the honest answers"
-        items={FAQ_ITEMS}
+        items={FOREMAN_FAQ}
       />
 
       <RelatedPages
@@ -376,6 +301,12 @@ export default function LpmVsForemanPage() {
             title: "Worktrees for parallel agents",
             description:
               "Where the copies come from when two agents need the same repo, and exactly what a copy does not carry.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "A Linux box for the Rails processes",
+            description:
+              "Pair a headless Linux machine, run the stack and the agents there, and drive both from the Mac window.",
           },
         ]}
       />

@@ -11,10 +11,10 @@ export default function Cta() {
           Right where you already work.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download a native macOS binary, drag to Applications, open your first
-          project. lpm puts a full diff review one keystroke away — beside your
-          running services and the AI agents editing your code. Works on every
-          Intel and Apple Silicon Mac running macOS 12 or later.
+          Grab the native macOS download, drag it to Applications and open a
+          project. Every change your agents make is one keystroke from a full
+          diff, beside your running services. Runs on Intel and Apple Silicon
+          Macs with macOS 12 or later.
         </p>
 
         <div className="mt-10 flex justify-center">

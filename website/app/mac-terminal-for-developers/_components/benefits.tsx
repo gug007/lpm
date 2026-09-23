@@ -7,8 +7,8 @@ type Outcome = {
 
 const OUTCOMES: Outcome[] = [
   {
-    title: "Onboard a new repo in under two minutes.",
-    body: "Open any project folder, let AI generate its service config, review it, hit Start. Every service streams live output immediately — no README archaeology, no hunting for which Python or Node version this one wants, no \"wait, what port does this run on?\".",
+    title: "Onboard a new repo in minutes.",
+    body: "Add any project folder. lpm reads its manifests and sets up the services it finds, so you can hit Start right away. Every service streams live output right away, each tab shows the ports it is actually listening on, and because services start in your login shell, your own version manager picks the Node or Python version.",
   },
   {
     title: "Debug across services without losing the thread.",
@@ -19,8 +19,8 @@ const OUTCOMES: Outcome[] = [
     body: "Jump to another repo mid-session. Your first project keeps running, logs intact, terminal history preserved. Switch back and pick up exactly where you left off.",
   },
   {
-    title: "Coordinate AI agents without stepping on your own work.",
-    body: "Each AI coding agent gets its own workspace. Agents can run servers, make changes, and run tests without colliding with your running dev stack or each other.",
+    title: "Hand AI agents a copy, not your checkout.",
+    body: "Duplicate or New Worktree gives each agent its own files, terminals, and services, so it can run servers and tests without touching your working copy. Copies use the same port numbers as the original, and lpm flags a clash when you press Start instead of letting one server crash.",
   },
 ];
 
@@ -30,8 +30,8 @@ export default function Benefits() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="The developer difference"
-          title="What changes when your terminal knows your stack"
-          description="Four measurable improvements to your development day."
+          title="Four things a stack-aware terminal changes"
+          description="What you notice in the first week."
         />
         <ol className="space-y-10">
           {OUTCOMES.map(({ title, body }, i) => (

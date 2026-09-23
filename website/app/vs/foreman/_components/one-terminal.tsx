@@ -14,12 +14,13 @@ const CARDS: Card[] = [
     fix: (
       <>
         In lpm each service is its own pane; nothing stops the siblings when one
-        exits, and you bring that one back from the project&apos;s Services menu
-        or with{" "}
-        <code className="font-mono text-[13px]">lpm service css restart</code>.
+        exits, and you bring that one back with{" "}
+        <code className="font-mono text-[13px]">lpm service css restart</code>,
+        or by switching it off and on again in the project&apos;s Services
+        menu.
         Overmind restarts one too — that is what it exists for — though there a
         dying process interrupts the rest unless you list it under{" "}
-        <code className="font-mono text-[13px]">-c</code>.
+        <code className="font-mono text-[13px] whitespace-nowrap">-c</code>.
       </>
     ),
   },
@@ -38,7 +39,7 @@ const CARDS: Card[] = [
         <code className="font-mono text-[13px]">dependsOn: [db]</code> gives a
         real start order, with a clear error instead of a hang if you write a
         cycle. It orders starts;{" "}
-        <code className="font-mono text-[13px]">lpm wait --port 5432</code> is
+        <code className="font-mono text-[13px] whitespace-nowrap">lpm wait --port 5432</code> is
         the readiness gate.
       </>
     ),

@@ -39,12 +39,13 @@ const GOTCHAS: Gotcha[] = [
     body: (
       <>
         Foreman assigns a port per process type and Overmind steps one per
-        process. lpm does not: <code className="font-mono">port:</code> is what
-        it watches for conflicts, not something it exports. If your command
-        reads <code className="font-mono">$PORT</code>, set it yourself —{" "}
-        <code className="font-mono">env: {"{ PORT: \"3000\" }"}</code> — or
+        process. lpm does not: <code className="font-mono">port:</code>{" "}
+        is what it watches for conflicts, not something it exports, and an
+        imported line that only says <code className="font-mono">$PORT</code>{" "}
+        arrives with no port at all. Set it yourself —{" "}
+        <code className="font-mono">env: {"{ PORT: \"3000\" }"}</code>{" "}— or
         hard-code the flag the way Rails&apos; own{" "}
-        <code className="font-mono">Procfile.dev</code> already does.
+        <code className="font-mono">Procfile.dev</code>{" "}already does.
       </>
     ),
   },
@@ -71,7 +72,7 @@ const GOTCHAS: Gotcha[] = [
     key: "formation",
     term: (
       <>
-        <code className="font-mono">foreman start -m web=2,worker=0</code>{" "}
+        <code className="font-mono break-words sm:whitespace-nowrap">foreman start -m web=2,worker=0</code>{" "}
         becomes a profile.
       </>
     ),
@@ -80,7 +81,11 @@ const GOTCHAS: Gotcha[] = [
         <code className="font-mono">
           profiles: {"{ default: [web, css], full: [web, css, redis, worker] }"}
         </code>
-        , then <code className="font-mono">lpm start --profile full</code>. Named
+        , then{" "}
+        <code className="font-mono whitespace-nowrap">
+          lpm start --profile full
+        </code>
+        . Named
         subsets instead of a per-run flag — and no process scaling: one entry is
         one process.
       </>
@@ -106,9 +111,11 @@ export function Migrate() {
           title="Your Procfile, line by line"
           description={
             <>
-              The three Procfile lines, the Redis line a Procfile usually leaves
-              out, and the two fields it has no room for: a port to watch and a
-              start order. Every field is listed in the{" "}
+              Adding the folder brings the three Procfile lines across, and the{" "}
+              <code className="font-mono whitespace-nowrap">-p 3000</code>{" "}on web becomes the
+              port lpm watches. What you add by hand is the Redis line a
+              Procfile usually leaves out and the start order it has no room
+              for. Every field is listed in the{" "}
               <Link
                 href={CONFIG_PATH}
                 className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
@@ -120,7 +127,7 @@ export function Migrate() {
           }
         />
 
-        <CodeBlock filename=".lpm.yml">{CONVERTED}</CodeBlock>
+        <CodeBlock filename="~/.lpm/projects/myapp.yml">{CONVERTED}</CodeBlock>
 
         <dl className="mt-8 space-y-6">
           {GOTCHAS.map((gotcha) => (

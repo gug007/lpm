@@ -10,18 +10,18 @@ type Step = {
 const STEPS: Step[] = [
   {
     icon: MousePointerClick,
-    title: "One button, in Settings",
-    body: "A single button installs the agent skill and the lpm command-line tool together. It shows Install, Update, or Installed — idempotent, and safe to click again anytime.",
+    title: "One button, in Settings or the sidebar",
+    body: "A single button installs the agent skills and the lpm command-line tool together, from Settings or the Agent tools prompt in the sidebar. It shows Install, Update, or Installed, and is safe to click again anytime.",
   },
   {
     icon: Radar,
-    title: "Agents discover it on their own",
-    body: "Every terminal inside lpm knows which project it belongs to. The installed skill triggers whenever an agent sees it, so Claude Code, Codex, Gemini CLI, and OpenCode automatically know they can drive the project — no per-project wiring.",
+    title: "Just ask the agent",
+    body: "Ask Claude Code, Codex, Gemini CLI, or OpenCode to restart a server, read logs, or fan out, and it reaches for the lpm skill. Every lpm terminal knows its project, so the agent never has to name it and no per-project setup is needed.",
   },
   {
     icon: RefreshCw,
     title: "Stays current automatically",
-    body: "Once you have opted in, updates refresh on their own. The skill is written both for Claude Code and for the open agent-skills directory that Codex, Gemini CLI, and OpenCode read.",
+    body: "Once you have opted in, updates refresh on their own. The skills go to Claude Code and to the shared agent-skills folder that Codex, Gemini CLI, and OpenCode read, and lpm copies them to SSH and Linux hosts too.",
   },
 ];
 

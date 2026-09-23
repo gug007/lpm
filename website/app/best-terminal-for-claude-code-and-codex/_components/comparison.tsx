@@ -41,7 +41,7 @@ const CAPABILITIES: Capability[] = [
     editor: false,
   },
   {
-    label: "Run multiple agents in parallel with no conflicts",
+    label: "Run several agents, each in its own copy of the repo",
     lpm: true,
     tabs: false,
     tmux: false,
@@ -90,7 +90,7 @@ export default function Comparison() {
         <SectionHeader
           eyebrow="How it compares"
           title="A desktop workspace, not another terminal"
-          description="The lpm macOS app gives every running service its own pane in one native window — the visual layer your terminal tabs, tmux session, or editor doesn't."
+          description="lpm gives every running service and every agent its own pane in one native window, with each agent's state in the sidebar."
         />
 
         <div className="hidden sm:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">

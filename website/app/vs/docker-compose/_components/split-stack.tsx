@@ -12,10 +12,10 @@ const SIDES: Side[] = [
     body: (
       <>
         Your Rails or Django server, the Next.js dev server, a Go binary,
-        background workers, anything with a file watcher. Each is one line of
-        YAML with a pane of its own; the watcher inside it picks up your edits,
-        and if the process dies the pane keeps the exit code on screen until you
-        start it again.
+        background workers, anything with a file watcher. Each is one service
+        with a pane of its own; the watcher inside it picks up your edits, and
+        if the process dies its last output stays in the pane until you start
+        it again.
       </>
     ),
   },
@@ -24,11 +24,12 @@ const SIDES: Side[] = [
     body: (
       <>
         Postgres, Redis, Kafka, Elasticsearch, LocalStack, a vendor image nobody
-        installs natively. Declare the attached form as one lpm service —{" "}
-        <code className="font-mono text-[0.9em]">db: docker compose up</code>,
-        not{" "}
-        <code className="font-mono text-[0.9em]">-d</code>{" "}
-        — and its output lands in a pane next to the rest.
+        installs natively. lpm lists the compose file as one service in the
+        attached form —{" "}
+        <code className="font-mono text-[0.9em]">compose: docker compose up</code>
+        , not{" "}
+        <code className="font-mono text-[0.9em] whitespace-nowrap">-d</code>{" "}
+        — so its output lands in a pane next to the rest.
       </>
     ),
   },
@@ -36,13 +37,14 @@ const SIDES: Side[] = [
 
 const STEPS: { id: string; body: ReactNode }[] = [
   {
-    id: "generate",
+    id: "add",
     body: (
       <>
-        In the config editor, press Generate with AI: the agent CLI you already
-        have — Claude Code, Codex, Gemini CLI or OpenCode — reads the repo,{" "}
-        <code className="font-mono text-[0.9em]">docker-compose.yml</code>{" "}
-        included, and drafts the first pass at the service list.
+        Add the folder. lpm reads the manifests, lists the native services —
+        with the framework&apos;s default port where there is one — and adds{" "}
+        <code className="font-mono text-[0.9em]">docker compose up</code>{" "}
+        as one more. Generate with AI in the config editor is there if you want
+        a different first pass.
       </>
     ),
   },

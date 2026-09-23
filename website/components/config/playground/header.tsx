@@ -343,6 +343,7 @@ function StartDropdown({
             key={s.key}
             label={s.key}
             mono
+            badge={s.port ? `:${s.port}` : undefined}
             running={runningKeys.has(s.key)}
             onClick={() => onToggleService(s.key)}
           />

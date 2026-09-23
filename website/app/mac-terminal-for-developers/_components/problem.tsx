@@ -11,7 +11,7 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: RefreshCcw,
     title: "Context evaporates when you switch repos",
-    body: "You're three services deep in a debugging session when Slack pings with a blocking issue on a different client project. You switch repos and your running services, terminal history, and mental state all disappear. Getting back is a 15-minute tax every time.",
+    body: "You're three services deep in a debugging session when Slack pings with a blocking issue on a different client project. You switch repos and your running services, terminal history, and mental state all disappear. Getting back means rebuilding all of it from memory.",
   },
   {
     icon: ScrollText,

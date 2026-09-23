@@ -20,12 +20,30 @@ function withEmoji(emoji: string | undefined, label: string): string {
 }
 
 export function normalizeService(key: string, def: ServiceDef): Service {
-  if (typeof def === "string") return { key, cmd: def };
+  if (typeof def === "string") return { key, cmd: def, dependsOn: [] };
+  const deps = def?.dependsOn ?? def?.depends_on;
   return {
     key,
     cmd: def?.cmd ?? "",
     port: typeof def?.port === "number" ? def.port : undefined,
+    dependsOn: Array.isArray(deps)
+      ? deps.filter((d): d is string => typeof d === "string")
+      : [],
   };
+}
+
+export function withDependencies(services: Service[], keys: string[]): string[] {
+  const byKey = new Map(services.map((s) => [s.key, s]));
+  const out = new Set<string>();
+  const visit = (key: string, seen: Set<string>) => {
+    const service = byKey.get(key);
+    if (!service || out.has(key) || seen.has(key)) return;
+    seen.add(key);
+    for (const dep of service.dependsOn) visit(dep, seen);
+    out.add(key);
+  };
+  for (const key of keys) visit(key, new Set());
+  return [...out];
 }
 
 export function normalizeAction(key: string, def: ActionDef): Action {

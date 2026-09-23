@@ -5,7 +5,9 @@ import {
   BEST_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PROJECT_SIDEBAR_PATH,
+  REVIEW_CHANGES_PATH,
   SSH_TERMINAL_MAC_PATH,
+  WORKTREE_AGENTS_PATH,
 } from "@/lib/links";
 import {
   breadcrumbJsonLd,
@@ -18,11 +20,12 @@ import Cta from "./_components/cta";
 import Faq, { FAQ_ITEMS } from "./_components/faq";
 import FieldGuide from "./_components/field-guide";
 import Hero from "./_components/hero";
+import SidebarExtras from "./_components/sidebar-extras";
 import Situations from "./_components/situations";
 import WalkthroughSection from "./_components/walkthrough-section";
 import WhichSidebar from "./_components/which-sidebar";
 
-const TITLE = "Terminal with a Project Sidebar for Mac";
+const TITLE = "Mac Terminal with a Project Sidebar and Agent Status";
 const DESCRIPTION =
   "A Mac terminal with a project sidebar, not a file tree or tab strip. Switch projects without losing terminals, scrollback, running state, or agent signals.";
 
@@ -88,6 +91,7 @@ export default function TerminalWithProjectSidebarPage() {
       <WalkthroughSection />
       <WhichSidebar />
       <FieldGuide />
+      <SidebarExtras />
       <Situations />
       <Faq />
       <RelatedPages
@@ -114,7 +118,19 @@ export default function TerminalWithProjectSidebarPage() {
             href: SSH_TERMINAL_MAC_PATH,
             title: "SSH terminal for Mac",
             description:
-              "How remote boxes join the same project list, with forwarded ports and remote services beside local ones.",
+              "How remote boxes join the same project list, with forwarded ports and remote services in panes.",
+          },
+          {
+            href: WORKTREE_AGENTS_PATH,
+            title: "Git worktrees for AI agents",
+            description:
+              "Why copies and worktrees nest under their parent, and when to reach for each.",
+          },
+          {
+            href: REVIEW_CHANGES_PATH,
+            title: "Review changes in terminal",
+            description:
+              "Open a row, press ⌘⇧R, and read every change its agent made before you commit.",
           },
         ]}
       />

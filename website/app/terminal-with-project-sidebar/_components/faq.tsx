@@ -5,7 +5,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is the sidebar a project list or a file explorer?",
     answer:
-      "A project list. Each row is a project you work on, and selecting it opens that project's terminals, services, and git state. The sidebar itself is only that list: rows do not expand into a file tree and none of them previews a file. Files are one level in — open the project for lpm's review pane and file-by-file diffs, or open its folder in Finder or your editor. lpm is a terminal workspace that sits beside your editor rather than replacing it.",
+      "A project list. Each row is a project you work on, and selecting it opens that project's terminals, services, and git state. The sidebar itself is only that list: rows do not expand into a file tree and none of them previews a file. Files are one level in: open the project's Files tab (⌘⇧E) for a tree and an editor, or its Changes view (⌘⇧R) for diffs, or send the folder to Finder or your editor with Open with.",
   },
   {
     question: "Can I resize or hide the project sidebar?",
@@ -20,12 +20,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Where do duplicates and Git worktrees show up?",
     answer:
-      "Directly beneath the project they came from. A duplicate or worktree inherits its parent's name with a suffix, shows that inherited name muted, and its tooltip says which project it is a duplicate or Git worktree of. That keeps a set of parallel copies together instead of scattered through the list in creation order.",
+      "Directly beneath the project they came from, in a stack you can collapse. A duplicate or worktree inherits its parent's name with a suffix, a copy's dot has a faint twin and a worktree's dot a small branch mark, and the tooltip says which project it came from. Folded, the stack shows a one-line tally such as 2 needs you · 1 running, so a set of parallel copies stays together instead of scattered through the list.",
   },
   {
     question: "What do the dots and colours in the sidebar mean?",
     answer:
-      "Each project has one dot: filled green when something is running, hollow when nothing is, and red when that project's config has an error. There are no per-service dots, service counts, ports, or health checks in the sidebar — for that you open the project. Separately, Claude Code and Codex report their state into the row itself: the name shimmers while an agent works, turns amber when it needs an answer, red with an alert icon on an error, and blue with a check when it is done.",
+      "Each project has one dot: filled green when something is running, hollow when nothing is, and red when that project's config has an error, with a spinner while it starts or stops. There are no per-service dots or ports in the sidebar; for that you open the project. Separately, Claude Code and Codex report their state into the row itself: the name shimmers while an agent works, turns amber when it needs an answer, turns red and reads Problem on an error, and turns blue when it is done. Each agent also gets its own row underneath with a bell, alert, or check and its elapsed time.",
   },
   {
     question: "Do SSH projects and paired Macs appear in the sidebar?",
@@ -35,7 +35,17 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is there a search box or a command palette for the sidebar?",
     answer:
-      "No. There is no sidebar search, no favourites, and no ⌘K palette for projects. The list is meant to stay short enough to scan, and folders plus the order you drag rows into are the tools for keeping it that way. If your list has grown past what you can scan, that is worth knowing about — it is the kind of thing that shapes what gets built next.",
+      "There is no search box in the sidebar. Use ⌘1–⌘9 to jump to one of the first nine projects, hold Ctrl and tap Tab to flip between the ones you used last, or press ⌘⇧A for Activity, a searchable list of the Claude Code and Codex sessions, running services, and automations across your projects. Folders and the order you drag rows into keep the list itself scannable.",
+  },
+  {
+    question: "Can I mark a project as blocked or done?",
+    answer:
+      "Yes. Right-click a project or copy to give it a work status: ⏳ In progress, ⛔ Blocked with a reason, ✅ Done, or one you define with your own emoji and label. The mark sits beside the name with an optional note line, and a collapsed folder or stack of copies counts them in its summary.",
+  },
+  {
+    question: "What else can I do from a sidebar row?",
+    answer:
+      "Right-click a row for its git menu (pull, push, commit, create a PR, switch branch), Duplicate and New Worktree, Open with your editor, Rename, and Detach to new window. Shift-click selects several projects to move into a folder or remove at once, and you can turn on double-click to start or stop a project in Settings.",
   },
 ];
 

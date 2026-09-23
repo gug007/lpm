@@ -60,7 +60,7 @@ Rendered order, matching the canonical /vs order in spec part 2 with the one doc
 8. `WhenToPick` — lpm vs "Foreman or Overmind"
 9. `DemoSection`
 10. `Faq` — 6 items
-11. `RelatedPages` — 5 links
+11. `RelatedPages` — 6 links
 12. `Cta` — `downloadSource="vs-foreman-cta"`
 
 ### The documented exception (slot 6)
@@ -81,9 +81,9 @@ H2 — reused verbatim as FAQ 1's question in intent, and its first paragraph is
 
 Paragraph 1 (the extractable answer; names Overmind and Foreman before lpm): "Overmind, if you want to attach to or restart one process without touching the rest — it runs each process in its own tmux window to make that possible, and `-m web=2,worker=3` scales one of them. Foreman, if one interleaved stream on stdout is all you need, if you would rather not install tmux, or if your deploy depends on `foreman export`." ("colour-prefixed" was cut — the man page documents no colour or prefix option, R3.)
 
-Paragraph 2: "There is a third shape. `foreman start` puts your whole stack in one terminal, and when the CSS watcher dies it takes Rails with it. lpm runs the same `web`, `css` and `worker` lines as separate live panes on macOS — restart one, leave the rest alone, and quit the app without killing anything. It will not read your Procfile; you copy the lines into a `services:` block once, and the shape is identical."
+Paragraph 2: "There is a third shape. `foreman start` puts your whole stack in one terminal, and when the CSS watcher dies it takes Rails with it. lpm runs the same `web`, `css` and `worker` lines as separate live panes on macOS — restart one, leave the rest alone, and quit the app without killing anything. Add the folder and lpm reads `Procfile.dev` for you, one service per line, with the `-p 3000` kept as the port it watches." (2026-09-23: rewritten after service detection landed — the old sentence said lpm would not read the file.)
 
-`CodeBlock filename="Procfile.dev"` → the three Procfile lines. `CodeBlock filename=".lpm.yml"` → the same three as a `services:` map.
+`CodeBlock filename="Procfile.dev"` → the three Procfile lines. `CodeBlock filename="What lpm lists after you add the folder"` → the same three as a `services:` map, `web` in long form with `port: 3000` because the import lifts `-p 3000` into the port label. Closing line: "That is the whole migration, and nobody types it."
 
 Closing line: "That is the whole migration. What changes is not the declaration — it is that `worker` can crash without taking `web` down with it."
 
@@ -97,20 +97,20 @@ Three equal-weight cards. `VerdictCard` requires `label` + `title` + `body`; the
 |---|---|---|
 | Foreman | Keep Foreman | Two lines in Procfile.dev, $PORT assigned for you, .env loaded automatically, and foreman export generating the launchd or systemd units your deploy needs. |
 | Overmind | Keep Overmind | overmind connect web to attach one process, restart it without the rest, -m web=2 to scale it, and Linux or *BSD support. |
-| lpm | Switch to lpm | A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. macOS only, and it converts the Procfile rather than reading it. |
+| lpm | Switch to lpm | A pane per process, a project switcher across repos, services that outlive the app, and Claude Code or Codex in the next tab. Mac only, and it takes Procfile.dev in once, as the project is added, rather than on every start. |
 
 ### Page-unique section A — `one-terminal.tsx`
 
 Eyebrow `Why people leave foreman start`, title `Four things that happen in one terminal`. Four cards, *what you see* → *what fixes it*:
 
-1. **The CSS watcher dies and takes Rails with it** / "One process exits and the whole formation shuts down mid-request." → per-service panes, the project's Services menu or `lpm service css restart`, and two concessions: Overmind restarts one too, and a dying process there interrupts the rest unless you list it under `-c`. ("from the sidebar" became "from the project's Services menu": the per-service toggle lives in the project header's Start menu, `StartMenu.tsx:58-69`.)
+1. **The CSS watcher dies and takes Rails with it** / "One process exits and the whole formation shuts down mid-request." → per-service panes, `lpm service css restart` or switching the service off and on again in the project's Services menu, and two concessions: Overmind restarts one too, and a dying process there interrupts the rest unless you list it under `-c`. ("from the sidebar" became "from the project's Services menu": the per-service toggle lives in the project header's Start menu, `StartMenu.tsx:58-69`.)
 2. **Closing the window ends your stack** → services run outside the app; Overmind's tmux session detaches and keeps going, a foreman formation ends with the command that started it.
 3. **Address already in use, and you do not know who** → declared ports checked before start, holder named, free it or stop.
 4. **Postgres has to be up before the worker** → `dependsOn: [db]` orders starts, cycles error out, `lpm wait --port 5432` is the readiness gate.
 
 ### Page-unique section B — `migrate.tsx`
 
-Eyebrow `Migration`, title `Your Procfile, line by line`, `id="migrate"`. One `.lpm.yml` `CodeBlock` showing the full conversion with `port:`, `env:`, `dependsOn:` and `profiles:`, then the four gotchas as a `<dl>`: `$PORT` is not set for you · `.env` is not loaded automatically · `foreman start -m web=2,worker=0` becomes a profile · Keep `foreman export`. Closes with the CLI hedge (which verbs need the app open). In-body link: **config reference → `/config`** in the section description.
+Eyebrow `Migration`, title `Your Procfile, line by line`, `id="migrate"`. One `~/.lpm/projects/myapp.yml` `CodeBlock` (the file the import writes to) showing the full conversion with `port:`, `env:`, `dependsOn:` and `profiles:`, then the four gotchas as a `<dl>`: `$PORT` is not set for you · `.env` is not loaded automatically · `foreman start -m web=2,worker=0` becomes a profile · Keep `foreman export`. Closes with the CLI hedge (which verbs need the app open). In-body link: **config reference → `/config`** in the section description.
 
 Three corrections this pass: the section description now says what the sample actually shows (three Procfile lines, a Redis line a Procfile usually leaves out, and the two fields it has no room for) rather than "the same three lines" over a four-service sample; the `.env` gotcha says Overmind reads `.overmind.env` **and then** `.env`, which is what its README documents; and the profile example in the gotcha now lists `redis`, matching the YAML above it.
 
@@ -124,8 +124,8 @@ lpm headline: `Your stack has more than two processes, or a second agent is abou
 Competitor column is headed **Foreman or Overmind** and every bullet names which; its headline ("The Procfile runner you already have is enough.") is written here. Three bullets moved off the brief's wording:
 
 - lpm bullet 2, "Four panes side by side beats scrolling one stream…" → "A pane per process beats scrolling one stream to find which one printed the error." The `Procfile.dev` sample has three lines, so "four panes" contradicted it (R2).
-- lpm bullet 5 now ships the caveat ledger §5.6 asks for (R6): "…anywhere from 1 to 50 of them, and a linked worktree arrives without your `.env` or your installed gems."
-- competitor bullet 6, "Your team is on Linux or Windows as well as macOS (both)." → "Someone on the team develops on Windows, or on Linux (Foreman runs on both; Overmind on Linux and \*BSD)." Overmind does not run on Windows, so "(both)" was wrong on half the sentence.
+- lpm bullet 5 now ships the caveat ledger §5.6 asks for (R6): "…anywhere from 1 to 50 of them. A linked worktree arrives without your .env, and lpm's Install dependencies covers Node packages, not a bundle install." (2026-09-23: "or your installed gems" was wrong — gems Bundler installs outside the repo are visible to any checkout.)
+- competitor bullet 6, "Your team is on Linux or Windows as well as macOS (both)." → "Someone on the team develops on Windows, or on Linux (Foreman runs on both; Overmind on Linux and \*BSD)." Overmind does not run on Windows, so "(both)" was wrong on half the sentence. 2026-09-23: → "Someone on the team develops on Linux (Foreman and Overmind both run there; Overmind on \*BSD too)." Foreman documents no Windows support either, and the hub matrix lists it as Linux only.
 
 ### CTA
 
@@ -142,12 +142,12 @@ Rows are ordered so every concession comes first, which is what lets the descrip
 
 | # | Row | lpm | Foreman | Overmind |
 |---|---|---|---|---|
-| 1 | Runs your Procfile.dev untouched | ✗ | ✓ | ✓ |
+| 1 | Re-reads Procfile.dev every time it starts | imports it once, when you add the folder | ✓ | ✓ |
 | 2 | Sets $PORT for each process type | you write it in env: | -p base, +100 a line | -p base, -P step |
 | 3 | Reads a .env file without being asked | ✗ | .env in the working directory | .overmind.env, then .env |
 | 4 | All output interleaved on one stdout stream | ✗ | ✓ | ✗ |
 | 5 | Exports launchd or systemd units for deploy | ✗ | foreman export | ✗ |
-| 6 | Installs on a Windows or Linux workstation | Mac app; Linux only as a remote host | anywhere Ruby runs | Linux, *BSD, macOS |
+| 6 | Installs on a Windows or Linux workstation | Mac app; Linux only as a remote host | Linux, macOS | Linux, *BSD, macOS |
 | 7 | Attach a shell to one running process | panes are read-only | ✗ | overmind connect |
 | 8 | Run two copies of web from one line | one entry, one process | -m web=2 | -m web=2 |
 | 9 | One command brings the whole stack up | one click, or lpm start with the app running | ✓ | ✓ |
@@ -156,7 +156,7 @@ Rows are ordered so every concession comes first, which is what lets the descrip
 | 12 | One process dying leaves the others alive | ✓ | one exit ends the formation | only with -c or --any-can-die |
 | 13 | The stack outlives the terminal you started it in | quit the app, services stay up | ✗ | its tmux session, detach with Ctrl-b d |
 | 14 | What you install before the first run | the app; no tmux, no Ruby | Ruby, then the gem | tmux, then the binary |
-| 15 | Sidekiq waits for Redis before it starts | dependsOn: [redis] | ✗ | ✗ |
+| 15 | Redis is started before Sidekiq | dependsOn: [redis] | ✗ | ✗ |
 | 16 | Names what is already holding :3000 | ✓ | ✗ | ✗ |
 | 17 | Run a named subset instead of a per-run flag | profiles: | -m web=2,worker=0 | -l web,worker |
 | 18 | Two Rails apps up at once in one window | ✓ | ✗ | ✗ |
@@ -164,7 +164,7 @@ Rows are ordered so every concession comes first, which is what lets the descrip
 | 20 | A desktop window rather than a foreground command | ✓ | a foreground command | a foreground command plus tmux |
 | 21 | Licence on the gem, the binary and the app | MIT | MIT | MIT |
 
-**Nine rows conceded, and the description says nine.** Rows 1–6 are the brief's original six. Row 7 joined them when the attach row was corrected (R1): a service pane is output-only, so lpm loses a row it had been claiming. Row 8 (scaling) is the concession the reviewer found the description undercounting. Row 9 is a concession too, and counting it is the point of the ledger's hedge: `lpm start` needs the app running, while `foreman start` and `overmind start` are cold-shell one-liners.
+**Nine rows conceded, and the description says nine.** Rows 1–6 are the brief's original six; row 1 was relabelled on 2026-09-23 from "Runs your Procfile.dev untouched" (lpm ✗) to "Re-reads Procfile.dev every time it starts" once lpm began importing the file — the concession that survives is that the import happens once, so later Procfile edits do not reach lpm. Row 7 joined them when the attach row was corrected (R1): a service pane is output-only, so lpm loses a row it had been claiming. Row 8 (scaling) is the concession the reviewer found the description undercounting. Row 9 is a concession too, and counting it is the point of the ledger's hedge: `lpm start` needs the app running, while `foreman start` and `overmind start` are cold-shell one-liners.
 
 **What changed from the brief's table, and why**
 
@@ -185,11 +185,12 @@ Every competitor cell names a real mechanism from a source below; nothing says "
 
 ## 4. Claims table — every lpm claim, with a source line
 
-Paths are relative to `/Users/gug007/Projects/lpm`. Re-verified independently 2026-09-10; a bare `lpm: true` cell is treated as a hard claim.
+Paths are relative to `/Users/gug007/Projects/lpm`. Re-verified independently 2026-09-10, and again 2026-09-23 after service detection landed (commit `835443cb`); a bare `lpm: true` cell is treated as a hard claim.
 
 | Claim, as it appears on the page | Citation |
 |---|---|
-| "Runs your Procfile.dev untouched — ✗", "It will not read your Procfile", "lpm never parses the file" | `grep -rn Procfile desktop/frontend/src desktop/frontend/src-tauri/src cli/src` → 0 hits |
+| "Re-reads Procfile.dev every time it starts — imports it once, when you add the folder", "Add the folder and lpm reads `Procfile.dev` for you, one service per line, with the `-p 3000` kept as the port it watches", FAQ 2 "Once. When you add the folder, lpm opens `Procfile.dev` (or `Procfile`, if that is all there is) and makes each line a service, keeping its name, its command and any `-p` port… The file itself is never touched", verdict "it takes Procfile.dev in once, as the project is added", migrate description "Adding the folder brings the three Procfile lines across, and the `-p 3000` on web becomes the port lpm watches" | `desktop/frontend/src-tauri/src/detect/stacks.rs:21-39` (`Procfile.dev` read first, `Procfile` as fallback, one candidate per `name: cmd` line, `release` skipped at `:33`); `detect/mod.rs:49-58` (`Candidate::new` runs `port_in_command`), `:273-291` (`-p`, `--port`, `PORT=` and `localhost:N` forms); `detect/mod.rs:197-225` (root candidates keep their Procfile names); `projects_crud.rs:48-67` (`services_for` writes `cmd` and `port`), `:93` (add), `:261` (clone) — the only two callers, so nothing re-reads the file at start; detection only reads files, nothing writes to the repo |
+| "an imported line that only says `$PORT` arrives with no port at all" | `detect/mod.rs:293-297` (`parse_port` fails on `$PORT`, so `port` stays `None` and `services_for` writes no `port:`) |
 | "Sets $PORT for each process type — you write it in env:", "`port:` is what it watches for conflicts, not something it exports", "lpm exports exactly the `env:` map you write" | `desktop/frontend/src-tauri/src/config.rs:1051-1061` — `build_local_script` emits `export k=v` for the `env:` map and the command, nothing else; `config.rs:575` (`port` is a declared integer); nothing anywhere in `src-tauri/src` injects `PORT` |
 | "Reads a .env file without being asked — ✗", FAQ 4 | same `config.rs:1051-1061`: the only environment a service gets is the `env:` map it declares |
 | "All output interleaved on one stdout stream — ✗", "A pane per process beats scrolling one stream" | `desktop/frontend/src-tauri/src/log_streaming.rs:1-14` — a per-project poller captures **each pane** every 500 ms and emits a per-pane event; there is no aggregation step |
@@ -201,17 +202,17 @@ Paths are relative to `/Users/gug007/Projects/lpm`. Re-verified independently 20
 | "`lpm list` and `lpm logs css` go straight to the services and answer from any shell, open app or not" | `cli/src/list.rs:40-45` — reads `config::project_names` and `sessions::running_sessions()` with no `require_app`; `cli/src/logs.rs:76-110` — `sessions::session_exists` then `sessions::capture_pane`, again with no `require_app` |
 | "`lpm status`, which reports what your agents are doing, needs it too" | `cli/src/status.rs:14-21` — pings the app first and prints "lpm app is not running — no live status." when the ping fails. **This corrects the previous version of this page, which grouped `lpm status` with the two verbs that work from a cold shell** (R1). |
 | "A live pane per process, all visible at once — ✓", "each service is its own pane" | `desktop/frontend/src/components/PaneView.tsx:534-556` (one `Pane` per service, tiled); `desktop/frontend/src-tauri/src/sessions.rs:210-213` (one `PaneSpec` per service) |
-| "Restart css without restarting web — lpm service css restart", "you bring that one back from the project's Services menu" | `desktop/frontend/src-tauri/src/services.rs:466-489` (`restart_service_at`) and `:508-527` (`restart_service_by_name`, the socket verb the CLI uses); `cli/src/main.rs:151-163` (`lpm service <name> <op>`); the UI path is the project header's Start menu, `desktop/frontend/src/components/project-detail/StartMenu.tsx:58-69` → `services.rs:448-462` (`toggle_project_service` flips one service off and on) |
+| "Restart css without restarting web — lpm service css restart", "you bring that one back with `lpm service css restart`, or by switching it off and on again in the project's Services menu" (verifier 2026-09-23: the menu is a toggle, not a restart — a crashed service still counts as running, so it takes an off then an on) | `desktop/frontend/src-tauri/src/services.rs:466-489` (`restart_service_at`) and `:508-527` (`restart_service_by_name`, the socket verb the CLI uses); `cli/src/main.rs:151-163` (`lpm service <name> <op>`); the UI path is the project header's Start menu, `desktop/frontend/src/components/project-detail/StartMenu.tsx:58-69` → `services.rs:448-462` (`toggle_project_service` flips one service off and on) |
 | "One process dying leaves the others alive — ✓", "`worker` can crash without taking `web` down with it", "nothing stops the siblings when one exits" | `desktop/frontend/src-tauri/src/sessionpane.rs:117-133` — each pane owns its own reader thread, and its `on_exit` fires for that pane id alone; the handler at `sessiond.rs:124-126` does exactly one thing with it, `drop_pane(&pane_id)`. The only teardown paths in `services.rs` are the explicit `stop_service` / `stop_all` ones, so a crash neither cascades to the siblings nor auto-restarts |
 | "The stack outlives the terminal you started it in — quit the app, services stay up", "leaves them running when you quit the app" | `desktop/frontend/src-tauri/src/sessiond.rs:1-13` — one process outside the app's process group holding every project's service panes |
 | "What you install before the first run — the app; no tmux, no Ruby" | `desktop/frontend/src-tauri/src/tmuxmigrate.rs:12` ("this is lpm's last tmux call, not a dependency") and `:18-20` (the whole handover is skipped when the marker exists **or** tmux is absent). Written as a dependency-and-install claim per ledger ruling 1; the migration itself is an implementation detail and appears nowhere on the page. No Ruby: lpm ships as a signed `.app` with an embedded CLI binary, `tauri.conf.json:34` |
-| "Sidekiq waits for Redis before it starts — dependsOn: [redis]", "`dependsOn: [db]` gives a real start order, with a clear error instead of a hang if you write a cycle" | `config.rs:580-581` (`dependsOn`, alias `depends_on`); `config.rs:1745-1770` — topological order, and `Err("service dependency cycle: …")` when the graph has one (`config.rs:2353` tests it) |
+| "Redis is started before Sidekiq — dependsOn: [redis]", "`dependsOn: [db]` gives a real start order, with a clear error instead of a hang if you write a cycle" | `config.rs:580-581` (`dependsOn`, alias `depends_on`); `config.rs:1745-1770` — topological order, and `Err("service dependency cycle: …")` when the graph has one (`config.rs:2353` tests it) |
 | "It orders starts; `lpm wait --port 5432` is the readiness gate." | `cli/src/wait.rs:1-5` — the port/service modes poll client-side every 250 ms and never touch the app (only `--agent` calls `require_app`, `wait.rs:197`); `cli/src/main.rs:165-182` |
 | "Names what is already holding :3000 — ✓", "checks the ports your services declare before it starts, names the process holding one, and offers to free it or stop the start" | `desktop/frontend/src-tauri/src/ports.rs:1-20` (local conflict detection feeding the start dialog) with holder lookup at `portsprobe.rs:218` (`lookup_holders`); the dialog itself is `PortConflictDialog.tsx:29-31` ("Stop the holder below to start the project", each row printing "used by <description>") with `Cancel` / `Stop & start` at `:60-73`; `config.rs:576-577` (`portConflict`) |
 | "Run a named subset instead of a per-run flag — profiles:", "`lpm start --profile full`" | `config.rs:809` (`profiles: BTreeMap<String, Vec<String>>`); `cli/src/main.rs:132-141` (`Start { profile }`); the picker is `StartMenu.tsx:41-56` |
 | "Two Rails apps up at once in one window — ✓", "Two or three repos are up at once" | `desktop/frontend/src-tauri/src/services.rs:22-24` (run state is a map keyed by project file name, so several projects hold running state at once); `cli/src/list.rs:1-3,40-45` ("every project with its running state") |
 | "A second Claude Code or Codex agent gets its own checkout — 1–50 worktrees or copies", "anywhere from 1 to 50 of them" | `desktop/frontend/src-tauri/src/projects_crud.rs:509-521` (`git worktree add -b`); `desktop/frontend/src/components/BulkDuplicateDialog.tsx:42` (`MAX_COUNT = 50`); `cli/src/main.rs:239-246` (`--count` parsed `1..=50`) |
-| "a linked worktree arrives without your `.env` or your installed gems" (the hedge ledger §5.6 requires) | `projects_crud.rs:517` is a plain `git worktree add -b`, which carries no ignored files; the app's own dialog says so — `BulkDuplicateDialog.tsx:925-936`, "Install dependencies in the copy after Git creates it" (worktree) vs "Copy without dependencies, then install them fresh" (standalone) |
+| "A linked worktree arrives without your .env, and lpm's Install dependencies covers Node packages, not a bundle install" (the hedge ledger §5.6 requires) | `projects_crud.rs:828` (`create_linked_worktree`, a plain `git worktree add -b`, which carries no ignored files); `projects_crud.rs:851-854` + `detect/node.rs:123-127` (install runs only when `package.json` exists) and `node.rs:77-84` (npm/yarn/pnpm/bun only); the app's own dialog says so — `BulkDuplicateDialog.tsx:925-936`, "Install dependencies in the copy after Git creates it" (worktree) vs "Copy without dependencies, then install them fresh" (standalone) |
 | "Claude Code or Codex in the next tab" (and every Claude Code / Codex mention) | `desktop/frontend/src-tauri/src/hooks.rs:1-9` (status hooks are installed for Claude Code and Codex); `desktop/frontend/src/types.ts:247` |
 | "A desktop window rather than a foreground command — ✓", "macOS" | `desktop/frontend/src-tauri/tauri.conf.json:31-42` |
 | "Licence … — MIT", "MIT-licensed" | `LICENSE:1` ("MIT License") |
@@ -231,7 +232,7 @@ Fetched and read this pass; all seven URLs are in `ComparisonBasis`.
 | `foreman export` generates upstart / systemd / launchd units (row 5, verdict card, FAQ 5, migrate) | the man page, EXPORTING |
 | "one exit ends the formation" (row 12), "the CSS watcher dies and takes Rails with it", "One process exits and the whole formation shuts down mid-request", "a foreman formation ends with the command that started it" | Foreman's engine source: a child dying breaks the run loop into `terminate_gracefully`, which sends SIGTERM to **all** children and then SIGKILL after `--timeout` |
 | Foreman is MIT (row 21) | the Foreman README: "Foreman is licensed under the MIT license" |
-| Foreman "anywhere Ruby runs" / "a Ruby gem" (row 6, FAQ 6, verdict card) | the Foreman README (a gem, installed with `gem install foreman`) and the gem's own version list |
+| Foreman "Linux, macOS" / "a Ruby gem" (row 6, FAQ 6, verdict card) | the Foreman README (a gem, installed with `gem install foreman`) and the gem's own version list. 2026-09-23: was "anywhere Ruby runs"; the README names no Windows support and the last Windows (`mingw32`) build of the gem is 0.69.0 from 2014, so the page no longer implies Windows and matches the hub's "Linux" cell |
 | `overmind connect` gives you input on one process (row 7, QuickAnswer, verdict card) | the Overmind README: `connect` — "Access process input via tmux window" |
 | `overmind restart css` (row 11, one-terminal card 1, verdict card) | the Overmind README: `restart` — "Relaunch processes without stopping others" |
 | Overmind `-p` base / `-P` step (row 2, migrate) | the Overmind README: `-p`/`OVERMIND_PORT` base (default 5000), `-P`/`OVERMIND_PORT_STEP` (default 100) |
@@ -252,11 +253,11 @@ Two competitor claims from the brief were **deleted** rather than sourced (R3/R8
 ## 5. FAQ (6 Q&A, plain text for JSON-LD)
 
 1. **Foreman or Overmind — which should I use?** — the QuickAnswer's first paragraph, verbatim (JSX links Overmind to `/vs/overmind`; `answerText` carries the plain string). "colour-prefixed" is now "on stdout" in both copies.
-2. **Does lpm read my Procfile?** — "No. lpm never parses the file. You copy the lines into a `services:` block — a minute for a normal Rails app — and the Procfile stays in the repo for Heroku and `foreman export`."
+2. **Does lpm read my Procfile?** — "Once. When you add the folder, lpm opens `Procfile.dev` (or `Procfile`, if that is all there is) and makes each line a service, keeping its name, its command and any `-p` port. After that the list is lpm's own, so a line you add to the Procfile later has to be added in lpm too. The file itself is never touched — it stays in the repo for Heroku and `foreman export`." (2026-09-23: the old answer, "No. lpm never parses the file", became false with commit `835443cb` and was also the page's FAQPage JSON-LD.)
 3. **What replaces bin/dev in a Rails app?** — "`bin/dev` shells out to Foreman with `Procfile.dev`. With lpm you press Start, or run `lpm start`, and the same lines come up as separate panes. Keep `bin/dev` working — nothing removes it."
 4. **Does lpm load .env the way foreman start does?** — "No. lpm exports the `env:` map you write on each service, so move the variables you need there or keep loading `.env` inside the command with dotenv."
 5. **Does lpm replace foreman export?** — the existing answer, verbatim from the previous page.
-6. **Does it run on Linux or Windows?** — rewritten (R5). "Foreman is a Ruby gem, so it goes wherever Ruby goes, and Overmind covers Linux, \*BSD and macOS. lpm is the odd one out — its window opens on a Mac and nowhere else. A Linux server can still be where your Rails processes actually run, with the Mac driving them." The fact is unchanged and the link still lands on `/run-claude-code-on-a-remote-server`, anchored on "where your Rails processes actually run". It is written this way because the brief's sentence, and then a first rewrite of it, both collided with `/vs/docker-compose`'s answer to the same question — see "Rulings applied".
+6. **Does it run on Linux or Windows?** — rewritten (R5). "Foreman is a Ruby gem that runs on Linux as well as macOS, and Overmind covers Linux, \*BSD and macOS; neither documents a Windows setup. lpm is the odd one out — its window opens on a Mac and nowhere else. A Linux server can still be where your Rails processes actually run, with the Mac driving them." (2026-09-23: the first clause was "Foreman is a Ruby gem, so it goes wherever Ruby goes", which implied Windows.) The fact is unchanged and the link still lands on `/run-claude-code-on-a-remote-server`, anchored on "where your Rails processes actually run". It is written this way because the brief's sentence, and then a first rewrite of it, both collided with `/vs/docker-compose`'s answer to the same question — see "Rulings applied".
 
 Questions 3 and 4 drop the brief's backticks because `FaqItem.question` is a plain string; the code spans are preserved in the answers.
 
@@ -264,7 +265,7 @@ Questions 3 and 4 drop the brief's backticks because `FaqItem.question` is a pla
 
 ## 6. Links
 
-`RelatedPages` (5, per spec §6.1): `/vs/overmind`, `/vs/docker-compose`, `/config`, `/best-terminal-for-claude-code-and-codex`, `/git-worktree-for-ai-agents`. Card descriptions are written here — the brief assigns the targets only.
+`RelatedPages` (6 — the site standard is 4 or 6, so the 2026-09-23 pass added the Linux-host card to fill the `lg:grid-cols-3` row): `/vs/overmind`, `/vs/docker-compose`, `/config`, `/best-terminal-for-claude-code-and-codex`, `/git-worktree-for-ai-agents`, `/run-claude-code-on-a-remote-server` ("Pair a headless Linux machine, run the stack and the agents there, and drive both from the Mac window" — `peerssh.rs:44-52`, `config.rs:597-606`). Card descriptions are written here — the brief assigns the targets only.
 
 In-body: `/vs/overmind` from the QuickAnswer and from FAQ 1, `/config` from the migrate section's description, `/run-claude-code-on-a-remote-server` from FAQ 6. Every one of the four lands on a sentence that is still in the copy (R7); the hero's `jumpHref="#matrix"` lands on `procfile-matrix.tsx`'s `<section id="matrix" className="scroll-mt-20">`. `/git-worktree-for-ai-agents` carries the worktree caveat's context and stays a `RelatedPages` card, because `WhenToPick.points` is `string[]` and cannot hold a link.
 
@@ -272,7 +273,7 @@ In-body: `/vs/overmind` from the QuickAnswer and from FAQ 1, `/config` from the 
 
 ## Notes for engineers
 
-- Components: `_components/one-terminal.tsx` (`OneTerminal`), `_components/procfile-matrix.tsx` (`ProcfileMatrix`), `_components/migrate.tsx` (`Migrate`). One component per file; the matrix keeps its `ROWS` const in the same file (282 lines). `page.tsx` is 390 — the next section added to this page needs its own file.
+- Components: `_components/one-terminal.tsx` (`OneTerminal`), `_components/procfile-matrix.tsx` (`ProcfileMatrix`), `_components/migrate.tsx` (`Migrate`). FAQ data (with the `answerText` strings) lives in `_components/faq-data.tsx` since 2026-09-23 so `page.tsx` stays under 400 lines. One component per file; the matrix keeps its `ROWS` const in the same file (282 lines). `page.tsx` is 390 — the next section added to this page needs its own file.
 - Rhythm: the two new sections are `py-16 sm:py-20`; `procfile-matrix.tsx` keeps `py-20 sm:py-24` because it stands in the shared `FeatureMatrix` slot and that component's rhythm is not being churned this pass.
 - No emerald anywhere: the matrix helpers were re-tinted to `feature-matrix.tsx`'s neutral palette when cloned from `isolation-matrix.tsx`.
 - 390px: the desktop matrix table is `hidden md:block` inside `overflow-x-auto`; below `md` each row is a card with a three-row `<dl>`, and an all-equal row collapses to one "All three" line. `CodeBlock` scrolls its own `<pre>`.
@@ -303,3 +304,9 @@ The reviewer left six defects in place because it had been told the spec outrank
 
 - **`/vs/overmind`'s attach line.** Ledger §5.5 clears "takes focus with 10,000 lines of scrollback and a live prompt, so you can hit a debugger or open a `pry` session in that one process" for `/vs/overmind`. The "live prompt" half is the same claim this page just retired: `Pane.tsx:56` is `disableStdin: true`, and `:58` is where the 10,000 comes from, so the scrollback half is right and the prompt half is not. That page is owned by another engineer; flagged, not touched.
 - **Seven sources in one `ComparisonBasis` line.** The component renders them as an inline comma list, which is legible at 390px but long. Trimming it would mean dropping a claim, so it stays.
+
+## Verifier pass — 2026-09-23
+
+- QuickAnswer block "What lpm lists after you add the folder" now shows exactly what `services_for` writes: every detected service as a `cmd:` map, `port:` only where the command names one (`projects_crud.rs:48-67`). The previous block used the one-line shorthand for `css` and `worker`, which lpm accepts (`config.rs:822-826`) but does not write.
+- One-terminal card 1: the Services menu is a toggle (`services.rs:448-462`), and a crashed service still counts as running (`config.rs:2135-2147` reads the run state, not the process), so bringing it back there is "switching it off and on again"; `lpm service css restart` is the one-step path.
+- `-m web=2,worker=3`, `-p 3000` and `lpm start --profile full` are `whitespace-nowrap` so the flags no longer split at the hyphen.

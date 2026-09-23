@@ -39,7 +39,7 @@ const ROWS: Row[] = [
     users: true,
   },
   {
-    label: "Settings, memory & skills shared across accounts",
+    label: "Settings, CLAUDE.md & skills shared across accounts",
     lpm: true,
     switchers: true,
     manual: false,

@@ -17,16 +17,15 @@ const FAQS: QA[] = [
         For developers who want their terminal to handle remote work alongside
         local services, yes — lpm reads the hosts already in your{" "}
         <code className="text-xs">~/.ssh/config</code> (no separate host vault),
-        runs remote services in panes next to your local ones, and forwards
-        ports without leaving the window. If you specifically need a
-        saved-snippet library or an SFTP file browser, Termius still does those
-        things; lpm is a terminal-first SSH workspace, not a feature-parity
-        Termius alternative on Mac. For most remote-dev workflows, the
-        terminal-first approach replaces the dedicated client entirely.
+        runs remote services in panes, and forwards
+        ports without leaving the window. You can browse and read the remote
+        project&apos;s files (read-only), but for SFTP transfers or a snippet
+        library Termius still does more; lpm is a terminal-first SSH workspace,
+        not a feature-parity Termius alternative on Mac.
       </>
     ),
     answerText:
-      "For developers who want their terminal to handle remote work alongside local services, yes — lpm reads the hosts already in your ~/.ssh/config (no separate host vault), runs remote services in panes next to your local ones, and forwards ports without leaving the window. If you specifically need a saved-snippet library or an SFTP file browser, Termius still does those things; lpm is a terminal-first SSH workspace, not a feature-parity Termius alternative on Mac. For most remote-dev workflows, the terminal-first approach replaces the dedicated client entirely.",
+      "For developers who want their terminal to handle remote work alongside local services, yes — lpm reads the hosts already in your ~/.ssh/config (no separate host vault), runs remote services in panes, and forwards ports without leaving the window. You can browse and read the remote project's files (read-only), but for SFTP transfers or a snippet library Termius still does more; lpm is a terminal-first SSH workspace, not a feature-parity Termius alternative on Mac.",
   },
   {
     question: "How does lpm import my SSH config?",
@@ -53,19 +52,18 @@ const FAQS: QA[] = [
     question: "Can I forward a remote port to localhost without typing ssh -L?",
     answer: (
       <>
-        Yes — that&apos;s the whole point of the Ports popover. Type the remote
-        port, leave the local port blank, hit Enter; lpm spawns the forward,
-        polls <code className="text-xs">localhost:&lt;port&gt;</code> until
-        something actually accepts a connection, and only then surfaces the
-        success toast. So you know the tunnel is usable, not just spawned.
-        Declared service ports auto-forward at start, and ad-hoc binds
-        discovered on the remote surface as one-click suggestions — remote port
-        forwarding without the <code className="text-xs">ssh -L</code>{" "}
-        archaeology.
+        Yes, that&apos;s the whole point of the Ports popover. Type the remote
+        port, leave the local port blank, and hit Enter; lpm opens the forward
+        and shows the success toast only once the local address actually
+        answers, so you know the tunnel is usable, not just started. Declared
+        service ports forward automatically as soon as the remote server
+        listens, and other ports lpm spots on the remote show up as one-click
+        suggestions: remote port forwarding without the{" "}
+        <code className="text-xs">ssh -L</code> archaeology.
       </>
     ),
     answerText:
-      "Yes — that's the whole point of the Ports popover. Type the remote port, leave the local port blank, hit Enter; lpm spawns the forward, polls localhost:<port> until something actually accepts a connection, and only then surfaces the success toast. So you know the tunnel is usable, not just spawned. Declared service ports auto-forward at start, and ad-hoc binds discovered on the remote surface as one-click suggestions — remote port forwarding without the ssh -L archaeology.",
+      "Yes, that's the whole point of the Ports popover. Type the remote port, leave the local port blank, and hit Enter; lpm opens the forward and shows the success toast only once the local address actually answers, so you know the tunnel is usable, not just started. Declared service ports forward automatically as soon as the remote server listens, and other ports lpm spots on the remote show up as one-click suggestions: remote port forwarding without the ssh -L archaeology.",
   },
   {
     question: "Does lpm work with a jump host or bastion?",
@@ -77,17 +75,32 @@ const FAQS: QA[] = [
         <code className="text-xs">ProxyJump bastion</code> or{" "}
         <code className="text-xs">ProxyCommand</code> remain in OpenSSH&apos;s
         hands. The first connection prompts for whatever your bastion requires
-        (key passphrase, 2FA); the multiplexed channel keeps it open after that,
-        so later services, actions, and terminals can reuse it.
+        (key passphrase, 2FA); lpm keeps that connection open after that, so
+        later services, actions, and terminals can reuse it.
       </>
     ),
     answerText:
-      "Yes, when the jump host is part of the selected Host entry in your OpenSSH config. lpm saves the host alias and invokes OpenSSH with it, so options such as ProxyJump bastion or ProxyCommand remain in OpenSSH's hands. The first connection prompts for whatever your bastion requires (key passphrase, 2FA); the multiplexed channel keeps it open after that, so later services, actions, and terminals can reuse it.",
+      "Yes, when the jump host is part of the selected Host entry in your OpenSSH config. lpm saves the host alias and invokes OpenSSH with it, so options such as ProxyJump bastion or ProxyCommand remain in OpenSSH's hands. The first connection prompts for whatever your bastion requires (key passphrase, 2FA); lpm keeps that connection open after that, so later services, actions, and terminals can reuse it.",
   },
   {
     question: "Can actions run on the remote host, or locally against remote files?",
     answer:
-      "Both — each action picks where it runs, independently of the others. Remote actions (the default for SSH projects) run their command on the remote host over ssh — useful for a deploy, a migration, a remote build. The other choice mirrors the remote source tree to your Mac, runs the command locally against the mirror, and pushes changes back — so a local tool (a code formatter, an IDE refactor, an AI coding session) can act on remote source without you shuttling files manually.",
+      "Both. On an SSH project, actions run on the remote host by default, which suits a deploy, a migration, or a remote build. A setting in the project config lets an individual action run on your Mac instead: lpm copies the remote folder down, runs the command locally, and pushes the changes back, so a local formatter or an AI coding session can work on remote source without you shuttling files. That option needs rsync.",
+  },
+  {
+    question: "Do Claude Code and Codex on the remote box show up in lpm?",
+    answer:
+      "Yes. When you open a terminal on an SSH project, lpm sets up its agent status and skills on the server, so Claude Code and Codex running there report working, needs you, and done to your Mac's sidebar and trigger the same sounds and banners as local agents. If a gateway host sends terminals to a different machine than lpm's connection, lpm warns you that alerts from that server won't arrive.",
+  },
+  {
+    question: "What happens when the SSH connection drops?",
+    answer:
+      "lpm sends keepalives, so a dead link is noticed quickly, and SSH terminals reconnect on their own, backing off between attempts. A reconnect starts a fresh remote shell, so whatever that session was running is not resumed. Remote processes also live only as long as the connection; to keep projects and agents running while your Mac sleeps, install lpm on the server as a Linux host.",
+  },
+  {
+    question: "Can I duplicate an SSH project or make a worktree of it?",
+    answer:
+      "Not yet. Duplicate and New Worktree aren't available for SSH projects, and services are not auto-detected for SSH projects: a new one starts with a single login-shell service that you edit in the config editor.",
   },
   {
     question: "Is lpm a good iTerm2 or Warp alternative for SSH work specifically?",
@@ -97,8 +110,8 @@ const FAQS: QA[] = [
         <code className="text-xs">ssh</code> inside either can use your OpenSSH
         config. lpm is different because it adds a project model around the SSH
         session itself: a host picker reading{" "}
-        <code className="text-xs">~/.ssh/config</code>, remote services in panes
-        beside local ones, port forwarding with readiness checks, remote port
+        <code className="text-xs">~/.ssh/config</code>, remote services streaming
+        into project panes, port forwarding with readiness checks, remote port
         suggestions, and per-project lifecycle for forwards. If your day is
         mostly local terminal work with the occasional{" "}
         <code className="text-xs">ssh user@host</code>, a general terminal is
@@ -107,7 +120,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "Both iTerm2 and Warp are capable Mac terminals, and raw ssh inside either can use your OpenSSH config. lpm is different because it adds a project model around the SSH session itself: a host picker reading ~/.ssh/config, remote services in panes beside local ones, port forwarding with readiness checks, remote port suggestions, and per-project lifecycle for forwards. If your day is mostly local terminal work with the occasional ssh user@host, a general terminal is fine. If you cross the local/remote line every hour, lpm is built for that workflow.",
+      "Both iTerm2 and Warp are capable Mac terminals, and raw ssh inside either can use your OpenSSH config. lpm is different because it adds a project model around the SSH session itself: a host picker reading ~/.ssh/config, remote services streaming into project panes, port forwarding with readiness checks, remote port suggestions, and per-project lifecycle for forwards. If your day is mostly local terminal work with the occasional ssh user@host, a general terminal is fine. If you cross the local/remote line every hour, lpm is built for that workflow.",
   },
 ];
 

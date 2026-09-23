@@ -526,6 +526,13 @@ html {
   }
 }
 
+/* The Mac + iPhone section's pause button stills everything that loops in it,
+   not only the transcript: cursors stay solid and live dots stop pinging. */
+[data-pd-paused] [class*="pd-blink"],
+[data-pd-paused] [class*="animate-ping"] {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

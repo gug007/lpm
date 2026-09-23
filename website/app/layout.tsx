@@ -11,7 +11,7 @@ import {
   TELEGRAM_URL,
   THEME_STORAGE_KEY,
 } from "@/lib/links";
-import { jsonLdString } from "@/lib/structured-data";
+import { APP_ID, WEBSITE_ID, jsonLdString } from "@/lib/structured-data";
 import { fetchLatestVersion } from "@/lib/github-stats";
 
 const geistSans = Geist({
@@ -22,19 +22,21 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "lpm — Free Mac App for Dev Projects & AI Coding Agents",
+    default: "lpm — Free Mac App to Run Claude Code, Codex & Dev Projects",
     template: "%s — lpm",
   },
   description:
-    "Start, stop, switch, and duplicate local dev projects on your Mac — and run Claude Code, Codex, and Gemini side by side in a built-in terminal. Free download.",
+    "Start, switch, and duplicate local dev projects on your Mac, and run Claude Code and Codex side by side with live agent status. Free and open source.",
   keywords: [
     "run claude code in parallel",
     "claude code multiple projects",
+    "schedule claude code tasks",
     "macOS app",
     "project switcher",
     "run multiple dev servers",
@@ -44,18 +46,18 @@ export const metadata: Metadata = {
     "dev tools",
   ],
   openGraph: {
-    title: "lpm — Free Mac App for Dev Projects & AI Coding Agents",
+    title: "lpm — Free Mac App to Run Claude Code, Codex & Dev Projects",
     description:
-      "Start, stop, switch, and duplicate local dev projects on your Mac — and run Claude Code, Codex, and Gemini side by side in a built-in terminal. Free download.",
+      "Start, switch, and duplicate local dev projects on your Mac, and run Claude Code and Codex side by side with live agent status. Free and open source.",
     type: "website",
     url: SITE_URL,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "lpm — Free Mac App for Dev Projects & AI Coding Agents",
+    title: "lpm — Free Mac App to Run Claude Code, Codex & Dev Projects",
     description:
-      "Start, stop, switch, and duplicate local dev projects on your Mac — and run Claude Code, Codex, and Gemini side by side in a built-in terminal. Free download.",
+      "Start, switch, and duplicate local dev projects on your Mac, and run Claude Code and Codex side by side with live agent status. Free and open source.",
   },
 };
 
@@ -78,6 +80,25 @@ const themeScript = `
 
 const PUBLISHER_ID = `${SITE_URL}/#publisher`;
 
+const FEATURE_LIST = [
+  "Detects a project's dev servers when you add or clone it",
+  "One-click start and stop for every service, with profiles",
+  "Live output per service with listening ports and port-conflict checks",
+  "Built-in terminals with Claude Code, Codex, Gemini, and OpenCode launchers",
+  "Live Claude Code and Codex status with sounds and macOS notifications",
+  "Prompt composer with @ mentions, images, and slash-command autocomplete",
+  "Duplicate a project or create Git worktrees to run agents in parallel",
+  "Scheduled automations that run agent prompts, commands, or actions",
+  "Review changes, AI commit messages, and GitHub pull requests",
+  "Files tab with an editor, Git status, and editable diffs",
+  "Claude Code and Codex token stats and plan-limit meters",
+  "Multiple Claude Code accounts pinned per project",
+  "SSH remote projects with port forwarding",
+  "Control another Mac or a Linux server from your Mac",
+  "iPhone companion with live terminals and push notifications",
+  "lpm CLI and agent skills so coding agents can drive lpm",
+];
+
 const buildStructuredData = (softwareVersion: string | null) => ({
   "@context": "https://schema.org",
   "@graph": [
@@ -97,12 +118,13 @@ const buildStructuredData = (softwareVersion: string | null) => ({
     },
     {
       "@type": "SoftwareApplication",
-      "@id": `${SITE_URL}/#app`,
+      "@id": APP_ID,
       name: "lpm",
       description:
         "A free, open-source Mac app that starts, stops, duplicates, and switches between local dev projects, with a built-in terminal for running Claude Code, Codex, and other AI coding agents in parallel.",
       applicationCategory: "DeveloperApplication",
       operatingSystem: "macOS",
+      featureList: FEATURE_LIST,
       url: SITE_URL,
       image: `${SITE_URL}/screenrecording/start-project-poster.jpg`,
       screenshot: `${SITE_URL}/screenrecording/agent-parallel-tabs-poster.jpg`,
@@ -119,7 +141,7 @@ const buildStructuredData = (softwareVersion: string | null) => ({
     },
     {
       "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
+      "@id": WEBSITE_ID,
       name: "lpm",
       url: SITE_URL,
       publisher: { "@id": PUBLISHER_ID },

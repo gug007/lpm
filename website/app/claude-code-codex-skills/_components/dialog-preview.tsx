@@ -11,7 +11,7 @@ const FIELDS = [
   {
     icon: Bot,
     title: "Who runs it",
-    copy: "Your agent, when the description fits — or manual-only, invoked with /name or $name.",
+    copy: "Your agent, when the description fits, or manual-only, invoked with /name or $name.",
   },
   {
     icon: FileText,
@@ -53,7 +53,8 @@ export default function DialogPreview() {
             <Image
               src={skillsBeforeAfter}
               alt="Editing SKILL.md by hand in a terminal, crossed out, next to lpm's New skill dialog with AI drafting, folder, run mode, description, and instructions fields"
-              priority
+              loading="eager"
+              fetchPriority="high"
               placeholder="blur"
               quality={90}
               sizes="(max-width: 1024px) 100vw, 1024px"

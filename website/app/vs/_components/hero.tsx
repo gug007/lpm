@@ -10,7 +10,7 @@ export default function Hero() {
           Mac dev stacks · seven tools
         </span>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          tmux, iTerm2, Docker Compose: seven ways to run a Mac dev stack.
+          tmux, iTerm2, PM2, Docker Compose: seven ways to run a Mac dev stack.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
           Four processes, one repo, twenty times a day. Terminal tabs, a

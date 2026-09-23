@@ -15,7 +15,7 @@ const OUTCOMES: {
   {
     icon: ChartNoAxesCombined,
     title: "Understand where the tokens went",
-    body: "Separate fresh input, cached input, output, and reasoning tokens. See the peak day and an approximate model-aware cost beside the total.",
+    body: "Separate fresh input, cached input, output and, for Codex, reasoning tokens. See the peak day and an estimated, model-aware cost beside the total.",
   },
   {
     icon: GitCompareArrows,

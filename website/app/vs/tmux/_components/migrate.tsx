@@ -29,7 +29,7 @@ export default function Migrate() {
         <SectionHeader
           eyebrow="Migration"
           title="Coming from tmuxinator"
-          description="A tmuxinator project is a window list. An lpm project is a service map. The translation is mechanical."
+          description="A tmuxinator project is a window list. An lpm project is a service map. The translation is mechanical, and adding the folder already does most of it."
         />
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -47,9 +47,10 @@ export default function Migrate() {
           <code>profiles</code>, so <code>profiles: {"{"} frontend: [web] {"}"}</code>{" "}
           gives you a smaller stack on the days you do not need the rest.{" "}
           <code>dependsOn</code> sets the order, not readiness —{" "}
-          <code>lpm wait --port 5432</code> is the gate. Put the same file at{" "}
-          <code>.lpm.yml</code> in the repo and your team gets the services on
-          clone. The reference documents{" "}
+          <code className="whitespace-nowrap">lpm wait --port 5432</code>{" "}is the gate. Put the same services
+          in a <code>.lpm.yml</code>{" "}at the repo root and your team gets them
+          on clone, next to anything lpm picks up from the repo on their machine.
+          The reference documents{" "}
           <Link
             href={CONFIG_PATH}
             className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"

@@ -1,23 +1,33 @@
+import Link from "next/link";
 import {
   Copy,
+  FileUp,
   GitCompare,
   Layers,
-  RefreshCw,
+  Smartphone,
   SquareTerminal,
-  Waypoints,
 } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { MOBILE_PATH } from "@/lib/links";
 
 const FEATURES = [
   {
     icon: SquareTerminal,
     title: "Terminals and agents, live",
-    body: "Start Claude Code or Codex in a terminal on the server and watch it stream on your Mac, keystroke for keystroke. When it stops to ask you something, the tab lights up here.",
+    body: "Start Claude Code or Codex in a terminal on the server and watch it stream on your Mac, keystroke for keystroke. When it finishes or stops to ask you something, your Mac chimes and the tab lights up.",
   },
   {
     icon: Layers,
     title: "Its services, its logs",
-    body: "Start, stop and restart the project's services on the server from the same buttons you use locally, and read what they printed. They run there, so they are still up tomorrow morning.",
+    body: (
+      <>
+        Start and stop the project&rsquo;s services on the server from the same
+        buttons you use locally, or restart one with{" "}
+        <code className="font-mono text-[0.9em]">lpm service &lt;name&gt; restart</code>,
+        and read what they printed. They run there, so they are still up
+        tomorrow morning.
+      </>
+    ),
   },
   {
     icon: GitCompare,
@@ -30,14 +40,26 @@ const FEATURES = [
     body: "Duplicate a server project into copies and queue the same prompt in each. The copying and the running happen on the server — your laptop stays quiet.",
   },
   {
-    icon: RefreshCw,
-    title: "Config that follows",
-    body: "Keep projects, settings and global config mirrored between your Mac and the server, on demand or automatically, so a project you set up once behaves the same in both places.",
+    icon: FileUp,
+    title: "Files and new projects",
+    body: "Drag a screenshot or a file onto a server terminal and lpm uploads it there and pastes the path. Right-click the server in the sidebar to add a project on it, from a folder or a Git clone.",
   },
   {
-    icon: Waypoints,
-    title: "More than one machine",
-    body: "Add several servers. Each gets its own section in the sidebar, its own status, and its own version line — and the row tells you when one has fallen behind your Mac.",
+    icon: Smartphone,
+    title: "Your phone, straight to the server",
+    body: (
+      <>
+        Pair the{" "}
+        <Link
+          href={MOBILE_PATH}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+        >
+          lpm iPhone app
+        </Link>{" "}
+        with the server itself and check on an agent, or answer it, while your
+        Mac is off.
+      </>
+    ),
   },
 ];
 
@@ -69,6 +91,12 @@ export default function AfterConnect() {
             </article>
           ))}
         </div>
+        <p className="mx-auto mt-8 max-w-3xl text-center text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+          Add as many servers as you like: each gets its own sidebar section,
+          status, and version line, with an Update button when it falls behind
+          your Mac. Config sync keeps lpm settings, and the config of projects
+          that exist on both machines, in step, on demand or automatically.
+        </p>
       </div>
     </section>
   );

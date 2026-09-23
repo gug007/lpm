@@ -48,7 +48,7 @@ const OPENING_HINT: TourHint = {
 export const TOUR_STEP_CATALOG: Record<TourStepId, TourStepSpec> = {
   addProject: {
     title: "Add a project",
-    body: "Point lpm at a folder. It lands in the sidebar with a service to fill in and both agents ready to open.",
+    body: "Point lpm at a folder. It finds your services and lands in the sidebar, with Claude Code and Codex one click away.",
     leadMs: 4400,
   },
   start: {

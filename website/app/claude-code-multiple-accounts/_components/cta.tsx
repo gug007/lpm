@@ -12,8 +12,7 @@ export default function Cta() {
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Download a native macOS app, add your Claude accounts in Settings,
-          and pick one per project. Works on Intel and Apple Silicon Macs
-          running macOS 12 or later.
+          and pick one per project. Free, for Apple Silicon and Intel Macs.
         </p>
 
         <div className="mt-10 flex justify-center">

@@ -11,8 +11,8 @@ export default function Cta() {
           Give your agents skills worth keeping.
         </h2>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-lg">
-          lpm keeps Claude Code and Codex — skills, services, logs, Git changes,
-          and project copies — together in one native macOS app.
+          Skills, services, logs, Git changes and project copies for Claude
+          Code and Codex, all inside one native macOS app.
         </p>
         <div className="mt-10 flex justify-center">
           <HeroDownload source="skills-cta" />

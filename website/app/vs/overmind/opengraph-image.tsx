@@ -12,6 +12,6 @@ export default function Image() {
       "— your Procfile as live panes.",
     ],
     subline:
-      "The same per-process control with no tmux installed, plus the Procfile-to-config conversion line by line.",
+      "Restart any one process with no tmux installed, and the Procfile imported line by line when you add the folder.",
   });
 }

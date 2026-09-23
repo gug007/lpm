@@ -15,8 +15,6 @@ const PROMPT_BUBBLE = "bg-[#373737]";
 const PROMPT_CHAR = "text-[#707070]";
 
 const WORK_PROMPT = "tighten the login rate limiter";
-const AMBER_CHIP = "border-amber-500/30 bg-amber-500/[0.08] text-amber-300/90";
-const TEAL_CHIP = "border-teal-500/30 bg-teal-500/[0.08] text-teal-300/90";
 
 type Span = { t: string; c?: string };
 type Line = { spans: Span[]; gap?: boolean; bubble?: string };
@@ -30,17 +28,12 @@ const prompt = (t: string): Line => ({
   bubble: PROMPT_BUBBLE,
 });
 
-type Badge = { label: string; className: string };
 type Pane = {
   project: string;
-  badge: Badge;
   status: ReactNode;
   preamble: number;
   lines: Line[];
 };
-
-const WORK_BADGE: Badge = { label: "Work", className: AMBER_CHIP };
-const PERSONAL_BADGE: Badge = { label: "Personal", className: TEAL_CHIP };
 
 const PONDERING = (
   <>
@@ -58,7 +51,6 @@ const CRUNCHING = (
 const PANES: Pane[] = [
   {
     project: "client-app",
-    badge: WORK_BADGE,
     status: PONDERING,
     preamble: 3,
     lines: [
@@ -77,7 +69,6 @@ const PANES: Pane[] = [
   },
   {
     project: "side-project",
-    badge: PERSONAL_BADGE,
     status: CRUNCHING,
     preamble: 3,
     lines: [
@@ -96,14 +87,9 @@ const PANES: Pane[] = [
   },
 ];
 
-const SIDEBAR: {
-  name: string;
-  running: boolean;
-  active: boolean;
-  chip?: { label: string; className: string };
-}[] = [
-  { name: "client-app", running: true, active: true, chip: { label: "W", className: AMBER_CHIP } },
-  { name: "side-project", running: true, active: true, chip: { label: "P", className: TEAL_CHIP } },
+const SIDEBAR: { name: string; running: boolean; active: boolean }[] = [
+  { name: "client-app", running: true, active: true },
+  { name: "side-project", running: true, active: true },
   { name: "docs-site", running: false, active: false },
 ];
 
@@ -159,13 +145,6 @@ function Sidebar() {
             }`}
           />
           <span className="min-w-0 flex-1 truncate">{p.name}</span>
-          {p.chip && (
-            <span
-              className={`shrink-0 rounded border px-1 text-[7px] font-semibold leading-tight ${p.chip.className}`}
-            >
-              {p.chip.label}
-            </span>
-          )}
         </span>
       ))}
     </div>
@@ -195,11 +174,6 @@ function TerminalPane({
       <div className="flex items-center gap-2 border-b border-[#2d2d2d] bg-[#161616] px-3 py-2">
         <span className="truncate text-[10px] font-medium text-gray-200">
           {pane.project}
-        </span>
-        <span
-          className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[8px] font-semibold ${pane.badge.className}`}
-        >
-          {pane.badge.label}
         </span>
         <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-[8px] font-medium text-emerald-400">
           <RunningDot />
@@ -335,14 +309,13 @@ export function AccountsVisual() {
     <section className="pb-4 pt-2 sm:pb-8">
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <p className="sr-only">
-          An illustration of one lpm window running two Claude Code agents that
-          stream in parallel. The left pane, project &ldquo;client-app&rdquo;,
-          is pinned to a Work account and tightens a login rate limiter. The
-          right pane, project &ldquo;side-project&rdquo;, is pinned to a
-          Personal account and adds a dark mode toggle. A projects sidebar shows
-          both as running, each tagged with its account, and the two panes
-          advance at the same time — the accounts work side by side rather than
-          one switching to the other.
+          An illustration of two lpm projects running Claude Code agents at the
+          same time. Project &ldquo;client-app&rdquo; is pinned to a work
+          account, and its Claude Code session tightens a login rate limiter.
+          Project &ldquo;side-project&rdquo; runs on a personal account and
+          adds a dark mode toggle. The projects sidebar shows both as running,
+          and the two sessions advance together: the accounts work side by side
+          rather than one switching to the other.
         </p>
 
         <div
@@ -383,8 +356,8 @@ export function AccountsVisual() {
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
-          Two projects, two subscriptions, no switching — each pane spends its
-          own account&rsquo;s usage.
+          Illustration: two projects, two subscriptions, no switching. Each
+          session spends its own account&rsquo;s usage.
         </p>
       </div>
     </section>

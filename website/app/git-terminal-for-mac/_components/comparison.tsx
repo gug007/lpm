@@ -1,106 +1,7 @@
-import { Check, Minus, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
-
-type AlternativeKey = "lpm" | "gitKraken" | "iterm2" | "terminal" | "tmux" | "sourceTree";
-
-type Cell = boolean | string;
-
-type Capability = {
-  label: string;
-} & Record<AlternativeKey, Cell>;
-
-const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
-  { key: "lpm", label: "lpm" },
-  { key: "gitKraken", label: "GitKraken" },
-  { key: "iterm2", label: "iTerm2" },
-  { key: "terminal", label: "Terminal.app" },
-  { key: "tmux", label: "tmux" },
-  { key: "sourceTree", label: "SourceTree" },
-];
-
-const CAPABILITIES: Capability[] = [
-  {
-    label: "Run git commands and dev servers in the same window",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: true,
-    sourceTree: false,
-  },
-  {
-    label: "Services keep running across branch switches",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: true,
-    sourceTree: false,
-  },
-  {
-    label: "Per-project persistent workspace with branch context",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    sourceTree: false,
-  },
-  {
-    label: "Visual per-service log panes alongside git shell",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: true,
-    sourceTree: false,
-  },
-  {
-    label: "One-click full-stack restart after rebase or merge",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    sourceTree: false,
-  },
-  {
-    label: "AI-generated service config for your stack",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    sourceTree: false,
-  },
-  {
-    label: "Switch between repos without losing running services",
-    lpm: true,
-    gitKraken: false,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    sourceTree: false,
-  },
-  {
-    label: "Free",
-    lpm: true,
-    gitKraken: "Local and public repos",
-    iterm2: true,
-    terminal: true,
-    tmux: true,
-    sourceTree: true,
-  },
-  {
-    label: "Open source",
-    lpm: true,
-    gitKraken: false,
-    iterm2: true,
-    terminal: false,
-    tmux: true,
-    sourceTree: false,
-  },
-];
+import { ALTERNATIVES, CAPABILITIES, type Cell } from "./comparison-data";
+import { ComparisonMobile } from "./comparison-mobile";
 
 function Indicator({ value }: { value: Cell }) {
   if (typeof value === "string") {
@@ -127,21 +28,6 @@ function Indicator({ value }: { value: Cell }) {
       <span className="sr-only">No</span>
     </>
   );
-}
-
-function Mark({ value }: { value: Cell }) {
-  if (typeof value === "string") {
-    return (
-      <>
-        <Minus
-          aria-hidden="true"
-          className="w-4 h-4 text-gray-500 dark:text-gray-400"
-        />
-        <span className="sr-only">Partly</span>
-      </>
-    );
-  }
-  return <Indicator value={value} />;
 }
 
 export default function Comparison() {
@@ -213,54 +99,7 @@ export default function Comparison() {
           </table>
         </div>
 
-        <div className="sm:hidden space-y-4">
-          {ALTERNATIVES.map((a) => {
-            const isLpm = a.key === "lpm";
-            return (
-              <div
-                key={a.key}
-                className={`rounded-2xl border p-5 ${
-                  isLpm
-                    ? "border-gray-300 dark:border-gray-700 bg-gray-50/60 dark:bg-white/[0.04]"
-                    : "border-gray-200 dark:border-gray-800"
-                }`}
-              >
-                <h3
-                  className={`text-sm font-semibold mb-4 ${
-                    isLpm
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-700 dark:text-gray-300"
-                  }`}
-                >
-                  {a.label}
-                </h3>
-                <ul className="space-y-3">
-                  {CAPABILITIES.map((cap) => {
-                    const value = cap[a.key];
-                    return (
-                      <li
-                        key={cap.label}
-                        className="flex items-start gap-3 text-sm"
-                      >
-                        <span className="mt-0.5 shrink-0">
-                          <Mark value={value} />
-                        </span>
-                        <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                          {cap.label}
-                          {typeof value === "string" && (
-                            <span className="block text-xs text-gray-500 dark:text-gray-500">
-                              {value}
-                            </span>
-                          )}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
+        <ComparisonMobile />
       </div>
     </section>
   );

@@ -14,10 +14,66 @@ services:
   web:
     cmd: npm run dev
     cwd: ./web                # run from a subfolder (great for monorepos)
-    port: 3000                # unique per project; shown as a link in the app
+    port: 3000                # a label: shown in the Start menu, used by Open in browser
     dependsOn: [server]       # start "server" first, pulled in automatically
     env:                      # extra env vars just for this service
       API_URL: http://localhost:4000
+`;
+
+export const DETECTED_EXAMPLE = `name: shop
+root: ~/Projects/shop
+services:
+  compose:
+    cmd: docker compose up
+  backend:
+    cmd: .venv/bin/python manage.py runserver
+    cwd: backend
+    port: 8000
+  frontend:
+    cmd: pnpm dev
+    cwd: frontend
+    port: 5173
+`;
+
+export const SSH_EXAMPLE = `name: staging
+ssh:
+  host: staging.example.com
+  user: deploy
+  dir: ~/apps/shop
+services:
+  shell: exec "$SHELL" -l     # what adding an SSH host writes
+  api: npm run start
+actions:
+  logs:
+    cmd: tail -f log/production.log
+    type: terminal
+`;
+
+export const REPO_EXAMPLE = `services:
+  web:
+    cmd: npm run dev
+    port: 3000
+  api:
+    cmd: npm run api
+    cwd: ./server
+    port: 4000
+actions:
+  test: npm test
+  migrate:
+    cmd: npm run db:migrate
+    label: Migrate DB
+    confirm: true
+profiles:
+  frontend: [web]
+  full: [web, api]
+`;
+
+export const REPO_OVERRIDE_EXAMPLE = `name: shop
+root: ~/Projects/shop
+services:
+  web:
+    cmd: npm run dev -- --port 3100   # wins over the repo's cmd
+    port: 3100                        # and its port; the rest is inherited
 `;
 
 export const SERVICES_DEPENDS_EXAMPLE = `name: myapp
@@ -86,7 +142,7 @@ actions:
   db-reset:
     cmd: npm run db:reset && npm run db:seed
     label: Reset DB
-    type: background       # runs hidden, notifies on completion
+    type: background       # runs hidden, with a live progress card
     confirm: true          # pair with confirm for destructive ones
 `;
 
@@ -279,7 +335,7 @@ services:
   server:
     cmd: node server.js # API the front-end talks to
     cwd: ./server # lives in a subfolder
-    port: 4000 # surfaced in the app so you can open it
+    port: 4000 # label for the Start menu and Open in browser
 actions:
   deploy:
     cmd: ./scripts/deploy.sh
@@ -310,7 +366,7 @@ services:
     cwd: ./apps/web # one app in the monorepo
     port: 3000
   docs:
-    cmd: npm run dev
+    cmd: npm run dev -- --port 3001 # lpm doesn't pass the port for you
     cwd: ./apps/docs # another app, started together
     port: 3001
 `;

@@ -17,27 +17,32 @@ const FAQS: QA[] = [
     question:
       "I keep separate accounts because of usage limits — does each project get its own limit?",
     answer:
-      "Each Claude subscription has its own usage allowance, and pinning means every session in a project draws from that project's account. A heavy afternoon on a side project can't eat the work seat's quota, and when a limit is hit you know exactly which account hit it.",
+      "Each Claude subscription has its own usage allowance, and pinning means every terminal session in a project draws from that project's account. A heavy afternoon on a side project can't eat the work seat's quota. Turn on Claude usage in lpm and the Usage page shows each account's 5-hour and weekly limits on its own card, so you can see which one is close before it runs out.",
   },
   {
     question: "Do I have to log out and back in when I change projects?",
     answer:
-      "No. You sign in to each account exactly once — the first time a project pinned to it opens a terminal. After that, moving between projects is just clicking in the sidebar; each project's terminals are already signed in as the right account, even when several projects with different accounts are running at once.",
+      "No. You sign in to each account once, with the Sign in button next to it in Settings. After that, moving between projects is just clicking in the sidebar; each project's terminals are already signed in as the right account, even when several projects with different accounts are running at once.",
   },
   {
     question: "Where are my credentials stored? Does lpm see my tokens?",
     answer:
-      "Credentials live in the macOS Keychain, written and read by Claude Code itself — the same mechanism as a single-account setup, one entry per account. lpm never reads, stores, copies, or exports tokens, and nothing sensitive lands in lpm's own files. Removing an account from lpm doesn't touch the login; it just stops projects from using it.",
+      "Credentials live in the macOS Keychain, written and read by Claude Code itself, the same mechanism as a single-account setup, one entry per account. lpm never reads, copies, or exports tokens. Removing an account from lpm deletes its sign-in, and projects pinned to it fall back to your main Claude login.",
   },
   {
     question: "Do my settings, memory, and skills work on every account?",
     answer:
-      "Yes. Your Claude Code settings, memory file, skills, custom agents, and slash commands are shared across all accounts automatically, so a pinned project behaves exactly like your main setup — same commands, same tools, different identity. lpm's agent status badges (working / needs approval / done) keep working on pinned projects too.",
+      "Yes. Your Claude Code settings file, CLAUDE.md memory, skills, subagents, slash commands, and plugins are shared across all accounts, so a pinned project has the same tools and commands as your main setup. What Claude Code keeps in each account's own state, such as user-level MCP servers and past sessions, stays with that account. lpm's agent status (working, needs you, done) keeps working on pinned projects too.",
   },
   {
     question: "What happens to the account I already use?",
     answer:
-      "Nothing. Your existing login stays the default: any project without a pin keeps using it, and you don't re-authenticate anything. You only add the extra accounts — a work seat, a client seat — and pin them where they belong.",
+      "Nothing. Your existing login stays the default: any project without a pin keeps using it, and you don't re-authenticate anything. You only add the extra accounts, a work seat or a client seat, and pin them where they belong.",
+  },
+  {
+    question: "Do duplicates and worktrees keep the pinned account?",
+    answer:
+      "Yes. Copies and worktrees inherit the parent project's account, so a fan-out of a work repo stays on the work seat. A copy's own config can still override it or choose your main login.",
   },
   {
     question: "I use an API key in some projects — does pinning interfere?",
@@ -47,12 +52,12 @@ const FAQS: QA[] = [
   {
     question: "Does this work for Codex or other coding agents?",
     answer:
-      "Pinning is Claude Code–specific today. Codex runs in lpm terminals right alongside your pinned projects, but on its own single login — there's no per-project account for it yet.",
+      "Pinning is Claude Code only. Codex runs in lpm terminals right alongside your pinned projects, but on its own single login, with no per-project account.",
   },
   {
     question: "Any limitations I should know about?",
     answer:
-      "Account pinning applies to projects that run on your Mac — SSH projects use whatever Claude login exists on the remote host. It also relies on Claude Code's per-home credential isolation, which shipped in early 2026, so keep Claude Code reasonably up to date. Terminals that are already open keep the account they launched with; a new pin applies to terminals you open afterwards. And one gotcha — if you set CLAUDE_CONFIG_DIR by hand in your shell profile (~/.zprofile, ~/.zshrc), remove it: a login shell re-sources it and overrides the per-project account.",
+      "Account pinning applies to projects that run on your Mac; SSH projects use whatever Claude login exists on the remote host. Scheduled automations and AI skill drafting run on your main login, not the pinned one. Terminals that are already open keep the account they launched with, and a new pin applies to terminals you open afterwards. Keep Claude Code reasonably up to date, since pinning relies on it keeping each account's login separate. One gotcha: if you set CLAUDE_CONFIG_DIR by hand in your shell profile (~/.zprofile, ~/.zshrc), remove it, because a login shell re-sources it and overrides the per-project account.",
   },
 ];
 

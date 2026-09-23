@@ -8,7 +8,7 @@ import { DownloadLink } from "@/components/download-link";
 const FRAME =
   "overflow-hidden rounded-xl bg-[#1a1a1a] ring-1 ring-white/[0.16] shadow-[0_1px_0_0_rgba(0,0,0,0.8),0_24px_60px_-20px_rgba(0,0,0,0.9)]";
 
-const DEMO_HEIGHT = "min(720px, calc(100vh - 220px))";
+const DEMO_HEIGHT = "min(720px, calc(100vh - 230px))";
 
 const DemoApp = dynamic(
   () => import("@/components/demo/demo-app").then((m) => m.DemoApp),
@@ -40,7 +40,7 @@ function DesktopOnlyPrompt() {
         lpm is a macOS app with a multi-pane terminal workspace. Open this page
         on your computer to try the interactive demo.
       </p>
-      <DownloadLink className="rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
+      <DownloadLink className="inline-flex min-h-11 items-center rounded-lg bg-[#e5e5e5] px-4 py-2 text-[13px] font-medium text-[#1a1a1a] transition-all duration-100 hover:opacity-85 active:scale-[0.97]">
         Get lpm for Mac
       </DownloadLink>
     </div>

@@ -33,7 +33,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Drafts the config from your repo",
-    lpm: "your installed agent CLI reads package.json, Gemfile, compose files and Makefile",
+    lpm: "built in: package.json, Procfile, Gemfile, compose files and more, read when you add the repo; an AI redraft is optional",
     competitor: "you write it",
   },
   {
@@ -53,14 +53,19 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Agent CLIs it launches for you",
-    lpm: "Claude Code, Codex, Gemini CLI, OpenCode",
+    lpm: "presets for Claude Code, Codex, Gemini CLI and OpenCode; any other CLI in a tab or as a one-click action",
     competitor:
       "the same four, plus Aider, Cline, Goose, Amp and anything you type in a tab",
   },
   {
     label: "Review the diff before you keep it",
     lpm: "side-by-side diff pane",
-    competitor: "branch and PR status on the tab; no diff view documented",
+    competitor: "no diff view documented",
+  },
+  {
+    label: "From changed files to an open pull request",
+    lpm: "branch, commit, push and PR in one flow through the GitHub CLI, text drafted by your agent CLI; the PR link sits in the terminal footer",
+    competitor: "branch and linked PR status in the sidebar; opening a PR is not documented",
   },
   {
     label: "Scriptable from outside the app",
@@ -95,7 +100,7 @@ export default function Matrix() {
     <FeatureMatrix
       id="matrix"
       title="cmux and lpm, row by row"
-      description="Sixteen rows. Three go to cmux — the browser it can script, the emulator underneath it, and the longer list of agent CLIs it will launch for you."
+      description="Seventeen rows. Two go to cmux — the browser it can script and the emulator underneath it."
       competitorName="cmux"
       rows={ROWS}
       footnote={

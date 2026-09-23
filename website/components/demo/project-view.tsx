@@ -1176,7 +1176,7 @@ function EmptyState({
           </svg>
         </div>
         <div className="flex flex-col items-center gap-1.5">
-          <h3 className="text-sm font-medium text-[#e5e5e5]">No active terminals</h3>
+          <p className="text-sm font-medium text-[#e5e5e5]">No active terminals</p>
           <p className="text-xs leading-relaxed text-[#919191]">
             Open a terminal to start working on{" "}
             <span className="font-mono">{projectName}</span>, or open a browser

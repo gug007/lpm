@@ -1,14 +1,18 @@
+import Link from "next/link";
 import {
+  Activity,
+  Bot,
   FolderKanban,
+  GitCompare,
   LayoutGrid,
-  Moon,
+  MessageSquareText,
   MousePointerClick,
   SlidersHorizontal,
-  SquarePen,
   type LucideIcon,
 } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
+import { PROJECT_SIDEBAR_PATH, REVIEW_CHANGES_PATH } from "@/lib/links";
 
 type Feature = {
   icon: LucideIcon;
@@ -16,35 +20,80 @@ type Feature = {
   body: React.ReactNode;
 };
 
+const LINK =
+  "font-medium text-gray-700 dark:text-gray-300 underline underline-offset-2 hover:text-gray-900 dark:hover:text-white";
+
 const FEATURES: Feature[] = [
   {
-    icon: LayoutGrid,
-    title: "Every service, side by side",
+    icon: Bot,
+    title: "Claude and Codex, one click away",
     body: (
       <>
-        Watch live terminal output from every service in one window. No more
-        tab-juggling to find which agent broke the API while the other is
-        editing the frontend.
+        A fresh install puts Claude and Codex buttons on every project. Each
+        opens the agent in a new tab next to your services, and a button can
+        carry a starting prompt.
       </>
     ),
   },
   {
     icon: FolderKanban,
-    title: "Visual project sidebar",
+    title: "A sidebar that lists every agent",
     body: (
       <>
-        Every project sits in the sidebar. Click to jump straight to one with
-        agents already running — no hunting through terminal windows.
+        Each project lists its Claude Code and Codex sessions underneath: what
+        each one is doing and for how long. Click a row to jump to its tab.
+        More on the{" "}
+        <Link href={PROJECT_SIDEBAR_PATH} className={LINK}>
+          project sidebar
+        </Link>
+        .
       </>
     ),
   },
   {
-    icon: SquarePen,
-    title: "Built-in config editor",
+    icon: MessageSquareText,
+    title: "A prompt box that knows your project",
     body: (
       <>
-        Edit a project&apos;s config inside the app and restart services on the
-        spot. No digging through dotfiles to tweak what an agent is running.
+        Press ⌘I for a composer under any terminal. Type @ to pull in a file, a
+        branch, the changed files, or a running service&apos;s latest logs, and
+        paste screenshots straight in.
+      </>
+    ),
+  },
+  {
+    icon: LayoutGrid,
+    title: "Every service, side by side",
+    body: (
+      <>
+        Each dev server streams into its own tab, and the All tab lays them out
+        in columns. When the API throws, you see it while the agent is still
+        typing.
+      </>
+    ),
+  },
+  {
+    icon: Activity,
+    title: "Everything running, on one screen",
+    body: (
+      <>
+        ⌘⇧A opens Activity: every Claude Code and Codex session, running
+        service, and automation across your projects, with whatever needs you
+        at the top. Move through it with j and k.
+      </>
+    ),
+  },
+  {
+    icon: GitCompare,
+    title: "Review before you commit",
+    body: (
+      <>
+        ⌘⇧R shows everything the agent changed as one stack of diffs, and the
+        Commit dialog drafts the message with AI. See how to{" "}
+        <Link href={REVIEW_CHANGES_PATH} className={LINK}>
+          review changes in the terminal
+        </Link>
+        .
       </>
     ),
   },
@@ -53,28 +102,18 @@ const FEATURES: Feature[] = [
     title: "One-click actions",
     body: (
       <>
-        Wire up buttons for tests, lints, and deploy scripts. Run them with a
-        click while the agent keeps working next door.
+        Turn tests, lints, migrations, and deploys into buttons in the project
+        header. Run them while the agent keeps working next door.
       </>
     ),
   },
   {
     icon: SlidersHorizontal,
-    title: "Toggle service profiles",
+    title: "Service profiles",
     body: (
       <>
-        Flip between profiles from the app header to run just the services the
-        agent touches — or spin up the full stack when you need it.
-      </>
-    ),
-  },
-  {
-    icon: Moon,
-    title: "Native, dark, and fast",
-    body: (
-      <>
-        A real macOS app with dark mode, native speed, and no browser tab
-        eating your battery while agents chew through your codebase.
+        Save groups like &ldquo;API only&rdquo; in the Start menu and run just
+        the services the agent touches, or the full stack when you need it.
       </>
     ),
   },

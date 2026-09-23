@@ -7,10 +7,12 @@ import {
   Laptop,
   Monitor,
   Package,
+  Server,
+  Smartphone,
   type LucideIcon,
 } from "lucide-react";
 import { trackDownload, trackGithubVisit } from "@/lib/analytics";
-import { MOBILE_PATH, RELEASES_URL } from "@/lib/links";
+import { LINUX_HOST_PATH, MOBILE_PATH, RELEASES_URL } from "@/lib/links";
 import {
   usePlatform,
   type MacDownloadPlatform,
@@ -90,7 +92,7 @@ export function Downloads({ children }: { children?: ReactNode }) {
                   }`}
                 >
                   {recommended && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-br from-emerald-600 to-emerald-700 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-white">
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-br from-emerald-700 to-emerald-800 px-2.5 py-0.5 text-[10px] font-semibold tracking-wide text-white">
                       Recommended
                     </span>
                   )}
@@ -108,7 +110,7 @@ export function Downloads({ children }: { children?: ReactNode }) {
             })}
           </div>
         )}
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-x-6 gap-y-2 text-sm">
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-x-6 text-sm">
           <a
             href={RELEASES_URL}
             onClick={() =>
@@ -117,11 +119,29 @@ export function Downloads({ children }: { children?: ReactNode }) {
                 href: RELEASES_URL,
               })
             }
-            className="inline-flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            className="inline-flex min-h-11 items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
           >
             View all downloads
-            <ArrowRight className="w-3.5 h-3.5" />
+            <ArrowRight className="w-3.5 h-3.5" aria-hidden />
           </a>
+          <Link
+            href={LINUX_HOST_PATH}
+            prefetch={false}
+            className="inline-flex min-h-11 items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          >
+            <Server className="w-3.5 h-3.5" aria-hidden />
+            Linux server host
+          </Link>
+          {!isUnavailable && (
+            <Link
+              href={MOBILE_PATH}
+              prefetch={false}
+              className="inline-flex min-h-11 items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              <Smartphone className="w-3.5 h-3.5" aria-hidden />
+              iPhone companion
+            </Link>
+          )}
         </div>
         {children}
       </div>

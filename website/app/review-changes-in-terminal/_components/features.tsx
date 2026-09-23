@@ -3,7 +3,9 @@ import {
   GitBranch,
   GitPullRequestArrow,
   Layers,
+  PencilLine,
   Terminal,
+  Undo2,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -19,42 +21,50 @@ type Feature = {
 const FEATURES: Feature[] = [
   {
     icon: Eye,
-    title: "File-by-file diff, one keystroke away",
+    title: "Every change, one keystroke away",
     body: (
       <>
-        Open a review pane with{" "}
-        <code className="text-xs">⌘⇧R</code> and every changed file is listed
-        with an <span className="font-mono">M</span> /{" "}
-        <span className="font-mono">A</span> / <span className="font-mono">D</span>{" "}
-        status. Click a file to read its diff — added lines in green, removed in
-        red, right there in the window you already work in.
+        Press <code className="text-xs">⌘⇧R</code> and every uncommitted change
+        stacks up in one scrolling view beside a tree of the changed files,
+        each marked modified, added, deleted, renamed, or untracked. Unchanged
+        lines fold away, and you can switch between split and unified.
       </>
     ),
   },
   {
     icon: Zap,
     title: "Review AI-agent changes on the spot",
-    body: "When Claude Code or Codex edits your files, open the diff in the same workspace and see exactly what the agent did before you accept it. No blind approvals, no context-switch to a separate tool.",
+    body: "When Claude Code or Codex edits your files, open the diff in the same workspace and see exactly what the agent did before you commit it. The list refreshes on its own as the agent keeps writing.",
+  },
+  {
+    icon: PencilLine,
+    title: "Fix it in the diff",
+    body: "The right side of every diff is editable; save with ⌘S. If the agent rewrote the file while you were typing, lpm doesn't overwrite it and asks whether to keep yours or theirs.",
   },
   {
     icon: Layers,
     title: "The diff sits beside everything else",
-    body: "Your review pane lives next to the failing test, the streaming service logs, and the agent terminal. Spot a regression in the diff and re-run the test in the pane beside it — without ever leaving the window.",
-  },
-  {
-    icon: GitBranch,
-    title: "Per-project, per-branch — always in context",
-    body: "Each project keeps its own workspace, so the changes you're reviewing are always for the branch and repo in front of you. Switch projects and come back — your review is exactly where you left it.",
+    body: "Your review pane lives next to the failing test, the streaming service logs, and the agent terminal. Spot a regression in the diff and re-run the test in the pane beside it, without leaving the window.",
   },
   {
     icon: GitPullRequestArrow,
     title: "From review to commit in one flow",
-    body: "Read the diff, catch the stray console.log, fix it in the editor pane, and commit — a single, uninterrupted loop. The review is the last gate before your code ships, and it's built into the terminal.",
+    body: "Open Commit, tick what belongs in it, and your AI agent writes the message. Commit it, or Commit and Push it in one go; Create PR drafts the GitHub title and description the same way.",
+  },
+  {
+    icon: Undo2,
+    title: "Throw away what you don't want",
+    body: "Discard the changes to one file, a whole folder, or everything, with a confirmation first. Handy when an agent wandered into files it had no business touching.",
+  },
+  {
+    icon: GitBranch,
+    title: "Per-project, per-branch, always in context",
+    body: "Each project keeps its own workspace, so the changes you're reviewing are always for the branch and repo in front of you. Switch projects and come back; your review is where you left it.",
   },
   {
     icon: Terminal,
     title: "Mac desktop app, keyboard-driven, zero Electron",
-    body: "lpm ships as a macOS desktop app with native Apple silicon and Intel builds. Its interface uses the system webview instead of bundling Electron or Chromium, and you can navigate changed files from the keyboard.",
+    body: "lpm ships as a macOS desktop app with native Apple silicon and Intel builds. Its interface uses the system webview instead of bundling Electron or Chromium, and you can move through changed files from the keyboard.",
   },
 ];
 
@@ -65,7 +75,7 @@ export default function Features() {
         <SectionHeader
           eyebrow="Review where you work"
           title="A code review surface built into your terminal"
-          description="Six things that change how reviewing your own changes feels when the diff never asks you to leave."
+          description="What changes when reviewing your own changes never asks you to leave the window."
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {FEATURES.map(({ icon, title, body }) => (

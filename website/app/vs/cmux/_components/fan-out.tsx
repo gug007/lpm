@@ -10,7 +10,7 @@ type CopyMode = {
 const COPY_MODES: CopyMode[] = [
   {
     name: "Worktree",
-    body: "A real linked worktree per agent, on its own branch. Git carries tracked files only, so neither your .env nor your installed dependencies arrive — flip on Install dependencies when the copy needs them.",
+    body: "A real linked worktree per agent, on its own branch. Git carries tracked files only, so neither your .env nor your node_modules arrive — flip on Install dependencies and lpm runs npm, yarn, pnpm or bun install in each copy.",
   },
   {
     name: "Standalone copy",

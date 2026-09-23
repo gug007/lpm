@@ -14,7 +14,8 @@ const JOBS: Job[] = [
     body: (
       <>
         Every morning: four panes, four commands, in the same order. In lpm that
-        is a services map you write once and a Start button, with{" "}
+        is a services map drafted from your repo when you add it, and a Start
+        button, with{" "}
         <code>dependsOn</code> for the ones that must come up first and{" "}
         <code>profiles</code> for the days you only need the front end.
       </>
@@ -30,8 +31,9 @@ const JOBS: Job[] = [
     chip: "tmux keeps this",
     body: (
       <>
-        Prefix keys, copy mode, custom layouts, vim splits. lpm has splits and
-        three remappable shortcuts, not a scripting surface. If your{" "}
+        Prefix keys, copy mode, custom layouts, vim splits. lpm has splits,
+        three remappable app hotkeys and a shortcut you can bind to any action
+        — not a scripting surface. If your{" "}
         <code>.tmux.conf</code> is a pleasure to use, keep it.
       </>
     ),

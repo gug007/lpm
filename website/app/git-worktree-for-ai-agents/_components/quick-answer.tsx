@@ -39,15 +39,16 @@ export default function QuickAnswer() {
 
           <div className="mt-2 space-y-4 text-sm sm:text-base leading-relaxed text-gray-600 dark:text-gray-400">
             <p>
-              Claude Code and the Codex app now do this for you —{" "}
+              Claude Code and Codex now do this for you:{" "}
               <code className="rounded bg-gray-200/70 px-1.5 py-0.5 font-mono text-[0.85em] text-gray-800 dark:bg-white/[0.07] dark:text-gray-200">
                 claude --worktree
               </code>{" "}
-              creates, enters, and cleans up a worktree per session. The part
-              nobody automates for you is everything the checkout does not
-              contain: your <code className="font-mono">.env</code>, your
-              installed dependencies, your uncommitted work, and the ports and
-              databases all the agents still share.
+              creates, enters, and cleans up a worktree per session, and the
+              ChatGPT desktop app gives each Codex chat one. The rest is still
+              yours to set up: copying your{" "}
+              <code className="font-mono">.env</code>, installing dependencies,
+              carrying over uncommitted work, and sharing the ports and
+              databases every agent still uses.
             </p>
             <p>
               That gap is why a second primitive exists. lpm creates worktrees

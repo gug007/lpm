@@ -7,13 +7,14 @@ type Workflow = {
 
 const WORKFLOWS: Workflow[] = [
   {
-    title: "Boot your full stack on a fresh MacBook in under a minute",
+    title: "Go from a fresh clone to a running stack",
     body: (
       <>
-        Clone the repo, open the folder in lpm, and let AI generate the
-        service config — Rails, Next.js, Go, Django, Flask, or Docker Compose.
-        Hit Start and every service streams live output side by side — no
-        Brewfile archaeology, no README spelunking.
+        Paste the repo URL into Add a project and choose Clone Repository, or
+        add a folder you already have. lpm reads the manifests and sets up the
+        services, whether Rails, Next.js, Django, Go, Docker Compose, or a
+        Procfile. Hit Start and every service streams live output side by
+        side, with no digging through the README for start commands.
       </>
     ),
   },
@@ -21,10 +22,10 @@ const WORKFLOWS: Workflow[] = [
     title: "Switch between client projects without losing state",
     body: (
       <>
-        Each project gets its own sidebar entry with live status. Pause the
-        first while you jump to the second; both keep their servers, their
-        terminal history, and their logs. When you switch back, nothing has to
-        reboot.
+        Each project gets its own sidebar entry with live status. Leave the
+        first running while you jump to the second; both keep their servers,
+        their terminal history, and their logs. When you switch back, nothing
+        has to reboot.
       </>
     ),
   },
@@ -49,7 +50,7 @@ export default function Workflows() {
         <SectionHeader
           eyebrow="In practice"
           title="Workflows your terminal on Mac should actually make easy"
-          description="Three everyday flows for Mac developers, reimagined around a native workspace."
+          description="Three everyday flows for Mac developers, built around a native workspace."
         />
 
         <div className="space-y-12">

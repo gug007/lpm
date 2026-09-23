@@ -8,14 +8,13 @@ export type RelatedLink = {
 };
 
 export function RelatedPages({ links }: { links: RelatedLink[] }) {
+  const threeUp = links.length % 3 === 0;
   return (
     <section className="py-20 sm:py-24 border-t border-gray-200 dark:border-gray-800">
-      <div className="max-w-3xl mx-auto px-6">
+      <div className={`${threeUp ? "max-w-5xl" : "max-w-3xl"} mx-auto px-6`}>
         <h2 className="text-xl font-bold tracking-tight mb-6">Keep reading</h2>
         <div
-          className={`grid gap-4 sm:grid-cols-2 ${
-            links.length % 3 === 0 ? "lg:grid-cols-3" : ""
-          }`}
+          className={`grid gap-4 sm:grid-cols-2 ${threeUp ? "lg:grid-cols-3" : ""}`}
         >
           {links.map((link) => (
             <Link

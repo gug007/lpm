@@ -3,7 +3,9 @@ import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import {
+  AI_AGENTS_PATH,
   BEST_TERMINAL_MAC_PATH,
+  FEATURES_PATH,
   GIT_TERMINAL_MAC_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   PROJECT_SIDEBAR_PATH,
@@ -17,17 +19,16 @@ import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Landscape from "./_components/landscape";
+import TerminalBasics from "./_components/terminal-basics";
 import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
 
-const TITLE = "Best Terminal for Mac 2026 — Free, Native, Apple Silicon";
+const TITLE = "Best Terminal for Mac (2026): Free and Native";
 const DESCRIPTION =
-  "Free, native, no Electron. Run your whole dev stack in one Mac window — a log pane per service, instant project switching, and Claude Code or Codex beside it.";
+  "The best free terminal for Mac: native Apple silicon builds, split panes, search, a pane per dev server, a project sidebar, and Claude Code or Codex beside it.";
 
 export const metadata: Metadata = {
-  // Absolute so the "%s — lpm" template does not push the title past the
-  // ~60-character mark Google truncates at.
-  title: { absolute: TITLE },
+  title: TITLE,
   description: DESCRIPTION,
   keywords: [
     "best terminal for mac",
@@ -59,6 +60,12 @@ const structuredData = [
     title: TITLE,
     description: DESCRIPTION,
     path: BEST_TERMINAL_MAC_PATH,
+    about: [
+      "best terminal for Mac",
+      "free native Mac terminal",
+      "Apple silicon terminal app",
+      "terminal with split panes and project sidebar",
+    ],
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
@@ -90,6 +97,7 @@ export default function BestTerminalForMacPage() {
       />
       <WhyMac />
       <Features />
+      <TerminalBasics />
       <Benefits />
       <Workflows />
       <Comparison />
@@ -101,13 +109,13 @@ export default function BestTerminalForMacPage() {
             href: MAC_TERMINAL_DEVELOPERS_PATH,
             title: "Mac terminal for developers",
             description:
-              "Run your whole stack — services, logs, and agents — in one native Mac app.",
+              "Services, logs and agents for the whole stack, inside one native Mac app.",
           },
           {
             href: GIT_TERMINAL_MAC_PATH,
             title: "Git terminal for Mac",
             description:
-              "Branch, rebase, and ship while your dev servers stream in the same window.",
+              "Git work next to live dev-server output, in one window.",
           },
           {
             href: PROJECT_SIDEBAR_PATH,
@@ -120,6 +128,18 @@ export default function BestTerminalForMacPage() {
             title: "lpm vs iTerm2",
             description:
               "Side by side with the Mac terminal you already have open — including where iTerm2 still wins.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "Best terminal for Claude Code and Codex",
+            description:
+              "Claude Code and Codex status, needs-you alerts and plan limits at a glance.",
+          },
+          {
+            href: FEATURES_PATH,
+            title: "Every lpm feature",
+            description:
+              "Every lpm feature, area by area.",
           },
         ]}
       />

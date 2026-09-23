@@ -26,19 +26,21 @@ export function Answer() {
       <p>
         lpm does the same job from a native Mac app. Each process in your
         config lands in a pane of its own, holding its last 10,000 lines, and
-        any single one of them restarts on its own. Those panes are for reading
+        you can stop and start any one of them without touching the rest, or
+        run <code className={CODE}>lpm service web restart</code>. One that
+        crashes stays down, its output kept. Those panes are for reading
         rather than typing — dropping you at a prompt inside a running process
         is the one thing <code>overmind connect</code> does that lpm has no
         answer for. Nothing here runs on tmux, so there is no multiplexer to
-        install first. Your Procfile stays where it is: lpm reads a file of its
-        own, so you retype those lines once and the shape carries over
-        unchanged.
+        install first. Your Procfile stays where it is: lpm imports its lines
+        once, when you add the folder, and the shape carries over unchanged.
       </p>
       <p>
-        What you give up: lpm will not read the Procfile itself, will not hand
-        each process a <code className={CODE}>PORT</code>, will not run two
-        copies of one process, and needs a Mac to drive it. Everything else on
-        this page is what you get in exchange.
+        What you give up: lpm reads the Procfile once rather than on every
+        start, will not hand each process a{" "}
+        <code className={CODE}>PORT</code>, will not run two copies of one
+        process, and needs a Mac to drive it. Everything else on this page is
+        what you get in exchange.
       </p>
       <CodeBlock filename="Procfile → ~/.lpm/projects/myapp.yml">
         {CONVERSION}

@@ -4,18 +4,11 @@ import { useState } from "react";
 import { DownloadLink } from "@/components/download-link";
 import {
   ArrowRight,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  GitBranch,
   Monitor,
   Palette,
-  Plus,
   Save,
   Settings2,
   Sparkles,
-  Terminal,
-  X,
 } from "lucide-react";
 import {
   claudeColors,
@@ -31,9 +24,20 @@ import {
   type SeparatorId,
   type StatuslineItem,
 } from "./statusline-data";
+import { StatuslineAddItems } from "./statusline-add-items";
+import { StatuslineClaudeAppearance } from "./statusline-claude-appearance";
+import { StatuslineCodexAppearance } from "./statusline-codex-appearance";
+import { StatuslineItemList } from "./statusline-item-list";
+import { StatuslinePresets } from "./statusline-presets";
+import {
+  StatuslineTerminalPreview,
+  type StatuslineSegment,
+} from "./statusline-terminal-preview";
 
 const platformButtonClass =
   "flex min-h-11 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+
+const CODEX_ACCENTS = ["text-emerald-300", "text-cyan-300", "text-zinc-400"];
 
 const initialClaudeColors: Record<string, ClaudeColorId> = {
   folder: "cyan",
@@ -46,17 +50,6 @@ const initialClaudeColors: Record<string, ClaudeColorId> = {
   cost: "yellow",
   text: "default",
 };
-
-function itemMap(items: StatuslineItem[]) {
-  return new Map(items.map((item) => [item.id, item]));
-}
-
-function sameItems(left: string[], right: string[]) {
-  return (
-    left.length === right.length &&
-    left.every((item, index) => item === right[index])
-  );
-}
 
 export default function LpmStatuslineDemo() {
   const [platform, setPlatform] = useState<Platform>("claude");
@@ -86,7 +79,7 @@ export default function LpmStatuslineDemo() {
   const presets = isClaude ? claudePresets : codexPresets;
   const selectedIds = isClaude ? claudeSelected : codexSelected;
   const setSelectedIds = isClaude ? setClaudeSelected : setCodexSelected;
-  const itemsById = itemMap(items);
+  const itemsById = new Map(items.map((item) => [item.id, item]));
   const selectedItems = selectedIds
     .map((id) => itemsById.get(id))
     .filter((item): item is StatuslineItem => Boolean(item));
@@ -134,6 +127,16 @@ export default function LpmStatuslineDemo() {
     return `${prefix} ${meterStyles[meterStyle].sample} ${amount}`;
   };
 
+  const segments: StatuslineSegment[] = selectedItems.map((item, index) => ({
+    id: item.id,
+    text: `${isClaude && showIcons && item.icon ? `${item.icon} ` : ""}${previewText(item)}`,
+    className: isClaude
+      ? claudeColors[claudeItemColors[item.id] ?? "default"].preview
+      : codexColors
+        ? CODEX_ACCENTS[index % CODEX_ACCENTS.length]
+        : "text-zinc-300",
+  }));
+
   return (
     <section
       id="preview"
@@ -178,332 +181,67 @@ export default function LpmStatuslineDemo() {
             </div>
             <div
               role="group"
+              data-on-dark
               className="flex rounded-2xl bg-gray-950 p-1.5 dark:bg-black"
               aria-label="Choose an AI coding agent"
             >
-              <button
-                type="button"
-                onClick={() => setPlatform("claude")}
-                aria-pressed={isClaude}
-                className={`${platformButtonClass} ${
-                  isClaude
-                    ? "bg-[#D97757] text-white shadow-sm"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full bg-current"
-                  aria-hidden
-                />
-                Claude Code
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlatform("codex")}
-                aria-pressed={!isClaude}
-                className={`${platformButtonClass} ${
-                  !isClaude
-                    ? "bg-[#10A37F] text-white shadow-sm"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full bg-current"
-                  aria-hidden
-                />
-                Codex
-              </button>
+              {(
+                [
+                  ["claude", "Claude Code", "bg-[#D97757]"],
+                  ["codex", "Codex", "bg-[#10A37F]"],
+                ] as const
+              ).map(([id, label, active]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPlatform(id)}
+                  aria-pressed={platform === id}
+                  className={`${platformButtonClass} ${
+                    platform === id
+                      ? `${active} text-white shadow-sm`
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-full bg-current"
+                    aria-hidden
+                  />
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
         <div className="grid xl:grid-cols-[1.03fr_0.97fr]">
           <div className="border-b border-gray-200 p-4 dark:border-gray-800 sm:p-6 xl:border-r xl:border-b-0">
-            <div>
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
-                  Choose a starting point
-                </h3>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  Every layout stays customizable.
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {presets.map((preset) => {
-                  const isActive = sameItems(preset.items, selectedIds);
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => selectPreset(preset.items)}
-                      aria-pressed={isActive}
-                      className={`rounded-xl border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
-                        isActive
-                          ? isClaude
-                            ? "border-[#D97757]/60 bg-[#D97757]/8"
-                            : "border-[#10A37F]/60 bg-[#10A37F]/8"
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-white/[0.03]"
-                      }`}
-                    >
-                      <span className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {preset.label}
-                        </span>
-                        <span
-                          className={`flex h-4 w-4 items-center justify-center rounded-full border ${
-                            isActive
-                              ? isClaude
-                                ? "border-[#D97757] bg-[#D97757] text-white"
-                                : "border-[#10A37F] bg-[#10A37F] text-white"
-                              : "border-gray-300 text-transparent dark:border-gray-700"
-                          }`}
-                          aria-hidden
-                        >
-                          <Check className="h-2.5 w-2.5" />
-                        </span>
-                      </span>
-                      <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
-                        {preset.description}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-7">
-              <div className="mb-3 flex items-end justify-between gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
-                    Arrange your items
-                  </h3>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    Move, edit, or remove each signal.
-                  </p>
-                </div>
-                <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
-                  {selectedIds.length}{" "}
-                  {selectedIds.length === 1 ? "item" : "items"}
-                </span>
-              </div>
-              {selectedItems.length === 0 ? (
-                <div className="flex min-h-20 items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-xs text-gray-500 dark:border-gray-700 dark:bg-black/20 dark:text-gray-400">
-                  Statusline hidden. Add an item below to turn it back on.
-                </div>
-              ) : (
-                <ol className="space-y-2">
-                  {selectedItems.map((item, index) => {
-                    const isEditing =
-                      isClaude && editingClaudeItem === item.id;
-                    return (
-                      <li
-                        key={item.id}
-                        className={`flex min-h-12 items-center gap-2 rounded-xl border px-2.5 transition-colors ${
-                          isEditing
-                            ? "border-[#D97757]/50 bg-[#D97757]/7 dark:bg-[#D97757]/10"
-                            : "border-gray-200 bg-gray-50/70 dark:border-gray-700/60 dark:bg-white/[0.04]"
-                        }`}
-                      >
-                        <span className="w-5 text-center font-mono text-[11px] text-gray-500 dark:text-gray-400">
-                          {index + 1}
-                        </span>
-                        {isClaude ? (
-                          <button
-                            type="button"
-                            onClick={() => setEditingClaudeItem(item.id)}
-                            className={`min-w-0 flex-1 cursor-pointer truncate rounded-md py-2 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
-                              isEditing
-                                ? "text-[#B75F40] dark:text-[#F09978]"
-                                : "text-gray-800 dark:text-gray-200"
-                            }`}
-                          >
-                            {item.label}
-                            {isEditing && (
-                              <span className="ml-2 inline-flex -translate-y-px items-center rounded-full bg-[#D97757]/12 px-2 py-0.5 align-middle text-[9px] font-semibold uppercase tracking-[0.08em] dark:bg-[#D97757]/18">
-                                Editing
-                              </span>
-                            )}
-                          </button>
-                        ) : (
-                          <span className="min-w-0 flex-1 truncate py-2 text-sm font-medium text-gray-800 dark:text-gray-200">
-                            {item.label}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => moveItem(item.id, -1)}
-                          disabled={index === 0}
-                          aria-label={`Move ${item.label} left`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-                        >
-                          <ChevronLeft className="h-4 w-4" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveItem(item.id, 1)}
-                          disabled={index === selectedItems.length - 1}
-                          aria-label={`Move ${item.label} right`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-                        >
-                          <ChevronRight className="h-4 w-4" aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(item.id)}
-                          disabled={isClaude && selectedItems.length === 1}
-                          aria-label={`Remove ${item.label}`}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-25 dark:text-gray-400 dark:hover:bg-red-500/10 dark:hover:text-red-300"
-                        >
-                          <X className="h-3.5 w-3.5" aria-hidden />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </div>
-
-            <div className="mt-7">
-              <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
-                Add an item
-              </h3>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {isClaude
-                  ? "Add project, model, usage, cost, or your own text."
-                  : "Codex hides fields automatically when no value is available."}
-              </p>
-              {availableItems.length > 0 ? (
-                <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                  {availableItems.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => addItem(item.id)}
-                      className="group flex min-h-14 items-start gap-2.5 rounded-xl border border-gray-200 p-3 text-left transition hover:border-gray-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-white/[0.03] dark:focus-visible:ring-white"
-                    >
-                      <Plus
-                        className={`mt-0.5 h-4 w-4 shrink-0 ${
-                          isClaude ? "text-[#D97757]" : "text-[#10A37F]"
-                        }`}
-                        aria-hidden
-                      />
-                      <span>
-                        <span className="block text-xs font-semibold text-gray-900 dark:text-gray-100">
-                          {item.label}
-                        </span>
-                        <span className="mt-0.5 block text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                          {item.description}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-3 rounded-xl border border-dashed border-gray-300 px-3 py-4 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                  Every supported item is already in your statusline.
-                </p>
-              )}
-            </div>
+            <StatuslinePresets
+              presets={presets}
+              selectedIds={selectedIds}
+              isClaude={isClaude}
+              onSelect={selectPreset}
+            />
+            <StatuslineItemList
+              items={selectedItems}
+              isClaude={isClaude}
+              editingId={editingClaudeItem}
+              onEdit={setEditingClaudeItem}
+              onMove={moveItem}
+              onRemove={removeItem}
+            />
+            <StatuslineAddItems
+              items={availableItems}
+              isClaude={isClaude}
+              onAdd={addItem}
+            />
           </div>
 
           <div className="flex min-w-0 flex-col bg-gray-50/60 p-4 dark:bg-black/10 sm:p-6">
-            <div>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
-                  Live terminal preview
-                </h3>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/8 dark:text-emerald-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  Applied
-                </span>
-              </div>
-              <div
-                className={`overflow-hidden rounded-2xl border border-white/10 bg-[#080808] transition-shadow duration-500 ${
-                  isClaude
-                    ? "shadow-[0_24px_60px_-28px_rgba(217,119,87,0.55)]"
-                    : "shadow-[0_24px_60px_-28px_rgba(16,163,127,0.55)]"
-                }`}
-              >
-                <div className="flex h-10 items-center justify-between border-b border-white/8 px-4">
-                  <div className="flex gap-1.5" aria-hidden>
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
-                  </div>
-                  <span className="font-mono text-[10px] tracking-wide text-zinc-600">
-                    ~/Projects/lpm
-                  </span>
-                  <Terminal className="h-3.5 w-3.5 text-zinc-700" aria-hidden />
-                </div>
-                <div className="flex min-h-52 flex-col justify-between p-4 font-mono text-xs sm:min-h-60 sm:p-5">
-                  <div className="space-y-2 text-zinc-500">
-                    <p>
-                      <span className="text-emerald-400">❯</span>{" "}
-                      {isClaude ? "claude" : "codex"}
-                    </p>
-                    <p className="text-zinc-300">
-                      {isClaude
-                        ? "Ready to help with your project."
-                        : "What would you like to build?"}
-                    </p>
-                    <p className="pt-4 text-zinc-700">
-                      <span className="animate-pulse">▋</span>
-                    </p>
-                  </div>
-                  <div
-                    className="relative mt-8 border-t border-white/8 pt-3"
-                    aria-live="polite"
-                    aria-label={`${isClaude ? "Claude Code" : "Codex"} statusline preview`}
-                  >
-                    {selectedItems.length === 0 ? (
-                      <span className="text-zinc-600">Statusline hidden</span>
-                    ) : (
-                      <div className="relative">
-                        <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          <div className="flex min-w-max items-center whitespace-nowrap pr-10">
-                            {selectedItems.map((item, index) => (
-                              <span key={item.id} className="flex items-center">
-                                {index > 0 && (
-                                  <span className="px-2 text-zinc-700">
-                                    {isClaude
-                                      ? separators[separator].value
-                                      : "·"}
-                                  </span>
-                                )}
-                                <span
-                                  className={
-                                    isClaude
-                                      ? claudeColors[
-                                          claudeItemColors[item.id] ?? "default"
-                                        ].preview
-                                      : codexColors
-                                        ? index % 3 === 0
-                                          ? "text-emerald-300"
-                                          : index % 3 === 1
-                                            ? "text-cyan-300"
-                                            : "text-zinc-400"
-                                        : "text-zinc-300"
-                                  }
-                                >
-                                  {isClaude && showIcons && item.icon
-                                    ? `${item.icon} `
-                                    : ""}
-                                  {previewText(item)}
-                                </span>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div
-                          className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#080808] to-transparent"
-                          aria-hidden
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <StatuslineTerminalPreview
+              isClaude={isClaude}
+              segments={segments}
+              separator={isClaude ? separators[separator].value : "·"}
+            />
 
             <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#171717]">
               <div className="flex items-center gap-2">
@@ -512,210 +250,38 @@ export default function LpmStatuslineDemo() {
                   Appearance
                 </h3>
               </div>
-
               {isClaude ? (
-                <div className="mt-4 space-y-5">
-                  <fieldset>
-                    <legend className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                      Color for {activeClaudeItem.label}
-                    </legend>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(
-                        Object.entries(claudeColors) as [
-                          ClaudeColorId,
-                          (typeof claudeColors)[ClaudeColorId],
-                        ][]
-                      ).map(([id, color]) => {
-                        const isActive =
-                          claudeItemColors[editingClaudeItem] === id;
-                        return (
-                          <button
-                            key={id}
-                            type="button"
-                            onClick={() =>
-                              setClaudeItemColors((current) => ({
-                                ...current,
-                                [editingClaudeItem]: id,
-                              }))
-                            }
-                            aria-pressed={isActive}
-                            aria-label={`${color.label} for ${activeClaudeItem.label}`}
-                            title={color.label}
-                            className={`flex h-8 w-8 items-center justify-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
-                              isActive
-                                ? `border-transparent ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#171717] ${color.ring}`
-                                : "border-gray-200 hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-600"
-                            }`}
-                          >
-                            <span
-                              className={`h-3 w-3 rounded-full ${color.swatch}`}
-                            />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </fieldset>
-
-                  <fieldset>
-                    <legend className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                      Separator
-                    </legend>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(
-                        Object.entries(separators) as [
-                          SeparatorId,
-                          (typeof separators)[SeparatorId],
-                        ][]
-                      ).map(([id, option]) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setSeparator(id)}
-                          aria-pressed={separator === id}
-                          aria-label={`Use ${option.label}`}
-                          className={`flex h-9 w-9 items-center justify-center rounded-lg border font-mono text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
-                            separator === id
-                              ? "border-[#D97757] bg-[#D97757]/8 text-[#B75F40] dark:text-[#F09978]"
-                              : "border-gray-200 text-gray-500 hover:border-gray-400 dark:border-gray-800 dark:text-gray-400 dark:hover:border-gray-600"
-                          }`}
-                        >
-                          {option.value}
-                        </button>
-                      ))}
-                    </div>
-                  </fieldset>
-
-                  <fieldset>
-                    <legend className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                      Usage display
-                    </legend>
-                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {(
-                        Object.entries(meterStyles) as [
-                          MeterStyleId,
-                          (typeof meterStyles)[MeterStyleId],
-                        ][]
-                      ).map(([id, style]) => (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setMeterStyle(id)}
-                          aria-pressed={meterStyle === id}
-                          className={`min-h-10 rounded-lg border px-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
-                            meterStyle === id
-                              ? "border-[#D97757] bg-[#D97757]/8"
-                              : "border-gray-200 hover:border-gray-400 dark:border-gray-800 dark:hover:border-gray-600"
-                          }`}
-                        >
-                          <span className="block truncate text-[10px] font-medium text-gray-700 dark:text-gray-300">
-                            {style.label}
-                          </span>
-                          <span
-                            className={`block truncate font-mono text-[10px] ${
-                              meterStyle === id
-                                ? "text-[#B75F40] dark:text-[#F09978]"
-                                : "text-gray-500 dark:text-gray-400"
-                            }`}
-                          >
-                            {style.sample}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </fieldset>
-
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowIcons((value) => !value)}
-                      aria-pressed={showIcons}
-                      className="flex min-h-11 items-center justify-between rounded-xl border border-gray-200 px-3 text-left dark:border-gray-800"
-                    >
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                        Show icons
-                      </span>
-                      <span
-                        className={`relative h-5 w-9 rounded-full transition-colors ${
-                          showIcons
-                            ? "bg-[#D97757]"
-                            : "bg-gray-300 dark:bg-gray-700"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-transform ${
-                            showIcons ? "translate-x-5" : "translate-x-1"
-                          }`}
-                        />
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowGitStatus((value) => !value)}
-                      aria-pressed={showGitStatus}
-                      disabled={!selectedIds.includes("branch")}
-                      className="flex min-h-11 items-center justify-between rounded-xl border border-gray-200 px-3 text-left disabled:opacity-40 dark:border-gray-800"
-                    >
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-                        <GitBranch className="h-3.5 w-3.5" aria-hidden />
-                        Git status
-                      </span>
-                      <span
-                        className={`relative h-5 w-9 rounded-full transition-colors ${
-                          showGitStatus
-                            ? "bg-[#D97757]"
-                            : "bg-gray-300 dark:bg-gray-700"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-transform ${
-                            showGitStatus ? "translate-x-5" : "translate-x-1"
-                          }`}
-                        />
-                      </span>
-                    </button>
-                  </div>
-                </div>
+                <StatuslineClaudeAppearance
+                  itemLabel={activeClaudeItem.label}
+                  color={claudeItemColors[editingClaudeItem]}
+                  onColor={(id) =>
+                    setClaudeItemColors((current) => ({
+                      ...current,
+                      [editingClaudeItem]: id,
+                    }))
+                  }
+                  separator={separator}
+                  onSeparator={setSeparator}
+                  meterStyle={meterStyle}
+                  onMeterStyle={setMeterStyle}
+                  showIcons={showIcons}
+                  onToggleIcons={() => setShowIcons((value) => !value)}
+                  showGitStatus={showGitStatus}
+                  onToggleGitStatus={() => setShowGitStatus((value) => !value)}
+                  gitStatusAvailable={selectedIds.includes("branch")}
+                />
               ) : (
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setCodexColors((value) => !value)}
-                    aria-pressed={codexColors}
-                    className="flex min-h-14 w-full items-center justify-between rounded-xl border border-gray-200 px-3 text-left transition hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
-                  >
-                    <span>
-                      <span className="block text-xs font-semibold text-gray-800 dark:text-gray-200">
-                        Use active Codex theme colors
-                      </span>
-                      <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">
-                        lpm preserves the colors selected with{" "}
-                        <code className="font-mono">/theme</code>.
-                      </span>
-                    </span>
-                    <span
-                      className={`relative ml-3 h-6 w-11 shrink-0 rounded-full transition-colors ${
-                        codexColors
-                          ? "bg-[#10A37F]"
-                          : "bg-gray-300 dark:bg-gray-700"
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                          codexColors ? "translate-x-6" : "translate-x-1"
-                        }`}
-                      />
-                    </span>
-                  </button>
-                  <p className="mt-3 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                    Codex controls separators and rendering. lpm gives you every
-                    supported field, ordering, presets, colors, and an Off
-                    state without opening config.toml.
-                  </p>
-                </div>
+                <StatuslineCodexAppearance
+                  useColors={codexColors}
+                  onToggleColors={() => setCodexColors((value) => !value)}
+                />
               )}
             </div>
 
-            <div className="mt-4 rounded-2xl border border-gray-800 bg-[#0b0b0b] p-5 text-white">
+            <div
+              data-on-dark
+              className="mt-4 rounded-2xl border border-gray-800 bg-[#0b0b0b] p-5 text-white"
+            >
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-400">
                 <Settings2 className="h-4 w-4" aria-hidden />
                 Applied by lpm

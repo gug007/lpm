@@ -20,6 +20,7 @@ import {
   REPO_URL,
   SSH_TERMINAL_MAC_PATH,
   VS_BASE_PATH,
+  WORKTREE_AGENTS_PATH,
   vsPath,
 } from "@/lib/links";
 import {
@@ -45,7 +46,7 @@ export const metadata: Metadata = {
     "overmind procfile alternative",
     "overmind alternative mac",
     "overmind vs lpm",
-    "overmind vs foreman",
+    "overmind procfile.dev",
     "procfile gui",
     "procfile runner mac",
     "run procfile without tmux",
@@ -72,7 +73,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "Overmind",
     title: "Keep Overmind",
-    body: "-m web=2,worker=3 to scale a process, a PORT stepped per process with -p and -P, Linux and *BSD, and a Procfile it reads as-is.",
+    body: "-m web=2,worker=3 to scale a process, a PORT stepped per process with \u2011p and \u2011P, Linux and *BSD, and a Procfile it reads fresh on every start.",
   },
   {
     label: "lpm",
@@ -91,15 +92,17 @@ const FAQS: FaqItem[] = [
     question: "Do I have to throw away my Procfile?",
     answer: (
       <>
-        No, but lpm will not read it. Keep it for Heroku or Foreman; lpm reads{" "}
+        No. lpm imports it when the project is added — one service per line,
+        same names — and leaves the file as it was for Heroku or Foreman. From
+        then on lpm starts from{" "}
         <Link href={CONFIG_PATH} className={LINK}>
-          its own file
-        </Link>{" "}
-        next to it.
+          its own service list
+        </Link>
+        , so a Procfile change made later does not carry over by itself.
       </>
     ),
     answerText:
-      "No, but lpm will not read it. Keep it for Heroku or Foreman; lpm reads its own file next to it.",
+      "No. lpm imports it when the project is added — one service per line, same names — and leaves the file as it was for Heroku or Foreman. From then on lpm starts from its own service list, so a Procfile change made later does not carry over by itself.",
   },
   {
     question: "Does lpm need tmux?",
@@ -202,7 +205,7 @@ export default function OvermindVsPage() {
       <ComparisonHero
         eyebrow="lpm vs Overmind"
         title="An Overmind alternative for Mac — your Procfile as live panes, no tmux."
-        description="Overmind runs each Procfile line as a tmux window and asks you to install tmux first. lpm runs the same named commands as panes in a Mac app: click one to attach, restart one on its own, start them in dependsOn order."
+        description="Overmind runs each Procfile line as a tmux window and asks you to install tmux first. lpm imports the same named commands and runs them as panes in a Mac app: click one to read its output, stop or restart one without the rest, start them in dependsOn order."
         verdictLine="Five rows go to Overmind. If any of them is load-bearing for you, stay where you are."
         jumpHref="#procfile"
         jumpLabel="See the Procfile conversion"
@@ -230,7 +233,7 @@ export default function OvermindVsPage() {
             label: "tmux's manual page",
           },
         ]}
-        lpmNote="Overmind's flags and commands here all come from its README, the Foreman line from its man page, and the detach behaviour from tmux's. lpm's own rows were read off the app source the same day."
+        lpmNote="Overmind's flags and commands here all come from its README, the Foreman line from its man page, and the detach behaviour from tmux's. lpm's own rows were re-read in the app source the same day, after lpm began importing Procfiles."
       />
 
       <Answer />
@@ -263,7 +266,7 @@ export default function OvermindVsPage() {
             "You would rather not install tmux to run a Rails or Next.js stack.",
             "Reading a service's last 10,000 lines and restarting just that one is enough — you do not need to type at the process itself.",
             "You want the stack startable by someone who has never opened a multiplexer — the panes are already there when the project starts.",
-            "You want one prompt tried three ways: lpm copies the project up to 50 times and starts an agent in each — separate checkouts, so no two agents edit one file, but the same declared ports and the same database underneath, and a linked worktree starts with no .env and no installed dependencies.",
+            "You want one prompt tried three ways: lpm copies the project up to 50 times and starts an agent in each — separate checkouts, so no two agents edit one file, but the same declared ports and the same database underneath, and a linked worktree starts with no .env, and with no node_modules unless you tick Install dependencies.",
           ],
         }}
         competitor={{
@@ -316,6 +319,12 @@ export default function OvermindVsPage() {
             description:
               "Pair a Linux machine as a headless host, then drive its services and its agents from the Mac app.",
           },
+          {
+            href: WORKTREE_AGENTS_PATH,
+            title: "A checkout per agent",
+            description:
+              "What lpm duplicate -n 3 actually creates, and the ignored files a linked worktree leaves behind.",
+          },
         ]}
       />
 
@@ -323,9 +332,9 @@ export default function OvermindVsPage() {
         title="Your Procfile, as panes you can click."
         description={
           <>
-            Convert the lines once. Each process opens as a pane you can click,
-            restart on its own, and read 10,000 lines back — with no tmux
-            installed anywhere. Free and open source on{" "}
+            lpm converts the lines as you add the folder. Each process opens as
+            a pane you can click, stop or restart without the rest, and read
+            10,000 lines back — with no tmux installed anywhere. Free and open source on{" "}
             <a href={REPO_URL} className={LINK}>
               GitHub
             </a>

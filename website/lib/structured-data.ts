@@ -1,4 +1,5 @@
-import { SITE_URL } from "@/lib/links";
+import { APP_STORE_URL, SITE_URL } from "@/lib/links";
+import sitemapDates from "@/lib/sitemap-dates.json";
 import {
   youtubeEmbedUrl,
   youtubeLesson,
@@ -12,6 +13,11 @@ const absoluteUrl = (path: string): string =>
 
 export const jsonLdString = (data: unknown): string =>
   JSON.stringify(data).replace(/</g, "\\u003c");
+
+export const APP_ID = `${SITE_URL}/#app`;
+export const WEBSITE_ID = `${SITE_URL}/#website`;
+
+const contentDates: Record<string, string> = sitemapDates;
 
 type WebPageInput = {
   title: string;
@@ -28,17 +34,19 @@ export function webPageJsonLd({
   about,
   dateModified,
 }: WebPageInput) {
+  const url = absoluteUrl(path);
+  const modified = dateModified ?? contentDates[path];
   return {
     "@context": "https://schema.org",
     "@type": "WebPage",
+    "@id": `${url}#webpage`,
     name: title,
-    url: absoluteUrl(path),
+    url,
     description,
-    ...(dateModified ? { dateModified } : {}),
-    isPartOf: {
-      "@id": `${SITE_URL}/#website`,
-    },
-    ...(about ? { about } : {}),
+    ...(modified ? { dateModified: modified } : {}),
+    isPartOf: { "@id": WEBSITE_ID },
+    about: { "@id": APP_ID },
+    ...(about?.length ? { keywords: about.join(", ") } : {}),
   };
 }
 
@@ -141,7 +149,7 @@ export function youtubeLessonJsonLd(lesson: YouTubeLessonId) {
     "@type": "VideoObject",
     name,
     description,
-    contentUrl: youtubeWatchUrl(id),
+    url: youtubeWatchUrl(id),
     embedUrl: youtubeEmbedUrl(id),
     thumbnailUrl: youtubeThumbnailUrl(id),
     uploadDate,
@@ -183,5 +191,26 @@ export function itemListJsonLd(items: ItemListEntry[]) {
       url: absoluteUrl(item.path),
       description: item.description,
     })),
+  };
+}
+
+export function iosAppJsonLd({ description }: { description: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "MobileApplication",
+    "@id": `${SITE_URL}/#ios-app`,
+    name: "lpm Link",
+    description,
+    operatingSystem: "iOS",
+    applicationCategory: "DeveloperApplication",
+    url: APP_STORE_URL,
+    downloadUrl: APP_STORE_URL,
+    isRelatedTo: { "@id": APP_ID },
+    publisher: { "@id": `${SITE_URL}/#publisher` },
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+    },
   };
 }

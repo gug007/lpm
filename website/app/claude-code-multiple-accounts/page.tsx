@@ -3,9 +3,11 @@ import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   CLAUDE_ACCOUNTS_PATH,
-  CONNECT_AGENTS_PATH,
+  PARALLEL_PATH,
+  SKILLS_PATH,
   STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
+  WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import { AccountsVisual } from "./_components/accounts-visual";
@@ -18,10 +20,13 @@ import Problem from "./_components/problem";
 import Setup from "./_components/setup";
 import Workflows from "./_components/workflows";
 
+const TITLE = "Multiple Claude Code Accounts — No Logging Out";
+const DESCRIPTION =
+  "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.";
+
 export const metadata: Metadata = {
-  title: "Multiple Claude Code Accounts — No Logging Out",
-  description:
-    "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
     "claude code multiple accounts",
     "switch claude code accounts",
@@ -29,31 +34,29 @@ export const metadata: Metadata = {
     "run two claude code accounts",
     "claude code work and personal account",
     "claude code account switcher alternative",
+    "CLAUDE_CONFIG_DIR per project",
   ],
   alternates: {
     canonical: CLAUDE_ACCOUNTS_PATH,
   },
   openGraph: {
-    title: "Multiple Claude Code Accounts — No Logging Out",
-    description:
-      "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: CLAUDE_ACCOUNTS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Multiple Claude Code Accounts — No Logging Out",
-    description:
-      "Pin a Claude Code account to each project and keep work and personal signed in at once — no logout, no config swapping. Open a repo, get the right account.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
 const structuredData = [
   webPageJsonLd({
-    title: "Multiple Claude Code Accounts — One Per Project",
-    description:
-      "Run multiple Claude Code accounts on one Mac without logging out — lpm pins an account to each project, so work and personal stay signed in at once.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: CLAUDE_ACCOUNTS_PATH,
     about: [
       "multiple Claude Code accounts",
@@ -89,28 +92,40 @@ export default function ClaudeCodeMultipleAccountsPage() {
       <RelatedPages
         links={[
           {
-            href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
-            description:
-              "Run Claude Code and Codex in parallel on the same codebase, with your dev stack alongside.",
-          },
-          {
-            href: CONNECT_AGENTS_PATH,
-            title: "Connect AI agents to your projects",
-            description:
-              "Let agents start, stop, and restart services, read dev-server logs, and fan out into parallel copies.",
-          },
-          {
             href: TOKEN_USAGE_PATH,
-            title: "Claude Code & Codex token usage",
+            title: "Usage limits for every account",
             description:
-              "Track usage across projects, providers, models, and recent sessions without sending the dashboard to the cloud.",
+              "See each Claude account's 5-hour and weekly limits on its own card, plus tokens and cost by project.",
+          },
+          {
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
+            description:
+              "Fan one prompt out to several copies of a project, each on the account the project is pinned to.",
+          },
+          {
+            href: WORKTREE_ALTERNATIVE_PATH,
+            title: "Git worktree alternative",
+            description:
+              "Standalone project copies with your local setup, which keep the parent's Claude account.",
           },
           {
             href: STATUSLINE_PATH,
             title: "Claude Code & Codex statuslines",
             description:
-              "Pick a preset, reorder the fields, and preview live — so you can tell each session apart at a glance.",
+              "Put the model, context left and 5-hour usage under Claude Code, and tell sessions apart at a glance.",
+          },
+          {
+            href: SKILLS_PATH,
+            title: "Claude Code & Codex skills",
+            description:
+              "Create and edit the skills every pinned account shares, with AI drafting and per-skill context cost.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "Best terminal for Claude Code & Codex",
+            description:
+              "Run Claude Code and Codex in parallel on the same codebase, with your dev stack alongside.",
           },
         ]}
       />

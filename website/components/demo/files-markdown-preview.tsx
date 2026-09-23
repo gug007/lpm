@@ -16,11 +16,14 @@ const REHYPE_PLUGINS = [rehypeRaw, rehypeSanitize];
 const REMARK_PLUGINS = [remarkGfm];
 const HEADING_RULE =
   "mb-3 border-b border-[#2e2e2e] pb-1.5 font-semibold text-[#e5e5e5] first:mt-0";
+const MINOR_HEADING =
+  "mb-2 mt-4 text-base font-semibold text-[#e5e5e5] first:mt-0";
 const CELL = "border border-[#2e2e2e] px-2 py-1";
 
 // A Markdown file rendered instead of shown as source, the way the app's Files
 // tab does it. Links to other project files open them here; the demo has no
-// image bytes, so a local image stands in as its alt text.
+// image bytes, so a local image stands in as its alt text. Headings render as
+// paragraphs so a README never adds to the outline of the page hosting it.
 export function FilesMarkdownPreview({
   text,
   path,
@@ -93,17 +96,22 @@ export function FilesMarkdownPreview({
         );
       },
       h1({ children }) {
-        return <h1 className={`${HEADING_RULE} mt-6 text-xl`}>{children}</h1>;
+        return <p className={`${HEADING_RULE} mt-6 text-xl`}>{children}</p>;
       },
       h2({ children }) {
-        return <h2 className={`${HEADING_RULE} mt-5 text-lg`}>{children}</h2>;
+        return <p className={`${HEADING_RULE} mt-5 text-lg`}>{children}</p>;
       },
       h3({ children }) {
-        return (
-          <h3 className="mb-2 mt-4 text-base font-semibold text-[#e5e5e5] first:mt-0">
-            {children}
-          </h3>
-        );
+        return <p className={MINOR_HEADING}>{children}</p>;
+      },
+      h4({ children }) {
+        return <p className={MINOR_HEADING}>{children}</p>;
+      },
+      h5({ children }) {
+        return <p className={MINOR_HEADING}>{children}</p>;
+      },
+      h6({ children }) {
+        return <p className={MINOR_HEADING}>{children}</p>;
       },
       ul({ children }) {
         return <ul className="my-1 list-disc pl-5">{children}</ul>;

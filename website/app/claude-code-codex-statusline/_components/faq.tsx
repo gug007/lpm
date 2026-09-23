@@ -6,7 +6,7 @@ const FAQS = [
   {
     question: "How do I customize a Claude Code statusline in lpm?",
     answer:
-      "Open Settings from the bottom of the lpm sidebar, choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work.",
+      "Open Settings (⌘, or the More menu at the bottom of the lpm sidebar), choose AI & Integrations, and click Customize beside Claude Code status line. Start with Clean, Minimalistic, Modern, or Custom, then arrange items and tune their appearance. lpm applies valid changes while you work, and the preview updates alongside.",
   },
   {
     question: "What can I change in the Claude Code statusline?",
@@ -16,7 +16,7 @@ const FAQS = [
   {
     question: "How does Codex statusline customization work in lpm?",
     answer:
-      "lpm shows the fields supported by your Codex version, including model, reasoning, project, Git, context, limits, tokens, run state, permissions, task progress, and thread details. Pick a preset, add or remove fields, reorder them, and choose whether Codex uses its active theme colors.",
+      "lpm lists Codex's 26 built-in statusline fields, grouped as model and activity, project, context and limits, and session and access. Pick a preset, add or remove fields, reorder them, and choose whether Codex uses its theme colors. A field lpm doesn't recognize in your config is kept, so a setting from a newer Codex is never lost. Custom text and separators are Claude Code only.",
   },
   {
     question: "Do I need to edit settings.json or config.toml?",
@@ -26,7 +26,12 @@ const FAQS = [
   {
     question: "Can lpm hide the statusline?",
     answer:
-      "Yes. Choose Off to hide the configurable statusline. For Codex, removing every item also hides the footer. You can return to a preset or add fields again at any time.",
+      "Yes. For Codex, choose Off or remove every item. For Claude Code, Off is offered when you have no statusline of your own; if you do, that option reads My status line and brings yours back. You can return to a preset or add fields again at any time.",
+  },
+  {
+    question: "Will lpm overwrite my existing Claude Code statusline?",
+    answer:
+      "No. If you already have one, it shows up as My status line. Try a preset or build a custom line, and pick My status line again whenever you want your original back.",
   },
   {
     question: "Does the statusline use extra AI tokens?",

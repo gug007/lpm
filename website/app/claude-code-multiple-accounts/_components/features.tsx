@@ -20,17 +20,17 @@ const FEATURES: Feature[] = [
   {
     icon: Users,
     title: "Pin an account to a project",
-    body: "Add your accounts once in Settings, then assign one in the project's config. From that point every terminal you open in the project launches Claude Code on that account. Projects without a pin keep using your main login — nothing changes until you ask it to.",
+    body: "Add your accounts once in Settings, then pick one in the project's config. From then on every terminal you open in the project launches Claude Code on that account. Projects without a pin keep your main login, so nothing changes until you ask it to.",
   },
   {
     icon: Layers,
     title: "Accounts run in parallel, not in turns",
-    body: "This is a pin, not a switch. The work project runs the company seat while the side project runs your personal subscription — simultaneously, in adjacent panes. There is no global “active account” to flip and no restart ripple across running sessions.",
+    body: "This is a pin, not a switch. The work project runs the company seat while the side project runs your personal subscription, at the same time. There is no global “active account” to flip and no restart ripple across running sessions.",
   },
   {
     icon: KeyRound,
     title: "Sign in once per account",
-    body: "The first terminal you open on a pinned project walks through Claude's normal browser sign-in for that account. That's the last time you see it. Every later terminal, on any project pinned to that account, is already signed in.",
+    body: "Click Sign in next to the account in Settings and lpm opens Claude's own sign-in for it. Settings then shows the account's email and which projects use it, and every terminal on a project pinned to it is already signed in.",
   },
   {
     icon: ShieldCheck,
@@ -40,12 +40,12 @@ const FEATURES: Feature[] = [
   {
     icon: FolderSync,
     title: "Your setup follows every account",
-    body: "Settings, memory, skills, and slash commands are shared across accounts automatically, so a pinned project feels identical to your main one — same tools, same shortcuts, different login. lpm's agent status badges keep working too.",
+    body: "Your settings, CLAUDE.md memory, skills, subagents, slash commands, and plugins are shared across accounts. User-level MCP servers and past sessions stay with each account. lpm's agent status keeps working too.",
   },
   {
     icon: Wand2,
     title: "Built-in AI features respect the pin",
-    body: "Commit messages, PR titles and descriptions, branch names, merge-conflict resolution, and composer text actions all run on the project's pinned account — not just the terminals. Whatever a project does with Claude, it does as the right identity.",
+    body: "Commit messages, PR titles and descriptions, branch names, merge-conflict resolution, and composer rewrites all run on the project's pinned account, not just the terminals.",
   },
 ];
 

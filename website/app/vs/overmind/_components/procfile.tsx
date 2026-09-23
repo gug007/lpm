@@ -27,7 +27,7 @@ export function Procfile() {
         <SectionHeader
           eyebrow="The conversion"
           title="Your Procfile, line for line"
-          description="Same names, same commands, one extra level of indentation. Keep the Procfile in the repo if Heroku or Foreman still needs it."
+          description="lpm writes the three services on the right when you add the folder — same names, same commands. The port label, dependsOn and the profile are what you add after. Keep the Procfile in the repo if Heroku or Foreman still needs it."
         />
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -47,17 +47,17 @@ export function Procfile() {
           </li>
           <li className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4 text-sm leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-white/[0.02] dark:text-gray-400">
             <code className={CODE}>profiles</code> start a subset:{" "}
-            <code className={CODE}>lpm start --profile api</code>, where Overmind
-            takes <code className={CODE}>overmind start -l web,worker</code> or{" "}
+            <code className={`${CODE} whitespace-nowrap`}>lpm start --profile api</code>, where Overmind
+            takes <code className={`${CODE} whitespace-nowrap`}>overmind start -l web,worker</code> or{" "}
             <code className={CODE}>OVERMIND_PROCESSES</code>.
           </li>
           <li className="rounded-2xl border border-gray-200 bg-gray-50/50 px-5 py-4 text-sm leading-relaxed text-gray-600 dark:border-gray-800 dark:bg-white/[0.02] dark:text-gray-400">
             <code className={CODE}>port:</code> is a label lpm checks for
             conflicts before starting, and it names the process holding one. It
             is not assigned to your process, so keep exporting{" "}
-            <code className={CODE}>PORT</code> yourself. The same file can live
-            at <code className={CODE}>.lpm.yml</code> in the repo root and be
-            committed.
+            <code className={CODE}>PORT</code> yourself. Commit the same services
+            and profile as <code className={CODE}>.lpm.yml</code>{" "}
+            in the repository to share them.
           </li>
         </ul>
 

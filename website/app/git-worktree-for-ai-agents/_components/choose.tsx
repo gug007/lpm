@@ -12,7 +12,7 @@ const BRANCHES: Branch[] = [
   {
     question: "One agent, one clean branch, and setup is cheap",
     answer: "Your agent's built-in flag",
-    why: "claude --worktree or a Codex thread. Nothing to install, and cleanup is handled on exit.",
+    why: "claude --worktree, or a worktree chat in the ChatGPT desktop app for Codex. Nothing to install, and the agent cleans up after itself.",
   },
   {
     question: "Several agents, and your repository needs no local setup",

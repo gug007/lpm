@@ -13,8 +13,8 @@ const STEPS: Step[] = [
     body: (
       <>
         Download the native macOS app and open your projects as usual. The
-        companion talks to this app — it&rsquo;s where every terminal and agent
-        actually runs.
+        phone talks to this app, which is where every terminal and agent
+        actually runs. A Linux server running lpm works the same way.
       </>
     ),
   },
@@ -23,9 +23,11 @@ const STEPS: Step[] = [
     title: "Add a device and scan the QR code",
     body: (
       <>
-        In <strong>Settings → Mobile devices</strong> on your Mac, add a device
-        to reveal a one-time QR code. Open the lpm app on your iPhone or iPad and
-        scan it. Pairing is one tap — no account, no sign-in.
+        In <strong>Settings → Mobile devices</strong>{" "}
+        on your Mac, turn on Remote control and add a device to reveal a one-time QR code. Scan it
+        with lpm Link on your iPhone or iPad. On the same Wi-Fi you can instead
+        tap your Mac in the app&rsquo;s nearby list and approve the matching
+        code. No account, no sign-in.
       </>
     ),
   },
@@ -34,9 +36,9 @@ const STEPS: Step[] = [
     title: "Your projects appear on your phone",
     body: (
       <>
-        The phone lists every project and terminal, live. Tap a terminal to
-        watch it stream, tap into it to type, or start and stop projects right
-        from the list.
+        The phone lists every project and terminal. Open a terminal, tap Take
+        control if your Mac is showing it, and it streams here, ready to type
+        into. Start and stop projects right from the list.
       </>
     ),
   },

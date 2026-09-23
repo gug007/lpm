@@ -5,7 +5,7 @@ export default function StatsPreview() {
   return (
     <section
       id="dashboard"
-      className="scroll-mt-20 overflow-hidden px-3 pb-20 sm:px-6 sm:pb-28"
+      className="scroll-mt-20 overflow-hidden px-3 pb-4 sm:px-6 sm:pb-6"
     >
       <div className="mx-auto max-w-[1440px]">
         <div className="mb-4 flex flex-col gap-1 px-3 text-sm text-gray-500 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between sm:px-0">
@@ -22,7 +22,8 @@ export default function StatsPreview() {
                 src={statsDashboard}
                 alt="lpm Stats dashboard showing 30-day Claude Code and Codex token usage by day, project, provider, and recent session"
                 fill
-                priority
+                loading="eager"
+                fetchPriority="high"
                 sizes="(max-width: 640px) 100vw, 1440px"
                 className="object-cover object-[66%_bottom] sm:object-bottom"
               />

@@ -13,12 +13,12 @@ export default function Hero() {
           A Mac SSH client and terminal that makes remote dev boxes feel local.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          lpm is a native SSH terminal for Mac that imports your{" "}
+          lpm is a native SSH terminal for Mac that reads your{" "}
           <code className="text-xs">~/.ssh/config</code>, forwards remote ports
-          to <code className="text-xs">localhost</code>, and keeps remote
-          services in panes beside your local stack. No separate SSH client, no
-          hand-typed <code className="text-xs">ssh -L</code>, no orphan
-          tunnels.
+          to <code className="text-xs">localhost</code>, and streams remote
+          services into panes, one sidebar click from your local projects. No
+          separate SSH client, no hand-typed{" "}
+          <code className="text-xs">ssh -L</code>, no orphan tunnels.
         </p>
 
         <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap justify-center gap-3 text-xs font-medium text-gray-600 dark:text-gray-300">

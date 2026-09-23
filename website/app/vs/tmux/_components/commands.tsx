@@ -60,7 +60,7 @@ export default function Commands() {
           agents are doing — so those four want lpm open.{" "}
           <code className="font-mono text-xs">lpm list</code>,{" "}
           <code className="font-mono text-xs">lpm logs</code> and{" "}
-          <code className="font-mono text-xs">lpm wait --port</code> read your
+          <code className="font-mono text-xs whitespace-nowrap">lpm wait --port</code> read your
           running services themselves, from any shell, whether lpm is up or not.
         </>
       }

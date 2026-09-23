@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { BeforeAfter } from "@/components/home/before-after";
-import { ConfigExample } from "@/components/home/config-example";
 import { Contributors } from "@/components/home/contributors";
 import { CtaBand } from "@/components/home/cta-band";
 import { DemoSection } from "@/components/home/demo";
@@ -11,14 +10,6 @@ import { Hero } from "@/components/home/hero";
 import { HomeFaq } from "@/components/home/home-faq";
 import { HowItWorks } from "@/components/home/how-it-works";
 import { PairedDevices } from "@/components/home/paired-devices";
-import { RelatedPages } from "@/components/related-pages";
-import {
-  AI_AGENTS_PATH,
-  BEST_TERMINAL_MAC_PATH,
-  CLAUDE_ACCOUNTS_PATH,
-  TOKEN_USAGE_PATH,
-  vsPath,
-} from "@/lib/links";
 import { jsonLdString, youtubeLessonJsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
@@ -44,49 +35,14 @@ export default function HomePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection />
+      <DemoSection posterPriority />
       <BeforeAfter />
-      <HowItWorks />
       <CtaBand />
-      <Features />
+      <HowItWorks />
       <PairedDevices />
-      <ConfigExample />
       <Contributors />
+      <Features />
       <HomeFaq />
-      <RelatedPages
-        links={[
-          {
-            href: BEST_TERMINAL_MAC_PATH,
-            title: "Best terminal for Mac",
-            description:
-              "A native Apple Silicon workspace with live output per service and a visual project switcher.",
-          },
-          {
-            href: CLAUDE_ACCOUNTS_PATH,
-            title: "Multiple Claude Code accounts",
-            description:
-              "Pin a Claude account to each project — work and personal run in parallel, signed in once.",
-          },
-          {
-            href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
-            description:
-              "Run Claude Code and Codex side by side on the same codebase and keep every agent in view.",
-          },
-          {
-            href: TOKEN_USAGE_PATH,
-            title: "Claude Code & Codex token usage",
-            description:
-              "Track tokens, approximate cost, cache usage, projects, models, and sessions locally on your Mac.",
-          },
-          {
-            href: vsPath("tmux"),
-            title: "lpm vs tmux",
-            description:
-              "An honest comparison of lpm and tmux for running local dev stacks with services in panes.",
-          },
-        ]}
-      />
       <Downloads>
         <DownloadSafety />
       </Downloads>

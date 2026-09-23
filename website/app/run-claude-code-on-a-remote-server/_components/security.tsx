@@ -5,7 +5,7 @@ const POINTS = [
   {
     icon: Lock,
     title: "The server doesn't listen to the network",
-    body: "The port lpm listens on there is bound to the machine itself, reachable from nowhere else. lpm gets to it by forwarding that port over SSH — the access you already had — so adding a host opens nothing new to the internet and needs no firewall change.",
+    body: "The port lpm listens on there is bound to the machine itself, reachable from nowhere else. lpm gets to it by forwarding that port over SSH, the access you already had, so adding a host opens nothing new to the internet and needs no firewall change.",
   },
   {
     icon: KeyRound,
@@ -20,7 +20,7 @@ const POINTS = [
   {
     icon: Undo2,
     title: "Nothing you have to undo",
-    body: "Nothing new reachable from the network, no account, no relay in the middle, no service of ours holding your keys. Disconnect a host and it drops out of your sidebar — whatever is running on it keeps running.",
+    body: "No account, no relay in the middle, no service of ours holding your keys. Disconnect a host and it drops out of your sidebar, and whatever is running on it keeps running. To take lpm off the server entirely, choose Remove lpm from this host in Settings → Connections.",
   },
 ];
 
@@ -31,7 +31,7 @@ export default function Security() {
         <SectionHeader
           eyebrow="What it opens up"
           title="Nothing, is the answer"
-          description="A server you rent has no business exposing a control port to the world, so lpm doesn't ask it to."
+          description="A server you rent has no business exposing a control port to the world, so adding one opens nothing."
         />
         <div className="grid gap-4 sm:grid-cols-2">
           {POINTS.map(({ icon: Icon, title, body }) => (
@@ -52,6 +52,13 @@ export default function Security() {
             </article>
           ))}
         </div>
+        <p className="mt-6 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+          The one port you can choose to open is for your phone. Pairing the lpm
+          iPhone app with the server turns on phone access there, which listens
+          on the server&rsquo;s network interfaces. The connection is encrypted
+          and only paired devices get in, but on a public server, reach it over
+          a tailnet or limit the port with a firewall.
+        </p>
       </div>
     </section>
   );

@@ -81,13 +81,13 @@ export function Pm2Matrix() {
     <FeatureMatrix
       id="matrix"
       title="PM2 and lpm, row by row"
-      description="Six of these rows go to PM2, and none of them is on lpm's roadmap — because none of them is a local-dev problem."
+      description="Six of these rows go to PM2. Each one is a production problem — cluster mode, crash recovery, boot persistence — rather than a local-dev one."
       competitorName="PM2"
       rows={ROWS}
       footnote={
         <>
           There is no logs directory.{" "}
-          <code className="font-mono text-xs">lpm logs api --lines 500</code>{" "}
+          <code className="font-mono text-xs whitespace-nowrap">lpm logs api --lines 500</code>{" "}
           reads that service pane&apos;s scrollback, so what you get back is
           always current — and when the pane goes, the history goes with it. For
           output you can still read next week, PM2&apos;s log files plus

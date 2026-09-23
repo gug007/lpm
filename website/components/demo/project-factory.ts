@@ -4,7 +4,6 @@ import {
   type DemoAction,
   type DemoGit,
   type DemoProject,
-  type DemoService,
   type OutputLine,
   type ReplyContext,
 } from "./projects";
@@ -13,6 +12,7 @@ import type { PaneNode } from "./pane-tree";
 import type { NewActionInput } from "./add-action-modal";
 import type { NewProjectInput } from "./add-project-modal";
 import type { AgentStep } from "./agent-script";
+import { servicesFor } from "./detected-services";
 
 // What the agent in a fresh copy picks up, so the duplicate is visibly doing
 // its own work rather than mirroring its parent.
@@ -161,31 +161,23 @@ export function buildActionFromInput(
   };
 }
 
-// What the app writes for a folder it has just adopted: one placeholder
-// service to replace with the real command — projects_crud.rs's dev_services —
-// while the agent actions come from the global config every project shares.
-const PLACEHOLDER_SERVICE: DemoService = {
-  name: "dev",
-  cmd: "echo 'configure me'",
-  output: [
-    { text: "$ echo 'configure me'", color: "green", delay: 50 },
-    { text: "configure me", delay: 300 },
-  ],
-};
-
+// A new project gets the services the app would write for it — detected from
+// the folder, a login shell for an SSH host — while the agent actions come
+// from the global config every project shares.
 export function buildProjectFromInput(
   input: NewProjectInput,
   existing: DemoProject[],
 ): DemoProject {
   const taken = new Set(existing.map((p) => p.name));
   const name = uniqueName(input.name, taken);
+  const services = servicesFor(input);
   if (input.kind === "ssh") {
     return {
       name,
       label: name,
       root: `ssh://${input.host}/~/${name}`,
       stack: `SSH · ${input.host}`,
-      services: [],
+      services,
       actions: [CLAUDE_ACTION, CODEX_ACTION],
       profiles: [],
     };
@@ -195,7 +187,7 @@ export function buildProjectFromInput(
     label: name,
     root: `~/Projects/${name}`,
     stack: "Local project",
-    services: [PLACEHOLDER_SERVICE],
+    services,
     actions: [CLAUDE_ACTION, CODEX_ACTION],
     profiles: [],
   };

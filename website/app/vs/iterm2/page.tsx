@@ -14,6 +14,7 @@ import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   CONFIG_PATH,
+  MOBILE_PATH,
   PROJECT_SIDEBAR_PATH,
   REPO_URL,
   VS_BASE_PATH,
@@ -38,15 +39,12 @@ const DESCRIPTION =
 
 const QUESTION = "Is there a real iTerm2 alternative?";
 
-const PROJECT_FILE = `name: shop
-root: ~/Projects/shop
-
-services:
-  web: npm run dev
+const PROJECT_FILE = `services:
+  storefront: npm run dev
   api: npm run api
 
 profiles:
-  frontend: [web]`;
+  frontend: [storefront]`;
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -93,7 +91,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "Both",
     title: "Run both",
-    body: "lpm starts ordinary processes through your login shell. Nothing is captured, nothing is wrapped, and the Open in iTerm action drops you into the project directory in your own window whenever you want it.",
+    body: "lpm starts ordinary processes through your login shell — no container, no wrapper — and the Open in iTerm action drops you into the project directory in your own window whenever you want it.",
   },
 ];
 
@@ -112,11 +110,12 @@ const FAQ_ITEMS: FaqItem[] = [
     question: "What does lpm do that iTerm2 cannot?",
     answer: (
       <>
-        Three things, and not one of them is about the emulator. It gets the
-        service list written for you: point Claude Code or Codex at the repo —
-        package.json scripts, Makefile targets, justfile recipes, compose files
-        — and it writes the list, while the built-in scan offers the commands it
-        finds as one-shot buttons. It starts every service at once and puts the
+        Three things, and not one of them is about the emulator. It writes the
+        service list for you: add the folder and lpm reads package.json, a
+        Procfile, a Gemfile, a compose file and the rest, then lists the
+        services, with a port wherever the framework or the command names one —
+        and Generate with AI hands a redraft to Claude Code, Codex, Gemini CLI or
+        OpenCode. It starts every service at once and puts the
         port that service is listening on onto that service&apos;s tab. And it
         copies the project so a second agent works in a checkout of its own
         instead of overwriting the first one&apos;s files — a standalone copy
@@ -133,7 +132,7 @@ const FAQ_ITEMS: FaqItem[] = [
       </>
     ),
     answerText:
-      "Three things, and not one of them is about the emulator. It gets the service list written for you: point Claude Code or Codex at the repo — package.json scripts, Makefile targets, justfile recipes, compose files — and it writes the list, while the built-in scan offers the commands it finds as one-shot buttons. It starts every service at once and puts the port that service is listening on onto that service's tab. And it copies the project so a second agent works in a checkout of its own instead of overwriting the first one's files — a standalone copy brings your ignored files and installed packages along, while a linked worktree starts from the commit, so your .env and node_modules do not come with it — and either way both copies answer on the same ports and talk to the same database.",
+      "Three things, and not one of them is about the emulator. It writes the service list for you: add the folder and lpm reads package.json, a Procfile, a Gemfile, a compose file and the rest, then lists the services, with a port wherever the framework or the command names one — and Generate with AI hands a redraft to Claude Code, Codex, Gemini CLI or OpenCode. It starts every service at once and puts the port that service is listening on onto that service's tab. And it copies the project so a second agent works in a checkout of its own instead of overwriting the first one's files — a standalone copy brings your ignored files and installed packages along, while a linked worktree starts from the commit, so your .env and node_modules do not come with it — and either way both copies answer on the same ports and talk to the same database.",
   },
   {
     question: "How does lpm compare to Warp, Ghostty, or Kitty?",
@@ -267,7 +266,8 @@ export default function LpmVsIterm2Page() {
         <CodeBlock filename="~/Projects/shop/.lpm.yml">{PROJECT_FILE}</CodeBlock>
         <p>
           That file sits in the repo and travels with the branch, so a teammate
-          who opens the project gets the same services; if it is only for you,
+          who opens the project gets the same services, alongside whatever lpm
+          detected when they added it; if it is only for you,
           the same lines can live in your own project file instead. iTerm2 has no
           equivalent object — its profiles set the shell and the appearance, not
           which services a project runs.{" "}
@@ -298,7 +298,7 @@ export default function LpmVsIterm2Page() {
       />
 
       <WhenToPick
-        title="When each one is the right tool"
+        title="When to keep iTerm2 alone, and when to add lpm"
         description="Two free, macOS-only, open-source tools. The split is whether your bottleneck is the emulator itself or everything you have to start inside it."
         lpm={{
           name: "lpm",
@@ -306,7 +306,7 @@ export default function LpmVsIterm2Page() {
             "Your friction is starting, stopping, and switching whole projects — not the emulator.",
           points: [
             "You start four services every morning and want one command instead of six tabs.",
-            "You want the service list drafted from your repo by the agent CLI you already have, instead of typed out by hand.",
+            "You want the service list drafted from your repo the moment you add it, instead of typed out by hand.",
             "You run Claude Code or Codex and want each agent in its own checkout, created as a worktree or a standalone copy.",
             "You want one view of everything running across every project, with the ports each service holds.",
             "You want your dev servers to survive quitting the app — without running tmux to get it.",
@@ -360,6 +360,12 @@ export default function LpmVsIterm2Page() {
             title: "Project config reference",
             description:
               "Every key a project file takes: services, dependsOn, profiles, actions, and declared ports.",
+          },
+          {
+            href: MOBILE_PATH,
+            title: "Your Mac's terminals on an iPhone",
+            description:
+              "The lpm Link app mirrors a tab running on the Mac, takes typing, and pings you when Claude Code or Codex needs an answer.",
           },
         ]}
       />

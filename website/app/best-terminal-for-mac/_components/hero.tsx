@@ -9,12 +9,13 @@ export default function Hero() {
           The native terminal for macOS
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          The best terminal app for Mac, built for Apple Silicon.
+          The best free terminal app for Mac, built for Apple Silicon.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          A real macOS desktop app that runs your whole dev stack in one window
-          — live output per service, a visual project switcher, and no Electron
-          runtime to drain your MacBook&apos;s battery.
+          A real macOS app with split panes, search, and themes, plus what a
+          plain terminal lacks: live output per service, a visual project
+          switcher, and live status for Claude Code and Codex. No bundled
+          Electron runtime.
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">

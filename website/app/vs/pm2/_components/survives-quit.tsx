@@ -37,7 +37,7 @@ const ROWS: LifetimeRow[] = [
     term: "Survives a crash",
     lpm: {
       supported: false,
-      note: "the service stays down; its pane keeps the last output and the exit code",
+      note: "the service stays down; its pane keeps the last output",
     },
     pm2: { supported: true, note: "with backoff" },
   },

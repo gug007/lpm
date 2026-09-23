@@ -15,6 +15,8 @@ const LINK_CLASS =
 
 // Past a handful of sources the run-on "A, B, C … and N" sentence stops being
 // readable, so the list breaks out under the sentence instead of inside it.
+// The sentence then carries no count: every long-list page shares one review
+// date, and "against 7 sources" would repeat word for word across them.
 const INLINE_LIMIT = 4;
 
 export function ComparisonBasis({
@@ -35,7 +37,7 @@ export function ComparisonBasis({
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/60 dark:bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         <p className="text-center">
           Facts checked {date}
-          {inline ? (
+          {inline && (
             <>
               {" "}
               against{" "}
@@ -53,14 +55,15 @@ export function ComparisonBasis({
                 </span>
               ))}
             </>
-          ) : (
-            <> against {sources.length} sources</>
           )}
           .{lpmNote ? ` ${lpmNote}` : null}
         </p>
 
         {!inline && (
           <ul className="mt-3 flex flex-wrap justify-center gap-x-3 gap-y-1.5 border-t border-gray-200 dark:border-gray-800 pt-3">
+            <li className="font-medium text-gray-700 dark:text-gray-300">
+              Sources:
+            </li>
             {sources.map((source) => (
               <li key={source.href}>
                 <a

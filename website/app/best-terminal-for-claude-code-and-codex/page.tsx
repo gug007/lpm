@@ -3,15 +3,15 @@ import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
+  AUTOMATIONS_PATH,
   CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
-  LINUX_HOST_PATH,
-  REVIEW_CHANGES_PATH,
-  STATUSLINE_PATH,
+  PARALLEL_PATH,
+  SKILLS_PATH,
   TOKEN_USAGE_PATH,
-  WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import Alerts from "./_components/alerts";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -21,48 +21,54 @@ import Hero from "./_components/hero";
 import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
 
+const TITLE = "Best Terminal for Claude Code and Codex on Mac (2026)";
+const DESCRIPTION =
+  "The best terminal for Claude Code and Codex on Mac: live status per agent, a chime or banner when one needs you, plan limits, and your dev servers beside them.";
+
 export const metadata: Metadata = {
-  title: "Best Terminal for Claude Code, Codex & Gemini (2026)",
-  description:
-    "Run Claude Code and Codex in parallel on the same codebase — each agent in its own project copy, every session visible in one native Mac window. Free download.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
     "best terminal for claude code",
     "best terminal for codex",
     "claude code terminal",
     "codex terminal",
-    "parallel ai agents",
-    "ai agent workspace",
+    "claude code notifications",
+    "claude code mac app",
   ],
   alternates: {
     canonical: AI_AGENTS_PATH,
   },
   openGraph: {
-    title: "Best Terminal for Claude Code, Codex & Gemini (2026)",
-    description:
-      "Run Claude Code and Codex in parallel on the same codebase — each agent in its own project copy, every session visible in one native Mac window. Free download.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
     url: AI_AGENTS_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Best Terminal for Claude Code, Codex & Gemini (2026)",
-    description:
-      "Run Claude Code and Codex in parallel on the same codebase — each agent in its own project copy, every session visible in one native Mac window. Free download.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
 const structuredData = [
   webPageJsonLd({
-    title: "Best Terminal for Claude Code & Codex in Parallel",
-    description:
-      "Run Claude Code and Codex in parallel on the same codebase — each agent in its own copy, your dev stack started in one command, every session in view.",
+    title: TITLE,
+    description: DESCRIPTION,
     path: AI_AGENTS_PATH,
+    about: [
+      "best terminal for Claude Code",
+      "best terminal for Codex",
+      "Claude Code and Codex status alerts",
+      "Claude Code and Codex usage limits",
+    ],
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "Best Terminal for Claude Code & Codex",
+      name: "Best Terminal for Claude Code and Codex",
       path: AI_AGENTS_PATH,
     },
   ]),
@@ -79,6 +85,7 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       <DemoSection />
       <WhyParallel />
       <Features />
+      <Alerts />
       <Benefits />
       <Workflows />
       <Comparison />
@@ -86,46 +93,40 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
       <RelatedPages
         links={[
           {
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
+            description:
+              "Send one prompt to several copies of your project and keep the best answer.",
+          },
+          {
             href: CONNECT_AGENTS_PATH,
-            title: "Connect AI agents to your projects",
+            title: "Let agents drive lpm",
             description:
-              "Give Claude Code and Codex a CLI to start, stop, and restart services, read logs, and fan out into parallel copies.",
+              "Give Claude Code and Codex a CLI to start services, read logs, and wait for a server before running tests.",
           },
           {
-            href: WORKTREE_ALTERNATIVE_PATH,
-            title: "A Git worktree alternative for AI agents",
+            href: AUTOMATIONS_PATH,
+            title: "Schedule Claude Code tasks",
             description:
-              "See when a standalone lpm Duplicate is a better fit than a linked worktree.",
+              "Run a Claude Code or Codex prompt on a schedule and read the answer when you are back.",
           },
           {
-            href: CLAUDE_ACCOUNTS_PATH,
-            title: "Multiple Claude Code accounts",
+            href: SKILLS_PATH,
+            title: "Claude Code & Codex skills",
             description:
-              "Pin a Claude account to each project — work and personal run in parallel, signed in once.",
+              "Browse the skills, MCP servers and hooks a folder loads for Claude Code and Codex, and draft new skills in a form.",
           },
           {
             href: TOKEN_USAGE_PATH,
             title: "Claude Code & Codex token usage",
             description:
-              "See tokens, approximate cost, cache usage, projects, models, and sessions in one local dashboard.",
+              "Tokens, estimated spend, cache hits, and sessions per project in one local dashboard.",
           },
           {
-            href: LINUX_HOST_PATH,
-            title: "Run Claude Code on a remote server",
+            href: CLAUDE_ACCOUNTS_PATH,
+            title: "Multiple Claude Code accounts",
             description:
-              "Move the long runs to a Linux box you own and drive it from the same window.",
-          },
-          {
-            href: STATUSLINE_PATH,
-            title: "Claude Code & Codex statuslines",
-            description:
-              "Pick a preset, reorder the fields, and preview live — so parallel agent sessions stay readable at a glance.",
-          },
-          {
-            href: REVIEW_CHANGES_PATH,
-            title: "Review changes in terminal",
-            description:
-              "See a file-by-file diff of everything your agents changed before you commit.",
+              "Pin a Claude account to each project, so work and personal run side by side, each signed in once.",
           },
         ]}
       />

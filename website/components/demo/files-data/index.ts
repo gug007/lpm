@@ -16,10 +16,7 @@ const FALLBACK: ProjectFiles = {
   content: {
     "README.md": `# A new project
 
-lpm found this folder and read its package.json. Everything below is the
-starting point it wrote — edit it, or replace it with your own.
-
-## Running it
+Start it from lpm's Start button, or by hand:
 
 \`\`\`bash
 npm install
@@ -31,8 +28,13 @@ npm run dev
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "dev": "node src/index.ts",
+    "dev": "next dev",
     "test": "node --test tests/"
+  },
+  "dependencies": {
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }
 `,

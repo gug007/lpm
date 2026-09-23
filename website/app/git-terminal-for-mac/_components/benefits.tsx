@@ -8,19 +8,19 @@ type Outcome = {
 const OUTCOMES: Outcome[] = [
   {
     title: "You stop losing your dev server every time you switch branches.",
-    body: "Services run in their own panes, independent of which branch your shell is on. Your npm run dev keeps streaming while you rebase, resolve conflicts, and push.",
+    body: "lpm never stops or restarts a service because you checked out a branch. Your npm run dev keeps streaming and hot-reloads while you rebase, resolve conflicts, and push, and a worktree keeps a second branch running at the same time.",
   },
   {
     title: "You stop toggling between a GUI git client and a terminal.",
-    body: "One lpm window has a shell pane for git commands and service panes for your running stack. The branch graph GUI is for people who don't want to type — you do want to type, you just don't want to leave your running services to do it.",
+    body: "One lpm window has a shell pane for git commands, service panes for your running stack, and a Git bar for the clicks: switch branches, commit, open a PR. You keep typing the git you know without leaving your running services to do it.",
   },
   {
     title: "Context switching between repos stops wiping your git state.",
     body: "Jump to another project, fix a blocking bug, push it — your original project is still on its branch, with its services up, with its terminal history intact. Come back and keep rebasing.",
   },
   {
-    title: "Starting fresh after a big merge is one click, not a script.",
-    body: "After pulling a release branch or merging a long-running feature, lpm restarts the full defined stack in one click. No mental dependency graph, no --force-recreate flags typed from memory.",
+    title: "Starting fresh after a big merge is two clicks, not a script.",
+    body: "After pulling a release branch or merging a long-running feature, Stop and Start bring the whole defined stack back fresh in two clicks. No mental dependency graph, no --force-recreate flags typed from memory.",
   },
 ];
 
@@ -31,7 +31,7 @@ export default function Benefits() {
         <SectionHeader
           eyebrow="The git workflow difference"
           title="What git feels like when your terminal is built for it"
-          description="Four concrete improvements to your daily git workflow."
+          description="Four changes to your daily git workflow."
         />
         <ol className="space-y-10">
           {OUTCOMES.map(({ title, body }, i) => (

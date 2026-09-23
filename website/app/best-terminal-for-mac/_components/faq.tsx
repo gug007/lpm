@@ -25,7 +25,7 @@ const FAQS: QA[] = [
   {
     question: "Is lpm a good git terminal for Mac?",
     answer:
-      "Yes, and the output looks the way you expect it to. Panes are real macOS terminal sessions with GPU-accelerated rendering, 256-color and 24-bit color escapes drawn as sent, and Unicode 11 character widths, so colored diffs, prompt themes, and full-screen tools like lazygit or tig render the way they do in iTerm2. URLs and file paths in the output are clickable. You run git in one pane and your dev servers in another, inside the same native window.",
+      "Yes, and the output looks the way you expect it to. Panes are real macOS terminal sessions with GPU-accelerated rendering, 256-color and 24-bit color escapes drawn as sent, and Unicode 11 character widths, so colored diffs, prompt themes, and full-screen tools like lazygit or tig draw correctly. URLs and file paths in the output are clickable. You run git in one pane and your dev servers in another, inside the same native window. When you'd rather click, the footer has a branch switcher, a Commit dialog that drafts the message with AI, and Create PR.",
   },
   {
     question: "Is lpm a good iTerm2 alternative on Mac?",
@@ -50,13 +50,38 @@ const FAQS: QA[] = [
   },
   {
     question: "How do I download lpm for macOS?",
+    answer: (
+      <>
+        Use the{" "}
+        <a
+          href="#download"
+          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+        >
+          download button on this page
+        </a>
+        , open the .dmg, and drag lpm to your Applications folder. The app
+        supports macOS 12 and later on both Apple Silicon and Intel Macs. On
+        first launch, point it at any project folder and lpm detects the
+        services it can run.
+      </>
+    ),
+    answerText:
+      "Download the .dmg from lpm.cx, open it, and drag lpm to your Applications folder. The app supports macOS 12 and later on both Apple Silicon and Intel Macs. On first launch, point it at any project folder and lpm detects the services it can run.",
+  },
+  {
+    question: "Does lpm have split panes, search, and themes?",
     answer:
-      "Go to lpm.cx, download the .dmg, open it, and drag lpm to your Applications folder. The app supports macOS 12 and later on both Apple Silicon and Intel Macs. On first launch, point it at any project folder and lpm can generate its service config for you with AI.",
+      "Yes. ⌘D splits a pane to the right and ⌘⇧D splits it down, ⌘F searches any terminal or service log with an optional filter mode, and you can pick one of eight color themes, any installed monospace font, and a font size from 8 to 24. Each project remembers its own pane layout.",
+  },
+  {
+    question: "Can I browse and edit files in lpm?",
+    answer:
+      "Yes, lightly. The Files tab (⌘⇧E) shows the project's folder tree, ⌘P jumps to any file by name, and the editor has syntax highlighting and saves with ⌘S. Markdown renders GitHub-style and images preview inline. It is not an IDE, so Open with sends the project to Cursor, VS Code, Zed, or Xcode when you need one.",
   },
   {
     question: "Is lpm a good terminal for beginners on Mac?",
     answer:
-      "Yes. Beginners get a visual sidebar, one-click Start and Stop buttons, and an AI-generated service config for common frameworks like Rails, Next.js, Django, and Flask. You never have to memorize which command starts which server — lpm surfaces them as labelled buttons while still giving you a full macOS terminal underneath when you want one.",
+      "Yes. Beginners get a visual sidebar, one-click Start and Stop buttons, and services set up automatically for common frameworks like Rails, Next.js, Django, Flask, and Laravel. You never have to memorize which command starts which server: the Start menu lists every service by name, and your own commands become labelled buttons, while a full macOS terminal is still there when you want one.",
   },
 ];
 

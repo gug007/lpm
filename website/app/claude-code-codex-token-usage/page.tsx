@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { RelatedPages } from "@/components/related-pages";
 import {
-  AI_AGENTS_PATH,
+  AUTOMATIONS_PATH,
   CLAUDE_ACCOUNTS_PATH,
-  CONNECT_AGENTS_PATH,
-  REVIEW_CHANGES_PATH,
+  FEATURES_PATH,
+  MOBILE_PATH,
+  PARALLEL_PATH,
   STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
 } from "@/lib/links";
@@ -19,12 +20,13 @@ import Hero from "./_components/hero";
 import HowItWorks from "./_components/how-it-works";
 import Insights from "./_components/insights";
 import Outcomes from "./_components/outcomes";
+import PlanLimits from "./_components/plan-limits";
 import Privacy from "./_components/privacy";
 import StatsPreview from "./_components/stats-preview";
 
-const TITLE = "Claude Code & Codex Token Usage Tracker";
+const TITLE = "Claude Code & Codex Usage: Tokens, Cost & Limits";
 const DESCRIPTION =
-  "Track Claude Code and Codex tokens, estimated cost, cache usage, projects, models, and sessions locally on your Mac. Prompts and responses are not included.";
+  "Track Claude Code and Codex tokens, estimated cost and cache use by project, plus live 5-hour and weekly limit meters with pace. Private, on your Mac.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -37,6 +39,11 @@ export const metadata: Metadata = {
     "AI coding agent usage tracker",
     "Claude Code cost tracker",
     "token usage by project",
+    "Claude Code usage limit",
+    "Claude 5-hour limit tracker",
+    "Claude weekly limit",
+    "Codex rate limit",
+    "Codex usage limit",
   ],
   alternates: {
     canonical: TOKEN_USAGE_PATH,
@@ -44,7 +51,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "See Claude Code and Codex tokens, estimated cost, cache usage, projects, models, and sessions in one private Mac dashboard.",
+      "Tokens, estimated cost, cache use, projects and sessions for Claude Code and Codex, plus live 5-hour and weekly limit meters, in one private Mac app.",
     type: "website",
     url: TOKEN_USAGE_PATH,
     siteName: "lpm",
@@ -53,7 +60,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Track Claude Code and Codex token usage by day, project, provider, model, and session—locally on your Mac.",
+      "Claude Code and Codex usage on your Mac: tokens and cost by project, and live 5-hour and weekly limits with pace.",
   },
 };
 
@@ -67,12 +74,14 @@ const structuredData = [
       "Codex token usage",
       "AI coding agent usage analytics",
       "token usage by project",
+      "Claude Code usage limits",
+      "Codex rate limits",
       "local AI usage dashboard",
     ],
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
-    { name: "Claude Code & Codex Token Usage", path: TOKEN_USAGE_PATH },
+    { name: "Claude Code & Codex Usage", path: TOKEN_USAGE_PATH },
   ]),
 ];
 
@@ -87,6 +96,7 @@ export default function ClaudeCodeCodexTokenUsagePage() {
       <StatsPreview />
       <Outcomes />
       <Insights />
+      <PlanLimits />
       <HowItWorks />
       <Privacy />
       <Faq />
@@ -94,33 +104,39 @@ export default function ClaudeCodeCodexTokenUsagePage() {
         links={[
           {
             href: STATUSLINE_PATH,
-            title: "Customize statuslines in lpm",
+            title: "Usage meters in your statusline",
             description:
-              "Visually customize Claude Code and Codex statuslines with presets, live preview, colors, meters, and automatic local saving.",
-          },
-          {
-            href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
-            description:
-              "Run AI coding agents in parallel while every service, terminal, and project stays in view.",
+              "Put 5-hour and weekly usage, context left and session cost under Claude Code, or pick Codex's limit fields.",
           },
           {
             href: CLAUDE_ACCOUNTS_PATH,
             title: "Multiple Claude Code accounts",
             description:
-              "Pin work and personal Claude accounts to separate projects and run them side by side.",
+              "Pin work and personal Claude accounts to separate projects, each with its own limits card.",
           },
           {
-            href: CONNECT_AGENTS_PATH,
-            title: "Connect agents to your dev environment",
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
             description:
-              "Give Claude Code and Codex tools to start services, read logs, and work across parallel copies.",
+              "Fan one task out to several Claude Code agents in project copies and keep the best result.",
           },
           {
-            href: REVIEW_CHANGES_PATH,
-            title: "Review AI agent changes",
+            href: AUTOMATIONS_PATH,
+            title: "Schedule Claude Code tasks",
             description:
-              "Inspect every file an agent changed in a native diff view before you commit.",
+              "Put Claude Code and Codex prompts on a schedule and read each run's answer when it finishes.",
+          },
+          {
+            href: MOBILE_PATH,
+            title: "Usage and Stats on your iPhone",
+            description:
+              "Check limits, token totals and your agents from the lpm iPhone app.",
+          },
+          {
+            href: FEATURES_PATH,
+            title: "Everything lpm does",
+            description:
+              "Projects, services, terminals, agents, review, automations and remote machines in one list.",
           },
         ]}
       />

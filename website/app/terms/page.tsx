@@ -2,17 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { REPO_URL, TERMS_PATH } from "@/lib/links";
 
+const DESCRIPTION =
+  "Terms of service for lpm, the free and open-source Mac app, and the lpm.cx website: acceptable use, the open-source license, no warranty, and liability.";
+
 export const metadata: Metadata = {
   title: "Terms of Service",
-  description:
-    "Terms of service for lpm — how you may use the software and website.",
+  description: DESCRIPTION,
   alternates: {
     canonical: TERMS_PATH,
   },
   openGraph: {
     title: "Terms of Service",
-    description:
-      "Terms of service for lpm — how you may use the software and website.",
+    description: DESCRIPTION,
     type: "website",
     url: TERMS_PATH,
     siteName: "lpm",
@@ -20,8 +21,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Terms of Service",
-    description:
-      "Terms of service for lpm — how you may use the software and website.",
+    description: DESCRIPTION,
   },
 };
 

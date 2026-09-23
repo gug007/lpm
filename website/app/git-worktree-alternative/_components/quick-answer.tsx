@@ -34,12 +34,14 @@ export default function QuickAnswer() {
               </a>{" "}
               when you want a lightweight, linked checkout and are happy to
               prepare its dependencies, local files, services, and agent
-              session separately. Worktrees are excellent at that job; lpm
-              solves a larger one.
+              session separately. Worktrees are excellent at that job, and lpm
+              makes real ones too: choose New Worktree instead of Duplicate in
+              a project&rsquo;s menu to get linked worktrees on new branches,
+              with the same batch and task options.
             </p>
             <p>
               If you are choosing between them for a specific run, compare all
-              five isolation models — raw Git, the worktree flags built into{" "}
+              five isolation models — raw Git, the worktrees built into{" "}
               <Link
                 href={WORKTREE_AGENTS_PATH}
                 className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"

@@ -23,17 +23,17 @@ const FEATURES: Feature[] = [
   {
     icon: SlidersHorizontal,
     title: "Run actions and manage terminals",
-    body: "Toggle individual services, trigger a saved action — a test run, a linter, a deploy — and open, close, rename, pin, or reorder terminals. It all runs on your Mac in the normal flow and shows up the next time you look.",
+    body: "Toggle individual services, watch their logs, trigger a saved action (a test run, a linter, a deploy), and open, close, rename, pin, or reorder terminals. It all runs on your Mac; running an action or opening a terminal needs the lpm window open there.",
   },
   {
     icon: Copy,
     title: "Duplicate a project and fan out",
-    body: "Set copy count, labels, a group folder, and git options, optionally run an action or command in each copy, and watch per-copy progress stream in. When a copy has served its purpose, delete it — folder and all — right from your phone.",
+    body: "Make up to 50 standalone copies with labels and a group folder, choose committed work only, pull latest, or reinstall dependencies, and run an action or command in each. A progress bar tracks the batch, and a copy you're done with can be deleted, folder and all.",
   },
   {
     icon: FolderTree,
     title: "Run one prompt across fresh copies",
-    body: "Straight from the composer, send a prompt to run in several duplicates at once — the current terminal plus fresh parallel copies — to try one idea a few ways and compare the results side by side.",
+    body: "Long-press Send to run a prompt in 2 to 10 copies at once: this terminal counts as the first, and fresh copies of the project take the rest. Try one idea a few ways and keep the best result.",
   },
 ];
 

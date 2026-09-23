@@ -66,7 +66,7 @@ export default function ToolMatrix({ footnote }: { footnote?: ReactNode }) {
         <SectionHeader
           eyebrow="Every tool, side by side"
           title="The capabilities that actually differ"
-          description="Thirteen rows, each one a place where the eight columns genuinely differ. Three of them go against lpm."
+          description="Thirteen rows, each one a place where the eight columns genuinely differ. Two of them go against lpm."
         />
 
         <div className="hidden md:block rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">

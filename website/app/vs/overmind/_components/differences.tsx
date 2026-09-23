@@ -2,8 +2,8 @@ import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
 
 const ROWS: MatrixRow[] = [
   {
-    label: "Uses an existing Procfile without conversion",
-    lpm: false,
+    label: "Picks up Procfile edits on the next start",
+    lpm: "no — imported once, when the project is added",
     competitor: true,
   },
   {
@@ -33,7 +33,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Drafts the config for you",
-    lpm: "with your installed Claude Code, Codex, Gemini CLI or OpenCode",
+    lpm: "built in, from the Procfile and other manifests; Claude Code, Codex, Gemini CLI or OpenCode can redraft it",
     competitor: false,
   },
   {
@@ -68,7 +68,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Running it on a remote dev box",
-    lpm: "SSH projects + manual port forwarding",
+    lpm: "SSH projects, declared ports forwarded to localhost automatically",
     competitor: "run it on the box yourself",
   },
   {
@@ -88,8 +88,9 @@ export function Differences() {
       rows={ROWS}
       footnote={
         <>
-          Read the five rows lpm loses twice. Overmind takes the Procfile you
-          already have, hands each process a{" "}
+          Read the five rows lpm loses twice. Overmind reads your Procfile
+          afresh every time it starts where lpm imported it once, hands each
+          process a{" "}
           <code className="font-mono text-[0.9em]">PORT</code>, runs several
           instances of one process, installs on Linux and *BSD where lpm needs a
           Mac to drive from, and drops you at a prompt inside a running process

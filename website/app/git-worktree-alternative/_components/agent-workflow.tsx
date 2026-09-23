@@ -15,7 +15,7 @@ const OUTCOMES = [
   {
     icon: Command,
     title: "Agent-friendly lifecycle",
-    body: "Wait on completion, inspect changes, and remove disposable copies with explicit lpm commands.",
+    body: "Wait for agents to settle and remove disposable copies with lpm commands, then review each copy's diff in lpm's review pane.",
   },
 ];
 
@@ -26,7 +26,7 @@ export default function AgentWorkflow() {
         <SectionHeader
           eyebrow="Parallel Claude Code and Codex"
           title="One dialog instead of a worktree setup script"
-          description="Pick how many copies you want, label them, and choose the command and prompt each one starts with. Your coding agents can drive the same flow through the lpm skills they install."
+          description="Pick how many copies you want, label them, and choose the command and prompt each one starts with. Your coding agents can drive the same flow through lpm's command line and the skills it installs for them."
         />
 
         <div className="mt-10 space-y-5">

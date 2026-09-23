@@ -3,18 +3,18 @@ import { SectionHeader } from "@/components/section-header";
 const STEPS = [
   {
     number: "01",
-    title: "Run agents in a configured project",
-    body: "Use Claude Code or Codex as usual. lpm matches each local session to the configured project root where it ran.",
+    title: "Run agents in your projects",
+    body: "Use Claude Code or Codex as usual in a project you have added to lpm. Each session is matched to the project folder it ran in.",
   },
   {
     number: "02",
-    title: "Read local usage metadata",
-    body: "lpm finds token and model metadata in the agents’ local session histories and groups it without adding prompts or responses to the dashboard.",
+    title: "Open Stats or Usage",
+    body: "Both sit in the More menu at the bottom of the sidebar: Stats for tokens and cost, Usage for plan limits. Move either into the sidebar if you check it often.",
   },
   {
     number: "03",
-    title: "Explore the dashboard",
-    body: "Switch from today to all time, compare providers, sort projects, and inspect recent sessions whenever you need context.",
+    title: "Read the answer you need",
+    body: "Switch ranges, compare providers, sort projects, and open recent sessions, or glance at the sidebar meter to see how much of your plan is left.",
   },
 ];
 
@@ -25,7 +25,7 @@ export default function HowItWorks() {
         <SectionHeader
           eyebrow="Automatic by design"
           title="No spreadsheets. No manual tracking."
-          description="Your existing local agent histories already contain the usage metadata. lpm turns it into a useful project view."
+          description="The agents already record what they use. lpm turns that into a project view and a live limit meter."
           className="mb-12"
         />
         <ol className="grid gap-8 md:grid-cols-3">

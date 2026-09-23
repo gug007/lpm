@@ -26,12 +26,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Which Linux servers are supported?",
     answer:
-      "Debian and Ubuntu on x86_64 (amd64), with systemd. The installer uses apt to pull in what the app needs, and the published bundle is built for amd64 only — ARM servers such as Graviton, Ampere, or a Raspberry Pi are not supported yet. On another systemd distribution you can install the runtime libraries yourself and run the installer with --no-deps on the server, then add the host from your Mac with the install step unticked. The binary is built on current Ubuntu, so an old release may not run it.",
+      "Ubuntu 22.04 or newer, or a Debian release with the same glibc, on x86_64 (amd64). The installer checks the glibc version before it changes anything and uses apt to pull in what the app needs. The bundle is built for amd64 only, so ARM servers such as Graviton, Ampere, or a Raspberry Pi are not supported yet. On a distribution without apt, install the runtime libraries yourself, run the installer with --no-deps on the server, then add the host from your Mac with the install box unticked. Containers without systemd work too: the installer sets up an lpm-host supervisor instead of a service.",
   },
   {
     question: "Do I have to install anything on the server myself?",
     answer:
-      "lpm installs itself, including the system packages it needs and a service that restarts it on boot. Your own toolchain is still yours: git, Node, and the agent CLIs you want to run there are not installed for you, because lpm does not guess at your stack. Install them once on the server and every project on it can use them.",
+      "lpm installs itself, including the system packages it needs and, on a systemd server, a service that starts it on boot. Your own toolchain is still yours: git, Node, and the agent CLIs you want to run there are not installed for you, because lpm does not guess at your stack. Install them once on the server and every project on it can use them.",
   },
   {
     question:
@@ -52,7 +52,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does adding a Linux host expose anything to the internet?",
     answer:
-      "No. The server keeps listening only to itself, and lpm reaches it by forwarding that port over the SSH connection you already had, so no new port is opened and no firewall rule changes. The pairing secret travels over that same SSH channel, and the server's certificate fingerprint is pinned at pairing — if the identity ever changes, lpm refuses to connect rather than falling back.",
+      "No. The server keeps listening only to itself, and lpm reaches it by forwarding that port over the SSH connection you already had, so no new port is opened and no firewall rule changes. The pairing secret travels over that same SSH channel, and the server's certificate fingerprint is pinned at pairing: if the identity ever changes, lpm refuses to connect rather than falling back. The one exception is a phone: pairing the iPhone app with the server turns on phone access there, which listens on the server's network interfaces, so reach a public server over a tailnet or limit that port with a firewall.",
   },
   {
     question: "Can I run several agents on one server at the same time?",
@@ -60,14 +60,19 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
       "Yes. Open a terminal per agent, or duplicate the project into copies and queue the same prompt in each. Both the copying and the running happen on the server, so a fan-out that would have pinned your laptop's fans costs you nothing locally — the limit is the server's cores and how many diffs you are willing to read.",
   },
   {
-    question: "Do Linux host projects show up in the lpm iPhone app?",
+    question: "Can I check on a server agent from my iPhone?",
     answer:
-      "No. The iOS app pairs with lpm on your Mac and shows the projects on that Mac. Projects that live on a Linux host are not in that list today.",
+      "Yes. Pair the lpm iPhone app with the server itself: right-click the server in your Mac's sidebar and choose Pair a phone, or run lpm mobile pair on the server and scan the QR code it prints. The phone then connects straight to the server, so it works while your Mac is off, and the app switches between your Mac and the server from its title menu. The phone needs a route to the server, such as a Tailscale tailnet.",
+  },
+  {
+    question: "Can I send a screenshot or file to an agent on the server?",
+    answer:
+      "Yes. Drag or paste a file onto a terminal of a server project and lpm uploads it to the server, up to 1 GB per file, and pastes its path on the server so the agent can read it.",
   },
   {
     question: "How much does a VPS for running Claude Code cost?",
     answer:
-      "Roughly €5 to €12 a month, depending on the provider, for the 2 GB box that comfortably runs lpm plus a project's services. A spare desktop, a home server, or an old workstation on your own network does the same job for the price of the electricity — lpm does not care where the machine came from, only that you can SSH into it as root.",
+      "It depends on the provider. lpm plus a project's services is comfortable on a 2 GB / 2 vCPU box, which is usually one of a provider's smaller plans. A spare desktop, a home server, or an old workstation on your own network does the same job for the price of the electricity. lpm does not care where the machine came from, only that you can SSH into it as root or as a user with passwordless sudo.",
   },
   {
     question: "Is there a Linux version of the lpm app?",

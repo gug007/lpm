@@ -93,10 +93,13 @@ function DemoPlaceholder() {
   );
 }
 
-function DesktopOnlyPrompt() {
+function DesktopOnlyPrompt({ posterPriority }: { posterPriority: boolean }) {
   return (
     <div data-on-dark className={WINDOW_FRAME}>
-      <YouTubeVideo lesson="sixty-seconds" priority />
+      <YouTubeVideo
+        lesson="sixty-seconds"
+        fetchPriority={posterPriority ? "high" : undefined}
+      />
       <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
         <p className="max-w-xs text-[13px] leading-relaxed text-[#919191]">
           lpm is a macOS app with a multi-pane terminal workspace. Open this
@@ -133,7 +136,13 @@ function useIdle() {
   return idle;
 }
 
-function DemoStage({ tour: script }: { tour: Tour }) {
+function DemoStage({
+  tour: script,
+  posterPriority,
+}: {
+  tour: Tour;
+  posterPriority: boolean;
+}) {
   // null until the media query is read on the client. While null, both shells
   // stay mounted and CSS picks the visible one, so the first paint matches the
   // server HTML at every width (hidden subtrees don't fetch their media); once
@@ -167,7 +176,7 @@ function DemoStage({ tour: script }: { tour: Tour }) {
     <div ref={ref} className="demo-stage mx-auto max-w-[1040px] lg:max-w-none">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
-          <DesktopOnlyPrompt />
+          <DesktopOnlyPrompt posterPriority={posterPriority} />
         </div>
       )}
       {isDesktop !== false && (
@@ -233,13 +242,13 @@ function DemoCaption() {
           <span className="hidden md:inline">Live interactive demo</span>
         </span>
         <h2 className="text-balance text-lg font-bold tracking-tight sm:text-xl">
-          Projects, terminals, agents, a built-in browser — one click each
+          Start a project, then hand it to Claude Code or Codex — one click
+          each
         </h2>
       </div>
       <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 lg:max-w-none lg:whitespace-nowrap lg:text-right dark:text-gray-400">
         <span className="md:hidden">
-          A one-minute tour of lpm starting projects and handing one to Claude
-          Code — lpm is a macOS app, so the clickable demo runs on desktop.
+          A one-minute tour: start a project and hand it to Claude Code.
         </span>
         <span className="hidden md:inline">
           Click anything — it runs live in your browser.
@@ -250,8 +259,15 @@ function DemoCaption() {
 }
 
 // A page picks which steps its demo walks through — see the tours defined in
-// components/demo/tour.ts, or build one with defineTour.
-export function DemoSection({ tour = HOME_TOUR }: { tour?: Tour }) {
+// components/demo/tour.ts, or build one with defineTour. Only a page whose demo
+// sits in the first screen should set posterPriority.
+export function DemoSection({
+  tour = HOME_TOUR,
+  posterPriority = false,
+}: {
+  tour?: Tour;
+  posterPriority?: boolean;
+}) {
   return (
     <section
       id="demo"
@@ -261,7 +277,7 @@ export function DemoSection({ tour = HOME_TOUR }: { tour?: Tour }) {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:max-w-7xl">
         <DemoCaption />
         <div data-nosnippet>
-          <DemoStage tour={tour} />
+          <DemoStage tour={tour} posterPriority={posterPriority} />
         </div>
       </div>
     </section>

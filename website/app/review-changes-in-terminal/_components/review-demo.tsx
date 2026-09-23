@@ -5,7 +5,7 @@ import { GitBranch } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 
 type DiffLine = { t: "hunk" | "ctx" | "add" | "del"; text: string };
-type Status = "modified" | "added" | "deleted";
+type Status = "modified" | "added" | "deleted" | "untracked";
 type ChangedFile = { path: string; status: Status; diff: DiffLine[] };
 
 const FILES: ChangedFile[] = [
@@ -64,6 +64,21 @@ const FILES: ChangedFile[] = [
     ],
   },
   {
+    path: "src/routes/webhook.test.ts",
+    status: "untracked",
+    diff: [
+      { t: "hunk", text: "@@ -0,0 +1,8 @@" },
+      { t: "add", text: 'import { POST } from "./webhook";' },
+      { t: "add", text: "" },
+      { t: "add", text: 'test("rejects a missing signature", async () => {' },
+      { t: "add", text: '  const req = new Request("http://localhost/webhook", {' },
+      { t: "add", text: '    method: "POST",' },
+      { t: "add", text: "  });" },
+      { t: "add", text: "  await expect(POST(req)).rejects.toThrow();" },
+      { t: "add", text: "});" },
+    ],
+  },
+  {
     path: "src/lib/legacy-pricing.ts",
     status: "deleted",
     diff: [
@@ -85,6 +100,7 @@ const STATUS: Record<Status, { label: string; color: string; title: string }> = 
   modified: { label: "M", color: "text-[#60a5fa]", title: "Modified" },
   added: { label: "A", color: "text-[#4ade80]", title: "Added" },
   deleted: { label: "D", color: "text-[#f87171]", title: "Deleted" },
+  untracked: { label: "U", color: "text-[#73c991]", title: "Untracked" },
 };
 
 type Numbered = DiffLine & { oldNo: number | null; newNo: number | null };
@@ -297,10 +313,19 @@ function ReviewViewer() {
       </div>
 
       <div className="flex items-center justify-between border-t border-[#2e2e2e] bg-[#161616] px-3.5 py-1.5 text-[10px] text-[#7a7a7a]">
-        <span>Reviewing before commit — no browser tab</span>
         <span className="hidden sm:inline">
           <kbd className="font-mono">↑</kbd> <kbd className="font-mono">↓</kbd>{" "}
           to move between files
+        </span>
+        <span className="sm:hidden">Reviewing before commit</span>
+        <span
+          aria-hidden="true"
+          className="inline-flex items-center gap-1.5 rounded-md bg-[#e5e5e5] px-2.5 py-1 text-[11px] font-medium text-[#111]"
+        >
+          Commit
+          <span className="rounded bg-black/10 px-1 tabular-nums">
+            {FILES.length}
+          </span>
         </span>
       </div>
     </div>
@@ -326,7 +351,7 @@ export default function ReviewDemo() {
             </span>
           }
           title="A full diff review, right in your workspace"
-          description="Click any file to read its diff. Modified, added, and deleted — every change laid out before you commit, without leaving the terminal."
+          description="Click any file to read its diff. Modified, added, untracked, and deleted: every change laid out before you commit, without leaving the terminal."
           className="mb-6"
         />
         <ReviewViewer />

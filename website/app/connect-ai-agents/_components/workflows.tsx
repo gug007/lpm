@@ -38,12 +38,12 @@ const WORKFLOWS: Workflow[] = [
     title: "You always know what it is doing",
     body: (
       <>
-        Every agent shows a live badge in lpm — Running, Waiting, Done, or
-        Error. When it needs your permission or input, the Waiting badge stays
-        until you click the tab, so nothing gets lost in a wall of terminals.
-        Agents post their own progress with{" "}
-        <code className="font-mono text-xs">lpm set-status</code>, and you read
-        it all at a glance.
+        Claude Code and Codex report their state to lpm on their own: working,
+        needs you, done, or problem. When one needs your permission or input,
+        its tab and sidebar row stay amber until the agent moves on, so nothing gets lost in
+        a wall of terminals. Any other agent can post its own progress with{" "}
+        <code className="font-mono text-xs">lpm set-status</code>
+        {", "}and you read it all at a glance.
       </>
     ),
   },

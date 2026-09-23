@@ -11,10 +11,13 @@ const BEATS: Beat[] = [
     step: "Fan out",
     body: (
       <>
-        <code className="font-mono text-xs">lpm duplicate -n 3</code> makes three
-        real, standalone copies of the project — a fast copy-on-write clone on
-        Apple&rsquo;s filesystem — groups them together in the sidebar, and
-        queues the same agent and prompt in each.
+        <code className="font-mono text-xs">lpm duplicate -n 3</code>
+        {" "}makes three real, standalone copies of the project (a fast
+        copy-on-write clone on Apple&rsquo;s filesystem), lists them under the
+        original in the sidebar, and queues the same agent and prompt in each.
+        Prefer branches?{" "}
+        <code className="font-mono text-xs">lpm worktree</code> takes the same
+        flags and makes linked Git worktrees instead.
       </>
     ),
   },
@@ -22,10 +25,11 @@ const BEATS: Beat[] = [
     step: "Let them race",
     body: (
       <>
-        Three agents attack the same task in parallel, each in its own copy with
-        its own services and ports.{" "}
-        <code className="font-mono text-xs">lpm wait --agent -p &lt;copy&gt;</code>{" "}
-        blocks on each copy until its agent has finished — no polling loops.
+        Three agents attack the same task in parallel, each in its own copy
+        with its own files, terminals, and services.{" "}
+        <code className="font-mono text-xs">lpm wait &lt;copy&gt; --agent</code>
+        {" "}blocks on each copy until its agent has finished, with no polling
+        loops.
       </>
     ),
   },
@@ -35,8 +39,8 @@ const BEATS: Beat[] = [
       <>
         Compare the results, keep the copy you like, and{" "}
         <code className="font-mono text-xs">lpm remove</code> tidies up the
-        rest. Copies are ordinary folders — nothing to unwind, no shared state
-        to untangle.
+        rest. Copies are ordinary folders, with nothing to unwind and no
+        shared state to untangle.
       </>
     ),
   },
@@ -49,19 +53,19 @@ export default function Parallel() {
         <SectionHeader
           eyebrow="Parallel agents"
           title="Run three agents on the same task at once"
-          description="Duplicate is the fan-out primitive — spin up to 50 standalone copies, each running the same prompt, and pick the winner."
+          description="Duplicate is the fan-out primitive: spin up to 50 standalone copies, each running the same prompt, and pick the winner."
         />
 
         <CodeBlock filename="Fan out and wait">
-          <Comment># Clone into 3 copies, pull latest, and run the same prompt in each</Comment>
+          <Comment># Clone into 3 copies and run the same prompt in each</Comment>
           {"\n"}lpm duplicate -n 3 --run claude \
           {"\n"}  --prompt &quot;make the checkout flow pass its tests&quot;
           {"\n\n"}
-          <Comment># Block until a copy&apos;s agent settles</Comment>
-          {"\n"}lpm wait --agent -p myapp-copy-1
+          <Comment># Block until a copy&apos;s agent settles (names come from the output above)</Comment>
+          {"\n"}lpm wait myapp-k7q2xm --agent
           {"\n\n"}
           <Comment># Keep the winner, remove the rest</Comment>
-          {"\n"}lpm remove myapp-copy-2
+          {"\n"}lpm remove myapp-3fz8ta
         </CodeBlock>
 
         <ol className="mt-10 space-y-8">

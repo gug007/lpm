@@ -22,7 +22,7 @@ export default function WhenToUse() {
         <SectionHeader
           eyebrow="Choose the right primitive"
           title="Worktree for a branch. Duplicate for an environment."
-          description="lpm does not make Git worktree obsolete. It gives you a larger isolation boundary when the task includes the local setup and running workflow around the code."
+          description="lpm does not make Git worktree obsolete. It copies more than a checkout when the task needs the local setup and running workflow around the code."
           className="mb-12"
         />
 
@@ -67,7 +67,7 @@ export default function WhenToUse() {
                   Choose lpm Duplicate
                 </p>
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Complete project isolation
+                  A full project copy
                 </h3>
               </div>
             </div>

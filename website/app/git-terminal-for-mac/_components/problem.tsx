@@ -15,8 +15,8 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   },
   {
     icon: MonitorX,
-    title: "CI logs are somewhere else entirely",
-    body: "Your pull request CI is running on GitHub Actions. Your local terminal is somewhere else. Watching a CI job means opening a browser tab, refreshing manually, or setting up a separate CLI tool — none of which is where your code is.",
+    title: "Reading the diff means leaving the terminal",
+    body: "An agent just touched twelve files, or you have been heads-down for an hour. To see what actually changed you page through git diff, open a GUI client, or push and read it on GitHub. None of them sit next to the logs that would tell you whether the change works.",
   },
 ];
 

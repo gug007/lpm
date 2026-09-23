@@ -22,13 +22,13 @@ export default function Hero() {
           Git worktree alternative for macOS
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
-          A Git worktree alternative that duplicates the whole dev environment.
+          A Git worktree alternative that copies your whole project.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-          Git worktrees isolate tracked files. lpm Duplicate creates fast,
-          standalone copies of the project you are actually working in —
-          including its current state and local setup — then runs Claude Code,
-          Codex, or any command in each copy.
+          Git worktrees check out tracked files. lpm Duplicate makes fast,
+          standalone copies of the project you are actually working in, with
+          its code, local files, and installed dependencies, then runs Claude
+          Code, Codex, or any command in each copy.
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">

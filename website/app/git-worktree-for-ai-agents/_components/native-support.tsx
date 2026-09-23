@@ -25,10 +25,10 @@ const AGENTS: Agent[] = [
   {
     name: "Codex",
     status: "Built in",
-    body: "The Codex app runs agents in parallel threads, each on its own worktree. Starting a thread on a worktree creates a directory under $CODEX_HOME/worktrees/ and checks out the target branch there, leaving your main checkout untouched.",
-    note: "Same boundary as everything else: the checkout is isolated, the environment around it is not.",
-    href: "https://developers.openai.com/codex/",
-    hrefLabel: "Codex documentation",
+    body: "Codex in the ChatGPT desktop app can give each chat its own worktree, so several run in the same project in parallel. Worktrees are created under $CODEX_HOME/worktrees/ in a detached HEAD state rather than on a branch, leaving your main checkout untouched, and older ones are cleaned up automatically.",
+    note: "It reads a .worktreeinclude file too, and a local environment can run a setup script in each new worktree. Uncommitted work, ports, and databases are still yours to handle.",
+    href: "https://learn.chatgpt.com/docs/environments/git-worktrees",
+    hrefLabel: "Codex worktree documentation",
   },
   {
     name: "GitHub Copilot, Gemini CLI, OpenCode, and the rest",
@@ -46,7 +46,7 @@ export default function NativeSupport() {
         <SectionHeader
           eyebrow="What the agents already do"
           title="Claude Code and Codex create worktrees for you"
-          description="Before adding a tool, check what your agent ships with. For a single session on a clean branch, the built-in flag is usually enough."
+          description="Before adding a tool, check what your agent ships with. For a single session on a clean branch, the built-in flag is usually enough. Checked against each CLI's documentation in September 2026."
           className="mb-12"
         />
 

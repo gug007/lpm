@@ -12,6 +12,7 @@ import {
   normalizeTerminal,
   sortByPosition,
   terminalFromAction,
+  withDependencies,
 } from "./normalize";
 import { RunningView } from "./running-view";
 import type {
@@ -92,10 +93,13 @@ export function PlaygroundPreview({
   const profileEntries = useMemo<[string, string[]][]>(
     () =>
       config?.profiles
-        ? Object.entries(config.profiles).filter(([, v]) => Array.isArray(v))
+        ? Object.entries(config.profiles)
+            .filter(([, v]) => Array.isArray(v))
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         : [],
     [config],
   );
+  const [lastProfile, setLastProfile] = useState<string | null>(null);
 
   const headerActions = actions.filter((a) => a.display === "header");
   const plainActions = headerActions.filter((a) => a.children.length === 0);
@@ -166,7 +170,11 @@ export function PlaygroundPreview({
   };
 
   const toggleService = (key: string) => {
-    setRunningKeys((prev) => toggle(prev, key));
+    setRunningKeys((prev) =>
+      prev.has(key)
+        ? toggle(prev, key)
+        : new Set([...prev, ...withDependencies(services, [key])]),
+    );
     setActiveTab(ALL_TAB);
   };
 
@@ -181,16 +189,22 @@ export function PlaygroundPreview({
 
   const startProfile = (profileName: string) => {
     const entry = profileEntries.find(([k]) => k === profileName);
-    const keys = entry
-      ? entry[1].filter((name) => services.some((s) => s.key === name))
-      : [];
-    setRunningKeys(new Set(keys));
+    setLastProfile(profileName);
+    setRunningKeys(new Set(withDependencies(services, entry ? entry[1] : [])));
     setActiveTab(ALL_TAB);
   };
 
   const handleStartStop = () => {
-    if (effectiveRunning) stopAllServices();
-    else startAllServices();
+    if (effectiveRunning) {
+      stopAllServices();
+      return;
+    }
+    if (profileEntries.length === 0) {
+      startAllServices();
+      return;
+    }
+    const remembered = profileEntries.some(([k]) => k === lastProfile);
+    startProfile(remembered && lastProfile ? lastProfile : profileEntries[0][0]);
   };
 
   return (

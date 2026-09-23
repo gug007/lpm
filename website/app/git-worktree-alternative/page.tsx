@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { RelatedPages } from "@/components/related-pages";
 import {
-  AI_AGENTS_PATH,
-  CONNECT_AGENTS_PATH,
+  CLAUDE_ACCOUNTS_PATH,
+  LINUX_HOST_PATH,
+  MOBILE_PATH,
+  PARALLEL_PATH,
   REVIEW_CHANGES_PATH,
   WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
@@ -25,7 +27,7 @@ import WhenToUse from "./_components/when-to-use";
 
 const TITLE = "Git Worktree Alternative for Parallel AI Agents";
 const DESCRIPTION =
-  "Compare Git worktrees with lpm Duplicate: standalone Mac project copies that keep your local setup and run Claude Code, Codex, or any command in parallel.";
+  "A Git worktree alternative for Mac: lpm Duplicate makes standalone project copies with your .env, dependencies and uncommitted work, ready for agents.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -36,8 +38,8 @@ export const metadata: Metadata = {
     "git worktree limitations",
     "claude code git worktree",
     "codex git worktree",
-    "parallel ai agents",
-    "run claude code in parallel",
+    "git worktree env file",
+    "git worktree node_modules",
     "standalone git copy",
     "multiple git working directories",
     "macos developer workflow",
@@ -48,7 +50,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "Worktrees isolate a checkout. lpm Duplicate carries the full local project setup into standalone copies and can dispatch parallel agent tasks in one flow.",
+      "Worktrees isolate a checkout. lpm Duplicate copies the whole project, local files and dependencies included, into standalone copies and queues an agent task in each.",
     type: "website",
     url: WORKTREE_ALTERNATIVE_PATH,
     siteName: "lpm",
@@ -57,7 +59,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Compare Git worktrees with standalone lpm project copies for running Claude Code, Codex, and other coding agents in parallel.",
+      "Git worktree vs lpm Duplicate: a linked checkout, or a standalone copy of the project with your .env, dependencies and uncommitted work.",
   },
 };
 
@@ -102,26 +104,38 @@ export default function GitWorktreeAlternativePage() {
       <RelatedPages
         links={[
           {
-            href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
-            description:
-              "Run AI coding agents side by side with each project’s services, logs, and status in view.",
-          },
-          {
-            href: CONNECT_AGENTS_PATH,
-            title: "Connect AI agents to your dev environment",
-            description:
-              "Give agents a CLI to run services, read logs, wait for readiness, and fan out into project copies.",
-          },
-          {
             href: WORKTREE_AGENTS_PATH,
             title: "Git worktrees for Claude Code & Codex",
             description:
               "What a worktree does not carry, what the agents create natively, and all five isolation models compared.",
           },
           {
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
+            description:
+              "Fan one prompt out to Duplicates, watch each agent's status, then keep the diff that works.",
+          },
+          {
+            href: LINUX_HOST_PATH,
+            title: "Fan out on a Linux server",
+            description:
+              "Duplicate a project on a server you own, so the copying and the agents run there instead of on your laptop.",
+          },
+          {
+            href: CLAUDE_ACCOUNTS_PATH,
+            title: "Multiple Claude Code accounts",
+            description:
+              "Copies keep the project's pinned Claude account, so five copies of a work repo all run as work.",
+          },
+          {
+            href: MOBILE_PATH,
+            title: "Duplicate from your iPhone",
+            description:
+              "Make copies, queue a command in each, and run one prompt across fresh copies from the lpm iPhone app.",
+          },
+          {
             href: REVIEW_CHANGES_PATH,
-            title: "Review agent changes in the terminal",
+            title: "Review agent changes",
             description:
               "Inspect every changed file and diff before you commit the result from a parallel agent run.",
           },

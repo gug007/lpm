@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
+  AI_AGENTS_PATH,
   GIT_TERMINAL_MAC_PATH,
   LINUX_HOST_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
-  SITE_URL,
   SSH_TERMINAL_MAC_PATH,
 } from "@/lib/links";
+import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 import Benefits from "./_components/benefits";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
@@ -16,17 +17,14 @@ import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
-import { jsonLdString, webPageJsonLd } from "@/lib/structured-data";
 
-const pageUrl = `${SITE_URL}${SSH_TERMINAL_MAC_PATH}`;
-
-const pageDescription =
-  "A native SSH terminal for Mac developers. Import your SSH config hosts, forward remote ports to localhost, and run remote dev box services beside your local stack.";
+const TITLE = "SSH Terminal for Mac with Built-In Port Forwarding";
+const DESCRIPTION =
+  "Reads your ~/.ssh/config hosts, forwards remote ports to localhost on its own, and streams remote dev-box services into panes. No hand-typed ssh -L.";
 
 export const metadata: Metadata = {
-  title: "SSH Terminal for Mac — Port Forwarding Built In",
-  description:
-    "Imports your ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote dev-box services in panes beside your local stack. No hand-typed ssh -L.",
+  title: TITLE,
+  description: DESCRIPTION,
   keywords: [
     "mac ssh client",
     "ssh terminal for mac",
@@ -41,25 +39,23 @@ export const metadata: Metadata = {
     canonical: SSH_TERMINAL_MAC_PATH,
   },
   openGraph: {
-    title: "SSH Terminal for Mac — Port Forwarding Built In",
-    description:
-      "Imports your ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote dev-box services in panes beside your local stack. No hand-typed ssh -L.",
+    title: TITLE,
+    description: DESCRIPTION,
     type: "website",
-    url: pageUrl,
+    url: SSH_TERMINAL_MAC_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: "SSH Terminal for Mac — Port Forwarding Built In",
-    description:
-      "Imports your ~/.ssh/config hosts, forwards remote ports to localhost, and runs remote dev-box services in panes beside your local stack. No hand-typed ssh -L.",
+    title: TITLE,
+    description: DESCRIPTION,
   },
 };
 
 const structuredData = [
   webPageJsonLd({
-    title: "Mac SSH Client & Terminal with Port Forwarding",
-    description: pageDescription,
+    title: TITLE,
+    description: DESCRIPTION,
     path: SSH_TERMINAL_MAC_PATH,
     about: [
       "SSH terminal for Mac",
@@ -69,24 +65,10 @@ const structuredData = [
       "remote development terminal",
     ],
   }),
-  {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Home",
-        item: SITE_URL,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "Mac SSH Client & Terminal",
-        item: pageUrl,
-      },
-    ],
-  },
+  breadcrumbJsonLd([
+    { name: "Home", path: "/" },
+    { name: "SSH Terminal for Mac", path: SSH_TERMINAL_MAC_PATH },
+  ]),
 ];
 
 export default function SshTerminalForMacPage() {
@@ -123,6 +105,12 @@ export default function SshTerminalForMacPage() {
             title: "Run Claude Code on a remote server",
             description:
               "Go a step further than SSH: install lpm on a Linux box and keep its projects and agents running when your Mac is closed.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "Best terminal for Claude Code and Codex",
+            description:
+              "Agents on the remote box report their status to your Mac sidebar, with alerts when one needs you.",
           },
         ]}
       />

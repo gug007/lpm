@@ -1,82 +1,7 @@
 import { Check, Minus } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
-
-type AlternativeKey =
-  | "lpm"
-  | "dedicatedClient"
-  | "generalTerminal"
-  | "openssh"
-  | "editorRemote";
-
-type Capability = {
-  label: string;
-  note: string;
-} & Record<AlternativeKey, boolean>;
-
-const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
-  { key: "lpm", label: "lpm" },
-  { key: "dedicatedClient", label: "Dedicated SSH client" },
-  { key: "generalTerminal", label: "Terminal running raw ssh" },
-  { key: "openssh", label: "raw OpenSSH" },
-  { key: "editorRemote", label: "Editor Remote-SSH" },
-];
-
-const CAPABILITIES: Capability[] = [
-  {
-    label: "Reads ~/.ssh/config hosts without replacing OpenSSH",
-    note: "lpm uses the selected Host alias when it connects, so OpenSSH remains responsible for options like HostName, ProxyJump, ProxyCommand, Port, and IdentityFile.",
-    lpm: true,
-    dedicatedClient: false,
-    generalTerminal: true,
-    openssh: true,
-    editorRemote: true,
-  },
-  {
-    label: "Remote services run as project panes beside local services",
-    note: "This is the lpm project model: services, actions, terminals, and SSH settings live together instead of being separate saved sessions.",
-    lpm: true,
-    dedicatedClient: false,
-    generalTerminal: false,
-    openssh: false,
-    editorRemote: false,
-  },
-  {
-    label: "Declared remote service ports auto-forward after detection",
-    note: "lpm watches remote listening ports for SSH projects and auto-forwards ports declared in the project's services config.",
-    lpm: true,
-    dedicatedClient: false,
-    generalTerminal: false,
-    openssh: false,
-    editorRemote: false,
-  },
-  {
-    label: "Manual forwards wait for localhost readiness",
-    note: "When you add a forward, lpm waits until the local listener accepts a TCP connection before reporting success.",
-    lpm: true,
-    dedicatedClient: false,
-    generalTerminal: false,
-    openssh: false,
-    editorRemote: false,
-  },
-  {
-    label: "Project stop cleans up the SSH forwards it started",
-    note: "Forwards are owned by the lpm project lifecycle, not by whichever tab happened to run an ssh command.",
-    lpm: true,
-    dedicatedClient: false,
-    generalTerminal: false,
-    openssh: false,
-    editorRemote: false,
-  },
-  {
-    label: "Run local tools against a synced mirror of the remote tree that pushes changes back",
-    note: "lpm keeps a local mirror of the remote project directory, runs the action against that mirror on your Mac, then syncs the edits back to the remote host.",
-    lpm: true,
-    dedicatedClient: false,
-    generalTerminal: false,
-    openssh: false,
-    editorRemote: false,
-  },
-];
+import { ALTERNATIVES, CAPABILITIES } from "./comparison-data";
+import { ComparisonMobile } from "./comparison-mobile";
 
 function Indicator({ on }: { on: boolean }) {
   return on ? (
@@ -170,46 +95,7 @@ export default function Comparison() {
           </table>
         </div>
 
-        <div className="sm:hidden space-y-4">
-          {ALTERNATIVES.map((a) => {
-            const isLpm = a.key === "lpm";
-            return (
-              <div
-                key={a.key}
-                className={`rounded-2xl border p-5 ${
-                  isLpm
-                    ? "border-gray-300 dark:border-gray-700 bg-gray-50/60 dark:bg-white/[0.04]"
-                    : "border-gray-200 dark:border-gray-800"
-                }`}
-              >
-                <h3
-                  className={`text-sm font-semibold mb-4 ${
-                    isLpm
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-700 dark:text-gray-300"
-                  }`}
-                >
-                  {a.label}
-                </h3>
-                <ul className="space-y-3">
-                  {CAPABILITIES.map((cap) => (
-                    <li
-                      key={cap.label}
-                      className="flex items-start gap-3 text-sm"
-                    >
-                      <span className="mt-0.5 shrink-0">
-                        <Indicator on={cap[a.key]} />
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        {cap.label}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
+        <ComparisonMobile />
       </div>
     </section>
   );

@@ -10,12 +10,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does a Git worktree copy files like .env or node_modules?",
     answer:
-      "No. git worktree add checks out tracked files from the commit you point it at. Anything ignored by Git — .env files, node_modules, virtualenvs, local certificates — is absent from a new worktree. Claude Code can copy selected ignored files into the worktrees it creates if you add a .worktreeinclude file, and lpm Duplicate carries them because it copies the project folder instead of checking one out.",
+      "No. git worktree add checks out tracked files from the commit you point it at. Anything ignored by Git — .env files, node_modules, virtualenvs, local certificates — is absent from a new worktree. Claude Code and Codex can copy selected ignored files into the worktrees they create if you add a .worktreeinclude file, and lpm Duplicate carries them because it copies the project folder instead of checking one out.",
   },
   {
-    question: "How do I run multiple Claude Code sessions at once?",
+    question: "Should every Claude Code session get its own worktree?",
     answer:
-      "Give each session its own directory so the agents cannot overwrite each other's edits, then start Claude in each one. That directory can be a Git worktree, a standalone copy of the project, or a container. Running several sessions costs nothing extra on your plan; the practical limit is how many diffs you can review.",
+      "Only if two sessions could touch the same files. A worktree hands each session a separate checkout on its own branch, so their edits cannot collide; sessions working in unrelated parts of the repo can share one checkout. Whatever directory you pick — a worktree, a standalone copy or a container — sessions on one Claude account still share its plan limits, so the ceiling is usually how many diffs you can review.",
   },
   {
     question: "Can two Git worktrees check out the same branch?",
@@ -25,12 +25,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does Codex support parallel agents and worktrees?",
     answer:
-      "Yes. The Codex app runs agents in parallel threads and can back a thread with a Git worktree, created under $CODEX_HOME/worktrees/ so your main checkout stays untouched. As with Claude Code, the isolation covers the checkout, not the environment around it.",
+      "Yes. Codex in the ChatGPT desktop app can run each chat in its own Git worktree, created under $CODEX_HOME/worktrees/ in a detached HEAD state, so several chats work in parallel and your main checkout stays untouched. It can copy files listed in .worktreeinclude and run a setup script in each worktree, but as with Claude Code, ports and databases are still shared.",
   },
   {
     question: "Do Git worktrees isolate ports, databases, or Docker volumes?",
     answer:
-      "No, and lpm does not isolate them yet either. Every model on this page draws its boundary at the filesystem, so two agents in two worktrees will still fight over port 3000 and still run migrations against the same database. lpm checks declared ports before a project starts and tells you which process is holding one, so the collision surfaces immediately instead of halfway through a run, and per-copy port assignment is what we are building next. Until then, isolating runtime state needs per-copy configuration, separate services, or containers.",
+      "No, and lpm does not isolate them either. Every model on this page draws its boundary at the filesystem, so two agents in two worktrees will still fight over port 3000 and still run migrations against the same database. lpm checks declared ports before a project starts and tells you which process is holding one, so the collision surfaces immediately instead of halfway through a run. Isolating runtime state needs per-copy configuration, separate services, or containers.",
   },
   {
     question: "Can I use Git worktrees with GitHub Copilot, Gemini CLI, or OpenCode?",
@@ -40,27 +40,32 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Is there a Git worktree MCP server or agent skill?",
     answer:
-      "lpm installs skills for Claude Code and Codex that teach the agent how to drive lpm directly. An agent can then create its own isolated worktrees or copies, run work in them, wait for the others to settle, and remove them — without you translating each step yourself.",
+      "lpm installs skills for Claude Code, Codex, Gemini CLI, and OpenCode that teach the agent how to drive lpm directly. An agent can then create its own isolated worktrees or copies, run work in them, wait for the others to settle, and remove them, without you translating each step yourself.",
   },
   {
     question: "What is the difference between lpm Worktree and lpm Duplicate?",
     answer:
-      "lpm Worktree creates real linked Git worktrees on their own branch, sharing your repository. lpm Duplicate creates a standalone folder with its own Git repository, starting from the project exactly as it is on disk. Both create up to 50 at a time, inherit the project's services and actions, and can queue an agent action with a prompt on each one.",
+      "They are separate items in a project's right-click menu. New Worktree creates real linked Git worktrees, each on a new branch from your current commit, sharing your repository. Duplicate creates standalone folders with their own Git repository, starting from the project exactly as it is on disk. Both create up to 50 at a time, inherit the project's services, actions, and pinned Claude account, and can queue an action or command with a prompt on each one.",
   },
   {
     question: "Does lpm Worktree copy my .env file and dependencies?",
     answer:
-      "No. lpm Worktree creates a real Git worktree, so it has the same blind spot as raw Git: ignored files are not carried over. There is an option to reinstall dependencies in each worktree. If the copy needs your local files and current state, use lpm Duplicate instead.",
+      "No. lpm Worktree creates a real Git worktree, so it has the same blind spot as raw Git: uncommitted and ignored files are not carried over. Tick Install dependencies to install them fresh in each worktree. If the copy needs your local files and current state, use lpm Duplicate instead.",
+  },
+  {
+    question: "What happens when I delete an lpm worktree or copy?",
+    answer:
+      "lpm deletes the folder outright and skips the Trash, and removing a worktree also force-deletes its branch, so push or merge anything worth keeping first.",
   },
   {
     question: "How much disk does each copy use?",
     answer:
-      "A linked worktree is very compact because the repository data is shared. lpm Duplicate starts with an APFS copy-on-write clone, so unchanged file data is shared by the filesystem at first and storage grows as the copies diverge. Regenerable build caches such as .next, dist, and target are skipped rather than cloned.",
+      "A linked worktree is very compact because the repository data is shared. A Duplicate begins as an APFS clone whose unchanged blocks stay shared on disk, and it only grows as each copy changes. Regenerable build caches such as .next, dist, and target are skipped rather than cloned.",
   },
   {
     question: "How many parallel agents should I run?",
     answer:
-      "Fewer than you can create. Spinning up five agents takes one command; reviewing five diffs and landing five branches does not scale the same way. Most developers settle around three to five concurrent sessions, and the bottleneck is review, not isolation.",
+      "Fewer than you can create. Spinning up five agents takes one command; reviewing five diffs and landing five branches does not scale the same way, and every session draws on the same plan limits. The bottleneck is usually review, not isolation.",
   },
 ];
 

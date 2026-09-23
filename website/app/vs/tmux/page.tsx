@@ -11,6 +11,7 @@ import { SectionVideo } from "@/components/vs/section-video";
 import { VerdictCards, type VerdictCard } from "@/components/vs/verdict-cards";
 import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
+  AI_AGENTS_PATH,
   CONFIG_PATH,
   PROJECT_SIDEBAR_PATH,
   SSH_TERMINAL_MAC_PATH,
@@ -94,7 +95,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Does lpm use tmux under the hood?",
     answer:
-      "No. Quit lpm and your dev servers keep running; reopen it and it finds them again. Each service keeps 10,000 lines of scrollback — tmux ships with 2,000 until you raise history-limit — and there is no .tmux.conf to maintain, no prefix key to learn, and no session name to attach to. You do write a config for lpm — the services map above — but it is names and commands, not keybindings.",
+      "No. Quit lpm and your dev servers keep running; reopen it and it finds them again. Each service keeps 10,000 lines of scrollback — tmux ships with 2,000 until you raise history-limit — and there is no .tmux.conf to maintain, no prefix key to learn, and no session name to attach to. lpm keeps a config too — the services map above, which it drafts from the repo when you add it — but it is names and commands, not keybindings.",
   },
   {
     question: "Can I keep using tmux alongside lpm?",
@@ -128,15 +129,16 @@ const FAQ_ITEMS: FaqItem[] = [
         >
           SSH project
         </Link>
-        : its services run in panes beside your local ones and you forward
-        remote ports to localhost from the app. The box needs nothing but git —
-        there is no tmux server to install there either. If your whole session
-        lives inside SSH and you reach it from arbitrary machines, tmux on that
-        box is still the right tool.
+        : its services run in panes beside your local ones, and each port a
+        service declares is forwarded to localhost once it starts listening.
+        The box needs SSH and bash — no tmux server to install there either.
+        lpm does not detect an SSH project&apos;s services, so you list them
+        yourself. If your whole session lives inside SSH and you reach it from
+        arbitrary machines, tmux on that box is still the right tool.
       </>
     ),
     answerText:
-      "lpm can attach a remote dev box as an SSH project: its services run in panes beside your local ones and you forward remote ports to localhost from the app. The box needs nothing but git — there is no tmux server to install there either. If your whole session lives inside SSH and you reach it from arbitrary machines, tmux on that box is still the right tool.",
+      "lpm can attach a remote dev box as an SSH project: its services run in panes beside your local ones, and each port a service declares is forwarded to localhost once it starts listening. The box needs SSH and bash — no tmux server to install there either. lpm does not detect an SSH project's services, so you list them yourself. If your whole session lives inside SSH and you reach it from arbitrary machines, tmux on that box is still the right tool.",
   },
   {
     question: "What about zellij?",
@@ -197,7 +199,7 @@ export default function VsTmuxPage() {
             label: "the tmuxinator README",
           },
         ]}
-        lpmNote="Where tmux is the better tool the comparison below says so, in three of its sixteen rows; every lpm cell was read off the app's own source."
+        lpmNote="Where tmux is the better tool the comparison below says so, in three of its fifteen rows; every lpm cell was read off the app's own source."
       />
 
       <ShortAnswer />
@@ -215,9 +217,9 @@ export default function VsTmuxPage() {
       <SectionVideo
         eyebrow="See it"
         title="A project, defined once"
-        description="Adding the project and writing its services in the built-in editor — the whole of what replaces your tmuxinator file."
+        description="Adding a project and shaping its service list in the built-in editor — the whole of what replaces your tmuxinator file."
         clip="add-project"
-        label="Adding a project in lpm and defining its services in the built-in editor."
+        label="Adding a project in lpm and editing its services in the built-in editor."
       />
 
       <WhenToPick
@@ -259,7 +261,7 @@ export default function VsTmuxPage() {
             href: vsPath("overmind"),
             title: "lpm vs Overmind",
             description:
-              "For anyone whose service list already lives in a Procfile: lpm will not read that file.",
+              "For anyone whose service list already lives in a Procfile: lpm imports it once, when the folder is added.",
           },
           {
             href: vsPath("pm2"),
@@ -285,12 +287,18 @@ export default function VsTmuxPage() {
             description:
               "What a project file takes: services, dependsOn, profiles, declared ports, actions.",
           },
+          {
+            href: AI_AGENTS_PATH,
+            title: "Claude Code and Codex beside the stack",
+            description:
+              "The agent tabs that sit next to the service panes, and the working or needs-you state each one shows.",
+          },
         ]}
       />
 
       <Cta
         title="Keep tmux. Let lpm bring the stack up."
-        description="lpm is free, MIT-licensed, and runs as a native macOS app. Write the services map once, press Start, and every service comes up in its own pane — with no tmux installed."
+        description="lpm is free, MIT-licensed, and runs as a native macOS app. Add the folder, check the services it lists, press Start, and every service comes up in its own pane — with no tmux installed."
         downloadSource="vs-tmux-cta"
       />
     </>

@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import {
   ArrowRight,
   Check,
   Code2,
   Eye,
-  FileSliders,
   LockKeyhole,
-  Monitor,
   Save,
-  Settings2,
   SlidersHorizontal,
 } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
@@ -16,7 +14,9 @@ import { RelatedPages } from "@/components/related-pages";
 import { SectionHeader } from "@/components/section-header";
 import {
   AI_AGENTS_PATH,
+  CLAUDE_ACCOUNTS_PATH,
   CONNECT_AGENTS_PATH,
+  FEATURES_PATH,
   SKILLS_PATH,
   STATUSLINE_PATH,
   TOKEN_USAGE_PATH,
@@ -29,10 +29,18 @@ import {
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import LpmStatuslineDemo from "./_components/lpm-statusline-demo";
+import {
+  BENEFITS,
+  CLAUDE_ITEMS,
+  CLAUDE_STATUSLINE_DOCS,
+  CODEX_ITEMS,
+  CODEX_STATUSLINE_DOCS,
+  STEPS,
+} from "./_components/statusline-copy";
 
 // Every query this page ranks for on page one leads with "codex", so the title
 // does too.
-const TITLE = "Codex & Claude Code Statusline — Customize It Without Config Files";
+const TITLE = "Codex & Claude Code Statusline Editor for Mac";
 const DESCRIPTION =
   "Build a custom Codex or Claude Code statusline in a visual editor: pick a preset, reorder fields, tune colors and meters, preview live. Free Mac app.";
 
@@ -84,49 +92,10 @@ const structuredData = [
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "lpm statusline customization",
+      name: "Claude Code & Codex Statusline",
       path: STATUSLINE_PATH,
     },
   ]),
-];
-
-const benefits = [
-  {
-    icon: SlidersHorizontal,
-    title: "Visual instead of fragile",
-    copy: "Choose from real fields, valid colors, separators, and meter styles. lpm keeps the underlying agent configuration out of your way.",
-  },
-  {
-    icon: Eye,
-    title: "Preview the real signal",
-    copy: "See representative values using your lpm terminal theme and font size before the line reaches Claude Code or Codex.",
-  },
-  {
-    icon: Save,
-    title: "Saved while you work",
-    copy: "Preset changes and custom edits apply automatically, so you can iterate without copying snippets between files.",
-  },
-];
-
-const steps = [
-  {
-    step: "01",
-    icon: Settings2,
-    title: "Open AI & Integrations",
-    copy: "In lpm, click Settings at the bottom of the sidebar and select AI & Integrations.",
-  },
-  {
-    step: "02",
-    icon: FileSliders,
-    title: "Choose the statusline",
-    copy: "Click Customize beside Claude Code status line or Codex CLI status line, then pick a starting layout.",
-  },
-  {
-    step: "03",
-    icon: Monitor,
-    title: "Tune it live",
-    copy: "Arrange fields, adjust appearance, and watch the saved statusline update as you work.",
-  },
 ];
 
 export default function ClaudeCodeCodexStatuslinePage() {
@@ -139,18 +108,18 @@ export default function ClaudeCodeCodexStatuslinePage() {
 
       <section className="relative overflow-hidden pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)] text-center">
         <div className="absolute inset-x-0 top-0 -z-10 h-[50rem] bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.17),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.16),transparent_27%)] dark:bg-[radial-gradient(circle_at_20%_14%,rgba(217,119,87,0.22),transparent_28%),radial-gradient(circle_at_80%_12%,rgba(16,163,127,0.2),transparent_27%)]" />
-        <div className="mx-auto max-w-5xl px-6">
+        <div className="mx-auto max-w-6xl px-6">
           <p className="mb-5 text-xs font-medium uppercase tracking-[0.25em] text-gray-500 dark:text-gray-400">
             Built into lpm · macOS
           </p>
           <h1 className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 bg-clip-text text-[2.25rem] font-extrabold leading-[1.06] tracking-[-0.04em] text-transparent dark:from-white dark:via-gray-100 dark:to-gray-400 sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)]">
-            Customize Claude Code & Codex statuslines.{" "}
-            <span className="block">Without editing config files.</span>
+            Customize Claude Code & Codex statuslines without editing config
+            files.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
-            lpm gives Claude Code and Codex a visual statusline editor.
-            Pick a layout, arrange useful signals, tune the appearance, and see
-            every change before it applies.
+            lpm gives Claude Code and Codex a visual statusline editor. Pick a
+            layout, arrange useful signals, tune the appearance, and watch every
+            change in a live preview as lpm saves it.
           </p>
           <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-2">
@@ -209,12 +178,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 through a visual editor.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                {[
-                  "Clean, Minimalistic, Modern, Custom, and Off layouts",
-                  "Per-item colors, labels, icons, and custom text",
-                  "Separators, Git status, and eight usage meter styles",
-                  "Model, project, context, limits, Git, and session cost",
-                ].map((item) => (
+                {CLAUDE_ITEMS.map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <Check
                       className="mt-0.5 h-4 w-4 shrink-0 text-[#D97757]"
@@ -225,7 +189,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 ))}
               </ul>
               <a
-                href="https://code.claude.com/docs/en/statusline"
+                href={CLAUDE_STATUSLINE_DOCS}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-7 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gray-800 transition hover:text-[#B75F40] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-200 dark:hover:text-[#F09978] dark:focus-visible:ring-white"
@@ -254,12 +218,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 reorderable list and saves it to the local configuration.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                {[
-                  "Essential, Project, Usage, Detailed, and Off layouts",
-                  "Model, reasoning, Git, context, limits, tokens, and state",
-                  "Task progress, permissions, thread, and workspace details",
-                  "Active Codex theme colors with automatic field omission",
-                ].map((item) => (
+                {CODEX_ITEMS.map((item) => (
                   <li key={item} className="flex items-start gap-2.5">
                     <Check
                       className="mt-0.5 h-4 w-4 shrink-0 text-[#10A37F]"
@@ -270,16 +229,27 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 ))}
               </ul>
               <a
-                href="https://learn.chatgpt.com/docs/codex/cli"
+                href={CODEX_STATUSLINE_DOCS}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-7 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-gray-800 transition hover:text-[#087A5E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-200 dark:hover:text-[#4FD1AB] dark:focus-visible:ring-white"
               >
-                OpenAI Codex CLI docs
+                Codex status line config
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </a>
             </article>
           </div>
+          <p className="mx-auto mt-8 max-w-2xl text-center text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+            The 5-hour and weekly usage items show the same plan windows lpm
+            tracks on its{" "}
+            <Link
+              href={TOKEN_USAGE_PATH}
+              className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+            >
+              Usage page and sidebar meter
+            </Link>
+            , for Pro and Max logins.
+          </p>
         </div>
       </section>
 
@@ -290,7 +260,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
             title="Your statusline should reduce uncertainty"
           />
           <div className="grid gap-5 md:grid-cols-3">
-            {benefits.map(({ icon: Icon, title, copy }) => (
+            {BENEFITS.map(({ icon: Icon, title, copy }) => (
               <article
                 key={title}
                 className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151515]"
@@ -317,7 +287,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
             title="From default to useful in a minute"
           />
           <div className="grid gap-5 md:grid-cols-3">
-            {steps.map(({ step, icon: Icon, title, copy }) => (
+            {STEPS.map(({ step, icon: Icon, title, copy }) => (
               <article
                 key={step}
                 className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151515]"
@@ -346,27 +316,39 @@ export default function ClaudeCodeCodexStatuslinePage() {
         links={[
           {
             href: TOKEN_USAGE_PATH,
-            title: "Claude Code & Codex token usage in lpm",
+            title: "Claude Code & Codex usage and limits",
             description:
-              "Track tokens, estimated cost, cache usage, models, projects, and sessions in a private Mac dashboard.",
-          },
-          {
-            href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
-            description:
-              "Run multiple AI coding agents while every project, service, and terminal stays visible.",
-          },
-          {
-            href: CONNECT_AGENTS_PATH,
-            title: "Connect agents to your dev environment",
-            description:
-              "Give Claude Code and Codex tools to run services, inspect logs, and work across project copies.",
+              "The 5-hour and weekly meters your statusline shows, plus tokens and estimated cost per project.",
           },
           {
             href: SKILLS_PATH,
             title: "Create & edit Claude Code and Codex skills",
             description:
               "Describe a task, let AI draft the SKILL.md, and see what every skill costs in context.",
+          },
+          {
+            href: CLAUDE_ACCOUNTS_PATH,
+            title: "Multiple Claude Code accounts",
+            description:
+              "Keep a work and a personal Claude login signed in, one per project.",
+          },
+          {
+            href: AI_AGENTS_PATH,
+            title: "Best terminal for Claude Code & Codex",
+            description:
+              "Every Claude Code and Codex session beside its project, services and terminals.",
+          },
+          {
+            href: CONNECT_AGENTS_PATH,
+            title: "Connect agents to your dev environment",
+            description:
+              "Let an agent start services, tail their logs and make project copies through the lpm CLI.",
+          },
+          {
+            href: FEATURES_PATH,
+            title: "Everything lpm does",
+            description:
+              "The full feature list, statusline editor included.",
           },
         ]}
       />

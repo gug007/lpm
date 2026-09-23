@@ -9,8 +9,8 @@ export default function Cta() {
           Stop guessing where the tokens went.
         </h2>
         <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed tracking-wide text-gray-500 dark:text-gray-400 sm:text-lg">
-          Download lpm for macOS, run Claude Code and Codex in your configured
-          projects, and turn local usage metadata into answers you can act on.
+          Download lpm for macOS, run Claude Code and Codex in your projects,
+          and see where the tokens went and how much of your plan is left.
         </p>
         <div className="mt-10 flex justify-center">
           <HeroDownload source="token-usage-cta" />

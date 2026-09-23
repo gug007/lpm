@@ -16,7 +16,7 @@ export function DialogHeader({
   return (
     <>
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold text-[#e5e5e5]">{title}</h3>
+        <p className="text-base font-semibold text-[#e5e5e5]">{title}</p>
         {onClose && (
           <button
             type="button"

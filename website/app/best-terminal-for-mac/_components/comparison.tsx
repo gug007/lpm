@@ -1,104 +1,7 @@
 import { Check, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
-
-type AlternativeKey = "lpm" | "iterm2" | "terminal" | "tmux" | "hyper" | "warp";
-
-type Capability = {
-  label: string;
-} & Record<AlternativeKey, boolean>;
-
-const ALTERNATIVES: { key: AlternativeKey; label: string }[] = [
-  { key: "lpm", label: "lpm" },
-  { key: "iterm2", label: "iTerm2" },
-  { key: "terminal", label: "Terminal.app" },
-  { key: "tmux", label: "tmux" },
-  { key: "hyper", label: "Hyper" },
-  { key: "warp", label: "Warp" },
-];
-
-const CAPABILITIES: Capability[] = [
-  {
-    label: "Native Apple Silicon build, no Electron runtime",
-    lpm: true,
-    iterm2: true,
-    terminal: true,
-    tmux: true,
-    hyper: false,
-    warp: true,
-  },
-  {
-    label: "Free",
-    lpm: true,
-    iterm2: true,
-    terminal: true,
-    tmux: true,
-    hyper: true,
-    warp: true,
-  },
-  {
-    label: "Open source",
-    lpm: true,
-    iterm2: true,
-    terminal: false,
-    tmux: true,
-    hyper: true,
-    warp: true,
-  },
-  {
-    label: "Visual project switcher with live state",
-    lpm: true,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    hyper: false,
-    warp: false,
-  },
-  {
-    label: "Built-in project-aware full-stack start",
-    lpm: true,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    hyper: false,
-    warp: false,
-  },
-  {
-    label: "Built-in service definitions with live output",
-    lpm: true,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    hyper: false,
-    warp: false,
-  },
-  {
-    label: "AI writes the project setup from your stack",
-    lpm: true,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    hyper: false,
-    warp: false,
-  },
-  {
-    label: "Claude Code and Codex side by side, each in its own copy",
-    lpm: true,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    hyper: false,
-    warp: false,
-  },
-  {
-    label: "Project setup you edit inside the app",
-    lpm: true,
-    iterm2: false,
-    terminal: false,
-    tmux: false,
-    hyper: false,
-    warp: false,
-  },
-];
+import { ALTERNATIVES, CAPABILITIES } from "./comparison-data";
+import { ComparisonMobile } from "./comparison-mobile";
 
 function Indicator({ on }: { on: boolean }) {
   return on ? (
@@ -189,46 +92,7 @@ export default function Comparison() {
           </table>
         </div>
 
-        <div className="sm:hidden space-y-4">
-          {ALTERNATIVES.map((a) => {
-            const isLpm = a.key === "lpm";
-            return (
-              <div
-                key={a.key}
-                className={`rounded-2xl border p-5 ${
-                  isLpm
-                    ? "border-gray-300 dark:border-gray-700 bg-gray-50/60 dark:bg-white/[0.04]"
-                    : "border-gray-200 dark:border-gray-800"
-                }`}
-              >
-                <h3
-                  className={`text-sm font-semibold mb-4 ${
-                    isLpm
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-700 dark:text-gray-300"
-                  }`}
-                >
-                  {a.label}
-                </h3>
-                <ul className="space-y-3">
-                  {CAPABILITIES.map((cap) => (
-                    <li
-                      key={cap.label}
-                      className="flex items-start gap-3 text-sm"
-                    >
-                      <span className="mt-0.5 shrink-0">
-                        <Indicator on={cap[a.key]} />
-                      </span>
-                      <span className="text-gray-600 dark:text-gray-400 leading-relaxed">
-                        {cap.label}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
+        <ComparisonMobile />
       </div>
     </section>
   );

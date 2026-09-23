@@ -11,7 +11,7 @@ type Row = {
 const COLUMNS = [
   { name: "git worktree", sub: "raw Git", mono: true },
   { name: "claude --worktree", sub: "Claude Code", mono: true },
-  { name: "Codex worktrees", sub: "Codex app", mono: false },
+  { name: "Codex worktrees", sub: "ChatGPT desktop app", mono: false },
   { name: "lpm Worktree", sub: "lpm", mono: false },
   { name: "lpm Duplicate", sub: "lpm", mono: false },
 ];
@@ -31,11 +31,11 @@ const ROWS: Row[] = [
   },
   {
     label: "Carries .env and other ignored files",
-    cells: [false, ".worktreeinclude", false, false, true],
+    cells: [false, ".worktreeinclude", ".worktreeinclude", false, true],
   },
   {
     label: "Carries installed dependencies",
-    cells: [false, false, false, "reinstall", true],
+    cells: [false, false, "setup script", "install", true],
   },
   {
     label: "Starts from your uncommitted work",
@@ -47,7 +47,7 @@ const ROWS: Row[] = [
   },
   {
     label: "Create many at once",
-    cells: [false, false, "one per thread", "1–50", "1–50"],
+    cells: [false, false, "one per chat", "1–50", "1–50"],
   },
   {
     label: "Queue the same prompt on each",
@@ -144,7 +144,7 @@ export default function IsolationMatrix() {
         <SectionHeader
           eyebrow="Five ways to isolate an agent"
           title="Git worktree vs lpm Worktree vs lpm Duplicate"
-          description="The same table with the two built-in agent flags alongside them, so you can see exactly where each boundary is drawn."
+          description="Raw Git, the worktrees Claude Code and Codex create for you, and both lpm primitives, side by side, so you can see exactly where each boundary is drawn."
           className="mb-12"
         />
 
@@ -282,12 +282,12 @@ export default function IsolationMatrix() {
 
         <p className="mt-6 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
           The last one is worth reading twice. Nothing above reserves a port,
-          namespaces a database, or forks a Docker volume — including both lpm
-          entries. Filesystem isolation is where all five stop, and it is the
-          collision developers running parallel agents hit most often. lpm
-          already catches the port half of it at start time and tells you which
-          process is holding the port; assigning each copy its own is what we
-          are building next, and this line will change when it ships.
+          namespaces a database, or forks a Docker volume, including both lpm
+          entries. Filesystem isolation is where all five stop, and shared ports
+          and databases are where parallel agents usually collide. lpm
+          catches the port half of it when a project starts: it tells you which
+          process holds a declared port and can stop it or cancel the start.
+          Giving each copy its own ports is up to your configuration.
         </p>
       </div>
     </section>

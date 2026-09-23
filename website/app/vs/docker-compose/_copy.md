@@ -107,7 +107,7 @@ Title `When to keep compose, and when to go native`. Six lpm bullets, seven Comp
 Six items; the three with inline `<code>` or a link supply `answerText`.
 
 ### Related pages
-Exactly the five links §6.1 assigns this page.
+The five links §6.1 assigns this page, plus `/terminal-with-project-sidebar` ("Which repos are up right now, which services each one is running, and one click to switch between them" — `desktop/frontend/src/components/Sidebar.tsx`, `cli/src/list.rs:1-3`) added 2026-09-23 so the grid holds six.
 
 ### CTA
 `Keep compose where it earns it. Run the rest on the host.` with `HeroDownload source="vs-compose-cta"`.
@@ -118,7 +118,7 @@ Exactly the five links §6.1 assigns this page.
 
 - Eyebrow: `lpm vs Docker Compose`
 - H1: `A Docker Compose alternative for fast local dev on macOS.`
-- Subtitle: "Compose gives every machine the same stack, at the cost of a Linux VM, a shared filesystem and a container to create before anything runs. lpm declares the same processes in one YAML file and runs them straight on the host, one live pane each."
+- Subtitle: "Compose gives every machine the same stack, at the cost of a Linux VM, a shared filesystem and a container to create before anything runs. lpm reads the repo, lists the same processes, and runs them straight on the host, one live pane each."
 - Verdict line: "Most people end up splitting it: app code native, stateful infrastructure still in compose."
 - Jump label: `See every compose command mapped` → `#map`
 
@@ -146,9 +146,9 @@ substance.
 | Checks a declared port before start and names what holds it | ask, free, or fail | no pre-start check documented |
 | Starts, stops and switches between many repos from one window | ✓ | `docker compose ls` lists them; switching means changing directory |
 | Service graph committed to the repo | `.lpm.yml` | `docker-compose.yml` |
-| Spots your compose file and offers to run it | suggests a `docker compose up -d` action | that file is compose's own input |
+| Turns your compose file into something it runs | adds docker compose up as a service when you add the folder | that file is compose's own input |
 | Your coding agent gets a tab next to the service panes | Claude Code and Codex report Working, Needs you or Done | the agent runs in a terminal you open yourself |
-| Free to use inside a large company | MIT, always | Compose is Apache-2.0; Docker Desktop needs a paid subscription above Docker's size threshold |
+| Free to use inside a large company | MIT, at any company size | Compose is Apache-2.0; Docker Desktop needs a paid subscription above Docker's size threshold |
 
 Rows deleted in the previous pass and why (ledger §5.3 / §5.5): "Cold start after a code
 change — Compose: container rebuild" (false: a bind mount or `compose watch` sync needs
@@ -177,7 +177,7 @@ Rows changed **this** pass, and the ruling that forced each one:
 1. **Can I use lpm and Docker Compose together?** — "Yes, and this is the common case. lpm can run compose up as one of your services alongside native processes. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive. Use the attached form — docker compose up, not -d — if you want the container output in an lpm pane; a detached start hands you nothing to watch."
 2. **Does lpm replace Docker Compose?** — "For some workflows, yes; for others, no. If you're a solo or small-team dev doing native work on macOS and Compose was mostly a way to launch a process tree, lpm covers that with per-service panes and multi-project switching. If you rely on Compose for prod-parity service versions, cross-OS team reproducibility, or container-first deploy pipelines, keep using Compose. lpm doesn't try to be a container runtime."
 3. **Why is Docker Compose slow on a Mac?** — "Your containers run in a Linux VM and your source is shared into it. VirtioFS narrowed that gap a lot and it is the default now, but the shared path still sits between your file watcher and your disk, and every start has to create and start containers rather than just a process. Native processes read the disk directly."
-4. **Can lpm read my docker-compose.yml?** — "It spots the file when it scans the repo and offers docker compose up -d as a one-click action. It does not parse the service graph. To get a live log pane instead, declare it as a service with the attached form — db: docker compose up — or press Generate with AI in the config editor and let your own Claude Code or Codex read the repo, compose file included, and write the services."
+4. **Can lpm read my docker-compose.yml?** — "Partly. When you add the folder, lpm notices docker-compose.yml (or compose.yaml) and lists compose: docker compose up as one service — the attached form, so the container output has a pane — next to the native services it found in the same pass. It does not parse the compose service graph. To split the infrastructure further, edit the list, or press Generate with AI in the config editor for a second draft from Claude Code, Codex, Gemini CLI or OpenCode." (2026-09-23: rewritten — the old answer described the action-wizard suggestion and a hand-declared `db:` service; since commit `835443cb` adding the folder writes the service itself. This answer is also the page's FAQPage JSON-LD.)
 5. **Two projects need port 5432 — what happens without containers?** — "One of them loses, and lpm tells you before it starts: it checks each declared port, names the process holding it, and either asks, frees it, or refuses to start depending on that service's portConflict setting. That is detection, not isolation. If you genuinely need both at once, that is a container's job."
 6. **Does lpm run on Linux or Windows?** — "There is no Windows build, and no Linux desktop build either — the app itself is macOS only. A Linux machine can still be the host that runs your services and agent sessions, with the Mac window driving all of it." (links `/run-claude-code-on-a-remote-server` on "the host that runs your services and agent sessions")
 
@@ -210,9 +210,10 @@ pass, not carried over.
 | ask, free, or fail | `ports.rs:26-33` (`portConflict` policy `"" \| "ask" \| "free" \| "fail"`), `ports.rs:258-279` (`check_port_conflicts…`), `ports.rs:333` (`resolve_port_conflict`), `config.rs:576-577` |
 | Starts, stops and switches between many repos from one window ✓ | `desktop/frontend/src/components/Sidebar.tsx:548-553` (clicking a sidebar row selects that project), `desktop/frontend/src/store/app.ts:887-895` (`selectProject`), `services.rs:270` / `services.rs:322` |
 | `.lpm.yml` | `config.rs:1508-1546` (`load_repo_yaml` parses `<root>/.lpm.yml` for `services`/`profiles`, merged under the personal project file) |
-| suggests a `docker compose up -d` action | `desktop/frontend/src/components/project-detail/useProjectSuggestions.ts:93-96` (the four compose filenames scanned), `projectSuggestions.ts:314-319` (`cmd: "docker compose up -d"`, `runMode: "once"`) |
+| adds docker compose up as a service when you add the folder | `desktop/frontend/src-tauri/src/detect/stacks.rs:169-179` (`docker-compose.yml`, `docker-compose.yaml`, `compose.yml` or `compose.yaml` → `Candidate::new("compose", "docker compose up", …)`), `detect/mod.rs:125` (added after the stack scanners, alongside the native services), `projects_crud.rs:48-67`, `:93`, `:261`. The detached `docker compose up -d` is still offered separately as an action-wizard suggestion (`projectSuggestions.ts:314-319`). |
+| FAQ 4: "lpm notices docker-compose.yml (or compose.yaml) and lists compose: docker compose up as one service — the attached form… next to the native services it found in the same pass. It does not parse the compose service graph." | `detect/stacks.rs:169-179` (existence check only — the file's contents are never parsed); `detect/mod.rs:111-127`; redraft: `aigen.rs:33-41`, `ConfigEditor.tsx:183` |
 | Claude Code and Codex report Working, Needs you or Done | `hooks.rs:1-9` (installs Claude Code and Codex hooks that pipe `set_status` / `clear_status`; `grep -n "gemini\|opencode" hooks.rs` → nothing), `desktop/frontend/src/agentStatus.ts:12-20` (`AGENT_STATE_LABEL`: Working / Needs you / Done / Problem / Idle) |
-| MIT, always | `LICENSE:1` ("MIT License") |
+| MIT, at any company size (was "MIT, always" — a promise about the future no file can back) | `LICENSE:1` ("MIT License") |
 
 ### 6.2 Command map — the `lpm` column
 
@@ -231,23 +232,23 @@ pass, not carried over.
 | `profiles:` | `config.rs:809`, `desktop/frontend/src/components/ProjectDetail.tsx:504-508`, `project-detail/StartMenu.tsx:6-22` |
 | `env:` per service | `config.rs:578-579` |
 | `port: 3000` + `portConflict: ask \| free \| fail` | `config.rs:574-577`, `ports.rs:1-12`, `ports.rs:26-33` |
-| committed `.lpm.yml` "merged underneath each developer's own project file" | `config.rs:1508-1546` |
+| committed `.lpm.yml` "merged underneath each developer's own project file, which also holds what lpm detected when they added the folder" | `config.rs:1861-1883`; `projects_crud.rs:93` |
 | Footnote — control verbs need the open window; `lpm list` and `lpm logs` do not; services outlive the window | `cli/src/control.rs:12-19` (`require_app`, called by `start.rs:16`, `stop.rs:10`, `service_cmd.rs:50`) versus `cli/src/list.rs:1-3`/`:39-60` and `cli/src/logs.rs:1-4`/`:70-110`, neither of which calls `require_app`; services surviving the app is `sessiond.rs:1-13` ("Quitting lpm has always left your dev servers up"). **`lpm status` is deliberately absent** — see deviation 2 |
 
 ### 6.3 Prose claims
 
 | Claim | Where | Cited at |
 |---|---|---|
-| "Declare each process in one small YAML file and lpm starts them together, each in its own live pane" | QuickAnswer | `config.rs:559-582`, `services.rs:77-85`, `log_streaming.rs:1-14`, `PaneView.tsx:382-400` |
+| "Add the folder and lpm lists the processes it recognises — Rails, Django, a Next.js or Vite dev server, Go, and the compose file itself — then starts them together, each in its own live pane" | QuickAnswer | detection: `detect/stacks.rs:41-52` (Rails), `detect/python.rs:46-63` (Django/FastAPI/Flask), `detect/node.rs:14-29` (Next.js 3000, Vite 5173 …), `detect/stacks.rs:104-124` (Go), `:169-179` (compose); start: `services.rs:77-85`, `log_streaming.rs:1-14`, `PaneView.tsx:382-400` |
 | "`dependsOn` for start order and `profiles` for subsets of the stack" | QuickAnswer | `config.rs:580-581`, `config.rs:809` |
 | "no pinned image versions, no separate network namespace" | QuickAnswer | conceded — `config.rs:566-582`, `ports.rs:1-12` |
-| "Committed at the repo root, so a teammate who clones gets the same graph" | QuickAnswer caption | `config.rs:1508-1546` |
+| "Commit it at the repo root and a teammate who clones gets the same graph. lpm still adds what it detects when they add the folder, so they may find a double to delete." | QuickAnswer caption | `config.rs:1861-1883` (`merge_repo_services_profiles`: repo services merged under the personal project file); `projects_crud.rs:93` (detection runs on add with no `.lpm.yml` check, writing the personal file). The sample names its compose service `compose` — the name detection gives it (`detect/stacks.rs:178`) — so that one merges instead of doubling; a detected Rails or Node service under another name still doubles. |
 | "the attached form — `docker compose up`, not `-d`" | QuickAnswer caption, FAQ 1, FAQ 4, split stack | `projectSuggestions.ts:314-319` (the suggested action is detached), `services.rs:77-85` (a service's own output is what a pane shows) — ledger §5.5 mandates this sentence |
 | "No image, no volume, no container to create" | Verdict card 1 | `config.rs:566-582` — nothing container-shaped exists in the schema |
-| "declare `docker compose up` as one lpm service, with its output in a pane" | Verdict card 2, split stack | `config.rs:559-565` (a service can be a bare command string), `log_streaming.rs:1-14` |
+| "Adding the folder already makes docker compose up one lpm service, its output in a pane beside your native ones" / "lpm lists the compose file as one service in the attached form" | Verdict card 2, split stack | `detect/stacks.rs:169-179`; | `config.rs:559-565` (a service can be a bare command string), `log_streaming.rs:1-14` |
 | "Five rows in the table go to Compose, and the description names them." | Verdict card 3 | counted against `_components/compose-matrix.tsx` this pass: three flat `false` lpm cells plus two substance rows, both named in the matrix `description` (R2) |
-| "Each is one line of YAML with a pane of its own; the watcher inside it picks up your edits, and if the process dies the pane keeps the exit code on screen until you start it again." | Split stack, native card | `config.rs:559-565` (bare command string), `PaneView.tsx:382-400`, `InteractivePane.tsx:1005-1010` (`[Process exited with code N]`, then the pane is marked dead), `services.rs:448-461` (`toggle_project_service` starts one service again) and `services.rs:508-527` + `cli/src/main.rs:151-163` (`lpm service <name> restart`). The watcher is the dev server's own — lpm has **no** auto-restart path, which is why the sentence says the pane waits for you |
-| "In the config editor, press Generate with AI: the agent CLI you already have — Claude Code, Codex, Gemini CLI or OpenCode — reads the repo, `docker-compose.yml` included, and drafts the first pass at the service list." | Split stack, step 01 | `desktop/frontend/src/components/ConfigEditor.tsx:182-183` (the button reads "Generate with AI"), `aigen.rs:30-49` (`is_supported_cli` = claude \| codex \| gemini \| opencode, gated on `which`), `aigen.rs:1028` (the prompt reads `docker-compose.yml`) |
+| "Each is one service with a pane of its own; the watcher inside it picks up your edits, and if the process dies its last output stays in the pane until you start it again." | Split stack, native card | `PaneView.tsx:382-400`; `sessions.rs:171-190` (a service is a command line typed into a login shell, so its last output stays and no exit code is printed — `[Process exited with code N]` is interactive tabs only, `InteractivePane.tsx:1019-1024`). 2026-09-23: "keeps the exit code on screen" was wrong for service panes. |
+| "Add the folder. lpm reads the manifests, lists the native services — with the framework's default port where there is one — and adds docker compose up as one more. Generate with AI in the config editor is there if you want a different first pass." | Split stack, step 01 | `projects_crud.rs:48-67`, `:93`; `detect/mod.rs:111-130`; default ports: `detect/stacks.rs:51` (Rails 3000), `detect/python.rs:50` (Django 8000), `detect/node.rs:14-29`; compose: `detect/stacks.rs:169-179`; redraft: `ConfigEditor.tsx:183`, `aigen.rs:33-41` |
 | "bring the project up with one click — or `lpm start`, with the window open" | Split stack, step 03 | same as the matrix row-1 cell: `Controls.tsx:134-138`, `cli/src/start.rs:16`, `control.rs:12-19` |
 | "named subsets you switch between from the header" | SectionVideo description | `config.rs:809`, `ProjectDetail.tsx:504-508` (`handlePickProfile` starts the picked profile), `project-detail/StartMenu.tsx:6-22` (the header menu lists profiles) |
 | "the file share into the VM still sits between your watcher and your disk" | WhenToPick, lpm bullet 1 | competitor claim — Docker Desktop's VM and file-sharing settings (§6.4) |
@@ -257,14 +258,13 @@ pass, not carried over.
 | "lpm can drive it as one service while you move the rest native" | WhenToPick, lpm bullet 5 | `config.rs:559-565`, `projectSuggestions.ts:314-319` |
 | "it checks each declared port, names the process holding it, and either asks, frees it, or refuses to start" | FAQ 5 | `ports.rs:1-12`, `ports.rs:26-33`, `ports.rs:258-279`, `portsprobe.rs` (`lookup_holders`) |
 | "There is no Windows build, and no Linux desktop build either — the app itself is macOS only. A Linux machine can still be the host that runs your services and agent sessions" | FAQ 6, related pages | `src-tauri/tauri.conf.json:31-38` (`app` / `dmg` targets and a `macOS` block, nothing else), `config.rs:597-611` (SSH project settings — the remote is driven from the Mac) |
-| "copy it and the copy edits its own files … Nothing else is namespaced … A linked worktree starts from the tracked files only: an ignored `.env` is not in it, and dependencies are installed only if you turn on Install dependencies." | Matrix footnote | `projects_crud.rs:509-522` (`git worktree add -b <branch> <path> HEAD` — tracked files at HEAD, nothing ignored), `projects_crud.rs:754` (`cp_clone` for the standalone-copy route), `projects_crud.rs:836-839` (deps installed after a worktree only when asked), `BulkDuplicateDialog.tsx:925-937` (the switch is titled "Install dependencies" in worktree mode), `ports.rs:1-12` + `portsprobe.rs` (the port check and the named holder) |
-| "One small YAML file, a live pane per service, and docker compose up as one of those services" / "Free, open source, native macOS app." | CTA | `config.rs:559-582`, `log_streaming.rs:1-14`, `LICENSE:1`, `tauri.conf.json:31-38` |
-| "lpm declares the same processes in one YAML file and runs them straight on the host, one live pane each" | Hero subtitle (lpm half; the Compose half is §6.4) | `config.rs:559-582`, `services.rs:77-85`, `log_streaming.rs:1-14` |
+| "copy it and the copy edits its own files … Nothing else is namespaced … A linked worktree starts from the tracked files only: an ignored `.env` is not in it, and Node packages are installed only if you turn on Install dependencies." | Matrix footnote | `projects_crud.rs:851-854` + `detect/node.rs:123-127` (install only when `package.json` exists; npm/yarn/pnpm/bun at `node.rs:77-84`); | `projects_crud.rs:509-522` (`git worktree add -b <branch> <path> HEAD` — tracked files at HEAD, nothing ignored), `projects_crud.rs:754` (`cp_clone` for the standalone-copy route), `projects_crud.rs:836-839` (deps installed after a worktree only when asked), `BulkDuplicateDialog.tsx:925-937` (the switch is titled "Install dependencies" in worktree mode), `ports.rs:1-12` + `portsprobe.rs` (the port check and the named holder) |
+| "Add the folder, get a live pane per service, and docker compose up as one of those services when a container is the right answer." / "Free, open source, native macOS app." | CTA | `projects_crud.rs:93`, `detect/stacks.rs:169-179`, `log_streaming.rs:1-14`, `LICENSE:1`, `tauri.conf.json:31-38` |
+| "lpm reads the repo, lists the same processes, and runs them straight on the host, one live pane each" | Hero subtitle (lpm half; the Compose half is §6.4) | `projects_crud.rs:48-67`, `:93`; `detect/mod.rs:73-109`; `services.rs:77-85`, `log_streaming.rs:1-14` |
 | "Most of your stack runs fine as a host process, and you want to see each one." | WhenToPick, lpm headline | `services.rs:77-85`, `log_streaming.rs:1-14`, `PaneView.tsx:382-400` |
 | "What `port`, `portConflict`, `env`, `dependsOn` and `profiles` each do inside a project file" / "Where Claude Code and Codex sit once the services are up, and what their tabs report while they work" / "Put the services and the agents on a Linux machine and drive all of it from the Mac app" | RelatedPages card descriptions | `config.rs:574-582`, `config.rs:809`; `hooks.rs:1-9` + `agentStatus.ts:12-20`; `config.rs:597-611` |
 
-No claim about notifications, terminal scrollback limits, restart-on-crash or stack
-detection beyond the compose-file scan appears on this page, so none is cited: the
+No claim about notifications, terminal scrollback limits or restart-on-crash appears on this page (stack detection is now claimed and cited above), so none is cited: the
 scrollback number belongs to `/vs/overmind` and `/vs/pm2`, and lpm's lack of
 auto-restart is stated (not claimed away) in the split-stack card above.
 

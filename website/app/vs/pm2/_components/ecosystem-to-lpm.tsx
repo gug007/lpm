@@ -58,7 +58,7 @@ export function EcosystemToLpm() {
               <code className="font-mono">dependsOn</code> sets start order,
               which <code className="font-mono">ecosystem.config.js</code> has no
               field for. It orders starts; it does not wait for readiness — that
-              is <code className="font-mono">lpm wait --port</code>.
+              is <code className="font-mono whitespace-nowrap">lpm wait --port</code>.
             </span>
           </li>
           <li className={noteClass}>

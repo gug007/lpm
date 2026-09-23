@@ -17,7 +17,7 @@ export default function Insights() {
           description="Start with the trend, then narrow the view until you know which project, provider, and model drove it."
         />
 
-        <div className="grid gap-4 rounded-[2rem] bg-[#0d0d0d] p-4 text-white shadow-2xl shadow-black/10 ring-1 ring-black/10 sm:grid-cols-2 sm:p-6 lg:grid-cols-6">
+        <div data-on-dark className="grid gap-4 rounded-[2rem] bg-[#0d0d0d] p-4 text-white shadow-2xl shadow-black/10 ring-1 ring-black/10 sm:grid-cols-2 sm:p-6 lg:grid-cols-6">
           <article className="rounded-2xl border border-white/10 bg-[#181818] p-5 sm:col-span-2 lg:col-span-4">
             <div className="flex items-start justify-between gap-4">
               <div>

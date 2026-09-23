@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -85,6 +86,8 @@ import {
 import { tourStepMoves, type TourContext, type TourMove } from "./tour-moves";
 import { AutoCursor, type AutoCursorState } from "./auto-cursor";
 import { seededRandom } from "./natural";
+import { detectionNotice } from "./detected-services";
+import { DemoToast, type DemoNotice } from "./demo-toast";
 
 type DemoAppProps = {
   heightCss?: string;
@@ -196,6 +199,8 @@ export function DemoApp({
     DEFAULT_USAGE_SETTINGS,
   );
   const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState<DemoNotice | null>(null);
+  const dismissNotice = useCallback(() => setNotice(null), []);
   const [visited, setVisited] = useState<Set<string>>(
     () => new Set(seedProjects[0] ? [seedProjects[0].name] : []),
   );
@@ -1023,18 +1028,37 @@ export function DemoApp({
     setAdding(false);
   };
 
-  const handleAddProject = (input: NewProjectInput) =>
-    commitProject(buildProjectFromInput(input, projects));
+  // Mirrors the app's adoption notices: a folder that is already a project is
+  // opened rather than added twice, and a new one says what was found in it.
+  const handleAddProject = (input: NewProjectInput) => {
+    const root = `~/Projects/${input.name}`;
+    const known =
+      input.kind === "local" ? projects.find((p) => p.root === root) : undefined;
+    if (known) {
+      selectProject(known.name);
+      setAdding(false);
+      setNotice({
+        id: Date.now(),
+        tone: "info",
+        text: `That folder is already the project “${known.label ?? known.name}”.`,
+      });
+      return;
+    }
+    const newProject = buildProjectFromInput(input, projects);
+    commitProject(newProject);
+    const found = detectionNotice(input, newProject.services);
+    setNotice(found ? { id: Date.now(), tone: "success", text: found } : null);
+  };
 
   // Adopts a folder the way the picker would, rendered before it returns so
   // that a click straight after finds the new project's controls rather than
   // the old one's.
   const addProjectNow = (folder: string): DemoProject => {
-    const newProject = buildProjectFromInput(
-      { kind: "local", name: folder },
-      projects,
-    );
+    const input: NewProjectInput = { kind: "local", name: folder };
+    const newProject = buildProjectFromInput(input, projects);
     flushSync(() => commitProject(newProject));
+    const found = detectionNotice(input, newProject.services);
+    if (found) setNotice({ id: Date.now(), tone: "success", text: found });
     return newProject;
   };
   useEffect(() => {
@@ -1236,6 +1260,7 @@ export function DemoApp({
           onClose={() => setAdding(false)}
           onCreate={handleAddProject}
         />
+        <DemoToast notice={notice} onDismiss={dismissNotice} />
         {removing && (
           <RemoveProjectDialog
             name={removing}

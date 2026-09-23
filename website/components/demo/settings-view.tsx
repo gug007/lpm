@@ -19,7 +19,9 @@ type Theme = (typeof THEMES)[number]["id"];
 
 export function SettingsView() {
   const [theme, setTheme] = useState<Theme>("Dark");
-  const [doubleClick, setDoubleClick] = useState(true);
+  const [doubleClick, setDoubleClick] = useState(false);
+  const [systemNotifications, setSystemNotifications] = useState(true);
+  const [sound, setSound] = useState(true);
 
   return (
     <div className="relative flex flex-1 min-w-0 min-h-0 flex-col bg-[#1a1a1a]">
@@ -31,8 +33,8 @@ export function SettingsView() {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto border-t border-[#2e2e2e] px-4 py-5 sm:px-6">
         <div className="mx-auto w-full max-w-[520px] space-y-6">
-          <Section title="Appearance">
-            <Row label="Theme" desc="How lpm looks on this machine">
+          <Section title="General">
+            <Row label="Theme" desc="Choose your preferred look">
               <div className="flex rounded-lg border border-[#2e2e2e] bg-[#1a1a1a] p-0.5">
                 {THEMES.map(({ id, icon: Icon }) => (
                   <button
@@ -51,9 +53,6 @@ export function SettingsView() {
                 ))}
               </div>
             </Row>
-          </Section>
-
-          <Section title="Behavior">
             <Row
               label="Double-click to start/stop"
               desc="Double-click a project in sidebar to toggle it"
@@ -66,24 +65,53 @@ export function SettingsView() {
             </Row>
             <Row
               label="Default project directory"
-              desc="Where new projects are created"
+              desc="Add project, clone destination, and global terminals open here"
             >
               <Value mono>~/Projects</Value>
             </Row>
           </Section>
 
-          <Section title="AI & accounts">
-            <Row label="Default AI CLI" desc="Used for new terminals and templates">
-              <Value>Claude Code</Value>
+          <Section title="Notifications">
+            <Row
+              label="System notifications"
+              desc="Show a notification when an agent or automation needs you and lpm isn't in front"
+            >
+              <SettingsToggle
+                checked={systemNotifications}
+                onChange={setSystemNotifications}
+                aria-label="System notifications"
+              />
             </Row>
-            <Row label="Claude accounts" desc="Pin a Claude login per project">
-              <Value>2 connected</Value>
+            <Row
+              label="Sound notifications"
+              desc="Play a sound when agents finish or need approval"
+            >
+              <SettingsToggle
+                checked={sound}
+                onChange={setSound}
+                aria-label="Sound notifications"
+              />
+            </Row>
+          </Section>
+
+          <Section title="AI & Integrations">
+            <Row
+              label="Multiple Claude accounts"
+              desc="Keep each project signed in to the right Claude account."
+            >
+              <Value>2 accounts</Value>
+            </Row>
+            <Row
+              label="Claude Code status line"
+              desc="Choose what the status line under Claude Code shows"
+            >
+              <Value>Customize</Value>
             </Row>
           </Section>
 
           <p className="text-[11px] leading-relaxed text-[#919191]">
-            You&apos;re in the interactive demo — these preview lpm&apos;s real
-            Settings. Download the app to save your own.
+            You&apos;re in the interactive demo — these rows preview a few of
+            lpm&apos;s real settings. Download the app to save your own.
           </p>
         </div>
       </div>
@@ -94,9 +122,9 @@ export function SettingsView() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
-      <h2 className="px-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[#919191]">
+      <p className="px-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-[#919191]">
         {title}
-      </h2>
+      </p>
       <div className="divide-y divide-[#2e2e2e] overflow-hidden rounded-xl border border-[#2e2e2e] bg-[#242424]">
         {children}
       </div>

@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
-  CLAUDE_ACCOUNTS_PATH,
+  AUTOMATIONS_PATH,
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
   LINUX_HOST_PATH,
-  WORKTREE_ALTERNATIVE_PATH,
+  PARALLEL_PATH,
+  SKILLS_PATH,
 } from "@/lib/links";
 import {
   breadcrumbJsonLd,
@@ -21,19 +22,20 @@ import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Install from "./_components/install";
+import Memory from "./_components/memory";
 import Parallel from "./_components/parallel";
 import Workflows from "./_components/workflows";
 
-const TITLE = "Claude Code Skills & Codex Tools for Dev Environments";
+const TITLE = "Let Claude Code and Codex Run Your Dev Environment";
 const DESCRIPTION =
-  "Give Claude Code, Codex, Gemini CLI, and OpenCode a CLI to run your project — start and restart dev servers, read logs, and fan out into parallel copies.";
+  "Give Claude Code, Codex, Gemini CLI, and OpenCode a CLI to run your project: start dev servers, read logs, wait for ports, and fan out into parallel copies.";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
-    "claude code skills",
     "claude code tools",
+    "let claude code run dev server",
     "codex skills",
     "connect ai agents to dev environment",
     "let claude code restart my dev server",
@@ -50,7 +52,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: TITLE,
     description:
-      "One click gives Claude Code, Codex, Gemini CLI, and OpenCode a CLI to start, stop, and restart your services, read dev-server logs, wait for ports, and fan out into parallel copies of a project.",
+      "One click gives Claude Code, Codex, Gemini CLI, and OpenCode a CLI to start, stop, and restart your services, read dev-server logs, wait for ports, fan out into parallel copies, and share session memory.",
     type: "website",
     url: CONNECT_AGENTS_PATH,
     siteName: "lpm",
@@ -59,7 +61,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: TITLE,
     description:
-      "Give your AI coding agents a CLI to run your dev environment — start, stop, restart services, read logs, and fan out into parallel copies.",
+      "Give your AI coding agents a CLI to run your dev environment: start, stop, and restart services, read logs, and fan out into parallel copies.",
   },
 };
 
@@ -70,15 +72,15 @@ const structuredData = [
     path: CONNECT_AGENTS_PATH,
     about: [
       "connect AI coding agents to a dev environment",
-      "Claude Code agent skills",
-      "CLI for AI coding agents",
+      "CLI for Claude Code and Codex",
+      "shared memory between AI coding agents",
       "parallel AI coding agents",
     ],
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "Claude Code Skills & Codex Tools",
+      name: "Let Claude Code and Codex Run Your Dev Environment",
       path: CONNECT_AGENTS_PATH,
     },
   ]),
@@ -101,38 +103,45 @@ export default function ConnectAiAgentsPage() {
       <Demos />
       <Workflows />
       <Parallel />
+      <Memory />
       <Faq />
       <RelatedPages
         links={[
           {
+            href: SKILLS_PATH,
+            title: "Claude Code & Codex skills",
+            description:
+              "See every skill, MCP server, and hook an agent loads, and write your own skills in a form.",
+          },
+          {
             href: AI_AGENTS_PATH,
-            title: "Best terminal for Claude Code & Codex",
+            title: "Best terminal for Claude Code and Codex",
             description:
-              "The native macOS workspace for running AI coding agents in parallel, with your dev stack in view.",
+              "Which Claude Code or Codex session is working, which needs you, and how much plan is left, from the sidebar.",
           },
           {
-            href: CLAUDE_ACCOUNTS_PATH,
-            title: "Multiple Claude Code accounts",
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
             description:
-              "Pin a Claude account to each project — work and personal run in parallel, signed in once.",
+              "One prompt, several copies of the project, and the best answer kept.",
           },
           {
-            href: WORKTREE_ALTERNATIVE_PATH,
-            title: "A Git worktree alternative for AI agents",
+            href: AUTOMATIONS_PATH,
+            title: "Schedule Claude Code tasks",
             description:
-              "Compare linked worktrees with lpm’s standalone project copies for parallel Claude Code and Codex runs.",
+              "Put agent prompts on a timer, working in place or in a separate copy you review afterwards.",
           },
           {
             href: CONFIG_PATH,
             title: "Configuration reference",
             description:
-              "Every project config field agents can write — services, actions, terminals, and profiles.",
+              "Every project config field agents can write: services, actions, terminals, and profiles.",
           },
           {
             href: LINUX_HOST_PATH,
             title: "Run Claude Code on a remote server",
             description:
-              "The same skill and CLI on a Linux box you own, so a long agent run outlives your laptop.",
+              "The same skills and CLI on a Linux box you own, so a long agent run outlives your laptop.",
           },
         ]}
       />

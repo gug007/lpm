@@ -12,8 +12,8 @@ const COLUMNS = ["lpm", "Foreman", "Overmind"] as const;
 
 const ROWS: Row[] = [
   {
-    label: "Runs your Procfile.dev untouched",
-    cells: [false, true, true],
+    label: "Re-reads Procfile.dev every time it starts",
+    cells: ["imports it once, when you add the folder", true, true],
   },
   {
     label: "Sets $PORT for each process type",
@@ -35,7 +35,7 @@ const ROWS: Row[] = [
     label: "Installs on a Windows or Linux workstation",
     cells: [
       "Mac app; Linux only as a remote host",
-      "anywhere Ruby runs",
+      "Linux, macOS",
       "Linux, *BSD, macOS",
     ],
   },
@@ -80,7 +80,7 @@ const ROWS: Row[] = [
     cells: ["the app; no tmux, no Ruby", "Ruby, then the gem", "tmux, then the binary"],
   },
   {
-    label: "Sidekiq waits for Redis before it starts",
+    label: "Redis is started before Sidekiq",
     cells: ["dependsOn: [redis]", false, false],
   },
   {

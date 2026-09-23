@@ -22,7 +22,7 @@ const STEPS: Step[] = [
   {
     icon: SlidersHorizontal,
     title: "Choose how clean each copy should be",
-    body: "Keep the current state, strip uncommitted changes, pull the latest upstream commit, or reinstall dependencies. Stale build caches are left behind.",
+    body: "Copies pull the newest commits on their branch by default. Turn that off, keep committed work only, or reinstall dependencies for Node projects. Stale build caches are left behind.",
   },
   {
     icon: Play,

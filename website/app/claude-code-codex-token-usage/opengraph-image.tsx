@@ -1,14 +1,14 @@
 import { OG_CONTENT_TYPE, OG_SIZE, ogImage } from "@/lib/og-template";
 
 export const alt =
-  "lpm — Claude Code and Codex token usage by project, model, provider, and session.";
+  "lpm — Claude Code and Codex tokens and cost by project, plus live 5-hour and weekly limits.";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 
 export default function Image() {
   return ogImage({
-    headline: ["Every Claude Code and Codex token", "By project."],
+    headline: ["Claude Code and Codex usage", "Tokens, cost, and limits."],
     subline:
-      "Track tokens, approximate cost, cache usage, models, and sessions in one private dashboard on your Mac.",
+      "Tokens and estimated cost by project, plus live 5-hour and weekly meters with pace, in one private app on your Mac.",
   });
 }

@@ -1,14 +1,17 @@
 import Link from "next/link";
 import {
   AI_AGENTS_PATH,
+  AUTOMATIONS_PATH,
   BEST_TERMINAL_MAC_PATH,
   CLAUDE_ACCOUNTS_PATH,
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
+  FEATURES_PATH,
   GIT_TERMINAL_MAC_PATH,
   LINUX_HOST_PATH,
   MAC_TERMINAL_DEVELOPERS_PATH,
   MOBILE_PATH,
+  PARALLEL_PATH,
   PRIVACY_PATH,
   PROJECT_SIDEBAR_PATH,
   REPO_URL,
@@ -61,10 +64,12 @@ const GROUPS: Group[] = [
     heading: "AI agents",
     links: [
       { href: AI_AGENTS_PATH, label: "Claude Code & Codex" },
+      { href: PARALLEL_PATH, label: "Run Claude Code in parallel" },
+      { href: AUTOMATIONS_PATH, label: "Schedule Claude Code tasks" },
       { href: CONNECT_AGENTS_PATH, label: "Connect AI agents" },
       { href: CLAUDE_ACCOUNTS_PATH, label: "Multiple Claude accounts" },
       { href: SKILLS_PATH, label: "Agent skills" },
-      { href: TOKEN_USAGE_PATH, label: "Token usage" },
+      { href: TOKEN_USAGE_PATH, label: "Token usage & limits" },
       { href: STATUSLINE_PATH, label: "Statusline customization" },
       { href: LINUX_HOST_PATH, label: "Claude Code on a remote server" },
     ],
@@ -79,6 +84,7 @@ const GROUPS: Group[] = [
   {
     heading: "lpm",
     links: [
+      { href: FEATURES_PATH, label: "All features" },
       { href: CONFIG_PATH, label: "Docs" },
       { href: MOBILE_PATH, label: "iPhone companion" },
       { href: STATS_PATH, label: "Download stats" },

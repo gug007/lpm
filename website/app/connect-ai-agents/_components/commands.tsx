@@ -9,7 +9,7 @@ export default function Commands() {
         <SectionHeader
           eyebrow="The CLI, up close"
           title="Real commands your agents run"
-          description="These are the exact commands the skill teaches. Project name is inferred from the terminal, so agents rarely have to name it."
+          description="These are the commands the skill teaches. Project name is inferred from the terminal, so agents rarely have to name it."
         />
 
         <div className="space-y-8">
@@ -18,15 +18,16 @@ export default function Commands() {
             {"\n"}lpm list --json
             {"\n\n"}
             <Comment># One project&apos;s services, actions, and live status</Comment>
-            {"\n"}lpm project myapp --full
+            {"\n"}lpm project myapp
             {"\n\n"}
             <Comment># Live agent status across projects</Comment>
             {"\n"}lpm status
           </CodeBlock>
 
           <CodeBlock filename="Control services">
-            <Comment># Start or stop the whole project</Comment>
-            {"\n"}lpm start myapp --profile full
+            <Comment># Start the whole project, or just one profile</Comment>
+            {"\n"}lpm start myapp
+            {"\n"}lpm start myapp --profile backend
             {"\n"}lpm stop myapp
             {"\n\n"}
             <Comment># Restart a single dev server</Comment>
@@ -42,11 +43,11 @@ export default function Commands() {
           </CodeBlock>
 
           <CodeBlock filename="Run actions and report status">
-            <Comment># Queue an action in a new lpm terminal</Comment>
-            {"\n"}lpm run test --prompt &quot;fix the failing spec&quot;
+            <Comment># Open Claude Code in a new lpm terminal with a prompt</Comment>
+            {"\n"}lpm run claude --prompt &quot;fix the failing spec&quot;
             {"\n\n"}
-            <Comment># Post a custom status badge into the lpm UI</Comment>
-            {"\n"}lpm set-status deploy &quot;waiting on review&quot;
+            <Comment># Flag the project as waiting on you in the sidebar</Comment>
+            {"\n"}lpm set-status review Waiting
           </CodeBlock>
         </div>
 

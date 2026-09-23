@@ -23,7 +23,7 @@ keywords: [
   "overmind procfile alternative",
   "overmind alternative mac",
   "overmind vs lpm",
-  "overmind vs foreman",
+  "overmind procfile.dev",   // 2026-09-23: was "overmind vs foreman", which /vs/foreman owns
   "procfile gui",
   "procfile runner mac",
   "run procfile without tmux",
@@ -50,7 +50,7 @@ twitter.description: DESCRIPTION
 
 **OG image** (`opengraph-image.tsx`, edited in place — the file already existed):
 - `headline: ["An Overmind alternative for Mac", "— your Procfile as live panes."]`
-- `subline: "The same per-process control with no tmux installed, plus the Procfile-to-config conversion line by line."`
+- `subline: "Restart any one process with no tmux installed, and the Procfile imported line by line when you add the folder."` (2026-09-23: "the same per-process control" overclaimed — there is no `overmind connect` equivalent — and the conversion is now automatic.)
 - `alt: "An Overmind alternative for Mac — your Procfile as live panes, no tmux."` (matches the H1)
 
 ---
@@ -70,7 +70,7 @@ twitter.description: DESCRIPTION
 | 9 | When to pick | shared `WhenToPick` |
 | 10 | Interactive demo | `DemoSection` |
 | 11 | FAQ | shared `Faq`, 6 items |
-| 12 | Related pages | shared `RelatedPages`, 5 links |
+| 12 | Related pages | shared `RelatedPages`, 6 links |
 | 13 | CTA | shared `Cta` — `downloadSource="vs-overmind-cta"` |
 
 **Documented deviation from the canonical order (part 2 requires the reason to be written here):** the canonical order puts the page's clip at the end of unique section B (slot 7). Part 4.7 instead instructs the conversion section to "Close with `SectionVideo`", so the clip sits directly after unique section A and before the matrix. Following the per-page brief: the footage shows a project starting every service in its own pane, which is the payoff of the conversion the reader has just been shown, and it would be a non-sequitur after the command map.
@@ -81,7 +81,7 @@ twitter.description: DESCRIPTION
 
 - **eyebrow:** `lpm vs Overmind`
 - **H1:** `An Overmind alternative for Mac — your Procfile as live panes, no tmux.`
-- **description:** "Overmind runs each Procfile line as a tmux window and asks you to install tmux first. lpm runs the same named commands as panes in a Mac app: click one to attach, restart one on its own, start them in dependsOn order." *(not supplied by the spec; written for this page, every clause cited in §6)*
+- **description:** "Overmind runs each Procfile line as a tmux window and asks you to install tmux first. lpm imports the same named commands and runs them as panes in a Mac app: click one to read its output, stop or restart one without the rest, start them in dependsOn order." (2026-09-23: "click one to attach" contradicted FAQ 3 and `Pane.tsx:59` `disableStdin: true`. Later the same day "restart one on its own" became "stop or restart one without the rest" — it read as auto-restart, which lpm does not have; the same fix went into the quick answer and the CTA.) *(not supplied by the spec; written for this page, every clause cited in §6)*
 - **verdictLine:** `Four rows go to Overmind. If any of them is load-bearing for you, stay where you are.` *(the spec said three; the matrix concedes four — see §6 and §11.14)*
 - **jump link:** `See the Procfile conversion` → `#procfile`
 
@@ -101,7 +101,7 @@ Three sentences deviate from the spec's paragraphs — the Terraform-product cla
 
 | label | title | body |
 |---|---|---|
-| Overmind | Keep Overmind | `-m web=2,worker=3` to scale a process, a `PORT` stepped per process with `-p` and `-P`, Linux and \*BSD, and a Procfile it reads as-is. |
+| Overmind | Keep Overmind | `-m web=2,worker=3` to scale a process, a `PORT` stepped per process with `-p` and `-P`, Linux and \*BSD, and a Procfile it reads fresh on every start. |
 | lpm | Switch to lpm | No tmux to install, a project switcher across repos, `dependsOn` for start order, and Claude Code or Codex in a tab beside the services. |
 | Both | Run both | Nothing conflicts. lpm never touches your Procfile or your `.overmind.env`, so the Overmind workflow you already have keeps working. |
 
@@ -115,20 +115,20 @@ Three sentences deviate from the spec's paragraphs — the Terraform-product cla
 
 | Label | lpm | Overmind |
 |---|---|---|
-| Uses an existing Procfile without conversion | ✗ | ✓ |
+| Picks up Procfile edits on the next start | no — imported once, when the project is added | ✓ |
 | Automatic PORT allocation | port declared for conflict checks, not assigned | PORT stepped per process (-p / -P) |
 | Scales one process to several instances | one process per service | -m web=2,worker=3 |
 | Which machines it runs on | Mac app; Linux and SSH boxes as hosts | macOS, Linux, \*BSD |
 | Whether tmux has to be installed first | no — lpm does not use tmux | yes — install tmux, then Overmind |
 | Reads a config committed in the repo | .lpm.yml | Procfile |
-| Drafts the config for you | with your installed Claude Code, Codex, Gemini CLI or OpenCode | ✗ |
+| Drafts the config for you | built in, from the Procfile and other manifests; Claude Code, Codex, Gemini CLI or OpenCode can redraft it | ✗ |
 | Type at one running process | ✗ | overmind connect |
 | Restart web without restarting worker | ✓ | ✓ |
 | Start order you declare, not line order | dependsOn | ✗ |
 | Start a subset of processes | --profile | -l / OVERMIND_PROCESSES |
 | Port conflict caught at start, holder named | ✓ | ✗ |
 | What a session survives | quitting the app | closing the terminal |
-| Running it on a remote dev box | SSH projects + manual port forwarding | run it on the box yourself |
+| Running it on a remote dev box | SSH projects, declared ports forwarded to localhost automatically | run it on the box yourself |
 | Run the project in several copies at once | 1–50 worktrees or standalone copies | ✗ |
 
 **Conceded to Overmind: four rows — 1, 2, 3 and 4.** Row 4 was called a split in the first pass; it is not. A team on Linux or \*BSD cannot run the lpm app at all, and the page's own WhenToPick lists that as a reason to stay, so it is counted. Rows 5–15 go to lpm or answer differently on both sides without either losing. Every other numeric framing on the page states four: the hero verdict line, this description, the footnote, and the quick answer's give-up list (Procfile, `PORT`, several instances of one process, needing a Mac).
@@ -153,8 +153,8 @@ Description: "The overmind verbs you type in a day, and what replaces each one. 
 | overmind start -l web,worker | lpm start --profile api | |
 | overmind restart web | lpm service web restart | |
 | overmind stop worker | lpm service worker stop | |
-| overmind connect web | click the service in the sidebar, or lpm logs web -n 500 | |
-| overmind echo | nothing to set; each pane is a real terminal | |
+| overmind connect web | click the service's tab in the project, or lpm logs web -n 500 | |
+| overmind echo | open the project; each service's output is already in its pane | |
 | overmind run yarn install | lpm run --command "yarn install" | a one-off command in the project's folder |
 | overmind kill | lpm stop | lpm reaps each service's process tree |
 | — | lpm wait --service web | block a script until the service is up |
@@ -168,7 +168,7 @@ Footnote: the app-required verbs versus the read-only ones, ending on what `lpm 
 
 ## 8. FAQ (6)
 
-1. **Do I have to throw away my Procfile?** — "No, but lpm will not read it. Keep it for Heroku or Foreman; lpm reads its own file next to it." (`/config` linked on "its own file", never on the word "commit" — part 7 blocks that until `/config` documents `.lpm.yml`.)
+1. **Do I have to throw away my Procfile?** — "No. lpm imports it when the project is added — one service per line, same names — and leaves the file as it was for Heroku or Foreman. From then on lpm starts from its own service list, so a Procfile change made later does not carry over by itself." (`/config` linked on "its own service list", never on the word "commit" — part 7 blocks that until `/config` documents `.lpm.yml`.)
 2. **Does lpm need tmux?** — "No. lpm does not use tmux and never asks you to install it. Your services keep running when you quit lpm and they are there when you reopen it — nothing to attach to." (`/vs/tmux` linked.)
 3. **How do I attach to one process the way overmind connect does?** — you do not; the pane is read-only. Conceded outright, so can hit a debugger or open a pry session in that one process."
 4. **Does lpm assign each process a PORT like Overmind?** — the `port:`-is-a-label answer, ending on the honest concession that automatic assignment is a real reason to stay.
@@ -179,7 +179,7 @@ Footnote: the app-required verbs versus the read-only ones, ending on what `lpm 
 
 ## 9. Wiring
 
-- **RelatedPages (5):** `/vs/tmux`, `/vs/foreman`, `/config`, `/ssh-terminal-for-mac`, `/run-claude-code-on-a-remote-server` — exactly §6.1's assignment.
+- **RelatedPages (6):** `/vs/tmux`, `/vs/foreman`, `/config`, `/ssh-terminal-for-mac`, `/run-claude-code-on-a-remote-server` — §6.1's assignment — plus `/git-worktree-for-ai-agents` ("What lpm duplicate -n 3 actually creates, and the ignored files a linked worktree leaves behind"), added 2026-09-23 so the grid is 4-or-6 like the rest of the site.
 - **In-body links:** `/config` from the conversion section and FAQ 1, `/vs/tmux` from FAQ 2, `/vs/foreman` from FAQ 5, `/ssh-terminal-for-mac` + `/run-claude-code-on-a-remote-server` from FAQ 6.
 - **Analytics:** `downloadSource="vs-overmind-hero"` and `"vs-overmind-cta"`.
 - **Media:** `start-project.mp4` / `start-project-poster.jpg` — the cluster's one shared clip (hub + this page), with a different label here: "Starting a project in lpm — every process in the config comes up in its own live pane."
@@ -195,7 +195,8 @@ Every lpm claim on the page, with the file:line it was verified against. Paths a
 | Claim as rendered | Where it appears | Verified at |
 |---|---|---|
 | lpm does not use tmux and does not need it installed | H1, quick answer, matrix, FAQ 2, CTA | `desktop/frontend/src-tauri/src/sessiond.rs:1-13`; `tmuxmigrate.rs:10-20` ("this is lpm's last tmux call, not a dependency"; skipped when tmux is absent); `peerssh.rs:44-53` (tmux dropped from a host's required tools) |
-| lpm will not read your Procfile | quick answer, verdict card 3, matrix row 1, FAQ 1 | `grep -rn Procfile desktop/frontend/src desktop/frontend/src-tauri/src cli/src` → 0 hits |
+| lpm imports the Procfile once, when the project is added, and never writes to it ("lpm imports its lines once, when you add the folder", "reads the Procfile once rather than on every start", matrix row 1 "no — imported once, when the project is added", FAQ 1, hero "imports the same named commands", CTA "lpm converts the lines as you add the folder", `Procfile` section description) | quick answer, verdict cards, matrix row 1, FAQ 1, hero, CTA, conversion | `desktop/frontend/src-tauri/src/detect/stacks.rs:21-39` (`Procfile.dev`, else `Procfile`; one service per `name: cmd` line; `release` skipped at `:33`); `projects_crud.rs:48-67` (`services_for`), `:93` (add), `:261` (clone) — the only callers, so no re-read at start; detection only reads the file. Re-verified 2026-09-23 (commit `835443cb`). The conversion sample's `port: 3000` and `dependsOn: [web]` are what the section description says you add after: `bundle exec puma -C config/puma.rb` names no port, so `port_in_command` (`detect/mod.rs:273-291`) returns none. |
+| "Drafts the config for you — built in, from the Procfile and other manifests; Claude Code, Codex, Gemini CLI or OpenCode can redraft it" | matrix | `detect/mod.rs:1-4`, `:111-130`; redraft: `aigen.rs:33-41`, `desktop/frontend/src/components/ConfigEditor.tsx:183` ("Generate with AI") |
 | Every service gets its own live pane; pane N is service N | hero, quick answer, video label, matrix | `desktop/frontend/src-tauri/src/sessions.rs:1-3`; `cli/src/logs.rs:1-4` |
 | Services keep running when you quit lpm, and are there when you reopen it | FAQ 2, matrix "What a session survives" | `desktop/frontend/src-tauri/src/sessiond.rs:1-13`; `sessions.rs:1-9` |
 | 10,000 lines of scrollback | quick answer, matrix, WhenToPick, FAQ 3, CTA | `desktop/frontend/src/components/Pane.tsx:58` (`scrollback: 10000`); `cli/src/logs.rs:11` (`MAX_LINES = 10_000`); `cli/src/main.rs:113-114` |
@@ -215,7 +216,7 @@ Every lpm claim on the page, with the file:line it was verified against. Paths a
 | `lpm start`, `lpm stop` and `lpm service … restart` need the app open | command map footnote | `cli/src/control.rs:12-19` ("lpm app is not running"); `start.rs:16`; `stop.rs:10`; `service_cmd.rs:50` |
 | `lpm logs` and `lpm list` answer from a cold shell | command map footnote | `cli/src/logs.rs` (no `require_app`; reads the running session); `cli/src/list.rs:1-3` |
 | Mac app; a Linux box or an SSH host can hold the services | matrix, FAQ 6, RelatedPages | `desktop/frontend/src-tauri/tauri.conf.json:31-38` (macOS bundle only); `config.rs:596-614` (`SshSettings`); `peerssh.rs:44-53` (pairing a host) |
-| SSH projects forward ports manually — no suggested forwards are claimed | matrix, FAQ 6, RelatedPages | `desktop/frontend/src-tauri/src/portforward.rs:1-8` ("manual forwarding works end-to-end"; the poller that populates suggestions is deferred) |
+| SSH projects: declared ports are forwarded to localhost automatically once they listen (matrix "SSH projects, declared ports forwarded to localhost automatically", FAQ 6 "ports forwarded to localhost") | matrix, FAQ 6, RelatedPages | `desktop/frontend/src-tauri/src/portforward.rs:720-747` (`observe_port`: a declared port goes to `auto_forward`, an undeclared one becomes a suggestion), `:750-777` (`auto_forward`); the poller is started per remote project at `services.rs:217`, `:304` and resumed at launch (`lib.rs:410`). The file header at `portforward.rs:1-8` still calls this "deferred"; the code says otherwise. |
 | A project switcher across repos | verdict card 2, WhenToPick | `desktop/frontend/src/components/Sidebar.tsx`; `cli/src/list.rs:1-3` |
 | An SSH host is picked from your own SSH config | RelatedPages (SSH terminal card) | `desktop/frontend/src-tauri/src/sshconfig.rs:1`, `:22-26` (`list_ssh_hosts` reads `~/.ssh/config`); `remote.rs:3742-3744` ("the Add-SSH-project picker") |
 | One process per service — lpm does not run two copies of one | quick answer, matrix | `desktop/frontend/src-tauri/src/config.rs:807` (`services: BTreeMap<String, ServiceDef>` — one command per name) |
@@ -223,7 +224,7 @@ Every lpm claim on the page, with the file:line it was verified against. Paths a
 | `lpm service worker stop` stops one service | command map | `cli/src/service_cmd.rs:13-17` (`Op::Stop` → `stop_service`), `:50`; `cli/src/main.rs:150-163` |
 | `lpm run --command "yarn install"` runs a one-off command in the project's folder | command map | `cli/src/main.rs:321-336` (`--command`, `--prompt`); `cli/src/run.rs:140` (goes through the app) |
 | `dependsOn` sequences the starts and does not wait for readiness; `lpm wait` is the gate | conversion note 1 | `desktop/frontend/src-tauri/src/config.rs:580-581`; `services.rs:197` (`expand_service_deps` before the start); `cli/src/wait.rs:1-5` ("the port/service/ready modes poll client-side … and never touch the app"), `:197` (only `--agent` needs it) |
-| Copies are separate checkouts but share the declared ports and the database; a linked worktree starts with no `.env` and no installed dependencies | WhenToPick bullet 6 | `desktop/frontend/src-tauri/src/projects_crud.rs:509-522` (`git worktree add -b` — tracked files only, so untracked `.env` and installed packages are not carried), `:745-760` (a standalone copy clones the tree instead), `config.rs:1454` (`DUPLICATE_SKIP_DIRS`); `ports.rs:1-8` (declared ports are checked, never reassigned) |
+| Copies are separate checkouts but share the declared ports and the database; a linked worktree starts with no `.env`, and with no node_modules unless you tick Install dependencies (verifier 2026-09-23: the old "until you tick" read as if the tick also brought `.env`) | WhenToPick bullet 6 | `projects_crud.rs:851-854` + `detect/node.rs:123-127` (the opt-in installs Node packages only); `BulkDuplicateDialog.tsx:937` ("Install dependencies"); | `desktop/frontend/src-tauri/src/projects_crud.rs:509-522` (`git worktree add -b` — tracked files only, so untracked `.env` and installed packages are not carried), `:745-760` (a standalone copy clones the tree instead), `config.rs:1454` (`DUPLICATE_SKIP_DIRS`); `ports.rs:1-8` (declared ports are checked, never reassigned) |
 | lpm needs a Mac to drive it | quick answer, matrix row 4, footnote | `desktop/frontend/src-tauri/tauri.conf.json:31-38` (macOS bundle only); `peerssh.rs:44-53` (a Linux box is a host the Mac app drives) |
 
 Competitor cells trace to the four sources linked in `ComparisonBasis`, and each one is a mechanism the source states:
@@ -291,3 +292,23 @@ tabs. Service panes are rendered by `Pane.tsx`, whose terminal is created with
 lpm equivalent for `overmind connect`. Row 7 now concedes it, the matrix concedes five
 rows rather than four, and FAQ 3 answers the question by conceding it. `/vs/foreman`
 had this right ("panes are read-only") and this page contradicted it.
+
+## Truth pass, 2026-09-23
+
+Service detection (commit `835443cb`, `desktop/frontend/src-tauri/src/detect/`) made five
+sentences on this page false: the hero ("click one to attach" — never true, service panes
+are read-only at `Pane.tsx:59`), FAQ 1 and its JSON-LD ("lpm will not read it"), the quick
+answer ("you retype those lines once", "lpm will not read the Procfile itself"), matrix row 1
+("Uses an existing Procfile without conversion — ✗") and the command map ("click the service
+in the sidebar" — the sidebar lists projects; services are tabs in the project's pane, and
+`hotkeys.ts:22-33` moves between them). Row 1 is still a concession, relabelled "Picks up
+Procfile edits on the next start": Overmind reads the file on every start, lpm imports it
+once. **Five rows still go to Overmind**, so the hero verdict line, the matrix description
+and the footnote all keep "five". The remote-box row stopped claiming manual forwarding
+because declared ports now forward on their own (`portforward.rs:720-777`).
+
+## Verifier pass — 2026-09-23
+
+- Command map: `overmind echo` tails a daemonised Overmind's output (Overmind README, "Use the `echo` command for the logs"). The old lpm cell, "nothing to set; each pane is a real terminal", answered a different question; it now reads "open the project; each service's output is already in its pane" (`log_streaming.rs:1-14`, `PaneView.tsx` one pane per service).
+- Procfile section: "The same file can live at `.lpm.yml`" → "Commit the same services and profile as `.lpm.yml` in the repository to share them" — a repo file contributes only `services` and `profiles` (`config.rs:1844-1883`).
+- Verdict "Keep Overmind" uses non-breaking hyphens in "-p and -P" so the flag never splits across a line at card width.

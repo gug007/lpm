@@ -1,6 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import { DownloadLink } from "@/components/download-link";
-import AppStoreButton from "./app-store-button";
+import { AppStoreButton } from "@/components/app-store-button";
 
 export default function Hero() {
   return (
@@ -13,24 +13,24 @@ export default function Hero() {
           Control Claude Code and Codex on your Mac from your iPhone.
         </h1>
         <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
-          The lpm iOS app pairs with lpm on your Mac and mirrors every terminal
-          live. Prompt Claude Code, Codex, or any running agent with a real
-          composer, review the diff it
-          just wrote, commit and push it, and get an encrypted alert the moment
-          it&rsquo;s waiting on you. The work stays on your Mac; the control
-          comes with you.
+          lpm Link, the lpm app for iPhone and iPad, pairs with lpm on your Mac
+          and puts every terminal in your pocket, live on whichever screen has
+          control. Prompt Claude Code, Codex, or any
+          running agent with a real composer, review and push the diff it just
+          wrote, and get an encrypted alert the moment it&rsquo;s waiting on
+          you.
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <AppStoreButton source="mobile-hero" />
         </div>
-        <DownloadLink className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+        <DownloadLink className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
           Get lpm for your Mac
           <ArrowRight className="w-3.5 h-3.5" />
         </DownloadLink>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Install lpm on your Mac and the lpm link app on your iPhone or iPad,
-          then scan one QR code to pair.
+          Install lpm on your Mac and lpm Link on your iPhone or iPad, then scan
+          one QR code to pair.
         </p>
       </div>
     </section>

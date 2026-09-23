@@ -2,18 +2,27 @@
 
 import { useState } from "react";
 import { MoveHorizontal } from "lucide-react";
-import { IN_THE_DOCK, STAGE_H, WINDOWS } from "./before-after-data";
+import { IN_THE_DOCK, STAGE_H, STAGE_W, WINDOWS } from "./before-after-data";
 import { AfterDescription, BeforeDescription } from "./before-after-descriptions";
 import { AGENT_ROW_COUNT, LpmReplica, PROJECT_COUNT } from "./before-after-replica";
 import { PileWindowCard } from "./before-after-window";
 
 // Both pictures sit on one footprint in the middle of one stage, so dragging
 // the line reveals a single window occupying what the whole pile fought over.
+// lpm takes the left, clipped layer: its sidebar and prompt sit on the left of
+// the window, so that is the side that shows them at the resting split.
 // The pile keeps its drawn window sizes but scatters across a wider box than
 // the 44em it was laid out in: its offsets are percentages of the box, so a
 // wider box spreads the windows without resizing them, and the api window
 // still lands on the permission prompt it is there to bury.
 const FOOTPRINT = "w-[72em] h-[var(--stage-h)]";
+const FOOTPRINT_EM = 72;
+// Spread that wide, the scatter stops well short of the footprint's right
+// edge, so the pile is centred on what it actually covers.
+const PILE_EM = Math.max(
+  ...WINDOWS.map((w) => (w.x / STAGE_W) * FOOTPRINT_EM + w.w / 10),
+);
+const PILE_SHIFT = `${(FOOTPRINT_EM - PILE_EM) / 2}em`;
 // 1em = one design pixel / 10, following the stage's width so the picture
 // fills a wide screen and still fits beside a tablet's gutters.
 const SCALE = "text-[clamp(0.55rem,1.15cqw,0.8rem)]";
@@ -36,40 +45,43 @@ export function BeforeAfterCompare() {
       >
         <div
           aria-hidden="true"
-          data-on-dark
-          className="relative flex h-[calc(var(--stage-h)+8em)] items-center justify-center bg-[#111111]"
+          className="relative isolate flex h-[calc(var(--stage-h)+8em)] items-center justify-center bg-[linear-gradient(135deg,#e3e9f2,#b8c5d9)] dark:bg-[linear-gradient(135deg,#3b4454,#1e232c)]"
         >
-          <div className={FOOTPRINT}>
-            <LpmReplica />
+          <div
+            className={`relative ${FOOTPRINT}`}
+            style={{ translate: `${PILE_SHIFT} 0` }}
+          >
+            {WINDOWS.map((win, i) => (
+              <PileWindowCard key={win.key} win={win} z={i + 1} />
+            ))}
           </div>
-          <span className={`${LABEL} right-[1.4em] bg-white/[0.12] text-white`}>
-            With lpm
+          <span className={`${LABEL} right-[1.4em] bg-white/90 text-gray-900`}>
+            Your Mac today
           </span>
-          <p className={`${NOTE} right-[1.6em] text-[#9a9a9a]`}>
-            1 window · {PROJECT_COUNT} projects · {AGENT_ROW_COUNT} agents
+          <p className={`${NOTE} right-[1.6em] text-red-700 dark:text-red-300`}>
+            {WINDOWS.length} windows · {IN_THE_DOCK} more in the dock
           </p>
         </div>
 
         <div
           aria-hidden="true"
-          className="absolute inset-0 flex items-center justify-center bg-[linear-gradient(135deg,#e3e9f2,#b8c5d9)] dark:bg-[linear-gradient(135deg,#3b4454,#1e232c)]"
+          data-on-dark
+          className="absolute inset-0 flex items-center justify-center bg-[#111111]"
           style={{ clipPath: "inset(0 calc(100% - var(--split)) 0 0)" }}
         >
-          <div className={`relative ${FOOTPRINT}`}>
-            {WINDOWS.map((win, i) => (
-              <PileWindowCard key={win.key} win={win} z={i + 1} />
-            ))}
+          <div className={FOOTPRINT}>
+            <LpmReplica />
           </div>
-          <span className={`${LABEL} left-[1.4em] bg-white/90 text-gray-900`}>
-            Your Mac today
+          <span className={`${LABEL} left-[1.4em] bg-white/[0.12] text-white`}>
+            With lpm
           </span>
-          <p className={`${NOTE} left-[1.6em] text-red-700 dark:text-red-300`}>
-            {WINDOWS.length} windows · {IN_THE_DOCK} more in the dock
+          <p className={`${NOTE} left-[1.6em] text-[#9a9a9a]`}>
+            1 window · {PROJECT_COUNT} projects · {AGENT_ROW_COUNT} agents
           </p>
         </div>
 
-        <BeforeDescription />
         <AfterDescription />
+        <BeforeDescription />
         {/* The whole stage is the slider's track, so a drag anywhere moves the
             line; the input itself stays invisible and the handle below draws
             its position. */}
@@ -80,8 +92,8 @@ export function BeforeAfterCompare() {
           max={96}
           value={split}
           onChange={(e) => setSplit(Number(e.target.value))}
-          aria-label="Drag to compare your Mac today with lpm"
-          aria-valuetext={`${split} percent your Mac today, ${100 - split} percent with lpm`}
+          aria-label="Drag to compare lpm with your Mac today"
+          aria-valuetext={`${split} percent with lpm, ${100 - split} percent your Mac today`}
           className="peer absolute inset-0 z-30 m-0 h-full w-full cursor-ew-resize opacity-0"
         />
         <div

@@ -3,10 +3,23 @@
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { AI_AGENTS_PATH, VS_BASE_PATH } from "@/lib/links";
+import {
+  AI_AGENTS_PATH,
+  AUTOMATIONS_PATH,
+  FEATURES_PATH,
+  MOBILE_PATH,
+  VS_BASE_PATH,
+} from "@/lib/links";
 import { NavLink } from "./nav-link";
 
 const PANEL_ID = "nav-mobile-panel";
+const MENU_LINKS = [
+  { href: FEATURES_PATH, label: "Features" },
+  { href: AI_AGENTS_PATH, label: "For AI agents" },
+  { href: AUTOMATIONS_PATH, label: "Automations" },
+  { href: MOBILE_PATH, label: "iPhone app" },
+  { href: VS_BASE_PATH, label: "Compare" },
+];
 const linkClass =
   "inline-flex w-fit items-center min-h-11 text-sm transition-colors duration-200";
 
@@ -51,7 +64,7 @@ export function NavMobileMenu() {
         aria-expanded={open}
         aria-controls={PANEL_ID}
         onClick={() => setOpen((v) => !v)}
-        className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors duration-200"
+        className="md:hidden relative inline-flex h-9 w-9 items-center after:absolute after:-inset-1 after:content-[''] justify-center rounded-full text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 cursor-pointer transition-colors duration-200"
       >
         {open ? (
           <X className="w-[18px] h-[18px]" />
@@ -64,12 +77,11 @@ export function NavMobileMenu() {
           id={PANEL_ID}
           className="md:hidden absolute top-14 left-0 right-0 border-t border-gray-200/70 dark:border-gray-800/70 bg-white/90 dark:bg-[#111]/90 backdrop-blur-lg px-6 py-2 flex flex-col"
         >
-          <NavLink href={AI_AGENTS_PATH} onClick={close} className={linkClass}>
-            For AI agents
-          </NavLink>
-          <NavLink href={VS_BASE_PATH} onClick={close} className={linkClass}>
-            Compare
-          </NavLink>
+          {MENU_LINKS.map(({ href, label }) => (
+            <NavLink key={href} href={href} onClick={close} className={linkClass}>
+              {label}
+            </NavLink>
+          ))}
         </div>
       )}
     </div>

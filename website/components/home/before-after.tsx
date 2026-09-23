@@ -9,8 +9,8 @@ export function BeforeAfter() {
         <SectionHeader
           className="mb-12"
           eyebrow="Before / after"
-          title="Every service and every agent, in one window"
-          description="A window for every service, another for every agent, and no way to tell which one is waiting on you. lpm puts them all in one place."
+          title="Stop hunting for the window that’s waiting on you"
+          description="A terminal per service, another per agent, and a permission prompt buried under whichever window is in front. In lpm it’s one window, and the sidebar shows which agent is working, done, or needs you."
         />
         <div className="hidden md:block">
           <BeforeAfterCompare />

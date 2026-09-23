@@ -8,7 +8,7 @@ type Row = {
 const ROWS: Row[] = [
   {
     label: "Any agent, not one",
-    body: "Claude Code, Codex, Gemini CLI, or whatever else you run in an lpm terminal — they all reach your phone the same way, in the same app.",
+    body: "Claude Code, Codex, Gemini CLI, or whatever else you run in an lpm terminal all open on your phone the same way, and Claude Code and Codex also send status and push alerts.",
   },
   {
     label: "The real session, not a transcript",
@@ -21,6 +21,10 @@ const ROWS: Row[] = [
   {
     label: "The project, not only the agent",
     body: "Start and stop services, start a project under a different profile, run saved actions, and duplicate a project to fan work out — the workspace around the agent comes with it.",
+  },
+  {
+    label: "Every machine, not one session",
+    body: "An Activity list across all your projects, scheduled automations, plan-limit meters, and several Macs or Linux servers, switched from one menu.",
   },
   {
     label: "Straight to your Mac",

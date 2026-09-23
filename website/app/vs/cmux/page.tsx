@@ -14,6 +14,7 @@ import { WhenToPick } from "@/components/vs/when-to-pick";
 import {
   AI_AGENTS_PATH,
   CONNECT_AGENTS_PATH,
+  MOBILE_PATH,
   REVIEW_CHANGES_PATH,
   VS_BASE_PATH,
   WORKTREE_AGENTS_PATH,
@@ -79,7 +80,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "lpm",
     title: "The project",
-    body: "Start the stack, check the ports, fan one prompt out to 50 copies, and read working, needs you, done or a problem off each agent's own tab.",
+    body: "Start the stack, check the ports, fan one prompt out to 50 copies, and read working, needs you, done or a problem off each Claude Code or Codex tab.",
   },
   {
     label: "Both",
@@ -112,7 +113,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "How do I move a cmux setup to lpm?",
     answer:
-      "There is nothing to convert: cmux.json describes your terminal, not your stack. Add the folder in lpm, then hit Generate with AI in its config editor — the Claude Code or Codex you already have reads the repo, compose file included, and drafts the services for you to prune. A command you kept as a cmux action becomes an lpm action: one click, or lpm run.",
+      "There is nothing to convert: cmux.json describes your terminal, not your stack. Add the folder in lpm and it lists the services it finds in the repo — package.json scripts, a Procfile or Gemfile, compose files — for you to prune, with Generate with AI in the config editor if you want another draft. A command you kept as a cmux action becomes an lpm action: one click, or lpm run.",
   },
   {
     question: "Does lpm need tmux?",
@@ -153,7 +154,7 @@ export default function LpmVsCmuxPage() {
       <ComparisonHero
         eyebrow="cmux alternative · macOS"
         title="A cmux alternative that runs Claude Code and Codex on whole projects."
-        description={DESCRIPTION}
+        description="cmux is a programmable terminal for agents. lpm is the project they work in: it starts the services, checks the ports, and can split the repo so each Claude Code or Codex session edits its own checkout."
         verdictLine="cmux owns the terminal. lpm owns the project the agents run inside."
         jumpHref="#matrix"
         jumpLabel="Jump to the row-by-row table"
@@ -186,8 +187,8 @@ export default function LpmVsCmuxPage() {
           workspaces and read the screen. lpm is the project: it starts and
           stops the services the agent needs, checks the declared ports first,
           and splits the repo before the agents start — a linked worktree
-          branched off where the code stands now, or a straight copy of the
-          folder that keeps its own Git history — so nothing one agent writes
+          branched off the current commit, or a straight copy of the folder
+          that keeps its own Git history — so nothing one agent writes
           lands on top of another&apos;s work.
         </p>
         <p>
@@ -229,7 +230,7 @@ lpm status --json`}
           points: [
             "You want the whole project to come up with the agent: services, profiles, a port check at start, and a diff pane before you keep anything.",
             "You keep several repos in play at once and want one window that already knows each one's services and which agents are busy in it.",
-            "You would rather the agent CLI already on your machine wrote the first draft of the service list, and you pruned what it got wrong.",
+            "You want lpm to list the services as the repo is added, with an agent CLI on hand for a second draft.",
             "You want the services in a file the branch carries, so a teammate on that branch gets the same stack.",
             "You fan one prompt out to several copies of the repo, each agent on its own checkout.",
           ],
@@ -282,12 +283,18 @@ lpm status --json`}
             description:
               "The same split, weighed against the emulator you may already keep open all day.",
           },
+          {
+            href: MOBILE_PATH,
+            title: "lpm on your iPhone",
+            description:
+              "Open a terminal tab running on your Mac, type into it, and get a push when Claude Code or Codex is waiting on you.",
+          },
         ]}
       />
 
       <Cta
         title="Run your projects, your way."
-        description="lpm is free under MIT and macOS-only. Add a repo, draft its services with the agent CLI you already have, and keep cmux open beside it."
+        description="lpm is free under MIT and macOS-only. Add a repo, let lpm list its services, and keep cmux open beside it."
         downloadSource="vs-cmux-cta"
       />
     </>

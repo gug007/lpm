@@ -11,7 +11,7 @@ export default function Cta() {
           Hand your agents the keys.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          One click installs the skill and the CLI. Claude Code, Codex, Gemini
+          One click installs the skills and the CLI. Claude Code, Codex, Gemini
           CLI, and OpenCode can run your dev environment from there.
         </p>
 

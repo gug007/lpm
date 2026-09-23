@@ -44,7 +44,7 @@ function FilledFolder({ size = 13 }: { size?: number }) {
   );
 }
 
-export type NewProjectKind = "local" | "ssh" | "clone";
+export type NewProjectKind = "local" | "ssh" | "clone" | "template";
 
 export type NewProjectInput = {
   kind: NewProjectKind;
@@ -69,6 +69,7 @@ type Template = {
   project: string;
 };
 
+// The app ships one built-in template; anything else is one you add yourself.
 const TEMPLATES: Template[] = [
   {
     id: "nextjs",
@@ -76,27 +77,6 @@ const TEMPLATES: Template[] = [
     label: "Next.js",
     desc: "App Router, TypeScript, and Tailwind CSS",
     project: "nextjs-app",
-  },
-  {
-    id: "vite-react",
-    icon: "⚡",
-    label: "Vite + React",
-    desc: "Fast single-page app starter",
-    project: "vite-app",
-  },
-  {
-    id: "go-service",
-    icon: "🐹",
-    label: "Go service",
-    desc: "HTTP service with a sensible layout",
-    project: "go-service",
-  },
-  {
-    id: "fastapi",
-    icon: "🐍",
-    label: "FastAPI",
-    desc: "Python API with uvicorn reload",
-    project: "fastapi-app",
   },
 ];
 
@@ -138,6 +118,7 @@ const PROJECTS_FS: FsNode[] = [
     children: [
       { name: "cmd", kind: "folder", children: [] },
       { name: "internal", kind: "folder", children: [] },
+      { name: "docker-compose.yml", kind: "file" },
       { name: "go.mod", kind: "file" },
       { name: "go.sum", kind: "file" },
       { name: "README.md", kind: "file" },
@@ -314,7 +295,7 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   };
 
   const handlePickTemplate = (template: Template) => {
-    onCreate({ kind: "local", name: template.project });
+    onCreate({ kind: "template", name: template.project });
     reset();
   };
 
@@ -335,12 +316,12 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
         >
           <MenuCloseButton onClick={handleClose} />
           <div className="px-2 pb-1 pt-3.5">
-            <h3
+            <p
               id="add-project-title"
               className="px-4 text-[13px] font-medium text-[#e5e5e5]"
             >
               Add a project
-            </h3>
+            </p>
             <div className="mt-3 flex flex-col">
               <SourceOption
                 icon={<Folder size={22} strokeWidth={1.5} />}
@@ -656,6 +637,19 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 </span>
               </button>
             ))}
+            <div
+              aria-disabled="true"
+              title="Custom templates are created in the app"
+              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-[#919191]"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center text-[15px] leading-none">
+                ＋
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[13px]">
+                Add custom…
+              </span>
+              <span className="shrink-0 text-[11px]">In the app</span>
+            </div>
           </div>
         </div>
       )}

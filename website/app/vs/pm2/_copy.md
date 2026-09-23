@@ -67,7 +67,7 @@ QuickAnswer takes the fold slot):
 ### Hero
 - eyebrow `lpm vs PM2`
 - H1 `A PM2 alternative for local development — and what to keep PM2 for.`
-- description: the page `DESCRIPTION`
+- description (2026-09-23, replaces the reused meta `DESCRIPTION` so the hero has copy of its own): "PM2 is a production supervisor that also watches files in dev. lpm is the Mac workspace around your local stack: one pane per service, a switcher across repos, and copies for parallel agents."
 - verdict line `If both columns describe you, that is the normal case — run both.`
 - `jumpHref="#map"`, `jumpLabel="Every pm2 verb, mapped"`
 - `downloadSource="vs-pm2-hero"`
@@ -117,14 +117,15 @@ three notes (`apps[]` mapping, `dependsOn`, `port:`) and the `/config` link on
 `clip="agent-run-command"`, eyebrow `See it`, title `The CLI, driven by an agent`.
 
 ### WhenToPick
-Existing title/description kept, with the brief's third framing line appended. PM2's five
+Title "When PM2 is the right tool, and when lpm is" (2026-09-23: "When each one is the right tool" was shared verbatim with `/vs/foreman` and `/vs/iterm2`). Existing description kept, with the brief's third framing line appended. PM2's five
 bullets are verbatim and untouched — they are what makes the page trustworthy. lpm bullet
 5 carries the shared-ports/shared-database concession (§5.3).
 
 ### FAQ (6) — section title `Keeping PM2, or moving off it`; full text in §5.
 
-### RelatedPages (5) — `/vs/tmux`, `/vs/docker-compose`, `/config`,
-`/connect-ai-agents`, `/best-terminal-for-claude-code-and-codex` (spec §6.1).
+### RelatedPages (6) — `/vs/tmux`, `/vs/docker-compose`, `/config`,
+`/connect-ai-agents`, `/best-terminal-for-claude-code-and-codex` (spec §6.1), plus
+`/git-worktree-for-ai-agents` ("Linked worktrees for parallel agents, and the .env and node_modules a fresh checkout does not bring" — `projects_crud.rs:828`) added 2026-09-23 so the grid holds six.
 In-body contextual links: `/connect-ai-agents` from the command-map footnote, `/vs/tmux`
 from FAQ 5, `/config` twice — from the `.lpm.yml` block ("config reference") and the CTA
 (`.lpm.yml`), never from the word "commit" (spec part 7 blocking item 1).
@@ -224,9 +225,11 @@ data lives in `_components/pm2-matrix.tsx`.
    brief: the popularity claim went, and both mechanism halves are now sourced — see §7
    item 5.)
 6. **Can I keep PM2 for production and use lpm locally?** — "Yes. Keep
-   ecosystem.config.js and PM2 in your deployment workflow, then add an lpm config for the
-   local commands you actively develop against. Supervision stays with PM2, and local
-   development gets lpm's service panes, project switcher, and parallel-agent copies."
+   ecosystem.config.js and PM2 in your deployment workflow, then add the repo to lpm for
+   the laptop: it lists the dev commands it finds, and you keep the ones you actively
+   develop against. Supervision stays with PM2, and local development gets lpm's service
+   panes, project switcher, and parallel-agent copies." (2026-09-23: detection means the
+   list is drafted on add — `projects_crud.rs:93`.)
 
 Items 3–5 are JSX answers and each supplies `answerText`.
 
@@ -277,14 +280,14 @@ A bare `lpm: true` is treated as a hard claim.
 | Runs Claude Code and Codex in panes beside the services, with status per tab | matrix row 9, WhenToPick lpm bullet 4, SectionVideo | `desktop/frontend/src-tauri/src/hooks.rs:1-9` (Claude Code and Codex hooks only); `desktop/frontend/src/types.ts:247`; `PaneView.tsx:415-434` |
 | Runs Node, Python, shell commands and binaries; a service command is just a shell line | matrix row 10, FAQ 4, WhenToPick lpm bullet 2 | `config.rs:1051-1061` (`build_local_script`: `export K=v && cmd`); `sessions.rs:171-182` (`build_command`) |
 | No cluster mode, no zero-downtime reload, nothing that comes back after a reboot | matrix rows 11, 13, 14; section A; FAQ 1–3 | absence: no boot registration anywhere — `grep -rn "LaunchAgent\|launchd\|LoginItem"` over `desktop/frontend/src-tauri/src` hits only comments (`actions.rs:6`, `proctree.rs:4,35,85`, `tmuxmigrate.rs:25`); `grep -rn "zero-downtime\|graceful_reload"` returns nothing |
-| A crashed service stays down; its pane keeps the last output and the exit code | matrix row 12, section A | absence: no service respawn path anywhere; `desktop/frontend/src/components/InteractivePane.tsx:1010` writes `[Process exited with code N]` into the pane; `Pane.tsx:58` (`scrollback: 10000`) is what holds the output it printed |
+| A crashed service stays down; its pane keeps the last output | matrix row 12, section A | absence: no service respawn path anywhere; a service is a command line typed into a login shell (`desktop/frontend/src-tauri/src/sessions.rs:171-190`), so the pane keeps the last output and lpm prints no exit code — `[Process exited with code N]` is interactive tabs only (`InteractivePane.tsx:1019-1024`). 2026-09-23: "and the exit code" removed. |
 | No logs directory; `lpm logs` reads a live pane and nothing outlives it | matrix row 15 + matrix footnote | `cli/src/logs.rs:78-84` (a stopped project errors "is not running"), `:11` (`MAX_LINES = 10_000`), `:109` (clamp); no file sink in `sessions.rs`/`sessiond.rs` (ledger §5.5) |
 | No CPU or memory numbers anywhere | matrix row 16, verb map (`pm2 monit` → no equivalent) | absence: `grep -rln "cpuPercent\|cpu_percent\|memoryMB\|rss\b"` over `desktop/frontend/src` and `src-tauri/src` returns nothing; `PaneView.tsx:382-400` renders name + ports only |
 | Scriptable from a shell — `--json` on nearly every verb | matrix row 17 | 14 of the 19 top-level verbs declare `json: bool` in `cli/src/main.rs`; the three command groups that do not (`config`, `automations`, `mobile`) expose it on their subcommands (`cli/src/config_cmd.rs` ×9, `job.rs` ×16, `mobile.rs` ×6). Only `set-status` and `clear-status` have none |
 | `lpm start`, `lpm stop` and `lpm service web restart` need the app up; `lpm logs`, `lpm list` and `lpm wait --port` do not; `lpm status` does | verb-map footnote | `cli/src/start.rs:16`, `stop.rs:10`, `service_cmd.rs:50` (`control::require_app`); `cli/src/control.rs:12-19` ("lpm app is not running — start it to control projects"); `cli/src/list.rs:40` and `cli/src/logs.rs:78-110` (no `require_app`); `cli/src/wait.rs:197`; `cli/src/status.rs:14-21` ("lpm app is not running — no live status.") |
 | Every command in the map exists as written | `_components/verb-map.tsx` | `cli/src/main.rs:90` (`list`), `:96` (`project`), `:107` (`logs … --lines`), `:132` (`start --profile`), `:143` (`stop`), `:151` (`service <name> <op>`), `:165` (`wait --port --timeout`), `:239` (`duplicate -n --run --prompt`), `:279` (`worktree -n`); restart path `desktop/frontend/src-tauri/src/services.rs:466` |
-| lpm reads package.json scripts, Makefile targets, justfile recipes and lockfiles to suggest commands | WhenToPick lpm bullet 2 | `desktop/frontend/src/components/project-detail/useProjectSuggestions.ts:68-119` (package.json, Makefile/makefile, justfile, compose files, Cargo.toml, go.mod, pyproject.toml, uv.lock, four JS lockfiles) — ledger §5.3 replacement wording |
-| lpm can put the repo in front of Claude Code or Codex to draft the rest | WhenToPick lpm bullet 2 | `desktop/frontend/src-tauri/src/aigen.rs:33-45` (`check_aicl_is`, `is_supported_cli`: claude, codex, gemini, opencode); `types.ts:247` |
+| "Add the folder and lpm writes the service list from your package.json, Procfile, Gemfile or go.mod — the dev script run by the package manager the repo declares or locks, framework ports included — and suggests Makefile or justfile targets as buttons." | WhenToPick lpm bullet 2 | service list: `projects_crud.rs:48-67`, `:93`; `detect/mod.rs:111-130`; `detect/node.rs:9` (`dev`, `start`, `serve`), `:91-111` (`packageManager` field, then lockfile), `:14-29` (framework default ports), `detect/stacks.rs:21-39` (Procfile), `:41-52` (Gemfile/Rails), `:104-124` (go.mod). Buttons: `desktop/frontend/src/components/project-detail/useProjectSuggestions.ts:71-74`, `:106-107` (Makefile targets, justfile recipes → action templates), `projectSuggestions.ts:132` (`parseMakefileTargets`). |
+| (retired 2026-09-23 — the bullet no longer needs the agent CLI to draft the list; `aigen.rs:33-45` still backs Generate with AI, which this page no longer mentions) | — | — |
 | Services kept in your own project file, or committed as a `.lpm.yml` the repo carries | QuickAnswer, section B, CTA | `config.rs:1508-1546` (`load_repo_yaml` + `merge_repo_services_profiles` — the repo file merges **under** the personal project file, which is why the CTA no longer implies the repo file alone is enough) |
 | `port:` is checked for conflicts and watched by `lpm wait`; the bound port still comes from the command or `env:` | section B note 3 | `config.rs:568-582` (declared integer, no allocation); `ports.rs:1-8`; ledger §5.3 |
 | MIT-licensed, free, no account, native macOS app | CTA, WhenToPick lpm bullet 3 | `LICENSE:1`; `desktop/frontend/src-tauri/tauri.conf.json:31-38` (`targets: ["app", "dmg"]`, `macOS` block) |
@@ -311,7 +314,11 @@ A bare `lpm: true` is treated as a hard claim.
    personal project file, so lpm has to know about the folder first. Ships as "declare
    those same services to lpm — kept to yourself in your own project file, or committed as
    a `.lpm.yml` so a teammate gets the same set", and the CTA now says "Point lpm at that
-   folder whenever you get to it — the services are already declared."
+   folder whenever you get to it — the services are already declared, and anything lpm
+   also detects there is yours to prune." (2026-09-23: adding the folder also runs
+   detection into the personal file, `projects_crud.rs:93`, and `merge_service`
+   (`config.rs:1826-1842`) lets that file win on shared names, so the prune clause is the
+   honest version.)
 4. **The command-map footnote is per-verb, not "reading works with lpm closed".** The
    ledger's own replacement sentence groups `lpm status` with `lpm list` and `lpm logs`,
    and that half is false: `cli/src/status.rs:14-21` pings first and prints "lpm app is
@@ -334,7 +341,7 @@ A bare `lpm: true` is treated as a hard claim.
 8. **The crash cells are narrower than the brief's.** "the service stops and its pane
    shows the stack trace where it died" claimed something lpm does not do — a stack trace
    is the crashing program's output, if it prints one. Section A now reads "the service
-   stays down; its pane keeps the last output and the exit code" (`InteractivePane.tsx:1010`),
+   stays down; its pane keeps the last output" (2026-09-23: "and the exit code" dropped — see the claims table),
    and the matrix cell is "stays down; the pane keeps its last output".
 9. **Two conceded hedges the brief left out, now shipped.** The matrix footnote carries
    ledger §5.5's retained-logs trade-off, and the command map's worktree note carries
@@ -410,3 +417,8 @@ A bare `lpm: true` is treated as a hard claim.
 3. **Part 8's own duplicate-label check cannot come back empty as written.**
    `grep -rho 'label: "[^"]*"' app/vs | sort | uniq -d` also catches `VerdictCards` and
    `ComparisonBasis` labels. The property was verified by comparing matrix-row arrays only.
+
+## Verifier pass — 2026-09-23
+
+- Matrix description was "Six of these rows go to PM2, and none of them is on lpm's roadmap — because none of them is a local-dev problem." No file in the repo states a roadmap, so the clause was unsourced. Now: "Six of these rows go to PM2. Each one is a production problem — cluster mode, crash recovery, boot persistence — rather than a local-dev one." The six rows themselves are unchanged and still cite PM2's docs.
+- Re-verified, unchanged: survives-quit ("the service stays down; its pane keeps the last output" — `sessions.rs:139-166`, a stopped or exited service leaves the pane's shell and its scrollback; no auto-restart path exists in `services.rs`); WhenToPick detection bullet (`detect/node.rs:9`, `:91-120`, `:14-46`; `detect/stacks.rs:21-52`, `:104-124`; Makefile/justfile targets as action suggestions in `desktop/frontend/src/components/project-detail/useProjectSuggestions.ts:71-107`); `lpm wait` watching declared ports (`cli/src/wait.rs:22-60`).

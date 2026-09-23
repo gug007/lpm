@@ -100,13 +100,13 @@ export function DemoSteps({ steps, tour, onRun, onRestart }: Props) {
                     {step.title}
                   </span>
                   {!tour.playing && !done && (
-                    <span className="ml-auto hidden pl-3 text-[11px] font-medium text-gray-400 transition-colors group-hover:text-gray-900 lg:inline dark:text-gray-500 dark:group-hover:text-white">
+                    <span className="ml-auto hidden pl-3 text-[11px] font-medium text-gray-600 transition-colors group-hover:text-gray-900 lg:inline dark:text-gray-400 dark:group-hover:text-white">
                       Run
                     </span>
                   )}
                 </span>
                 <span
-                  className={`hidden overflow-hidden pl-7 text-[13px] leading-relaxed text-gray-500 transition-all duration-300 lg:block dark:text-gray-400 ${
+                  className={`hidden overflow-hidden pl-7 text-[13px] leading-relaxed text-gray-600 transition-all duration-300 lg:block dark:text-gray-400 ${
                     active ? "mt-1.5 max-h-24 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >

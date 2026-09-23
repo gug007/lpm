@@ -225,7 +225,7 @@ export function ActivityView({
             <span className="mb-4 grid h-12 w-12 place-items-center rounded-2xl border border-[#2e2e2e] bg-[#242424] text-[#919191]">
               <Layers className="h-[19px] w-[19px]" strokeWidth={1.75} />
             </span>
-            <h2 className="text-[15px] font-semibold text-[#e5e5e5]">Nothing is running</h2>
+            <p className="text-[15px] font-semibold text-[#e5e5e5]">Nothing is running</p>
             <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-[#b3b3b3]">
               Start a project&apos;s services or launch an agent and it shows up here — across every
               project, without hunting through tabs.

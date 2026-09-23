@@ -12,7 +12,14 @@ import {
 type Props = {
   lesson: YouTubeLessonId;
   className?: string;
-  priority?: boolean;
+  // The thumbnail stays lazy either way; "high" only moves it up the queue on
+  // the one page where it is the first thing a phone sees. A preload would
+  // fetch it at every width, including the ones that hide it.
+  fetchPriority?: "high" | "low" | "auto";
+  sizes?: string;
+  // Mounts the player straight away. Only for a lesson the visitor just
+  // picked: a player that appears with the page stays click-to-play.
+  autoPlay?: boolean;
 };
 
 /**
@@ -20,9 +27,15 @@ type Props = {
  * player iframe mounts on the first click, so a page with several lessons
  * never loads several players.
  */
-export function YouTubeVideo({ lesson, className = "", priority }: Props) {
+export function YouTubeVideo({
+  lesson,
+  className = "",
+  fetchPriority,
+  sizes = "(min-width: 768px) 768px, 100vw",
+  autoPlay = false,
+}: Props) {
   const { id, name } = youtubeLesson(lesson);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(autoPlay);
 
   return (
     <div
@@ -47,8 +60,8 @@ export function YouTubeVideo({ lesson, className = "", priority }: Props) {
             src={youtubeThumbnailUrl(id)}
             alt=""
             fill
-            sizes="(min-width: 768px) 768px, 100vw"
-            priority={priority}
+            sizes={sizes}
+            fetchPriority={fetchPriority}
             className="object-cover"
           />
           <span className="absolute inset-0 bg-black/0 transition-colors duration-150 group-hover:bg-black/10" />

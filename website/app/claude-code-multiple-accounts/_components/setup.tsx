@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { Fragment } from "react";
 import { SectionHeader } from "@/components/section-header";
+import { CONFIG_PATH } from "@/lib/links";
 
 type Step = {
   title: string;
@@ -10,21 +12,22 @@ type Step = {
 const STEPS: Step[] = [
   {
     title: "Add your accounts",
-    body: "Name them anything — Work, Client A. Your current login stays the default; you only add the extra ones.",
+    body: "Name them anything: Work, Client A. Your current login stays the default; you only add the extra ones.",
     path: ["Settings", "AI & Integrations", "Add account"],
   },
   {
+    title: "Sign in once",
+    body: "Click Sign in next to the account. lpm opens Claude's own sign-in for it, then shows the email you signed in with.",
+    path: ["Settings", "AI & Integrations", "Sign in"],
+  },
+  {
     title: "Pin a project",
-    body: "Pick an account in the project's config form, or set claudeAccount in its YAML. Save.",
+    body: "Pick the account in the project's config form and save. Settings lists which projects use each account.",
     path: ["Project", "Config", "Claude account"],
   },
   {
-    title: "Sign in once",
-    body: "The first terminal you open there runs Claude's normal browser sign-in for that account — the last time you'll see it.",
-  },
-  {
     title: "Just work",
-    body: "Every terminal and AI feature in the project now uses its account. Other projects run theirs — in parallel.",
+    body: "Every terminal in the project, and lpm's commit, PR, and branch helpers, now use its account. Other projects run theirs at the same time.",
   },
 ];
 
@@ -75,24 +78,17 @@ export default function Setup() {
           ))}
         </ol>
 
-        <div className="mx-auto mt-12 max-w-md">
-          <p className="mb-2 text-center text-xs text-gray-500 dark:text-gray-400">
-            Step 2 in the project&rsquo;s config file — one line does it:
-          </p>
-          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-[#161616]">
-            <pre className="font-mono text-xs leading-relaxed">
-              <code>
-                <span className="text-gray-500 dark:text-gray-400">name: </span>
-                <span className="text-gray-800 dark:text-gray-200">client-app</span>
-                {"\n"}
-                <span className="text-amber-700 dark:text-amber-300/90">
-                  claudeAccount:{" "}
-                </span>
-                <span className="text-gray-800 dark:text-gray-200">work</span>
-              </code>
-            </pre>
-          </div>
-        </div>
+        <p className="mx-auto mt-12 max-w-md text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          Prefer text? The pin is one line in the project&rsquo;s config file,
+          and the{" "}
+          <Link
+            href={CONFIG_PATH}
+            className="font-medium text-gray-700 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
+          >
+            config reference
+          </Link>{" "}
+          has the key.
+        </p>
       </div>
     </section>
   );

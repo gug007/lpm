@@ -34,19 +34,34 @@ const hasRouteWithin = (dir) =>
       : hasRouteWithin(join(dir, entry.name)),
   );
 
+// Drafts, research notes and social cards don't change what a page says.
+const isContent = (name) =>
+  !name.endsWith(".md") &&
+  !name.startsWith("opengraph-image") &&
+  name !== "_research";
+
+// Shared components whose copy renders on a route as if it were its own.
+const SHARED = [{ prefix: "/vs/", paths: [join(websiteDir, "components", "vs")] }];
+
 // Nested route dirs are excluded so e.g. /vs/* edits don't restamp /vs.
 const contentPathsFor = (dir) => {
   if (dir === appDir) {
     return [join(appDir, "page.tsx"), join(websiteDir, "components", "home")];
   }
+  const route = routeFor(dir);
+  const shared = SHARED.filter(({ prefix }) => route.startsWith(prefix)).flatMap(
+    ({ paths }) => paths,
+  );
   return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => isContent(entry.name))
     .filter((entry) => entry.isFile() || !hasRouteWithin(join(dir, entry.name)))
-    .map((entry) => join(dir, entry.name));
+    .map((entry) => join(dir, entry.name))
+    .concat(shared);
 };
 
 // Pages that render their own "Last updated" line keep that date.
 const OVERRIDES = {
-  "/privacy": "2026-08-13",
+  "/privacy": "2026-09-23",
   "/terms": "2026-04-17",
 };
 

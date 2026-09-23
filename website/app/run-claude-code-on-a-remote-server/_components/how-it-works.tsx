@@ -16,9 +16,10 @@ const STEPS: Step[] = [
         The same string you would type after{" "}
         <code className="font-mono text-[0.9em]">ssh</code>, with an optional{" "}
         <code className="font-mono text-[0.9em]">:port</code>. lpm uses your
-        existing SSH setup — your keys, your{" "}
-        <code className="font-mono text-[0.9em]">~/.ssh/config</code>. If you
-        can reach the machine with a key, so can lpm.
+        existing SSH setup: your keys, your{" "}
+        <code className="font-mono text-[0.9em]">~/.ssh/config</code>
+        {". "}If you can reach the machine with a key as root, or as a user
+        with passwordless sudo, so can lpm.
       </>
     ),
   },
@@ -30,8 +31,9 @@ const STEPS: Step[] = [
         Over that SSH connection it fetches the published Linux bundle and runs
         its installer: the app, the{" "}
         <code className="font-mono text-[0.9em]">lpm</code> command-line tool,
-        and a service that comes back up on boot. On a small server this takes a
-        few minutes — most of it the download and the system packages.
+        and, where systemd runs, a service that comes back up on boot. On a small
+        server this takes a few minutes, most of it the download and the system
+        packages.
       </>
     ),
   },

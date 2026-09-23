@@ -21,50 +21,56 @@ const FAQS: QA[] = [
         commit-signing key still signs commits, and every alias in your{" "}
         <code className="text-xs">~/.gitconfig</code> — the{" "}
         <code className="text-xs">git lg</code> you have muscle memory for —
-        expands the same way it does in Terminal.app. Nothing about git is
-        wrapped or re-implemented; you get that shell right beside your running
-        service panes.
+        expands the same way it does in Terminal.app. Nothing about the git in
+        your shell is wrapped or re-implemented; you get that shell right
+        beside your running service panes.
       </>
     ),
     answerText:
-      "Yes, and the git-specific plumbing carries over untouched. A pane is a real login shell in a real terminal session, so your credential.helper keeps talking to the macOS Keychain, your SSH agent still authenticates pushes, your commit-signing key still signs commits, and every alias in your ~/.gitconfig — the git lg you have muscle memory for — expands the same way it does in Terminal.app. Nothing about git is wrapped or re-implemented; you get that shell right beside your running service panes.",
+      "Yes, and the git-specific plumbing carries over untouched. A pane is a real login shell in a real terminal session, so your credential.helper keeps talking to the macOS Keychain, your SSH agent still authenticates pushes, your commit-signing key still signs commits, and every alias in your ~/.gitconfig — the git lg you have muscle memory for — expands the same way it does in Terminal.app. Nothing about the git in your shell is wrapped or re-implemented; you get that shell right beside your running service panes.",
   },
   {
     question: "Does lpm replace a GUI git client like GitKraken or SourceTree?",
     answer: (
       <>
-        For developers who prefer typing git commands, yes. lpm does not show a
-        visual branch graph — it gives you a real shell where you run{" "}
-        <code className="text-xs">git log --oneline --graph</code>,{" "}
-        <code className="text-xs">git rebase -i</code>, and{" "}
-        <code className="text-xs">git push</code> as you normally would, while
-        your dev servers keep streaming in adjacent panes. If you rely on a
-        click-to-cherry-pick GUI, you can still run GitKraken alongside lpm, but
-        most terminal-first developers find the shell pane is all they need.
+        For the everyday loop, often yes. lpm has a branch switcher with
+        search, a diff review of every uncommitted change, a Commit dialog
+        that drafts the message with AI and can Commit and Push, and Create PR
+        for GitHub. It does not draw a branch graph or stage individual hunks;
+        for those you run{" "}
+        <code className="text-xs">git log --oneline --graph</code> or{" "}
+        <code className="text-xs">git add -p</code> in the shell pane, or keep
+        your GUI client open alongside lpm.
       </>
     ),
     answerText:
-      "For developers who prefer typing git commands, yes. lpm does not show a visual branch graph — it gives you a real shell where you run git log --oneline --graph, git rebase -i, and git push as you normally would, while your dev servers keep streaming in adjacent panes. If you rely on a click-to-cherry-pick GUI, you can still run GitKraken alongside lpm, but most terminal-first developers find the shell pane is all they need.",
+      "For the everyday loop, often yes. lpm has a branch switcher with search, a diff review of every uncommitted change, a Commit dialog that drafts the message with AI and can Commit and Push, and Create PR for GitHub. It does not draw a branch graph or stage individual hunks; for those you run git log --oneline --graph or git add -p in the shell pane, or keep your GUI client open alongside lpm.",
   },
   {
     question: "Will my dev server stop running when I switch git branches inside lpm?",
     answer: (
       <>
-        No. Service panes in lpm run independently of which branch your shell is
-        on. When you{" "}
-        <code className="text-xs">git checkout feature/xyz</code> in a shell
-        pane, the service panes keep streaming. If a branch change requires a
-        dependency install or a migration, you control when to restart services
-        — lpm won&apos;t restart them behind your back.
+        No. lpm never stops or restarts a service because you ran{" "}
+        <code className="text-xs">git checkout feature/xyz</code>. Services
+        run from the project folder, so after the checkout your dev server is
+        serving the new branch&apos;s files, and most hot-reload on their own.
+        If a branch needs a dependency install or a migration, you decide when
+        to stop and start. To keep one branch running while you work on
+        another, open it with New Worktree.
       </>
     ),
     answerText:
-      "No. Service panes in lpm run independently of which branch your shell is on. When you git checkout feature/xyz in a shell pane, the service panes keep streaming. If a branch change requires a dependency install or a migration, you control when to restart services — lpm won't restart them behind your back.",
+      "No. lpm never stops or restarts a service because you ran git checkout feature/xyz. Services run from the project folder, so after the checkout your dev server is serving the new branch's files, and most hot-reload on their own. If a branch needs a dependency install or a migration, you decide when to stop and start. To keep one branch running while you work on another, open it with New Worktree.",
   },
   {
     question: "How does lpm help with PR review workflows on Mac?",
     answer:
-      "You can open a second lpm workspace pointed at the same repo, check out the review branch there, start just the services you need, test the change, and switch back to your main workspace — all within lpm. Your original branch, its running services, and your terminal history are exactly as you left them.",
+      "Choose New Worktree on the project. lpm makes a separate checkout on its own branch with its own services, listed under the original in the sidebar. Check out the review branch there and start the services you need to test it; if one wants a port your original is still using, lpm flags the clash when you press Start. Your original branch keeps running untouched, and when you're done you delete the worktree from the sidebar.",
+  },
+  {
+    question: "Can lpm write my commit messages and PR descriptions?",
+    answer:
+      "Yes, through the AI coding agent you already have installed: Claude Code, Codex, Gemini CLI, or OpenCode. Generate with AI in the Commit dialog writes a conventional-commit message from the selected files, and Create PR drafts the title and description. You can add your own instructions globally or per project. lpm hosts no model, so it runs on your own account.",
   },
   {
     question: "Can I run git bisect or long-running git operations inside lpm?",
@@ -93,11 +99,12 @@ const FAQS: QA[] = [
         command work with your existing auth and aliases. Run{" "}
         <code className="text-xs">gh run watch</code> in a shell pane while your
         dev server streams in the next pane — you get CI output and local output
-        in the same window without a browser tab.
+        in the same window without a browser tab. With gh signed in, the footer
+        also shows the current branch&apos;s PR number and state.
       </>
     ),
     answerText:
-      "Yes. lpm shell panes run your full shell configuration, so gh pr create, gh pr checkout, gh run watch, and any other GitHub CLI command work with your existing auth and aliases. Run gh run watch in a shell pane while your dev server streams in the next pane — you get CI output and local output in the same window without a browser tab.",
+      "Yes. lpm shell panes run your full shell configuration, so gh pr create, gh pr checkout, gh run watch, and any other GitHub CLI command work with your existing auth and aliases. Run gh run watch in a shell pane while your dev server streams in the next pane — you get CI output and local output in the same window without a browser tab. With gh signed in, the footer also shows the current branch's PR number and state.",
   },
 ];
 

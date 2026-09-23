@@ -26,9 +26,9 @@ export function EmptyState({
           <Terminal className="w-[26px] h-[26px]" strokeWidth={1.5} />
         </div>
         <div className="flex flex-col items-center gap-1.5">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+          <p className="text-sm font-medium text-gray-900 dark:text-white">
             No active terminals
-          </h3>
+          </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
             {description}
           </p>

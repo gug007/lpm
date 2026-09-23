@@ -4,11 +4,15 @@ import { SectionHeader } from "@/components/section-header";
 const ROWS = [
   {
     label: "The server",
-    body: "Debian or Ubuntu on x86_64 (amd64), running systemd, with curl and tar already on it. The installer uses apt; ARM servers are not supported yet.",
+    body: "Ubuntu 22.04 or newer, or a Debian release with the same glibc, on x86_64 (amd64), with curl or wget to download the bundle. The installer uses apt and checks the glibc version before it changes anything. ARM servers are not supported yet.",
   },
   {
     label: "The login",
-    body: "Key-based SSH as root. lpm on the server installs and runs as root, which is how most cloud images hand you the machine anyway. No password prompt can be answered during setup, so the key has to be enough on its own.",
+    body: "Key-based SSH as root, or as a user with passwordless sudo, like the default ubuntu@ or debian@ login on most cloud images. lpm itself runs as root on the server. No password prompt can be answered during setup, so your key or ssh-agent has to be enough on its own.",
+  },
+  {
+    label: "Boot and containers",
+    body: "With systemd, lpm installs as a service that starts at boot. In a container with no service manager, the installer sets up an lpm-host supervisor instead, which you start again after the container restarts.",
   },
   {
     label: "The size",
@@ -16,7 +20,7 @@ const ROWS = [
   },
   {
     label: "The cost",
-    body: "Roughly €5 to €12 a month for a VPS that size, depending on the provider. A spare desktop or an old workstation on your own network does the same job for the price of the electricity.",
+    body: "Whatever a VPS that size costs from your provider; it is usually one of their smaller plans. A spare desktop or an old workstation on your own network does the same job for the price of the electricity.",
   },
   {
     label: "Still yours to install",
@@ -63,12 +67,12 @@ export default function Requirements() {
             curl -fsSL $URL/lpm-host-linux-amd64.tar.gz | tar xz{"\n"}
             cd lpm-host{"\n"}
             sudo ./install.sh{"\n"}
-            lpm pair
+            sudo -H lpm pair
           </CodeBlock>
           <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             That last command prints an invite to paste into Settings →
-            Connections on your Mac. It is the same handshake the one-field flow
-            performs for you.
+            Connections on your Mac; logged in as root, plain lpm pair does the
+            same. It is the handshake the one-field flow performs for you.
           </p>
         </div>
       </div>

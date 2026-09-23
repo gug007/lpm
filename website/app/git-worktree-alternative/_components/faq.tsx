@@ -15,7 +15,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does lpm Duplicate copy uncommitted changes?",
     answer:
-      "Yes, by default. You can instead enable the clean-copy option to reset tracked changes and remove untracked files. You can also pull the latest upstream commit or reinstall dependencies for each copy.",
+      "Yes, by default. Turn on Committed work only to reset tracked changes and remove untracked files instead. Each copy also pulls the newest commits on its branch by default, which you can turn off, and you can reinstall dependencies for Node projects.",
   },
   {
     question: "Does every duplicate have its own Git repository?",
@@ -30,7 +30,27 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Can lpm run Claude Code or Codex in every copy automatically?",
     answer:
-      "Yes. The Duplicate dialog can create up to 50 copies and queue a configured action or any command with a prompt on each one. The same workflow works with Claude Code, Codex, Gemini CLI, OpenCode, and other terminal-based agents.",
+      "Yes. The Duplicate dialog can create up to 50 copies and queue a configured action or any command with a prompt on each one, and each copy can get its own. From an agent's prompt box, Run in duplicates sends the same prompt to the current terminal and fresh copies at once. It works with Claude Code, Codex, Gemini CLI, OpenCode, and other terminal-based agents.",
+  },
+  {
+    question: "Can lpm create real Git worktrees too?",
+    answer:
+      "Yes. Right-click the project and choose New Worktree instead of Duplicate. You get linked Git worktrees on fresh branches cut from the commit you are on, with the same count, label and task options as Duplicate. As with plain Git, uncommitted and ignored files do not come along, and removing an lpm worktree removes its branch too.",
+  },
+  {
+    question: "Do duplicates get their own ports and databases?",
+    answer:
+      "No. A copy runs the same services as the original, so two copies started at once still share ports, databases, and Docker volumes. When a project starts, lpm checks its declared ports, names the process already on one, and lets you free it or cancel the start.",
+  },
+  {
+    question: "What happens when I delete a duplicate?",
+    answer:
+      "Its folder and everything in it are removed from disk for good, not moved to the Trash, so push or merge anything you want to keep first.",
+  },
+  {
+    question: "Can every project be duplicated?",
+    answer:
+      "Local projects and projects on a connected Linux server can. SSH projects cannot, and a project that is itself a linked Git worktree has to use New Worktree instead.",
   },
   {
     question: "When is Git worktree still the better choice?",

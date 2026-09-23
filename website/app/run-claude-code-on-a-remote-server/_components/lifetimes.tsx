@@ -16,7 +16,11 @@ const SURVIVES = [
   },
   {
     title: "Rebooting the server",
-    body: "lpm is installed as a service, so it comes back with the machine. Your projects are there; the agent conversations that were running are not.",
+    body: "On a systemd server lpm runs as a service, so it comes back with the machine. Your projects are there; the agent conversations that were running are not. In a container, start it again with lpm-host start.",
+  },
+  {
+    title: "Your Mac being off, for your phone",
+    body: "Pair the lpm iPhone app with the server itself and it connects straight there, so you can check on an agent or answer it while your Mac is asleep.",
   },
 ];
 
@@ -30,12 +34,12 @@ const DOES_NOT = [
     body: "When you reattach, the server replays the recent tail of each terminal, not its entire history. What scrolled past long ago is gone.",
   },
   {
-    title: "Your iPhone reaching that far",
-    body: "The lpm iOS app pairs with your Mac and shows the projects on your Mac. Projects that live on a Linux host do not appear there.",
+    title: "A service's port, on your Mac",
+    body: "Server projects have no port forwarding of their own. Reaching a dev server from your Mac's browser is still an SSH forward you set up yourself.",
   },
   {
     title: "Mac-only things, on a server project",
-    body: "Open in your editor, dragging local files into a terminal on the server, and anything else that depends on apps installed on your Mac stay Mac-side. Reaching a service's port from your Mac is still an SSH forward you set up yourself.",
+    body: "Opening the project in your editor, and anything else that needs an app installed on your Mac, stays Mac-side. Files are the exception: drag one onto a server terminal and lpm uploads it there.",
   },
 ];
 

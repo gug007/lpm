@@ -3,7 +3,7 @@ import { Check, LockKeyhole } from "lucide-react";
 const POINTS = [
   "Usage metadata stays on this Mac",
   "Prompts and responses are not included",
-  "Only configured local projects are counted",
+  "Limit meters use what the CLIs already report",
   "No hosted analytics account is required",
 ];
 
@@ -11,7 +11,7 @@ export default function Privacy() {
   return (
     <section className="py-20 sm:py-24">
       <div className="mx-auto max-w-5xl px-6">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[#0d0d0d] px-6 py-12 text-white ring-1 ring-black/10 sm:px-12 sm:py-16">
+        <div data-on-dark className="relative overflow-hidden rounded-[2rem] bg-[#0d0d0d] px-6 py-12 text-white ring-1 ring-black/10 sm:px-12 sm:py-16">
           <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[#10A37F]/15 blur-3xl" />
           <div className="absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-[#D97757]/15 blur-3xl" />
           <div className="relative grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
@@ -23,9 +23,10 @@ export default function Privacy() {
                 Your usage history stays yours.
               </h2>
               <p className="mt-5 max-w-xl text-base leading-relaxed text-white/55 sm:text-lg">
-                The stats view is built from usage metadata in local Claude Code
-                and Codex session histories. It gives you the operational picture
-                without turning your work into another cloud analytics feed.
+                Stats is built from usage metadata in local Claude Code and Codex
+                session histories, and the limit meters from what the two CLIs
+                report while they run. You get the operational picture without
+                turning your work into another cloud analytics feed.
               </p>
             </div>
             <ul className="space-y-3">

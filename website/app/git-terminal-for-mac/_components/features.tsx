@@ -37,25 +37,18 @@ const FEATURES: Feature[] = [
   },
   {
     icon: GitPullRequestArrow,
-    title: "One window from commit to merged PR",
-    body: "Write code, stage hunks, push the branch, and watch CI output — all in panes inside a single lpm window. You no longer need a GUI git client for the overview and a terminal for the commands. The terminal is the overview.",
+    title: "From commit to pull request in one window",
+    body: "The Git bar under your terminals shows the branch, ahead and behind counts, and how many files changed. Commit picks the files and drafts the message with AI; Create PR writes the title and description and opens it on GitHub.",
   },
   {
     icon: Layers,
-    title: "Keep services running across branch switches",
-    body: "lpm project workspaces are branch-agnostic by default. Your dev server does not care that you checked out a new branch — it keeps running unless you explicitly restart it. Reviewable changes, uninterrupted services.",
+    title: "Services keep running through a checkout",
+    body: "lpm never restarts your services behind your back when you switch branches. Your dev server keeps streaming and hot-reloads the new branch. To keep one branch running while you work on another, open it as a worktree.",
   },
   {
     icon: Zap,
-    title: "One-click stack restart after a big rebase",
-    body: (
-      <>
-        After a rebase that touches dependencies or migrations, one click stops
-        and restarts your entire defined stack. No manual{" "}
-        <code className="text-xs">npm install && rails db:migrate && npm run dev</code>{" "}
-        typed from memory.
-      </>
-    ),
+    title: "A fresh stack after a big rebase",
+    body: "After a rebase that touches dependencies or migrations, Stop and Start bring the whole defined stack back in two clicks, in dependency order. No chain of dev-server commands typed from memory.",
   },
   {
     icon: Eye,
@@ -79,7 +72,7 @@ export default function Features() {
         <SectionHeader
           eyebrow="Git in your terminal, not a separate app"
           title="A terminal that keeps git and your dev servers in the same window"
-          description="Six capabilities that change how git feels when your terminal understands your whole workflow."
+          description="Your own shell for the git you type, and your dev servers streaming beside it."
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {FEATURES.map(({ icon, title, body }) => (

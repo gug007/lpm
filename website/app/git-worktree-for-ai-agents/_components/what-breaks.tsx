@@ -15,15 +15,15 @@ const GAPS: Gap[] = [
     symptom:
       "The agent starts, the app boots, and every environment variable is undefined.",
     why: "git worktree add checks out tracked files only. Anything in .gitignore — .env, .env.local, local certificates, editor settings — was never in the commit, so it is never in the worktree.",
-    fix: "Claude Code reads a .worktreeinclude file and copies gitignored files that match it. That applies to worktrees Claude creates. For everything else you copy them yourself, or start from a copy of the project instead of a checkout.",
+    fix: "Claude Code and Codex both read a .worktreeinclude file and copy the gitignored files that match it into the worktrees they create. For everything else you copy them yourself, or start from a copy of the project instead of a checkout.",
     fixed: true,
   },
   {
     title: "node_modules is empty in every new worktree",
     symptom:
-      "Ten minutes of install per agent, and a few hundred megabytes each, before any work starts.",
+      "A full install per agent, and another copy of every package on disk, before any work starts.",
     why: "Dependencies are ignored files too. A fresh checkout has none of them, and symlinking one shared directory breaks resolution in tools that walk the real path.",
-    fix: "Install per worktree and accept the cost, or duplicate the project so the already-installed dependencies come with it.",
+    fix: "Install per worktree and accept the cost, with a setup script if your agent runs one, or duplicate the project so the already-installed dependencies come with it.",
     fixed: true,
   },
   {
@@ -47,7 +47,7 @@ const GAPS: Gap[] = [
     symptom:
       "The second dev server cannot bind. Two agents run migrations against one database and corrupt each other's fixtures.",
     why: "Every isolation model on this page draws its boundary at the filesystem. Nothing about a separate directory reserves a port, namespaces a Postgres schema, or forks a Docker volume.",
-    fix: "No worktree model solves this, and lpm does not solve it yet either. What lpm does today is catch it: it checks declared ports before a project starts, tells you which process is holding one, and can free it or stop the start. Giving every copy its own ports is what we are building next. Until it lands, real runtime isolation means per-copy configuration, separate services, or containers.",
+    fix: "No worktree model solves this, and lpm does not either. What lpm does is catch it: it checks declared ports before a project starts, tells you which process is holding one, and can free it or stop the start. Real runtime isolation still means per-copy configuration, separate services, or containers.",
     fixed: false,
   },
 ];

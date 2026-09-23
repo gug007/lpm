@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
   AI_AGENTS_PATH,
   CONNECT_AGENTS_PATH,
   LINUX_HOST_PATH,
-  REVIEW_CHANGES_PATH,
+  PARALLEL_PATH,
   vsPath,
   WORKTREE_AGENTS_PATH,
   WORKTREE_ALTERNATIVE_PATH,
@@ -29,7 +28,7 @@ import WhatBreaks from "./_components/what-breaks";
 
 const TITLE = "Git Worktrees for Claude Code, Codex & AI Agents";
 const DESCRIPTION =
-  "Run Claude Code and Codex in parallel on one repo: what a Git worktree does not carry, what each CLI creates natively, and when a full project copy fits better.";
+  "Git worktrees for Claude Code and Codex: what a worktree does not carry, what each CLI creates natively, and when a full project copy fits better.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -102,7 +101,6 @@ export default function GitWorktreeForAiAgentsPage() {
       <NativeSupport />
       <IsolationMatrix />
       <FanOut />
-      <DemoSection />
       <Choose />
       <Faq />
       <RelatedPages
@@ -126,10 +124,10 @@ export default function GitWorktreeForAiAgentsPage() {
               "Give agents a CLI to run services, read logs, wait for readiness, and fan out into project copies.",
           },
           {
-            href: REVIEW_CHANGES_PATH,
-            title: "Review agent changes in the terminal",
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
             description:
-              "Inspect every changed file and diff before you merge the result of a parallel agent run.",
+              "The whole workflow for several Claude Code sessions at once, from one prompt to the diff you keep.",
           },
           {
             href: LINUX_HOST_PATH,

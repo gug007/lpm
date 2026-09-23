@@ -16,6 +16,7 @@ import {
   CONFIG_PATH,
   CONNECT_AGENTS_PATH,
   VS_BASE_PATH,
+  WORKTREE_AGENTS_PATH,
   vsPath,
 } from "@/lib/links";
 import {
@@ -160,7 +161,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Can I keep PM2 for production and use lpm locally?",
     answer:
-      "Yes. Keep ecosystem.config.js and PM2 in your deployment workflow, then add an lpm config for the local commands you actively develop against. Supervision stays with PM2, and local development gets lpm's service panes, project switcher, and parallel-agent copies.",
+      "Yes. Keep ecosystem.config.js and PM2 in your deployment workflow, then add the repo to lpm for the laptop: it lists the dev commands it finds, and you keep the ones you actively develop against. Supervision stays with PM2, and local development gets lpm's service panes, project switcher, and parallel-agent copies.",
   },
 ];
 
@@ -196,7 +197,7 @@ export default function LpmVsPm2Page() {
       <ComparisonHero
         eyebrow="lpm vs PM2"
         title="A PM2 alternative for local development — and what to keep PM2 for."
-        description={DESCRIPTION}
+        description="PM2 is a production supervisor that also watches files in dev. lpm is the Mac workspace around your local stack: one pane per service, a switcher across repos, and copies for parallel agents."
         verdictLine="If both columns describe you, that is the normal case — run both."
         jumpHref="#map"
         jumpLabel="Every pm2 verb, mapped"
@@ -206,7 +207,7 @@ export default function LpmVsPm2Page() {
       <QuickAnswer question={QUESTION}>
         <p>
           Yes. <code className="font-mono">pm2-dev</code> and{" "}
-          <code className="font-mono">--watch</code> restart your app on file
+          <code className="font-mono whitespace-nowrap">--watch</code> restart your app on file
           change, and if PM2 already runs production, one config for both is a
           real reason to stay.
         </p>
@@ -248,7 +249,7 @@ export default function LpmVsPm2Page() {
       />
 
       <WhenToPick
-        title="When each one is the right tool"
+        title="When PM2 is the right tool, and when lpm is"
         description="Both run multiple processes. PM2 is strongest as a supervisor and also offers local watch mode; lpm specializes in an interactive multi-project Mac workspace. And if both columns describe you, that is the normal case."
         lpm={{
           name: "lpm",
@@ -256,7 +257,7 @@ export default function LpmVsPm2Page() {
             "You're in the dev loop — multiple projects, mixed stacks, or AI agents running in parallel.",
           points: [
             "You switch between several local projects a day and want a visual switcher instead of terminal tabs.",
-            "Your stack is not just Node: a Go binary, a Python worker, a Rails server and a docker compose up sit in one config, each with its own pane. lpm reads your package.json scripts, Makefile, justfile and lockfiles to suggest commands, and it can put the repo in front of Claude Code or Codex to draft the rest.",
+            "Your stack is not just Node: a Go binary, a Python worker, a Rails server and a docker compose up sit in one config, each with its own pane. Add the folder and lpm writes the service list from your package.json, Procfile, Gemfile or go.mod — the dev script run by the package manager the repo declares or locks, framework ports included — and suggests Makefile or justfile targets as buttons.",
             "You want each service in its own live pane in a native macOS app, not one interleaved log stream.",
             "You run Claude Code and Codex in parallel and want each session's output and status visible at once.",
             "You want to duplicate a project so a second agent works on its own checkout instead of the files you are editing. Both copies still reach the same database and the same ports — lpm names the process already holding one before a project starts.",
@@ -312,6 +313,12 @@ export default function LpmVsPm2Page() {
             description:
               "The tab beside your services: status on the tab while an agent works, and a diff to review before you keep it.",
           },
+          {
+            href: WORKTREE_AGENTS_PATH,
+            title: "A second checkout per agent",
+            description:
+              "Linked worktrees for parallel agents, and the .env and node_modules a fresh checkout does not bring.",
+          },
         ]}
       />
 
@@ -333,7 +340,7 @@ export default function LpmVsPm2Page() {
               above into the repo, beside your{" "}
               <code className="font-mono">ecosystem.config.js</code>. Point lpm
               at that folder whenever you get to it — the services are already
-              declared.
+              declared, and anything lpm also detects there is yours to prune.
             </span>
           </>
         }

@@ -24,6 +24,9 @@ export const TOKEN_USAGE_PATH = "/claude-code-codex-token-usage";
 export const STATUSLINE_PATH = "/claude-code-codex-statusline";
 export const SKILLS_PATH = "/claude-code-codex-skills";
 export const MOBILE_PATH = "/mobile";
+export const FEATURES_PATH = "/features";
+export const AUTOMATIONS_PATH = "/schedule-claude-code-tasks";
+export const PARALLEL_PATH = "/run-claude-code-in-parallel";
 export const APP_STORE_URL =
   "https://apps.apple.com/us/app/lpm-link/id6788396977";
 export const VS_BASE_PATH = "/vs";

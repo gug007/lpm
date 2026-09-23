@@ -16,6 +16,7 @@ import {
   AI_AGENTS_PATH,
   CONFIG_PATH,
   LINUX_HOST_PATH,
+  PROJECT_SIDEBAR_PATH,
   VS_BASE_PATH,
   vsPath,
 } from "@/lib/links";
@@ -71,18 +72,18 @@ export const metadata: Metadata = {
 };
 
 const YAML = `services:
-  db: docker compose up
+  compose: docker compose up
   api:
     cmd: bin/rails s
     port: 3000
-    dependsOn: [db]
+    dependsOn: [compose]
   web:
     cmd: npm run dev
     port: 5173
     dependsOn: [api]
 
 profiles:
-  backend: [db, api]`;
+  backend: [compose, api]`;
 
 const SOURCES = [
   {
@@ -124,7 +125,7 @@ const VERDICT_CARDS: [VerdictCard, VerdictCard, VerdictCard] = [
   {
     label: "Both",
     title: "Drive compose from lpm",
-    body: "Keep Postgres, Redis or Kafka in containers and declare docker compose up as one lpm service, with its output in a pane beside your native ones.",
+    body: "Keep Postgres, Redis or Kafka in containers. Adding the folder already makes docker compose up one lpm service, its output in a pane beside your native ones.",
   },
   {
     label: "Docker Compose",
@@ -138,19 +139,20 @@ const FAQ_ITEMS: FaqItem[] = [
     question: "Can I use lpm and Docker Compose together?",
     answer: (
       <>
-        Yes, and this is the common case. lpm can run compose up as one of your
-        services alongside native processes. So you can keep Postgres and Redis
+        Yes, and this is the common case. lpm runs compose up as one of your
+        services alongside native processes, and lists it that way on its own
+        when the folder has a compose file. So you can keep Postgres and Redis
         in containers for prod parity while running your Rails or Next.js app
         natively, and watch every pane — container logs included — in the same
         desktop app. They are not mutually exclusive. Use the attached form —{" "}
         <code className={CODE}>docker compose up</code>, not{" "}
-        <code className={CODE}>-d</code>{" "}
+        <code className={`${CODE} whitespace-nowrap`}>-d</code>{" "}
         — if you want the container output in an lpm pane; a detached start hands
         you nothing to watch.
       </>
     ),
     answerText:
-      "Yes, and this is the common case. lpm can run compose up as one of your services alongside native processes. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive. Use the attached form — docker compose up, not -d — if you want the container output in an lpm pane; a detached start hands you nothing to watch.",
+      "Yes, and this is the common case. lpm runs compose up as one of your services alongside native processes, and lists it that way on its own when the folder has a compose file. So you can keep Postgres and Redis in containers for prod parity while running your Rails or Next.js app natively, and watch every pane — container logs included — in the same desktop app. They are not mutually exclusive. Use the attached form — docker compose up, not -d — if you want the container output in an lpm pane; a detached start hands you nothing to watch.",
   },
   {
     question: "Does lpm replace Docker Compose?",
@@ -166,19 +168,19 @@ const FAQ_ITEMS: FaqItem[] = [
     question: "Can lpm read my docker-compose.yml?",
     answer: (
       <>
-        It spots the file when it scans the repo and offers{" "}
-        <code className={CODE}>docker compose up -d</code>{" "}
-        as a one-click action. It does not parse the service graph. To get a live
-        log pane instead,
-        declare it as a service with the attached form —{" "}
-        <code className={CODE}>db: docker compose up</code>{" "}
-        — or press Generate with AI in the config editor and let your own
-        Claude Code or Codex read the repo, compose file included, and write the
-        services.
+        Partly. When you add the folder, lpm notices{" "}
+        <code className={CODE}>docker-compose.yml</code>{" "}
+        (or <code className={CODE}>compose.yaml</code>) and lists{" "}
+        <code className={CODE}>compose: docker compose up</code>{" "}
+        as one service — the attached form, so the container output has a pane
+        — next to the native services it found in the same pass. It does not
+        parse the compose service graph. To split the infrastructure further,
+        edit the list, or press Generate with AI in the config editor for a
+        second draft from Claude Code, Codex, Gemini CLI or OpenCode.
       </>
     ),
     answerText:
-      "It spots the file when it scans the repo and offers docker compose up -d as a one-click action. It does not parse the service graph. To get a live log pane instead, declare it as a service with the attached form — db: docker compose up — or press Generate with AI in the config editor and let your own Claude Code or Codex read the repo, compose file included, and write the services.",
+      "Partly. When you add the folder, lpm notices docker-compose.yml (or compose.yaml) and lists compose: docker compose up as one service — the attached form, so the container output has a pane — next to the native services it found in the same pass. It does not parse the compose service graph. To split the infrastructure further, edit the list, or press Generate with AI in the config editor for a second draft from Claude Code, Codex, Gemini CLI or OpenCode.",
   },
   {
     question: "Two projects need port 5432 — what happens without containers?",
@@ -233,7 +235,7 @@ export default function LpmVsDockerComposePage() {
       <ComparisonHero
         eyebrow="lpm vs Docker Compose"
         title="A Docker Compose alternative for fast local dev on macOS."
-        description="Compose gives every machine the same stack, at the cost of a Linux VM, a shared filesystem and a container to create before anything runs. lpm declares the same processes in one YAML file and runs them straight on the host, one live pane each."
+        description="Compose gives every machine the same stack, at the cost of a Linux VM, a shared filesystem and a container to create before anything runs. lpm reads the repo, lists the same processes, and runs them straight on the host, one live pane each."
         verdictLine="Most people end up splitting it: app code native, stateful infrastructure still in compose."
         jumpHref="#map"
         jumpLabel="See every compose command mapped"
@@ -244,14 +246,16 @@ export default function LpmVsDockerComposePage() {
         reviewed={VS_REVIEWED}
         reviewedIso={VS_REVIEWED_ISO}
         sources={SOURCES}
-        lpmNote="The file-sharing and rebuild rows were re-checked against Docker's current defaults, not the osxfs era; every lpm cell was re-read in the app source on the same date."
+        lpmNote="The file-sharing and rebuild rows were re-checked against Docker's current defaults, not the osxfs era; every lpm cell was re-read in the app source on the same date, after lpm began listing compose files as a service."
       />
 
       <QuickAnswer question="Can you run a dev stack on macOS without Docker Compose?">
         <p>
-          Yes — for every service your Mac can run directly. Declare each process
-          in one small YAML file and lpm starts them together, each in its own
-          live pane, with <code className={CODE}>dependsOn</code>{" "}
+          Yes — for every service your Mac can run directly. Add the folder and
+          lpm lists the processes it recognises — Rails, Django, a Next.js or Vite
+          dev server, Go, and the compose file itself — then starts them
+          together, each in its own live pane, with{" "}
+          <code className={CODE}>dependsOn</code>{" "}
           for start order and <code className={CODE}>profiles</code>{" "}
           for subsets of the stack.
         </p>
@@ -264,10 +268,11 @@ export default function LpmVsDockerComposePage() {
         </p>
         <CodeBlock filename=".lpm.yml">{YAML}</CodeBlock>
         <p>
-          Committed at the repo root, so a teammate who clones gets the same
-          graph. Use the attached form —{" "}
+          Commit it at the repo root and a teammate who clones gets the same
+          graph. lpm still adds what it detects when they add the folder, so
+          they may find a double to delete. Keep the attached form —{" "}
           <code className={CODE}>docker compose up</code>, not{" "}
-          <code className={CODE}>-d</code>{" "}
+          <code className={`${CODE} whitespace-nowrap`}>-d</code>{" "}
           — if you want the container output in an lpm pane. The config reference
           documents{" "}
           <Link href={CONFIG_PATH} className={LINK}>
@@ -364,12 +369,18 @@ export default function LpmVsDockerComposePage() {
             description:
               "Put the services and the agents on a Linux machine and drive all of it from the Mac app.",
           },
+          {
+            href: PROJECT_SIDEBAR_PATH,
+            title: "Every stack in one sidebar",
+            description:
+              "Which repos are up right now, which services each one is running, and one click to switch between them.",
+          },
         ]}
       />
 
       <Cta
         title="Keep compose where it earns it. Run the rest on the host."
-        description="One small YAML file, a live pane per service, and docker compose up as one of those services when a container is the right answer. Free, open source, native macOS app."
+        description="Add the folder, get a live pane per service, and docker compose up as one of those services when a container is the right answer. Free, open source, native macOS app."
         downloadSource="vs-compose-cta"
       />
     </>

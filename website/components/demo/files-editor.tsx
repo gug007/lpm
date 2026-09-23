@@ -1,13 +1,18 @@
 "use client";
 
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
 import { Folder } from "lucide-react";
 import { highlight, langOf } from "./code-highlight";
 import { numberDiff } from "./diff-lines";
-import { FilesMarkdownPreview } from "./files-markdown-preview";
 import { basename } from "./files-model";
 import type { ChangedFile } from "./projects";
 import type { ReaderZoom } from "./use-file-view";
+
+const FilesMarkdownPreview = dynamic(
+  () => import("./files-markdown-preview").then((m) => m.FilesMarkdownPreview),
+  { ssr: false, loading: () => <div className="h-full" /> },
+);
 
 const GUTTER =
   "sticky left-0 shrink-0 select-none bg-[#1a1a1a] px-2 text-right tabular-nums text-[#8e8e8e]";

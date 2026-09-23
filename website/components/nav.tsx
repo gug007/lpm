@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { AI_AGENTS_PATH, VS_BASE_PATH } from "@/lib/links";
+import { AI_AGENTS_PATH, FEATURES_PATH, VS_BASE_PATH } from "@/lib/links";
 import { DownloadLink } from "./download-link";
 import { GitHubStarButton } from "./github-star-button";
 import { NavLink } from "./nav-link";
@@ -29,7 +29,6 @@ export function Nav() {
             alt=""
             width={20}
             height={20}
-            priority
             className="h-5 w-5 rounded bg-gray-700 p-0.5"
           />
           lpm
@@ -38,6 +37,12 @@ export function Nav() {
           <span className="hidden sm:inline-flex">
             <GitHubStarButton />
           </span>
+          <NavLink
+            href={FEATURES_PATH}
+            className={`hidden md:inline-flex ${linkClass}`}
+          >
+            Features
+          </NavLink>
           <NavLink href="/config" className={`inline-flex ${linkClass}`}>
             Docs
           </NavLink>
@@ -50,7 +55,7 @@ export function Nav() {
           <NavLink href={VS_BASE_PATH} className={`hidden md:inline-flex ${linkClass}`}>
             Compare
           </NavLink>
-          <DownloadLink className="inline-flex items-center rounded-full bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200">
+          <DownloadLink className="relative inline-flex items-center rounded-full after:absolute after:inset-x-0 after:-inset-y-[7px] after:content-[''] bg-gray-900 dark:bg-white px-3.5 py-1.5 text-[12px] font-medium text-white dark:text-gray-900 hover:bg-gray-700 dark:hover:bg-gray-200 transition-colors duration-200">
             Download
           </DownloadLink>
           <ThemeToggle />

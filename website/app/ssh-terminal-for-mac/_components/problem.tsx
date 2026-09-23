@@ -32,8 +32,8 @@ const CARDS: Card[] = [
         <code className="text-xs">
           ssh -L 3000:localhost:3000 user@build-server
         </code>
-        , the remote dev server restarts, the listener dies, and you re-type
-        the command from shell history. Sometimes you forget which tab the
+        , the connection drops, the tunnel dies with it, and you re-type the
+        command from shell history. Sometimes you forget which tab the
         tunnel was in and <code className="text-xs">lsof</code> the orphan ssh
         process out by hand. The work was supposed to be the feature, not the
         tunnel.

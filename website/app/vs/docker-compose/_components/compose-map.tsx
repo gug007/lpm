@@ -67,7 +67,7 @@ const ROWS: CommandMapRow[] = [
   {
     from: "committed docker-compose.yml",
     to: "committed .lpm.yml",
-    note: "merged underneath each developer's own project file",
+    note: "merged underneath each developer's own project file, which also holds what lpm detected when they added the folder",
   },
 ];
 

@@ -50,6 +50,7 @@ export type Service = {
   key: string;
   cmd: string;
   port?: number;
+  dependsOn: string[];
 };
 
 export type Action = {

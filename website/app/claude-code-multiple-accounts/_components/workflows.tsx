@@ -1,4 +1,9 @@
+import Link from "next/link";
 import { SectionHeader } from "@/components/section-header";
+import { PARALLEL_PATH, WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
+
+const LINK =
+  "font-medium text-gray-700 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white";
 
 type Workflow = {
   title: string;
@@ -11,23 +16,28 @@ const WORKFLOWS: Workflow[] = [
     body: (
       <>
         Pin the client repo to your company seat and leave the side project on
-        your personal login. Both agents run at the same time in adjacent
-        panes, each spending its own subscription&rsquo;s usage — and clicking
-        between projects in the sidebar is the only &ldquo;account
-        switching&rdquo; you ever do.
+        your personal login. Both agents run at the same time, each spending
+        its own subscription&rsquo;s usage, and clicking between projects in
+        the sidebar is the only &ldquo;account switching&rdquo; you ever do.
       </>
     ),
   },
   {
-    title: "Duplicate a project ×5 to fan out agents — copies keep the account",
+    title: "Duplicate a project ×5 to fan out agents, and the copies keep the account",
     body: (
       <>
-        lpm&rsquo;s duplicate flow exists to spawn throwaway copies of a
-        project and run agents on each in parallel. Duplicates inherit the
-        parent&rsquo;s pinned account automatically, so five copies of the work
-        repo all run as the work identity — no per-copy setup, and no agent
-        quietly burning your personal quota because a fresh copy fell back to
-        the wrong login.
+        lpm&rsquo;s{" "}
+        <Link href={WORKTREE_ALTERNATIVE_PATH} className={LINK}>
+          Duplicate
+        </Link>{" "}
+        and New Worktree flows spawn throwaway copies of a project to{" "}
+        <Link href={PARALLEL_PATH} className={LINK}>
+          run agents in parallel
+        </Link>
+        . Copies inherit the parent&rsquo;s pinned account, so five copies of
+        the work repo all run as the work identity: no per-copy setup, and no
+        agent quietly burning your personal quota because a fresh copy fell
+        back to the wrong login.
       </>
     ),
   },
@@ -37,9 +47,9 @@ const WORKFLOWS: Workflow[] = [
       <>
         Freelancing across two clients, each providing their own Claude seat?
         Pin each client&rsquo;s repo to that client&rsquo;s account. Every
-        agent session, every AI-generated commit message and PR description in
-        that repo runs on the seat they pay for — clean separation you can
-        stand behind, without ever re-authenticating mid-day.
+        terminal session, every AI-generated commit message and PR description
+        in that repo runs on the seat they pay for, without ever
+        re-authenticating mid-day.
       </>
     ),
   },

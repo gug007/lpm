@@ -17,13 +17,13 @@ type Feature = {
 const FEATURES: Feature[] = [
   {
     icon: MonitorSmartphone,
-    title: "A live mirror, not a screenshot",
-    body: "Every terminal on your Mac streams to your phone character by character, with full scrollback. It's the same session — what you see on the phone is exactly what's on the Mac, updating as it happens. Leave the app and come back and it re-seeds the live view instantly.",
+    title: "The session itself, not a screenshot",
+    body: "Open any of your Mac's terminals and, once your phone has control, it streams live, drawn the way the desktop draws it and with its scrollback. It's the same session, not a copy. Leave the app and come back, and it catches up on the output you missed.",
   },
   {
     icon: Fingerprint,
     title: "Take control with one tap",
-    body: "A terminal is live in one place at a time. When it's active on your Mac, your phone shows a Take control button — tap it and the session hands off to your hand, keystrokes and all. Tap away on the Mac and it hands right back.",
+    body: "A terminal is live in one place at a time. When it's active on your Mac, your phone shows a Take control button: tap it and the session moves to your phone, resized to fit. Take it back on the Mac with one click.",
   },
   {
     icon: Keyboard,
@@ -40,7 +40,7 @@ const FEATURES: Feature[] = [
   {
     icon: MousePointerClick,
     title: "Scroll it like a native app",
-    body: "Flick to scroll back through output with your thumb — even inside full-screen terminal apps that normally trap the mouse. The scrollback you'd reach for on the Mac is right there under your finger.",
+    body: "Drag to scroll back through output with your thumb, even inside full-screen agent screens, where it scrolls the app's own view. The scrollback you'd reach for on the Mac is right there under your finger.",
   },
 ];
 

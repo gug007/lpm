@@ -2,6 +2,7 @@ import {
   AtSign,
   History,
   Image,
+  RefreshCcw,
   Slash,
   Sparkles,
   type LucideIcon,
@@ -26,10 +27,9 @@ const FEATURES: Feature[] = [
     title: "Slash commands that know the agent",
     body: (
       <>
-        Type <code className="text-xs">/</code> and get autocomplete for the
-        commands the AI CLI in that terminal actually supports, argument hints
-        and all. The menu adapts to whether it&rsquo;s Claude Code, Codex, or
-        another agent.
+        Type <code className="text-xs">/</code> in a Claude Code or Codex
+        terminal and get autocomplete for the commands that CLI supports,
+        your own custom commands included, argument hints and all.
       </>
     ),
   },
@@ -46,6 +46,11 @@ const FEATURES: Feature[] = [
     ),
   },
   {
+    icon: RefreshCcw,
+    title: "Start on the Mac, finish on the phone",
+    body: "What you type in a terminal's prompt box shows up in the same terminal's prompt box on your Mac, and the other way round, without overwriting you mid-sentence. Each terminal keeps its own draft.",
+  },
+  {
     icon: Image,
     title: "Attach a photo, screenshot, or file",
     body: "Add up to ten images from your library, snap one with the camera, paste a screenshot, or pick a file. lpm uploads it to your Mac and drops the path into the prompt so the agent can read it — a bug shot or a design reference, straight from the field.",
@@ -53,7 +58,7 @@ const FEATURES: Feature[] = [
   {
     icon: History,
     title: "Searchable prompt history",
-    body: "Every prompt you've sent is saved, searchable, and infinite-scroll — plus drafts, favorites, and folders. Load an old prompt back into the composer to tweak it, or resend it as-is. Each terminal keeps its own draft, so nothing gets crossed.",
+    body: "Every prompt you've sent, from the Mac or the phone, is saved and searchable, with drafts, favorites, and folders. Load an old prompt back into the composer to tweak it, or resend it as-is.",
   },
 ];
 

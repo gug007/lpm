@@ -68,7 +68,7 @@ export default function Landscape() {
           className="mb-12"
         />
 
-        <div className="@container relative">
+        <div className="@container relative hidden md:block">
           <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-800">
             <table className="w-full min-w-[52rem] text-sm">
               <thead>
@@ -134,6 +134,45 @@ export default function Landscape() {
             className="pointer-events-none absolute inset-y-px right-px w-10 rounded-r-[15px] bg-gradient-to-l from-white to-transparent @min-[53rem]:hidden dark:from-[#111]"
           />
         </div>
+
+        <ul className="space-y-4 md:hidden">
+          {ROWS.map((row) => (
+            <li
+              key={row.name}
+              className="rounded-2xl border border-gray-200 p-5 dark:border-gray-800"
+            >
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {row.name}
+              </h3>
+              <dl className="mt-3 space-y-3 text-sm leading-relaxed">
+                <div>
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    What it is
+                  </dt>
+                  <dd className="mt-0.5 text-gray-600 dark:text-gray-400">
+                    {row.whatItIs}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Where it shines
+                  </dt>
+                  <dd className="mt-0.5 text-gray-600 dark:text-gray-400">
+                    {row.whereItShines}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    How lpm differs
+                  </dt>
+                  <dd className="mt-0.5 text-gray-700 dark:text-gray-300">
+                    {row.howLpmDiffers}
+                  </dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
 
         <p className="mt-6 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
           lpm is not a raw emulator replacement. It is for the day your

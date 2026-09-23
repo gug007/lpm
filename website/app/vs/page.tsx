@@ -4,7 +4,7 @@ import { CodeBlock } from "@/components/config/code-block";
 import { RelatedPages } from "@/components/related-pages";
 import { ComparisonBasis } from "@/components/vs/comparison-basis";
 import { Cta } from "@/components/vs/cta";
-import { Faq, type FaqItem } from "@/components/vs/faq";
+import { Faq } from "@/components/vs/faq";
 import { QuickAnswer } from "@/components/vs/quick-answer";
 import { VS_REVIEWED, VS_REVIEWED_ISO } from "@/components/vs/reviewed";
 import { SectionVideo } from "@/components/vs/section-video";
@@ -26,10 +26,11 @@ import {
   webPageJsonLd,
 } from "@/lib/structured-data";
 import Hero from "./_components/hero";
+import { HUB_FAQ, HUB_SOURCES } from "./_components/hub-data";
 import Router from "./_components/router";
 import ToolMatrix from "./_components/tool-matrix";
 
-const TITLE = "tmux, iTerm2 & PM2 Alternatives for Mac Dev Stacks";
+const TITLE = "Run a Mac Dev Stack: tmux vs PM2 vs Docker Compose";
 const DESCRIPTION =
   "tmux, iTerm2, cmux, Docker Compose, Foreman, Overmind, PM2 — compared for Mac local dev and for running Claude Code and Codex beside your services.";
 
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
-    "lpm alternatives",
+    "tmux vs pm2 vs docker compose",
     "tmux vs docker compose local dev",
     "foreman vs overmind",
     "pm2 vs docker compose development",
@@ -72,132 +73,6 @@ compose.yaml    services:
 .lpm.yml        services:
                   web: bin/rails server
                   css: bin/rails tailwindcss:watch`;
-
-const SOURCES = [
-  { href: "https://iterm2.com/documentation.html", label: "iTerm2's documentation" },
-  { href: "https://iterm2.com/news.html", label: "iTerm2's 3.7 release notes" },
-  { href: "https://man.openbsd.org/tmux.1", label: "the tmux manual" },
-  { href: "https://github.com/manaflow-ai/cmux", label: "the cmux README" },
-  { href: "https://docs.docker.com/compose/", label: "the Docker Compose docs" },
-  {
-    href: "https://docs.docker.com/reference/compose-file/services/",
-    label: "the Compose file reference",
-  },
-  {
-    href: "https://docs.docker.com/subscription/desktop-license/",
-    label: "Docker Desktop's licence terms",
-  },
-  { href: "https://ddollar.github.io/foreman/", label: "the Foreman man page" },
-  {
-    href: "https://github.com/DarthSim/overmind#readme",
-    label: "Overmind's README",
-  },
-  {
-    href: "https://pm2.keymetrics.io/docs/usage/process-management/",
-    label: "PM2's process-management docs",
-  },
-  {
-    href: "https://pm2.keymetrics.io/docs/usage/restart-strategies/",
-    label: "its restart strategies",
-  },
-  {
-    href: "https://pm2.keymetrics.io/docs/usage/cluster-mode/",
-    label: "cluster mode",
-  },
-  {
-    href: "https://pm2.keymetrics.io/docs/usage/startup/",
-    label: "startup scripts",
-  },
-  {
-    href: "https://pm2.keymetrics.io/docs/usage/log-management/",
-    label: "log management pages",
-  },
-];
-
-const FAQ_ITEMS: FaqItem[] = [
-  {
-    question:
-      "What is the difference between a multiplexer, a Procfile runner, and a container stack?",
-    answer:
-      "A multiplexer (tmux) gives you panes and keeps them alive; you decide what runs in them. A Procfile runner (Foreman, Overmind) starts a fixed list of named processes with one command. A container stack (Docker Compose) also builds the environment those processes run in. Three different layers, and it is normal to want two of them.",
-  },
-  {
-    question: "Foreman or Overmind — which Procfile runner should I use?",
-    answer: (
-      <>
-        Overmind, when you need to get at one process on its own — reattach to
-        it, or bounce it — while the others carry on. Each Procfile line gets its
-        own tmux window, which is also why tmux has to be on the machine first,
-        and{" "}
-        <code className="font-mono text-xs">-m web=2</code> runs a line twice.
-        Foreman, when one stream in one terminal is enough, when you would
-        rather not add tmux to your setup, and when{" "}
-        <code className="font-mono text-xs">foreman export</code> is part of how
-        you deploy.
-      </>
-    ),
-    answerText:
-      "Overmind, when you need to get at one process on its own — reattach to it, or bounce it — while the others carry on. Each Procfile line gets its own tmux window, which is also why tmux has to be on the machine first, and -m web=2 runs a line twice. Foreman, when one stream in one terminal is enough, when you would rather not add tmux to your setup, and when foreman export is part of how you deploy.",
-  },
-  {
-    question: "Which of these run on Linux or Windows?",
-    answer:
-      "tmux, Docker Compose, Foreman and PM2 all run on Linux, and Compose and PM2 run on Windows too; Overmind covers Linux, *BSD and macOS. iTerm2, cmux and lpm are Mac apps. lpm can drive a Linux machine as a headless host from the Mac, but the app itself is macOS only.",
-  },
-  {
-    question: "Which of them will launch Claude Code or Codex for me?",
-    answer: (
-      <>
-        cmux and lpm, and as of September 2026{" "}
-        <a
-          href="https://iterm2.com/news.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          iTerm2 has a Claude Code integration
-        </a>{" "}
-        too. cmux is built around agent sessions in the terminal. lpm looks for
-        the agent CLIs you already have installed, opens each one in its own tab
-        alongside the running services, marks that tab working, needs-you or
-        done as the agent goes, and can copy the whole project so two agents
-        never edit the same files. The rest are process runners with no opinion
-        about agents.
-      </>
-    ),
-    answerText:
-      "cmux and lpm, and as of September 2026 iTerm2 has a Claude Code integration too. cmux is built around agent sessions in the terminal. lpm looks for the agent CLIs you already have installed, opens each one in its own tab alongside the running services, marks that tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files. The rest are process runners with no opinion about agents.",
-  },
-  {
-    question: "Can I run more than one of these at once?",
-    answer:
-      "Usually yes, and most people do. Keep iTerm2 or tmux for SSH and ad-hoc shells, keep PM2 for anything that has to stay alive, keep compose for the services that need a container — and let one tool own starting and stopping the project. Nothing here holds your processes hostage.",
-  },
-  {
-    question: "Which of them are free and open source?",
-    answer: (
-      <>
-        tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and
-        free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships
-        under GPL-3.0-or-later, and an organisation that cannot live with that
-        can buy commercial terms instead, with early-access features behind a
-        subscription. Docker Desktop — how most Mac developers get Compose — is
-        the one that can cost money: past{" "}
-        <a
-          href="https://docs.docker.com/subscription/desktop-license/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
-        >
-          Docker&apos;s size and revenue thresholds
-        </a>{" "}
-        a company needs a paid subscription.
-      </>
-    ),
-    answerText:
-      "tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later, and an organisation that cannot live with that can buy commercial terms instead, with early-access features behind a subscription. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription.",
-  },
-];
 
 const structuredData = [
   webPageJsonLd({
@@ -311,10 +186,13 @@ export default function ComparisonsHubPage() {
           the services.
         </p>
         <p>
-          Three of these tools start from a file you already have — a Procfile
-          for Foreman and Overmind, a compose file for Docker Compose. Five of
-          them run somewhere other than a Mac. lpm does neither, and the table
-          below says so.
+          Foreman and Overmind run straight off a Procfile you already have,
+          Docker Compose off a compose file, and all three read it again on
+          every start. lpm uses either one once, when you add the folder — a
+          service per Procfile line, or a single <code>docker compose up</code>{" "}
+          for the compose file — and keeps a list of its own after that. Five of
+          the seven also run somewhere other than a Mac; lpm does not, and the
+          table below says so.
         </p>
         <CodeBlock filename="The same two processes, three ways">
           {SHAPES}
@@ -361,7 +239,7 @@ export default function ComparisonsHubPage() {
               database underneath stay shared, and lpm checks the ports a
               project declares before it starts and names whatever process is
               holding one. A worktree copy brings across only the files git
-              tracks — no <code>.env</code>, and dependencies only if you ask
+              tracks — no <code>.env</code>, and Node packages only if you ask
               lpm to install them —{" "}
               <Link
                 href={WORKTREE_AGENTS_PATH}
@@ -378,8 +256,8 @@ export default function ComparisonsHubPage() {
       <ComparisonBasis
         reviewed={VS_REVIEWED}
         reviewedIso={VS_REVIEWED_ISO}
-        sources={SOURCES}
-        lpmNote="Where we cannot name a workflow difference we do not invent one — three rows above go against lpm."
+        sources={HUB_SOURCES}
+        lpmNote="Where we cannot name a workflow difference we do not invent one — two rows above go against lpm."
       />
 
       <Router />
@@ -392,7 +270,7 @@ export default function ComparisonsHubPage() {
         label="Starting a project in lpm — every service comes up at once, each in its own live pane."
       />
 
-      <Faq title="Questions before you pick one" items={FAQ_ITEMS} />
+      <Faq title="Questions before you pick one" items={HUB_FAQ} />
 
       <RelatedPages
         links={[

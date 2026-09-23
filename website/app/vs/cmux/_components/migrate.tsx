@@ -14,7 +14,7 @@ type Equivalent = {
 const EQUIVALENTS: Equivalent[] = [
   {
     from: "cmux list-workspaces",
-    to: <code className={CODE}>lpm list --json</code>,
+    to: <code className={`${CODE} whitespace-nowrap`}>lpm list --json</code>,
   },
   {
     from: "cmux notify",

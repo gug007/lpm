@@ -4,7 +4,7 @@ Page route: `/vs`
 Target primary keyword: **cross-tool "how should I run a local dev stack on a Mac" intent** (no single-tool "X alternative" term — each of those belongs to the child that owns it)
 Intent: a Mac developer with four processes in one repo who is choosing between a terminal emulator, a multiplexer, a Procfile runner, a container stack and a supervisor.
 
-**Angle:** the hub is the only page on the site — and, as far as we can find, on the internet — that puts all seven tools plus lpm in one table. It bids on the cross-tool query no child can hold, routes the reader to the child that matches the tool they already run, and states the three rows that go against lpm on the page itself.
+**Angle:** the hub is the only page on the site — and, as far as we can find, on the internet — that puts all seven tools plus lpm in one table. It bids on the cross-tool query no child can hold, routes the reader to the child that matches the tool they already run, and states the two rows that go against lpm on the page itself.
 
 Source of truth: `vs-upgrade-spec.md` §4.1 (copy), §5 (fact-check ledger), §6 (SEO), §8 (acceptance) — **as amended by the orchestrator's rulings R1–R8**, which outrank §4.1's copy wherever the app source, the ledger or a count disagrees with it. Every deviation from §4.1 below is one of those rulings and is labelled with it.
 
@@ -13,13 +13,16 @@ Source of truth: `vs-upgrade-spec.md` §4.1 (copy), §5 (fact-check ledger), §6
 ## 1. Metadata
 
 ```ts
-title: "tmux, iTerm2 & PM2 Alternatives for Mac Dev Stacks"
-// 50 chars; renders 56 with the layout's " — lpm" suffix
+title: "Run a Mac Dev Stack: tmux vs PM2 vs Docker Compose"
+// 50 chars; renders 56 with the layout's " — lpm" suffix. 2026-09-23: was "tmux, iTerm2 & PM2
+// Alternatives for Mac Dev Stacks", which led with tmux and ended like /vs/tmux's title
+// ("…Alternative for Mac Dev Stacks"), so the hub competed for "tmux alternative mac".
+// The new one leads with the H1's "run a Mac dev stack" and carries the first keyword.
 description:
   "tmux, iTerm2, cmux, Docker Compose, Foreman, Overmind, PM2 — compared for Mac local dev and for running Claude Code and Codex beside your services."
 // 147 chars
 keywords: [
-  "lpm alternatives",
+  "tmux vs pm2 vs docker compose",
   "tmux vs docker compose local dev",
   "foreman vs overmind",
   "pm2 vs docker compose development",
@@ -30,7 +33,7 @@ keywords: [
   "terminal multiplexer vs procfile runner",
   "run claude code and codex beside dev servers",
 ]
-// 10 entries. Every single-tool "X alternative" term the old hub carried is gone (§6.4 fix 1).
+// 10 entries. Every single-tool "X alternative" term the old hub carried is gone (§6.4 fix 1). 2026-09-23: "lpm alternatives" swapped out — it targets people leaving lpm, the opposite intent.
 alternates.canonical: "/vs"
 openGraph.title / twitter.title: TITLE (one const, four uses)
 openGraph.description / twitter.description: DESCRIPTION
@@ -43,9 +46,9 @@ twitter.card: "summary_large_image"
 `opengraph-image.tsx`:
 
 ```
-headline: ["tmux, iTerm2, Docker Compose:", "seven ways to run a Mac dev stack."]   // = H1
-subline:  "Seven tools and lpm in one table, an honest verdict on each, and the three rows that go against lpm."
-alt:      "tmux, iTerm2 and PM2 alternatives for Mac dev stacks — seven tools compared."   // = title
+headline: ["tmux, iTerm2, PM2, Docker Compose:", "seven ways to run a Mac dev stack."]   // = H1
+subline:  "Seven tools and lpm in one table, an honest verdict on each, and the two rows that go against lpm."
+alt:      "Run a Mac dev stack: tmux vs PM2 vs Docker Compose — seven tools compared."   // = title
 ```
 
 The subline was `"One table across seven tools, …"`. Changed under **R2**: the table has eight columns (seven tools *and* lpm), and the hero now says the same thing the same way, so no surface claims a different arithmetic than the one the reader can count.
@@ -86,7 +89,7 @@ Written reasons for the three ways the hub departs from the child template:
 - `id="matrix"`, `scroll-mt-20`, thirteen rows × eight tools, lpm column highlighted, footnote in three blocks: how to read the lpm column, macOS-only + Linux host (`/run-claude-code-on-a-remote-server`), and the duplicate/ports/worktree caveat (`/git-worktree-for-ai-agents`).
 
 ### Comparison basis
-- `reviewed={VS_REVIEWED}`, `reviewedIso={VS_REVIEWED_ISO}`, fourteen competitor sources, `lpmNote` naming the three rows that go against lpm.
+- `reviewed={VS_REVIEWED}`, `reviewedIso={VS_REVIEWED_ISO}`, fifteen competitor sources (the fifteenth, iTerm2's Claude Code docs, added by the 2026-09-23 verifier pass), `lpmNote` naming the two rows that go against lpm.
 
 ### Router
 - One H2, six uppercase prompts, seven cards — one per child page (`lpm vs {name}` as `<h3>`), three labelled lines each: What it is / Switch if / Stay if. In-body links: `/best-terminal-for-mac`, `/ssh-terminal-for-mac`, `/config`, `/best-terminal-for-claude-code-and-codex`.
@@ -95,7 +98,7 @@ Written reasons for the three ways the hub departs from the child template:
 - `clip="start-project"` (shared only with `/vs/overmind`, different label per spec Rule 4).
 
 ### FAQ
-- 6 items. Items 2, 4 and 6 are JSX (commands in `<code>`, two outbound citation links) and each carries the verbatim plain-text `answerText`.
+- 7 items. Items 2, 3, 5 and 7 are JSX (commands in `<code>`, two outbound citation links) and each carries the verbatim plain-text `answerText`. Data lives in `app/vs/_components/hub-data.tsx` (with the fifteen sources) so `page.tsx` stays under 400 lines.
 
 ### Related pages
 - Six cards (the hub's allocation in §6.1), which keeps the grid on the `lg:grid-cols-3` path.
@@ -108,7 +111,7 @@ Written reasons for the three ways the hub departs from the child template:
 ## 3. Hero-specific
 
 - Eyebrow: `Mac dev stacks · seven tools`
-- H1: `tmux, iTerm2, Docker Compose: seven ways to run a Mac dev stack.`
+- H1: `tmux, iTerm2, PM2, Docker Compose: seven ways to run a Mac dev stack.` (2026-09-23: PM2 added so the H1 carries every tool the title names.)
 - Subtitle: "Four processes, one repo, twenty times a day. Terminal tabs, a multiplexer, a Procfile runner, a container stack, a production supervisor — each solves part of it. Here is the whole field in one table, an honest verdict on each, and where lpm fits."
 - Primary CTA: `HeroDownload` (`vs-hub-hero`)
 - Secondary link: "Jump to the table: seven tools and lpm" → `#matrix`
@@ -121,7 +124,7 @@ Two **R7 / R2** changes here. The link read "Jump to the eight-tool table", whic
 
 Columns, lpm first and highlighted: **lpm · iTerm2 · tmux · cmux · Docker Compose · Foreman · Overmind · PM2**
 
-SectionHeader: eyebrow `Every tool, side by side`, title `The capabilities that actually differ`, description "Thirteen rows, each one a place where the eight columns genuinely differ. Three of them go against lpm."
+SectionHeader: eyebrow `Every tool, side by side`, title `The capabilities that actually differ`, description "Thirteen rows, each one a place where the eight columns genuinely differ. Two of them go against lpm."
 
 | Capability | lpm | iTerm2 | tmux | cmux | Docker Compose | Foreman | Overmind | PM2 |
 |---|---|---|---|---|---|---|---|---|
@@ -130,16 +133,16 @@ SectionHeader: eyebrow `Every tool, side by side`, title `The capabilities that 
 | Many repos as switchable projects | ✓ | profiles | sessions | workspaces | ✗ | ✗ | ✗ | ✗ |
 | Restart one process without the rest | ✓ | ✗ | respawn by hand | ✗ | ✓ | ✗ | ✓ | ✓ |
 | **Brings a crashed process back on its own** | **✗** | ✗ | ✗ | ✗ | **with a restart policy** | ✗ | **start -r** | **✓** |
-| Drafts the service list from your repo | your own agent CLI | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
+| Works out the services from package.json, Gemfile or go.mod | built in, when you add the folder | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
 | Duplicates the project for a second agent | worktree or full copy, 1–50 | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ |
-| Says whether an agent is working, needs you or done | Claude Code, Codex | not documented | ✗ | when it needs you | ✗ | ✗ | ✗ | ✗ |
+| Says whether an agent is working, needs you or done | Claude Code, Codex | Claude Code, since 3.7 | ✗ | when it needs you | ✗ | ✗ | ✗ | ✗ |
 | Runs services natively, no containers | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ |
 | Services survive quitting the app | ✓ | only via tmux | ✓ | reopens panes | detached | ✗ | ✓ | ✓ |
-| **Starts from a Procfile you already have** | **✗** | ✗ | ✗ | ✗ | ✗ | **✓** | **✓** | ✗ |
+| Reads a Procfile or compose file you already have | once, when you add the folder | ✗ | ✗ | ✗ | its compose file, every start | the Procfile, every start | the Procfile, every start | ✗ |
 | **Available outside macOS** | **macOS only** | ✗ | Linux, \*BSD | ✗ | Linux, Windows | Linux | Linux, \*BSD | Linux, Windows |
 | Free and open source | MIT | GPLv2 | ✓ | GPL-3.0-or-later | Apache-2.0 | ✓ | MIT | ✓ |
 
-**Rows conceded to a competitor: exactly three** — the crash row (Compose with a policy, Overmind with `-r`, PM2 outright), the Procfile row (Foreman and Overmind), and the platform row (five tools). Every other row is a win or a tie; the qualified drafting cell is a row lpm wins, not a row it loses, so it is *not* counted. The three surfaces that repeat the number — the matrix `description`, the OG subline and the `ComparisonBasis` `lpmNote` — all say three, and now agree with the table (**R2**).
+**Rows conceded to a competitor: exactly two** — the crash row (Compose with a policy, Overmind with `-r`, PM2 outright) and the platform row (five tools). The Procfile row stopped being a concession on 2026-09-23: adding a folder now imports Procfile lines and a compose file (commit `835443cb`), so the lpm cell is a qualified yes — "once, when you add the folder" — against the three tools that re-read their file on every start. That once-versus-every-start gap is conceded as a full row on `/vs/foreman` and `/vs/overmind`, where it is the page's subject. The three surfaces that repeat the number — the matrix `description`, the OG subline and the `ComparisonBasis` `lpmNote` — all say two.
 
 ### Deviations from §4.1's row list, and why
 
@@ -147,7 +150,7 @@ SectionHeader: eyebrow `Every tool, side by side`, title `The capabilities that 
 - **Row 2, Overmind cell** `✓` → **"one tmux window each"** (**R2**). A bare ✓ on a row whose label ends "no scripting" hid the install Overmind's README opens with; the cell now names the mechanism that is also the requirement.
 - **New row, "Brings a crashed process back on its own"** (**R1**, ledger §5.6: "A crashed service leaves the rest running, and lpm does not restart it… Concede the second half every time you claim the first"). The table claims the restart-one-service row four rows above it, so the ledger requires this concession beside it. lpm ✗ is verified by grep; every competitor cell is sourced (see the claims table).
 - **Row 6 lpm cell** "your agent CLI" → **"your own agent CLI"**: the generator shells out to a CLI *you* installed (`aigen.rs:1-6`, `:32-40`), which is the whole reason the cell is not a ✓.
-- **Row 8 relabelled** "Reports Claude Code / Codex status per tab" → **"Says whether an agent is working, needs you or done"**, with the iTerm2 cell `"Claude Code only"` → **"not documented"** (**R1/R3**). iTerm2 3.7's release notes confirm a Claude Code integration and say nothing about per-session status, so the old cell asserted a competitor capability no source supports. The integration itself is stated in FAQ 4, where it is cited.
+- **Row 8 relabelled** "Reports Claude Code / Codex status per tab" → **"Says whether an agent is working, needs you or done"**, with the iTerm2 cell `"Claude Code only"` → **"not documented"** (**R1/R3**). iTerm2 3.7's release notes confirm a Claude Code integration and say nothing about per-session status, so the old cell asserted a competitor capability no source supports. The integration itself is stated in FAQ 4, where it is cited. **Verifier pass 2026-09-23:** iTerm2's own Claude Code integration page (https://iterm2.com/claude-code-integration.html) documents a Session Status tool that labels each Claude session working, waiting or idle via its cc-status hook — the same page /vs/iterm2 already cites for its matrix row — so the cell is now "Claude Code, since 3.7" and that page is in the hub's sources. No concession count changes: lpm still covers two CLIs to iTerm2's one.
 - **Row 11 relabelled** "Reads an existing Procfile as-is" → **"Starts from a Procfile you already have"** (**R4**): the old string was byte-identical to `app/vs/foreman/_components/procfile-matrix.tsx`.
 - **Row 12 relabelled** "Runs on Linux or Windows" → **"Available outside macOS"**, with per-tool platforms in the cells (**R4**, same collision with `/vs/foreman`). The cells now carry the detail the old bare ✓s hid, and they match FAQ 3 exactly: Linux for tmux, Compose, Foreman, Overmind and PM2; Windows only for Compose and PM2; \*BSD for tmux and Overmind.
 
@@ -162,11 +165,11 @@ SectionHeader: eyebrow `Every tool, side by side`, title `The capabilities that 
 ## 5. FAQ (6 Q&A, plain text for JSON-LD)
 
 1. **What is the difference between a multiplexer, a Procfile runner, and a container stack?** — "A multiplexer (tmux) gives you panes and keeps them alive; you decide what runs in them. A Procfile runner (Foreman, Overmind) starts a fixed list of named processes with one command. A container stack (Docker Compose) also builds the environment those processes run in. Three different layers, and it is normal to want two of them."
-2. **Foreman or Overmind — which Procfile runner should I use?** — "Overmind, when you need to get at one process on its own — reattach to it, or bounce it — while the others carry on. Each Procfile line gets its own tmux window, which is also why tmux has to be on the machine first, and `-m web=2` runs a line twice. Foreman, when one stream in one terminal is enough, when you would rather not add tmux to your setup, and when `foreman export` is part of how you deploy."
+2. **Where do Foreman and Overmind fit next to the other five?** — "Both are Procfile runners you drive from a terminal. Foreman prints every process into one merged stream; Overmind gives each its own tmux window, so tmux has to be installed first. The head-to-head, with the Procfile conversion, is on the Foreman vs Overmind page." (2026-09-23: replaced "Foreman or Overmind — which Procfile runner should I use?", which answered the question `/vs/foreman` exists to own — its FAQ 1 is "Foreman or Overmind — which should I use?" with the same verdict, and both sat in FAQPage JSON-LD. The hub now hands off, linking "Foreman vs Overmind page" to `/vs/foreman`.)
 3. **Which of these run on Linux or Windows?** — "tmux, Docker Compose, Foreman and PM2 all run on Linux, and Compose and PM2 run on Windows too; Overmind covers Linux, \*BSD and macOS. iTerm2, cmux and lpm are Mac apps. lpm can drive a Linux machine as a headless host from the Mac, but the app itself is macOS only."
-4. **Which of them will launch Claude Code or Codex for me?** — "cmux and lpm, and as of September 2026 iTerm2 has a Claude Code integration too. cmux is built around agent sessions in the terminal. lpm looks for the agent CLIs you already have installed, opens each one in its own tab alongside the running services, marks that tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files. The rest are process runners with no opinion about agents."
+4. **Which of them will launch Claude Code or Codex for me?** — "cmux and lpm, and as of September 2026 iTerm2 has a Claude Code integration too. cmux is built around agent sessions in the terminal. lpm puts Claude Code and Codex a click away in every project from the first launch, offers Gemini CLI and OpenCode when they are installed, opens each agent in its own tab alongside the running services, marks a Claude Code or Codex tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files. The rest are process runners with no opinion about agents."
 5. **Can I run more than one of these at once?** — "Usually yes, and most people do. Keep iTerm2 or tmux for SSH and ad-hoc shells, keep PM2 for anything that has to stay alive, keep compose for the services that need a container — and let one tool own starting and stopping the project. Nothing here holds your processes hostage."
-6. **Which of them are free and open source?** — "tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later, and an organisation that cannot live with that can buy commercial terms instead, with early-access features behind a subscription. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription."
+6. **Which of them are free and open source?** — "tmux, Foreman, Overmind, PM2 and Docker Compose are all open source and free; iTerm2 is free under GPLv2 and lpm is free under MIT. cmux ships under GPL-3.0-or-later; an organisation that cannot live with that can ask for commercial terms, and new features reach paying Founder's Edition users first. Docker Desktop — how most Mac developers get Compose — is the one that can cost money: past Docker's size and revenue thresholds a company needs a paid subscription."
 
 Items 2, 4 and 6 were rewritten from §4.1's wording under **R5** (each shared an ≥8-word run with a sibling: FAQ 2 with `/vs/foreman`, FAQ 4's agent-status clause with the cluster's agent-status sentence, FAQ 6's cmux licence clause with `/vs/cmux`). Every fact in all three survives the rewrite; FAQ 2 gains the tmux-install requirement its own source states, and FAQ 6 drops "above Docker's company-size threshold" for the licence page's actual two-part test, still without numbers.
 
@@ -176,7 +179,7 @@ The `Faq` component emits `FAQPage` itself; `faqJsonLd` is not called on this pa
 
 ## 6. Claims table
 
-Every lpm cell and every lpm sentence on the page, with the file:line it was checked against. Paths are relative to the repo root (`desktop/` and `cli/`). Re-verified by grep on 2026-09-10 for this pass.
+Every lpm cell and every lpm sentence on the page, with the file:line it was checked against. Paths are relative to the repo root (`desktop/` and `cli/`). Re-verified by grep on 2026-09-10, and again on 2026-09-23 after service detection landed (commit `835443cb`, `desktop/frontend/src-tauri/src/detect/`).
 
 | Claim as rendered | Where on the page | Checked against |
 |---|---|---|
@@ -184,36 +187,37 @@ Every lpm cell and every lpm sentence on the page, with the file:line it was che
 | One live pane per process, no scripting — lpm ✓ | matrix row 2 | `desktop/frontend/src-tauri/src/sessions.rs:1-3` ("a project is one session, a service is one pane, and the Nth pane is the Nth service") |
 | Many repos as switchable projects — lpm ✓ | matrix row 3 | `desktop/frontend/src-tauri/src/config.rs:2130` (`list_projects`); `desktop/frontend/src-tauri/src/commands_real.rs:186` |
 | Restart one process without the rest — lpm ✓ | matrix row 4 | `desktop/frontend/src-tauri/src/services.rs:466` (`restart_service_at`), `:503`, `:508` (`restart_service_by_name`), `:527`; `cli/src/main.rs:151` (`Service { op }`) |
-| Brings a crashed process back on its own — lpm ✗ | matrix row 5 | `grep -rniE "auto_restart\|autoRestart\|restart_on\|keep_alive\|keepAlive\|respawn" desktop/frontend/src desktop/frontend/src-tauri/src cli/src` → no service-supervision hit (the matches are SSH-transport respawn, a job guard, and log-streaming comments). A dead pane writes `[Process exited with code N]` into its own buffer: `desktop/frontend/src/components/InteractivePane.tsx:1005`, `:1010`. Nothing restarts it. |
-| Drafts the service list from your repo — lpm "your own agent CLI" | matrix row 6 | `desktop/frontend/src-tauri/src/aigen.rs:1-6` (shells out to the user's own CLI), `:32-40` (`claude`/`codex`/`gemini`/`opencode` looked up on PATH via `sys::which`), `:1028` (reads package.json, Gemfile, compose files, Makefile to detect services). Deliberately **not** ✓: a new project is created with a placeholder command, `projects_crud.rs:41` |
+| Brings a crashed process back on its own — lpm ✗ | matrix row 5 | `grep -rniE "auto_restart\|autoRestart\|restart_on\|keep_alive\|keepAlive\|respawn" desktop/frontend/src desktop/frontend/src-tauri/src cli/src` → no service-supervision hit (the matches are SSH-transport respawn, a job guard, and log-streaming comments). A dead service keeps its last output in the pane — a service is a command line typed into a login shell (`desktop/frontend/src-tauri/src/sessions.rs:171-190`), so no exit code is printed; `[Process exited with code N]` belongs to interactive tabs only (`desktop/frontend/src/components/InteractivePane.tsx:1019-1024`). Nothing restarts it. |
+| Works out the services from package.json, Gemfile or go.mod — lpm "built in, when you add the folder" | matrix row 6 | `desktop/frontend/src-tauri/src/projects_crud.rs:48` (`services_for` calls `crate::detect::detect_services`), `:93` (`create_project`), `:261` (`run_clone`); `desktop/frontend/src-tauri/src/detect/mod.rs:1-4` ("Deterministic and local — no AI, no network"), `:111-130` (`scan_dir`: Procfile, Node, Python, Rails, Laravel, Phoenix, Spring, .NET, Go, Cargo, compose, make/just). The optional redraft is still `aigen.rs:33-41` (`claude`/`codex`/`gemini`/`opencode` on PATH). |
 | Duplicates the project for a second agent — lpm "worktree or full copy, 1–50" | matrix row 7 | `desktop/frontend/src-tauri/src/projects_crud.rs:509-519` (`create_linked_worktree`; `git worktree add -b` at `:517`), `:876` (`duplicate_project`), `:895` (`duplicate_worktree_project`); `desktop/frontend/src/components/BulkDuplicateDialog.tsx:42` (`MAX_COUNT = 50`); `cli/src/main.rs:239` |
 | Says whether an agent is working, needs you or done — lpm "Claude Code, Codex" | matrix row 8 | `desktop/frontend/src-tauri/src/hooks.rs:1-9` (installs Claude Code and Codex hooks **only**); `desktop/frontend/src/agentStatus.ts:12` (`AgentState = needs-you \| error \| working \| done \| idle`), `:14-20` (labels); rendered on terminal tabs at `desktop/frontend/src/components/PaneView.tsx:423-434` (`shimmer`/`done`/`waiting`/`error`/`agentStatus` per tab). Gemini CLI and OpenCode are launchable but install no hooks, so the cell names two CLIs, not four. |
 | Runs services natively, no containers — lpm ✓ | matrix row 9 | `desktop/frontend/src-tauri/src/config.rs:569-582` (a service is a command string plus cwd/port/env/dependsOn); `sessions.rs:1-3` (a pane is a shell in a directory); containers appear only as a suggested command, `desktop/frontend/src/components/project-detail/projectSuggestions.ts:317` |
 | Services survive quitting the app — lpm ✓ | matrix row 10 | `desktop/frontend/src-tauri/src/sessiond.rs:1-13` ("Quitting lpm has always left your dev servers up") |
-| Starts from a Procfile you already have — lpm ✗ | matrix row 11, Foreman router card | `grep -rn Procfile desktop/frontend/src desktop/frontend/src-tauri/src cli/src` → **0 hits** |
+| Reads a Procfile or compose file you already have — lpm "once, when you add the folder" | matrix row 11 | `detect/stacks.rs:21-39` (`procfile`: `Procfile.dev` preferred over `Procfile`, one candidate per line, `release` skipped at `:33`); `detect/stacks.rs:169-179` (`compose`: any of four compose filenames → `compose: docker compose up`); `detect/mod.rs:111-127` (a Procfile short-circuits the stack scanners; compose is added either way). "Once": `projects_crud.rs:93`, `:261` are the only callers of `services_for` — nothing re-reads the Procfile at start. Competitor cells: Foreman man page, Overmind README, Compose docs (all read their file per invocation). |
 | Available outside macOS — lpm "macOS only" | matrix row 12, footnote, FAQ 3 | `desktop/frontend/src-tauri/tauri.conf.json:31-38` (only `app`/`dmg` targets and a `macOS` block); remote hosts are driven from the Mac: `config.rs:597-606` (`SshSettings`), `peerssh.rs:44-52` |
 | Free and open source — lpm MIT | matrix row 13, FAQ 6, CTA | `LICENSE:1` ("MIT License") |
 | "The lpm column covers the app and its `lpm` command together. Anything that changes what is running — starting, stopping, restarting — is the app's job, and the command hands it over, so keep lpm open for those; reading what is already running (`lpm list`, `lpm logs`) works either way." | matrix footnote, block 1 | `cli/src/control.rs:1-3` ("asks the running app over the unix socket"), `:12-19` (`require_app` → "lpm app is not running — start it to control projects"); `require_app` is called by `start.rs`, `stop.rs`, `service_cmd.rs`, `run.rs`, `duplicate.rs`, `job.rs`, `wait.rs`, `remove.rs`, `config_cmd.rs`, `setstatus.rs`, `pair.rs`, `mobile.rs`. **No** `require_app` in `cli/src/list.rs:40-46` (reads `sessions::running_sessions()`) or `cli/src/logs.rs:67-110` (reads `sessions::capture_pane`). `lpm status` is deliberately not named as cold-shell-safe: it pings first and prints "lpm app is not running — no live status." (`cli/src/status.rs:14-21`). |
 | "A Linux box can take the other end of it — the services and the agents run there, the Mac drives them" | matrix footnote, block 2 | `tauri.conf.json:31-38` (macOS bundle only); `config.rs:597-606` (`SshSettings`); `peerssh.rs:44-52` (a host runs its services from the same binary) |
 | "Duplicating a project gives each agent its own checkout, so two of them never save over each other's work; the ports and the database underneath stay shared, and lpm checks the ports a project declares before it starts and names whatever process is holding one." | matrix footnote, block 3 | Own checkout: `projects_crud.rs:509-519`, `:813`. No port allocation anywhere: `ports.rs:1-8` is conflict **detection** feeding the start dialog, and `config.rs:569-582` shows `port` is a declared integer used for checks. The holder is named: `portsprobe.rs:18-21` (`Holder { pid, command }`), `:218` (`lookup_holders`), surfaced at `desktop/frontend/src/components/PortConflictDialog.tsx:30-31` ("Stop the holder below to start the project."). |
-| "A worktree copy brings across only the files git tracks — no `.env`, and dependencies only if you ask lpm to install them" | matrix footnote, block 3 | `projects_crud.rs:813` (`create_linked_worktree` is the only file-producing step — `git worktree add` checks out tracked files, and `grep -rn "\.env" projects_crud.rs` → 0 hits, so nothing copies it), `:836-839` (`if reinstall_deps { detect_package_manager → run_install }`, i.e. dependencies arrive only on that opt-in) |
+| "A worktree copy brings across only the files git tracks — no `.env`, and Node packages only if you ask lpm to install them" | matrix footnote, block 3 | `projects_crud.rs:828` (`create_linked_worktree` is the only file-producing step — `git worktree add` checks out tracked files, so nothing copies `.env`), `:851-854` (`if reinstall_deps { package_manager_of → run_install }`); `detect/node.rs:123-127` (`package_manager_of` is `Some` only when `package.json` exists) and `node.rs:77-84` (`install_cmd`: `npm`/`yarn`/`pnpm`/`bun install` only). 2026-09-23: "dependencies" narrowed to "Node packages" — gems, venvs and Go modules are never installed. |
 | "lpm is a shape of its own: the project is the object — start it, stop it, duplicate it, and give Claude Code or Codex a tab of its own next to the services." | QuickAnswer ¶2 | `services.rs:1-7` (start/stop per project); `projects_crud.rs:509-519`; `desktop/frontend/src/types.ts:247` (`AICLI = "claude" \| "codex" \| "gemini" \| "opencode"`); tabs at `PaneView.tsx:423-434` |
-| "Three of these tools start from a file you already have — a Procfile for Foreman and Overmind, a compose file for Docker Compose. Five of them run somewhere other than a Mac. lpm does neither, and the table below says so." | QuickAnswer ¶3 | Counted against the rendered table (**R2**): the Procfile row has two ✓s and Compose reads its own file, hence "three… a Procfile for Foreman and Overmind, a compose file for Docker Compose"; the platform row has five non-✗ competitor cells. The previous wording ("Three of these tools read a file you already have. Two of them run on Linux and Windows.") invited a count the Procfile row could not settle. |
+| "Foreman and Overmind run straight off a Procfile you already have, Docker Compose off a compose file, and all three read it again on every start. lpm uses either one once, when you add the folder — a service per Procfile line, or a single `docker compose up` for the compose file — and keeps a list of its own after that. Five of the seven also run somewhere other than a Mac; lpm does not, and the table below says so." | QuickAnswer ¶3 | `detect/stacks.rs:21-39`, `:169-179`; `projects_crud.rs:93`, `:261` (the only detection call sites — add and clone); platform row counted against the rendered table (tmux, Compose, Foreman, Overmind, PM2). |
 | The `.lpm.yml` block in the code sample (`services:` → name: command) | QuickAnswer `CodeBlock` | `config.rs:155` (`<root>/.lpm.yml`), `:1508-1511` (parsed for `services`/`profiles`), `:809` (`profiles` map), `:569-582` (`name: cmd` shorthand) |
 | "For the lpm side of it, see the full field list." | QuickAnswer caption | Links `/config`, which documents the same keys |
 | "lpm ships its own, and its Open in iTerm action hands the project directory straight to yours." | Router, iTerm2 | `desktop/frontend/package.json:32` (`@xterm/xterm`, lpm's own terminal); `desktop/frontend/src-tauri/src/openin.rs:103` (`label: "iTerm"`) |
 | "lpm does not need tmux installed, and does not use it — which also means there is nothing on that box for you to attach to." | Router, tmux | `sessiond.rs:1-13` (lpm's own replacement for the tmux server); ruling **R1** — this is the dependency-and-install claim the ledger mandates, and the page no longer says "lpm has no tmux anywhere in it", which the one-time upgrade cleanup in `tmuxmigrate.rs:18` contradicts. That cleanup is an implementation detail and appears nowhere in the copy. |
-| "A Procfile is not something lpm reads — the names and commands move across once, by hand." | Router, Foreman | same zero-hit `Procfile` grep as matrix row 11 |
-| "lpm will run `docker compose up` as one of its services when you want both." | Router, Docker Compose | `config.rs:569-582` (any command is a service); `projectSuggestions.ts:317` (`docker compose up -d` is the suggested action form) |
+| "one Rails app in one terminal suits you, or your deploy depends on `foreman export`, or the Procfile is a file you keep editing: lpm lifts its lines in once, as you add the folder, and later edits stay on Foreman's side." | Router, Foreman | `detect/stacks.rs:21-39`; `projects_crud.rs:93`, `:261` (no re-read path) |
+| "Add the folder and lpm already lists `docker compose up` as one of its services, beside any native ones it found." | Router, Docker Compose | `detect/stacks.rs:169-179` (`compose` candidate); `detect/mod.rs:125` (added after the stack scanners); `desktop/frontend/src/store/adoptProject.ts:41` ("Found N services" toast) |
+| "Does lpm read a Procfile or a compose file? — Once, at the moment you add the folder. `Procfile.dev` — or `Procfile` when there is no `.dev` one — turns into one service per line under the same names and commands, minus the `release` line, and a compose file turns into a single `docker compose up` service beside the native ones. From then on the list belongs to lpm: a later edit to the Procfile is not picked up, whereas Foreman, Overmind and Compose go back to their file on every start." | FAQ 2 (new 2026-09-23) | `detect/stacks.rs:21-39` (`Procfile.dev` then `Procfile`, `:33` skips `release`), `:169-179`; `detect/mod.rs:197-225` (`place`: root candidates keep their own names); `projects_crud.rs:48-67`, `:93`, `:261` |
 | "you want the project managed too — services, a port check before they start, and a separate checkout per agent" | Router, cmux | `config.rs:569-582` (`port`, `portConflict`); `ports.rs:1-8` + `PortConflictDialog.tsx:30-31` (the check happens at start); `projects_crud.rs:509-519`. Reworded from "services, ports, …" so it cannot be read as per-copy port assignment, which does not exist. |
-| "lpm looks for the agent CLIs you already have installed, opens each one in its own tab alongside the running services, marks that tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files." | FAQ 4 | `aigen.rs:32-40`; `hooks.rs:1-9`; `agentStatus.ts:12`, `:14-20`; `PaneView.tsx:423-434`; `projects_crud.rs:509-519`; `BulkDuplicateDialog.tsx:42`. "never edit the same files" is the checkout claim only — the shared-ports half is conceded in the matrix footnote. |
+| "lpm puts Claude Code and Codex a click away in every project from the first launch, offers Gemini CLI and OpenCode when they are installed, opens each agent in its own tab alongside the running services, marks a Claude Code or Codex tab working, needs-you or done as the agent goes, and can copy the whole project so two agents never edit the same files." | FAQ 4 | `firstlaunch.rs:22-36` (seeded `claude`/`codex` global actions on a fresh install); `desktop/frontend/src/components/project-detail/useProjectSuggestions.ts:47-66` + `projectSuggestions.ts:265-274` (agent presets offered when the CLI is on PATH); `aigen.rs:32-40`; `hooks.rs:1-9`; `agentStatus.ts:12`, `:14-20`; `PaneView.tsx:423-434`; `projects_crud.rs:509-519`; `BulkDuplicateDialog.tsx:42`. "never edit the same files" is the checkout claim only — the shared-ports half is conceded in the matrix footnote. |
 | "let one tool own starting and stopping the project. Nothing here holds your processes hostage." | FAQ 5, CTA | `cli/src/start.rs`, `cli/src/stop.rs`; `services.rs:1-7` (ordinary processes, explicit stop paths only) |
 | "every service comes up at once, each in its own live pane" | SectionVideo label | `sessions.rs:1-3`; `services.rs:1-7`; the clip itself (`/screenrecording/start-project.mp4`) |
 | "a tab per agent, its status, and the services still running underneath" | RelatedPages, agents card | `hooks.rs:1-9`; `agentStatus.ts:12`; `PaneView.tsx:423-434`; `sessions.rs:1-3` |
 | "Reach a machine over SSH and keep it in the sidebar beside your local projects" | RelatedPages, SSH card | `config.rs:597-606` (`SshSettings` — host, user, port, key, dir); `peerssh.rs:44-52` |
 | "Driving a headless Linux host from the Mac" | RelatedPages, remote-server card | same as matrix row 12: `tauri.conf.json:31-38`; `config.rs:597-606`; `peerssh.rs:44-52` |
 
-Not claimed anywhere on this page, on purpose (spec §5.3/§5.5): no zero-config start, no per-duplicate ports, no framework auto-detection, no interleaved log stream, no crash restart (the matrix now concedes it in a row of its own), no native-banner claim, and no cold-shell claim for any mutating verb.
+Not claimed anywhere on this page, on purpose (spec §5.3/§5.5): no zero-config start, no per-duplicate ports, no interleaved log stream, no live Procfile sync, no crash restart (the matrix now concedes it in a row of its own), no native-banner claim, and no cold-shell claim for any mutating verb.
 
 The three remaining `RelatedPages` blurbs describe other pages on this site rather than the app: `/best-terminal-for-mac` really does compare lpm with iTerm2, Terminal.app, tmux, Hyper and Warp (`app/best-terminal-for-mac/_components/comparison.tsx:10-16`), `/config` documents both the project file and `~/.lpm/global.yml` (`app/config/page.tsx`), and `/git-worktree-for-ai-agents` is where what a worktree leaves behind is spelled out (`app/git-worktree-for-ai-agents/_components/what-breaks.tsx:14-28` for `.env` and dependencies, `:46-51` for shared ports and databases — the same two caveats the matrix footnote states). The seven `itemListJsonLd` descriptions are one-line summaries of the child pages and assert no lpm capability beyond the rows above.
 
@@ -224,7 +228,7 @@ Fourteen `ComparisonBasis` sources, up from §4.1's seven. **R3** required the a
 | Claim on the page | Source it traces to |
 |---|---|
 | iTerm2's triggers, smart selection, Python API, tmux control mode; "only via tmux" for surviving a quit | iTerm2's documentation |
-| iTerm2 3.7 ships a Claude Code integration (FAQ 4), and its release notes describe **no** per-session status (matrix cell "not documented") | iTerm2's 3.7 release notes — "version 3.7… a Claude Code integration", 8 September 2026 |
+| iTerm2 3.7 ships a Claude Code integration (FAQ 4), and its Session Status tool labels Claude sessions working / waiting / idle (matrix cell "Claude Code, since 3.7") | iTerm2's 3.7 release notes — "version 3.7… a Claude Code integration", 8 September 2026; https://iterm2.com/claude-code-integration.html — "the cc-status hook keeps it current automatically… working… waiting… idle" (re-read 2026-09-23) |
 | tmux panes and sessions survive a disconnect; respawn is manual; runs on Linux and \*BSD | the tmux manual |
 | cmux is macOS-only, has workspaces, a programmable browser pane, a CLI and Unix socket, restores panes on relaunch, signals a pane that needs attention, GPL-3.0-or-later | the cmux README — "macOS only, for now", "cmux can split a real browser pane… navigate, snapshot the DOM, click, type, evaluate JavaScript", "Every action is available through the cmux CLI and a Unix socket", "cmux restores windows, workspaces, panes… when you relaunch", "notification rings around panes", "GPL-3.0-or-later" |
 | Compose interleaves output, runs detached, restarts one service, pins image versions, has its own network | the Docker Compose docs |
@@ -247,7 +251,7 @@ Two competitor claims from §4.1 were **cut rather than sourced** (**R3/R8**):
 
 ## Notes for engineers copying this file
 
-- Files: `app/vs/page.tsx`, `app/vs/_components/{hero,tool-matrix,router}.tsx`, `app/vs/_components/tool-matrix-data.ts`, `app/vs/opengraph-image.tsx`.
+- Files: `app/vs/page.tsx`, `app/vs/_components/{hero,tool-matrix,router,hub-data}.tsx`, `app/vs/_components/tool-matrix-data.ts`, `app/vs/opengraph-image.tsx`.
 - Path constant: `VS_BASE_PATH` (`lib/links.ts`); child URLs via `vsPath(slug)`. Canonical `https://lpm.cx/vs`.
 - Structured data, exactly four entries: `webPageJsonLd` (with `about[]` and `dateModified: VS_REVIEWED_ISO`), `breadcrumbJsonLd`, `itemListJsonLd` (hub only, seven children), `screenRecordingJsonLd("start-project")`. `FAQPage` comes from the `Faq` component. Nothing from §6.2's excluded list.
 - `itemListJsonLd` will not render a carousel (§6.2) — it is there for entity extraction, not a SERP feature.

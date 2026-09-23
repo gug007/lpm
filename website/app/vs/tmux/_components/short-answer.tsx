@@ -15,14 +15,18 @@ export default function ShortAnswer() {
       <p>
         Yes, if what you want from tmux is one pane per service. lpm is a macOS
         app that starts every service in a project at once, each in its own live
-        pane, from a short YAML file instead of a <code>.tmux.conf</code>. It
-        does not use tmux and does not need it installed — quit lpm and your dev
-        servers keep running; reopen it and it finds them again.
+        pane, from a short service list instead of a{" "}
+        <code>.tmux.conf</code>. It does not use tmux and does not need it
+        installed — quit lpm and your dev servers keep running; reopen it and
+        it finds them again.
       </p>
       <p>
         Each pane keeps 10,000 lines of scrollback, and you restart one service
-        with <code>lpm service web restart</code> instead of respawning a pane by
-        hand. What you write is a service name and a command, so{" "}
+        with <code>lpm service web restart</code>{" "}
+        instead of respawning a pane by hand. When the repo has a package.json
+        dev script, a Procfile, a Rails Gemfile or a go.mod, lpm writes that
+        list itself as you add the folder; anything it misses is a service name
+        and a command, so{" "}
         <a
           href="#migrate"
           className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"

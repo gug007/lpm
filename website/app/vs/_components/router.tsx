@@ -94,8 +94,9 @@ const GROUPS: Group[] = [
         stayIf: (
           <>
             one Rails app in one terminal suits you, or your deploy depends on{" "}
-            <code>foreman export</code>. A Procfile is not something lpm reads —
-            the names and commands move across once, by hand.
+            <code>foreman export</code>, or the Procfile is a file you keep
+            editing: lpm lifts its lines in once, as you add the folder, and
+            later edits stay on Foreman&apos;s side.
           </>
         ),
       },
@@ -112,7 +113,7 @@ const GROUPS: Group[] = [
           "you want that per-process control with no multiplexer to install under it.",
         stayIf: (
           <>
-            you need Linux or *BSD, <code>-m web=2,worker=3</code> scaling, or a
+            you need Linux or *BSD, <code className="whitespace-nowrap">-m web=2,worker=3</code> scaling, or a
             PORT handed to each process.
           </>
         ),
@@ -131,12 +132,12 @@ const GROUPS: Group[] = [
         stayIf: (
           <>
             production parity matters, someone on the team is on Linux, or a
-            dependency nobody wants to install natively. lpm will run{" "}
-            <code>docker compose up</code>{" "}
+            dependency nobody wants to install natively. Add the folder and lpm
+            already lists <code>docker compose up</code>{" "}
             <Link href={CONFIG_PATH} className={LINK}>
               as one of its services
-            </Link>{" "}
-            when you want both.
+            </Link>
+            , beside any native ones it found.
           </>
         ),
       },

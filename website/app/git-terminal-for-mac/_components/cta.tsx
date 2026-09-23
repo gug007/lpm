@@ -8,13 +8,14 @@ export default function Cta() {
         <h2 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-[1.1] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           Your git workflow and your dev server, finally in the same window.
           <br className="hidden sm:block" />{" "}
-          Free, native, and ready in two minutes.
+          Free, native, and ready in minutes.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
           Download a native macOS binary, drag to Applications, open your first
-          project. lpm puts a git shell pane next to your running service panes
-          — and keeps them running when you switch branches. Works on every
-          Intel and Apple Silicon Mac running macOS 12 or later.
+          project. lpm puts a git shell pane and a diff review next to your
+          running service panes, and never restarts them when you switch
+          branches. Works on every Intel and Apple Silicon Mac running macOS 12
+          or later.
         </p>
 
         <div className="mt-10 flex justify-center">

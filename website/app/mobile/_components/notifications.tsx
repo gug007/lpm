@@ -6,17 +6,17 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: BellRing,
     title: "Know the second an agent needs you",
-    body: "When Claude Code or Codex stops to ask a question, finishes a task, or hits an error, a notification lands on your phone — even with the app closed. Turn each kind on or off: waiting, finished, errored. The idle time between a stall and your reply disappears.",
+    body: "When Claude Code or Codex stops to ask a question, finishes a task, or hits an error, a notification lands on your phone, even with the app closed. Automations can alert you too when they start, finish, or fail. Turn each kind on or off.",
   },
   {
     icon: Lock,
     title: "End-to-end encrypted, always",
-    body: "Every alert is sealed with an AES-256 key that only your iPhone holds. It travels to your phone as an opaque blob that the delivery relay can't read — the contents are decrypted on your device and nowhere else.",
+    body: "Every alert is sealed with a per-device AES-256 key that only your iPhone and your Mac share. The delivery relay passes along an opaque blob it can't read, and your phone decrypts it on arrival.",
   },
   {
     icon: Navigation,
     title: "Tap to jump straight in",
-    body: "Tapping a notification deep-links right to the project that needs you, ready to answer. Handle it on your Mac instead and the notification quietly withdraws itself, so you're never chasing an alert that's already done.",
+    body: "Tapping a notification opens the exact terminal or automation that needs you, ready to answer. Handle it on your Mac instead and the notification withdraws itself, so you're never chasing an alert that's already done.",
   },
 ];
 

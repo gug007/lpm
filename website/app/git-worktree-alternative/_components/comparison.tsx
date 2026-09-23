@@ -19,7 +19,7 @@ const ROWS: ComparisonRow[] = [
     worktree:
       "Tracked files from a chosen commit or branch.",
     duplicate:
-      "The project’s current on-disk state, with an option to remove uncommitted changes.",
+      "The project’s current on-disk state, fast-forwarded to the newest commits on its branch by default, with options to drop uncommitted changes or skip the pull.",
   },
   {
     topic: "Same branch in parallel",
@@ -40,7 +40,7 @@ const ROWS: ComparisonRow[] = [
     worktree:
       "Each new checkout normally needs its environment initialized.",
     duplicate:
-      "Existing dependencies stay available by default, or lpm can reinstall them.",
+      "Existing dependencies come along by default, or lpm can install them fresh in each copy for Node projects.",
   },
   {
     topic: "Agent launch",
@@ -64,6 +64,20 @@ const ROWS: ComparisonRow[] = [
       "Create up to 50 labeled copies from a single dialog.",
   },
   {
+    topic: "Ports and databases",
+    worktree:
+      "Shared: two checkouts running the same dev server still fight over its port and database.",
+    duplicate:
+      "Also shared. lpm checks declared ports when a copy starts and offers to free the port or stop.",
+  },
+  {
+    topic: "Removal",
+    worktree:
+      "git worktree remove, then delete the branch yourself if you no longer need it.",
+    duplicate:
+      "Delete the copy from the sidebar. Its folder is removed from disk for good, not moved to the Trash.",
+  },
+  {
     topic: "Disk model",
     worktree:
       "Very compact because repository data is shared.",
@@ -75,7 +89,7 @@ const ROWS: ComparisonRow[] = [
     worktree:
       "Built into Git and available across platforms.",
     duplicate:
-      "Built specifically for macOS and its APFS clone support.",
+      "An instant APFS clone on your Mac. Also works for projects on a connected Linux server, and can create a copy on another connected Mac that has the project.",
   },
 ];
 
@@ -85,8 +99,8 @@ export default function Comparison() {
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
           eyebrow="Git worktree vs lpm Duplicate"
-          title="The isolation boundary is the real difference"
-          description="A worktree isolates a checkout. lpm Duplicate isolates the project environment around that checkout, then connects it to the rest of the agent workflow."
+          title="What gets copied is the real difference"
+          description="A worktree isolates a checkout. lpm Duplicate copies the project around it (local files, dependencies and lpm setup), while ports, databases and Docker stay shared."
           className="mb-12"
         />
 

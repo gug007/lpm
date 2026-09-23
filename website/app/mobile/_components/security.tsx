@@ -11,12 +11,12 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Laptop,
     title: "Your code stays between phone and Mac",
-    body: "Your phone connects directly to your Mac — no server in the middle. Terminal output, keystrokes, diffs, and files never pass through anyone else. The one thing that leaves your network is a push notification, and it travels as an end-to-end encrypted blob only your iPhone can open.",
+    body: "Your phone connects directly to your Mac, with no server in the middle. Terminal output, keystrokes, diffs, and files never pass through anyone else. The one thing that leaves your network is a push notification, sealed with a key only your iPhone and your Mac hold.",
   },
   {
     icon: ShieldCheck,
-    title: "You choose the reach",
-    body: "By default the connection only listens on your Mac. Opt in to your local network when you want the phone on the same Wi-Fi, or use a Tailscale tailnet for encrypted access from anywhere. You decide how far it goes.",
+    title: "Off until you switch it on",
+    body: "Phone access stays off until you turn on Remote control in Settings. When it's on, your Mac accepts connections from your network, the app pins your Mac's certificate when you pair, and only paired devices get in. Add your tailnet address to the QR code to reach it from anywhere.",
   },
 ];
 

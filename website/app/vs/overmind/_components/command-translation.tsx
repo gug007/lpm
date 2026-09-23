@@ -7,11 +7,11 @@ const ROWS: CommandMapRow[] = [
   { from: "overmind stop worker", to: "lpm service worker stop" },
   {
     from: "overmind connect web",
-    to: "click the service in the sidebar, or lpm logs web -n 500",
+    to: "click the service's tab in the project, or lpm logs web -n 500",
   },
   {
     from: "overmind echo",
-    to: "nothing to set; each pane is a real terminal",
+    to: "open the project; each service's output is already in its pane",
   },
   {
     from: "overmind run yarn install",

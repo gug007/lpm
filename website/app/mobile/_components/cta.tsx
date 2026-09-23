@@ -2,7 +2,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { GithubLink } from "@/components/github-link";
 import { HeroDownload } from "@/components/home/hero-download";
-import AppStoreButton from "./app-store-button";
+import { AppStoreButton } from "@/components/app-store-button";
 
 export default function Cta() {
   return (
@@ -14,9 +14,9 @@ export default function Cta() {
           Prompt your agents, review the diff, and ship it from anywhere.
         </h2>
         <p className="mt-6 text-base sm:text-lg text-gray-600 dark:text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Download the native macOS app, open a project, and pair your iPhone or
-          iPad in Settings → Mobile devices. Free, native, and yours — the work
-          stays on your Mac, the control comes with you.
+          Download the native macOS app, get lpm Link from the App Store, and
+          pair your iPhone or iPad in Settings → Mobile devices. Free, native,
+          and yours: the work stays on your Mac, the control comes with you.
         </p>
 
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:items-start">
@@ -27,7 +27,7 @@ export default function Cta() {
         </div>
         <Link
           href="/#download"
-          className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white sm:hidden"
+          className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-[13px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white sm:hidden"
         >
           Get lpm for your Mac
           <ArrowRight className="w-3.5 h-3.5" />

@@ -6,12 +6,32 @@ const FAQS = [
   {
     question: "What can I track for Claude Code and Codex?",
     answer:
-      "lpm tracks total, input, cached input, output, and available reasoning-token metadata. You can break usage down by day, provider, project, model, and recent session, with Today, 7 days, 30 days, and All time ranges.",
+      "Stats counts total, input, cached input, output, and, where the CLI reports it, reasoning tokens, with an estimated cost. Break usage down by day, provider, project, and recent session over Today, 7 days, 30 days, or All time. Usage shows how much of your 5-hour and weekly plan limits you have used.",
   },
   {
-    question: "Where does lpm get the token usage data?",
+    question: "Can lpm show my Claude Code 5-hour and weekly limits?",
     answer:
-      "lpm reads usage metadata from local Claude Code and Codex session histories, then matches each session’s working directory to a configured local lpm project.",
+      "Yes. Open Usage and press Enable on the Claude card. From then on, Claude Code sessions you run in lpm terminals report how much of the current 5-hour and weekly windows you have used and when each one resets. It works with Pro and Max logins; an API-key login has no plan windows to show. Your existing status line keeps working.",
+  },
+  {
+    question: "Does it track Codex rate limits too?",
+    answer:
+      "Yes, with no setup. The first time you run Codex in a project, its 5-hour and weekly meters appear in Usage and in the sidebar.",
+  },
+  {
+    question: "What do ahead of pace, on pace, and under pace mean?",
+    answer:
+      "lpm compares how much of a window you have used with how much of it has passed. Ahead of pace means you are spending faster than the window refills, and if the current rate would run out before the reset, lpm tells you roughly when. The tick on each sidebar bar marks how much of the window has passed.",
+  },
+  {
+    question: "Where do I find Stats and Usage in lpm?",
+    answer:
+      "Both sit in the More menu at the bottom of the sidebar, and either can be moved into the sidebar itself. Clicking the sidebar usage meter also opens Usage, and the lpm iPhone app has Usage and Stats screens.",
+  },
+  {
+    question: "Where does lpm get the numbers?",
+    answer:
+      "Token counts come from usage metadata in the local Claude Code and Codex session histories, matched to the lpm project each session ran in. Limit readings are what the CLIs report while they run. lpm does not ask Anthropic or OpenAI for anything.",
   },
   {
     question: "Does the stats dashboard include my prompts or responses?",
@@ -21,7 +41,7 @@ const FAQS = [
   {
     question: "Is the estimated cost the same as my bill?",
     answer:
-      "No. It is an estimate based on current public list prices per recognized model, with cached reads and writes priced separately. OpenAI and Codex pricing is approximate, so use your provider’s billing page as the source of truth.",
+      "No. It is an estimate at public list prices per recognized model, with cached reads and writes priced separately. Codex pricing is approximate, and on a subscription you do not pay per token, so use your provider's billing page as the source of truth.",
   },
   {
     question: "Can I find which project or session used the most tokens?",
@@ -29,9 +49,9 @@ const FAQS = [
       "Yes. Sort projects by tokens or sessions, then inspect recent sessions with provider, model, duration, recency, and token composition details.",
   },
   {
-    question: "Are remote SSH projects included?",
+    question: "Are remote projects included?",
     answer:
-      "Not currently. The stats dashboard counts configured local projects and excludes SSH projects.",
+      "Not currently. Stats counts projects configured on this Mac; SSH projects and projects on connected Linux servers or other Macs are not included.",
   },
 ];
 
@@ -41,8 +61,8 @@ export default function Faq() {
       <div className="mx-auto max-w-3xl px-6">
         <SectionHeader
           eyebrow="FAQ"
-          title="Claude Code and Codex token usage"
-          description="What the dashboard counts, where the data comes from, and what stays private."
+          title="Claude Code and Codex usage, answered"
+          description="What Stats and Usage count, where the numbers come from, and what stays private."
         />
         <ul className="space-y-3">
           {FAQS.map(({ question, answer }) => (

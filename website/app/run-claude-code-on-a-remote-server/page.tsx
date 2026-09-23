@@ -5,6 +5,7 @@ import {
   CONNECT_AGENTS_PATH,
   LINUX_HOST_PATH,
   MOBILE_PATH,
+  PARALLEL_PATH,
   SSH_TERMINAL_MAC_PATH,
   WORKTREE_AGENTS_PATH,
 } from "@/lib/links";
@@ -119,7 +120,7 @@ export default function RunOnRemoteServerPage() {
             href: CONNECT_AGENTS_PATH,
             title: "Connect AI agents to your dev environment",
             description:
-              "The command-line tool an agent uses to start services, read logs, and wait for a port — on the server too.",
+              "The command-line tool agents use to run services and check logs, on the server as well.",
           },
           {
             href: WORKTREE_AGENTS_PATH,
@@ -135,9 +136,15 @@ export default function RunOnRemoteServerPage() {
           },
           {
             href: MOBILE_PATH,
-            title: "Control your Mac from your iPhone",
+            title: "Your agents on your iPhone",
             description:
-              "Watch a run, answer a prompt, and ship the result without opening the laptop.",
+              "Pair the phone with your Mac or with the server itself, then watch a run and answer a prompt from anywhere.",
+          },
+          {
+            href: PARALLEL_PATH,
+            title: "Run Claude Code in parallel",
+            description:
+              "Send one prompt to several copies of a project and compare the results, here or on a server.",
           },
         ]}
       />

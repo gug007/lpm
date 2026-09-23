@@ -10,17 +10,11 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Service list drafted from your repo, then yours to edit",
-    lpm: true,
+    lpm: "package.json, Procfile, Gemfile, go.mod, compose and more, read as you add it",
     competitor: false,
   },
   {
-    label:
-      "Reads package.json scripts, Makefile targets, justfile recipes and compose files",
-    lpm: true,
-    competitor: false,
-  },
-  {
-    label: "Drafts the whole config with your own agent CLI",
+    label: "Redrafts the whole config with your own agent CLI",
     lpm: "Claude Code, Codex, Gemini CLI or OpenCode",
     competitor: false,
   },
@@ -46,7 +40,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Your own shells survive a restart too",
-    lpm: "tabs come back, the shell restarts",
+    lpm: "tabs come back; Claude Code and Codex resume their conversation, shells start fresh",
     competitor: true,
   },
   {
@@ -76,7 +70,7 @@ const ROWS: MatrixRow[] = [
   },
   {
     label: "Remap every key and script custom layouts in a config file",
-    lpm: "three remappable hotkeys",
+    lpm: "three remappable app hotkeys, plus a shortcut per action",
     competitor: "via .tmux.conf",
   },
   {

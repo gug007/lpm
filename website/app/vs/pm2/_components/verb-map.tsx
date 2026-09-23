@@ -52,7 +52,7 @@ export function VerbMap() {
           &ldquo;lpm app is not running&rdquo; instead. Reading is looser —{" "}
           <code className="font-mono">lpm logs</code>,{" "}
           <code className="font-mono">lpm list</code> and{" "}
-          <code className="font-mono">lpm wait --port</code> inspect the
+          <code className="font-mono whitespace-nowrap">lpm wait --port</code> inspect the
           services themselves. The exception on that side is{" "}
           <code className="font-mono">lpm status</code>: agent status is the
           app&apos;s to report, so it says there is no live status until lpm is

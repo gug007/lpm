@@ -48,14 +48,56 @@ function classify(name: string): string | null {
   return null;
 }
 
-export async function getDownloadStats(): Promise<DownloadStats | null> {
-  const res = await fetch(`${RELEASES_API}?per_page=100`, {
+const PER_PAGE = 100;
+// A ceiling on requests per build, well above the repo's release count, so a
+// runaway Link header can never spend the unauthenticated rate limit.
+const MAX_PAGES = 20;
+
+type ReleasePage = { releases: RawRelease[]; lastPage: number };
+
+function lastPageOf(link: string | null, current: number): number {
+  const match = link?.match(/[?&]page=(\d+)[^>]*>;\s*rel="last"/);
+  return match ? Number(match[1]) : current;
+}
+
+async function fetchReleasePage(page: number): Promise<ReleasePage | null> {
+  const res = await fetch(`${RELEASES_API}?per_page=${PER_PAGE}&page=${page}`, {
     headers: { Accept: "application/vnd.github+json" },
     next: { revalidate: 3600 },
   });
   if (!res.ok) return null;
+  return {
+    releases: (await res.json()) as RawRelease[],
+    lastPage: lastPageOf(res.headers.get("link"), page),
+  };
+}
 
-  const raw = (await res.json()) as RawRelease[];
+// Every page or nothing: a total missing its older releases would be an
+// undercount presented as the real figure.
+async function fetchAllReleases(): Promise<RawRelease[] | null> {
+  const first = await fetchReleasePage(1);
+  if (!first) return null;
+  const last = Math.min(first.lastPage, MAX_PAGES);
+  const rest = await Promise.all(
+    Array.from({ length: last - 1 }, (_, i) => fetchReleasePage(i + 2)),
+  );
+  const pages = [first, ...rest].filter((p): p is ReleasePage => p !== null);
+  if (pages.length !== last) return null;
+  const byTag = new Map<string, RawRelease>();
+  for (const page of pages) {
+    for (const release of page.releases) byTag.set(release.tag_name, release);
+  }
+  return [...byTag.values()];
+}
+
+export async function getDownloadStats(): Promise<DownloadStats | null> {
+  let raw: RawRelease[] | null;
+  try {
+    raw = await fetchAllReleases();
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
 
   let total = 0;
 
@@ -73,7 +115,7 @@ export async function getDownloadStats(): Promise<DownloadStats | null> {
         downloads: a.download_count,
       });
     }
-    assets.sort((a, b) => b.downloads - a.downloads);
+    assets.sort((a, b) => a.label.localeCompare(b.label));
     return {
       tag: r.tag_name,
       name: r.name || r.tag_name,

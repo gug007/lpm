@@ -11,22 +11,22 @@ const FAQS: QA[] = [
   {
     question: "Does lpm work with monorepos?",
     answer:
-      "Yes. lpm is designed around multi-service projects. Open a monorepo folder, define each service once — or let AI generate the config for you — and each service gets its own pane and start/stop controls. You can start the entire monorepo in one click or bring up individual services independently.",
+      "Yes. When you add a monorepo, lpm turns each workspace package or conventional app folder (apps/*, services/*, api, web, and similar) into its own service, up to 20 of them. Each service gets its own pane and its own switch in the Start menu, so you can start the whole repo in one click, bring up a single service, or save a profile such as backend only.",
   },
   {
     question: "Can I use lpm alongside VS Code or another editor?",
     answer:
-      "Yes. lpm is a terminal workspace, not an editor replacement. You write code in VS Code, Cursor, Zed, or whatever editor you prefer, and use lpm to run your dev stack, watch logs, and manage git — all in a native Mac window that sits alongside your editor.",
+      "Yes. lpm is a terminal workspace, not an editor replacement. You write code in VS Code, Cursor, Zed, or whatever editor you prefer, and Open with sends a project straight to it. lpm runs your dev stack, shows the logs, and handles git in a native Mac window that sits alongside your editor.",
   },
   {
     question: "Does lpm support SSH or remote development?",
     answer:
-      "Yes. lpm supports SSH remote projects: connect to a remote dev box, forward remote ports to localhost, and run remote services in panes right beside your local stack. Service management and log panes work for remote services the same way they do for local ones.",
+      "Yes. lpm supports SSH remote projects: connect to a remote dev box, forward remote ports to localhost, and run remote services in panes. An SSH project is listed right beside your local ones, and its services and logs behave like local ones.",
   },
   {
     question: "How does lpm help when running multiple AI coding agents?",
     answer:
-      "Each AI coding agent can be assigned its own lpm project workspace. That isolation means agents can run dev servers, execute tests, and write to log panes without conflicting with your running environment or with each other. You can watch every agent's output in real time, in separate labeled panes, from one Mac window.",
+      "Put each agent in a separate copy, Duplicate or New Worktree, so no two agents edit the same files and your working copy stays untouched. Each copy has its own terminals and services and appears under the original in the sidebar. Copies use the same ports as the original, so lpm warns you when two want the same one and offers to free it.",
   },
   {
     question: "Can I use my existing shell setup (zsh, dotfiles, aliases) in lpm?",
@@ -36,7 +36,17 @@ const FAQS: QA[] = [
   {
     question: "How is lpm different from using tmux inside iTerm2?",
     answer:
-      "tmux gives you pane multiplexing but no project awareness, no service lifecycle management, and no GUI for starting or stopping processes. lpm layers a visual project switcher, per-service start/stop controls, and a config editor on top of real terminal panes — so you get the workflow benefits of tmux without the config overhead, and with a native Mac interface that new team members can use on day one.",
+      "tmux gives you pane multiplexing but no project awareness, no service lifecycle management, and no GUI for starting or stopping processes. lpm gives you a visual project switcher, per-service start/stop controls, and a config editor alongside real terminal panes, so you get the workflow benefits of tmux without the config overhead, and with a native Mac interface that new team members can use on day one.",
+  },
+  {
+    question: "What happens when two projects want the same port?",
+    answer:
+      "lpm checks a project's ports when you press Start. If one is taken, it tells you who holds it, another lpm project or a named process, and offers to stop that holder and start yours. Each service can also be set to always ask, free the port automatically, or not start.",
+  },
+  {
+    question: "Can I control lpm from scripts?",
+    answer:
+      "Yes. The lpm command line tool, installed from Settings, starts and stops projects and single services, prints a service's recent logs, and waits for a port or service to be ready. Its commands take --json for machine-readable output, which makes it easy to use from scripts and from AI coding agents.",
   },
 ];
 
@@ -59,7 +69,7 @@ export default function Faq() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="FAQ"
-          title="What developers ask before switching their Mac terminal"
+          title="What full-stack developers ask before moving their stack into lpm"
         />
         <ul className="space-y-3">
           {FAQS.map(({ question, answer }) => (
