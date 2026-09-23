@@ -325,6 +325,7 @@ interface AppState {
       reinstallDeps?: boolean;
       pullLatest?: boolean;
       labels?: string[];
+      folderIds?: string[];
       tasksPerCopy?: SpawnTask[][];
       // Index-aligned with labels/tasksPerCopy: the project each copy is
       // duplicated FROM — a local name or a prefixed peer name, so a copy can be
@@ -1489,15 +1490,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     // event tap installs via an async listen(), so arming one just before its
     // start call could still drop a fast duplicate's event.
     const sourceAt = (i: number) => opts.targetsPerCopy?.[i] || name;
+    const folderIdAt = (i: number) => opts.folderIds?.[i] || undefined;
     const copyArgs = (i: number) =>
       [
         (opts.labels?.[i] ?? "").trim(),
         opts.excludeUncommitted ?? false,
         opts.reinstallDeps ?? false,
         opts.pullLatest ?? true,
+        folderIdAt(i),
       ] as const;
     const worktreeArgs = (i: number) =>
-      [(opts.labels?.[i] ?? "").trim(), opts.reinstallDeps ?? false] as const;
+      [(opts.labels?.[i] ?? "").trim(), opts.reinstallDeps ?? false, folderIdAt(i)] as const;
     const pending: PendingDuplicate[] = Array.from({ length: count }, (_, i) => ({
       id: ++pendingDuplicateNonce,
       parent: sourceAt(i),

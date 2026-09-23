@@ -134,15 +134,17 @@ describe("bulkDuplicate per-copy targets", () => {
     await useAppStore.getState().bulkDuplicate("app", 2, {
       mode: "worktree",
       labels: ["Local", "Remote"],
+      folderIds: ["iCTt8J", "Qx7pL2"],
       reinstallDeps: true,
       targetsPerCopy: ["app", peerApp],
     });
 
-    expect(h.DuplicateWorktreeProject).toHaveBeenCalledWith("app", "Local", true);
+    expect(h.DuplicateWorktreeProject).toHaveBeenCalledWith("app", "Local", true, "iCTt8J");
     expect(h.StartDuplicateWorktreeProject).toHaveBeenCalledWith(
       peerApp,
       "Remote",
       true,
+      "Qx7pL2",
     );
     expect(h.DuplicateProject).not.toHaveBeenCalled();
     expect(h.StartDuplicateProject).not.toHaveBeenCalled();

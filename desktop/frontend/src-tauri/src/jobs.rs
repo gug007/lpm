@@ -2340,6 +2340,7 @@ fn pipeline_body(
                 project.to_string(),
                 None,
                 dup.reinstall_deps,
+                None,
             )
         } else {
             crate::projects_crud::duplicate_project(
@@ -2349,6 +2350,7 @@ fn pipeline_body(
                 dup.exclude_uncommitted,
                 dup.reinstall_deps,
                 dup.pull_latest,
+                None,
             )
         };
         match result {

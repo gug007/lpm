@@ -41,8 +41,8 @@ import type {
 const MIN_COUNT = 1;
 const MAX_COUNT = 50;
 
-// Mirror the backend's id alphabet so the default label matches the name a
-// copy would otherwise be given.
+// Mirror the backend's id alphabet: the backend names the copy's folder from
+// this id when it accepts it.
 const NAME_ALPHABET =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -56,12 +56,13 @@ function randomId6(): string {
   return out;
 }
 
-// One draft copy: its display label, an optional per-copy run override
-// (`override === null` means the copy runs the shared default below), and the
-// project it's duplicated from — the source itself, or the same project on
-// another connected Mac.
+// One draft copy: its display label, the id its folder is named after, an
+// optional per-copy run override (`override === null` means the copy runs the
+// shared default below), and the project it's duplicated from — the source
+// itself, or the same project on another connected Mac.
 interface CopyDraft {
   label: string;
+  folderId: string;
   override: CopyOverride | null;
   target: string;
 }
@@ -72,6 +73,10 @@ export interface BulkDuplicateOptions {
   reinstallDeps: boolean;
   pullLatest: boolean;
   labels: string[];
+  // Index-aligned with `labels`: the id each copy's folder is named after
+  // (`<original>-<id>`), fixed when the draft was made so an edited label never
+  // renames the folder.
+  folderIds: string[];
   // One entry per copy (index-aligned with `labels`): the tasks to run on that
   // copy, resolved from either its override or the shared default.
   tasksPerCopy: SpawnTask[][];
@@ -127,7 +132,7 @@ export function BulkDuplicateDialog({
 }: BulkDuplicateDialogProps) {
   const seeded = seed !== undefined;
   const [copies, setCopies] = useState<CopyDraft[]>([
-    { label: "", override: null, target: "" },
+    { label: "", folderId: "", override: null, target: "" },
   ]);
   const count = copies.length;
   // The shared default applied to every copy that doesn't override it.
@@ -161,13 +166,21 @@ export function BulkDuplicateDialog({
     ? projectDisplayName(project, findParentProject(project, projects))
     : "";
 
-  // Default each label to the copy's would-be name (`<original>-<id>`), the
-  // same scheme the backend uses for the folder, so the field shows the copy's
-  // name rather than the original's. The focused field selects just the random
-  // suffix (focusLabelSuffix) so typing swaps it for a meaningful name while
-  // keeping the project prefix.
-  const base = project?.parentName || project?.name;
-  const genLabel = () => (base ? `${base}-${randomId6()}` : "");
+  // Default each label to the copy's folder name (`<original>-<id>`), so the
+  // field shows the copy's name rather than the original's. Editing the label
+  // only renames it in lpm; the folder keeps the id. The focused field selects
+  // just the random suffix (focusLabelSuffix) so typing swaps it for a
+  // meaningful name while keeping the project prefix.
+  const base = stripMarker(project?.parentName || project?.name || "");
+  const newCopy = (): CopyDraft => {
+    const folderId = randomId6();
+    return {
+      label: base ? `${base}-${folderId}` : "",
+      folderId,
+      override: null,
+      target: project?.name ?? "",
+    };
+  };
   // Shown as run #1 in the seeded (composer) flow — the current project runs the
   // prompt in place, so it's listed above the fresh copies rather than created.
   const currentName = projectDisplay || "This project";
@@ -241,13 +254,7 @@ export function BulkDuplicateDialog({
           : "none";
     // Seed the copy count from the menu's counter (clamped), else one copy.
     const initialCount = seed?.count ? clamp(seed.count) : 1;
-    setCopies(
-      Array.from({ length: initialCount }, () => ({
-        label: genLabel(),
-        override: null,
-        target: project?.name ?? "",
-      })),
-    );
+    setCopies(Array.from({ length: initialCount }, newCopy));
     // Prefer running the originating action (a clean, re-resolved command per
     // copy) over replaying the raw launch command; fall back to the saved mode
     // when nothing is seeded.
@@ -300,8 +307,7 @@ export function BulkDuplicateDialog({
           : trimmed;
       }
       const out = prev.slice();
-      while (out.length < n)
-        out.push({ label: genLabel(), override: null, target: project?.name ?? "" });
+      while (out.length < n) out.push(newCopy());
       return out;
     });
     setEditing((e) => (e !== null && e >= n ? null : e));
@@ -535,6 +541,7 @@ export function BulkDuplicateDialog({
       reinstallDeps,
       pullLatest: isWorktree ? false : pullLatest,
       labels: copies.map((c) => c.label.trim()),
+      folderIds: copies.map((c) => c.folderId),
       tasksPerCopy: buildTasksPerCopy(),
       targetsPerCopy: copies.map((c) => {
         const t = targetOf(c);

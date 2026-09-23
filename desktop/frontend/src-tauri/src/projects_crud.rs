@@ -355,12 +355,23 @@ fn random_id6() -> String {
         .collect()
 }
 
+fn is_duplicate_id(id: &str) -> bool {
+    id.len() == 6 && id.bytes().all(|b| ALPHABET.contains(&b))
+}
+
+/// Reserve `<original>-<id>`, preferring the id the UI already showed the user
+/// so the folder matches the default label; a malformed or taken id falls back
+/// to a random one.
 fn next_available_duplicate(
     original: &str,
     parent_dir: &Path,
+    preferred_id: Option<&str>,
 ) -> Result<(String, PathBuf), String> {
-    for _ in 0..10 {
-        let candidate = format!("{original}-{}", random_id6());
+    let preferred = preferred_id
+        .filter(|id| is_duplicate_id(id))
+        .map(str::to_string);
+    for id in preferred.into_iter().chain((0..10).map(|_| random_id6())) {
+        let candidate = format!("{original}-{id}");
         let root = parent_dir.join(&candidate);
         if !config::project_exists(&candidate) && !root.exists() {
             return Ok((candidate, root));
@@ -696,7 +707,10 @@ pub(crate) struct DuplicatePlan {
 /// Cheap, filesystem-light validation shared by the local and remote duplicate
 /// flows: resolve the source root and reserve a unique copy name. Never runs the
 /// clone, so it's safe inline before handing the slow work to a background thread.
-pub(crate) fn prepare_duplicate(name: &str) -> Result<DuplicatePlan, String> {
+pub(crate) fn prepare_duplicate(
+    name: &str,
+    folder_id: Option<&str>,
+) -> Result<DuplicatePlan, String> {
     let src = load_root_and_parent(name)?;
     if src.root.trim().is_empty() {
         return Err("cannot duplicate an SSH project (no local root)".into());
@@ -708,13 +722,21 @@ pub(crate) fn prepare_duplicate(name: &str) -> Result<DuplicatePlan, String> {
         .to_path_buf();
     // The folder always gets an auto-generated name; any user-typed value is a
     // display label, not the directory name.
-    let (new_name, new_root) = next_available_duplicate(&original, &parent_dir)?;
+    let (new_name, new_root) = next_available_duplicate(&original, &parent_dir, folder_id)?;
     Ok(DuplicatePlan {
         src_root: src.root,
         original,
         new_name,
         new_root,
     })
+}
+
+/// A label identical to the copy's name adds nothing, so only a distinct one is
+/// stored.
+fn copy_label<'a>(plan: &DuplicatePlan, label: Option<&'a str>) -> Option<&'a str> {
+    label
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && *l != plan.new_name)
 }
 
 /// Run the slow duplicate work for a prepared plan: clone the source tree,
@@ -730,7 +752,7 @@ pub(crate) fn run_duplicate(
     reinstall_deps: bool,
     pull_latest: bool,
 ) -> Result<(), String> {
-    let label = label.map(str::trim).filter(|l| !l.is_empty());
+    let label = copy_label(plan, label);
     let new_root = &plan.new_root;
     let source_root = Path::new(&plan.src_root);
 
@@ -785,8 +807,11 @@ pub(crate) fn run_duplicate(
     Ok(())
 }
 
-fn prepare_worktree_duplicate(name: &str) -> Result<DuplicatePlan, String> {
-    let plan = prepare_duplicate(name)?;
+fn prepare_worktree_duplicate(
+    name: &str,
+    folder_id: Option<&str>,
+) -> Result<DuplicatePlan, String> {
+    let plan = prepare_duplicate(name, folder_id)?;
     ensure_worktree_source(Path::new(&plan.src_root))?;
     Ok(plan)
 }
@@ -797,7 +822,7 @@ fn run_worktree_duplicate(
     label: Option<&str>,
     reinstall_deps: bool,
 ) -> Result<(), String> {
-    let label = label.map(str::trim).filter(|l| !l.is_empty());
+    let label = copy_label(plan, label);
     let source_root = Path::new(&plan.src_root);
     let branch = worktree_branch_name(&plan.new_name);
     create_linked_worktree(source_root, &plan.new_root, &branch)?;
@@ -838,8 +863,9 @@ fn duplicate_one(
     exclude_uncommitted: bool,
     reinstall_deps: bool,
     pull_latest: bool,
+    folder_id: Option<&str>,
 ) -> Result<String, String> {
-    let plan = prepare_duplicate(name)?;
+    let plan = prepare_duplicate(name, folder_id)?;
     run_duplicate(
         app,
         &plan,
@@ -856,8 +882,9 @@ fn duplicate_worktree_one(
     name: &str,
     label: Option<&str>,
     reinstall_deps: bool,
+    folder_id: Option<&str>,
 ) -> Result<String, String> {
-    let plan = prepare_worktree_duplicate(name)?;
+    let plan = prepare_worktree_duplicate(name, folder_id)?;
     run_worktree_duplicate(app, &plan, label, reinstall_deps)?;
     Ok(plan.new_name)
 }
@@ -870,6 +897,7 @@ pub fn duplicate_project(
     exclude_uncommitted: bool,
     reinstall_deps: bool,
     pull_latest: bool,
+    folder_id: Option<String>,
 ) -> Result<String, String> {
     duplicate_one(
         &app,
@@ -878,6 +906,7 @@ pub fn duplicate_project(
         exclude_uncommitted,
         reinstall_deps,
         pull_latest,
+        folder_id.as_deref(),
     )
 }
 
@@ -887,8 +916,15 @@ pub fn duplicate_worktree_project(
     name: String,
     label: Option<String>,
     reinstall_deps: bool,
+    folder_id: Option<String>,
 ) -> Result<String, String> {
-    duplicate_worktree_one(&app, &name, label.as_deref(), reinstall_deps)
+    duplicate_worktree_one(
+        &app,
+        &name,
+        label.as_deref(),
+        reinstall_deps,
+        folder_id.as_deref(),
+    )
 }
 
 /// Outcome of a `start_duplicate_project` copy, delivered via the
@@ -967,8 +1003,9 @@ pub fn start_duplicate_project(
     exclude_uncommitted: bool,
     reinstall_deps: bool,
     pull_latest: bool,
+    folder_id: Option<String>,
 ) -> Result<String, String> {
-    let plan = prepare_duplicate(&name)?;
+    let plan = prepare_duplicate(&name, folder_id.as_deref())?;
     let new_name = plan.new_name.clone();
     dup_status_start(&new_name);
     std::thread::spawn(move || {
@@ -1001,8 +1038,9 @@ pub fn start_duplicate_worktree_project(
     name: String,
     label: Option<String>,
     reinstall_deps: bool,
+    folder_id: Option<String>,
 ) -> Result<String, String> {
-    let plan = prepare_worktree_duplicate(&name)?;
+    let plan = prepare_worktree_duplicate(&name, folder_id.as_deref())?;
     let new_name = plan.new_name.clone();
     dup_status_start(&new_name);
     std::thread::spawn(move || {
@@ -1046,6 +1084,7 @@ pub fn duplicate_projects(
             exclude_uncommitted,
             reinstall_deps,
             pull_latest,
+            None,
         ) {
             Ok(new_name) => created.push(new_name),
             Err(e) => {
@@ -1617,6 +1656,30 @@ mod tests {
         assert!(!d.join("website/node_modules").exists());
         assert!(!d.join("website/.next").exists());
         assert!(!d.join(".next").exists());
+    }
+
+    #[test]
+    fn duplicate_takes_the_preferred_id_when_free() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (name, root) =
+            next_available_duplicate("lpm-dup-test", tmp.path(), Some("iCTt8J")).unwrap();
+        assert_eq!(name, "lpm-dup-test-iCTt8J");
+        assert_eq!(root, tmp.path().join("lpm-dup-test-iCTt8J"));
+    }
+
+    #[test]
+    fn duplicate_falls_back_when_preferred_id_is_taken_or_malformed() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join("lpm-dup-test-iCTt8J")).unwrap();
+        let (taken, _) =
+            next_available_duplicate("lpm-dup-test", tmp.path(), Some("iCTt8J")).unwrap();
+        assert_ne!(taken, "lpm-dup-test-iCTt8J");
+        for bad in ["../etc", "abc", "abc/de", "abcdefg", ""] {
+            let (name, _) =
+                next_available_duplicate("lpm-dup-test", tmp.path(), Some(bad)).unwrap();
+            assert!(is_duplicate_id(name.strip_prefix("lpm-dup-test-").unwrap()));
+            assert_ne!(name, format!("lpm-dup-test-{bad}"));
+        }
     }
 
     #[test]

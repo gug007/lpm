@@ -2648,6 +2648,7 @@ fn handle_msg(
                         name.clone(),
                         label,
                         reinstall_deps,
+                        None,
                     )
                 } else {
                     crate::projects_crud::duplicate_project(
@@ -2657,6 +2658,7 @@ fn handle_msg(
                         exclude_uncommitted,
                         reinstall_deps,
                         pull_latest,
+                        None,
                     )
                 };
                 match result {

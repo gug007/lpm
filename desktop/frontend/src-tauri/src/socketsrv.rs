@@ -434,6 +434,7 @@ fn cmd_duplicate_project(
                 name.clone(),
                 label,
                 reinstall_deps,
+                None,
             )
         } else {
             crate::projects_crud::duplicate_project(
@@ -443,6 +444,7 @@ fn cmd_duplicate_project(
                 exclude_uncommitted,
                 reinstall_deps,
                 pull_latest,
+                None,
             )
         };
         match result {

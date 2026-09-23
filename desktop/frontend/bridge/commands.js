@@ -142,11 +142,11 @@ export function CreateProjectFromClone(name, url, branch, destParent) {
 export function StartCloneProject(name, url, branch, destParent) {
   return invoke("start_clone_project", { name, url, branch, destParent });
 }
-export function StartDuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest) {
-  return invoke("start_duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest });
+export function StartDuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId) {
+  return invoke("start_duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId });
 }
-export function StartDuplicateWorktreeProject(name, label, reinstallDeps) {
-  return invoke("start_duplicate_worktree_project", { name, label, reinstallDeps });
+export function StartDuplicateWorktreeProject(name, label, reinstallDeps, folderId) {
+  return invoke("start_duplicate_worktree_project", { name, label, reinstallDeps, folderId });
 }
 export function DuplicateStatus(name) {
   return invoke("duplicate_status", { name });
@@ -184,11 +184,11 @@ export function DetectServicePorts(name) {
 export function DismissPortSuggestion(project, port) {
   return invoke("dismiss_port_suggestion", { project, port });
 }
-export function DuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest) {
-  return invoke("duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest });
+export function DuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId) {
+  return invoke("duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId });
 }
-export function DuplicateWorktreeProject(name, label, reinstallDeps) {
-  return invoke("duplicate_worktree_project", { name, label, reinstallDeps });
+export function DuplicateWorktreeProject(name, label, reinstallDeps, folderId) {
+  return invoke("duplicate_worktree_project", { name, label, reinstallDeps, folderId });
 }
 export function DuplicateProjects(name, count, excludeUncommitted, reinstallDeps, pullLatest) {
   return invoke("duplicate_projects", { name, count, excludeUncommitted, reinstallDeps, pullLatest });
