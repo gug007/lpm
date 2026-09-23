@@ -14,6 +14,7 @@ export interface ProviderLimits {
   fiveHour?: LimitWindow;
   weekly?: LimitWindow;
   updatedAt: number; // unix millis
+  noLimits?: boolean; // a Claude login whose replies carry no plan windows
 }
 
 export type AgentLimitsMap = Record<string, ProviderLimits>;

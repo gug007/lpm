@@ -12,6 +12,7 @@ import { tokensToday } from "../sidebarUsage";
 import { providerMeta } from "./stats/limitsFormat";
 import { UsageProviderCard } from "./UsageProviderCard";
 import { UsageEmptyPanel } from "./UsageEmptyPanel";
+import { UsageAccountWaiting } from "./UsageAccountWaiting";
 import { UsageSkeleton } from "./UsageSkeleton";
 import { UsageSidebarSection } from "./UsageSidebarSection";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -35,6 +36,7 @@ export function UsageView({ onClose }: UsageViewProps) {
   const { stats: todayStats } = useTokensToday();
   const accounts = useAccountsStore((s) => s.accounts);
   const statuses = useAccountsStore((s) => s.statuses);
+  const pinned = useAccountsStore((s) => s.usage);
   const hydrateAccounts = useAccountsStore((s) => s.hydrate);
   const [busy, setBusy] = useState(false);
   const [confirmDisable, setConfirmDisable] = useState(false);
@@ -156,28 +158,32 @@ export function UsageView({ onClose }: UsageViewProps) {
             style={{ opacity: loading ? 0.6 : 1 }}
           >
             <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(360px,1fr))]">
-              {claudeCards.map((c) => (
-                <UsageProviderCard
-                  key={c.key}
-                  data={c.data}
-                  now={now}
-                  title={c.title}
-                  subtitle={c.subtitle}
-                />
-              ))}
+              {claudeCards.map((c) =>
+                c.data.noLimits ? (
+                  <UsageEmptyPanel key={c.key} dot={providerMeta("claude").dot} name={c.title}>
+                    <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">
+                      Claude is running on this account, but its plan has no 5-hour or weekly
+                      limits to show.
+                    </p>
+                  </UsageEmptyPanel>
+                ) : (
+                  <UsageProviderCard
+                    key={c.key}
+                    data={c.data}
+                    now={now}
+                    title={c.title}
+                    subtitle={c.subtitle}
+                  />
+                ),
+              )}
 
               {waitingAccounts.map((account) => (
-                <UsageEmptyPanel
+                <UsageAccountWaiting
                   key={account.id}
-                  dot={providerMeta("claude").dot}
-                  dim
                   name={account.label}
-                >
-                  <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">
-                    Waiting for a Claude session on this account. Its usage appears here as soon as
-                    you run Claude in a project pinned to it.
-                  </p>
-                </UsageEmptyPanel>
+                  signedIn={statuses[account.id]?.signedIn ?? true}
+                  projects={pinned[account.id] ?? []}
+                />
               ))}
 
               {showClaudeEnable && (

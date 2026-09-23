@@ -39,6 +39,8 @@ pub struct LimitWindow {
 /// One provider's latest limits. `provider` is "claude" or "codex"; `account_id`
 /// is set for Claude (per CLAUDE_CONFIG_DIR account) and absent for Codex.
 /// `updated_at` is unix millis, used by the UI to dim stale meters.
+/// `no_limits` marks a Claude account whose replies carry no plan windows at
+/// all (API-billed logins), so the UI can say so instead of waiting forever.
 #[derive(Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderLimits {
@@ -52,6 +54,8 @@ pub struct ProviderLimits {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub weekly: Option<LimitWindow>,
     pub updated_at: i64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub no_limits: bool,
 }
 
 /// Pick between the stored and incoming reading of one window. Every concurrent
@@ -128,6 +132,7 @@ fn merge_limits(
     } else {
         next.label.or_else(|| prev.label.clone())
     };
+    let no_limits = five_hour.is_none() && weekly.is_none() && (next.no_limits || prev.no_limits);
     ProviderLimits {
         provider: next.provider,
         account_id: next.account_id,
@@ -135,6 +140,7 @@ fn merge_limits(
         five_hour,
         weekly,
         updated_at: next.updated_at,
+        no_limits,
     }
 }
 
@@ -145,6 +151,7 @@ fn meaningful_eq(a: &ProviderLimits, b: &ProviderLimits) -> bool {
         && a.label == b.label
         && a.five_hour == b.five_hour
         && a.weekly == b.weekly
+        && a.no_limits == b.no_limits
 }
 
 #[derive(Default)]
@@ -500,6 +507,15 @@ fn parse_claude_rate_limits(payload: &Value) -> Option<(Option<LimitWindow>, Opt
     Some((five, seven))
 }
 
+fn claude_model_label(payload: &Value) -> Option<String> {
+    payload
+        .get("model")
+        .and_then(|m| m.get("display_name").or_else(|| m.get("id")))
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
 /// Build Claude limits from a full statusline payload, or None when no usable
 /// rate_limits are present. `updated_at` injected for testability.
 fn parse_claude_payload(
@@ -511,15 +527,33 @@ fn parse_claude_payload(
     Some(ProviderLimits {
         provider: "claude".into(),
         account_id: Some(account_id.to_string()),
-        label: payload
-            .get("model")
-            .and_then(|m| m.get("display_name").or_else(|| m.get("id")))
-            .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
-            .map(str::to_string),
+        label: claude_model_label(payload),
         five_hour,
         weekly,
         updated_at,
+        no_limits: false,
+    })
+}
+
+/// What a report means when it has no usable rate_limits. Claude Code fills
+/// them from the headers of every subscription reply, so a session that just
+/// got a reply (`fresh`) and still has none belongs to a login with no plan
+/// windows. Before the first reply it simply says nothing yet.
+fn claude_reading(
+    account_id: &str,
+    payload: &Value,
+    updated_at: i64,
+    fresh: bool,
+) -> Option<ProviderLimits> {
+    parse_claude_payload(account_id, payload, updated_at).or_else(|| {
+        fresh.then(|| ProviderLimits {
+            provider: "claude".into(),
+            account_id: Some(account_id.to_string()),
+            label: claude_model_label(payload),
+            updated_at,
+            no_limits: true,
+            ..Default::default()
+        })
     })
 }
 
@@ -563,7 +597,7 @@ pub fn ingest_from_socket(
     };
     let now = now_secs();
     let fresh = claude_session_advanced(store, &payload, now);
-    if let Some(limits) = parse_claude_payload(account_id, &payload, now_millis()) {
+    if let Some(limits) = claude_reading(account_id, &payload, now_millis(), fresh) {
         let changed = store.set(&claude_store_key(account_id), limits, now, fresh);
         if changed {
             emit_snapshot(app, store);
@@ -599,6 +633,7 @@ mod tests {
                 five_hour: Some(window(40.0, 50)),
                 weekly: Some(window(22.0, 5_000)),
                 updated_at: 7,
+                ..Default::default()
             },
         );
         saved.insert(
@@ -1026,5 +1061,54 @@ mod tests {
         assert!(claude_session_advanced(&s, &after, 1));
         assert!(!claude_session_advanced(&s, &after, 2));
         assert!(!claude_session_advanced(&s, &no_cost, 3));
+    }
+
+    #[test]
+    fn reply_without_rate_limits_marks_the_account_as_having_none() {
+        let payload: Value = serde_json::from_str(r#"{"model":{"display_name":"Opus"}}"#).unwrap();
+        assert!(
+            claude_reading("work", &payload, 5, false).is_none(),
+            "no reply yet says nothing"
+        );
+        let l = claude_reading("work", &payload, 5, true).unwrap();
+        assert!(l.no_limits);
+        assert!(l.five_hour.is_none() && l.weekly.is_none());
+        assert_eq!(l.account_id.as_deref(), Some("work"));
+        assert_eq!(l.label.as_deref(), Some("Opus"));
+        let json = serde_json::to_value(&l).unwrap();
+        assert_eq!(json["noLimits"], true);
+        assert!(serde_json::to_value(claude_limits(Some(1.0), None, 10))
+            .unwrap()
+            .get("noLimits")
+            .is_none());
+    }
+
+    #[test]
+    fn no_limits_never_hides_real_windows() {
+        let s = AgentLimitsStore::new();
+        let none = || ProviderLimits {
+            provider: "claude".into(),
+            account_id: Some("default".into()),
+            no_limits: true,
+            ..Default::default()
+        };
+        s.set(
+            "claude:default",
+            claude_limits(Some(10.0), None, 1_000),
+            0,
+            false,
+        );
+        s.set("claude:default", none(), 1, true);
+        let kept = &s.snapshot()["claude:default"];
+        assert!(!kept.no_limits, "live windows outrank the flag");
+        assert_eq!(kept.five_hour.as_ref().unwrap().used_percent, 10.0);
+
+        s.set("claude:api", none(), 0, true);
+        assert!(s.snapshot()["claude:api"].no_limits);
+        assert!(
+            s.set("claude:api", claude_limits(Some(3.0), None, 1_000), 1, true),
+            "a first real reading clears the flag"
+        );
+        assert!(!s.snapshot()["claude:api"].no_limits);
     }
 }

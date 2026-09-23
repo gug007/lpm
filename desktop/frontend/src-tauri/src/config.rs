@@ -730,13 +730,16 @@ fn account_signin_status(id: &str) -> (bool, String) {
     }
 }
 
-/// Sign-in status of the ambient `~/.claude` login, reported under the id
-/// "default" so surfaces like the Usage page can label it with an email.
+/// Sign-in status of the ambient login, reported under the id "default" so
+/// surfaces like the Usage page can label it with an email. Without
+/// `CLAUDE_CONFIG_DIR`, Claude Code keeps it in `~/.claude.json` — beside the
+/// `~/.claude` dir, not inside it.
 fn default_signin_status() -> (bool, String) {
-    let path = dirs::home_dir()
-        .unwrap_or_default()
-        .join(".claude")
-        .join(".claude.json");
+    let base = std::env::var_os(CLAUDE_CONFIG_DIR_ENV)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
+    let path = base.join(".claude.json");
     match std::fs::read(&path) {
         Ok(bytes) => serde_json::from_slice::<Value>(&bytes)
             .map(|v| claude_status_from_json(&v))
