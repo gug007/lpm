@@ -17,18 +17,23 @@ use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{sync_channel, RecvTimeoutError};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const CODEX_TAIL_BYTES: u64 = 1 << 20; // read at most the last 1 MiB of a rollout
 const WATCH_SETTLE: Duration = Duration::from_millis(500);
+const SESSION_MARK_TTL_SECS: i64 = 24 * 3600;
 
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LimitWindow {
     pub used_percent: f64,
     pub resets_at: i64,
+    /// Taken from a Claude session right after its own API response, as opposed
+    /// to a replay of an older reading. Process-local: never sent or persisted.
+    #[serde(skip)]
+    pub from_response: bool,
 }
 
 /// One provider's latest limits. `provider` is "claude" or "codex"; `account_id`
@@ -51,14 +56,21 @@ pub struct ProviderLimits {
 
 /// Pick between the stored and incoming reading of one window. Every concurrent
 /// session reports its own last-seen snapshot, so an idle session can push a
-/// reading minutes older than what we already have; taking it verbatim makes the
-/// meter oscillate. Usage only grows inside a window, so the newer reading is the
-/// one with the later `resets_at`, or the higher percent within the same window.
-/// The bool is true only when `next` strictly won.
+/// reading hours older than what we already have; taking it verbatim makes the
+/// meter oscillate.
+///
+/// A `fresh` reading came straight from an API response, so it wins outright —
+/// the only way to see the provider reset usage mid-window (back to 0, often
+/// with the same `resets_at`). Once a window holds such a reading, replays can't
+/// contradict it until it runs out. Without one (after a relaunch, or from
+/// Codex) the guess is that usage only grows inside a window: the later
+/// `resets_at` wins, then the higher percent. The bool is true only when `next`
+/// won.
 fn pick_window(
     prev: Option<&LimitWindow>,
     next: Option<LimitWindow>,
     now: i64,
+    fresh: bool,
 ) -> (Option<LimitWindow>, bool) {
     match (prev, next) {
         (_, None) => (
@@ -68,12 +80,30 @@ fn pick_window(
                 .cloned(),
             false,
         ),
-        (None, Some(n)) => (Some(n), true),
+        (None, Some(n)) => (
+            Some(LimitWindow {
+                from_response: fresh,
+                ..n
+            }),
+            true,
+        ),
         (Some(p), Some(n)) => {
-            let newer = n.resets_at > p.resets_at
-                || (n.resets_at == p.resets_at && n.used_percent > p.used_percent);
+            let newer = if fresh {
+                true
+            } else if p.from_response {
+                p.resets_at != 0 && p.resets_at <= now && n.resets_at > p.resets_at
+            } else {
+                n.resets_at > p.resets_at
+                    || (n.resets_at == p.resets_at && n.used_percent > p.used_percent)
+            };
             if newer {
-                (Some(n), true)
+                (
+                    Some(LimitWindow {
+                        from_response: fresh,
+                        ..n
+                    }),
+                    true,
+                )
             } else {
                 (Some(p.clone()), false)
             }
@@ -84,9 +114,14 @@ fn pick_window(
 /// Fold an incoming reading into the stored one, keeping the freshest value per
 /// window. `updated_at` always takes the incoming value — it tracks when we last
 /// heard from the provider, not which reading won.
-fn merge_limits(prev: &ProviderLimits, next: ProviderLimits, now: i64) -> ProviderLimits {
-    let (five_hour, five_fresh) = pick_window(prev.five_hour.as_ref(), next.five_hour, now);
-    let (weekly, weekly_fresh) = pick_window(prev.weekly.as_ref(), next.weekly, now);
+fn merge_limits(
+    prev: &ProviderLimits,
+    next: ProviderLimits,
+    now: i64,
+    fresh: bool,
+) -> ProviderLimits {
+    let (five_hour, five_fresh) = pick_window(prev.five_hour.as_ref(), next.five_hour, now, fresh);
+    let (weekly, weekly_fresh) = pick_window(prev.weekly.as_ref(), next.weekly, now, fresh);
     let stale_report = !five_fresh && !weekly_fresh;
     let label = if stale_report {
         prev.label.clone().or(next.label)
@@ -117,6 +152,8 @@ pub struct AgentLimitsStore {
     // store key -> limits. Key is "codex" or "claude:<account>" so a Claude
     // account and Codex never collide.
     entries: RwLock<HashMap<String, ProviderLimits>>,
+    // Claude session id -> (cumulative API ms, last report secs).
+    sessions: Mutex<HashMap<String, (i64, i64)>>,
 }
 
 impl AgentLimitsStore {
@@ -128,18 +165,31 @@ impl AgentLimitsStore {
     /// meaningful fields changed (the caller emits only then). The stored
     /// `updated_at` always advances so a later fetch reports fresh data even on a
     /// no-op re-report. `now` is unix seconds, injected for testability.
-    pub fn set(&self, key: &str, limits: ProviderLimits, now: i64) -> bool {
+    pub fn set(&self, key: &str, limits: ProviderLimits, now: i64, fresh: bool) -> bool {
         let mut m = self.entries.write().unwrap();
-        let merged = match m.get(key) {
-            Some(prev) => merge_limits(prev, limits, now),
-            None => limits,
-        };
+        let merged = merge_limits(
+            m.get(key).unwrap_or(&ProviderLimits::default()),
+            limits,
+            now,
+            fresh,
+        );
         let changed = m
             .get(key)
             .map(|e| !meaningful_eq(e, &merged))
             .unwrap_or(true);
         m.insert(key.to_string(), merged);
         changed
+    }
+
+    /// Record a Claude session's cumulative API time and say whether it moved
+    /// since that session's previous report. It only moves when a response
+    /// lands — which is also when the session's rate_limits refresh — while an
+    /// idle session keeps replaying its last reading with the time unchanged.
+    pub fn session_advanced(&self, session_id: &str, api_ms: i64, now: i64) -> bool {
+        let mut m = self.sessions.lock().unwrap();
+        m.retain(|_, (_, seen)| now - *seen < SESSION_MARK_TTL_SECS);
+        let prev = m.insert(session_id.to_string(), (api_ms, now));
+        prev.is_some_and(|(ms, _)| api_ms > ms)
     }
 
     pub fn snapshot(&self) -> HashMap<String, ProviderLimits> {
@@ -192,7 +242,7 @@ fn load_claude_at(path: &Path, now: i64) -> HashMap<String, ProviderLimits> {
 pub fn load_persisted(store: &AgentLimitsStore) {
     let now = now_secs();
     for (k, l) in load_claude_at(&limits_path(), now) {
-        store.set(&k, l, now);
+        store.set(&k, l, now, false);
     }
 }
 
@@ -248,6 +298,7 @@ fn parse_codex_window(v: &Value, now: i64) -> Option<(i64, LimitWindow)> {
         LimitWindow {
             used_percent,
             resets_at,
+            ..Default::default()
         },
     ))
 }
@@ -362,7 +413,7 @@ fn refresh_codex(app: &AppHandle, store: &AgentLimitsStore) {
     let Some(limits) = parse_codex_file(&path, now, now_millis()) else {
         return;
     };
-    if store.set("codex", limits, now) {
+    if store.set("codex", limits, now, false) {
         emit_snapshot(app, store);
     }
 }
@@ -438,6 +489,7 @@ fn parse_claude_rate_limits(payload: &Value) -> Option<(Option<LimitWindow>, Opt
         Some(LimitWindow {
             used_percent,
             resets_at,
+            ..Default::default()
         })
     };
     let five = window("five_hour");
@@ -471,6 +523,21 @@ fn parse_claude_payload(
     })
 }
 
+/// Whether this statusline payload reflects an API response its session had not
+/// reported yet. Checked even when rate_limits is absent, so a new session's
+/// very first response already counts.
+fn claude_session_advanced(store: &AgentLimitsStore, payload: &Value, now: i64) -> bool {
+    let session_id = payload.get("session_id").and_then(Value::as_str);
+    let api_ms = payload
+        .get("cost")
+        .and_then(|c| c.get("total_api_duration_ms"))
+        .and_then(Value::as_f64);
+    match (session_id, api_ms) {
+        (Some(id), Some(ms)) => store.session_advanced(id, ms as i64, now),
+        _ => false,
+    }
+}
+
 fn claude_store_key(account_id: &str) -> String {
     format!("claude:{account_id}")
 }
@@ -494,8 +561,10 @@ pub fn ingest_from_socket(
     let Ok(payload) = serde_json::from_slice::<Value>(&bytes) else {
         return "ERROR: invalid JSON payload".into();
     };
+    let now = now_secs();
+    let fresh = claude_session_advanced(store, &payload, now);
     if let Some(limits) = parse_claude_payload(account_id, &payload, now_millis()) {
-        let changed = store.set(&claude_store_key(account_id), limits, now_secs());
+        let changed = store.set(&claude_store_key(account_id), limits, now, fresh);
         if changed {
             emit_snapshot(app, store);
         }
@@ -518,6 +587,7 @@ mod tests {
         let window = |used_percent: f64, resets_at: i64| LimitWindow {
             used_percent,
             resets_at,
+            ..Default::default()
         };
         let mut saved = HashMap::new();
         saved.insert(
@@ -696,6 +766,7 @@ mod tests {
             five_hour: Some(LimitWindow {
                 used_percent: pct,
                 resets_at,
+                ..Default::default()
             }),
             updated_at: updated,
             ..Default::default()
@@ -706,15 +777,15 @@ mod tests {
     fn store_set_reports_meaningful_change_only() {
         let s = AgentLimitsStore::new();
         assert!(
-            s.set("codex", codex_limits(10.0, 1, 1), 0),
+            s.set("codex", codex_limits(10.0, 1, 1), 0, false),
             "first insert changes"
         );
         assert!(
-            !s.set("codex", codex_limits(10.0, 1, 999), 0),
+            !s.set("codex", codex_limits(10.0, 1, 999), 0, false),
             "same values, newer timestamp -> no emit"
         );
         assert!(
-            s.set("codex", codex_limits(20.0, 1, 1000), 0),
+            s.set("codex", codex_limits(20.0, 1, 1000), 0, false),
             "percent change -> emit"
         );
         // updated_at still advanced in the store.
@@ -728,10 +799,12 @@ mod tests {
             five_hour: five.map(|used_percent| LimitWindow {
                 used_percent,
                 resets_at,
+                ..Default::default()
             }),
             weekly: weekly.map(|used_percent| LimitWindow {
                 used_percent,
                 resets_at: resets_at + 100,
+                ..Default::default()
             }),
             updated_at: 0,
             ..Default::default()
@@ -747,12 +820,14 @@ mod tests {
             "claude:default",
             claude_limits(Some(36.0), Some(51.0), 9_000),
             0,
+            false,
         );
         assert!(
             !s.set(
                 "claude:default",
                 claude_limits(Some(25.0), Some(48.0), 9_000),
-                0
+                0,
+                false
             ),
             "stale reading changes nothing -> no emit"
         );
@@ -765,8 +840,18 @@ mod tests {
     #[test]
     fn window_reset_is_adopted_even_though_percent_drops() {
         let s = AgentLimitsStore::new();
-        s.set("claude:default", claude_limits(Some(96.0), None, 9_000), 0);
-        assert!(s.set("claude:default", claude_limits(Some(2.0), None, 27_000), 0));
+        s.set(
+            "claude:default",
+            claude_limits(Some(96.0), None, 9_000),
+            0,
+            false,
+        );
+        assert!(s.set(
+            "claude:default",
+            claude_limits(Some(2.0), None, 27_000),
+            0,
+            false
+        ));
         let stored = s.snapshot();
         let five = stored
             .get("claude:default")
@@ -782,16 +867,17 @@ mod tests {
     fn omitted_window_is_kept_until_it_resets() {
         // Codex rollout lines often carry only one of the two windows.
         let s = AgentLimitsStore::new();
-        s.set("codex", codex_limits(40.0, 9_000, 0), 0);
+        s.set("codex", codex_limits(40.0, 9_000, 0), 0, false);
         let weekly_only = || ProviderLimits {
             provider: "codex".into(),
             weekly: Some(LimitWindow {
                 used_percent: 32.0,
                 resets_at: 500_000,
+                ..Default::default()
             }),
             ..Default::default()
         };
-        s.set("codex", weekly_only(), 8_000);
+        s.set("codex", weekly_only(), 8_000, false);
         assert_eq!(
             s.snapshot()
                 .get("codex")
@@ -804,7 +890,7 @@ mod tests {
             "5-hour survives a weekly-only report"
         );
         // Past its reset the retained window is meaningless, so it drops out.
-        s.set("codex", weekly_only(), 9_001);
+        s.set("codex", weekly_only(), 9_001, false);
         let stored = s.snapshot();
         let stored = stored.get("codex").unwrap();
         assert!(stored.five_hour.is_none(), "expired window is not kept");
@@ -818,16 +904,127 @@ mod tests {
         let s = AgentLimitsStore::new();
         let mut fresh = claude_limits(Some(36.0), None, 9_000);
         fresh.label = Some("Opus 5".into());
-        s.set("claude:default", fresh, 0);
+        s.set("claude:default", fresh, 0, false);
         let mut stale = claude_limits(Some(25.0), None, 9_000);
         stale.label = Some("Fable 5".into());
         assert!(
-            !s.set("claude:default", stale, 0),
+            !s.set("claude:default", stale, 0, false),
             "no emit for a stale report"
         );
         assert_eq!(
             s.snapshot().get("claude:default").unwrap().label.as_deref(),
             Some("Opus 5")
         );
+    }
+
+    #[test]
+    fn mid_window_reset_is_adopted_from_a_session_that_just_got_a_response() {
+        // The provider can zero usage without moving `resets_at`; only a reading
+        // from a session whose API time advanced may walk the meter back.
+        let s = AgentLimitsStore::new();
+        s.set(
+            "claude:default",
+            claude_limits(None, Some(61.0), 9_000),
+            0,
+            false,
+        );
+        assert!(
+            !s.session_advanced("a", 5_000, 0),
+            "first report only sets the mark"
+        );
+        assert!(!s.set(
+            "claude:default",
+            claude_limits(None, Some(0.0), 9_000),
+            0,
+            false
+        ));
+        assert!(!s.session_advanced("a", 5_000, 30), "idle replay");
+        assert!(s.session_advanced("a", 6_200, 60), "a response landed");
+        assert!(s.set(
+            "claude:default",
+            claude_limits(None, Some(0.0), 9_000),
+            60,
+            true
+        ));
+        let stored = s.snapshot();
+        let weekly = stored
+            .get("claude:default")
+            .unwrap()
+            .weekly
+            .clone()
+            .unwrap();
+        assert_eq!(weekly.used_percent, 0.0);
+    }
+
+    #[test]
+    fn replay_from_before_a_reset_cannot_undo_a_live_response() {
+        // Sessions idle since before the reset keep replaying 61% for the same
+        // window every refresh; the live 0% must hold instead of flip-flopping.
+        let s = AgentLimitsStore::new();
+        let weekly = |s: &AgentLimitsStore| {
+            s.snapshot()["claude:default"]
+                .weekly
+                .as_ref()
+                .unwrap()
+                .used_percent
+        };
+        s.set(
+            "claude:default",
+            claude_limits(None, Some(0.0), 9_000),
+            0,
+            true,
+        );
+        assert!(!s.set(
+            "claude:default",
+            claude_limits(None, Some(61.0), 9_000),
+            30,
+            false
+        ));
+        assert_eq!(weekly(&s), 0.0);
+        // A reset that moved the window earlier: the replay's later `resets_at`
+        // still doesn't beat the live reading while that reading's window runs.
+        assert!(!s.set(
+            "claude:default",
+            claude_limits(None, Some(61.0), 50_000),
+            30,
+            false
+        ));
+        assert_eq!(weekly(&s), 0.0);
+        // Once the live window has run out, a later window is welcome again.
+        assert!(s.set(
+            "claude:default",
+            claude_limits(None, Some(4.0), 50_000),
+            9_200,
+            false
+        ));
+        assert_eq!(weekly(&s), 4.0);
+    }
+
+    #[test]
+    fn session_marks_expire() {
+        let s = AgentLimitsStore::new();
+        s.session_advanced("a", 1_000, 0);
+        s.session_advanced("b", 1_000, SESSION_MARK_TTL_SECS);
+        assert!(
+            !s.session_advanced("a", 2_000, SESSION_MARK_TTL_SECS),
+            "a's mark was pruned, so this is a first report again"
+        );
+        assert_eq!(s.sessions.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn claude_new_session_first_response_counts_as_fresh() {
+        let s = AgentLimitsStore::new();
+        let before: Value =
+            serde_json::from_str(r#"{"session_id":"x","cost":{"total_api_duration_ms":0}}"#)
+                .unwrap();
+        let after: Value =
+            serde_json::from_str(r#"{"session_id":"x","cost":{"total_api_duration_ms":1638}}"#)
+                .unwrap();
+        let no_cost: Value = serde_json::from_str(r#"{"session_id":"y"}"#).unwrap();
+        assert!(!claude_session_advanced(&s, &before, 0));
+        assert!(claude_session_advanced(&s, &after, 1));
+        assert!(!claude_session_advanced(&s, &after, 2));
+        assert!(!claude_session_advanced(&s, &no_cost, 3));
     }
 }
