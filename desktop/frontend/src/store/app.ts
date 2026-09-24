@@ -99,6 +99,7 @@ import { applyMove } from "../components/actionsDndLayout";
 import type { StructuralOp } from "../actionsGesture";
 import type { ActionLevel } from "../actionLevels";
 import { projectStartProfile } from "../projectStartProfile";
+import { onProjectsRemoved } from "../sendLater/closeout";
 
 export type View =
   | "projects"
@@ -595,6 +596,7 @@ function templatesEqual(a: main.TemplateInfo[], b: main.TemplateInfo[]): boolean
 // layout is only dropped from memory here — writing it back would just replay
 // the same result.
 function forgetRemovedProjects(set: AppSet, get: AppGet, names: string[]) {
+  onProjectsRemoved(names);
   for (const name of names) {
     forgetProjectTerminals(name);
     window.localStorage.removeItem(activeChatStorageKey(name));

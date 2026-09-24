@@ -1,5 +1,6 @@
 import { Bell, Check, Columns2, Zap } from "lucide-react";
 import { TerminalLine } from "@/components/terminal-line";
+import { ClaudeBanner } from "./before-after-claude-banner";
 import { CLAUDE_SESSION } from "./before-after-session";
 
 // The same window every lpm user works in, placed on the stage where the pile it
@@ -182,11 +183,12 @@ export function LpmReplica({ compact = false }: { compact?: boolean }) {
           </Tab>
         </div>
         <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-[1em] py-[0.8em] font-mono [mask-image:linear-gradient(to_right,#000_95%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_95%,transparent)]">
+          <ClaudeBanner cwd="~/Projects/auth-service" />
           {CLAUDE_SESSION.map((l, i) => (
             <TerminalLine
               key={i}
               line={l}
-              size={`text-[0.95em] ${l.banner ? "leading-[1.9]" : "leading-[1.5]"}`}
+              size="text-[0.95em] leading-[1.5]"
               fallback={TEXT}
               gapClass="mt-[1.5em]"
             />

@@ -681,6 +681,32 @@ pub fn claude_env_for_project(name: &str) -> ClaudeEnv {
     claude_env_for_account(effective_claude_account(&y).as_deref())
 }
 
+/// The account a project's Claude usage readings are filed under in the limits
+/// store — what its agents run as: the pinned account while it is still
+/// registered, the default login for an explicit default or a pin to a deleted
+/// account, and whatever lpm itself was started with when nothing is pinned.
+/// Mirrors the statusline forwarder's own rule for naming the account.
+pub fn claude_limits_account(name: &str) -> String {
+    let pinned = parse_project_yaml(name)
+        .ok()
+        .and_then(|y| effective_claude_account(&y));
+    match pinned {
+        Some(id) if claude_account_ids(&load_claude_accounts()).contains(&id) => id,
+        Some(_) => DEFAULT_LIMITS_ACCOUNT.to_string(),
+        None => limits_account_of_config_dir(std::env::var(CLAUDE_CONFIG_DIR_ENV).ok().as_deref()),
+    }
+}
+
+const DEFAULT_LIMITS_ACCOUNT: &str = "default";
+
+fn limits_account_of_config_dir(dir: Option<&str>) -> String {
+    dir.and_then(|d| {
+        let (parent, id) = d.trim_end_matches('/').rsplit_once('/')?;
+        (parent.ends_with("/claude-accounts") && !id.is_empty()).then(|| id.to_string())
+    })
+    .unwrap_or_else(|| DEFAULT_LIMITS_ACCOUNT.to_string())
+}
+
 /// Remove an account and its isolated Claude config dir. The id is validated
 /// first (it crosses the IPC boundary). The dir is deleted before the accounts
 /// list is rewritten: if the delete fails the account stays listed so the user
@@ -3611,5 +3637,29 @@ mod lpm_dir_tests {
             resolve_lpm_dir(Some("~/.lpm-lessons".into()), home.clone()),
             home.join(".lpm-lessons")
         );
+    }
+}
+
+#[cfg(test)]
+mod limits_account_tests {
+    use super::*;
+
+    #[test]
+    fn an_account_dir_names_its_account() {
+        assert_eq!(
+            limits_account_of_config_dir(Some("/Users/me/.lpm/claude-accounts/work")),
+            "work"
+        );
+        assert_eq!(
+            limits_account_of_config_dir(Some("/Users/me/.lpm/claude-accounts/work/")),
+            "work"
+        );
+    }
+
+    #[test]
+    fn anything_else_is_the_default_login() {
+        assert_eq!(limits_account_of_config_dir(None), "default");
+        assert_eq!(limits_account_of_config_dir(Some("/Users/me/.claude")), "default");
+        assert_eq!(limits_account_of_config_dir(Some("")), "default");
     }
 }

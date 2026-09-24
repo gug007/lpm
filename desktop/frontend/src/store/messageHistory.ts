@@ -44,6 +44,9 @@ export type HistoryScope = "project" | "all";
 export const COLLECTION_ALL = "all";
 export const COLLECTION_FAVORITES = "favorites";
 export const COLLECTION_DRAFTS = "drafts";
+// Prompts waiting to be sent later. Not a query on this history: the list lives
+// with the send-later schedule (store/sendLater.ts).
+export const COLLECTION_SCHEDULED = "scheduled";
 
 export interface HistoryFilter {
   scope: HistoryScope;

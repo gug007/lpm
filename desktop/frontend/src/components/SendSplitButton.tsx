@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { AlarmClock } from "lucide-react";
 import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { useOverlay } from "../store/overlay";
 import { COMPOSER_TOOLTIP_DELAY_MS } from "../composerText";
@@ -16,6 +17,8 @@ export interface SendSplitButtonProps {
   busy: boolean;
   onSend: () => void;
   onSaveDraft: () => void;
+  // Open the picker for when to send this prompt instead of now.
+  onSendLater: () => void;
   // Open the picker for a tab elsewhere — another tab here, or one in another
   // open project — to send this prompt to instead.
   onSendElsewhere: () => void;
@@ -31,11 +34,12 @@ const MIN_DUPES = 2;
 const MAX_DUPES = 10;
 
 // The composer's send control: a split button whose primary half sends the
-// prompt (unchanged ↵ behaviour) and whose caret half opens a menu to save the
-// prompt as a draft or run it across several parallel duplicates instead. The
+// prompt (unchanged ↵ behaviour) and whose caret half opens a menu to send it
+// later, save it as a draft, send it to another tab, or run it across several
+// parallel duplicates instead. The
 // menu is anchored above the button (the composer sits at the bottom of the
 // pane) and portaled so the composer's rounded, clipping ancestors can't cut it off.
-export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendElsewhere, onRunInDuplicates }: SendSplitButtonProps) {
+export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendLater, onSendElsewhere, onRunInDuplicates }: SendSplitButtonProps) {
   const [open, setOpen] = useState(false);
   // How many copies "Run in duplicates" spins up; adjusted inline in the menu
   // and carried over as the seeded Copies count when the dialog opens.
@@ -116,8 +120,18 @@ export function SendSplitButton({ disabled, busy, onSend, onSaveDraft, onSendEls
         createPortal(
           <div ref={panelRef} role="menu" style={style} className={`z-[80] ${MENU_PANEL_CLASS}`}>
             <ContextMenuItem
+              label="Send later"
+              description="Pick a moment on a timeline, today or later"
+              icon={<AlarmClock size={13} strokeWidth={1.5} />}
+              shortcut="⌥↵"
+              onClick={() => {
+                setOpen(false);
+                onSendLater();
+              }}
+            />
+            <ContextMenuItem
               label="Save as draft"
-              description="Keep this prompt to send later"
+              description="Keep this prompt without sending it"
               icon={<SquarePenIcon size={13} />}
               shortcut="⌘↵"
               onClick={() => {

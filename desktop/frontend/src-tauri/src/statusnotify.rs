@@ -36,6 +36,14 @@ pub fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 
+/// A banner the frontend asks for, behind the same two gates as every other.
+#[tauri::command(async)]
+pub fn notify_unattended(app: AppHandle, title: String, body: String) {
+    if should_notify(&app) {
+        notify(&app, &title, &body);
+    }
+}
+
 fn status_copy(value: &str) -> Option<(&'static str, &'static str)> {
     match value {
         STATUS_DONE => Some(("Agent finished", "is done")),

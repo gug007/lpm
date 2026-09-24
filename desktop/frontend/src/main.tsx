@@ -27,6 +27,7 @@ import {
   reportError,
 } from "./diagnostics";
 import "./styles/globals.css";
+import { initSendLater } from "./store/sendLater";
 
 const detachedProject = MIRROR_PROJECT;
 const surface = detachedProject ? "detached" : "main";
@@ -97,6 +98,7 @@ async function startApplication() {
     useGeneratorsStore.getState().hydrate();
     useWorkStatusesStore.getState().hydrate();
     useAccountsStore.getState().hydrate();
+    void initSendLater();
     initTTSEvents();
     logDiagnostic(
       "info",

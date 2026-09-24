@@ -1,50 +1,46 @@
-import { line, s, type Line } from "@/components/terminal-line";
+import { gap, line, s, type Line } from "@/components/terminal-line";
 
-// The Claude Code session waiting in auth-service. lpm shows it in its pane and
-// the pile shows the same lines in a terminal window, so the two can sit row for
-// row on top of each other across the divider. Glyphs, logo art and tints mirror
-// the real Claude Code TUI.
+// The Claude Code session waiting in auth-service, as Claude Code 2.1 paints a
+// permission prompt (captured from the real binary). lpm shows it in its pane
+// and the pile shows the same lines in a terminal window, so the two can sit row
+// for row on top of each other across the divider.
+//
+// Colours are Claude Code's default dark theme.
 const TEXT = "text-[#d4d4d4]";
-const DIM = "text-[#7a7a7a]";
-const MUTED = "text-[#9a9a9a]";
-const BOLD = "font-semibold text-[#e5e5e5]";
-const ORANGE = "text-[#d97757]";
-const GREEN = "text-[#4eba65]";
-// The bright blue (ANSI 94) the permission prompt paints its rule, header and
-// selected option.
-const BLUE = "text-[#3b8eea]";
-const BLUE_BOLD = "font-semibold text-[#3b8eea]";
+const BRIGHT = "text-[#f2f2f2]";
+const BOLD = "font-semibold text-[#f2f2f2]";
+const INACTIVE = "text-[#999999]";
+const COUNT = "font-semibold text-[#999999]";
+const SUCCESS = "text-[#4eba65]";
+const PERMISSION = "text-[#b1b9f9]";
+const PERMISSION_BOLD = "font-semibold text-[#b1b9f9]";
 
-// The launch banner's block logo needs a terminal's tall cell to read as art
-// rather than as a smudge, so those rows carry their own line height.
-export type SessionLine = Line & { banner?: boolean };
+// The rule above a permission prompt spans the terminal; the pane clips it.
+const RULE = "─".repeat(120);
 
-export const CLAUDE_SESSION: SessionLine[] = [
-  { spans: [s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code ", BOLD), s("v2.1.214", MUTED)], banner: true },
-  { spans: [s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 · Claude Max", MUTED)], banner: true },
-  { spans: [s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/auth-service", MUTED)], banner: true },
+export const CLAUDE_SESSION: Line[] = [
   {
-    spans: [s("❯ ", "text-[#707070]"), s("run the pending migrations", TEXT), s(" ")],
+    spans: [s("❯ ", INACTIVE), s("run the pending migrations", BRIGHT)],
     gap: true,
-    bubble: "bg-[#373737]",
+    band: "-mx-[1em] bg-[#373737] px-[1em]",
   },
-  { spans: [s("⏺ ", GREEN), s("Read", BOLD), s("(db/schema.rb)", TEXT)], gap: true },
-  line(s("  ⎿  Read ", DIM), s("214", "font-semibold text-[#9a9a9a]"), s(" lines", DIM)),
-  {
-    spans: [s("⏺ ", GREEN), s("Bash", BOLD), s("(bin/rails db:migrate:status)", TEXT)],
-    gap: true,
-  },
-  line(s("  ⎿  ", DIM), s("2", "font-semibold text-[#9a9a9a]"), s(" migrations pending", DIM)),
-  { spans: [s("⏺ ", TEXT), s("Both are additive. Running them now.", TEXT)], gap: true },
-  { spans: [s("⏺ ", GREEN), s("Bash", BOLD), s("(npm run db:migrate)", TEXT)], gap: true },
-  { spans: [s("──────────────────────────────", BLUE)], gap: true },
-  line(s(" Bash command", BLUE_BOLD)),
-  line(s("   npm run db:migrate", TEXT)),
-  line(s(" Do you want to proceed?", TEXT)),
-  line(s(" ❯ ", BLUE), s("1. ", DIM), s("Yes", BLUE)),
-  line(s("   2. Yes, and don't ask again", DIM)),
-  line(s("   3. No", DIM)),
+  gap(s("⏺ ", SUCCESS), s("Search", BOLD), s('(pattern: "db/migrations/*")', TEXT)),
+  line(s("  ⎿  ", INACTIVE), s("Found ", INACTIVE), s("2", COUNT), s(" files", INACTIVE)),
+  gap(s("⏺ ", BRIGHT), s("Both are additive. Running them now.", TEXT)),
+  // Grey until the command runs: this is the call the prompt below is about.
+  gap(s("⏺ ", INACTIVE), s("Bash", BOLD), s("(npm run db:migrate)", TEXT)),
+  line(s("  ⎿  Waiting…", INACTIVE)),
+  gap(s(RULE, PERMISSION)),
+  line(s(" Bash command", PERMISSION_BOLD)),
+  gap(s("   npm run db:migrate", TEXT)),
+  line(s("   Run pending database migrations", INACTIVE)),
+  gap(s(" Do you want to proceed?", TEXT)),
+  line(s(" ❯ ", PERMISSION), s("1. ", INACTIVE), s("Yes", PERMISSION)),
+  line(s("   2. ", INACTIVE), s("Yes, and don’t ask again for: npm run *", TEXT)),
+  line(s("   3. ", INACTIVE), s("No", TEXT)),
 ];
 
-/** Where the permission prompt starts: the blue rule above "Bash command". */
-export const PROMPT_FROM = 10;
+/** The assistant's reply: where the pile's window crop of the session begins. */
+export const WINDOW_FROM = 3;
+/** The blue rule that opens the permission prompt. */
+export const PROMPT_FROM = 6;

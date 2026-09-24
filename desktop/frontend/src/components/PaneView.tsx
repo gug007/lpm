@@ -60,6 +60,7 @@ import { useBrowserUrls } from "../store/browserUrls";
 import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
+import { SendLaterTabMark } from "./SendLaterTabMark";
 
 export type StatusKind = "Done" | "Waiting" | "Error";
 
@@ -479,6 +480,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     error={isError}
                     agentStatus={paneAgentStatus(paneStatus, t.id)}
                     color={t.color}
+                    trailing={<SendLaterTabMark historyKey={t.historyKey} />}
                     onClick={(e) => {
                       if (isDone) onClearStatus(t.id, "Done");
                       if (isError) onClearStatus(t.id, "Error");

@@ -61,6 +61,7 @@ describe("isReservedShortcut", () => {
     expect(isReservedShortcut(parseShortcut("cmd+shift+e")!)).toBe(true);
     expect(isReservedShortcut(parseShortcut("cmd+alt+shift+c")!)).toBe(true);
     expect(isReservedShortcut(parseShortcut("ctrl+alt+arrowdown")!)).toBe(true);
+    expect(isReservedShortcut(parseShortcut("alt+enter")!)).toBe(true);
   });
 
   it("allows free combos", () => {

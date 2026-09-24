@@ -116,6 +116,9 @@ import { useMentions } from "../hooks/useMentions";
 import { useMemorySessions } from "../hooks/useMemorySessions";
 import { MENTION_TRIGGER, rankMentions, type MentionItem } from "../mentions";
 import type { TerminalMemoryRef } from "../terminalMemory";
+import { useComposerSendLater, type ComposerPrompt } from "../hooks/useComposerSendLater";
+import { SendLaterPopover } from "./SendLaterPopover";
+import { SendLaterStrip } from "./SendLaterStrip";
 
 interface TerminalComposerProps {
   // Terminal whose draft this composer owns; its draft is persisted per id.
@@ -298,6 +301,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // slash menu only appears when this resolves (a terminal actually running an
   // agent); plain shells get no menu. Commands load lazily on focus.
   const slashCli = detectAICLI(launchCmd);
+  // Whose usage limit a prompt can wait out. Only readings on this Mac count, so a
+  // terminal on another Mac or over SSH gets no "limit resets" pick.
+  const projectIsRemote = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
+  const limitAgent =
+    isRemotePeer || projectIsRemote
+      ? null
+      : (session?.provider ?? (slashCli === "claude" || slashCli === "codex" ? slashCli : null));
   const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
   // Only Claude Code and Codex can be re-pointed at another model mid-session,
   // so only their terminals get the model switcher in the button row.
@@ -1167,6 +1177,58 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
   };
 
+  // The prompt in the input as Send later schedules it: present chips only, so a
+  // deleted image isn't carried along.
+  const readPrompt = useCallback((): ComposerPrompt | null => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return null;
+    const text = serializeEditor(editor);
+    if (!text.trim()) return null;
+    const present = presentImageTokens(editor);
+    const images: Record<string, string> = {};
+    for (const [token, path] of imagePaths.current) {
+      if (present.has(token)) images[token] = path;
+    }
+    return { id: activeId.current, text, images };
+  }, []);
+
+  // Bring a prompt back into the input: in place when the input is empty, as its
+  // own prepared prompt when something is already being typed, so nothing there
+  // is overwritten.
+  const restorePrompt = (text: string, images: Record<string, string>) => {
+    const editor = editorRef.current;
+    if (!editor || transforming.current) return;
+    if (!serializeEditor(editor).trim()) {
+      loadFromHistory(text, images);
+      return;
+    }
+    syncState();
+    const tab = tabFromPrompt(text, images);
+    tabs.current.push(tab);
+    loadTab(tab);
+    refreshTabView();
+    syncState();
+    editor.focus();
+  };
+
+  const sendLater = useComposerSendLater({
+    projectName,
+    historyKey,
+    targetLabel,
+    readPrompt,
+    claim: (id) => {
+      if (sending.current.has(id)) return false;
+      sending.current.add(id);
+      return true;
+    },
+    release: (id) => sending.current.delete(id),
+    retire: (id) => {
+      const editor = editorRef.current;
+      if (editor) finishSend(id, editor);
+    },
+    restore: restorePrompt,
+  });
+
   // Hand the current prompt to the duplicate flow. The current project is copy
   // #1: serialize the field and its live attachments (present tokens only), tag
   // it with the terminal's launch command / originating action, and let the host
@@ -1993,6 +2055,14 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       void saveCurrentDraft();
       return;
     }
+    // ⌥↵ opens Send later for the prompt. Checked before plain ↵, which would
+    // otherwise take the Option chord as a send.
+    if (e.key === "Enter" && e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      e.stopPropagation();
+      sendLater.openForPrompt();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       e.stopPropagation();
@@ -2232,6 +2302,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             {hint.text}
           </div>
         )}
+        <SendLaterStrip historyKey={historyKey} />
         <ComposerToolbar
           boxRef={containerRef}
           history={{
@@ -2287,6 +2358,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             busy,
             onSend: () => void send(),
             onSaveDraft: () => void saveCurrentDraft(),
+            onSendLater: sendLater.openForPrompt,
             onSendElsewhere: () => {
               const editor = editorRef.current;
               setSendTarget({ hasImages: !!editor && presentImageTokens(editor).size > 0 });
@@ -2305,6 +2377,19 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         busy={sendingAway}
         onPick={(row, mode) => void sendToAnotherTab(row, mode)}
       />
+      {sendLater.picker && (
+        <SendLaterPopover
+          anchorRef={containerRef}
+          picker={sendLater.picker}
+          projectName={projectName}
+          agent={limitAgent}
+          onPick={(at, kind, choice) => void sendLater.pick(at, kind, choice)}
+          onClose={(refocus) => {
+            sendLater.close();
+            if (refocus) editorRef.current?.focus();
+          }}
+        />
+      )}
       {preview?.kind === "image" && (
         <ImagePreviewPopover path={preview.path} anchor={preview.rect} slug={peerSlug} />
       )}

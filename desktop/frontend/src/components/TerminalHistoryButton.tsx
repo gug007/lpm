@@ -191,6 +191,7 @@ export function TerminalHistoryButton({
             projectName={projectName}
             terminalLabel={terminalLabel}
             initialCollection={initialCollection}
+            onClose={close}
             onPick={(text, images) => {
               onPick(text, images);
               close();

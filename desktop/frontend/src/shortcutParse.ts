@@ -136,6 +136,8 @@ const RESERVED = new Set<string>([
   "cmd+o",
   // Modal submit (CommitModal / PRModal / FeedbackModal)
   "cmd+enter",
+  // TerminalComposer.tsx — send the prompt later
+  "alt+enter",
 ]);
 // App.tsx — Cmd+1..9 select project by index
 for (let n = 1; n <= 9; n++) RESERVED.add(`cmd+${n}`);

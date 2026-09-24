@@ -46,6 +46,7 @@ import { usePeerState } from "./peer/usePeerState";
 import { isPeerName, peerSlugOf } from "./peer/markers";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
+import { startSendLaterRunner } from "./sendLater/runner";
 
 export default function App() {
   const projects = useAppStore((s) => s.projects);
@@ -129,6 +130,7 @@ export default function App() {
   useProjectsSync();
   useGlobalAgentStatusSync();
   useAppEvents();
+  useEffect(() => startSendLaterRunner(), []);
   usePeerDispatcher();
   const { state: peerState } = usePeerState();
   usePeerAutoSyncToasts(peerState.peers);

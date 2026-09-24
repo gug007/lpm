@@ -42,6 +42,15 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "bring_changes_targets",
   "bring_changes_start",
   "bring_changes_cancel",
+  // The send-later list and its clock live on this Mac even when a prompt is for
+  // a peer's terminal: this Mac types it in when it comes due.
+  "send_later_list",
+  "send_later_add",
+  "send_later_reschedule",
+  "send_later_send_now",
+  "send_later_remove",
+  "notify_unattended",
+  "claude_limits_account",
 ]);
 
 export function isLocalOnlyCommand(cmd: string): boolean {

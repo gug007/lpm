@@ -31,6 +31,7 @@ import {
 } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { nextId, appendTerminal, resolveActiveAfterClose } from "./util";
+import { onTerminalsClosed } from "../../sendLater/closeout";
 
 // Grace period the closed tab stays recoverable behind the undo toast.
 const UNDO_CLOSE_DURATION_MS = 3000;
@@ -108,6 +109,7 @@ export function useTabClose({
         }
       }
       recordClosingTabs(tabs, flush);
+      onTerminalsClosed(projectName, tabs.map((t) => t.historyKey));
     },
     [recordClosingTabs, projectName],
   );

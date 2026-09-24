@@ -22,6 +22,9 @@ export function AgentUsageStats(days) {
 export function AgentLimits() {
   return invoke("agent_limits");
 }
+export function ClaudeLimitsAccount(project) {
+  return invoke("claude_limits_account", { project });
+}
 export function AgentSessionTitle(projectName, provider, sessionId) {
   return invoke("agent_session_title", { projectName, provider, sessionId });
 }
@@ -462,6 +465,24 @@ export function MessageHistoryQuery(input) {
 }
 export function MessageHistoryAdd(message) {
   return invoke("message_history_add", { message });
+}
+export function NotifyUnattended(title, body) {
+  return invoke("notify_unattended", { title, body });
+}
+export function SendLaterList() {
+  return invoke("send_later_list");
+}
+export function SendLaterAdd(prompt) {
+  return invoke("send_later_add", { prompt });
+}
+export function SendLaterReschedule(id, dueAt, kind) {
+  return invoke("send_later_reschedule", { id, dueAt, kind });
+}
+export function SendLaterSendNow(id) {
+  return invoke("send_later_send_now", { id });
+}
+export function SendLaterRemove(id) {
+  return invoke("send_later_remove", { id });
 }
 export function MessageHistorySaveDraft(message) {
   return invoke("message_history_save_draft", { message });

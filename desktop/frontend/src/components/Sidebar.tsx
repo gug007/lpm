@@ -108,6 +108,7 @@ import {
 } from "./peerRowOrder";
 import { isPeerName, peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
+import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
 
 // Half a row: `py-2` (8px twice) around `text-sm`'s 20px line. The elbows meet a
 // row here, and a row showing its agents is taller than the block it sits in, so
@@ -931,6 +932,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         >
           {status.className ? <span className={status.className}>{name}</span> : name}
         </span>
+        <SidebarSendLaterMark projectName={project.name} />
         {isDetached && !isSelf && (
           <span
             className="shrink-0 text-[var(--text-muted)]"

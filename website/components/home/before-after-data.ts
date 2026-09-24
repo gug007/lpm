@@ -1,5 +1,5 @@
 import { gap, line, s, type Line } from "@/components/terminal-line";
-import { CLAUDE_SESSION, PROMPT_FROM } from "./before-after-session";
+import { CLAUDE_SESSION, PROMPT_FROM, WINDOW_FROM } from "./before-after-session";
 
 // The pile is deliberately colourless: greys, the two agent CLIs' own brand
 // marks, and nothing else. State colour — green for running, amber for an agent
@@ -73,8 +73,8 @@ export const WINDOWS: PileWindow[] = [
     lines: CLAUDE_SESSION.slice(PROMPT_FROM),
     w: 25,
     h: 15.2,
-    desk: { x: 60.65, y: 17.24, r: 0, w: 30, h: 25.17, lines: CLAUDE_SESSION.slice(6) },
-    phone: { x: 12.65, y: 24.71, r: 0, h: 15.19 },
+    desk: { x: 60.65, y: 15.82, r: 0, w: 30, h: 26.58, lines: CLAUDE_SESSION.slice(WINDOW_FROM) },
+    phone: { x: 12.65, y: 20.43, r: 0, h: 19.47 },
   },
   {
     key: "server",

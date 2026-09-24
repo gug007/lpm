@@ -21,6 +21,7 @@ import {
   COLLECTION_ALL,
   COLLECTION_DRAFTS,
   COLLECTION_FAVORITES,
+  COLLECTION_SCHEDULED,
   FOLDERS_KEY,
   HISTORY_PAGE_SIZE,
   MESSAGE_HISTORY_KEY,
@@ -38,6 +39,9 @@ import { MessageFolderMenu } from "./MessageFolderMenu";
 import { MessageFileChip } from "./MessageFileChip";
 import { MessageImageChip } from "./MessageImageChip";
 import { NewFolderInput } from "./NewFolderInput";
+import { ScheduledPromptList } from "./ScheduledPromptList";
+import { AlarmClock } from "lucide-react";
+import { useSendLater } from "../store/sendLater";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { Kbd } from "./ui/Kbd";
 
@@ -52,6 +56,8 @@ interface TerminalHistoryPopoverProps {
   onSend?: (text: string, images: Record<string, string>) => void;
   // Collection the popover opens on; defaults to the unfiltered "All" view.
   initialCollection?: string;
+  // Close the popover: a scheduled prompt's Edit or New time moves on to the input.
+  onClose?: () => void;
 }
 
 export function TerminalHistoryPopover({
@@ -63,6 +69,7 @@ export function TerminalHistoryPopover({
   onPick,
   onSend,
   initialCollection = COLLECTION_ALL,
+  onClose,
 }: TerminalHistoryPopoverProps) {
   const [scope, setScope] = useState<HistoryScope>("project");
   const [collection, setCollection] = useState(initialCollection);
@@ -74,6 +81,7 @@ export function TerminalHistoryPopover({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const folders = useQuery({ queryKey: [FOLDERS_KEY], queryFn: listFolders }).data ?? [];
+  const scheduledCount = useSendLater((s) => s.items.length);
 
   // Debounce typing so we don't fire a query (and re-key the cache) per keystroke.
   useEffect(() => {
@@ -93,6 +101,7 @@ export function TerminalHistoryPopover({
   const query = useInfiniteQuery({
     queryKey: [MESSAGE_HISTORY_KEY, filter],
     queryFn: ({ pageParam }) => queryHistory(filter, pageParam),
+    enabled: collection !== COLLECTION_SCHEDULED,
     initialPageParam: null as HistoryCursor | null,
     getNextPageParam: (last) =>
       last.length === HISTORY_PAGE_SIZE
@@ -215,6 +224,7 @@ export function TerminalHistoryPopover({
 
         <CollectionBar
           collection={collection}
+          scheduledCount={scheduledCount}
           folders={folders}
           onSelect={selectCollection}
           onDeleteFolder={setConfirmingFolderDelete}
@@ -238,7 +248,15 @@ export function TerminalHistoryPopover({
       </div>
 
       <div ref={scrollRef} data-history-scroll className="min-h-0 flex-1 overflow-y-auto border-t border-[var(--border)] p-1.5">
-        {items.length === 0 ? (
+        {collection === COLLECTION_SCHEDULED ? (
+          <ScheduledPromptList
+            scope={scope}
+            projectName={projectName}
+            search={search.trim()}
+            fromHistoryKey={terminalId}
+            onLeave={() => onClose?.()}
+          />
+        ) : items.length === 0 ? (
           query.isLoading ? (
             <div className="px-3 py-10 text-center text-xs text-[var(--text-muted)]">Loading…</div>
           ) : (
@@ -342,11 +360,13 @@ function EmptyState({ icon, title, hint }: EmptyStateProps) {
 
 function CollectionBar({
   collection,
+  scheduledCount,
   folders,
   onSelect,
   onDeleteFolder,
 }: {
   collection: string;
+  scheduledCount: number;
   folders: Folder[];
   onSelect: (c: string) => void;
   onDeleteFolder: (folder: Folder) => void;
@@ -372,6 +392,14 @@ function CollectionBar({
           icon={<SquarePenIcon />}
         >
           Drafts
+        </Chip>
+        <Chip
+          active={collection === COLLECTION_SCHEDULED}
+          onClick={() => onSelect(COLLECTION_SCHEDULED)}
+          icon={<AlarmClock strokeWidth={1.75} />}
+          count={scheduledCount}
+        >
+          Scheduled
         </Chip>
         {folders.map((f) => (
           <Chip

@@ -84,6 +84,7 @@ mod remote_memory;
 mod remote_notes;
 mod remotestore;
 mod remotetls;
+mod send_later;
 mod services;
 mod sessionclient;
 mod sessiond;
@@ -186,6 +187,7 @@ use ports::*;
 use projects_crud::*;
 use pty::*;
 use remote::*;
+use send_later::*;
 use services::*;
 use session_memory_files::{
     delete_memory_session, read_memory_sessions, rename_memory_session, write_memory_session,
@@ -194,6 +196,7 @@ use skill_install::*;
 use sound::*;
 use sshconfig::*;
 use status::*;
+use statusnotify::notify_unattended;
 use tauri::Manager;
 use templates::*;
 use transfer::*;
@@ -261,6 +264,7 @@ pub fn run() {
         .manage(message_history::MessageHistoryState::default())
         .manage(std::sync::Arc::new(status::StatusStore::new()))
         .manage(std::sync::Arc::new(agent_limits::AgentLimitsStore::new()))
+        .manage(std::sync::Arc::new(send_later::SendLaterStore::default()))
         .manage(updates::UpdateState::default())
         .manage(tts::TtsState::default())
         .manage(portforward::PortFwdState::default())
@@ -394,6 +398,10 @@ pub fn run() {
             // Scheduled-jobs runner: a wall-clock tick that fires per-project
             // jobs on their schedule. Same sleep-survival model as the updater.
             jobs::start_scheduler(handle.clone());
+
+            // Prompts scheduled to send later: owns the list and the clock that
+            // marks each one due or missed; the main window does the sending.
+            send_later::start(handle.clone());
 
             // Backgrounded startup chores: reap stale clipboard image temp files,
             // drop sync caches for deleted projects, and resume port pollers for

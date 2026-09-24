@@ -305,6 +305,12 @@ pub fn agent_limits(store: State<'_, Arc<AgentLimitsStore>>) -> HashMap<String, 
     store.snapshot()
 }
 
+/// Which `claude:<account>` entry holds the readings for this project's agents.
+#[tauri::command(async)]
+pub fn claude_limits_account(project: String) -> String {
+    crate::config::claude_limits_account(&project)
+}
+
 fn emit_snapshot(app: &AppHandle, store: &AgentLimitsStore) {
     let _ = app.emit("agent-limits-changed", store.snapshot());
 }
