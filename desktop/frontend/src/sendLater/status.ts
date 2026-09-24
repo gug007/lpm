@@ -1,5 +1,5 @@
 import type { ScheduledPrompt, SendLaterHold } from "../store/sendLater";
-import { clockLabel, countdownLabel, shortWhenLabel } from "./time";
+import { countdownLabel, shortWhenLabel } from "./time";
 
 export type PromptTone = "scheduled" | "waiting" | "missed";
 
@@ -22,8 +22,10 @@ export function promptStatus(item: ScheduledPrompt, hold: SendLaterHold | undefi
         ? `Waiting for your answer in ${label}`
         : hold === "away"
           ? `Waiting for ${label} to open`
-          : `Waiting for ${label} to finish`;
-    return { tone: "waiting", title, detail: `due ${clockLabel(item.dueAt)} · sends when it's ready` };
+          : hold === "starting"
+            ? `Waiting for ${label} to start`
+            : `Waiting for ${label} to finish`;
+    return { tone: "waiting", title, detail: `due ${shortWhenLabel(item.dueAt, now)} · sends when it's ready` };
   }
   return {
     tone: "scheduled",

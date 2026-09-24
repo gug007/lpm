@@ -94,11 +94,19 @@ function snapFar(t: number): number {
   return atClock(startOfDay(t), 0, Math.round(minutesIntoDay(t) / 30) * 30);
 }
 
-// The next half hour on the clock strictly past `t` in the given direction.
+// The next half hour on the clock strictly past `t` in the given direction. On
+// a daylight-saving day a half hour can be skipped or repeated, so a reading
+// that doesn't move the right way is stepped over.
 function nextHalfHour(t: number, dir: 1 | -1): number {
-  const halves = minutesIntoDay(t) / 30;
-  const k = dir === 1 ? Math.floor(halves) + 1 : Math.ceil(halves) - 1;
-  return atClock(startOfDay(t), 0, k * 30);
+  let from = t;
+  for (let tries = 0; tries < 4; tries++) {
+    const halves = minutesIntoDay(from) / 30;
+    const k = dir === 1 ? Math.floor(halves) + 1 : Math.ceil(halves) - 1;
+    const next = atClock(startOfDay(from), 0, k * 30);
+    if (dir === 1 ? next > t : next < t) return next;
+    from += dir * 30 * MINUTE;
+  }
+  return t + dir * 30 * MINUTE;
 }
 
 // Five-minute steps counted from now across the near half ("in 2h 5m"), half

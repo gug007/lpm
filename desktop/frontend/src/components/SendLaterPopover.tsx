@@ -4,6 +4,7 @@ import { CalendarClock, Clock3, Gauge, Sun } from "lucide-react";
 import type { SendLaterPicker } from "../hooks/useComposerSendLater";
 import { useLimitReset } from "../hooks/useLimitReset";
 import { useNow } from "../hooks/useNow";
+import { useOverlay } from "../store/overlay";
 import { clockChoice, type LastChoice } from "../sendLater/lastChoice";
 import type { LimitAgent } from "../sendLater/limitReset";
 import { promptPreview } from "../sendLater/preview";
@@ -46,21 +47,32 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
   );
   const [style, setStyle] = useState<CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const limit = useLimitReset(projectName, agent);
+  const limit = useLimitReset(projectName, agent, now);
+  useOverlay();
   const shown = preview ?? value;
   const ready = value >= earliest;
 
   useLayoutEffect(() => {
+    const anchor = anchorRef.current;
     const place = () => {
       const r = anchorRef.current?.getBoundingClientRect();
       if (!r) return;
       const width = Math.min(MAX_WIDTH, r.width, window.innerWidth - 16);
-      setStyle({ position: "fixed", width, left: r.right - width, bottom: window.innerHeight - r.top + GAP });
+      setStyle({
+        position: "fixed",
+        width,
+        left: r.right - width,
+        bottom: window.innerHeight - r.top + GAP,
+        maxHeight: Math.max(160, r.top - GAP - 8),
+      });
     };
     place();
+    const ro = new ResizeObserver(place);
+    if (anchor) ro.observe(anchor);
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
+      ro.disconnect();
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
@@ -71,14 +83,26 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
       if (rootRef.current?.contains(e.target as Node)) return;
       onClose(false);
     };
+    // Captured, so Escape closes the picker wherever focus is; the typed-time
+    // field takes its own Escape first, to leave the field.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || (document.activeElement as HTMLElement | null)?.id === "send-later-when") return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose(true);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
   }, [onClose]);
 
+  const focusLine = () => rootRef.current?.querySelector<HTMLElement>("[role=slider]")?.focus();
   const placed = style !== null;
   useEffect(() => {
-    if (!placed || panel !== "line") return;
-    rootRef.current?.querySelector<HTMLElement>("[role=slider]")?.focus();
+    if (placed && panel === "line") focusLine();
   }, [placed, panel]);
 
   const marks = useMemo(() => dayMarks(now, scale), [now, scale]);
@@ -128,7 +152,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
   };
 
   const commit = () => {
-    if (!ready) return;
+    if (value < Date.now() + MIN_DELAY) return;
     onPick(value, "time", choice);
   };
 
@@ -139,13 +163,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
       role="dialog"
       aria-label="Send later"
       style={style}
-      onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.preventDefault();
-        e.stopPropagation();
-        onClose(true);
-      }}
-      className="menu-pop z-[80] flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 pb-3 pt-3 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)]"
+      className="menu-pop z-[80] flex flex-col gap-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] px-3.5 pb-3 pt-3 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)]"
     >
       {picker.mode === "reschedule" && (
         <div className="truncate text-[11px] text-[var(--text-muted)]">
@@ -156,7 +174,8 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
         <SendLaterReadback
           at={shown}
           now={now}
-          limitAt={limit?.at ?? null}
+          limitAt={limit && limit.at > earliest ? limit.at : null}
+          onDone={focusLine}
           onTyped={(at, delay, isLimit) => {
             if (isLimit) {
               onPick(at, "limit", null);
@@ -220,7 +239,7 @@ export function SendLaterPopover({ anchorRef, picker, projectName, agent, onPick
           disabled={!ready}
           className="flex h-7 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--accent-blue)] px-3 text-[12px] font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-40"
         >
-          {ready ? scheduleButtonLabel(value, now) : "Pick a time ahead of now"}
+          {ready ? scheduleButtonLabel(value, now) : `Pick a time at least ${MIN_DELAY / MINUTE} min ahead`}
           {ready && <span className="text-[11px] opacity-70">↵</span>}
         </button>
       </div>

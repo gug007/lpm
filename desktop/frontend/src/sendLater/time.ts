@@ -159,11 +159,14 @@ const DEFAULT_MORNING: ClockTime = { hours: 9, minutes: 0, settled: true };
 // Null when the words don't name a moment ahead.
 export function parseWhen(input: string, now: number): number | null {
   let text = input.trim().toLowerCase().replace(/\s+/g, " ");
+  // "in …" always means a delay: "in 5" is five minutes, never 5 o'clock.
+  const saysIn = text.startsWith("in ");
   text = text.replace(/^(in|at|on) /, "").replace(/\.$/, "");
   if (!text) return null;
 
-  const delay = parseDuration(text);
+  const delay = parseDuration(saysIn && /^\d+(\.\d+)?$/.test(text) ? `${text}m` : text);
   if (delay !== null) return delay <= MAX_AHEAD ? now + delay : null;
+  if (saysIn) return null;
 
   const words = text.split(" ");
   let day: number | null = null;
@@ -194,6 +197,12 @@ export function parseWhen(input: string, now: number): number | null {
 
   const clock = clockText ? parseClock(clockText) : DEFAULT_MORNING;
   if (!clock) return null;
+  // Today, an hour without am/pm takes whichever reading is still ahead, as it
+  // does with no day named: "today 8" at 3 PM is tonight.
+  if (dayOffset(day, now) === 0 && !clock.settled) {
+    const tonight = nextAt(clock, day, now);
+    if (!Number.isNaN(tonight)) return tonight;
+  }
   const settled = clock.settled ? clock : settleByHabit(clock);
   const at = atClock(day, settled.hours, settled.minutes);
   if (at > now) return at <= now + MAX_AHEAD ? at : null;

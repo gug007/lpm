@@ -11,7 +11,7 @@ export function SendLaterTabMark({ historyKey }: { historyKey: string | undefine
   const mark = parseMarkKey(key);
   if (!mark) return null;
   const parts = [
-    mark.waiting > 0 && `${mark.waiting} waiting for the agent to finish`,
+    mark.waiting > 0 && `${mark.waiting} due, waiting to go out`,
     mark.missed > 0 && `${mark.missed} missed ${mark.missed === 1 ? "its" : "their"} time`,
     mark.scheduled > 0 && `${mark.scheduled} scheduled`,
   ].filter(Boolean);

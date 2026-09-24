@@ -70,9 +70,25 @@ impl Default for PtyState {
     fn default() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
-            counter: AtomicU64::new(0),
+            counter: AtomicU64::new(first_serial()),
         }
     }
+}
+
+impl PtyState {
+    fn next_serial(&self) -> u64 {
+        self.counter.fetch_add(1, Ordering::SeqCst) + 1
+    }
+}
+
+/// Ids start from the clock rather than zero because they outlive the process
+/// that minted them: a peer Mac and restored tabs hold on to them across a
+/// restart, and a counter from zero handed the same ids straight out again —
+/// so a stale tab could silently bind to an unrelated new terminal.
+fn first_serial() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 #[derive(Serialize)]
@@ -113,6 +129,31 @@ pub fn local_session_pid(state: &PtyState, id: &str) -> Option<i32> {
     }
     let pid = sess.child.lock().unwrap().process_id();
     pid.map(|p| p as i32)
+}
+
+/// What runs in a terminal's foreground right now: the job holding its tty, or
+/// the shell itself at its prompt. Empty when that can't be told: an unknown
+/// terminal, or a remote pane whose jobs run on another machine.
+#[tauri::command(async)]
+pub fn terminal_foreground_command(state: State<'_, PtyState>, id: String) -> String {
+    let Ok(sess) = lookup(&state, &id) else {
+        return String::new();
+    };
+    if sess.remote {
+        return String::new();
+    }
+    let leader = sess
+        .master
+        .lock()
+        .unwrap()
+        .process_group_leader()
+        .filter(|p| *p > 0);
+    let Some(pid) = leader else {
+        return String::new();
+    };
+    crate::procinfo::commands(&[pid])
+        .remove(&pid)
+        .unwrap_or_default()
 }
 
 fn lookup(state: &State<'_, PtyState>, id: &str) -> Result<Arc<PtySession>, String> {
@@ -272,8 +313,10 @@ fn spawn_io_threads(
             .unwrap_or(0);
         let _ = app.emit(&format!("pty-exit-{}", sess.id), code);
         crate::remote::tee_exit(&app, &sess.id, code);
-        crate::peer::tee_exit(&app, &sess.id, code);
+        // Out of the map before peers are told: a peer subscribing right now is
+        // then either told of the exit or finds no terminal (peer::ring_attach).
         sessions.lock().unwrap().remove(&sess.id);
+        crate::peer::tee_exit(&app, &sess.id, code);
     });
 }
 
@@ -323,7 +366,7 @@ fn start_internal(
     raw_cwd: &str,
     extra_env: &BTreeMap<String, String>,
 ) -> Result<String, String> {
-    let n = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let n = state.next_serial();
     // The id is embedded in Tauri event names (pty-output-<id>, pty-exit-<id>),
     // which only permit alphanumerics and `-` `/` `:` `_`. A raw project name
     // with a space or dot (e.g. "My app") would make emit/listen silently fail
@@ -637,7 +680,7 @@ pub fn start_claude_login(
     if home.is_empty() {
         return Err("no home directory".into());
     }
-    let n = state.counter.fetch_add(1, Ordering::SeqCst) + 1;
+    let n = state.next_serial();
     let id = format!("claude-login-{n}");
 
     let shell = login_shell();
@@ -912,8 +955,22 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
 
 #[cfg(test)]
 mod tests {
-    use super::{env_lacks_locale, event_safe, incomplete_utf8_tail};
+    use super::{env_lacks_locale, event_safe, incomplete_utf8_tail, PtyState};
     use crate::sys::login_shell;
+
+    // A restart used to hand out `proj-1` again, and a tab restored against the
+    // old `proj-1` bound to whatever new terminal took the id.
+    #[test]
+    fn terminal_ids_never_repeat_across_a_restart() {
+        let before = PtyState::default();
+        let earlier: Vec<u64> = (0..3).map(|_| before.next_serial()).collect();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let after = PtyState::default();
+        let first = after.next_serial();
+        assert!(first > 1_000_000_000_000, "{first}");
+        assert!(earlier.iter().all(|n| first > *n), "{first} vs {earlier:?}");
+        assert_eq!(after.next_serial(), first + 1);
+    }
 
     // The shell a terminal opens with must exist on the machine it opens on. A
     // service manager hands down no $SHELL, and the old fallback was macOS's

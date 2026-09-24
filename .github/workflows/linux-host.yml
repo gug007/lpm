@@ -57,6 +57,14 @@ jobs:
       - name: Test the container supervisor
         run: sh desktop/linux/tests/hostctl-test.sh
 
+      # The installer's decisions about the machine — which account the app runs
+      # as, what apt still has to install — and the stop-path sweep's choice of
+      # processes, all against fake proc trees and fake system tools.
+      - name: Test the installer and the stop sweep
+        run: |
+          sh desktop/linux/tests/install-test.sh
+          sh desktop/linux/tests/cleanup-test.sh
+
   check:
     runs-on: ubuntu-latest
     steps:

@@ -484,6 +484,9 @@ export function SendLaterSendNow(id) {
 export function SendLaterRemove(id) {
   return invoke("send_later_remove", { id });
 }
+export function TerminalForegroundCommand(id) {
+  return invoke("terminal_foreground_command", { id });
+}
 export function MessageHistorySaveDraft(message) {
   return invoke("message_history_save_draft", { message });
 }

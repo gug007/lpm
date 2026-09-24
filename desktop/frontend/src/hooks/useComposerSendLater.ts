@@ -21,6 +21,8 @@ interface Options {
   projectName: string;
   historyKey: string;
   targetLabel: string;
+  // The agent running in the terminal, empty for a plain shell.
+  agent: string;
   // The prompt in the input, or null when there's nothing to send.
   readPrompt: () => ComposerPrompt | null;
   // Guard against a second send, save or schedule of the same prompt at once.
@@ -41,6 +43,7 @@ export function useComposerSendLater({
   projectName,
   historyKey,
   targetLabel,
+  agent,
   readPrompt,
   claim,
   release,
@@ -98,6 +101,7 @@ export function useComposerSendLater({
           projectName,
           historyKey,
           terminalLabel: targetLabel,
+          agent,
           text: prompt.text,
           images: prompt.images,
           dueAt: at,
@@ -114,7 +118,7 @@ export function useComposerSendLater({
         release(prompt.id);
       }
     },
-    [picker, readPrompt, claim, release, retire, projectName, historyKey, targetLabel],
+    [picker, readPrompt, claim, release, retire, projectName, historyKey, targetLabel, agent],
   );
 
   return { picker, openForPrompt, openForItem, close, pick };

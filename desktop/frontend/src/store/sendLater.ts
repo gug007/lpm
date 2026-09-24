@@ -21,6 +21,8 @@ export interface ScheduledPrompt {
   // The terminal tab's persisted key; its live id changes on every launch.
   historyKey: string;
   terminalLabel: string;
+  // The agent it was written for ("claude", "codex"…); empty for a plain shell.
+  agent: string;
   // Serialized like the composer, with "[Image #N]" tokens.
   text: string;
   images: Record<string, string>;
@@ -34,33 +36,48 @@ export interface ScheduledPrompt {
 
 export type NewScheduledPrompt = Pick<
   ScheduledPrompt,
-  "projectName" | "historyKey" | "terminalLabel" | "text" | "images" | "dueAt" | "kind"
+  "projectName" | "historyKey" | "terminalLabel" | "agent" | "text" | "images" | "dueAt" | "kind"
 >;
 
+interface Snapshot {
+  rev: number;
+  sender: boolean;
+  items: ScheduledPrompt[];
+}
+
 // Why a due prompt hasn't gone out yet. Known only to the window that sends.
-export type SendLaterHold = "busy" | "asking" | "away";
+export type SendLaterHold = "busy" | "asking" | "starting" | "away";
 
 interface SendLaterStoreState {
   items: ScheduledPrompt[];
   // False until the first list arrives, so an empty list isn't mistaken for one.
   loaded: boolean;
+  // Whether this copy of lpm sends; another copy on the same data may.
+  sender: boolean;
+  rev: number;
   holds: Record<string, SendLaterHold>;
 }
 
 export const useSendLater = create<SendLaterStoreState>(() => ({
   items: [],
   loaded: false,
+  sender: false,
+  rev: -1,
   holds: {},
 }));
 
 const byDue = (a: ScheduledPrompt, b: ScheduledPrompt) => a.dueAt - b.dueAt;
 
-function applyList(list: ScheduledPrompt[] | null | undefined) {
-  const items = [...(list ?? [])].sort(byDue);
-  const live = new Set(items.map((i) => i.id));
+// Snapshots can arrive out of order (the first fetch racing a change event);
+// one older than the list already held is dropped.
+function applySnapshot(snap: Snapshot | null | undefined) {
+  if (!snap || !Array.isArray(snap.items)) return;
   useSendLater.setState((s) => {
+    if (snap.rev <= s.rev) return s;
+    const items = [...snap.items].sort(byDue);
+    const live = new Set(items.map((i) => i.id));
     const holds = Object.fromEntries(Object.entries(s.holds).filter(([id]) => live.has(id)));
-    return { items, holds, loaded: true };
+    return { items, holds, rev: snap.rev, sender: snap.sender, loaded: true };
   });
 }
 
@@ -69,9 +86,9 @@ let started = false;
 export async function initSendLater(): Promise<void> {
   if (started) return;
   started = true;
-  EventsOn("send-later-changed", (list: ScheduledPrompt[]) => applyList(list));
+  EventsOn("send-later-changed", (snap: Snapshot) => applySnapshot(snap));
   try {
-    applyList((await SendLaterList()) as ScheduledPrompt[]);
+    applySnapshot((await SendLaterList()) as Snapshot);
   } catch {
     /* an older backend without the list keeps it empty */
   }
@@ -101,10 +118,6 @@ export function setHold(id: string, hold: SendLaterHold | null): void {
     else delete holds[id];
     return { holds };
   });
-}
-
-export function promptsFor(items: ScheduledPrompt[], historyKey: string): ScheduledPrompt[] {
-  return items.filter((i) => i.historyKey === historyKey);
 }
 
 // The terminal's time for a prompt it put back in the input to edit: reopening

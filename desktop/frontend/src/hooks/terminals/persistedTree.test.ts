@@ -124,6 +124,42 @@ describe("reifyTreeWithFreshPtys", () => {
     expect(started).toEqual(["pty-fresh"]);
   });
 
+  // The tab comes back as a different terminal than the one it had, which is
+  // worth telling the user; a tab that merely starts, or is adopted, is not.
+  it("reports only the ptys that stand in for a peer terminal the host lost", async () => {
+    h.terminalExists.mockImplementation((id: string) =>
+      Promise.resolve(id === "peer-a1b2c3d4-project-2"),
+    );
+    h.startTerminal.mockResolvedValue("peer-a1b2c3d4-project-9");
+    h.startForRestore.mockResolvedValue("peer-a1b2c3d4-project-10");
+    const started: string[] = [];
+    const replaced: string[] = [];
+
+    const pane = asLeaf(
+      await reifyTreeWithFreshPtys(
+        leaf([
+          { label: "Gone", id: "peer-a1b2c3d4-project-7", resumeCmd: "claude --resume abc" },
+          { label: "Live", id: "peer-a1b2c3d4-project-2" },
+          { label: "New", actionName: "server" },
+        ]),
+        "peer-a1b2c3d4-demo",
+        started,
+        [],
+        [],
+        replaced,
+      ),
+    );
+
+    expect(pane.tabs.map((t) => t.id)).toEqual([
+      "peer-a1b2c3d4-project-9",
+      "peer-a1b2c3d4-project-2",
+      "peer-a1b2c3d4-project-10",
+    ]);
+    expect(pane.tabs[0].resumeCmd).toBe("claude --resume abc");
+    expect(replaced).toEqual(["peer-a1b2c3d4-project-9"]);
+    expect(started).toEqual(["peer-a1b2c3d4-project-9", "peer-a1b2c3d4-project-10"]);
+  });
+
   // Restore routinely runs before the peer connection is up. Answering that with
   // a fresh pty would leave the real terminal running on the host with nothing
   // attached — a stranded agent — so the check is retried instead.

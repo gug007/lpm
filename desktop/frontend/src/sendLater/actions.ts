@@ -93,6 +93,7 @@ export async function cancelScheduled(item: ScheduledPrompt): Promise<void> {
           projectName: removed.projectName,
           historyKey: removed.historyKey,
           terminalLabel: removed.terminalLabel,
+          agent: removed.agent,
           text: removed.text,
           images: removed.images,
           dueAt: Math.max(removed.dueAt, Date.now() + 60_000),

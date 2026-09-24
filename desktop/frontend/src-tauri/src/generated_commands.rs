@@ -184,6 +184,7 @@ macro_rules! all_command_handlers {
             send_later_reschedule,
             send_later_send_now,
             send_later_remove,
+            terminal_foreground_command,
             message_history_set_folder,
             message_history_toggle_favorite,
             move_project_root,

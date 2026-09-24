@@ -35,12 +35,18 @@ cd lpm-host
 sudo ./install.sh
 ```
 
-It installs the runtime dependencies (`apt`), puts the binaries in `/opt/lpm`,
-links the CLI onto `PATH`, enables the three units — or the supervisor, on a
-machine with no service manager — and waits for the app to answer. Pass `--no-deps` to skip the apt step on a machine where the runtime is
+It installs whichever runtime dependencies are missing (`apt`, without upgrading
+anything already there), puts the binaries in `/opt/lpm`, links the CLI onto
+`PATH`, enables the three units — or the supervisor, on a machine with no service
+manager — and waits for the app to answer. Pass `--no-deps` to skip the apt step on a machine where the runtime is
 already present — in which case make sure `git` is installed too, since the app
 shells out to it for diffs and syncing. Services need nothing installed: they run
 in lpm's own session daemon, which is part of the `lpm-desktop` binary.
+
+On a systemd host it also drops `/etc/needrestart/conf.d/lpm.conf`, which tells
+needrestart to leave lpm's three units alone. Without it, an apt run that
+touches the display's libraries — this installer's, or a later unattended
+upgrade — restarts the display, and the app and every agent go down with it.
 
 The installer does *not* wait for the peer server, because there isn't one yet:
 hosting stays off until you pair, below.
@@ -52,7 +58,10 @@ It runs as root, which is what a dedicated box usually is. To run it as someone
 else, add a drop-in with `User=`, and set `HOME=` and `WorkingDirectory=`
 explicitly while you're there — the unit uses `%h`, and for a *system* service
 that specifier is the service manager's home (`/root`), not the home of the user
-in `User=`.
+in `User=`. The installer follows whatever the app actually runs as — the running
+process first, then the unit's `User=` and `HOME=` — so updates, including the
+Mac's *Update lpm there*, keep working on such a host, and the uninstaller cleans
+up that account's skills and `~/.lpm` rather than root's.
 
 Building by hand is possible but has a trap worth knowing: the build must go
 through the Tauri CLI (`npx tauri build --no-bundle`). A plain
@@ -133,7 +142,9 @@ Both talk to the running app through a socket under *its* home directory, and th
 service runs as root — so from a `ubuntu@`-style login they need `sudo`, and `-H`
 so `$HOME` moves with it. Without `-H` the CLI looks in the login user's home,
 finds nothing, and reports that the app is not running on a host that is running
-fine. As root you can drop the `sudo -H`.
+fine. As root you can drop the `sudo -H`; on a host whose unit runs as another
+account, run them as that account. The installer prints the exact command for
+the machine it just set up.
 
 `lpm pair` keeps the peer port bound to this machine only. If the Mac reaches the
 host through an SSH tunnel (`ssh -L 18766:127.0.0.1:8766 …`), that is what you
@@ -191,9 +202,9 @@ sudo ./uninstall.sh --purge    # also delete the service account's ~/.lpm
 ```
 
 It undoes what the installer did — units (or the supervisor), binaries, the
-`PATH` symlinks, the environment file — and stops the services and agents that
-were running, which the app deliberately does not own (see below). Your projects
-and repos are left alone.
+`PATH` symlinks, the environment file, the needrestart exclusion — and stops the
+services and agents that were running, which the app deliberately does not own
+(see below). Your projects and repos are left alone.
 
 `~/.lpm` is kept by default: project configuration, session memory and this
 machine's pairing identity live there, so a reinstall picks up where you left off.
@@ -202,11 +213,13 @@ machine's pairing identity live there, so a reinstall picks up where you left of
 ## What a restart costs
 
 Agent terminals on the host belong to the app process, so **restarting `lpm.service`
-— or `lpm-host restart` — ends every agent running on this machine** and their
-conversations cannot be resumed from where they were. That is why the unit is
-`Restart=on-failure` rather than `always`, and why the container supervisor
-follows the same rule. A Mac restarting is fine and reattaches to the live
-sessions — this is only about restarting lpm on the host itself.
+— or `lpm-host restart` — ends every agent running on this machine**, along with
+its scrollback. When the Mac reconnects it reopens those terminals and resumes
+the Claude Code and Codex conversations they held, but whatever an agent was in
+the middle of is interrupted. That is why the unit is `Restart=on-failure` rather
+than `always`, and why the container supervisor follows the same rule. A Mac
+restarting is fine and reattaches to the live sessions — this is only about
+restarting lpm on the host itself.
 
 ## When it doesn't come up
 

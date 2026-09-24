@@ -3659,7 +3659,10 @@ mod limits_account_tests {
     #[test]
     fn anything_else_is_the_default_login() {
         assert_eq!(limits_account_of_config_dir(None), "default");
-        assert_eq!(limits_account_of_config_dir(Some("/Users/me/.claude")), "default");
+        assert_eq!(
+            limits_account_of_config_dir(Some("/Users/me/.claude")),
+            "default"
+        );
         assert_eq!(limits_account_of_config_dir(Some("")), "default");
     }
 }

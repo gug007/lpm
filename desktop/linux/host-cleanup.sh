@@ -8,20 +8,48 @@
 # so its own `ssh -N` forwards, spawned with null stdio and therefore never ended
 # by a broken pipe, would survive as orphans at one per forward per restart.
 #
-# So sweep those by name out of the unit's own cgroup, which is precise enough to
-# leave the daemon and the job agents exactly where KillMode put them. A process
-# that has already exited, or a kernel without cgroup v2 here, is not an error:
-# this runs on the stop path and must never be the reason a stop fails.
+# So sweep those out of the unit's own cgroup, which is precise enough to leave
+# the daemon and the job agents exactly where KillMode put them. A process that
+# has already exited, or a kernel without cgroup v2 here, is not an error: this
+# runs on the stop path and must never be the reason a stop fails.
 set -u
 
-cgline=$(grep -m1 '^0::' /proc/self/cgroup 2>/dev/null) || exit 0
-cgroup=/sys/fs/cgroup$(printf '%s' "$cgline" | cut -d: -f3)
-[ -r "$cgroup/cgroup.procs" ] || exit 0
+# The app's orphaned forwards among the pids on stdin, read from the proc tree
+# at $1. Every ssh in this cgroup is not one of them: an SSH project's service
+# pane runs its ssh under the daemon's live shell. A forward carries -N as an
+# argument of its own, and once the app is gone nothing is its parent any more.
+orphaned_forwards() {
+    proc=$1
+    while read -r pid; do
+        [ "$pid" = "$$" ] && continue
+        [ "$(cat "$proc/$pid/comm" 2>/dev/null)" = ssh ] || continue
+        tr '\0' '\n' 2>/dev/null < "$proc/$pid/cmdline" | grep -qx -- -N || continue
+        ppid=$(sed -n 's/^PPid:[[:space:]]*//p' "$proc/$pid/status" 2>/dev/null)
+        case "$ppid" in
+            '' | *[!0-9]*) continue ;;
+        esac
+        if [ "$ppid" != 1 ]; then
+            state=$(sed -n 's/^State:[[:space:]]*\(.\).*/\1/p' "$proc/$ppid/status" 2>/dev/null)
+            case "$state" in
+                '' | Z | X) ;;
+                *) continue ;;
+            esac
+        fi
+        printf '%s\n' "$pid"
+    done
+}
 
-self=$$
-while read -r pid; do
-    [ "$pid" = "$self" ] && continue
-    [ "$(cat "/proc/$pid/comm" 2>/dev/null)" = ssh ] && kill "$pid" 2>/dev/null
-done < "$cgroup/cgroup.procs"
+sweep() {
+    cgline=$(grep -m1 '^0::' /proc/self/cgroup 2>/dev/null) || return 0
+    cgroup=/sys/fs/cgroup$(printf '%s' "$cgline" | cut -d: -f3)
+    [ -r "$cgroup/cgroup.procs" ] || return 0
+    for pid in $(orphaned_forwards /proc < "$cgroup/cgroup.procs"); do
+        kill "$pid" 2>/dev/null
+    done
+    return 0
+}
 
+# tests/cleanup-test.sh sources this for the selection alone.
+[ "${LPM_CLEANUP_TEST:-}" = 1 ] && return 0
+sweep
 exit 0

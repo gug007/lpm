@@ -5,7 +5,7 @@ import { limitResetFor, limitsEntryFor, type LimitAgent, type LimitReset } from 
 
 // When this terminal's agent can work again, for the "limit resets" pick. Mount
 // it only while that pick can be shown: it reads the live limits as it goes.
-export function useLimitReset(projectName: string, agent: LimitAgent | null): LimitReset | null {
+export function useLimitReset(projectName: string, agent: LimitAgent | null, now: number): LimitReset | null {
   const { limits } = useAgentLimits();
   const [account, setAccount] = useState<string | null>(null);
 
@@ -22,6 +22,6 @@ export function useLimitReset(projectName: string, agent: LimitAgent | null): Li
 
   return useMemo(() => {
     if (!agent || (agent === "claude" && account === null)) return null;
-    return limitResetFor(limitsEntryFor(limits, agent, account ?? "default"), agent, Date.now());
-  }, [limits, agent, account]);
+    return limitResetFor(limitsEntryFor(limits, agent, account ?? "default"), agent, now);
+  }, [limits, agent, account, now]);
 }

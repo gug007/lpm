@@ -77,6 +77,7 @@ struct PeerConn {
     connected: AtomicBool,
     last_error: Mutex<String>,
     attached: Mutex<HashSet<String>>, // raw host terminal ids the frontend has open
+    ended: Mutex<HashSet<String>>,    // ...and those the host has since said are over
     // Per-terminal stream offset this Mac has already applied. Sent back as `sub`'s
     // `from` so a reconnect resumes with only the missed bytes instead of replaying
     // a mid-escape-sequence slice of the ring onto a half-reset emulator.
@@ -126,6 +127,7 @@ impl PeerConn {
             last_error: Mutex::new(String::new()),
             tunnel: Mutex::new(None),
             attached: Mutex::new(HashSet::new()),
+            ended: Mutex::new(HashSet::new()),
             offsets: Mutex::new(HashMap::new()),
             last_resync: Mutex::new(HashMap::new()),
             pending: Mutex::new(HashMap::new()),
@@ -168,6 +170,15 @@ impl PeerConn {
     /// while the offsets still point deep into their streams — resuming there
     /// would deliver nothing but the bytes since, onto nothing.
     fn subscribe(&self, id: &str, resume: bool) {
+        {
+            let mut ended = self.ended.lock().unwrap();
+            if resume && ended.contains(id) {
+                // That screen already showed the stream end, and the host can only
+                // say so again: every remount would print the ending once more.
+                return;
+            }
+            ended.remove(id);
+        }
         let already = !self.attached.lock().unwrap().insert(id.to_string());
         if !resume {
             // A blank emulator needs the screen rebuilt whatever the stream is
@@ -264,6 +275,15 @@ impl PeerConn {
         // The stream this paced any repair of is over: a later attach on the same id
         // is a new screen and must be able to repair itself immediately.
         self.last_resync.lock().unwrap().remove(id);
+    }
+
+    /// The host says a terminal ended. Stop re-subscribing it on every reconnect,
+    /// where a restarted host would answer each time with an empty screen, and
+    /// forget its offset so nothing ever resumes from a dead stream.
+    fn end_stream(&self, id: &str) {
+        self.attached.lock().unwrap().remove(id);
+        self.ended.lock().unwrap().insert(id.to_string());
+        self.forget_offset(id);
     }
 
     /// Fail every outstanding invoke — called when the connection drops so no
@@ -1846,6 +1866,19 @@ fn connect_session(
     Ok(())
 }
 
+/// What an `exit` frame becomes here, in order. `gone` means the host has no such
+/// terminal at all (it restarted since), which the pane handles differently from
+/// a program that ended — so it is told first, then the exit every pane expects.
+fn exit_events(slug: &str, id: &str, frame: &Value) -> Vec<(String, Value)> {
+    let code = frame.get("code").and_then(Value::as_i64).unwrap_or(0) as i32;
+    let mut events = Vec::with_capacity(2);
+    if frame.get("gone").and_then(Value::as_bool) == Some(true) {
+        events.push((format!("pty-gone-peer-{slug}-{id}"), Value::Null));
+    }
+    events.push((format!("pty-exit-peer-{slug}-{id}"), json!(code)));
+    events
+}
+
 /// Route one frame the host pushed: terminal output/seed/exit re-emit under the
 /// prefixed event names; forwarded global events go on the per-peer wrapper
 /// channel; invoke results resolve their waiting caller.
@@ -1924,12 +1957,13 @@ fn handle_frame(conn: &Arc<PeerConn>, app: Option<&AppHandle>, txt: &str) {
             }
         }
         "exit" => {
-            if let (Some(app), Some(id)) = (app, v.get("id").and_then(Value::as_str)) {
-                let code = v.get("code").and_then(Value::as_i64).unwrap_or(0) as i32;
-                // The stream is over: forget the offset so a later terminal reusing
-                // this id can never ask to resume from a dead one.
-                conn.forget_offset(id);
-                let _ = app.emit(&format!("pty-exit-peer-{slug}-{id}"), code);
+            if let Some(id) = v.get("id").and_then(Value::as_str) {
+                conn.end_stream(id);
+                if let Some(app) = app {
+                    for (event, payload) in exit_events(slug, id, &v) {
+                        let _ = app.emit(&event, payload);
+                    }
+                }
             }
         }
         "evt" => {
@@ -2505,6 +2539,7 @@ pub fn peer_term_detach(hub: State<'_, PeerClientHub>, id: String) -> Result<(),
     };
     if let Some(conn) = hub.inner.conns.lock().unwrap().get(&slug).cloned() {
         conn.attached.lock().unwrap().remove(&raw);
+        conn.ended.lock().unwrap().remove(&raw);
         conn.forget_offset(&raw);
         let _ = conn.send(json!({ "t": "unsub", "id": raw }).to_string());
     }
@@ -2737,6 +2772,64 @@ mod tests {
         conn.anchor_offset("web-3", Some(700));
         conn.extend_offset("web-3", Some(800), 3);
         assert!(rx.try_recv().is_ok());
+    }
+
+    // A restarted host answers every stale id with an empty screen, so one that
+    // stayed attached was wiped again on each reconnect, forever.
+    #[test]
+    fn an_ended_terminal_is_never_resubscribed() {
+        let (conn, rx) = live_conn();
+        let conn = Arc::new(conn);
+        conn.subscribe("web-3", true);
+        let _ = rx.recv().unwrap();
+        conn.anchor_offset("web-3", Some(64));
+
+        handle_frame(
+            &conn,
+            None,
+            r#"{"t":"exit","id":"web-3","code":-1,"gone":true}"#,
+        );
+        assert!(!conn.attached.lock().unwrap().contains("web-3"));
+        assert_eq!(held_offset(&conn, "web-3"), None);
+
+        // The pane remounting over the screen that showed the ending asks nothing:
+        // the host could only repeat it.
+        conn.subscribe("web-3", true);
+        assert!(rx.try_recv().is_err());
+        assert!(conn.attached.lock().unwrap().is_empty());
+
+        // A blank emulator has seen nothing, so it asks, and the answer settles it.
+        conn.subscribe("web-3", false);
+        let asked: Value = serde_json::from_str(&rx.recv().unwrap()).unwrap();
+        assert_eq!(asked.get("id").and_then(Value::as_str), Some("web-3"));
+        assert!(conn.attached.lock().unwrap().contains("web-3"));
+    }
+
+    #[test]
+    fn a_gone_terminal_is_announced_before_its_exit() {
+        let gone = exit_events(
+            "aabbccdd",
+            "web-3",
+            &json!({ "t": "exit", "id": "web-3", "code": -1, "gone": true }),
+        );
+        assert_eq!(
+            gone,
+            vec![
+                ("pty-gone-peer-aabbccdd-web-3".to_string(), Value::Null),
+                ("pty-exit-peer-aabbccdd-web-3".to_string(), json!(-1)),
+            ]
+        );
+
+        // A program that ended — or any host that predates `gone` — is just an exit.
+        let ended = exit_events(
+            "aabbccdd",
+            "web-3",
+            &json!({ "t": "exit", "id": "web-3", "code": 2 }),
+        );
+        assert_eq!(
+            ended,
+            vec![("pty-exit-peer-aabbccdd-web-3".to_string(), json!(2))]
+        );
     }
 
     #[test]

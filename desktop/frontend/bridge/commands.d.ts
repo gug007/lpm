@@ -156,6 +156,7 @@ export function SendLaterAdd(...args: any[]): Promise<any>;
 export function SendLaterReschedule(...args: any[]): Promise<any>;
 export function SendLaterSendNow(...args: any[]): Promise<any>;
 export function SendLaterRemove(...args: any[]): Promise<any>;
+export function TerminalForegroundCommand(...args: any[]): Promise<any>;
 export function MessageHistoryToggleFavorite(...args: any[]): Promise<any>;
 export function MessageHistoryDelete(...args: any[]): Promise<any>;
 export function MessageHistoryClear(...args: any[]): Promise<any>;

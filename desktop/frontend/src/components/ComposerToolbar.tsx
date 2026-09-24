@@ -77,6 +77,7 @@ export function ComposerToolbar({ boxRef, history, onNewInput, actions, memory, 
           <TerminalHistoryButton
             {...history}
             boxRef={boxRef}
+            scheduled
             initialCollection={COLLECTION_DRAFTS}
             icon={<SquarePenIcon />}
             tooltip="Drafts"
@@ -87,7 +88,13 @@ export function ComposerToolbar({ boxRef, history, onNewInput, actions, memory, 
         );
       case "history":
         return (
-          <TerminalHistoryButton {...history} boxRef={boxRef} variant={variant} onOpenChange={host?.onOpenChange} />
+          <TerminalHistoryButton
+            {...history}
+            boxRef={boxRef}
+            scheduled
+            variant={variant}
+            onOpenChange={host?.onOpenChange}
+          />
         );
       case "memory":
         return memory && <ComposerMemoryButton {...memory} variant={variant} onOpenChange={host?.onOpenChange} />;

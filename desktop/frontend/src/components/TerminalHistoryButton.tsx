@@ -33,6 +33,9 @@ export interface TerminalHistoryButtonProps {
   // The composer box the popover spans. The button finds it by walking up
   // when it sits inside; a row in a portaled menu has to be handed it.
   boxRef?: RefObject<HTMLElement | null>;
+  // Offer the prompts waiting to be sent later. Only a terminal's own input can
+  // take one back to edit, so dialog inputs leave it off.
+  scheduled?: boolean;
 }
 
 const GAP = 10;
@@ -50,6 +53,7 @@ export function TerminalHistoryButton({
   tooltip = "Recent messages",
   ariaLabel = "Message history",
   boxRef,
+  scheduled = false,
   variant = "button",
   onOpenChange,
 }: TerminalHistoryButtonProps & ComposerToolPresentation) {
@@ -191,6 +195,7 @@ export function TerminalHistoryButton({
             projectName={projectName}
             terminalLabel={terminalLabel}
             initialCollection={initialCollection}
+            scheduled={scheduled}
             onClose={close}
             onPick={(text, images) => {
               onPick(text, images);

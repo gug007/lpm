@@ -51,6 +51,18 @@ describe("parseWhen", () => {
     expect(parseWhen("today 6pm", NOW)).toBe(at(24, 18));
   });
 
+  it("reads a bare number after “in” as minutes", () => {
+    expect(parseWhen("in 5", NOW)).toBe(NOW + 5 * MINUTE);
+    expect(parseWhen("in 90", NOW)).toBe(NOW + 90 * MINUTE);
+    expect(parseWhen("in 5pm", NOW)).toBeNull();
+  });
+
+  it("gives an hour named for today its next reading", () => {
+    expect(parseWhen("today 8", NOW)).toBe(at(24, 20));
+    expect(parseWhen("thu 8", NOW)).toBe(at(24, 20));
+    expect(parseWhen("today noon", NOW)).toBeNull();
+  });
+
   it("moves a weekday whose time has passed to next week", () => {
     expect(parseWhen("thu 9am", NOW)).toBe(new Date(2026, 9, 1, 9).getTime());
     expect(parseWhen("thursday 6pm", NOW)).toBe(at(24, 18));
