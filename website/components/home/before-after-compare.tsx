@@ -1,114 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, type ReactNode } from "react";
 import { MoveHorizontal } from "lucide-react";
-import { IN_THE_DOCK, STAGE_H, STAGE_W, WINDOWS } from "./before-after-data";
-import { AfterDescription, BeforeDescription } from "./before-after-descriptions";
-import { AGENT_ROW_COUNT, LpmReplica, PROJECT_COUNT } from "./before-after-replica";
-import { PileWindowCard } from "./before-after-window";
+import { MAX, MIN, useSplitSlider } from "./before-after-slider";
 
-// Both pictures sit on one footprint in the middle of one stage, so dragging
-// the line reveals a single window occupying what the whole pile fought over.
-// lpm takes the left, clipped layer: its sidebar and prompt sit on the left of
-// the window, so that is the side that shows them at the resting split.
-// The pile keeps its drawn window sizes but scatters across a wider box than
-// the 44em it was laid out in: its offsets are percentages of the box, so a
-// wider box spreads the windows without resizing them, and the api window
-// still lands on the permission prompt it is there to bury.
-const FOOTPRINT = "w-[72em] h-[var(--stage-h)]";
-const FOOTPRINT_EM = 72;
-// Spread that wide, the scatter stops well short of the footprint's right
-// edge, so the pile is centred on what it actually covers.
-const PILE_EM = Math.max(
-  ...WINDOWS.map((w) => (w.x / STAGE_W) * FOOTPRINT_EM + w.w / 10),
-);
-const PILE_SHIFT = `${(FOOTPRINT_EM - PILE_EM) / 2}em`;
-// 1em = one design pixel / 10, following the stage's width so the picture
-// fills a wide screen and still fits beside a tablet's gutters.
-const SCALE = "text-[clamp(0.55rem,1.15cqw,0.8rem)]";
-const LABEL =
-  "absolute top-[1.4em] z-10 rounded-[0.5em] px-[1em] py-[0.5em] text-[1.05em] font-bold uppercase tracking-[0.25em]";
-const NOTE = "absolute bottom-[1.4em] z-10 font-mono text-[1.05em] tracking-tight";
+// One desk, two pictures laid out on the same spots: dragging the line trades
+// each window for its place in lpm, and the buried Claude prompt comes to the
+// front where it lay. The stage sets 1em to 1% of its width, so the drawings
+// scale with the column instead of by breakpoint.
+const STAGE =
+  "relative isolate h-[47.5em] cursor-ew-resize touch-pan-y overflow-hidden rounded-2xl text-[1cqw] ring-1 ring-black/[0.06] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.45)] dark:ring-white/10 dark:shadow-[0_24px_60px_-30px_rgba(0,0,0,0.9)]";
+const END =
+  "absolute top-3 z-[7] h-8 rounded-full bg-white/90 px-3.5 text-[13px] font-semibold text-gray-900 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_2px_8px_-2px_rgba(15,23,42,0.2)] transition-colors hover:bg-white aria-pressed:bg-gray-900 aria-pressed:text-white dark:bg-[#111]/80 dark:text-gray-200 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.12)] dark:hover:bg-[#1a1a1a] dark:aria-pressed:bg-gray-100 dark:aria-pressed:text-[#111] motion-reduce:transition-none";
 
-export function BeforeAfterCompare() {
-  const [split, setSplit] = useState(55);
+function valueText(n: number) {
+  if (n >= MAX) return "Your Mac today only";
+  if (n <= MIN) return "lpm only";
+  return `${n}% your Mac today, ${100 - n}% lpm`;
+}
+
+export function BeforeAfterCompare({
+  before,
+  after,
+  describedBy,
+}: {
+  before: ReactNode;
+  after: ReactNode;
+  describedBy: string;
+}) {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const { split, dragging, stageHandlers, knobHandlers, snap } = useSplitSlider(stageRef);
+  const n = Math.round(split);
   return (
     <div className="@container">
       <div
-        className={`relative overflow-hidden rounded-2xl ring-1 ring-black/[0.06] shadow-[0_24px_60px_-30px_rgba(0,0,0,0.45)] dark:ring-white/10 dark:shadow-[0_24px_60px_-30px_rgba(0,0,0,0.9)] ${SCALE}`}
-        style={
-          {
-            "--split": `${split}%`,
-            "--stage-h": `${STAGE_H / 10}em`,
-          } as React.CSSProperties
-        }
+        ref={stageRef}
+        className={`${STAGE} ${dragging ? "cursor-grabbing select-none" : ""}`}
+        {...stageHandlers}
       >
+        {before}
+        <div className="absolute inset-0 z-[1]" style={{ clipPath: `inset(0 0 0 ${split}%)` }}>
+          {after}
+        </div>
         <div
           aria-hidden="true"
-          className="relative isolate flex h-[calc(var(--stage-h)+8em)] items-center justify-center bg-[linear-gradient(135deg,#e3e9f2,#b8c5d9)] dark:bg-[linear-gradient(135deg,#3b4454,#1e232c)]"
-        >
-          <div
-            className={`relative ${FOOTPRINT}`}
-            style={{ translate: `${PILE_SHIFT} 0` }}
-          >
-            {WINDOWS.map((win, i) => (
-              <PileWindowCard key={win.key} win={win} z={i + 1} />
-            ))}
-          </div>
-          <span className={`${LABEL} right-[1.4em] bg-white/90 text-gray-900`}>
-            Your Mac today
-          </span>
-          <p className={`${NOTE} right-[1.6em] text-red-700 dark:text-red-300`}>
-            {WINDOWS.length} windows · {IN_THE_DOCK} more in the dock
-          </p>
-        </div>
-
-        <div
-          aria-hidden="true"
-          data-on-dark
-          className="absolute inset-0 flex items-center justify-center bg-[#111111]"
-          style={{ clipPath: "inset(0 calc(100% - var(--split)) 0 0)" }}
-        >
-          <div className={FOOTPRINT}>
-            <LpmReplica />
-          </div>
-          <span className={`${LABEL} left-[1.4em] bg-white/[0.12] text-white`}>
-            With lpm
-          </span>
-          <p className={`${NOTE} left-[1.6em] text-[#9a9a9a]`}>
-            1 window · {PROJECT_COUNT} projects · {AGENT_ROW_COUNT} agents
-          </p>
-        </div>
-
-        <AfterDescription />
-        <BeforeDescription />
-        {/* The whole stage is the slider's track, so a drag anywhere moves the
-            line; the input itself stays invisible and the handle below draws
-            its position. */}
-        <input
-          id="before-after-split"
-          type="range"
-          min={4}
-          max={96}
-          value={split}
-          onChange={(e) => setSplit(Number(e.target.value))}
-          aria-label="Drag to compare lpm with your Mac today"
-          aria-valuetext={`${split} percent with lpm, ${100 - split} percent your Mac today`}
-          className="peer absolute inset-0 z-30 m-0 h-full w-full cursor-ew-resize opacity-0"
+          className="pointer-events-none absolute inset-y-0 z-[5] -ml-px w-0.5 bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.14),0_0_16px_rgba(15,23,42,0.2)]"
+          style={{ left: `${split}%` }}
         />
+        {/* The knob rides the bottom edge, in the desk margin under both
+            pictures, so it never covers either of them. */}
         <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 z-20 w-0.5 -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(0,0,0,0.25)] peer-focus-visible:bg-[#60a5fa]"
-          style={{ left: "var(--split)" }}
+          role="slider"
+          tabIndex={0}
+          aria-label="Compare your Mac today with lpm"
+          aria-describedby={describedBy}
+          aria-orientation="horizontal"
+          aria-valuemin={MIN}
+          aria-valuemax={MAX}
+          aria-valuenow={n}
+          aria-valuetext={valueText(n)}
+          className={`absolute bottom-3 z-[6] inline-flex h-9 -translate-x-1/2 touch-none select-none items-center gap-1.5 whitespace-nowrap rounded-full bg-white pl-[11px] pr-3.5 text-[13px] font-semibold text-gray-900 shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_20px_-6px_rgba(0,0,0,0.45)] ${
+            dragging ? "cursor-grabbing" : "cursor-grab"
+          }`}
+          style={{ left: `${split}%` }}
+          {...knobHandlers}
         >
-          <span className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white text-gray-900 shadow-[0_6px_18px_rgba(0,0,0,0.35)]">
-            <MoveHorizontal className="h-4 w-4" strokeWidth={2.25} />
-          </span>
+          <MoveHorizontal aria-hidden="true" className="h-4 w-4" strokeWidth={2.25} />
+          Drag
         </div>
+        <button
+          type="button"
+          aria-pressed={split >= MAX - 0.5}
+          onClick={() => snap(MAX)}
+          className={`${END} left-3`}
+        >
+          Before
+        </button>
+        <button
+          type="button"
+          aria-pressed={split <= MIN + 0.5}
+          onClick={() => snap(MIN)}
+          className={`${END} right-3`}
+        >
+          After
+        </button>
       </div>
-      <p className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400">
-        Drag the line.
-      </p>
     </div>
   );
 }

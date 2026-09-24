@@ -1,15 +1,11 @@
 import { Bell, Check, Columns2, Zap } from "lucide-react";
-import { line, s, TerminalLine, type Line } from "@/components/terminal-line";
+import { TerminalLine } from "@/components/terminal-line";
+import { CLAUDE_SESSION } from "./before-after-session";
 
-// The same window every lpm user works in, at the same footprint the pile on
-// the other side of the divider occupies. Palette and structure are lifted from
-// components/demo/*, which mirrors desktop/frontend/src.
+// The same window every lpm user works in, placed on the stage where the pile it
+// replaces lies. Palette and structure are lifted from components/demo/*, which
+// mirrors desktop/frontend/src.
 const TEXT = "text-[#d4d4d4]";
-const DIM = "text-[#7a7a7a]";
-const BOLD = "font-semibold text-[#e5e5e5]";
-const CLAUDE_GREEN = "text-[#4eba65]";
-const CLAUDE_BLUE = "text-[#3b8eea]";
-const CLAUDE_BLUE_BOLD = "font-semibold text-[#3b8eea]";
 
 // The agent states the app paints, in its own colours: amber while a turn waits
 // on you, a gradient shimmer while it works, blue once it lands.
@@ -37,56 +33,7 @@ const ROWS: Row[] = [
     running: true,
     agent: { name: "claude", tone: DONE, elapsed: "52s", mark: "check" },
   },
-  { name: "ml-pipeline", running: false },
-];
-
-const ORANGE = "text-[#d97757]";
-const MUTED = "text-[#9a9a9a]";
-
-// The session the pile could only show a sliver of, in front of you and in
-// colour. Glyphs, logo art and tints mirror the real Claude Code TUI.
-type BannerLine = Line & { banner?: boolean };
-
-const TRANSCRIPT: BannerLine[] = [
-  // The launch banner's block logo needs a terminal's tall cell to read as art
-  // rather than as a smudge, so these three rows carry their own line height.
-  { spans: [s(" ▐▛███▜▌ ", ORANGE), s(" "), s("Claude Code ", BOLD), s("v2.1.214", MUTED)], banner: true },
-  { spans: [s("▝▜█████▛▘", ORANGE), s("  "), s("Fable 5 · Claude Max", MUTED)], banner: true },
-  { spans: [s("  ▘▘ ▝▝  ", ORANGE), s("  "), s("~/Projects/auth-service", MUTED)], banner: true },
-  {
-    spans: [s("❯ ", "text-[#707070]"), s("run the pending migrations", TEXT), s(" ")],
-    gap: true,
-    bubble: "bg-[#373737]",
-  },
-  {
-    spans: [s("⏺ ", CLAUDE_GREEN), s("Read", BOLD), s("(db/schema.rb)", TEXT)],
-    gap: true,
-  },
-  line(s("  ⎿  Read ", DIM), s("214", "font-semibold text-[#9a9a9a]"), s(" lines", DIM)),
-  {
-    spans: [
-      s("⏺ ", CLAUDE_GREEN),
-      s("Bash", BOLD),
-      s("(bin/rails db:migrate:status)", TEXT),
-    ],
-    gap: true,
-  },
-  line(s("  ⎿  ", DIM), s("2", "font-semibold text-[#9a9a9a]"), s(" migrations pending", DIM)),
-  {
-    spans: [s("⏺ ", TEXT), s("Both are additive. Running them now.", TEXT)],
-    gap: true,
-  },
-  {
-    spans: [s("⏺ ", CLAUDE_GREEN), s("Bash", BOLD), s("(npm run db:migrate)", TEXT)],
-    gap: true,
-  },
-  { spans: [s("──────────────────────────────", CLAUDE_BLUE)], gap: true },
-  line(s(" Bash command", CLAUDE_BLUE_BOLD)),
-  line(s("   npm run db:migrate", TEXT)),
-  line(s(" Do you want to proceed?", TEXT)),
-  line(s(" ❯ ", CLAUDE_BLUE), s("1. ", DIM), s("Yes", CLAUDE_BLUE)),
-  line(s("   2. Yes, and don't ask again", DIM)),
-  line(s("   3. No", DIM)),
+  { name: "ml-pipeline", running: true },
 ];
 
 export const PROJECT_COUNT = ROWS.length;
@@ -143,7 +90,7 @@ function Tab({
   icon,
   port,
   tone,
-  show = "flex",
+  compact,
 }: {
   children: React.ReactNode;
   active?: boolean;
@@ -151,15 +98,13 @@ function Tab({
   port?: string;
   /** Status tint, on the label only — the app leaves the pill itself neutral. */
   tone?: string;
-  /** Container-query gate: a tab the pane is too narrow to hold is dropped
-   *  rather than clipped. */
-  show?: string;
+  compact?: boolean;
 }) {
   return (
     <div
-      className={`shrink-0 items-center gap-[0.45em] rounded-[0.4em] px-[0.6em] py-[0.15em] ${show} ${
-        active ? "bg-white/[0.1] text-[#d4d4d4]" : "text-[#a0a0a0]"
-      }`}
+      className={`flex shrink-0 items-center gap-[0.45em] rounded-[0.4em] py-[0.15em] ${
+        compact ? "px-[0.5em]" : "px-[0.6em]"
+      } ${active ? "bg-white/[0.1] text-[#d4d4d4]" : "text-[#a0a0a0]"}`}
     >
       {icon}
       <span className={`font-mono text-[0.95em] font-medium ${tone ?? ""}`}>
@@ -182,7 +127,9 @@ const RUNNING_ZAP = (
   />
 );
 
-export function LpmReplica() {
+// `compact` is the phone stage's narrower window: the All tab goes and the tabs
+// close up, so the ones that stay keep their full labels.
+export function LpmReplica({ compact = false }: { compact?: boolean }) {
   return (
     <div
       aria-hidden="true"
@@ -205,22 +152,28 @@ export function LpmReplica() {
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center gap-[0.4em] overflow-hidden bg-[#2d2d2d] px-[0.6em] py-[0.4em]">
-          <Tab
-            show="hidden @min-[26rem]:flex"
-            icon={
-              <Columns2 className="h-[0.95em] w-[0.95em] shrink-0 text-[#8e8e8e]" />
-            }
-          >
-            All
-          </Tab>
-          <Tab icon={RUNNING_ZAP} port=":8080">
+        <div
+          className={`flex shrink-0 items-center overflow-hidden bg-[#2d2d2d] py-[0.4em] ${
+            compact ? "gap-[0.3em] px-[0.45em]" : "gap-[0.4em] px-[0.6em]"
+          }`}
+        >
+          {!compact && (
+            <Tab
+              icon={
+                <Columns2 className="h-[0.95em] w-[0.95em] shrink-0 text-[#8e8e8e]" />
+              }
+            >
+              All
+            </Tab>
+          )}
+          <Tab compact={compact} icon={RUNNING_ZAP} port=":8080">
             server
           </Tab>
-          <Tab show="hidden @min-[21rem]:flex" icon={RUNNING_ZAP} port=":6379">
+          <Tab compact={compact} icon={RUNNING_ZAP} port=":6379">
             redis
           </Tab>
           <Tab
+            compact={compact}
             active
             tone={NEEDS_YOU}
             icon={<span className="text-[0.95em] leading-none text-[#d97757]">✻</span>}
@@ -229,7 +182,7 @@ export function LpmReplica() {
           </Tab>
         </div>
         <div className="flex min-h-0 flex-1 flex-col justify-end overflow-hidden px-[1em] py-[0.8em] font-mono [mask-image:linear-gradient(to_right,#000_95%,transparent)] [-webkit-mask-image:linear-gradient(to_right,#000_95%,transparent)]">
-          {TRANSCRIPT.map((l, i) => (
+          {CLAUDE_SESSION.map((l, i) => (
             <TerminalLine
               key={i}
               line={l}
