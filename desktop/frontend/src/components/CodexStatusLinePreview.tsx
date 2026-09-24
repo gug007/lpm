@@ -24,6 +24,7 @@ export function CodexStatusLinePreview({
   items,
   useColors,
   configured,
+  selectionLabel,
   status,
   themeStyle,
   fontSize,
@@ -31,6 +32,7 @@ export function CodexStatusLinePreview({
   items: string[];
   useColors: boolean;
   configured: boolean;
+  selectionLabel: string;
   status: CodexStatusLinePreviewStatus;
   themeStyle: CSSProperties | undefined;
   fontSize: number;
@@ -47,14 +49,14 @@ export function CodexStatusLinePreview({
           label: "Loading",
           pill: "border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 text-[var(--accent-blue-text)]",
           dot: "bg-[var(--accent-blue)]",
-          footer: "Loading your Codex configuration…",
+          footer: "Loading your Codex status line…",
         }
       : status === "saving"
         ? {
             label: "Saving",
             pill: "border-[var(--accent-blue)]/25 bg-[var(--accent-blue)]/8 text-[var(--accent-blue-text)]",
             dot: "bg-[var(--accent-blue)]",
-            footer: "Saving the ordered fields to config.toml…",
+            footer: "Saving your status line…",
           }
         : status === "error"
           ? {
@@ -62,15 +64,15 @@ export function CodexStatusLinePreview({
               pill: "border-[var(--accent-red)]/25 bg-[var(--accent-red)]/8 text-[var(--accent-red-text)]",
               dot: "bg-[var(--accent-red)]",
               footer:
-                "This preview was not saved. Your previous Codex configuration remains active.",
+                "This preview was not saved. Your previous status line is still active.",
             }
           : {
               label: configured ? "Saved" : "Default",
               pill: "border-[var(--accent-green)]/25 bg-[var(--accent-green)]/8 text-[var(--accent-green-text)]",
               dot: "bg-[var(--accent-green)]",
               footer: configured
-                ? "Saved to config.toml. Start a new Codex session to see changes."
-                : "Showing Codex’s default field selection.",
+                ? "Saved. New Codex sessions show this line; open ones keep the old one."
+                : "Codex shows its default items until you pick a layout.",
             };
   const Icon =
     status === "loading" || status === "saving"
@@ -78,13 +80,6 @@ export function CodexStatusLinePreview({
       : status === "error"
         ? AlertCircle
         : CheckCircle2;
-  const selectionLabel =
-    items.length === 0
-      ? "Off"
-      : configured
-        ? `${items.length} ${items.length === 1 ? "item" : "items"}`
-        : "Codex default";
-
   useLayoutEffect(() => {
     const updateColorScheme = () => {
       const background = getComputedStyle(

@@ -98,6 +98,9 @@ export interface Settings {
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
   appTipsDismissed?: boolean;
+  // The last Codex status line arranged by hand (no layout matches), kept so
+  // switching to a layout and back doesn't lose it.
+  codexStatusLineCustomItems?: string[];
   hotkeys?: HotkeysConfig;
 }
 
@@ -198,6 +201,11 @@ function normalize(s: main.Settings): Settings {
     autoCloseComposerOnSend:
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,
     appTipsDismissed: s.appTipsDismissed,
+    codexStatusLineCustomItems: Array.isArray(s.codexStatusLineCustomItems)
+      ? s.codexStatusLineCustomItems.filter(
+          (item: unknown): item is string => typeof item === "string",
+        )
+      : undefined,
     hotkeys: normalizeHotkeys(s.hotkeys),
     detachedWindows: s.detachedWindows
       ? Object.fromEntries(

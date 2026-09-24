@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../bridge/commands", () => ({
   GetCodexStatuslineState: vi.fn(),
   ApplyCodexStatusline: vi.fn(),
+  ResetCodexStatusline: vi.fn(),
 }));
 
 import { codexStatuslineSelectionLabel } from "./CodexStatusLineView";
@@ -37,10 +38,23 @@ describe("codexStatuslineSelectionLabel", () => {
     expect(codexStatuslineSelectionLabel(project?.items ?? [], true)).toBe(
       "Project",
     );
-    expect(codexStatuslineSelectionLabel(["model"], true)).toBe("1 item");
+    expect(codexStatuslineSelectionLabel(["model"], true)).toBe(
+      "Custom · 1 item",
+    );
     expect(
       codexStatuslineSelectionLabel(["model", "git-branch"], true),
-    ).toBe("2 items");
+    ).toBe("Custom · 2 items");
+  });
+
+  it("follows Codex's own default of model, folder and thread name", () => {
+    expect([...CODEX_DEFAULT_STATUS_LINE]).toEqual([
+      "model-with-reasoning",
+      "current-dir",
+      "thread-name",
+    ]);
+    expect(codexStatusLinePresetId([...CODEX_DEFAULT_STATUS_LINE])).toBe(
+      "default",
+    );
   });
 });
 
@@ -96,11 +110,13 @@ describe("Codex status line colors", () => {
         "used-tokens",
         "total-input-tokens",
         "total-output-tokens",
+        "thread-credits",
+        "estimated-thread-cost",
       ],
       limit: ["five-hour-limit", "weekly-limit"],
-      metadata: ["codex-version", "thread-id"],
+      metadata: ["codex-version", "thread-id", "hostname"],
       mode: ["fast-mode", "raw-output", "permissions", "approval-mode"],
-      thread: ["thread-title", "workspace-headline"],
+      thread: ["thread-name", "thread-title", "workspace-headline"],
       progress: ["task-progress"],
     };
 

@@ -11,6 +11,7 @@ export function StatusLineSegmentChip({
   segment,
   showIcon,
   editing,
+  invalid = false,
   disabled,
   canRemove,
   onEdit,
@@ -22,6 +23,7 @@ export function StatusLineSegmentChip({
   segment: Segment;
   showIcon: boolean;
   editing: boolean;
+  invalid?: boolean;
   disabled: boolean;
   canRemove: boolean;
   onEdit: () => void;
@@ -53,10 +55,13 @@ export function StatusLineSegmentChip({
         transition,
         opacity: isDragging ? 0.3 : 1,
       }}
+      data-invalid={invalid || undefined}
       className={`group inline-flex h-8 items-center rounded-lg border text-[11px] text-[var(--text-primary)] shadow-sm transition-[border-color,background-color,box-shadow] ${
-        editing
-          ? "border-[var(--accent-green)]/80 bg-[var(--accent-green)]/8"
-          : "border-[var(--border)] bg-[var(--bg-primary)]/70 hover:border-[var(--text-muted)]/55 hover:bg-[var(--bg-hover)]"
+        invalid
+          ? "border-[var(--accent-red)] bg-[var(--accent-red)]/8"
+          : editing
+            ? "border-[var(--accent-green)]/80 bg-[var(--accent-green)]/8"
+            : "border-[var(--border)] bg-[var(--bg-primary)]/70 hover:border-[var(--text-muted)]/55 hover:bg-[var(--bg-hover)]"
       }`}
     >
       <button

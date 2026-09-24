@@ -38,6 +38,7 @@ macro_rules! all_command_handlers {
             generate_claude_statusline,
             get_codex_statusline_state,
             apply_codex_statusline,
+            reset_codex_statusline,
             add_port_forward,
             attach_project,
             browse_folder,

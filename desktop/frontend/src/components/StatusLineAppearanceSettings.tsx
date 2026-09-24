@@ -70,6 +70,7 @@ export function StatusLineAppearanceSettings({
           </div>
           <div className="flex flex-wrap items-center gap-1">
             <input
+              id="status-line-separator"
               value={spec.separator}
               onChange={(event) =>
                 onChange({ ...spec, separator: event.target.value })

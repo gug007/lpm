@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   customStatusLineError,
+  customStatusLineErrorTarget,
   statusLineIconError,
   statusLineLabelError,
   statusLineSeparatorError,
@@ -18,6 +19,34 @@ const validSpec: CustomSpec = {
 };
 
 describe("status line validation", () => {
+  it("names the item that needs fixing", () => {
+    expect(
+      customStatusLineErrorTarget({
+        ...validSpec,
+        segments: [
+          { id: "folder", color: "default", text: "" },
+          { id: "model", color: "default", text: "", label: " x" },
+        ],
+      }),
+    ).toMatchObject({ index: 1, field: "label" });
+    expect(
+      customStatusLineErrorTarget({ ...validSpec, separator: "" }),
+    ).toMatchObject({ index: null, field: "separator" });
+    expect(customStatusLineErrorTarget(validSpec)).toBeNull();
+  });
+
+  it("ignores empty custom text, which never reaches the line", () => {
+    expect(
+      customStatusLineErrorTarget({
+        ...validSpec,
+        segments: [
+          { id: "folder", color: "default", text: "" },
+          { id: "text", color: "default", text: "", icon: " x" },
+        ],
+      }),
+    ).toBeNull();
+  });
+
   it("accepts safe text and Unicode separators", () => {
     expect(statusLineTextError("shipping mode")).toBeNull();
     expect(statusLineLabelError("ctx")).toBeNull();

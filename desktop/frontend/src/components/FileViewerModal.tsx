@@ -16,6 +16,9 @@ import { useImagePreview } from "./imagePreview";
 import { VideoFileView } from "./VideoFileView";
 import { useVideoPreview } from "./videoPreview";
 import { isSourceImage, mediaKind } from "./fileMedia";
+import { isMarkdownPath } from "./files/useFileView";
+import { FileViewerMarkdown } from "./FileViewerMarkdown";
+import { useFileViewerView } from "./useFileViewerView";
 import {
   ContentView,
   SideBySideDiff,
@@ -90,6 +93,8 @@ export function FileViewerModal({
   // text pane was left at; only one is ever enabled. Video has no fit to zoom —
   // the element sizes itself — so it gets none.
   const zoom = isVideo ? null : isImage ? preview.zoom : textZoom;
+  const textView = useFileViewerView(absPath, line, diffRows !== null, contentLines !== null);
+  const previewing = !editing && !isMedia && textView.view === "preview";
 
   // Capture phase on window so we beat xterm's keydown handler — xterm calls
   // stopPropagation on keys it consumes, which would otherwise eat Escape
@@ -145,23 +150,26 @@ export function FileViewerModal({
 
       const diffText =
         diffRes.status === "fulfilled" ? diffRes.value.trim() : "";
+      let diffShown = false;
       if (diffText) {
         const parsed = parseDiffRows(diffText);
         if (parsed.length > 0) {
           const highlighted = await highlightDiffRows(parsed, lang);
           if (cancelled) return;
           setDiffRows(highlighted);
-          setLoading(false);
-          return;
+          diffShown = true;
         }
       }
 
       if (contentRes.status === "fulfilled") {
-        const built = buildContentLines(contentRes.value);
-        const highlighted = await highlightContent(built, lang);
-        if (cancelled) return;
-        setContentLines(highlighted);
-      } else {
+        // A changed Markdown file can still switch to its rendered or source view.
+        if (!diffShown || isMarkdownPath(absPath)) {
+          const built = buildContentLines(contentRes.value);
+          const highlighted = await highlightContent(built, lang);
+          if (cancelled) return;
+          setContentLines(highlighted);
+        }
+      } else if (!diffShown) {
         setError(
           contentRes.reason instanceof Error
             ? contentRes.reason.message
@@ -275,6 +283,15 @@ export function FileViewerModal({
                     ariaLabel="View mode"
                   />
                 )}
+                {textView.options && (
+                  <SegmentedControl
+                    value={textView.view}
+                    options={textView.options}
+                    onChange={textView.select}
+                    variant="subtle"
+                    ariaLabel="View mode"
+                  />
+                )}
                 {zoom && (
                   <ZoomControl
                     percent={zoom.percent}
@@ -308,11 +325,14 @@ export function FileViewerModal({
           </div>
         </header>
 
+        {/* One element holds the zoom surface; rendered Markdown binds its own scroller. */}
         <div
-          ref={zoom?.surfaceRef}
-          className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] font-mono leading-[1.55]"
+          ref={previewing ? undefined : zoom?.surfaceRef}
+          className={`min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)] ${
+            previewing ? "" : "font-mono leading-[1.55]"
+          }`}
           style={
-            editing || isMedia
+            editing || isMedia || previewing
               ? undefined
               : { fontSize: `${BASE_FONT_PX * textZoom.zoom}px` }
           }
@@ -341,14 +361,22 @@ export function FileViewerModal({
                   {error}
                 </div>
               )}
-              {!loading && !error && diffRows && (
+              {!loading && !error && previewing && (
+                <FileViewerMarkdown
+                  text={rawContent}
+                  absPath={absPath}
+                  projectRoot={projectRoot}
+                  zoom={textZoom}
+                />
+              )}
+              {!loading && !error && textView.view === "diff" && diffRows && (
                 wide ? (
                   <SideBySideDiff rows={diffRows} highlightLine={line} />
                 ) : (
                   <UnifiedDiff rows={diffRows} highlightLine={line} />
                 )
               )}
-              {!loading && !error && !diffRows && contentLines && (
+              {!loading && !error && textView.view === "source" && contentLines && (
                 <ContentView lines={contentLines} highlightLine={line} />
               )}
               {!loading && !error && !diffRows && !contentLines && (

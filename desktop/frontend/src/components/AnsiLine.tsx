@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ansiColors } from "./terminal-utils";
+import { ansiColors } from "./terminal-colors";
 
 // ANSI SGR renderer for the status line preview. It renders with the SAME palette
 // lpm's built-in terminal (xterm) uses — `ansiColors` from terminal-utils — so

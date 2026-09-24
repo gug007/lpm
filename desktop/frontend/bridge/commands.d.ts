@@ -19,6 +19,7 @@ export function PreviewClaudeStatusline(...args: any[]): Promise<any>;
 export function GenerateClaudeStatusline(...args: any[]): Promise<any>;
 export function GetCodexStatuslineState(...args: any[]): Promise<any>;
 export function ApplyCodexStatusline(...args: any[]): Promise<any>;
+export function ResetCodexStatusline(...args: any[]): Promise<any>;
 export function AddPortForward(...args: any[]): Promise<any>;
 export function AttachProject(...args: any[]): Promise<any>;
 export function BrowseFolder(...args: any[]): Promise<any>;

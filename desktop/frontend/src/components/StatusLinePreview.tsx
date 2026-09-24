@@ -12,6 +12,7 @@ export interface StatusLinePreviewProps {
   fontSize: number;
   status: StatusLinePreviewStatus;
   selectionLabel: string;
+  note?: string | null;
 }
 
 export type StatusLinePreviewStatus =
@@ -52,7 +53,8 @@ const STATUS_DETAILS: Record<
     pillClass:
       "border-[var(--accent-amber)]/25 bg-[var(--accent-amber)]/8 text-[var(--accent-amber-text)]",
     dotClass: "bg-[var(--accent-amber)]",
-    footer: "Fix the highlighted setting to refresh this preview.",
+    footer:
+      "Claude Code keeps your last working line until the highlighted item is fixed.",
   },
   "preview-only": {
     label: "Preview only",
@@ -78,6 +80,7 @@ export function StatusLinePreview({
   fontSize,
   status,
   selectionLabel,
+  note,
 }: StatusLinePreviewProps) {
   const details = STATUS_DETAILS[status];
   const updating = status === "updating" || status === "loading";
@@ -152,6 +155,11 @@ export function StatusLinePreview({
             )}
           </div>
         </div>
+        {note && !showDetail && (
+          <p className="mt-2 px-1 text-[10.5px] leading-relaxed text-[var(--text-muted)]">
+            {note}
+          </p>
+        )}
       </div>
 
       {showDetail && (

@@ -44,6 +44,8 @@ import { BTN_SECONDARY } from "./ui/buttons";
 import { SkillInstallControl } from "./SkillInstallControl";
 import { statuslineSelectionLabel } from "./ClaudeStatusLineView";
 import { codexStatuslineSelectionLabel } from "./CodexStatusLineView";
+import { StatusLineRowPreview } from "./StatusLineRowPreview";
+import { onStatusLineChanged } from "./statusLineChanges";
 import { AgentToolsManualSetup } from "./AgentToolsManualSetup";
 import { BrowserOpenURL, EventsOn } from "../../bridge/runtime";
 import {
@@ -209,21 +211,26 @@ export function Settings({
     "Choose what the status line under Codex shows",
   );
   useEffect(() => {
-    GetClaudeStatuslineState()
-      .then((s) => setStatuslineDescription(statuslineSelectionLabel(s?.selected ?? "current", Boolean(s?.hasCustom))))
-      .catch(() => {});
-  }, []);
-  useEffect(() => {
-    GetCodexStatuslineState()
-      .then((state) =>
-        setCodexStatuslineDescription(
-          codexStatuslineSelectionLabel(
-            Array.isArray(state?.items) ? state.items : [],
-            Boolean(state?.configured),
+    const loadClaude = () =>
+      GetClaudeStatuslineState()
+        .then((s) => setStatuslineDescription(statuslineSelectionLabel(s?.selected ?? "current", Boolean(s?.hasCustom))))
+        .catch(() => {});
+    const loadCodex = () =>
+      GetCodexStatuslineState()
+        .then((state) =>
+          setCodexStatuslineDescription(
+            codexStatuslineSelectionLabel(
+              Array.isArray(state?.items) ? state.items : [],
+              Boolean(state?.configured),
+            ),
           ),
-        ),
-      )
-      .catch(() => {});
+        )
+        .catch(() => {});
+    void loadClaude();
+    void loadCodex();
+    return onStatusLineChanged((agent) => {
+      void (agent === "claude" ? loadClaude() : loadCodex());
+    });
   }, []);
   const activeTab = useAppStore((s) => s.settingsTab);
   const setActiveTab = useAppStore((s) => s.setSettingsTab);
@@ -1032,6 +1039,7 @@ export function Settings({
             <SettingsSection>
               <SettingsRow
                 {...rowProps("ai.statusLine", { description: statuslineDescription })}
+                below={<StatusLineRowPreview agent="claude" />}
               >
                 <button
                   onClick={() => onNavigate("claude-statusline")}
@@ -1044,6 +1052,7 @@ export function Settings({
                 {...rowProps("ai.codexStatusLine", {
                   description: codexStatuslineDescription,
                 })}
+                below={<StatusLineRowPreview agent="codex" />}
               >
                 <button
                   onClick={() => onNavigate("codex-statusline")}
@@ -1427,12 +1436,14 @@ export function SettingsRow({
   description,
   children,
   details,
+  below,
 }: {
   id?: string;
   label: string;
   description: string;
   children: React.ReactNode;
   details?: React.ReactNode;
+  below?: React.ReactNode;
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   return (
@@ -1441,6 +1452,7 @@ export function SettingsRow({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-[var(--text-primary)]">{label}</p>
           <p className="text-[11px] text-[var(--text-muted)]">{description}</p>
+          {below}
           {details && (
             <button
               type="button"

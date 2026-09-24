@@ -83,6 +83,16 @@ function separatorInput(): HTMLInputElement {
   return input;
 }
 
+function typeSeparator(value: string) {
+  const input = separatorInput();
+  const setValue = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+  setValue?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 describe("ClaudeStatusLineView state safety", () => {
   it("keeps every preset disabled until the saved state is loaded", async () => {
     let resolveState!: (value: unknown) => void;
@@ -317,7 +327,7 @@ describe("ClaudeStatusLineView state safety", () => {
     expect(commands.GetClaudeStatuslineState).toHaveBeenCalledTimes(2);
   });
 
-  it("drops queued changes after leaving the status-line screen", async () => {
+  it("finishes the last change after leaving the status-line screen", async () => {
     let resolvePresetApply!: () => void;
     commands.GetClaudeStatuslineState.mockResolvedValue({
       selected: "custom",
@@ -349,7 +359,172 @@ describe("ClaudeStatusLineView state safety", () => {
       await Promise.resolve();
     });
 
-    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledTimes(1);
+    expect(commands.ApplyClaudeStatusline).toHaveBeenCalledTimes(2);
+    expect(commands.ApplyClaudeStatusline).toHaveBeenLastCalledWith("vibrant");
+  });
+
+  it("saves a pending item edit when leaving right after it", async () => {
+    vi.useFakeTimers();
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+
+    await renderView();
+    await act(async () => {
+      typeSeparator("|");
+    });
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatuslineCustom).toHaveBeenCalledWith({
+      ...savedSpec,
+      separator: "|",
+    });
+  });
+
+  it("warns before a layout edit replaces the saved Custom line and can undo it", async () => {
+    vi.useFakeTimers();
+    commands.GetClaudeStatuslineState.mockResolvedValueOnce({
+      selected: "meters",
+      hasCustom: true,
+      custom: savedSpec,
+      hasSavedCustom: true,
+      aiDescription: "",
+    });
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: { ...savedSpec, separator: "|" },
+      hasSavedCustom: true,
+      aiDescription: "",
+    });
+    commands.ClaudeStatuslinePresetSpec.mockResolvedValue({
+      ...savedSpec,
+      separator: "~",
+    });
+
+    await renderView();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain(
+      "Changing an item turns Clean into your Custom line",
+    );
+
+    await act(async () => {
+      typeSeparator("|");
+    });
+    expect(container.textContent).toContain(
+      "Now editing your Custom line, made from Clean",
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(260);
+      await Promise.resolve();
+    });
+
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "meters",
+      hasCustom: true,
+      custom: savedSpec,
+      hasSavedCustom: true,
+      aiDescription: "",
+    });
+    const restore = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Restore my Custom line",
+    );
+    await act(async () => {
+      restore?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyClaudeStatuslineCustom).toHaveBeenLastCalledWith(
+      savedSpec,
+    );
+    expect(commands.ApplyClaudeStatusline).toHaveBeenLastCalledWith("meters");
+    expect(presetButton("Clean").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("doesn't warn about replacing a Custom line that was never saved", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "meters",
+      hasCustom: true,
+      custom: savedSpec,
+      hasSavedCustom: false,
+      aiDescription: "",
+    });
+    commands.ClaudeStatuslinePresetSpec.mockResolvedValue({
+      ...savedSpec,
+      separator: "~",
+    });
+
+    await renderView();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("into your Custom line");
+  });
+
+  it("ignores a click on the layout that is already selected", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+
+    await renderView();
+    await act(async () => customPresetButton().click());
+
+    expect(commands.ApplyClaudeStatuslineCustom).not.toHaveBeenCalled();
+  });
+
+  it("shows each layout's real line on its card", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: savedSpec,
+      aiDescription: "",
+    });
+    commands.PreviewClaudeStatusline.mockImplementation(
+      async (selection: { kind: string; id?: string }) =>
+        selection.kind === "template" ? `line for ${selection.id}` : "",
+    );
+
+    await renderView();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(presetButton("Clean").textContent).toContain("line for meters");
+    expect(presetButton("Modern").textContent).toContain("line for vibrant");
+  });
+
+  it("points at the item that needs fixing", async () => {
+    commands.GetClaudeStatuslineState.mockResolvedValue({
+      selected: "custom",
+      hasCustom: true,
+      custom: {
+        ...savedSpec,
+        segments: [{ id: "folder", color: "cyan", text: "", label: " repo" }],
+      },
+      aiDescription: "",
+    });
+
+    await renderView();
+    const alert = [...container.querySelectorAll('[role="alert"]')].find(
+      (element) => element.textContent?.includes("Folder:"),
+    );
+    expect(alert?.textContent).toContain("Remove spaces around the label.");
+    expect(container.querySelector('[data-invalid="true"]')).not.toBeNull();
   });
 
   it("restores the saved custom design when applying a preset fails", async () => {

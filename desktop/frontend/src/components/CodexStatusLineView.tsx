@@ -3,7 +3,10 @@ import { toast } from "sonner";
 import {
   ApplyCodexStatusline,
   GetCodexStatuslineState,
+  ResetCodexStatusline,
 } from "../../bridge/commands";
+import { getSettings, saveSettings } from "../store/settings";
+import { notifyStatusLineChanged } from "./statusLineChanges";
 import { useTerminalFontSize } from "../hooks/useTerminalFontSize";
 import { useTerminalTheme } from "../hooks/useTerminalTheme";
 import { ChevronLeftIcon } from "./icons";
@@ -22,10 +25,20 @@ import {
 
 type ApplyState = "ready" | "saving" | "error";
 
-interface ApplyJob {
+type ApplyJob =
+  | { kind: "apply"; items: string[]; useColors: boolean; revision: number }
+  | { kind: "reset"; revision: number };
+
+interface UndoStep {
+  label: string;
   items: string[];
   useColors: boolean;
-  revision: number;
+  configured: boolean;
+  customItems: string[];
+}
+
+function isCustomArrangement(items: readonly string[]): boolean {
+  return items.length > 0 && codexStatusLinePresetId(items) == null;
 }
 
 export function codexStatuslineSelectionLabel(
@@ -40,7 +53,10 @@ export function codexStatuslineSelectionLabel(
   const preset = CODEX_STATUS_LINE_PRESETS.find(
     (candidate) => candidate.id === presetId,
   );
-  return preset?.label ?? `${items.length} ${items.length === 1 ? "item" : "items"}`;
+  return (
+    preset?.label ??
+    `Custom · ${items.length} ${items.length === 1 ? "item" : "items"}`
+  );
 }
 
 export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
@@ -53,6 +69,10 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [applyState, setApplyState] = useState<ApplyState>("ready");
+  const [undo, setUndo] = useState<UndoStep | null>(null);
+  const [customItems, setCustomItems] = useState<string[]>(
+    () => getSettings().codexStatusLineCustomItems ?? [],
+  );
   const { themeStyle } = useTerminalTheme();
   const { fontSize } = useTerminalFontSize();
   const mountedRef = useRef(true);
@@ -60,9 +80,27 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
   const revisionRef = useRef(0);
   const runningRef = useRef(false);
   const queueRef = useRef<ApplyJob | null>(null);
-  const pendingRef = useRef<ApplyJob | null>(null);
+  const pendingRef = useRef<Extract<ApplyJob, { kind: "apply" }> | null>(
+    null,
+  );
   const applyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const canEdit = loaded && !loadError;
+
+  const storeCustomItems = (nextItems: string[]) => {
+    setCustomItems(nextItems);
+    const saved = getSettings().codexStatusLineCustomItems ?? [];
+    if (
+      saved.length === nextItems.length &&
+      saved.every((item, index) => item === nextItems[index])
+    ) {
+      return;
+    }
+    saveSettings({ codexStatusLineCustomItems: nextItems }).catch(() => {});
+  };
+
+  const rememberCustom = (nextItems: string[]) => {
+    if (isCustomArrangement(nextItems)) storeCustomItems(nextItems);
+  };
 
   const clearApplyTimer = () => {
     if (applyTimerRef.current != null) clearTimeout(applyTimerRef.current);
@@ -74,17 +112,15 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
     try {
       const state = await GetCodexStatuslineState();
       if (!mountedRef.current || token !== stateTokenRef.current) return;
-      setItems(
-        Array.isArray(state?.items)
-          ? state.items
-              .filter((item: unknown): item is string =>
-                typeof item === "string",
-              )
-              .map(canonicalCodexStatusLineId)
-          : [...CODEX_DEFAULT_STATUS_LINE],
-      );
+      const loadedItems = Array.isArray(state?.items)
+        ? state.items
+            .filter((item: unknown): item is string => typeof item === "string")
+            .map(canonicalCodexStatusLineId)
+        : [...CODEX_DEFAULT_STATUS_LINE];
+      setItems(loadedItems);
       setUseColors(state?.useColors !== false);
       setConfigured(Boolean(state?.configured));
+      if (state?.configured) rememberCustom(loadedItems);
       setLoadError(null);
       setApplyError(null);
       setApplyState("ready");
@@ -122,7 +158,9 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
       queueRef.current = null;
       if (job.revision !== revisionRef.current) continue;
       try {
-        await ApplyCodexStatusline(job.items, job.useColors);
+        if (job.kind === "reset") await ResetCodexStatusline();
+        else await ApplyCodexStatusline(job.items, job.useColors);
+        notifyStatusLineChanged("codex");
         if (!mountedRef.current || job.revision !== revisionRef.current) {
           continue;
         }
@@ -157,17 +195,27 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
     if (!runningRef.current) void drain();
   };
 
-  const change = (nextItems: string[], nextUseColors: boolean) => {
+  const undoStep = (label: string | undefined): UndoStep | null =>
+    label ? { label, items, useColors, configured, customItems } : null;
+
+  const change = (
+    nextItems: string[],
+    nextUseColors: boolean,
+    undoLabel?: string,
+  ) => {
     if (!canEdit) return;
     const revision = ++revisionRef.current;
     stateTokenRef.current++;
     clearApplyTimer();
+    setUndo(undoStep(undoLabel));
     setItems(nextItems);
     setUseColors(nextUseColors);
     setConfigured(true);
     setApplyError(null);
     setApplyState("saving");
+    rememberCustom(nextItems);
     pendingRef.current = {
+      kind: "apply",
       items: nextItems,
       useColors: nextUseColors,
       revision,
@@ -178,6 +226,39 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
       pendingRef.current = null;
       if (pending) enqueue(pending);
     }, 260);
+  };
+
+  const resetToDefault = (undoLabel?: string) => {
+    if (!canEdit) return;
+    const revision = ++revisionRef.current;
+    stateTokenRef.current++;
+    clearApplyTimer();
+    pendingRef.current = null;
+    setUndo(undoStep(undoLabel));
+    setItems([...CODEX_DEFAULT_STATUS_LINE]);
+    setConfigured(false);
+    setApplyError(null);
+    setApplyState("saving");
+    enqueue({ kind: "reset", revision });
+  };
+
+  const selectLayout = (nextItems: string[]) => {
+    const presetId = codexStatusLinePresetId(nextItems);
+    const label =
+      nextItems.length === 0
+        ? "Status line turned off"
+        : `Switched to ${
+            CODEX_STATUS_LINE_PRESETS.find((preset) => preset.id === presetId)
+              ?.label ?? "Custom"
+          }`;
+    change(nextItems, useColors, label);
+  };
+
+  const undoLast = () => {
+    if (!undo) return;
+    storeCustomItems(undo.customItems);
+    if (undo.configured) change(undo.items, undo.useColors);
+    else resetToDefault();
   };
 
   const previewStatus = (
@@ -202,10 +283,11 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">
-            Build your Codex status line
+            Codex CLI status line
           </h1>
           <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Pick Codex fields, arrange their order, and save them to config.toml.
+            Shows under the prompt box in Codex. New Codex sessions use your
+            changes.
           </p>
         </div>
       </div>
@@ -221,6 +303,11 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
               items={items}
               useColors={useColors}
               configured={configured}
+              selectionLabel={
+                loadError
+                  ? "Unavailable"
+                  : codexStatuslineSelectionLabel(items, configured)
+              }
               status={previewStatus}
               themeStyle={themeStyle}
               fontSize={fontSize}
@@ -244,8 +331,11 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
               </div>
               <CodexStatusLinePresetPicker
                 items={items}
+                configured={configured}
+                customItems={customItems}
                 disabled={!canEdit}
-                onSelect={(nextItems) => change(nextItems, useColors)}
+                onSelect={selectLayout}
+                onReset={() => resetToDefault("Switched to Codex default")}
               />
             </section>
 
@@ -255,7 +345,7 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
                 className="flex items-center gap-3 rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
               >
                 <span className="min-w-0 flex-1">
-                  Couldn’t load your Codex configuration.
+                  Couldn’t read your Codex settings.
                 </span>
                 <button
                   type="button"
@@ -295,17 +385,20 @@ export function CodexStatusLineView({ onBack }: { onBack: () => void }) {
               items={items}
               useColors={useColors}
               disabled={!canEdit}
-              onItemsChange={(nextItems) => change(nextItems, useColors)}
+              undoLabel={undo?.label ?? null}
+              onItemsChange={(nextItems, undoLabel) =>
+                change(nextItems, useColors, undoLabel)
+              }
               onUseColorsChange={(nextUseColors) =>
                 change(items, nextUseColors)
               }
+              onUndo={undoLast}
             />
 
             <p className="px-1 text-[10.5px] leading-relaxed text-[var(--text-muted)]">
-              Values are representative. Colors mirror Codex’s adaptive
-              default theme; a custom /theme can differ. Codex omits unavailable
-              fields. Custom text, separators, and command-rendered segments
-              are not currently available.
+              Values are samples. Colors follow Codex’s theme, so yours may look
+              different. Codex leaves out items that have nothing to show, and
+              doesn’t support custom text or separators.
             </p>
           </div>
         </div>

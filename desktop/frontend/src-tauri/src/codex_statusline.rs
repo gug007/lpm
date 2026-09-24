@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use toml_edit::{value, Array, DocumentMut, Item, Table};
 
-const DEFAULT_ITEMS: [&str; 2] = ["model-with-reasoning", "current-dir"];
+const DEFAULT_ITEMS: [&str; 3] = ["model-with-reasoning", "current-dir", "thread-name"];
 static RESOLVED_CODEX_HOME: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
 #[derive(Serialize)]
@@ -139,6 +139,21 @@ fn apply_statusline_at(path: &Path, items: &[String], use_colors: bool) -> Resul
     write_document(&path, &document)
 }
 
+fn reset_statusline_at(path: &Path) -> Result<(), String> {
+    let path = writable_config_path(path)?;
+    let mut document = read_document(&path)?;
+    let Some(tui_item) = document.as_table_mut().get_mut("tui") else {
+        return Ok(());
+    };
+    let tui = tui_item
+        .as_table_like_mut()
+        .ok_or_else(|| "invalid Codex config: tui must be a table".to_string())?;
+    if tui.remove("status_line").is_none() {
+        return Ok(());
+    }
+    write_document(&path, &document)
+}
+
 #[tauri::command(async)]
 pub fn get_codex_statusline_state() -> Result<CodexStatuslineState, String> {
     statusline_state_at(&config_path()?)
@@ -147,6 +162,11 @@ pub fn get_codex_statusline_state() -> Result<CodexStatuslineState, String> {
 #[tauri::command(async)]
 pub fn apply_codex_statusline(items: Vec<String>, use_colors: bool) -> Result<(), String> {
     apply_statusline_at(&config_path()?, &items, use_colors)
+}
+
+#[tauri::command(async)]
+pub fn reset_codex_statusline() -> Result<(), String> {
+    reset_statusline_at(&config_path()?)
 }
 
 #[cfg(test)]
@@ -242,6 +262,53 @@ mod tests {
             .file_type()
             .is_symlink());
         assert_eq!(statusline_state_at(&target).unwrap().items, ["model"]);
+    }
+
+    #[test]
+    fn reset_returns_to_codex_defaults_and_keeps_other_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(
+            &path,
+            "# personal config\nmodel = \"gpt-5.5\"\n\n[tui]\nalternate_screen = \"never\"\nstatus_line = [\"model\"]\nstatus_line_use_colors = false\n",
+        )
+        .unwrap();
+        reset_statusline_at(&path).unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("# personal config"));
+        assert!(content.contains("alternate_screen = \"never\""));
+        assert!(!content.contains("status_line ="));
+        let state = statusline_state_at(&path).unwrap();
+        assert_eq!(state.items, DEFAULT_ITEMS);
+        assert!(!state.configured);
+        assert!(!state.use_colors, "the colors choice is kept");
+    }
+
+    #[test]
+    fn reset_keeps_comments_above_a_tui_table_left_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(
+            &path,
+            "model = \"gpt-5.5\"\n\n# UI tweaks\n[tui]\nstatus_line = [\"model\"]\n",
+        )
+        .unwrap();
+        reset_statusline_at(&path).unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("# UI tweaks"));
+        assert!(!statusline_state_at(&path).unwrap().configured);
+    }
+
+    #[test]
+    fn reset_without_statusline_leaves_file_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        reset_statusline_at(&path).unwrap();
+        assert!(!path.exists());
+        let original = "[tui]\nalternate_screen = \"never\"\n";
+        std::fs::write(&path, original).unwrap();
+        reset_statusline_at(&path).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
     }
 
     #[test]

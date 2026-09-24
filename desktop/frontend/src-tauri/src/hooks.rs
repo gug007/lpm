@@ -1810,6 +1810,7 @@ pub struct ClaudeStatuslineState {
     pub selected: String,
     pub has_custom: bool,
     pub custom: CustomSpec,
+    pub has_saved_custom: bool,
     pub ai_description: String,
 }
 
@@ -1826,6 +1827,7 @@ fn claude_statusline_state_at(settings_path: &Path, dir: &Path) -> ClaudeStatusl
         selected: template.unwrap_or_else(|| "current".into()),
         has_custom,
         custom: read_custom_spec(dir),
+        has_saved_custom: dir.join("custom.json").exists(),
         ai_description: read_ai_description(dir),
     }
 }
@@ -4348,11 +4350,13 @@ mod tests {
         spec.segments[1].icon = Some("🤖".into());
         spec.segments[2].label = Some("week".into());
         spec.meter_width = 10;
+        assert!(!claude_statusline_state_at(&settings, &sldir).has_saved_custom);
         apply_custom_at(&settings, &sldir, &spec).unwrap();
 
         let state = claude_statusline_state_at(&settings, &sldir);
         assert_eq!(state.selected, "custom");
         assert_eq!(state.custom, spec, "state echoes the saved spec");
+        assert!(state.has_saved_custom);
         assert!(sldir.join("custom.json").exists());
     }
 

@@ -6,6 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const commands = vi.hoisted(() => ({
   GetCodexStatuslineState: vi.fn(),
   ApplyCodexStatusline: vi.fn(),
+  ResetCodexStatusline: vi.fn(),
+  LoadSettings: vi.fn(),
+  SaveSettings: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => commands);
@@ -20,7 +23,7 @@ vi.mock("../hooks/useTerminalFontSize", () => ({
 const { CodexStatusLineView } = await import("./CodexStatusLineView");
 
 const defaultState = {
-  items: ["model-with-reasoning", "current-dir"],
+  items: ["model-with-reasoning", "current-dir", "thread-name"],
   configured: false,
   useColors: true,
 };
@@ -36,6 +39,9 @@ beforeEach(() => {
   document.body.appendChild(container);
   root = createRoot(container);
   commands.ApplyCodexStatusline.mockResolvedValue(undefined);
+  commands.ResetCodexStatusline.mockResolvedValue(undefined);
+  commands.LoadSettings.mockResolvedValue({});
+  commands.SaveSettings.mockResolvedValue(undefined);
 });
 
 afterEach(async () => {
@@ -107,7 +113,7 @@ describe("CodexStatusLineView", () => {
     expect(
       container.querySelector('button[aria-label="Move future-field"]'),
     ).not.toBeNull();
-    expect(container.textContent).toContain("Saved to config.toml");
+    expect(container.textContent).toContain("New Codex sessions show this line");
   });
 
   it("debounces a preset selection and saves its ordered fields", async () => {
@@ -138,7 +144,7 @@ describe("CodexStatusLineView", () => {
       ],
       true,
     );
-    expect(container.textContent).toContain("Saved to config.toml");
+    expect(container.textContent).toContain("New Codex sessions show this line");
   });
 
   it("only saves the latest change made during the debounce window", async () => {
@@ -209,6 +215,120 @@ describe("CodexStatusLineView", () => {
       defaultState.items,
       false,
     );
+  });
+
+  it("resets to Codex's own default and can undo it", async () => {
+    vi.useFakeTimers();
+    commands.GetCodexStatuslineState.mockResolvedValue({
+      items: ["model", "git-branch"],
+      configured: true,
+      useColors: false,
+    });
+
+    await renderView();
+    expect(container.textContent).toContain("Custom · 2 items");
+    await act(async () => presetButton("Codex default").click());
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(commands.ResetCodexStatusline).toHaveBeenCalledOnce();
+    expect(commands.ApplyCodexStatusline).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Switched to Codex default");
+
+    const undo = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Undo",
+    );
+    await act(async () => undo?.click());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(260);
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyCodexStatusline).toHaveBeenCalledWith(
+      ["model", "git-branch"],
+      false,
+    );
+  });
+
+  it("keeps a hand-built line as a Custom layout after switching away", async () => {
+    vi.useFakeTimers();
+    commands.GetCodexStatuslineState.mockResolvedValue({
+      items: ["model", "git-branch"],
+      configured: true,
+      useColors: true,
+    });
+
+    await renderView();
+    await act(async () => presetButton("Usage").click());
+    expect(presetButton("Custom").getAttribute("aria-checked")).toBe("false");
+
+    await act(async () => presetButton("Custom").click());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(260);
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyCodexStatusline).toHaveBeenLastCalledWith(
+      ["model", "git-branch"],
+      true,
+    );
+    expect(presetButton("Custom").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("brings back the remembered Custom arrangement on Undo", async () => {
+    vi.useFakeTimers();
+    commands.GetCodexStatuslineState.mockResolvedValue({
+      items: ["model", "git-branch"],
+      configured: true,
+      useColors: true,
+    });
+
+    await renderView();
+    await act(async () => presetButton("Project").click());
+    const remove = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove Git branch"]',
+    );
+    await act(async () => remove?.click());
+    expect(presetButton("Custom").textContent).toContain("3 items");
+
+    const undo = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Undo",
+    );
+    await act(async () => undo?.click());
+
+    expect(presetButton("Custom").textContent).toContain("2 items");
+  });
+
+  it("offers Undo after removing an item", async () => {
+    vi.useFakeTimers();
+    commands.GetCodexStatuslineState.mockResolvedValue({
+      ...defaultState,
+      configured: true,
+    });
+
+    await renderView();
+    const remove = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove Thread name"]',
+    );
+    await act(async () => remove?.click());
+    expect(container.textContent).toContain("Removed Thread name");
+
+    const undo = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Undo",
+    );
+    await act(async () => undo?.click());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(260);
+      await Promise.resolve();
+    });
+
+    expect(commands.ApplyCodexStatusline).toHaveBeenCalledOnce();
+    expect(commands.ApplyCodexStatusline).toHaveBeenCalledWith(
+      defaultState.items,
+      true,
+    );
+    expect(container.textContent).not.toContain("Removed Thread name");
   });
 
   it("keeps the local preview and reports an apply failure", async () => {

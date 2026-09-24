@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SlidersHorizontal, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   GetClaudeStatuslineState,
@@ -19,6 +18,12 @@ import {
   StatusLinePresetPicker,
   type StatusLineTemplateId,
 } from "./StatusLinePresetPicker";
+import { StatusLineCustomNotice } from "./StatusLineCustomNotice";
+import { notifyStatusLineChanged } from "./statusLineChanges";
+import { StatusLineEmptyState } from "./StatusLineEmptyState";
+import { StatusLineAlerts } from "./StatusLineAlerts";
+import { statusLineReadingNote } from "./statusLineReadingNote";
+import { useStatusLineCardSamples } from "../hooks/useStatusLineCardSamples";
 import { customStatusLineError } from "./statusLineValidation";
 import type { CustomSpec } from "./statusLineTypes";
 
@@ -76,6 +81,10 @@ function sanitizeSpec(spec: CustomSpec): CustomSpec {
   };
 }
 
+function sameSpec(left: CustomSpec, right: CustomSpec): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 export function statuslineCustomBaseSpec(
   selected: string,
   editorSpec: CustomSpec,
@@ -84,15 +93,20 @@ export function statuslineCustomBaseSpec(
   return selected === "custom" ? editorSpec : savedSpec;
 }
 
+type TemplateId = Exclude<StatusLineTemplateId, "custom" | "ai">;
 type ApplyRequest =
-  | { kind: "template"; id: Exclude<StatusLineTemplateId, "custom" | "ai"> }
-  | { kind: "custom"; spec: CustomSpec };
+  | { kind: "template"; id: TemplateId }
+  | { kind: "custom"; spec: CustomSpec }
+  | { kind: "restore"; spec: CustomSpec; id: TemplateId };
 type ApplyJob = ApplyRequest & { revision: number };
 
 function applyJob(request: ApplyRequest, revision: number): ApplyJob {
-  return request.kind === "custom"
-    ? { kind: "custom", spec: request.spec, revision }
-    : { kind: "template", id: request.id, revision };
+  return { ...request, revision };
+}
+
+interface ReplacedCustom {
+  spec: CustomSpec;
+  layout: TemplateId;
 }
 
 type ApplyState = "applied" | "applying" | "error";
@@ -113,6 +127,11 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     useState<PresetSpecState>("idle");
   const [applyError, setApplyError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [replacedCustom, setReplacedCustom] = useState<ReplacedCustom | null>(
+    null,
+  );
+  const [diskCustomSpec, setDiskCustomSpec] = useState<CustomSpec | null>(null);
+  const [editorKey, setEditorKey] = useState(0);
   const { themeStyle } = useTerminalTheme();
   const { fontSize } = useTerminalFontSize();
   const runningRef = useRef(false);
@@ -125,12 +144,14 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   const customApplyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const pendingCustomRef = useRef<CustomSpec | null>(null);
   const canEdit = loaded && !loadError;
   const canCustomize = canEdit && presetSpecState === "idle";
 
   const clearPendingCustomApply = () => {
     if (customApplyTimerRef.current) clearTimeout(customApplyTimerRef.current);
     customApplyTimerRef.current = null;
+    pendingCustomRef.current = null;
   };
 
   const seedFromPreset = (id: string) => {
@@ -166,6 +187,11 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
         (state?.selected as StatusLineTemplateId) ?? "current";
       setSelected(nextSelection);
       setHasCustom(Boolean(state?.hasCustom));
+      setDiskCustomSpec(
+        state?.hasSavedCustom && state?.custom
+          ? (state.custom as CustomSpec)
+          : null,
+      );
       if (syncSpec) {
         if (state?.custom) setSavedCustomSpec(state.custom as CustomSpec);
         if (isSeedablePreset(nextSelection)) seedFromPreset(nextSelection);
@@ -191,13 +217,19 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     mountedRef.current = true;
     void refresh(true);
     return () => {
-      mountedRef.current = false;
+      const pendingSpec = pendingCustomRef.current;
       clearPendingCustomApply();
-      queueRef.current = null;
-      interactionRevisionRef.current++;
+      if (pendingSpec) {
+        queueRef.current = applyJob(
+          { kind: "custom", spec: pendingSpec },
+          interactionRevisionRef.current,
+        );
+      }
+      mountedRef.current = false;
       stateTokenRef.current++;
       seedTokenRef.current++;
       previewTokenRef.current++;
+      if (!runningRef.current && queueRef.current) void drain();
     };
   }, []);
 
@@ -212,7 +244,11 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
       if (job.revision !== interactionRevisionRef.current) continue;
       try {
         if (job.kind === "custom") await ApplyClaudeStatuslineCustom(job.spec);
-        else await ApplyClaudeStatusline(job.id);
+        else if (job.kind === "restore") {
+          await ApplyClaudeStatuslineCustom(job.spec);
+          await ApplyClaudeStatusline(job.id);
+        } else await ApplyClaudeStatusline(job.id);
+        notifyStatusLineChanged("claude");
         if (
           !mountedRef.current ||
           job.revision !== interactionRevisionRef.current
@@ -223,16 +259,15 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
         lastResult = "applied";
         setApplyError(null);
       } catch (error) {
-        if (
-          !mountedRef.current ||
-          job.revision !== interactionRevisionRef.current
-        ) {
+        if (job.revision !== interactionRevisionRef.current) continue;
+        const message = String(error);
+        if (!mountedRef.current) {
+          toast.error(message);
           continue;
         }
-        const message = String(error);
         lastSettledRevision = job.revision;
         lastResult = "error";
-        if (job.kind === "template" && isSeedablePreset(job.id)) {
+        if (job.kind !== "custom" && isSeedablePreset(job.id)) {
           seedTokenRef.current++;
           setPresetSpecState("loading");
           shouldSyncSpec = true;
@@ -256,12 +291,13 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
   };
 
   const choose = (id: StatusLineTemplateId) => {
-    if (!canEdit) return;
+    if (!canEdit || id === selected) return;
     interactionRevisionRef.current++;
     stateTokenRef.current++;
     clearPendingCustomApply();
     setSelected(id);
     setApplyError(null);
+    setReplacedCustom(null);
     cancelPresetSeed();
     if (id === "custom") {
       const baseSpec = statuslineCustomBaseSpec(
@@ -285,7 +321,19 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     clearPendingCustomApply();
     cancelPresetSeed();
     setApplyError(null);
-    if (selected !== "custom") setSelected("custom");
+    if (selected !== "custom") {
+      if (
+        isSeedablePreset(selected) &&
+        diskCustomSpec &&
+        !sameSpec(diskCustomSpec, customSpec)
+      ) {
+        setReplacedCustom({
+          spec: diskCustomSpec,
+          layout: selected as TemplateId,
+        });
+      }
+      setSelected("custom");
+    }
     setCustomSpec(spec);
     setSavedCustomSpec(spec);
     const clean = sanitizeSpec(spec);
@@ -294,10 +342,28 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
       return;
     }
     setApplyState("applying");
+    pendingCustomRef.current = clean;
     customApplyTimerRef.current = setTimeout(() => {
       customApplyTimerRef.current = null;
+      pendingCustomRef.current = null;
       enqueue({ kind: "custom", spec: clean });
     }, 260);
+  };
+
+  const restoreReplacedCustom = () => {
+    if (!replacedCustom || !canEdit) return;
+    const { spec, layout } = replacedCustom;
+    interactionRevisionRef.current++;
+    stateTokenRef.current++;
+    clearPendingCustomApply();
+    cancelPresetSeed();
+    setReplacedCustom(null);
+    setApplyError(null);
+    setSavedCustomSpec(spec);
+    setSelected(layout);
+    setEditorKey((key) => key + 1);
+    enqueue({ kind: "restore", spec: sanitizeSpec(spec), id: layout });
+    if (isSeedablePreset(layout)) seedFromPreset(layout);
   };
 
   const cleanCustomSpec = useMemo(() => sanitizeSpec(customSpec), [customSpec]);
@@ -354,6 +420,41 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
     return () => clearTimeout(handle);
   }, [previewSelection, selected, customValidationError, loaded, loadError]);
 
+  const savedCustomSample = useMemo(() => {
+    const spec = sanitizeSpec(savedCustomSpec);
+    return customStatusLineError(spec) ? null : spec;
+  }, [savedCustomSpec]);
+  const cardSamples = useStatusLineCardSamples({
+    enabled: loaded && !loadError,
+    hasCustom,
+    selected,
+    savedCustomSpec: savedCustomSample,
+    livePreview:
+      preview.trim() && !previewError && !previewing ? preview : null,
+  });
+  const readingNote = statuslineShowsEditor(selected)
+    ? statusLineReadingNote(cleanCustomSpec)
+    : null;
+  const customNotice =
+    selected === "custom" && replacedCustom ? (
+      <StatusLineCustomNotice
+        layoutLabel={STATUSLINE_LABELS[replacedCustom.layout]}
+        replaced
+        disabled={!canEdit}
+        onAction={restoreReplacedCustom}
+      />
+    ) : isSeedablePreset(selected) &&
+      presetSpecState === "idle" &&
+      diskCustomSpec &&
+      !sameSpec(diskCustomSpec, customSpec) ? (
+      <StatusLineCustomNotice
+        layoutLabel={STATUSLINE_LABELS[selected]}
+        replaced={false}
+        disabled={!canEdit}
+        onAction={() => choose("custom")}
+      />
+    ) : null;
+
   const emptyHint =
     selected === "current" && !hasCustom
       ? "Status line is off"
@@ -394,10 +495,11 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--text-primary)]">
-            Build your Claude Code status line
+            Claude Code status line
           </h1>
           <p className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Start with a layout, then tune every item. Changes apply as you work.
+            Shows under the prompt box in every Claude Code session. Changes
+            apply as you work.
           </p>
         </div>
       </div>
@@ -416,6 +518,7 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
               fontSize={fontSize}
               status={previewStatus}
               selectionLabel={selectionLabel}
+              note={readingNote}
             />
           </div>
 
@@ -439,112 +542,40 @@ export function ClaudeStatusLineView({ onBack }: { onBack: () => void }) {
                 hasCustom={hasCustom}
                 disabled={!canEdit}
                 onSelect={choose}
+                samples={cardSamples}
+                terminalStyle={themeStyle}
               />
             </section>
 
-            <div className="min-w-0 space-y-3">
-              {loadError && (
-                <div
-                  role="alert"
-                  className="flex items-center gap-3 rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
-                >
-                  <span className="min-w-0 flex-1">
-                    Couldn’t load your saved status line.
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoaded(false);
-                      setLoadError(null);
-                      void refresh(true);
-                    }}
-                    className="h-7 shrink-0 rounded-lg border border-[var(--accent-red)]/30 px-2.5 font-medium outline-none transition-colors hover:bg-[var(--accent-red)]/10 focus-visible:ring-1 focus-visible:ring-[var(--accent-red)]"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-
-              {applyError && (
-                <div
-                  role="alert"
-                  title={applyError}
-                  className="rounded-xl border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
-                >
-                  Couldn’t apply this change. Your previous status line is still
-                  active.
-                  <details className="mt-1 select-text text-[10px] opacity-80">
-                    <summary className="w-fit cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-red)]">
-                      Show details
-                    </summary>
-                    <p className="mt-1 break-words">{applyError}</p>
-                  </details>
-                </div>
-              )}
-
-              {presetSpecState === "error" &&
-                isSeedablePreset(selected) && (
-                  <div
-                    role="alert"
-                    className="flex items-center gap-3 rounded-xl border border-[var(--accent-amber)]/30 bg-[var(--accent-amber)]/8 px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--accent-amber-text)]"
-                  >
-                    <span className="min-w-0 flex-1">
-                      Couldn’t load this preset’s customization controls.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => seedFromPreset(selected)}
-                      className="h-7 shrink-0 rounded-lg border border-[var(--accent-amber)]/30 px-2.5 font-medium outline-none transition-colors hover:bg-[var(--accent-amber)]/10 focus-visible:ring-1 focus-visible:ring-[var(--accent-amber)]"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
-            </div>
+            <StatusLineAlerts
+              loadError={loadError}
+              applyError={applyError}
+              presetError={
+                presetSpecState === "error" && isSeedablePreset(selected)
+              }
+              onRetryLoad={() => {
+                setLoaded(false);
+                setLoadError(null);
+                void refresh(true);
+              }}
+              onRetryPreset={() => seedFromPreset(selected)}
+            />
 
             {statuslineShowsEditor(selected) ? (
               <CustomStatusLineEditor
+                key={editorKey}
                 spec={customSpec}
                 onChange={onCustomChange}
                 disabled={!canCustomize}
+                notice={customNotice}
               />
             ) : (
-              <section className="flex flex-col items-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--bg-secondary)]/20 px-5 py-7 text-center">
-                <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--accent-green)]/10 text-[var(--accent-green-text)]">
-                  {selected === "ai" ? (
-                    <Sparkles size={19} />
-                  ) : (
-                    <SlidersHorizontal size={19} />
-                  )}
-                </span>
-                <h2 className="text-[13px] font-semibold text-[var(--text-primary)]">
-                  {selected === "ai"
-                    ? "Your AI-edited line is active"
-                    : "Ready to make it yours?"}
-                </h2>
-                <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-[var(--text-muted)]">
-                  Choose Custom to arrange each item yourself, or start with
-                  Clean and fine-tune it.
-                </p>
-                <div className="mt-4 flex flex-wrap justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => choose("custom")}
-                    disabled={!canEdit}
-                    className="h-8 rounded-lg bg-[var(--accent-green)] px-3 text-[11px] font-semibold text-green-950 outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Build a custom line
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => choose("meters")}
-                    disabled={!canEdit}
-                    className="h-8 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Start with Clean
-                  </button>
-                </div>
-              </section>
+              <StatusLineEmptyState
+                aiEdited={selected === "ai"}
+                disabled={!canEdit}
+                onBuildCustom={() => choose("custom")}
+                onStartWithClean={() => choose("meters")}
+              />
             )}
           </div>
         </div>

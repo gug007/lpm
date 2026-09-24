@@ -5,6 +5,7 @@ import {
   GitBranch,
   Layers3,
   Minimize2,
+  SlidersHorizontal,
 } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import {
@@ -13,11 +14,13 @@ import {
 } from "./codexStatusLineOptions";
 
 export type CodexStatusLinePresetId =
-  | "essential"
+  | "default"
   | "project"
   | "usage"
   | "detailed"
   | "off";
+
+export type CodexStatusLineChoiceId = CodexStatusLinePresetId | "custom";
 
 export interface CodexStatusLinePreset {
   id: CodexStatusLinePresetId;
@@ -29,9 +32,9 @@ export interface CodexStatusLinePreset {
 
 export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
   {
-    id: "essential",
-    label: "Essential",
-    hint: "Model and working directory",
+    id: "default",
+    label: "Codex default",
+    hint: "Model, folder and thread name",
     items: CODEX_DEFAULT_STATUS_LINE,
     icon: Minimize2,
   },
@@ -79,7 +82,7 @@ export const CODEX_STATUS_LINE_PRESETS: CodexStatusLinePreset[] = [
   {
     id: "off",
     label: "Off",
-    hint: "Hide the configurable footer",
+    hint: "No status line under the prompt",
     items: [],
     icon: EyeOff,
   },
@@ -101,28 +104,44 @@ export function codexStatusLinePresetId(
   );
 }
 
-function presetSample(preset: CodexStatusLinePreset) {
-  if (preset.items.length === 0) {
+export function codexStatusLineChoiceId(
+  items: readonly string[],
+  configured: boolean,
+): CodexStatusLineChoiceId {
+  if (!configured) return "default";
+  return codexStatusLinePresetId(items) ?? "custom";
+}
+
+interface Choice {
+  id: CodexStatusLineChoiceId;
+  label: string;
+  hint: string;
+  items: readonly string[];
+  icon: typeof Minimize2;
+}
+
+function presetSample(items: readonly string[]) {
+  if (items.length === 0) {
     return (
       <span className="font-mono text-[10px] text-[var(--text-muted)]">
         Status line hidden
       </span>
     );
   }
-  const visible = preset.items.slice(0, 3);
+  const visible = items.slice(0, 3);
   return (
     <span className="flex min-w-0 items-center gap-1 font-mono text-[9px] text-[var(--text-secondary)]">
       {visible.map((item, index) => (
-        <span key={item} className="contents">
+        <span key={`${item}:${index}`} className="contents">
           {index > 0 && (
             <span className="text-[var(--text-muted)]">·</span>
           )}
           <span className="max-w-24 truncate">
-            {codexStatusLineOption(item).preview}
+            {codexStatusLineOption(item).preview || item}
           </span>
         </span>
       ))}
-      {preset.items.length > visible.length && (
+      {items.length > visible.length && (
         <span className="text-[var(--text-muted)]">…</span>
       )}
     </span>
@@ -131,14 +150,37 @@ function presetSample(preset: CodexStatusLinePreset) {
 
 export function CodexStatusLinePresetPicker({
   items,
+  configured,
+  customItems,
   disabled,
   onSelect,
+  onReset,
 }: {
   items: readonly string[];
+  configured: boolean;
+  customItems: readonly string[];
   disabled: boolean;
   onSelect: (items: string[]) => void;
+  onReset: () => void;
 }) {
-  const selected = codexStatusLinePresetId(items);
+  const selected = codexStatusLineChoiceId(items, configured);
+  const customSample = selected === "custom" ? items : customItems;
+  const choices: Choice[] = [...CODEX_STATUS_LINE_PRESETS];
+  if (customSample.length > 0) {
+    choices.push({
+      id: "custom",
+      label: "Custom",
+      hint: `${customSample.length} ${customSample.length === 1 ? "item" : "items"}, arranged by you`,
+      items: customSample,
+      icon: SlidersHorizontal,
+    });
+  }
+
+  const activate = (choice: Choice) => {
+    if (choice.id === selected) return;
+    if (choice.id === "default") onReset();
+    else onSelect([...choice.items]);
+  };
 
   const onKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
@@ -146,15 +188,13 @@ export function CodexStatusLinePresetPicker({
   ) => {
     let nextIndex: number | null = null;
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-      nextIndex = (index + 1) % CODEX_STATUS_LINE_PRESETS.length;
+      nextIndex = (index + 1) % choices.length;
     } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-      nextIndex =
-        (index - 1 + CODEX_STATUS_LINE_PRESETS.length) %
-        CODEX_STATUS_LINE_PRESETS.length;
+      nextIndex = (index - 1 + choices.length) % choices.length;
     } else if (event.key === "Home") {
       nextIndex = 0;
     } else if (event.key === "End") {
-      nextIndex = CODEX_STATUS_LINE_PRESETS.length - 1;
+      nextIndex = choices.length - 1;
     }
     if (nextIndex == null) return;
     event.preventDefault();
@@ -163,7 +203,7 @@ export function CodexStatusLinePresetPicker({
       ?.querySelectorAll<HTMLButtonElement>('button[role="radio"]')
       .item(nextIndex);
     next?.focus();
-    onSelect([...CODEX_STATUS_LINE_PRESETS[nextIndex].items]);
+    activate(choices[nextIndex]);
   };
 
   return (
@@ -173,21 +213,21 @@ export function CodexStatusLinePresetPicker({
       className="grid gap-2"
       style={{
         gridTemplateColumns:
-          "repeat(auto-fit, minmax(min(180px, 100%), 1fr))",
+          "repeat(auto-fit, minmax(min(150px, 100%), 1fr))",
       }}
     >
-      {CODEX_STATUS_LINE_PRESETS.map((preset, index) => {
-        const active = selected === preset.id;
-        const Icon = preset.icon;
+      {choices.map((choice, index) => {
+        const active = selected === choice.id;
+        const Icon = choice.icon;
         return (
           <button
-            key={preset.id}
+            key={choice.id}
             type="button"
             role="radio"
             aria-checked={active}
-            tabIndex={active || (selected == null && index === 0) ? 0 : -1}
+            tabIndex={active ? 0 : -1}
             disabled={disabled}
-            onClick={() => onSelect([...preset.items])}
+            onClick={() => activate(choice)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={`group relative flex min-h-[92px] flex-col overflow-hidden rounded-xl border p-2.5 text-left transition-[border-color,background-color,box-shadow,transform] duration-150 motion-reduce:transform-none motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-green)]/35 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 ${
               active
@@ -207,10 +247,10 @@ export function CodexStatusLinePresetPicker({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[12px] font-semibold text-[var(--text-primary)]">
-                  {preset.label}
+                  {choice.label}
                 </span>
                 <span className="block truncate text-[10px] text-[var(--text-muted)]">
-                  {preset.hint}
+                  {choice.hint}
                 </span>
               </span>
               <span
@@ -228,7 +268,7 @@ export function CodexStatusLinePresetPicker({
               aria-hidden
               className="mt-auto flex min-h-6 w-full items-center overflow-hidden rounded-md border border-[var(--border)]/80 bg-[var(--bg-primary)]/70 px-2"
             >
-              {presetSample(preset)}
+              {presetSample(choice.items)}
             </span>
           </button>
         );

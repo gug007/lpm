@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles, Undo2 } from "lucide-react";
 import {
   DndContext,
@@ -23,9 +23,10 @@ import { StatusLineDragChip } from "./StatusLineDragChip";
 import { StatusLineSegmentChip } from "./StatusLineSegmentChip";
 import {
   STATUS_LINE_SEGMENT_IDS,
+  STATUS_LINE_SEGMENT_LABELS,
   STATUS_LINE_SEPARATORS,
 } from "./statusLineEditorOptions";
-import { customStatusLineError } from "./statusLineValidation";
+import { customStatusLineErrorTarget } from "./statusLineValidation";
 import type {
   CustomSpec,
   SegColor,
@@ -48,10 +49,12 @@ export function CustomStatusLineEditor({
   spec,
   onChange,
   disabled,
+  notice,
 }: {
   spec: CustomSpec;
   onChange: (spec: CustomSpec) => void;
   disabled: boolean;
+  notice?: ReactNode;
 }) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -59,7 +62,18 @@ export function CustomStatusLineEditor({
   const used = new Set(spec.segments.map((segment) => segment.id));
   const addable = STATUS_LINE_SEGMENT_IDS.filter((id) => !used.has(id));
   const ids = spec.segments.map((segment, index) => `${segment.id}:${index}`);
-  const validationError = customStatusLineError(spec);
+  const validationError = customStatusLineErrorTarget(spec);
+  const invalidSegment =
+    validationError?.index != null
+      ? spec.segments[validationError.index]
+      : undefined;
+  const invalidName = invalidSegment
+    ? invalidSegment.id === "text"
+      ? "Custom text"
+      : STATUS_LINE_SEGMENT_LABELS[invalidSegment.id]
+    : validationError?.field === "separator"
+      ? "Separator"
+      : null;
   const canRemove = spec.segments.length > 1;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -169,6 +183,14 @@ export function CustomStatusLineEditor({
     setEditingIndex(null);
   };
 
+  const showInvalid = () => {
+    if (validationError?.index != null) {
+      setEditingIndex(validationError.index);
+    } else if (validationError?.field === "separator") {
+      document.getElementById("status-line-separator")?.focus();
+    }
+  };
+
   const undo = () => {
     if (!undoSpec) return;
     onChange(undoSpec);
@@ -213,6 +235,7 @@ export function CustomStatusLineEditor({
       </div>
 
       <div className="p-4">
+        {notice && <div className="mb-3">{notice}</div>}
         <div className="space-y-3">
           <div className="min-w-0">
             <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -241,6 +264,7 @@ export function CustomStatusLineEditor({
                       segment={segment}
                       showIcon={spec.icons}
                       editing={editingIndex === index}
+                      invalid={validationError?.index === index}
                       disabled={disabled}
                       canRemove={canRemove}
                       onEdit={() =>
@@ -293,9 +317,23 @@ export function CustomStatusLineEditor({
         {validationError && (
           <div
             role="alert"
-            className="mt-3 rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2 text-[10.5px] text-[var(--accent-red-text)]"
+            className="mt-3 flex items-center gap-3 rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/8 px-3 py-2 text-[10.5px] leading-relaxed text-[var(--accent-red-text)]"
           >
-            Fix the highlighted setting to update Claude Code. {validationError}
+            <span className="min-w-0 flex-1">
+              {invalidName ? `${invalidName}: ` : ""}
+              {validationError.message} Claude Code keeps your last working line
+              until it’s fixed.
+            </span>
+            {invalidName && (
+              <button
+                type="button"
+                onClick={showInvalid}
+                disabled={disabled}
+                className="h-7 shrink-0 rounded-lg border border-[var(--accent-red)]/30 px-2.5 font-medium outline-none transition-colors hover:bg-[var(--accent-red)]/10 focus-visible:ring-1 focus-visible:ring-[var(--accent-red)] disabled:opacity-40"
+              >
+                Show me
+              </button>
+            )}
           </div>
         )}
 

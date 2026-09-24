@@ -18,6 +18,7 @@ export interface CodexStatusLineOption {
 export const CODEX_DEFAULT_STATUS_LINE = [
   "model-with-reasoning",
   "current-dir",
+  "thread-name",
 ] as const;
 
 export const CODEX_STATUS_LINE_GROUPS: CodexStatusLineGroup[] = [
@@ -55,7 +56,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "run-state",
     label: "Run state",
-    description: "Compact session state such as Ready, Working, or Thinking",
+    description: "Ready, Working, or Thinking",
     preview: "Working",
     group: "Model & activity",
     accent: "state",
@@ -71,7 +72,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "raw-output",
     label: "Raw output",
-    description: "Shown when raw scrollback mode is active",
+    description: "Shows while raw output mode is on",
     preview: "raw output",
     group: "Model & activity",
     accent: "mode",
@@ -79,7 +80,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "task-progress",
     label: "Task progress",
-    description: "Latest checklist progress from update_plan",
+    description: "Steps done in Codex's current plan, once it has one",
     preview: "Tasks 3/4",
     group: "Model & activity",
     accent: "progress",
@@ -99,6 +100,14 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
     preview: "my-project",
     group: "Project",
     accent: "path",
+  },
+  {
+    id: "hostname",
+    label: "Hostname",
+    description: "This computer's name",
+    preview: "my-host",
+    group: "Project",
+    accent: "metadata",
   },
   {
     id: "git-branch",
@@ -151,7 +160,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "five-hour-limit",
     label: "Primary limit",
-    description: "Remaining usage on the primary usage limit",
+    description: "How much of your main usage limit is left",
     preview: "5h 66% left",
     group: "Context & limits",
     accent: "limit",
@@ -159,7 +168,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "weekly-limit",
     label: "Secondary limit",
-    description: "Remaining usage on the secondary usage limit",
+    description: "How much of your second usage limit is left",
     preview: "weekly 38% left",
     group: "Context & limits",
     accent: "limit",
@@ -189,9 +198,27 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
     accent: "usage",
   },
   {
+    id: "thread-credits",
+    label: "Thread credits",
+    description:
+      "Estimated credits for this conversation (company workspaces only)",
+    preview: "5.2 credits",
+    group: "Context & limits",
+    accent: "usage",
+  },
+  {
+    id: "estimated-thread-cost",
+    label: "Thread cost",
+    description:
+      "Estimated cost of this conversation (company workspaces only)",
+    preview: "~$0.21",
+    group: "Context & limits",
+    accent: "usage",
+  },
+  {
     id: "permissions",
     label: "Permissions",
-    description: "Active permission profile or sandbox mode",
+    description: "What Codex may do without asking",
     preview: "Workspace",
     group: "Session & access",
     accent: "mode",
@@ -199,15 +226,23 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "approval-mode",
     label: "Approval mode",
-    description: "Active command approval mode",
+    description: "When Codex asks before running commands",
     preview: "on-request",
     group: "Session & access",
     accent: "mode",
   },
   {
+    id: "thread-name",
+    label: "Thread name",
+    description: "The conversation's name, once it has one",
+    preview: "Fix login redirect",
+    group: "Session & access",
+    accent: "thread",
+  },
+  {
     id: "thread-title",
     label: "Thread title",
-    description: "Current thread title or identifier when unnamed",
+    description: "The conversation's title, or its ID until it has one",
     preview: "Status line builder",
     group: "Session & access",
     accent: "thread",
@@ -215,7 +250,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "thread-id",
     label: "Thread ID",
-    description: "Current thread identifier",
+    description: "The conversation's ID",
     preview: "550e8400-e29b-41d4",
     group: "Session & access",
     accent: "metadata",
@@ -231,7 +266,7 @@ export const CODEX_STATUS_LINE_OPTIONS: CodexStatusLineOption[] = [
   {
     id: "workspace-headline",
     label: "Workspace headline",
-    description: "Enterprise workspace notification headline",
+    description: "Notice from your company workspace (company workspaces only)",
     preview: "Workspace headline",
     group: "Session & access",
     accent: "thread",
@@ -261,7 +296,7 @@ export function codexStatusLineOption(id: string): CodexStatusLineOption {
     OPTIONS_BY_ID.get(canonicalCodexStatusLineId(id)) ?? {
       id,
       label: id,
-      description: "Preserved for a newer Codex version",
+      description: "Kept as is. lpm can't preview this item yet",
       preview: "",
       group: "Session & access",
       accent: "metadata",

@@ -6,7 +6,8 @@ import {
   Sparkles,
   Terminal,
 } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
+import { AnsiLine } from "./AnsiLine";
 
 export type StatusLineTemplateId =
   | "current"
@@ -27,12 +28,17 @@ export const STATUSLINE_LABELS: Record<StatusLineTemplateId, string> = {
   ai: "AI edited",
 };
 
+export type StatusLineSamples = Partial<Record<StatusLineTemplateId, string>>;
+
 export interface StatusLinePresetPickerProps {
   selected: StatusLineTemplateId;
   hasCustom: boolean;
   disabled: boolean;
   onSelect: (id: StatusLineTemplateId) => void;
+  samples?: StatusLineSamples;
+  terminalStyle?: CSSProperties;
 }
+
 
 const PRESETS = [
   {
@@ -156,6 +162,8 @@ export function StatusLinePresetPicker({
   hasCustom,
   disabled,
   onSelect,
+  samples = {},
+  terminalStyle,
 }: StatusLinePresetPickerProps) {
   const hasVisibleSelection = PRESETS.some((preset) => preset.id === selected);
 
@@ -204,6 +212,10 @@ export function StatusLinePresetPicker({
           preset.id === "current" && !hasCustom
             ? "Keep the status line hidden"
             : preset.hint;
+        const sample =
+          preset.id === "current" && !hasCustom
+            ? ""
+            : (samples[preset.id] ?? "").trim();
 
         return (
           <button
@@ -250,12 +262,28 @@ export function StatusLinePresetPicker({
                 <Check className="h-2.5 w-2.5" strokeWidth={2.5} />
               </span>
             </div>
-            <span
-              aria-hidden
-              className="mt-auto flex min-h-6 w-full items-center overflow-hidden rounded-md border border-[var(--border)]/80 bg-[var(--bg-primary)]/70 px-2"
-            >
-              {presetSample(preset.id, hasCustom)}
-            </span>
+            {sample ? (
+              <span
+                aria-hidden
+                data-sample="real"
+                className="mt-auto flex min-h-6 w-full items-center overflow-hidden rounded-md border border-[var(--terminal-header-border)]/60 px-2 py-1"
+                style={{ ...terminalStyle, background: "var(--terminal-bg)" }}
+              >
+                <span
+                  className="line-clamp-2 min-w-0 break-words font-mono text-[9.5px] leading-[1.45]"
+                  style={{ color: "var(--terminal-fg)" }}
+                >
+                  <AnsiLine text={sample} />
+                </span>
+              </span>
+            ) : (
+              <span
+                aria-hidden
+                className="mt-auto flex min-h-6 w-full items-center overflow-hidden rounded-md border border-[var(--border)]/80 bg-[var(--bg-primary)]/70 px-2"
+              >
+                {presetSample(preset.id, hasCustom)}
+              </span>
+            )}
           </button>
         );
       })}

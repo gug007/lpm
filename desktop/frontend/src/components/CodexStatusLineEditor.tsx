@@ -16,7 +16,7 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { Plus, Undo2 } from "lucide-react";
 import { CodexStatusLineItemChip } from "./CodexStatusLineItemChip";
 import { StatusLineToggle } from "./StatusLineToggle";
 import {
@@ -29,14 +29,18 @@ export function CodexStatusLineEditor({
   items,
   useColors,
   disabled,
+  undoLabel,
   onItemsChange,
   onUseColorsChange,
+  onUndo,
 }: {
   items: string[];
   useColors: boolean;
   disabled: boolean;
-  onItemsChange: (items: string[]) => void;
+  undoLabel: string | null;
+  onItemsChange: (items: string[], undoLabel?: string) => void;
   onUseColorsChange: (useColors: boolean) => void;
+  onUndo: () => void;
 }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const sortableIds = items.map((item, index) => `${item}:${index}`);
@@ -80,6 +84,21 @@ export function CodexStatusLineEditor({
             </div>
           </div>
         </div>
+        {undoLabel && (
+          <div className="flex min-w-0 items-center gap-1" aria-live="polite">
+            <span className="truncate text-[11px] text-[var(--text-muted)]">
+              {undoLabel}
+            </span>
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={disabled}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-[var(--text-secondary)] outline-none transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-40"
+            >
+              <Undo2 size={13} /> Undo
+            </button>
+          </div>
+        )}
         <StatusLineToggle
           checked={useColors}
           disabled={disabled}
@@ -110,7 +129,7 @@ export function CodexStatusLineEditor({
               <div className="flex min-h-14 flex-wrap content-start items-start gap-1.5 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-primary)]/55 p-2">
                 {items.length === 0 ? (
                   <span className="m-auto text-[10.5px] text-[var(--text-muted)]">
-                    Status line hidden. Add an item below to turn it back on.
+                    No status line. Pick a layout above or add an item to bring it back.
                   </span>
                 ) : (
                   items.map((item, index) => (
@@ -122,6 +141,9 @@ export function CodexStatusLineEditor({
                       onRemove={() =>
                         onItemsChange(
                           items.filter((_, itemIndex) => itemIndex !== index),
+                          items.length === 1
+                            ? "Status line turned off"
+                            : `Removed ${codexStatusLineOption(item).label}`,
                         )
                       }
                     />

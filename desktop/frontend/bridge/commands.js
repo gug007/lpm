@@ -72,6 +72,9 @@ export function GetCodexStatuslineState() {
 export function ApplyCodexStatusline(items, useColors) {
   return invoke("apply_codex_statusline", { items, useColors });
 }
+export function ResetCodexStatusline() {
+  return invoke("reset_codex_statusline");
+}
 export function AddPortForward(project, remotePort, localPort) {
   return invoke("add_port_forward", { project, remotePort, localPort });
 }
