@@ -45,6 +45,10 @@ export type TourContext = {
   // Adopts the folder without the picker, synchronously enough for the next
   // step to find the new project's controls.
   addProject: (folder: string) => void;
+  // The project the tour opened on, and the one it leaves it for: whichever
+  // other row is asking for the visitor, read at the moment of the click.
+  homeProject: () => string;
+  callingProject: () => string | undefined;
   // A prompt that is still waiting for its session registers its cancel here.
   onWait: (cancel: () => void) => void;
   onStepDone: (id: TourStepId) => void;
@@ -226,6 +230,58 @@ function addProjectMoves(ctx: TourContext): TourStepMoves {
   };
 }
 
+// The project list scrolls on a short stage, so a row is brought inside it the
+// same way a chip is brought inside its strip: the list's own scrollTop.
+function revealRow(container: HTMLElement, row: HTMLElement | null): boolean {
+  if (!row) return false;
+  let list = row.parentElement;
+  while (list && list !== container && list.scrollHeight <= list.clientHeight)
+    list = list.parentElement;
+  if (!list || list === container) return true;
+  const box = list.getBoundingClientRect();
+  const top = row.getBoundingClientRect().top - box.top + list.scrollTop;
+  const bottom = top + row.offsetHeight;
+  if (top < list.scrollTop) list.scrollTop = top;
+  else if (bottom > list.scrollTop + list.clientHeight)
+    list.scrollTop = bottom - list.clientHeight;
+  const shown = row.getBoundingClientRect();
+  return shown.top >= box.top - 1 && shown.bottom <= box.bottom + 1;
+}
+
+// A sidebar row, pressed the way a visitor switches projects.
+function rowMoves(
+  ctx: TourContext,
+  id: TourStepId,
+  project: () => string | undefined,
+): TourStepMoves {
+  const row = () => {
+    const name = project();
+    return name
+      ? ctx.container.querySelector<HTMLElement>(
+          `[data-tour="project:${CSS.escape(name)}"]`,
+        )
+      : null;
+  };
+  const press = once(() => {
+    row()?.click();
+    ctx.onStepDone(id);
+  });
+  return {
+    moves: [
+      {
+        offsetMs: 0,
+        travelMs: 1000,
+        target: row,
+        reveal: () => revealRow(ctx.container, row()),
+        act: press.fire,
+      },
+    ],
+    land: press.fire,
+    latch: press.latch,
+    tailMs: () => TAP_TAIL_MS,
+  };
+}
+
 export function tourStepMoves(id: TourStepId, ctx: TourContext): TourStepMoves {
   switch (id) {
     case "addProject":
@@ -240,5 +296,9 @@ export function tourStepMoves(id: TourStepId, ctx: TourContext): TourStepMoves {
       return promptMoves(ctx, id, "claude");
     case "codexPrompt":
       return promptMoves(ctx, id, "codex");
+    case "switchProject":
+      return rowMoves(ctx, id, ctx.callingProject);
+    case "switchBack":
+      return rowMoves(ctx, id, ctx.homeProject);
   }
 }

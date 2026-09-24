@@ -3,6 +3,11 @@ import { SectionHeader } from "@/components/section-header";
 
 export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
+    question: "Do my terminals keep running when I switch projects?",
+    answer:
+      "Yes. Selecting another row swaps the workspace, but a project you have opened stays mounted: its terminals keep running, their scrollback stays, and a half-typed command is still at the prompt when you come back. Services run until you stop the project, and if Claude Code or Codex needs an answer while you are in another project, that project's row turns amber.",
+  },
+  {
     question: "Is the sidebar a project list or a file explorer?",
     answer:
       "A project list. Each row is a project you work on, and selecting it opens that project's terminals, services, and git state. The sidebar itself is only that list: rows do not expand into a file tree and none of them previews a file. Files are one level in: open the project's Files tab (⌘⇧E) for a tree and an editor, or its Changes view (⌘⇧R) for diffs, or send the folder to Finder or your editor with Open with.",
@@ -25,12 +30,12 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "What do the dots and colours in the sidebar mean?",
     answer:
-      "Each project has one dot: filled green when something is running, hollow when nothing is, and red when that project's config has an error, with a spinner while it starts or stops. There are no per-service dots or ports in the sidebar; for that you open the project. Separately, Claude Code and Codex report their state into the row itself: the name shimmers while an agent works, turns amber when it needs an answer, turns red and reads Problem on an error, and turns blue when it is done. Each agent also gets its own row underneath with a bell, alert, or check and its elapsed time.",
+      "Each project has one dot: filled green when something is running, hollow when nothing is, and red when that project's config has an error. While lpm is making copies or worktrees of a project, or removing it, a spinner takes the dot's place. There are no per-service dots or ports in the sidebar; for that you open the project. Separately, Claude Code and Codex report their state into the row itself: the name shimmers while an agent works, turns amber when it needs an answer, turns red and reads Problem on an error, and turns blue when it is done. Each agent also gets its own row underneath with a bell, alert, or check and its elapsed time.",
   },
   {
     question: "Do SSH projects and paired Macs appear in the sidebar?",
     answer:
-      "Yes, in two different ways. An SSH project sits in the same project list as your local ones, with no separate SSH badge on the row. A Mac or host you have paired gets its own section beneath your local projects, headed by that machine's name, and its rows open the same project view.",
+      "Yes, in two different ways. An SSH project sits in the same project list as your local ones, with no separate SSH badge on the row. A Mac or Linux host you have paired gets its own section, headed by that machine's name. It starts at the bottom of the list and you can drag it anywhere, above your local projects too; its rows open the same project view.",
   },
   {
     question: "Is there a search box or a command palette for the sidebar?",
@@ -40,7 +45,7 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Can I mark a project as blocked or done?",
     answer:
-      "Yes. Right-click a project or copy to give it a work status: ⏳ In progress, ⛔ Blocked with a reason, ✅ Done, or one you define with your own emoji and label. The mark sits beside the name with an optional note line, and a collapsed folder or stack of copies counts them in its summary.",
+      "Yes. Right-click a project or copy and open Status to give it a work status: ⏳ In progress, 👀 Review, 🚀 Ready, ✅ Done, ⛔ Blocked with a reason, ⏰ Waiting, ❓ Needs decision, ⏸️ Paused, or one you define with your own emoji and label. The mark sits beside the name with an optional note line, and a collapsed folder or stack of copies counts them in its summary.",
   },
   {
     question: "What else can I do from a sidebar row?",

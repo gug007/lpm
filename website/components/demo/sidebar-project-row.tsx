@@ -83,6 +83,7 @@ export function SidebarProjectRow({
             setMenu({ x: event.clientX, y: event.clientY });
           }}
           aria-current={selected ? "true" : undefined}
+          data-tour={`project:${project.name}`}
           aria-label={`${label}${running ? ", running" : ""}${
             aiStatus ? `, agent ${AI_LABEL[aiStatus]}` : ""
           }`}

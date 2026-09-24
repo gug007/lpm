@@ -19,7 +19,7 @@ const EXTRAS: { icon: LucideIcon; title: string; body: React.ReactNode }[] = [
   {
     icon: Keyboard,
     title: "Switch without the mouse",
-    body: "⌘1–⌘9 jump to the first nine rows, Ctrl+Tab flips between the projects you used last, and ⌘B hides the sidebar.",
+    body: "⌘1–⌘9 jump to the first nine projects in sidebar order, Ctrl+Tab flips between the projects you used last, and ⌘B hides the sidebar.",
   },
   {
     icon: MousePointerClick,

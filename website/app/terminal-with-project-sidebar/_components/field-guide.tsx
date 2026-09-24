@@ -15,22 +15,22 @@ const ENTRIES: { n: number; term: string; body: string }[] = [
   {
     n: 3,
     term: "Running state",
-    body: "Filled green means something is running, hollow means nothing is, and red means that project's config has an error; hover the row and the tooltip names the problem. A spinner takes the dot's place while a project starts or stops. Per-service detail and ports stay inside the project, not in the row.",
+    body: "Filled green means something is running, hollow means nothing is, and red means that project's config has an error; hover the row and the tooltip names the problem. A spinner takes the dot's place while lpm is making copies or worktrees of a project, or removing it. Per-service detail and ports stay inside the project, not in the row.",
   },
   {
     n: 4,
     term: "Agent attention",
-    body: "Claude Code and Codex report back into the row: the name shimmers while an agent works, turns amber when it needs an answer, turns red and reads “Problem” on an error, and turns blue when it finishes. Underneath, each agent gets its own row with a bell, alert, or check and how long it has been going; click one to jump to its tab. Other agents run fine in a terminal but do not light up the row.",
+    body: "Claude Code and Codex report back into the row: the name shimmers while an agent works, turns amber when it needs an answer, turns red and reads “Problem” on an error, and turns blue when it finishes. Underneath, each agent gets its own row with a bell, alert, or check and how long it has been going; click one to jump to its tab. Other agents run fine in a terminal too; their rows light up only if a hook or script reports through lpm set-status.",
   },
   {
     n: 5,
     term: "Your own status marks",
-    body: "Tag a project or copy ⏳ In progress, ⛔ Blocked, ✅ Done, or a status you define with your own emoji and label. The mark sits beside the name, with an optional note line under it, so a stack of copies reads like a to-do list.",
+    body: "Tag a project or copy ⏳ In progress, ⛔ Blocked, ✅ Done, one of the ready-made marks like 👀 Review or ⏸️ Paused, or a status you define with your own emoji and label. The mark sits beside the name, with an optional note line under it, so a stack of copies reads like a to-do list.",
   },
   {
     n: 6,
     term: "Paired Macs and hosts",
-    body: "A Mac you have paired appears as its own section under your local projects, headed by that machine's name. Its rows open the same project view your local rows do.",
+    body: "A Mac or Linux host you have paired appears as its own section, headed by that machine's name. A new one lands at the bottom of the list; drag its header to move it above your local projects. Its rows open the same project view your local rows do.",
   },
   {
     n: 7,

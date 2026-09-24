@@ -1,18 +1,18 @@
-import { Building2, Server, Undo2 } from "lucide-react";
+import { Building2, GitBranch, Server } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 
 const SITUATIONS = [
   {
-    icon: Undo2,
-    title: "Coming back from an interruption",
-    lead: "A hotfix, a review, a question in Slack.",
-    body: "You leave a project mid-command and return twenty minutes later. Because the project you were on stays mounted while you are away, its terminals are still running, the scrollback is still there, and the command you had half-typed is still at the prompt. What you rebuild is your train of thought, not your workspace.",
+    icon: GitBranch,
+    title: "Several agents on one repo",
+    lead: "Claude Code on a refactor, Codex on the tests, each in its own copy.",
+    body: "Give each task its own copy of the project: Duplicate for a standalone folder, or New Worktree for a linked branch. The copies stack under the original instead of scattering through the list. Each one keeps its own terminals and agents, so moving between tasks is one click on a row, with no cd and no git stash.",
   },
   {
     icon: Building2,
     title: "Keeping clients and side projects apart",
     lead: "Two clients, an internal tool, and the thing you build at night.",
-    body: "Put each context in its own folder so the client work is one collapsible group and everything else stays out of view. Rows keep their order, so the project you reach for lands in the same place tomorrow — and a duplicate you made for a risky refactor sits directly under the project it came from instead of drifting to the bottom of a tab row.",
+    body: "Put each context in its own folder so the client work is one collapsible group and everything else stays out of view. Rows keep their order, so the project you reach for lands in the same place tomorrow.",
   },
   {
     icon: Server,

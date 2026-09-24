@@ -10,9 +10,9 @@ export default function WalkthroughSection() {
     >
       <div className="mx-auto mb-10 max-w-3xl px-6">
         <SectionHeader
-          eyebrow="Interactive product walkthrough"
+          eyebrow="Tabs vs. a project sidebar"
           title={<span id="walkthrough-heading">The interruption test</span>}
-          description="Nine terminal sessions and one interruption, run twice — once as a flat tab row, once with the sessions grouped by project. Nothing is created or closed along the way. You drive every step."
+          description="The tour above shows lpm by itself. This is the comparison: one interruption across nine terminal sessions, first in a flat tab row, then with the same nine grouped by project. Nothing is created or closed along the way. You drive every step."
           className="mb-0"
         />
       </div>

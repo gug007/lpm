@@ -147,6 +147,10 @@ export function Walkthrough() {
   const commitResize = () => track("resize");
 
   const onAuthHotfix = selected === "auth-hotfix";
+  const nextStep =
+    stage === "tabs" && onAuthHotfix
+      ? "Now press Organize by project, below the window."
+      : NEXT_STEP[stage];
 
   const feedback =
     stage === "tabs"
@@ -174,7 +178,7 @@ export function Walkthrough() {
             </code>
             . A ping lands: the auth hotfix needs a look.{" "}
             <strong className="font-semibold text-gray-900 dark:text-gray-100">
-              {NEXT_STEP.tabs}
+              {nextStep}
             </strong>
           </>
         ) : stage === "organized" ? (
@@ -186,8 +190,8 @@ export function Walkthrough() {
           </>
         ) : (
           <>
-            That is the whole model. The sidebar below stays live — keep
-            poking at it.
+            That is the whole model. The projects and terminals below stay live
+            — keep poking at them.
           </>
         )}
       </p>
@@ -269,7 +273,7 @@ export function Walkthrough() {
                         type="button"
                         onClick={showProjectList}
                         data-focus="detail-back"
-                        className="inline-flex items-center gap-1.5 rounded-md border border-[#3a3a3a] px-2 py-1 text-[11px] text-[#d4d4d4] transition-colors hover:bg-[#2a2a2a] focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
+                        className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-[#3a3a3a] px-3 py-1 text-[11px] text-[#d4d4d4] transition-colors hover:bg-[#2a2a2a] focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
                       >
                         <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                         Projects
@@ -297,9 +301,7 @@ export function Walkthrough() {
         className="mx-auto mt-5 max-w-2xl text-center text-sm leading-relaxed text-gray-600 dark:text-gray-400"
       >
         {feedback}
-        {NEXT_STEP[stage] && (
-          <span className="sr-only"> Next: {NEXT_STEP[stage]}</span>
-        )}
+        {nextStep && <span className="sr-only"> Next: {nextStep}</span>}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center justify-center gap-3">

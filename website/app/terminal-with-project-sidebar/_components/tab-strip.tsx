@@ -28,7 +28,7 @@ export function TabStrip({ activeId, onSelect }: Props) {
               data-focus={active ? "active-session" : undefined}
               aria-current={active ? "true" : undefined}
               onClick={() => onSelect(session.id)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-t-md border-x border-t px-3 py-1.5 text-[12px] whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset focus-visible:outline-none ${
+              className={`flex min-h-11 shrink-0 items-center gap-1.5 rounded-t-md border-x border-t px-3 py-1.5 text-[12px] md:min-h-0 whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset focus-visible:outline-none ${
                 active
                   ? "border-[#3a3a3a] bg-[#1e1e1e] text-[#e5e5e5]"
                   : "border-transparent text-[#b3b3b3] hover:bg-[#1b1b1b] hover:text-[#e5e5e5]"

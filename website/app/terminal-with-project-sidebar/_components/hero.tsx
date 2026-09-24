@@ -28,7 +28,7 @@ export default function Hero() {
           href="#walkthrough"
           className="mt-[clamp(1rem,2vh,1.5rem)] inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
         >
-          Try the interactive walkthrough
+          Take the interruption test: tabs vs. sidebar
           <ArrowDown className="h-3.5 w-3.5" aria-hidden />
         </a>
 

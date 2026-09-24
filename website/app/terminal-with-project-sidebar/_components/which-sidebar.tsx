@@ -13,7 +13,7 @@ const ANSWERS: {
     verdict: "yes",
     label: "Yes — this is the model",
     title: "A list of projects",
-    body: "One row per project you work on: the checkout app, a client site, a hotfix copy, a remote box. Selecting a row opens that project — its terminals, its services, its git state. Everything else on this page describes what those rows can tell you.",
+    body: "One row per project you work on: the checkout app, a client site, a hotfix copy, a remote box. Selecting a row opens that project — its terminals, its services, its git state. Everything below describes what those rows can tell you.",
   },
   {
     verdict: "no",
@@ -25,13 +25,13 @@ const ANSWERS: {
     verdict: "no",
     label: "No",
     title: "A vertical strip of shell tabs",
-    body: "Turning a horizontal tab row on its side gives you the same flat list, only taller — twelve sessions are still twelve entries. In lpm a project's terminals live inside that project, so the sidebar length tracks how many projects you have, not how many shells.",
+    body: "Turning a horizontal tab row on its side gives you the same flat list, only taller — the nine sessions in the test above would still be nine entries. In lpm a project's terminals live inside that project, so the sidebar length tracks how many projects you have, not how many shells.",
   },
   {
     verdict: "partly",
     label: "Not the primary model",
     title: "A saved SSH host list",
-    body: "lpm is not an SSH host manager, but SSH projects sit in the same project list as local ones — no separate SSH badge on the row. A paired Mac or host appears as its own section beneath your local projects, headed by that machine's name.",
+    body: "lpm is not an SSH host manager, but SSH projects sit in the same project list as local ones — no separate SSH badge on the row. A paired Mac or host appears as its own section, headed by that machine's name, which you can drag anywhere in the list.",
   },
 ];
 
@@ -61,7 +61,7 @@ export default function WhichSidebar() {
     <section className="py-20 sm:py-24">
       <div className="mx-auto max-w-5xl px-6">
         <SectionHeader
-          eyebrow="Disambiguation"
+          eyebrow="What it is — and isn't"
           title="Which sidebar are you looking for?"
           description="“Terminal with sidebar” means several different things. If you came looking for an editor's slide-out terminal drawer, that is a different category — lpm is a standalone terminal app, not a panel inside one. Here is what its sidebar is and is not."
           className="mb-12"

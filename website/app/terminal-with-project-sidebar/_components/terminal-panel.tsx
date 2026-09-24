@@ -34,7 +34,7 @@ export function TerminalPanel({
                 type="button"
                 aria-current={active ? "true" : undefined}
                 onClick={() => onSelectSession?.(sibling.id)}
-                className={`shrink-0 rounded-t-md border-x border-t px-3 py-1.5 text-[12px] whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset focus-visible:outline-none ${
+                className={`min-h-11 shrink-0 rounded-t-md border-x border-t px-3 py-1.5 text-[12px] md:min-h-0 whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-inset focus-visible:outline-none ${
                   active
                     ? "border-[#3a3a3a] bg-[#181818] text-[#e5e5e5]"
                     : "border-transparent text-[#b3b3b3] hover:bg-[#1b1b1b] hover:text-[#e5e5e5]"

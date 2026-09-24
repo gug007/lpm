@@ -4,7 +4,9 @@ export type TourStepId =
   | "agent"
   | "prompt"
   | "codex"
-  | "codexPrompt";
+  | "codexPrompt"
+  | "switchProject"
+  | "switchBack";
 
 // What the pill in the frame's corner says: one line for a narrow stage, one
 // for the rest.
@@ -80,6 +82,20 @@ export const TOUR_STEP_CATALOG: Record<TourStepId, TourStepSpec> = {
     body: "Codex takes a task of its own and starts on it. Two agents working the project at once.",
     leadMs: 1800,
   },
+  switchProject: {
+    title: "Switch to the row that needs you",
+    body: "An amber name means an agent there is stuck on a question. Click the row and that project's whole workspace takes the window.",
+    leadMs: 8800,
+  },
+  switchBack: {
+    title: "Come back to where you were",
+    body: "Click the first row again. Its services never stopped, and Claude Code kept going while you were away.",
+    leadMs: 5200,
+    hint: {
+      short: "Nothing restarted — click any row",
+      long: "Back where you left it — nothing restarted. Click any row.",
+    },
+  },
 };
 
 export type TourStepInput =
@@ -124,6 +140,16 @@ export const ADD_PROJECT_TOUR = defineTour(["addProject", "agent", "prompt"], {
 
 // Boot a project and run Claude Code in it.
 export const AGENT_TOUR = defineTour(["start", "agent", "prompt"]);
+
+// Put an agent to work, answer another project's call from the sidebar, then
+// come back to the first one still running.
+export const SIDEBAR_TOUR = defineTour([
+  "start",
+  "agent",
+  "prompt",
+  "switchProject",
+  "switchBack",
+]);
 
 // Nothing plays: the frame opens on an empty workspace and waits for the
 // visitor to add the first project.

@@ -127,6 +127,9 @@ const RING_LEAD_MS = 1700;
 // about to type: this long after the click, and this far.
 const ASIDE_DELAY_MS = 350;
 const ASIDE_OFFSET = { x: 44, y: 16 };
+// How long a step clicked in the list that leaves a project and comes straight
+// back shows the one it left for.
+const SWITCH_GLIMPSE_MS = 1600;
 
 // What a branch is ahead/behind its upstream by. git keeps this per branch, so
 // the demo has to park it when a checkout leaves the branch.
@@ -154,6 +157,21 @@ function seededAiStatus(projects: DemoProject[]): Record<string, AiStatus> {
     if (seeded) status[project.name] = seeded;
   }
   return status;
+}
+
+// The row the sidebar tour leaves for: one asking for the visitor if any is,
+// else one with an agent to show, else simply the next project down.
+function callingProjectOf(
+  projects: DemoProject[],
+  status: Record<string, AiStatus>,
+  home: string,
+): string | undefined {
+  const others = projects.filter((p) => p.name !== home);
+  const pick =
+    others.find((p) => status[p.name] === "waiting") ??
+    others.find((p) => status[p.name]) ??
+    others[0];
+  return pick?.name;
 }
 
 export function DemoApp({
@@ -233,6 +251,14 @@ export function DemoApp({
   // after the effect that owns it last re-ran.
   const servicesRunningRef = useRef(false);
   const tourPromptsRef = useRef(tourPromptsFor(undefined));
+  // The project the frame opens on, which the sidebar tour leaves and comes
+  // back to, and the row it leaves for.
+  const tourHomeRef = useRef(seedProjects[0]?.name ?? "");
+  const callingProjectRef = useRef<string | undefined>(undefined);
+  const selectedRef = useRef(selected);
+  // The return a step clicked in the list has scheduled, dropped the moment
+  // the visitor does anything else.
+  const glimpseTimerRef = useRef<number | null>(null);
   // Stamped once when the demo mounts, so the seeded sessions all date from
   // the same moment rather than drifting apart as the tree re-renders.
   const [mountedAt] = useState(() => Date.now());
@@ -256,17 +282,32 @@ export function DemoApp({
     tourConfigRef.current = tour;
   });
 
+  const cancelGlimpse = () => {
+    if (glimpseTimerRef.current !== null)
+      window.clearTimeout(glimpseTimerRef.current);
+    glimpseTimerRef.current = null;
+  };
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      cancelGlimpse();
     };
   }, []);
 
   const markInteracted = () => {
     setAutoCursor({ phase: "hidden" });
     setHintVisible(false);
+    cancelGlimpse();
   };
+
+  // The home row can be removed like any other; the first row left takes its
+  // place, so the tour always has somewhere to come back to.
+  useEffect(() => {
+    if (!projects.some((p) => p.name === tourHomeRef.current))
+      tourHomeRef.current = projects[0]?.name ?? "";
+  }, [projects]);
 
   useEffect(() => {
     servicesRunningRef.current = (runningByProject[selected]?.size ?? 0) > 0;
@@ -288,6 +329,8 @@ export function DemoApp({
       prompt: false,
       codex: false,
       codexPrompt: false,
+      switchProject: false,
+      switchBack: false,
     };
     for (const p of projects) {
       const terminals = actionTerminalsByProject[p.name] ?? EMPTY_ACTIONS;
@@ -309,6 +352,9 @@ export function DemoApp({
       done.codex ||= open.size > 1;
       done.codexPrompt ||= asked.size > 1;
     }
+    const away = [...visited].some((name) => name !== tourHomeRef.current);
+    done.switchProject = away;
+    done.switchBack = away && selected === tourHomeRef.current;
     const pending = tour.steps.findIndex((s) => !done[s.id]);
     const reached = pending === -1 ? tour.steps.length : pending;
     setTourStage((cur) => Math.max(cur, reached));
@@ -319,7 +365,13 @@ export function DemoApp({
     treeByProject,
     actionTerminalsByProject,
     agentTabStatusByProject,
+    visited,
+    selected,
   ]);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   // What the tour types, read at the beat rather than when its effect armed —
   // the visitor may have selected another project in the meantime.
@@ -390,6 +442,8 @@ export function DemoApp({
       addProject: (folder) => {
         addProjectNowRef.current?.(folder);
       },
+      homeProject: () => tourHomeRef.current,
+      callingProject: () => callingProjectRef.current,
       onWait: (cancel) => driveWaits.push(cancel),
       onStepDone: (id) => {
         const text = steps.find((s) => s.id === id)?.hint;
@@ -673,6 +727,14 @@ export function DemoApp({
       hasAgentError: Object.values(out).includes("error"),
     };
   }, [projects, agentTabStatusByProject, aiStatusByProject]);
+
+  useEffect(() => {
+    callingProjectRef.current = callingProjectOf(
+      projects,
+      sidebarStatus,
+      tourHomeRef.current,
+    );
+  }, [projects, sidebarStatus]);
 
   // The real sidebar lists every project's agents, not just the open one's —
   // that overview is the point of it. A project this visit has never opened has
@@ -1087,16 +1149,33 @@ export function DemoApp({
       };
       // The chip above may have opened the tab in this same click, so the
       // prompt waits for the session rather than for the next render.
-      const promptTab = (agent: "claude" | "codex") => {
+      const promptTab = (agent: "claude" | "codex", instant = false) => {
         const text =
           target.actions.find((a) => a.agent === agent)?.autoPrompt ??
           TOUR_FALLBACK_PROMPT;
         withAgentDrive(agentDriveKey(target.name, agent), (drive) => {
-          if (drive.idle()) drive.send(text);
+          if (drive.idle()) drive.send(text, instant ? { instant } : undefined);
         });
       };
       const upTo = tour.steps.findIndex((s) => s.id === id);
-      for (const step of tour.steps.slice(0, upTo + 1)) {
+      const switchAt = tour.steps.findIndex((s) => s.id === "switchProject");
+      const leaving = switchAt !== -1 && upTo >= switchAt;
+      // A visitor who has already been away only needs bringing back.
+      const from = leaving && tourStage > switchAt ? switchAt + 1 : 0;
+      // Everything before the switch happens in the project the tour opened on,
+      // rendered before the clicks so they land on its controls.
+      const home = projects.find((p) => p.name === tourHomeRef.current);
+      if (
+        leaving &&
+        from === 0 &&
+        home &&
+        (home.name !== target.name || view !== "project")
+      ) {
+        flushSync(() => selectProject(home.name));
+        target = home;
+      }
+      let leftThisRun: string | undefined;
+      for (const step of tour.steps.slice(from, upTo + 1)) {
         switch (step.id) {
           case "addProject":
             if (!addedProjectRef.current)
@@ -1110,7 +1189,9 @@ export function DemoApp({
             if (!hasTab("claude")) agentButtonRef.current?.click();
             break;
           case "prompt":
-            promptTab("claude");
+            // A run that leaves the project straight after sends at once, so
+            // the agent is already at work when the visitor comes back to it.
+            promptTab("claude", leaving);
             break;
           case "codex":
             if (!hasTab("codex")) codexButtonRef.current?.click();
@@ -1118,6 +1199,23 @@ export function DemoApp({
           case "codexPrompt":
             promptTab("codex");
             break;
+          case "switchProject":
+            leftThisRun = callingProjectRef.current;
+            if (leftThisRun) selectProject(leftThisRun);
+            break;
+          case "switchBack": {
+            if (!home) break;
+            // Left in this same click: long enough on the other project to
+            // see it, and not if the visitor has moved on by then.
+            const away = leftThisRun;
+            if (!away) selectProject(home.name);
+            else
+              glimpseTimerRef.current = window.setTimeout(() => {
+                glimpseTimerRef.current = null;
+                if (selectedRef.current === away) selectProject(home.name);
+              }, SWITCH_GLIMPSE_MS);
+            break;
+          }
         }
       }
     },

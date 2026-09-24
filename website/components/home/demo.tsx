@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useInView } from "@/components/config/playground/hooks";
 import {
   HOME_TOUR,
@@ -56,7 +56,7 @@ function DemoPlaceholder() {
           <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
           <span className="h-3 w-3 rounded-full bg-[#28c840]" />
         </div>
-        <div className="px-4 pb-2 text-xs font-medium uppercase tracking-wider text-[#5c5c5c]">
+        <div className="px-4 pb-2 text-xs font-medium uppercase tracking-wider text-[#919191]">
           Projects
         </div>
         <div className="flex flex-col gap-1 px-2">
@@ -86,7 +86,7 @@ function DemoPlaceholder() {
           </div>
         </div>
         <div className="flex flex-1 items-center justify-center border-t border-[#2e2e2e]">
-          <span className="text-[13px] text-[#5c5c5c]">Loading demo…</span>
+          <span className="text-[13px] text-[#919191]">Loading demo…</span>
         </div>
       </div>
     </div>
@@ -226,7 +226,28 @@ function DemoStage({
   );
 }
 
-function DemoCaption() {
+// What the section says above the frame. `short` stands in for `long` below
+// md, where the live demo gives way to a video.
+export type DemoCaptionCopy = {
+  title: string;
+  short: string;
+  long: string;
+};
+
+const HOME_CAPTION: DemoCaptionCopy = {
+  title:
+    "Start a project, then hand it to Claude Code or Codex — one click each",
+  short: "A one-minute tour: start a project and hand it to Claude Code.",
+  long: "Click anything — it runs live in your browser.",
+};
+
+function DemoCaption({
+  copy,
+  headingId,
+}: {
+  copy: DemoCaptionCopy;
+  headingId: string;
+}) {
   return (
     <div className="mb-4 flex flex-col items-center gap-2 text-center lg:mb-5 lg:flex-row lg:items-end lg:justify-between lg:gap-6 lg:text-left">
       <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 lg:justify-start">
@@ -241,18 +262,16 @@ function DemoCaption() {
           <span className="md:hidden">See it in action</span>
           <span className="hidden md:inline">Live interactive demo</span>
         </span>
-        <h2 className="text-balance text-lg font-bold tracking-tight sm:text-xl">
-          Start a project, then hand it to Claude Code or Codex — one click
-          each
+        <h2
+          id={headingId}
+          className="text-balance text-lg font-bold tracking-tight sm:text-xl"
+        >
+          {copy.title}
         </h2>
       </div>
       <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 lg:max-w-none lg:whitespace-nowrap lg:text-right dark:text-gray-400">
-        <span className="md:hidden">
-          A one-minute tour: start a project and hand it to Claude Code.
-        </span>
-        <span className="hidden md:inline">
-          Click anything — it runs live in your browser.
-        </span>
+        <span className="md:hidden">{copy.short}</span>
+        <span className="hidden md:inline">{copy.long}</span>
       </p>
     </div>
   );
@@ -263,19 +282,22 @@ function DemoCaption() {
 // sits in the first screen should set posterPriority.
 export function DemoSection({
   tour = HOME_TOUR,
+  caption = HOME_CAPTION,
   posterPriority = false,
 }: {
   tour?: Tour;
+  caption?: DemoCaptionCopy;
   posterPriority?: boolean;
 }) {
+  const headingId = useId();
   return (
     <section
       id="demo"
-      aria-label="Live interactive demo"
+      aria-labelledby={headingId}
       className="scroll-mt-20 pb-16 sm:pb-20"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:max-w-7xl">
-        <DemoCaption />
+        <DemoCaption copy={caption} headingId={headingId} />
         <div data-nosnippet>
           <DemoStage tour={tour} posterPriority={posterPriority} />
         </div>

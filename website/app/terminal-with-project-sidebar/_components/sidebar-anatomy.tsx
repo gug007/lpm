@@ -26,7 +26,7 @@ const ROWS: Row[] = [
 
 const TONES = {
   muted: "text-[#8f8f8f]",
-  amber: "text-[#f59e0b]",
+  amber: "sidebar-waiting",
   shimmer: "sidebar-shimmer",
 };
 
@@ -66,16 +66,6 @@ export function SidebarAnatomy() {
               >
                 {row.name}
               </span>
-              {row.state === "error" && (
-                <span className="shrink-0 text-[9px] tracking-wide text-[#f87171] uppercase">
-                  config error
-                </span>
-              )}
-              {row.tone === "amber" && (
-                <span className="shrink-0 text-[9px] tracking-wide text-[#f59e0b] uppercase">
-                  needs you
-                </span>
-              )}
             </div>
           ))}
 
@@ -110,7 +100,7 @@ export function SidebarAnatomy() {
             aria-hidden
             className="inline-block h-2 w-2 rounded-full bg-red-600 dark:bg-[#ef4444]"
           />
-          Red dot, labelled in the row — config error
+          Red dot, muted name — config error (hover for the reason)
         </li>
       </ul>
     </div>

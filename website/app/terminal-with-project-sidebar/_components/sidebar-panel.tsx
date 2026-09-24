@@ -50,7 +50,7 @@ export function SidebarPanel({
           type="button"
           onClick={onToggleFolder}
           aria-expanded={folderOpen}
-          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12px] text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
+          className="flex min-h-11 w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-[12px] md:min-h-0 text-[#b3b3b3] transition-colors hover:bg-[#2a2a2a] hover:text-[#e5e5e5] focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
         >
           <ChevronRight
             className={`h-3.5 w-3.5 shrink-0 text-[#8f8f8f] transition-transform ${
@@ -113,7 +113,7 @@ function ProjectRow({
       aria-label={`${project.name}, ${
         project.run === "running" ? "running" : "stopped"
       }${needsYou ? ", agent needs you" : ""}`}
-      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none ${
+      className={`flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors md:min-h-0 focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none ${
         selected
           ? "bg-[#333333] text-[#e5e5e5]"
           : "text-[#b3b3b3] hover:bg-[#2a2a2a] hover:text-[#e5e5e5]"
@@ -128,18 +128,10 @@ function ProjectRow({
         }`}
       />
       <span
-        className={`min-w-0 flex-1 truncate ${needsYou ? "text-[#f59e0b]" : ""}`}
+        className={`min-w-0 flex-1 truncate ${needsYou ? "sidebar-waiting" : ""}`}
       >
         {project.name}
       </span>
-      {needsYou && (
-        <span
-          aria-hidden
-          className="shrink-0 text-[9px] tracking-wide text-[#f59e0b] uppercase"
-        >
-          needs you
-        </span>
-      )}
     </button>
   );
 }
