@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { GitCommit, GitPush } from "../bridge/commands";
+import { GitCommit, GitPushRebasing } from "../bridge/commands";
 import { getSettings } from "./store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "./gitOptions";
 
@@ -15,16 +15,18 @@ export async function runAutoCommit(opts: {
     const msg = (await generate())?.trim();
     if (!msg) throw new Error("empty commit message");
     await GitCommit(projectPath, msg, paths);
-    if (andPush) {
-      const cfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
-      await GitPush(projectPath, pushFlags(cfg));
-    }
+    if (!andPush) return false;
+    const cfg = getSettings().gitPush ?? DEFAULT_PUSH_CONFIG;
+    return (await GitPushRebasing(projectPath, pushFlags(cfg))) as boolean;
   })();
   toast.promise(op, {
     loading: `${projectName}: generating commit message…`,
-    success: andPush
-      ? `${projectName}: committed and pushed`
-      : `${projectName}: committed`,
+    success: (rebased) =>
+      !andPush
+        ? `${projectName}: committed`
+        : rebased
+          ? `${projectName}: committed, rebased onto new remote commits, and pushed`
+          : `${projectName}: committed and pushed`,
     error: (err) =>
       `${projectName}: auto ${andPush ? "commit & push" : "commit"} failed: ${err}`,
   });

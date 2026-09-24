@@ -128,6 +128,7 @@ macro_rules! all_command_handlers {
             git_merge_conflicts,
             git_prune_remotes,
             git_push,
+            git_push_rebasing,
             git_status,
             import_config,
             install_kokoro,

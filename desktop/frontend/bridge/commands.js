@@ -310,6 +310,9 @@ export function GitPruneRemotes(cwd) {
 export function GitPush(cwd, flags) {
   return invoke("git_push", { cwd, flags });
 }
+export function GitPushRebasing(cwd, flags) {
+  return invoke("git_push_rebasing", { cwd, flags });
+}
 export function GitStatus(cwd) {
   return invoke("git_status", { cwd });
 }
