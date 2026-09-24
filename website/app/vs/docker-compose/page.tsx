@@ -29,6 +29,7 @@ import {
 import { ComposeMap } from "./_components/compose-map";
 import { ComposeMatrix } from "./_components/compose-matrix";
 import { SplitStack } from "./_components/split-stack";
+import { COMPOSE_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("docker-compose");
 
@@ -330,7 +331,7 @@ export default function LpmVsDockerComposePage() {
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...COMPOSE_DEMO} />
 
       <Faq
         title="Switching from — or alongside — Docker Compose"

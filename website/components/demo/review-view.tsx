@@ -167,7 +167,7 @@ export function ReviewView({
     <div className="flex min-h-0 flex-1 flex-col bg-[#1a1a1a]">
       {header}
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-64 shrink-0 flex-col border-r border-[#2e2e2e]">
+        <div className="flex w-64 min-w-0 max-w-[40%] shrink-0 flex-col border-r border-[#2e2e2e]">
           <div className="flex h-9 shrink-0 items-center justify-between px-3">
             <span className="text-[11px] font-medium text-[#b3b3b3]">
               Changes

@@ -30,6 +30,7 @@ import { Pm2Basis } from "./_components/pm2-basis";
 import { Pm2Matrix } from "./_components/pm2-matrix";
 import { SurvivesQuit } from "./_components/survives-quit";
 import { VerbMap } from "./_components/verb-map";
+import { PM2_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("pm2");
 const TMUX_PATH = vsPath("tmux");
@@ -277,7 +278,7 @@ export default function LpmVsPm2Page() {
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...PM2_DEMO} />
 
       <Faq title="Keeping PM2, or moving off it" items={FAQ_ITEMS} />
 

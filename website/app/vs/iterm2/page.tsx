@@ -30,6 +30,7 @@ import {
 import { EmulatorShelf } from "./_components/emulator-shelf";
 import { KeepGiveUp } from "./_components/keep-give-up";
 import { Matrix } from "./_components/matrix";
+import { ITERM2_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("iterm2");
 
@@ -325,7 +326,7 @@ export default function LpmVsIterm2Page() {
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...ITERM2_DEMO} />
 
       <Faq title="lpm vs iTerm2 — the honest FAQ" items={FAQ_ITEMS} />
 

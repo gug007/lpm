@@ -20,6 +20,7 @@ import Hero from "./_components/hero";
 import Problem from "./_components/problem";
 import ReviewCommit from "./_components/review-commit";
 import Workflows from "./_components/workflows";
+import { GIT_DEMO } from "./_components/demo-tour";
 
 const TITLE = "Git Terminal for Mac with Built-In Diff Review";
 const DESCRIPTION =
@@ -79,7 +80,7 @@ export default function GitTerminalForMacPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection />
+      <DemoSection {...GIT_DEMO} />
       <Problem />
       <Features />
       <ReviewCommit />

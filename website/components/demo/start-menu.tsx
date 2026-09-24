@@ -40,6 +40,7 @@ export function StartMenu({
                   key={p.name}
                   type="button"
                   role="menuitem"
+                  data-tour={`profile:${p.name}`}
                   onClick={() => onPickProfile(p.name)}
                   className={`flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-[#2a2a2a] focus-visible:bg-[#2a2a2a] ${ITEM_FOCUS} ${
                     active ? "text-[#e5e5e5]" : "text-[#b3b3b3]"
@@ -72,6 +73,7 @@ export function StartMenu({
                 key={s.name}
                 type="button"
                 role="menuitemcheckbox"
+                data-tour={`service:${s.name}`}
                 aria-checked={running}
                 onClick={() => onToggleService(s.name)}
                 className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] transition-colors hover:bg-[#2a2a2a] focus-visible:bg-[#2a2a2a] ${ITEM_FOCUS} ${

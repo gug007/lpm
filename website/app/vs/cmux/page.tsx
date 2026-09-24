@@ -29,6 +29,7 @@ import {
 import FanOut from "./_components/fan-out";
 import Matrix from "./_components/matrix";
 import Migrate from "./_components/migrate";
+import { CMUX_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("cmux");
 
@@ -247,7 +248,7 @@ lpm status --json`}
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...CMUX_DEMO} />
 
       <Faq title="Questions about cmux and lpm" items={FAQ_ITEMS} />
 

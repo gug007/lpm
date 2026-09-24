@@ -77,6 +77,44 @@ const BY_FOLDER: Record<string, DemoService[]> = {
       ],
     },
   ],
+  // A Rails app's Procfile.dev, read once as the folder is added: one service
+  // per line, and the -p on web kept as the port it watches.
+  bookshelf: [
+    {
+      name: "web",
+      cmd: "bin/rails server -p 3000",
+      port: 3000,
+      output: [
+        run("bin/rails server -p 3000"),
+        { text: "=> Booting Puma", color: "muted", delay: 400 },
+        { text: "=> Rails 8.0.2 application starting in development", color: "muted", delay: 650 },
+        { text: "* Listening on http://127.0.0.1:3000", color: "cyan", delay: 1100 },
+        { text: "Use Ctrl-C to stop", color: "muted", delay: 1150 },
+      ],
+      loop: {
+        line: { text: 'Started GET "/books" for 127.0.0.1', color: "muted", delay: 0 },
+        intervalMs: 4200,
+      },
+    },
+    {
+      name: "css",
+      cmd: "bin/rails tailwindcss:watch",
+      output: [
+        run("bin/rails tailwindcss:watch"),
+        { text: "≈ tailwindcss v4.1.4", color: "muted", delay: 500 },
+        { text: "Done in 142ms", color: "cyan", delay: 800 },
+      ],
+    },
+    {
+      name: "worker",
+      cmd: "bundle exec sidekiq",
+      output: [
+        run("bundle exec sidekiq"),
+        { text: "Booting Sidekiq 7.3.9 with Sidekiq::RedisConnection::RedisAdapter", color: "muted", delay: 600 },
+        { text: "Starting processing, hit Ctrl-C to stop", color: "cyan", delay: 1000 },
+      ],
+    },
+  ],
   "mobile-app": [
     {
       name: "app",

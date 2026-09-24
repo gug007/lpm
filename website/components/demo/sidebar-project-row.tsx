@@ -77,13 +77,13 @@ export function SidebarProjectRow({
       <div className="group relative">
         <button
           type="button"
+          data-tour={`project:${project.name}`}
           onClick={onSelect}
           onContextMenu={(event) => {
             event.preventDefault();
             setMenu({ x: event.clientX, y: event.clientY });
           }}
           aria-current={selected ? "true" : undefined}
-          data-tour={`project:${project.name}`}
           aria-label={`${label}${running ? ", running" : ""}${
             aiStatus ? `, agent ${AI_LABEL[aiStatus]}` : ""
           }`}
@@ -159,6 +159,7 @@ export function SidebarProjectRow({
       </div>
       {isExpanded && (
         <SidebarAgentRows
+          project={project.name}
           agents={agents}
           activeKeys={activeAgentKeys}
           onOpen={onOpenAgent}

@@ -29,6 +29,7 @@ import {
   screenRecordingJsonLd,
   webPageJsonLd,
 } from "@/lib/structured-data";
+import { OVERMIND_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("overmind");
 const TITLE = "Overmind Alternative for Mac: Procfile in a GUI";
@@ -283,7 +284,7 @@ export default function OvermindVsPage() {
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...OVERMIND_DEMO} />
 
       <Faq title="Switching from Overmind" items={FAQS} />
 

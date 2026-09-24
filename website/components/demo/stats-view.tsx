@@ -23,9 +23,10 @@ const PERIODS: { days: StatsPeriod; label: string }[] = [
 const CLAUDE_COLOR = "#D97757";
 const CODEX_COLOR = "#10A37F";
 
-export function StatsView() {
+// `omit` names projects the frame does not list, which have no usage to show.
+export function StatsView({ omit = [] }: { omit?: readonly string[] }) {
   const [days, setDays] = useState<StatsPeriod>(30);
-  const stats = statsForPeriod(days);
+  const stats = statsForPeriod(days, omit);
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-[#1a1a1a]">
@@ -144,7 +145,9 @@ export function StatsView() {
             ))}
           </Panel>
           <Panel title="Recent sessions">
-            {RECENT_SESSIONS.map((session, index) => (
+            {RECENT_SESSIONS.filter(
+              (session) => !omit.includes(session.project),
+            ).map((session, index) => (
               <div
                 key={index}
                 className="flex items-baseline gap-2 border-b border-[#2e2e2e] py-2 text-xs last:border-b-0"

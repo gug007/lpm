@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { SIDEBAR_TOUR } from "@/components/demo/tour";
 import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
@@ -18,6 +17,7 @@ import {
   webPageJsonLd,
 } from "@/lib/structured-data";
 import Cta from "./_components/cta";
+import { SIDEBAR_DEMO } from "./_components/demo-tour";
 import Faq, { FAQ_ITEMS } from "./_components/faq";
 import FieldGuide from "./_components/field-guide";
 import Hero from "./_components/hero";
@@ -88,16 +88,7 @@ export default function TerminalWithProjectSidebarPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection
-        tour={SIDEBAR_TOUR}
-        caption={{
-          title:
-            "Every project is a row — click one and its whole workspace swaps in",
-          short:
-            "A one-minute video tour. The interruption test below is hands-on at any screen size.",
-          long: "Click any row — it runs live in your browser.",
-        }}
-      />
+      <DemoSection {...SIDEBAR_DEMO} />
       <WalkthroughSection />
       <WhichSidebar />
       <FieldGuide />

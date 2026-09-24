@@ -75,6 +75,7 @@ export function PaneMenuButton({
                   icon={PANE_ACTION_META[id].icon}
                   label={PANE_ACTION_META[id].label}
                   hint={PANE_ACTION_META[id].shortcut}
+                  tourTarget={`pane-action:${id}`}
                   onClick={pick(() => onRun(id))}
                   trailingAction={{
                     label: "Show as a button",

@@ -77,7 +77,14 @@ export type StatsSlice = {
 
 const COST_PER_MTOK = 1.15;
 
-export function statsForPeriod(days: StatsPeriod): StatsSlice {
+// `omit` leaves out projects the frame does not list, sharing their part of the
+// total among the rest.
+export function statsForPeriod(
+  days: StatsPeriod,
+  omit: readonly string[] = [],
+): StatsSlice {
+  const shares = PROJECT_SHARES.filter((entry) => !omit.includes(entry.name));
+  const shareTotal = shares.reduce((sum, entry) => sum + entry.share, 0);
   const window = days === 0 ? DAILY : DAILY.slice(-days);
   const scale = days === 0 ? ALL_TIME_FACTOR : 1;
   const claude = Math.round(window.reduce((sum, day) => sum + day.claude, 0) * scale);
@@ -98,9 +105,9 @@ export function statsForPeriod(days: StatsPeriod): StatsSlice {
     cacheShare: 0.71,
     reasoningShare: 0.34,
     sessions: Math.max(1, Math.round((total / MILLION) * 0.42)),
-    projects: PROJECT_SHARES.map((entry) => ({
+    projects: shares.map((entry) => ({
       name: entry.name,
-      tokens: Math.round(total * entry.share),
+      tokens: Math.round((total * entry.share) / shareTotal),
     })),
     models: MODEL_SHARES.map((entry) => ({
       name: entry.name,

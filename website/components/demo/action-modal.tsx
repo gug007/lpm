@@ -15,9 +15,16 @@ type Phase = "idle" | "running" | "result";
 
 export function DemoActionModal({
   action,
+  takeFocus,
+  onRun,
   onClose,
 }: {
   action: DemoAction;
+  // Whether a visitor opened it, and so wants the keyboard in it. The tour's
+  // clicks leave the page's focus where it was.
+  takeFocus: boolean;
+  // A confirmed action runs once its Run is pressed.
+  onRun?: () => void;
   onClose: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>(action.confirm ? "idle" : "running");
@@ -26,6 +33,11 @@ export function DemoActionModal({
   const returnFocusRef = useRef<Element | null>(null);
 
   const durationMs = action.durationMs ?? 1000;
+
+  const run = () => {
+    setPhase("running");
+    onRun?.();
+  };
 
   useEffect(() => {
     if (phase !== "running") return;
@@ -37,17 +49,24 @@ export function DemoActionModal({
     returnFocusRef.current = document.activeElement;
     return () => {
       const trigger = returnFocusRef.current;
-      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+      if (trigger instanceof HTMLElement && trigger.isConnected)
+        trigger.focus({ preventScroll: true });
     };
   }, []);
 
   // While the action runs there is no enabled button to hold focus, so the
   // dialog itself takes it rather than letting it fall back to <body>.
   useEffect(() => {
+    const inFrame = !!dialogRef.current
+      ?.closest(".replica-ui")
+      ?.contains(document.activeElement);
+    if (!takeFocus && !inFrame) return;
     const primary = primaryRef.current;
-    if (primary && !primary.disabled) primary.focus();
-    else dialogRef.current?.focus();
-  }, [phase]);
+    // preventScroll: the dialog sits inside the demo's frame, and pulling it
+    // into view would scroll the marketing page under the visitor.
+    if (primary && !primary.disabled) primary.focus({ preventScroll: true });
+    else dialogRef.current?.focus({ preventScroll: true });
+  }, [phase, takeFocus]);
 
   useEffect(() => {
     if (phase === "running") return;
@@ -81,11 +100,11 @@ export function DemoActionModal({
           <div className="mt-4 flex justify-end gap-2">
             <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
             {action.confirm ? (
-              <DangerButton ref={primaryRef} onClick={() => setPhase("running")}>
+              <DangerButton ref={primaryRef} onClick={run} data-tour="action-run">
                 Run
               </DangerButton>
             ) : (
-              <PrimaryButton ref={primaryRef} onClick={() => setPhase("running")}>
+              <PrimaryButton ref={primaryRef} onClick={run} data-tour="action-run">
                 Run
               </PrimaryButton>
             )}
@@ -126,6 +145,7 @@ export function DemoActionModal({
               ref={primaryRef}
               onClick={onClose}
               disabled={phase === "running"}
+              data-tour="action-close"
             >
               Close
             </PrimaryButton>

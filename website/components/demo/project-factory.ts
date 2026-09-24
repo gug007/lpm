@@ -106,7 +106,7 @@ export function uniqueName(base: string, taken: Set<string>): string {
   return `${base}-${i}`;
 }
 
-function slugify(value: string): string {
+export function slugify(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

@@ -9,12 +9,12 @@ import {
   type Tour,
   type TourHandle,
   type TourState,
-  type TourStepId,
 } from "@/components/demo/tour";
 import { DownloadLink } from "@/components/download-link";
 import { DemoSteps } from "@/components/home/demo-steps";
 import { YouTubeVideo } from "@/components/youtube-video";
 import { MOBILE_PATH } from "@/lib/links";
+import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 
 // Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
 // app's 3:2 proportions, and shorter from lg up, where the step list takes a
@@ -93,11 +93,55 @@ function DemoPlaceholder() {
   );
 }
 
-function DesktopOnlyPrompt({ posterPriority }: { posterPriority: boolean }) {
+// What a phone reads above the lesson it plays instead of the demo: a heading
+// for that lesson, not for the tour it stands in for, and one line on what it
+// shows.
+const LESSON_CAPTION: Record<
+  YouTubeLessonId,
+  { heading: string; blurb: string }
+> = {
+  "sixty-seconds": {
+    heading:
+      "Start a project, then hand it to Claude Code or Codex — one click each",
+    blurb: "A one-minute tour: start a project and hand it to Claude Code.",
+  },
+  "add-project": {
+    heading: "Add a folder, and it becomes a project",
+    blurb: "A short video: pick a folder or clone a repo, and it joins the sidebar.",
+  },
+  "start-project": {
+    heading: "Every service starts with one click",
+    blurb: "A short video: each service streams in a pane of its own.",
+  },
+  "edit-services": {
+    heading: "Edit a service, add another, start both",
+    blurb: "A short video: change a service, then add a second one.",
+  },
+  "add-action": {
+    heading: "Turn a command into a button",
+    blurb: "A short video: add an action, then run it with one click.",
+  },
+  "switch-profiles": {
+    heading: "Run only the services you need",
+    blurb: "A short video: a profile starts just the services it names.",
+  },
+  "parallel-agents": {
+    heading: "One project, several copies, an agent in each",
+    blurb: "A short video: duplicate a project so each agent has its own copy.",
+  },
+};
+
+function DesktopOnlyPrompt({
+  lesson,
+  posterPriority,
+}: {
+  lesson: YouTubeLessonId;
+  posterPriority: boolean;
+}) {
   return (
     <div data-on-dark className={WINDOW_FRAME}>
       <YouTubeVideo
-        lesson="sixty-seconds"
+        lesson={lesson}
         fetchPriority={posterPriority ? "high" : undefined}
       />
       <div className="flex flex-col items-center gap-3 border-t border-[#2e2e2e] px-5 py-5 text-center">
@@ -138,9 +182,11 @@ function useIdle() {
 
 function DemoStage({
   tour: script,
+  lesson,
   posterPriority,
 }: {
   tour: Tour;
+  lesson: YouTubeLessonId;
   posterPriority: boolean;
 }) {
   // null until the media query is read on the client. While null, both shells
@@ -153,7 +199,7 @@ function DemoStage({
   const [tour, setTour] = useState<TourState>({ stage: 0, playing: false });
   const tourRef = useRef<TourHandle>(null);
   const runStep = useCallback(
-    (id: TourStepId) => tourRef.current?.run(id),
+    (index: number) => tourRef.current?.run(index),
     [],
   );
   // A fresh key remounts the demo at its first frame, tour and all — the only
@@ -176,7 +222,7 @@ function DemoStage({
     <div ref={ref} className="demo-stage mx-auto max-w-[1040px] lg:max-w-none">
       {isDesktop !== true && (
         <div className={isDesktop === null ? "md:hidden" : undefined}>
-          <DesktopOnlyPrompt posterPriority={posterPriority} />
+          <DesktopOnlyPrompt lesson={lesson} posterPriority={posterPriority} />
         </div>
       )}
       {isDesktop !== false && (
@@ -226,26 +272,15 @@ function DemoStage({
   );
 }
 
-// What the section says above the frame. `short` stands in for `long` below
-// md, where the live demo gives way to a video.
-export type DemoCaptionCopy = {
-  title: string;
-  short: string;
-  long: string;
-};
-
-const HOME_CAPTION: DemoCaptionCopy = {
-  title:
-    "Start a project, then hand it to Claude Code or Codex — one click each",
-  short: "A one-minute tour: start a project and hand it to Claude Code.",
-  long: "Click anything — it runs live in your browser.",
-};
-
 function DemoCaption({
-  copy,
+  heading,
+  blurb,
+  lesson,
   headingId,
 }: {
-  copy: DemoCaptionCopy;
+  heading: string;
+  blurb: string;
+  lesson: YouTubeLessonId;
   headingId: string;
 }) {
   return (
@@ -262,33 +297,43 @@ function DemoCaption({
           <span className="md:hidden">See it in action</span>
           <span className="hidden md:inline">Live interactive demo</span>
         </span>
+        <h2 className="text-balance text-lg font-bold tracking-tight sm:text-xl md:hidden">
+          {LESSON_CAPTION[lesson].heading}
+        </h2>
         <h2
           id={headingId}
-          className="text-balance text-lg font-bold tracking-tight sm:text-xl"
+          className="hidden text-balance text-lg font-bold tracking-tight sm:text-xl md:block"
         >
-          {copy.title}
+          {heading}
         </h2>
       </div>
       <p className="max-w-md text-pretty text-[13px] leading-relaxed text-gray-500 lg:max-w-none lg:whitespace-nowrap lg:text-right dark:text-gray-400">
-        <span className="md:hidden">{copy.short}</span>
-        <span className="hidden md:inline">{copy.long}</span>
+        <span className="md:hidden">{LESSON_CAPTION[lesson].blurb}</span>
+        <span className="hidden md:inline">{blurb}</span>
       </p>
     </div>
   );
 }
 
-// A page picks which steps its demo walks through — see the tours defined in
-// components/demo/tour.ts, or build one with defineTour. Only a page whose demo
-// sits in the first screen should set posterPriority.
+// What a page's demo shows: the tour it walks through (see the tours defined
+// in components/demo/tour.ts, or build one with defineTour), the caption above
+// it, and the lesson a phone plays in its place.
+export type PageDemo = {
+  tour?: Tour;
+  heading?: string;
+  // The desktop line beside the heading.
+  blurb?: string;
+  lesson?: YouTubeLessonId;
+};
+
+// Only a page whose demo sits in the first screen should set posterPriority.
 export function DemoSection({
   tour = HOME_TOUR,
-  caption = HOME_CAPTION,
+  heading = "Start a project, then hand it to Claude Code or Codex — one click each",
+  blurb = "Click anything — it runs live in your browser.",
+  lesson = "sixty-seconds",
   posterPriority = false,
-}: {
-  tour?: Tour;
-  caption?: DemoCaptionCopy;
-  posterPriority?: boolean;
-}) {
+}: PageDemo & { posterPriority?: boolean }) {
   const headingId = useId();
   return (
     <section
@@ -297,9 +342,18 @@ export function DemoSection({
       className="scroll-mt-20 pb-16 sm:pb-20"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:max-w-7xl">
-        <DemoCaption copy={caption} headingId={headingId} />
+        <DemoCaption
+          heading={heading}
+          blurb={blurb}
+          lesson={lesson}
+          headingId={headingId}
+        />
         <div data-nosnippet>
-          <DemoStage tour={tour} posterPriority={posterPriority} />
+          <DemoStage
+            tour={tour}
+            lesson={lesson}
+            posterPriority={posterPriority}
+          />
         </div>
       </div>
     </section>

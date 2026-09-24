@@ -84,6 +84,9 @@ export function DemoBranchSwitcher({
   const [confirmDelete, setConfirmDelete] = useState<DemoBranch | null>(null);
   const [removingRemote, setRemovingRemote] = useState<DemoBranch | null>(null);
   const branchRef = useRef<HTMLDivElement>(null);
+  // Whether a visitor opened the switcher, and so wants the keyboard in it.
+  // The tour's clicks leave the page's focus where it was.
+  const [focusOnOpen, setFocusOnOpen] = useState(false);
   const commitRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const newBranchRef = useRef<HTMLInputElement>(null);
@@ -99,7 +102,7 @@ export function DemoBranchSwitcher({
       genIdxRef.current += 1;
       setNewBranchName(suggestion);
       setGeneratingName(false);
-      newBranchRef.current?.focus();
+      if (focusOnOpen) newBranchRef.current?.focus({ preventScroll: true });
     }, 650);
   };
 
@@ -145,9 +148,12 @@ export function DemoBranchSwitcher({
   }, [branchOpen, commitMenuOpen, creating, renamingKey]);
 
   useEffect(() => {
-    if (branchOpen && !creating) searchRef.current?.focus();
-    if (creating) newBranchRef.current?.focus();
-  }, [branchOpen, creating]);
+    // preventScroll: the popover sits inside the demo's frame, and pulling it
+    // into view would scroll the marketing page under the visitor.
+    if (!focusOnOpen) return;
+    if (branchOpen && !creating) searchRef.current?.focus({ preventScroll: true });
+    if (creating) newBranchRef.current?.focus({ preventScroll: true });
+  }, [branchOpen, creating, focusOnOpen]);
 
   useEffect(() => () => {
     if (genTimer.current) window.clearTimeout(genTimer.current);
@@ -218,12 +224,14 @@ export function DemoBranchSwitcher({
       <div ref={branchRef} className="relative">
         <button
           type="button"
-          onClick={() => {
+          onClick={(event) => {
             setCommitMenuOpen(false);
-            if (branchOpen) closeBranchMenu();
-            else setBranchOpen(true);
+            if (branchOpen) return closeBranchMenu();
+            setFocusOnOpen(event.nativeEvent.isTrusted);
+            setBranchOpen(true);
           }}
           disabled={busy}
+          data-tour="branch-pill"
           aria-label={`Current branch: ${git.branch}. Switch branch`}
           aria-expanded={branchOpen}
           aria-haspopup="menu"
@@ -313,6 +321,7 @@ export function DemoBranchSwitcher({
                       <>
                         <button
                           type="button"
+                          data-tour={`branch:${b.remote ? `${b.remote}/` : ""}${b.name}`}
                           onClick={() => {
                             onCheckout(b);
                             closeBranchMenu();
@@ -474,6 +483,7 @@ export function DemoBranchSwitcher({
         <button
           type="button"
           onClick={onCommit}
+          data-tour="git-commit"
           disabled={busy || git.uncommitted === 0}
           title={
             git.uncommitted > 0 ? "Commit changes" : "No changes to commit"

@@ -131,6 +131,10 @@ type ProjectViewProps = {
   onGitDeleteBranch: (name: string) => void;
   onGitRemoveRemote: (branch: DemoBranch) => void;
   onAddAction: (input: NewActionInput) => void;
+  // Told when an action runs in its dialog and when a shell runs a command:
+  // neither leaves state behind for the tour's step list to read.
+  onActionRun?: (action: DemoAction) => void;
+  onShellCommand?: (command: string) => void;
   // The opening tour mimes clicks on Start and then on the agent action, so it
   // needs a handle on both buttons; only the visible project gets them.
   startButtonRef?: React.Ref<HTMLButtonElement>;
@@ -166,6 +170,8 @@ export function DemoProjectView({
   onGitDeleteBranch,
   onGitRemoveRemote,
   onAddAction,
+  onActionRun,
+  onShellCommand,
   startButtonRef,
   agentButtonRef,
   codexButtonRef,
@@ -174,6 +180,7 @@ export function DemoProjectView({
   const [startOpen, setStartOpen] = useState(false);
   const [addingAction, setAddingAction] = useState(false);
   const [runningAction, setRunningAction] = useState<DemoAction | null>(null);
+  const [actionFocus, setActionFocus] = useState(false);
   const handleAgentStatus = (
     tabKey: string,
     label: string,
@@ -250,9 +257,12 @@ export function DemoProjectView({
   const headerActions = project.actions.filter((a) => a.display === "header");
   const footerActions = project.actions.filter((a) => a.display === "footer");
 
-  const openAction = (a: DemoAction) => {
-    if (a.type === "terminal") openActionTerminal(a);
-    else setRunningAction(a);
+  const openAction = (a: DemoAction, trusted = true) => {
+    if (a.type === "terminal") return openActionTerminal(a);
+    setRunningAction(a);
+    setActionFocus(trusted);
+    // One that asks first has only run once its dialog's Run is pressed.
+    if (!a.confirm) onActionRun?.(a);
   };
 
   const openNewPaneWithShell = () => {
@@ -551,6 +561,7 @@ export function DemoProjectView({
     actionTerminals,
     agentTabStatus,
     onAgentTabStatus: handleAgentStatus,
+    onShellCommand,
   };
 
   return (
@@ -632,7 +643,11 @@ export function DemoProjectView({
         <AppTip />
         <div className="ml-auto flex shrink-0 items-center justify-end gap-1">
           {footerActions.map((a) => (
-            <FooterActionButton key={a.name} action={a} onRun={() => openAction(a)} />
+            <FooterActionButton
+              key={a.name}
+              action={a}
+              onRun={(trusted) => openAction(a, trusted)}
+            />
           ))}
           {git && (
             <DemoBranchSwitcher
@@ -659,6 +674,8 @@ export function DemoProjectView({
       {runningAction && (
         <DemoActionModal
           action={runningAction}
+          takeFocus={actionFocus}
+          onRun={() => onActionRun?.(runningAction)}
           onClose={() => setRunningAction(null)}
         />
       )}
@@ -770,6 +787,7 @@ type LeafContext = {
     status: AgentStatus,
     timing?: AgentTurnTiming,
   ) => void;
+  onShellCommand?: (command: string) => void;
 };
 
 type ResolvedTab = {
@@ -824,6 +842,7 @@ function resolveTab(tab: LeafContent, ctx: LeafContext): ResolvedTab {
           projectName={ctx.project.name}
           git={ctx.git}
           changedFiles={ctx.project.changedFiles}
+          onCommand={ctx.onShellCommand}
         />
       ),
     };
@@ -1223,13 +1242,15 @@ function FooterActionButton({
   onRun,
 }: {
   action: DemoAction;
-  onRun: () => void;
+  // Told whether a visitor pressed it, rather than the tour.
+  onRun: (trusted: boolean) => void;
 }) {
   return (
     <button
       type="button"
-      onClick={onRun}
+      onClick={(event) => onRun(event.nativeEvent.isTrusted)}
       title={action.label}
+      data-tour={`action:${action.name}`}
       style={actionButtonStyle(action.color)}
       className={`flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-[rgba(204,204,204,0.18)] bg-[var(--action-tint,#262626)] px-2.5 py-1 text-[11px] font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#cccccc] ${PRESS} ${FOCUS_RING}`}
     >

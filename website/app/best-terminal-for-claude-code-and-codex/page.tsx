@@ -20,6 +20,7 @@ import Features from "./_components/features";
 import Hero from "./_components/hero";
 import WhyParallel from "./_components/why-parallel";
 import Workflows from "./_components/workflows";
+import { AGENTS_DEMO } from "./_components/demo-tour";
 
 const TITLE = "Best Terminal for Claude Code and Codex on Mac (2026)";
 const DESCRIPTION =
@@ -82,7 +83,7 @@ export default function BestTerminalForClaudeCodeAndCodexPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection />
+      <DemoSection {...AGENTS_DEMO} />
       <WhyParallel />
       <Features />
       <Alerts />

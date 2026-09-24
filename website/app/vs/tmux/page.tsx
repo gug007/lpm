@@ -29,6 +29,7 @@ import Jobs from "./_components/jobs";
 import Matrix from "./_components/matrix";
 import Migrate from "./_components/migrate";
 import ShortAnswer from "./_components/short-answer";
+import { TMUX_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("tmux");
 
@@ -251,7 +252,7 @@ export default function VsTmuxPage() {
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...TMUX_DEMO} />
 
       <Faq title="lpm vs tmux, answered honestly" items={FAQ_ITEMS} />
 

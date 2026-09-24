@@ -30,6 +30,7 @@ import { FOREMAN_FAQ } from "./_components/faq-data";
 import { Migrate } from "./_components/migrate";
 import { OneTerminal } from "./_components/one-terminal";
 import { ProcfileMatrix } from "./_components/procfile-matrix";
+import { FOREMAN_DEMO } from "./_components/demo-tour";
 
 const PATH = vsPath("foreman");
 const OVERMIND_PATH = vsPath("overmind");
@@ -263,7 +264,7 @@ export default function LpmVsForemanPage() {
         }}
       />
 
-      <DemoSection />
+      <DemoSection {...FOREMAN_DEMO} />
 
       <Faq
         title="Foreman, Overmind and lpm — the honest answers"

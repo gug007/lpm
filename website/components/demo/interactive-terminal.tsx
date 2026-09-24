@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { NO_AUTOFILL } from "./no-autofill";
+import { registerShellDrive } from "./shell-drive";
+import { useTypedInput } from "./use-typed-input";
 import { useStickToBottom } from "./use-stick-to-bottom";
 import PROJECTS, { type ChangedFile, type DemoGit } from "./projects";
 
@@ -24,6 +26,7 @@ const LISTINGS: Record<string, string> = {
     "Gemfile  Gemfile.lock  next.config.ts  package.json  pnpm-lock.yaml  README.md  tsconfig.json  vitest.config.ts  app/  bin/  config/  db/  public/  scripts/  src/",
   "auth-service":
     "docker-compose.yml  go.mod  go.sum  Makefile  README.md  cmd/  internal/  k8s/",
+  bookshelf: "Gemfile  Gemfile.lock  Procfile.dev  README.md  app/  bin/  config/",
   "docs-site":
     "astro.config.mjs  package.json  pnpm-lock.yaml  README.md  tsconfig.json  vercel.json  public/  src/",
   "ml-pipeline":
@@ -224,6 +227,7 @@ export function InteractiveTerminal({
   projectName,
   git,
   changedFiles,
+  onCommand,
 }: {
   projectRoot: string;
   projectName?: string;
@@ -231,6 +235,8 @@ export function InteractiveTerminal({
   // agree with the branch pill two inches below it.
   git?: DemoGit;
   changedFiles?: ChangedFile[];
+  // Told every command this shell runs, whoever typed it.
+  onCommand?: (command: string) => void;
 }) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<
@@ -306,14 +312,15 @@ export function InteractiveTerminal({
     return `zsh: command not found: ${trimmed.split(" ")[0]}`;
   };
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const out = fakeRun(input);
+  const { typeThen, cancelTyping } = useTypedInput(inputRef, setInput);
+  const run = (cmd: string) => {
+    const out = fakeRun(cmd);
+    if (cmd.trim()) driveRef.current.onCommand?.(cmd.trim());
     if (out === "__clear__") {
       setHistory([]);
     } else {
       setHistory((h) => {
-        const next = [...h, { prompt, input, output: out }];
+        const next = [...h, { prompt, input: cmd, output: out }];
         return next.length > MAX_TERMINAL_HISTORY
           ? next.slice(-MAX_TERMINAL_HISTORY)
           : next;
@@ -321,6 +328,28 @@ export function InteractiveTerminal({
     }
     setInput("");
   };
+
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    cancelTyping();
+    run(input);
+  };
+
+  const driveRef = useRef({ run, typeThen, onCommand });
+  useEffect(() => {
+    driveRef.current = { run, typeThen, onCommand };
+  });
+
+  useEffect(() => {
+    if (!projectName) return;
+    return registerShellDrive(projectName, {
+      send: (command, opts) => {
+        const { run: runNow, typeThen: type } = driveRef.current;
+        type(command, () => runNow(command), opts);
+      },
+      field: () => inputRef.current,
+    });
+  }, [projectName]);
 
   return (
     <div
@@ -356,7 +385,11 @@ export function InteractiveTerminal({
           ref={inputRef}
           type="text"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            // The visitor typing takes the line back from the tour.
+            cancelTyping();
+            setInput(e.target.value);
+          }}
           {...NO_AUTOFILL}
           aria-label="Demo shell command"
           className="flex-1 bg-transparent text-[#cccccc] font-mono caret-[#cccccc] outline-none"

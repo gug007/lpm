@@ -22,6 +22,7 @@ import Landscape from "./_components/landscape";
 import TerminalBasics from "./_components/terminal-basics";
 import WhyMac from "./_components/why-mac";
 import Workflows from "./_components/workflows";
+import { MAC_TERMINAL_DEMO } from "./_components/demo-tour";
 
 const TITLE = "Best Terminal for Mac (2026): Free and Native";
 const DESCRIPTION =
@@ -81,7 +82,7 @@ export default function BestTerminalForMacPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection />
+      <DemoSection {...MAC_TERMINAL_DEMO} />
       <ComparisonBasis
         reviewed="August 13, 2026"
         sources={[

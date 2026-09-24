@@ -91,7 +91,8 @@ function HeaderActionButton({
 }: {
   action: DemoAction;
   mode: ChipMode;
-  onRun: () => void;
+  // Told whether a visitor pressed it, rather than the tour.
+  onRun: (trusted: boolean) => void;
   buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
   const utility = !action.agent;
@@ -102,8 +103,9 @@ function HeaderActionButton({
     <button
       ref={buttonRef}
       type="button"
-      onClick={onRun}
+      onClick={(event) => onRun(event.nativeEvent.isTrusted)}
       title={action.label}
+      data-tour={`action:${action.name}`}
       style={actionButtonStyle(action.color)}
       className={`inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-[#2e2e2e] bg-[var(--action-tint,#242424)] px-3.5 text-xs font-medium text-[#b3b3b3] hover:bg-[var(--action-tint-strong,rgba(255,255,255,0.1))] hover:text-[#e5e5e5] ${PRESS} ${FOCUS_RING}`}
     >
@@ -124,7 +126,7 @@ type HeaderProps = {
   onStartStop: () => void;
   onStartProfile: (name: string) => void;
   onToggleService: (name: string) => void;
-  onOpenAction: (a: DemoAction) => void;
+  onOpenAction: (a: DemoAction, trusted: boolean) => void;
   onAddAction: () => void;
   startButtonRef?: React.Ref<HTMLButtonElement>;
   agentButtonRef?: React.RefObject<HTMLButtonElement | null>;
@@ -175,7 +177,7 @@ export function ProjectHeader({
                 ? codexButtonRef
                 : undefined
           }
-          onRun={() => onOpenAction(a)}
+          onRun={(trusted) => onOpenAction(a, trusted)}
         />
       ))}
     </div>

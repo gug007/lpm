@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { BackButton } from "./back-button";
 import { NO_AUTOFILL } from "./no-autofill";
+import { SshProjectForm } from "./ssh-project-form";
 import { FOCUS_RING, PRESS } from "./ui";
 import {
   DialogHeader,
@@ -170,6 +172,19 @@ const PROJECTS_FS: FsNode[] = [
     ],
   },
   {
+    name: "bookshelf",
+    kind: "folder",
+    children: [
+      { name: "app", kind: "folder", children: [] },
+      { name: "bin", kind: "folder", children: [] },
+      { name: "config", kind: "folder", children: [] },
+      { name: "Gemfile", kind: "file" },
+      { name: "Gemfile.lock", kind: "file" },
+      { name: "Procfile.dev", kind: "file" },
+      { name: "README.md", kind: "file" },
+    ],
+  },
+  {
     name: "data-warehouse",
     kind: "folder",
     children: [
@@ -214,9 +229,7 @@ function getColumns(roots: FsNode[], path: string[]): FsNode[][] {
 export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   const [phase, setPhase] = useState<Phase>("pick");
   const [name, setName] = useState("");
-  const [host, setHost] = useState("");
-  const [user, setUser] = useState("");
-  const [port, setPort] = useState("");
+  const [sshFocus, setSshFocus] = useState(false);
   const [url, setUrl] = useState("");
   const [branch, setBranch] = useState("");
   const [dest, setDest] = useState(DEST_FOLDERS[0]);
@@ -224,15 +237,12 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   const [nameEdited, setNameEdited] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [path, setPath] = useState<string[]>(["Projects"]);
-  const sshNameRef = useRef<HTMLInputElement>(null);
   const cloneUrlRef = useRef<HTMLInputElement>(null);
 
   const reset = useCallback(() => {
     setPhase("pick");
     setName("");
-    setHost("");
-    setUser("");
-    setPort("");
+    setSshFocus(false);
     setUrl("");
     setBranch("");
     setDest(DEST_FOLDERS[0]);
@@ -256,7 +266,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   }, [open, reset]);
 
   useEffect(() => {
-    if (phase === "ssh") sshNameRef.current?.focus();
     if (phase === "clone") cloneUrlRef.current?.focus();
   }, [phase]);
 
@@ -270,14 +279,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   });
 
   if (!open) return null;
-
-  const submitSsh = () => {
-    const trimmed = name.trim();
-    const h = host.trim();
-    if (!trimmed || !h) return;
-    onCreate({ kind: "ssh", name: trimmed, host: h });
-    reset();
-  };
 
   const cloneName = nameEdited ? name : deriveNameFromUrl(url);
 
@@ -343,7 +344,13 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
                 color="#22d3ee"
                 label="SSH Host"
                 desc="Connect to a remote machine over SSH"
-                onClick={() => setPhase("ssh")}
+                onClick={(event) => {
+                  // Only a visitor's own click moves focus into the dialog;
+                  // the tour's clicks are not trusted events.
+                  setSshFocus(event.nativeEvent.isTrusted);
+                  setPhase("ssh");
+                }}
+                tourTarget="source-ssh"
               />
               <button
                 type="button"
@@ -381,83 +388,15 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
       )}
 
       {phase === "ssh" && (
-        <DialogPanel
-          className="relative max-w-[calc(100%-2rem)]"
-          aria-label="Connect to SSH host"
-        >
-          <BackButton onClick={() => setPhase("pick")} />
-          <DialogHeader
-            title="Connect to SSH host"
-            description="Creates a project that connects to a remote host. Services, actions, and terminals will run over this SSH connection."
-            onClose={handleClose}
-          />
-
-          <form
-            autoComplete="off"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitSsh();
-            }}
-          >
-            <div className="mt-4 grid grid-cols-[1fr_120px] gap-3">
-              <div className="col-span-2">
-                <FieldLabel>Host</FieldLabel>
-                <input
-                  ref={sshNameRef}
-                  value={host}
-                  onChange={(e) => setHost(e.target.value)}
-                  placeholder="example.com or 10.0.0.5"
-                  {...NO_AUTOFILL}
-                  className={FIELD_CLASS}
-                />
-              </div>
-
-              <div>
-                <FieldLabel>User</FieldLabel>
-                <input
-                  value={user}
-                  onChange={(e) => setUser(e.target.value)}
-                  placeholder="root"
-                  {...NO_AUTOFILL}
-                  className={FIELD_CLASS}
-                />
-              </div>
-
-              <div>
-                <FieldLabel>Port</FieldLabel>
-                <input
-                  value={port}
-                  onChange={(e) => setPort(e.target.value)}
-                  placeholder="22"
-                  inputMode="numeric"
-                  {...NO_AUTOFILL}
-                  className={FIELD_CLASS}
-                />
-              </div>
-
-              <div className="col-span-2">
-                <FieldLabel>Project name</FieldLabel>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="my-server"
-                  {...NO_AUTOFILL}
-                  className={FIELD_CLASS}
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <SecondaryButton onClick={handleClose}>Cancel</SecondaryButton>
-              <PrimaryButton
-                type="submit"
-                disabled={!name.trim() || !host.trim()}
-              >
-                Add project
-              </PrimaryButton>
-            </div>
-          </form>
-        </DialogPanel>
+        <SshProjectForm
+          onBack={() => setPhase("pick")}
+          onClose={handleClose}
+          focusOnOpen={sshFocus}
+          onCreate={(input) => {
+            onCreate(input);
+            reset();
+          }}
+        />
       )}
 
       {phase === "clone" && (
@@ -657,19 +596,6 @@ export function DemoAddProjectModal({ open, onClose, onCreate }: Props) {
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`mb-3 flex items-center gap-1 rounded text-[11px] text-[#919191] transition-colors hover:text-[#e5e5e5] ${FOCUS_RING} ${PRESS}`}
-    >
-      <ChevronLeft size={14} strokeWidth={1.5} />
-      Back
-    </button>
-  );
-}
-
 function SourceOption({
   icon,
   color,
@@ -682,7 +608,7 @@ function SourceOption({
   color: string;
   label: string;
   desc: string;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
   tourTarget?: string;
 }) {
   return (

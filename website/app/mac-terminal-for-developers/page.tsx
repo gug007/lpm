@@ -19,6 +19,7 @@ import Features from "./_components/features";
 import Hero from "./_components/hero";
 import Problem from "./_components/problem";
 import Workflows from "./_components/workflows";
+import { STACK_DEMO } from "./_components/demo-tour";
 
 const TITLE = "Mac Terminal for Developers Running Full Stacks";
 const DESCRIPTION =
@@ -79,7 +80,7 @@ export default function MacTerminalForDevelopersPage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <DemoSection />
+      <DemoSection {...STACK_DEMO} />
       <Problem />
       <Features />
       <Benefits />

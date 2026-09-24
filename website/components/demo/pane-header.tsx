@@ -143,6 +143,7 @@ export function PaneHeader({
           return (
             <div
               key={tab.key}
+              data-tab={tab.key}
               ref={active ? activeTabRef : undefined}
               // The app's pill is a single <button>; here it stays a div so the
               // close and port controls inside it remain real buttons.

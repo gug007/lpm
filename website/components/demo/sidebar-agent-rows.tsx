@@ -52,10 +52,12 @@ function AgentElapsed({ since, until }: { since?: number; until?: number }) {
  *  named by the tab, colored by what the agent in it is doing, and ending in a
  *  mark and how long it has been at it. Each line opens the tab it names. */
 export function SidebarAgentRows({
+  project,
   agents,
   activeKeys,
   onOpen,
 }: {
+  project: string;
   agents: SidebarAgentRow[];
   activeKeys?: ReadonlySet<string>;
   onOpen: (key: string) => void;
@@ -66,6 +68,7 @@ export function SidebarAgentRows({
         <button
           key={agent.key}
           type="button"
+          data-tour={`agent-row:${project}:${agent.label}`}
           onClick={() => onOpen(agent.key)}
           title={`${agent.label} — ${STATUS_WORD[agent.status]}`}
           className={`flex w-full select-none items-center gap-2 rounded-md py-1 pl-2.5 pr-3 text-left text-[12px] outline-none transition-colors ${FOCUS_RING} ${

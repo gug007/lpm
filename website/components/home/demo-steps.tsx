@@ -1,16 +1,12 @@
 "use client";
 
 import { Check, RotateCcw } from "lucide-react";
-import type {
-  TourState,
-  TourStep,
-  TourStepId,
-} from "@/components/demo/tour";
+import type { TourState, TourStep } from "@/components/demo/tour";
 
 type Props = {
   steps: TourStep[];
   tour: TourState;
-  onRun: (id: TourStepId) => void;
+  onRun: (index: number) => void;
   onRestart: () => void;
 };
 
@@ -77,10 +73,10 @@ export function DemoSteps({ steps, tour, onRun, onRestart }: Props) {
           const fillMs =
             active && tour.playing ? fillDuration(steps, i) : null;
           return (
-            <li key={step.id} className="shrink-0 lg:shrink">
+            <li key={`${step.id}-${i}`} className="shrink-0 lg:shrink">
               <button
                 type="button"
-                onClick={() => onRun(step.id)}
+                onClick={() => onRun(i)}
                 aria-current={active ? "step" : undefined}
                 className={`group w-full rounded-xl px-4 py-3 text-left transition-colors ${
                   active
@@ -118,7 +114,7 @@ export function DemoSteps({ steps, tour, onRun, onRestart }: Props) {
                     className="mt-3 ml-7 hidden h-0.5 overflow-hidden rounded-full bg-gray-200 lg:block dark:bg-white/10"
                   >
                     <span
-                      key={`${step.id}-${fillMs}`}
+                      key={`${step.id}-${i}-${fillMs}`}
                       className="block h-full origin-left bg-gray-900 dark:bg-white"
                       style={{
                         animation: `demo-step-fill ${fillMs}ms linear forwards`,

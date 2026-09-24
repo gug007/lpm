@@ -19,6 +19,7 @@ export function MenuButton({
   disabled,
   title,
   trailingAction,
+  tourTarget,
 }: {
   icon: ReactNode;
   label: string;
@@ -28,11 +29,14 @@ export function MenuButton({
   disabled?: boolean;
   title?: string;
   trailingAction?: MenuTrailingAction;
+  // Names the row for the demo's tour, which clicks it the way a visitor would.
+  tourTarget?: string;
 }) {
   const row = (
     <button
       type="button"
       role="menuitem"
+      data-tour={tourTarget}
       onClick={onClick}
       disabled={disabled}
       title={title}

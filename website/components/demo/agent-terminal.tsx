@@ -6,7 +6,7 @@ import { INITIAL_AI_STATUS, type ReplyContext } from "./projects";
 import { AgentBanner, AgentStatusLine, TurnFooter, WorkingLine } from "./agent-chrome";
 import { AgentComposer } from "./agent-composer";
 import { registerAgentDrive } from "./agent-drive";
-import { typingSchedule } from "./natural";
+import { useTypedInput } from "./use-typed-input";
 import { ComposerModelPicker } from "./composer-model-picker";
 import { INITIAL_PICK, statusModel, switchNotices, type ModelPick } from "./agent-models";
 import { AgentTurn } from "./agent-turn";
@@ -307,24 +307,32 @@ export function AgentTerminal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The tour types a prompt in rather than filling the field: the visitor is
-  // watching the composer, and a prompt that simply appears reads as a script.
-  const typingRef = useRef<number | null>(null);
-  const cancelTyping = () => {
-    if (typingRef.current === null) return;
-    window.clearTimeout(typingRef.current);
-    typingRef.current = null;
-  };
-  useEffect(() => cancelTyping, []);
+  const { typeThen, cancelTyping, isTyping } = useTypedInput(
+    inputRef,
+    setInput,
+  );
 
   const runQueryRef = useRef(runQuery);
   const driveRef = useRef<{
     send: (text: string, opts?: { instant?: boolean }) => void;
     idle: () => boolean;
-  }>({ send: () => {}, idle: () => false });
+    answer: (text: string, opts?: { instant?: boolean }) => void;
+    waiting: () => boolean;
+  }>({
+    send: () => {},
+    idle: () => false,
+    answer: () => {},
+    waiting: () => false,
+  });
 
   const idle = () =>
-    history.length === 0 && !busy && typingRef.current === null;
+    history.length === 0 && !busy && !isTyping();
+
+  // Stopped on a question the visitor has not answered yet.
+  const waiting = () => {
+    const last = history[history.length - 1];
+    return !!last?.asks && last.finished && !busy && !isTyping();
+  };
 
   const sendTyped = (text: string, opts?: { instant?: boolean }) => {
     if (!idle()) return;
@@ -335,31 +343,24 @@ export function AgentTerminal({
       text === autoPrompt && autoSteps
         ? { steps: autoSteps, keepBusy: true }
         : undefined;
-    const send = () => {
-      typingRef.current = null;
-      setInput("");
-      runQueryRef.current(text, runOpts);
-    };
-    if (opts?.instant) return send();
-    // preventScroll: the field is inside the demo's own frame, and pulling it
-    // into view would scroll the marketing page out from under the visitor.
-    inputRef.current?.focus({ preventScroll: true });
-    const { delays, sendMs } = typingSchedule(text);
-    let typed = 0;
-    const tick = () => {
-      typed += 1;
-      setInput(text.slice(0, typed));
-      typingRef.current = window.setTimeout(
-        typed < text.length ? tick : send,
-        typed < text.length ? delays[typed] : sendMs,
-      );
-    };
-    typingRef.current = window.setTimeout(tick, delays[0]);
+    typeThen(text, () => runQueryRef.current(text, runOpts), opts);
+  };
+
+  // A reply goes through the same path as one the visitor types, so a yes runs
+  // the work the question was holding back.
+  const answerTyped = (text: string, opts?: { instant?: boolean }) => {
+    if (!waiting()) return;
+    typeThen(text, () => runQueryRef.current(text), opts);
   };
 
   useEffect(() => {
     runQueryRef.current = runQuery;
-    driveRef.current = { send: sendTyped, idle };
+    driveRef.current = {
+      send: sendTyped,
+      idle,
+      answer: answerTyped,
+      waiting,
+    };
   });
 
   useEffect(() => {
@@ -367,6 +368,8 @@ export function AgentTerminal({
     return registerAgentDrive(driveKey, {
       send: (text, opts) => driveRef.current.send(text, opts),
       idle: () => driveRef.current.idle(),
+      answer: (text, opts) => driveRef.current.answer(text, opts),
+      waiting: () => driveRef.current.waiting(),
       field: () => inputRef.current,
     });
   }, [driveKey]);
@@ -432,6 +435,7 @@ export function AgentTerminal({
   const lastQuery = last ? last.query : "";
 
   const fillInput = (text: string) => {
+    cancelTyping();
     setInput(text);
     inputRef.current?.focus();
   };

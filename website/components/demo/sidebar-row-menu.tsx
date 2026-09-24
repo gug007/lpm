@@ -115,14 +115,20 @@ export function SidebarRowMenu({
       items[next].focus({ preventScroll: true });
     };
     // Coordinates captured on open: anything that moves the row strands it.
+    // Only scrollers that hold the menu count — the terminal panes stream
+    // output and scroll themselves constantly.
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (ref.current && target?.contains(ref.current)) onClose();
+    };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("scroll", onClose, true);
+    window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onClose);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("scroll", onClose, true);
+      window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onClose);
     };
   }, [onClose]);
@@ -155,6 +161,7 @@ export function SidebarRowMenu({
           <button
             key={item}
             type="button"
+            data-tour={action ? `row-menu:${action}` : undefined}
             disabled={!!inert}
             title={inert}
             onClick={() => {
