@@ -39,10 +39,11 @@ ExecStopPost=-/opt/lpm/host-cleanup.sh
 # on-failure, NOT always — and this is a deliberate limit, not an oversight.
 # KillMode above saves the services and the jobs, but not the agent terminals:
 # those are PTYs owned by the app process itself, so every restart of this unit
-# still ends whatever agents are running, silently and with no way to get the
-# conversation back. `always` would turn an ordinary crash-and-recover into a
-# whole session lost, so restarts are for a process that actually died, and a
-# planned `systemctl restart lpm` is a decision to stop the agents on this box.
+# still ends whatever agents are running. A Mac that reconnects resumes Claude
+# Code and Codex conversations, but the work in flight and the scrollback are gone. `always`
+# would turn an ordinary crash-and-recover into that, so restarts are for a
+# process that actually died, and a planned `systemctl restart lpm` is a
+# decision to interrupt the agents on this box.
 Restart=on-failure
 RestartSec=5
 

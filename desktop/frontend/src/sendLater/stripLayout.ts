@@ -48,7 +48,11 @@ export function layoutStrip(items: ScheduledPrompt[], scale: TimelineScale, widt
   }
   groups.forEach((g, i) => {
     const next = groups[i + 1];
-    g.room = ((next ? next.x : 1) - g.x) * widthPx;
+    // A pin's label reads leftward from the end, so the room before it stops
+    // where that label starts.
+    g.room = next?.pinned
+      ? Math.max(0, (1 - g.x) * widthPx - PIN_LABEL_ROOM)
+      : ((next ? next.x : 1) - g.x) * widthPx;
   });
   return groups;
 }

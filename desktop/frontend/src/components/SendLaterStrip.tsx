@@ -29,7 +29,7 @@ export function SendLaterStrip({ historyKey }: { historyKey: string }) {
   const now = useNow(any, 30_000);
   const lineRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
-  const [open, setOpen] = useState<{ ids: string[]; rect: DOMRect } | null>(null);
+  const [open, setOpen] = useState<{ ids: string[]; rect: DOMRect; dot: HTMLElement } | null>(null);
 
   useLayoutEffect(() => {
     const el = lineRef.current;
@@ -70,8 +70,14 @@ export function SendLaterStrip({ historyKey }: { historyKey: string }) {
               key={ids.join(" ")}
               type="button"
               data-send-later-dot
+              aria-haspopup="dialog"
+              aria-expanded={open?.ids[0] === ids[0]}
               onClick={(e) =>
-                setOpen(open && open.ids[0] === ids[0] ? null : { ids, rect: e.currentTarget.getBoundingClientRect() })
+                setOpen(
+                  open && open.ids[0] === ids[0]
+                    ? null
+                    : { ids, rect: e.currentTarget.getBoundingClientRect(), dot: e.currentTarget },
+                )
               }
               title={group.items.map((it) => promptPreview(it.text, 80)).join("\n")}
               className={`absolute top-0 flex h-5 items-center gap-1.5 rounded-md px-1 outline-none transition-colors hover:bg-[var(--composer-hover-bg)] focus-visible:bg-[var(--composer-hover-bg)] ${
@@ -100,7 +106,10 @@ export function SendLaterStrip({ historyKey }: { historyKey: string }) {
           anchor={open.rect}
           fromHistoryKey={historyKey}
           now={now}
-          onClose={() => setOpen(null)}
+          onClose={(refocus) => {
+            if (refocus && open.dot.isConnected) open.dot.focus();
+            setOpen(null);
+          }}
         />
       )}
     </div>

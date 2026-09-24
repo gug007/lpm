@@ -14,6 +14,7 @@ import { Toggle } from "./Toggle";
 import { Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
 import { StatusLine } from "./StatusLine";
+import { HostActionError } from "./HostActionError";
 import { RowMenu } from "./RowMenu";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { RenameModal } from "../RenameModal";
@@ -214,15 +215,9 @@ export function PeerRow({
             />
           )}
           {actionError && (
-            // The host's own words, whole. What comes back is often several
-            // lines whose useful one is rarely the first, so this wraps instead
-            // of truncating, scrolls when an installer was involved, and can be
-            // selected to paste somewhere. It sits below the status line rather
-            // than replacing it: what the machine is doing is still true while
-            // something we asked of it failed.
-            <p className="mt-0.5 max-h-24 select-text overflow-y-auto whitespace-pre-line break-words text-[11px] text-[var(--accent-red)]">
-              {actionError}
-            </p>
+            // Below the status line rather than in place of it: what the machine
+            // is doing is still true while something we asked of it failed.
+            <HostActionError text={actionError} />
           )}
         </div>
 
@@ -302,7 +297,8 @@ export function PeerRow({
           <>
             This installs the current release on{" "}
             <span className="font-medium text-[var(--text-primary)]">{name}</span> and restarts lpm
-            there. Anything running on that machine — including agents — will stop.
+            there. Its terminals close and agents stop mid-task; Claude Code and Codex tabs can
+            resume their conversations when you reopen the project. Services keep running.
           </>
         }
         onCancel={() => setConfirming(false)}

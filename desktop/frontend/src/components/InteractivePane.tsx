@@ -47,6 +47,7 @@ import { logDiagnostic } from "../diagnostics";
 import { isPeerName, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
 import { uploadPeerFiles } from "../peer/uploadFiles";
 import { reclaimPeerSession } from "../peer/retainedSessions";
+import { relaunchNoticePlacer, takeRelaunchNotice } from "../peer/relaunchNotices";
 import { SSH_TRANSPORT_EXIT_CODE } from "../reconnect";
 import {
   IS_MIRROR_WINDOW,
@@ -541,7 +542,11 @@ function viewportShowsAppCopyHint(term: Terminal): boolean {
   return false;
 }
 
-function createInteractiveSession(terminalId: string, cwd: string): InteractiveSession {
+function createInteractiveSession(
+  terminalId: string,
+  cwd: string,
+  relaunchNotice?: string,
+): InteractiveSession {
   const host = document.createElement("div");
   host.className = "absolute inset-0 overflow-hidden";
   host.setAttribute("data-terminal-id", terminalId);
@@ -1000,9 +1005,23 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
   const textarea = term.textarea;
   textarea?.addEventListener("paste", handlePaste, true);
 
+  const placeNotice = relaunchNoticePlacer(relaunchNotice);
   const cleanupOutput = EventsOn("pty-output-" + terminalId, (data: string) => {
     session.lastOutputAt = performance.now();
-    writeData(data);
+    const placed = placeNotice(data, session.fitted);
+    if (!placed) {
+      writeData(data);
+      return;
+    }
+    writeData(placed.before);
+    term.write(placed.notice);
+    writeData(placed.after);
+  });
+
+  // Sent just ahead of the exit for a peer terminal the host no longer has, so the
+  // pane says why instead of reporting an exit code nothing actually returned.
+  const cleanupGone = EventsOn("pty-gone-" + terminalId, () => {
+    markDead("[This session is no longer running on the other machine]", "90");
   });
 
   const cleanupExit = EventsOn(
@@ -1202,6 +1221,7 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
     textarea?.removeEventListener("paste", handlePaste, true);
     if (typeof cleanupOutput === "function") cleanupOutput();
     if (typeof cleanupExit === "function") cleanupExit();
+    if (typeof cleanupGone === "function") cleanupGone();
     window.removeEventListener("focus", onWinFocus);
     cleanupMirror?.();
   };
@@ -1212,16 +1232,22 @@ function createInteractiveSession(terminalId: string, cwd: string): InteractiveS
 // `reused` is what tells a peer terminal's subscribe whether it may resume: a
 // reused session still holds the screen its stream left off on, a fresh one is
 // blank.
+//
+// A relaunch notice means the pty behind this id was only just started, so a
+// session already cached under it belongs to an earlier terminal that had the same
+// id, and showing it would put a dead screen over the live one.
 function getOrCreateInteractiveSession(
   terminalId: string,
   cwd: string,
 ): { session: InteractiveSession; reused: boolean } {
+  const notice = takeRelaunchNotice(terminalId);
   const existing = interactiveSessions.get(terminalId);
-  if (existing) {
+  if (existing && notice === undefined) {
     existing.cwd = cwd;
     return { session: existing, reused: true };
   }
-  const session = createInteractiveSession(terminalId, cwd);
+  if (existing) disposeInteractivePaneSession(terminalId);
+  const session = createInteractiveSession(terminalId, cwd, notice);
   interactiveSessions.set(terminalId, session);
   return { session, reused: false };
 }

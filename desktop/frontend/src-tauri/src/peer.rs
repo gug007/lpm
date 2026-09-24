@@ -79,6 +79,9 @@ const FORWARDED_EVENTS: &[&str] = &[
     "duplicate-done",
     // A headless host emits this instead of chiming to an empty room.
     crate::sound::STATUS_SOUND_EVENT,
+    // The session an agent in a terminal reports, which is what lets a Mac's tab
+    // resume that conversation after the host restarts and the terminal is gone.
+    "agent-session",
 ];
 
 // --- persisted config (~/.lpm/peer.json, shared with peerclient.rs) -----------
@@ -393,21 +396,30 @@ impl PeerHub {
     /// otherwise reach the peer twice — inside the resume slice and again as live
     /// output. Subscribing after the read instead would trade the duplicate for a
     /// dropped chunk, which a viewer resuming by offset can never notice.
+    ///
+    /// None, subscribing nothing, when `alive` says the terminal is gone. Asked
+    /// under the rings, which `tee_exit` holds while it reads who to tell about an
+    /// exit — and a terminal leaves pty's map before that — so a viewer is either
+    /// subscribed in time to hear of the exit or finds the terminal gone here.
     fn ring_attach(
         &self,
         subs: &Mutex<HashSet<String>>,
         id: &str,
         from: Option<u64>,
-    ) -> (String, u64, bool) {
+        alive: impl FnOnce() -> bool,
+    ) -> Option<(String, u64, bool)> {
         let rings = self.inner.rings.locked();
+        if !alive() {
+            return None;
+        }
         subs.lock().unwrap().insert(id.to_string());
-        match from.and_then(|f| rings.since(id, f)) {
+        Some(match from.and_then(|f| rings.since(id, f)) {
             Some((data, off)) => (data, off, false),
             None => {
                 let (data, off) = rings.seed(id);
                 (data, off, true)
             }
-        }
+        })
     }
 
     fn drop_ring(&self, id: &str) {
@@ -470,15 +482,32 @@ pub fn tee_exit(app: &AppHandle, id: &str, code: i32) {
         return;
     }
     let payload = json!({ "t": "exit", "id": id, "code": code }).to_string();
-    {
+    // Read under the rings, against `ring_attach` checking the terminal is alive
+    // and subscribing as one step.
+    let viewers: Vec<SyncSender<String>> = {
+        let _rings = hub.inner.rings.locked();
         let clients = hub.inner.clients.lock().unwrap();
-        for c in clients.values() {
-            if c.subs.lock().unwrap().contains(id) {
-                let _ = c.tx.try_send(payload.clone());
-            }
-        }
+        clients
+            .values()
+            .filter(|c| c.subs.lock().unwrap().contains(id))
+            .map(|c| c.tx.clone())
+            .collect()
+    };
+    for tx in viewers {
+        let _ = tx.try_send(payload.clone());
     }
     hub.drop_ring(id);
+}
+
+/// The answer to a `sub` for a terminal this host doesn't have — after a
+/// restart, every terminal the Mac still shows. Shaped as an exit so a Mac that
+/// predates `gone` still stops waiting on it.
+fn gone_frame(id: &str) -> Value {
+    json!({ "t": "exit", "id": id, "code": -1, "gone": true })
+}
+
+fn terminal_alive(app: &AppHandle, id: &str) -> bool {
+    pty::session_exists(&app.state::<pty::PtyState>(), id)
 }
 
 /// Make a full-screen program redraw itself after a peer was seeded with a
@@ -1199,6 +1228,12 @@ fn handle_msg(
         "pong" => {}
         "sub" => {
             if let Some(id) = str_field("id") {
+                // An empty seed here would wipe the peer's copy of the screen and
+                // leave it waiting on output that can never come. Nothing is
+                // claimed for a terminal that doesn't exist.
+                if !terminal_alive(app, &id) {
+                    return send(ws, gone_frame(&id));
+                }
                 // Opening a terminal on the peer takes control of it, so host
                 // windows flip to their placeholder. `claim` mirrors mobile, and
                 // runs first: its broadcast is a webview emit, which has no place
@@ -1219,7 +1254,10 @@ fn handle_msg(
                 // the phone: the viewing Mac is the geometry authority and would
                 // only be fighting its own fit.
                 let from = v.get("from").and_then(Value::as_u64);
-                let (data, off, reset) = hub.ring_attach(subs, &id, from);
+                let attached = hub.ring_attach(subs, &id, from, || terminal_alive(app, &id));
+                let Some((data, off, reset)) = attached else {
+                    return send(ws, gone_frame(&id));
+                };
                 send(
                     ws,
                     json!({ "t": "seed", "id": id, "d": data, "off": off, "reset": reset }),
@@ -1566,6 +1604,9 @@ fn fast_path(app: &AppHandle, cmd: &str, args: &Value) -> Option<Result<Value, S
             let char_count = args.get("charCount").and_then(Value::as_i64).unwrap_or(0);
             Some(pty::ack_terminal_data(state, s("id"), char_count).map(|_| Value::Null))
         }
+        // Answered here, not by the host's page: a Mac restoring its tabs asks
+        // this first, often while a just-restarted host is still loading it.
+        "terminal_exists" => Some(Ok(Value::Bool(pty::session_exists(&state, &s("id"))))),
         "stop_terminal" => {
             let id = s("id");
             Some(pty::stop_terminal(app.clone(), state, id.clone()).map(|_| {
@@ -2058,6 +2099,40 @@ mod tests {
     #[test]
     fn the_status_chime_is_forwarded_to_peers() {
         assert!(FORWARDED_EVENTS.contains(&crate::sound::STATUS_SOUND_EVENT));
+    }
+
+    // A Mac's tab only learns which conversation to resume from this event; a
+    // host that kept it to itself left every restored agent tab starting fresh.
+    #[test]
+    fn the_agent_session_is_forwarded_to_peers() {
+        assert!(FORWARDED_EVENTS.contains(&"agent-session"));
+    }
+
+    #[test]
+    fn a_gone_terminal_answers_with_an_exit_that_says_so() {
+        let v = gone_frame("web-1727000000000");
+        assert_eq!(v.get("t").and_then(Value::as_str), Some("exit"));
+        assert_eq!(
+            v.get("id").and_then(Value::as_str),
+            Some("web-1727000000000")
+        );
+        assert_eq!(v.get("code").and_then(Value::as_i64), Some(-1));
+        assert_eq!(v.get("gone").and_then(Value::as_bool), Some(true));
+    }
+
+    // Subscribing to a terminal that is gone would register a viewer nothing
+    // will ever tell about an exit, and seed it an empty screen.
+    #[test]
+    fn attaching_to_a_gone_terminal_subscribes_nothing() {
+        let hub = PeerHub::default();
+        hub.inner.rings.locked().push("web-1", "old screen");
+        let subs = Mutex::new(HashSet::new());
+        assert!(hub.ring_attach(&subs, "web-1", None, || false).is_none());
+        assert!(subs.lock().unwrap().is_empty());
+
+        let (data, off, reset) = hub.ring_attach(&subs, "web-1", None, || true).unwrap();
+        assert_eq!((data.as_str(), off, reset), ("old screen", 10, true));
+        assert!(subs.lock().unwrap().contains("web-1"));
     }
 
     #[test]

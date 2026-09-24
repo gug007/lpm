@@ -17,6 +17,12 @@ import {
   onMirrorTree,
   requestMirrorTree,
 } from "../../mirror";
+import { isPeerName } from "../../peer/markers";
+import {
+  discardRelaunchNotices,
+  queueRelaunchNotice,
+  relaunchNoticeFor,
+} from "../../peer/relaunchNotices";
 import { reifyTreeWithFreshPtys, legacyEntriesToTree } from "./persistedTree";
 
 interface UseSessionRestoreProps {
@@ -94,6 +100,7 @@ export function useSessionRestore({
     const savedFocusedPath = saved.focusedPanePath;
     let cancelled = false;
     const allStartedIds: string[] = [];
+    const replacedIds: string[] = [];
 
     (async () => {
       const dropped: PersistedTab[] = [];
@@ -104,6 +111,7 @@ export function useSessionRestore({
         allStartedIds,
         dropped,
         discarded,
+        replacedIds,
       );
       if (cancelled || !restored) {
         allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
@@ -128,6 +136,13 @@ export function useSessionRestore({
         return;
       }
       void rememberLostSessions(projectName, [...dropped, ...discarded]);
+      const all = collectTerminals(restored);
+      // Queued ahead of the render that mounts these panes, which is where they
+      // are taken.
+      const replaced = new Set(replacedIds);
+      all.forEach((t) => {
+        if (replaced.has(t.id)) queueRelaunchNotice(t.id, relaunchNoticeFor(t));
+      });
       setTree(restored);
       // Sync the ref now: a create awaiting `restoreSettled` resumes in a
       // microtask, before the re-render updates treeRef, and must append to
@@ -150,7 +165,6 @@ export function useSessionRestore({
       // and writing the tree without it is the erasure holdPersistedPanes()
       // exists to prevent.
       if (dropped.length === 0) persist(restored);
-      const all = collectTerminals(restored);
       onCountRef.current?.(all.length);
       // Only into ptys this restore launched. The others were adopted from a
       // peer that kept them running while we were closed, so their program is
@@ -168,7 +182,13 @@ export function useSessionRestore({
     return () => {
       cancelled = true;
       settle();
-      allStartedIds.forEach((id) => StopTerminal(id).catch(() => {}));
+      // A restore still in flight stops its peer ptys itself when it lands, since
+      // they never made it into a tree. One that finished handed them to the tree,
+      // and like every peer terminal they run on while this project is off screen.
+      allStartedIds
+        .filter((id) => !isPeerName(id))
+        .forEach((id) => StopTerminal(id).catch(() => {}));
+      discardRelaunchNotices(replacedIds);
     };
   }, [projectName, scheduleCmdInject]);
 

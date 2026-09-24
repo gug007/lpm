@@ -58,6 +58,8 @@ interface TerminalHistoryPopoverProps {
   initialCollection?: string;
   // Close the popover: a scheduled prompt's Edit or New time moves on to the input.
   onClose?: () => void;
+  // Whether to offer the Scheduled collection (terminal inputs only).
+  scheduled?: boolean;
 }
 
 export function TerminalHistoryPopover({
@@ -70,6 +72,7 @@ export function TerminalHistoryPopover({
   onSend,
   initialCollection = COLLECTION_ALL,
   onClose,
+  scheduled = false,
 }: TerminalHistoryPopoverProps) {
   const [scope, setScope] = useState<HistoryScope>("project");
   const [collection, setCollection] = useState(initialCollection);
@@ -224,7 +227,7 @@ export function TerminalHistoryPopover({
 
         <CollectionBar
           collection={collection}
-          scheduledCount={scheduledCount}
+          scheduledCount={scheduled ? scheduledCount : null}
           folders={folders}
           onSelect={selectCollection}
           onDeleteFolder={setConfirmingFolderDelete}
@@ -366,7 +369,8 @@ function CollectionBar({
   onDeleteFolder,
 }: {
   collection: string;
-  scheduledCount: number;
+  // Null when the Scheduled collection isn't offered here.
+  scheduledCount: number | null;
   folders: Folder[];
   onSelect: (c: string) => void;
   onDeleteFolder: (folder: Folder) => void;
@@ -393,6 +397,7 @@ function CollectionBar({
         >
           Drafts
         </Chip>
+        {scheduledCount !== null && (
         <Chip
           active={collection === COLLECTION_SCHEDULED}
           onClick={() => onSelect(COLLECTION_SCHEDULED)}
@@ -401,6 +406,7 @@ function CollectionBar({
         >
           Scheduled
         </Chip>
+        )}
         {folders.map((f) => (
           <Chip
             key={f.id}

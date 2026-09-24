@@ -9,8 +9,13 @@ export function SidebarSendLaterMark({ projectName }: { projectName: string }) {
   const key = useSendLater((s) => markKey(s.items, (i) => i.projectName === projectName));
   const mark = parseMarkKey(key);
   if (!mark) return null;
-  const total = mark.scheduled + mark.waiting + mark.missed;
-  const what = total === 1 ? "1 prompt waiting to be sent" : `${total} prompts waiting to be sent`;
+  const pending = mark.scheduled + mark.waiting;
+  const what = [
+    pending > 0 && (pending === 1 ? "1 prompt scheduled to send" : `${pending} prompts scheduled to send`),
+    mark.missed > 0 && `${mark.missed} missed ${mark.missed === 1 ? "its" : "their"} time`,
+  ]
+    .filter(Boolean)
+    .join(", ");
   const [Icon, tone] =
     mark.waiting > 0
       ? [Hourglass, TONE_TEXT.waiting]

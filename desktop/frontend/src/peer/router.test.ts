@@ -7,6 +7,7 @@ import {
   mergeProjectLists,
   translatePeerEventPayload,
   isLocalOnlyCommand,
+  GLOBAL_PEER_EVENTS,
 } from "./router";
 import { prefixName, prefixRoot } from "./markers";
 
@@ -193,6 +194,37 @@ describe("translatePeerEventPayload", () => {
 
   it("leaves a malformed duplicate-done payload untouched", () => {
     expect(translatePeerEventPayload("duplicate-done", A, { ok: true })).toEqual({ ok: true });
+  });
+
+  // A peer tab's id is the host's pty id with the marker, so an untranslated pane
+  // matches no tab and the tab never learns which conversation to resume.
+  it("prefixes the project and pane of an agent-session event", () => {
+    expect(
+      translatePeerEventPayload("agent-session", A, {
+        project: "app",
+        paneId: "app-3",
+        provider: "claude",
+        sessionId: "abc-123",
+      }),
+    ).toEqual({
+      project: prefixName(A, "app"),
+      paneId: prefixName(A, "app-3"),
+      provider: "claude",
+      sessionId: "abc-123",
+    });
+  });
+
+  it("leaves a malformed agent-session payload untouched", () => {
+    expect(translatePeerEventPayload("agent-session", A, { project: "app" })).toEqual({
+      project: "app",
+    });
+    expect(translatePeerEventPayload("agent-session", A, null)).toBeNull();
+  });
+});
+
+describe("GLOBAL_PEER_EVENTS", () => {
+  it("forwards agent-session so peer tabs keep their resume command", () => {
+    expect(GLOBAL_PEER_EVENTS.has("agent-session")).toBe(true);
   });
 });
 

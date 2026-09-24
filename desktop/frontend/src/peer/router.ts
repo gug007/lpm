@@ -79,6 +79,7 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "templates-changed",
   "clone-done",
   "duplicate-done",
+  "agent-session",
 ]);
 
 // Scan a command's arguments (top level + one array level deep) for peer
@@ -209,6 +210,20 @@ export function translatePeerEventPayload(
         const p = payload as { name?: unknown };
         if (typeof p.name === "string") {
           return { ...(payload as object), name: prefixName(slug, p.name) };
+        }
+      }
+      return payload;
+    case "agent-session":
+      // { project, paneId, provider, sessionId } — a peer tab's id is the host's
+      // pty id prefixed, so both names need the marker to find the tab here.
+      if (payload && typeof payload === "object") {
+        const p = payload as { project?: unknown; paneId?: unknown };
+        if (typeof p.project === "string" && typeof p.paneId === "string") {
+          return {
+            ...(payload as object),
+            project: prefixName(slug, p.project),
+            paneId: prefixName(slug, p.paneId),
+          };
         }
       }
       return payload;

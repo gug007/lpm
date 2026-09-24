@@ -24,18 +24,18 @@ set -eu
 PREFIX=/opt/lpm
 UNIT_DIR=/etc/systemd/system
 ENV_DIR=/etc/lpm
+ENV_FILE=$ENV_DIR/host.env
+NEEDRESTART_CONF=/etc/needrestart/conf.d/lpm.conf
 UNITS="lpm.service lpm-wm.service lpm-xvfb.service"
-# Matches install.sh: the units run under the *system* manager, whose %h is
-# literally /root — not the home of whoever ran the installer.
-SERVICE_HOME=/root
+PROC=/proc
 PURGE=0
 
 usage() {
     cat <<EOF
 Usage: sudo ./uninstall.sh [--purge]
 
-  --purge   Also delete $SERVICE_HOME/.lpm (project config, session memory,
-            this machine's pairing identity). Not reversible.
+  --purge   Also delete the service account's ~/.lpm (project config, session
+            memory, this machine's pairing identity). Not reversible.
 EOF
 }
 
@@ -48,6 +48,86 @@ for arg in "$@"; do
 done
 
 [ "$(id -u)" = "0" ] || { echo "uninstall.sh needs root (try: sudo ./uninstall.sh)" >&2; exit 1; }
+
+if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+    SUPERVISOR=systemd
+else
+    SUPERVISOR=container
+fi
+
+# The account the app runs as — root, unless a drop-in gave the unit User= and
+# HOME= — and so whose sessions, skills and ~/.lpm are lpm's to remove. The same
+# resolution as install.sh's, repeated because this also runs straight off a
+# pipe; tests/install-test.sh holds both copies to the same answers. Sets
+# SERVICE_USER, SERVICE_HOME and SERVICE_LPM_DIR.
+resolve_service_account() {
+    SERVICE_USER=
+    SERVICE_HOME=
+    SERVICE_LPM_DIR=
+    if [ "$SUPERVISOR" = "systemd" ]; then
+        running_account || configured_account
+    else
+        SERVICE_HOME=$(env_file_value LPM_HOME)
+        SERVICE_LPM_DIR=$(env_file_value LPM_DIR)
+    fi
+    case "${SERVICE_USER:-0}" in
+        0 | root) SERVICE_USER=root ;;
+        *)
+            name=$(getent passwd "$SERVICE_USER" 2>/dev/null | cut -d: -f1)
+            [ -z "$name" ] || SERVICE_USER=$name
+            [ -n "$SERVICE_HOME" ] || SERVICE_HOME=$(getent passwd "$SERVICE_USER" 2>/dev/null | cut -d: -f6)
+            ;;
+    esac
+    [ -n "$SERVICE_HOME" ] || SERVICE_HOME=/root
+    case "$SERVICE_LPM_DIR" in
+        "~/"*) SERVICE_LPM_DIR=$SERVICE_HOME/${SERVICE_LPM_DIR#"~/"} ;;
+    esac
+}
+
+running_account() {
+    pid=$(systemctl show -p MainPID --value lpm.service 2>/dev/null) || return 1
+    case "$pid" in
+        '' | 0 | *[!0-9]*) return 1 ;;
+    esac
+    environ=$( { tr '\0' '\n' < "$PROC/$pid/environ"; } 2>/dev/null) || return 1
+    SERVICE_HOME=$(printf '%s\n' "$environ" | last_value HOME)
+    [ -n "$SERVICE_HOME" ] || return 1
+    SERVICE_LPM_DIR=$(printf '%s\n' "$environ" | last_value LPM_DIR)
+    SERVICE_USER=$(sed -n 's/^Uid:[[:space:]]*\([0-9]*\).*/\1/p' "$PROC/$pid/status" 2>/dev/null) || return 1
+}
+
+configured_account() {
+    SERVICE_USER=$(systemctl show -p User --value lpm.service 2>/dev/null) || SERVICE_USER=
+    unit_env=$(systemctl show -p Environment --value lpm.service 2>/dev/null | tr ' ' '\n')
+    SERVICE_HOME=$(printf '%s\n' "$unit_env" | last_value HOME)
+    SERVICE_LPM_DIR=$(printf '%s\n' "$unit_env" | last_value LPM_DIR)
+    value=$(env_file_value HOME)
+    [ -z "$value" ] || SERVICE_HOME=$value
+    value=$(env_file_value LPM_DIR)
+    [ -z "$value" ] || SERVICE_LPM_DIR=$value
+}
+
+last_value() {
+    sed -n "s/^[[:space:]]*$1=//p" | tail -n 1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+
+env_file_value() {
+    [ -r "$ENV_FILE" ] || return 0
+    last_value "$1" < "$ENV_FILE"
+}
+
+as_service_account() {
+    if [ "$SERVICE_USER" != root ] && command -v runuser >/dev/null 2>&1; then
+        runuser -u "$SERVICE_USER" -- env HOME="$SERVICE_HOME" LPM_DIR="$SERVICE_LPM_DIR" "$@"
+    else
+        HOME="$SERVICE_HOME" LPM_DIR="$SERVICE_LPM_DIR" "$@"
+    fi
+}
+
+# Before anything is stopped: once the app is down there is no running process
+# left to ask, and the env file is about to go too.
+resolve_service_account
+DATA_DIR=${SERVICE_LPM_DIR:-$SERVICE_HOME/.lpm}
 
 # Every step below tolerates its half being absent. This runs on machines in
 # every state — a clean install, a half-finished one, one already uninstalled —
@@ -100,7 +180,7 @@ fi
 # else on this machine is not lpm's to end.
 if [ -x "$PREFIX/lpm-desktop" ]; then
     echo "==> Stopping services and agents"
-    HOME="$SERVICE_HOME" "$PREFIX/lpm-desktop" --stop-sessions >/dev/null 2>&1 || true
+    as_service_account "$PREFIX/lpm-desktop" --stop-sessions >/dev/null 2>&1 || true
 fi
 
 echo "==> Removing units and binaries"
@@ -120,8 +200,14 @@ for link in lpm:lpm lpm-host:hostctl.sh; do
     fi
 done
 rm -rf "$PREFIX"
-rm -f "$ENV_DIR/host.env"
+rm -f "$ENV_FILE"
 rmdir "$ENV_DIR" 2>/dev/null || true
+# The installer's needrestart exclusion. Its directories go only where the
+# installer created them: on a machine with needrestart they are needrestart's.
+rm -f "$NEEDRESTART_CONF" "$NEEDRESTART_CONF.new"
+if [ ! -e /etc/needrestart/needrestart.conf ]; then
+    rmdir "$(dirname "$NEEDRESTART_CONF")" /etc/needrestart 2>/dev/null || true
+fi
 
 # The agent skills the app writes into the service account's skill directories on
 # every start. Named directories, removed one by one: these directories are shared
@@ -137,10 +223,15 @@ done
 if [ "$PURGE" = "1" ]; then
     echo "==> Deleting $SERVICE_HOME/.lpm"
     rm -rf "$SERVICE_HOME/.lpm"
+    # A moved data directory is named, never deleted: LPM_DIR can point anywhere,
+    # and this can't tell a directory of lpm's from one it merely shares.
+    if [ -n "$SERVICE_LPM_DIR" ]; then
+        echo "    note: left LPM_DIR=$SERVICE_LPM_DIR in place; delete it yourself if it only holds lpm's data" >&2
+    fi
 else
     echo
-    echo "Kept $SERVICE_HOME/.lpm — project config, session memory and this machine's"
-    echo "pairing identity. Delete it with: sudo rm -rf $SERVICE_HOME/.lpm"
+    echo "Kept $DATA_DIR — project config, session memory and this machine's"
+    echo "pairing identity. Delete it with: sudo rm -rf $DATA_DIR"
 fi
 
 echo

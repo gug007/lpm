@@ -22,8 +22,13 @@ function timeValue(at: number) {
 function combine(date: string, time: string): number | null {
   const [y, m, d] = date.split("-").map(Number);
   const [hh, mm] = time.split(":").map(Number);
-  if (![y, m, d, hh, mm].every(Number.isFinite)) return null;
-  return new Date(y, m - 1, d, hh, mm).getTime();
+  // A year still being typed ("0002") isn't a date yet; the Date constructor
+  // would read it as 1902.
+  if (![y, m, d, hh, mm].every(Number.isFinite) || y < 1000) return null;
+  const at = new Date(0);
+  at.setFullYear(y, m - 1, d);
+  at.setHours(hh, mm, 0, 0);
+  return at.getTime();
 }
 
 const FIELD_CLASS =

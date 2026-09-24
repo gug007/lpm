@@ -312,6 +312,7 @@ export function useTabClose({
         }
       });
       recordClosingTabs(pane.tabs);
+      onTerminalsClosed(projectName, pane.tabs.map((t) => t.historyKey));
       collapsePane(current, paneId);
     },
     [collapsePane, recordClosingTabs, projectName, forward],

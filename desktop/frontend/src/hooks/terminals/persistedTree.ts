@@ -38,6 +38,10 @@ import { nextId } from "./util";
  * `discarded` is the other, non-failure exit: a parked peer tab whose pty is
  * gone has nothing to relaunch, so it leaves the tree without counting as a
  * loss and the caller is free to erase it from disk.
+ *
+ * `replacedIds` names the new ptys started for peer tabs whose terminal the host
+ * no longer had — tabs that come back as something other than what they were,
+ * which the caller tells the user about.
  */
 export async function reifyTreeWithFreshPtys(
   node: PersistedPaneNode,
@@ -45,8 +49,9 @@ export async function reifyTreeWithFreshPtys(
   startedIds: string[],
   dropped: PersistedTab[] = [],
   discarded: PersistedTab[] = [],
+  replacedIds: string[] = [],
 ): Promise<PaneNode | null> {
-  const restored = await reifyTree(node, projectName, startedIds, dropped, discarded);
+  const restored = await reifyTree(node, projectName, startedIds, dropped, discarded, replacedIds);
   return restored ? disambiguateRestoredSessionTitles(restored) : null;
 }
 
@@ -85,6 +90,12 @@ async function shouldAdoptPeerTerminal(id: string): Promise<boolean> {
   }
 }
 
+interface ReifiedTab {
+  id: string;
+  adopted: boolean;
+  replacedPeer?: boolean;
+}
+
 /**
  * The pty backing a restored tab: an existing one when the tab wraps a pty
  * someone else owns, a freshly started one otherwise, and null when the tab has
@@ -103,25 +114,25 @@ async function shouldAdoptPeerTerminal(id: string): Promise<boolean> {
  *     for a dead session: launching a shell in its place would resurrect it as a
  *     zombie, and the peer that owns the tab never asked for a new one.
  */
-async function reifyTab(
-  t: PersistedTab,
-  projectName: string,
-): Promise<{ id: string; adopted: boolean } | null> {
+async function reifyTab(t: PersistedTab, projectName: string): Promise<ReifiedTab | null> {
   if (t.id) {
     if (isPeerMarked(t.id)) {
       if (await shouldAdoptPeerTerminal(t.id)) return { id: t.id, adopted: true };
-    } else {
-      try {
-        return (await TerminalExists(t.id)) ? { id: t.id, adopted: true } : null;
-      } catch {
-        return null;
-      }
+      return { id: await startFresh(t, projectName), adopted: false, replacedPeer: true };
+    }
+    try {
+      return (await TerminalExists(t.id)) ? { id: t.id, adopted: true } : null;
+    } catch {
+      return null;
     }
   }
-  const id = await (t.actionName
+  return { id: await startFresh(t, projectName), adopted: false };
+}
+
+function startFresh(t: PersistedTab, projectName: string): Promise<string> {
+  return t.actionName
     ? StartTerminalForRestore(projectName, t.actionName)
-    : StartTerminal(projectName));
-  return { id, adopted: false };
+    : StartTerminal(projectName);
 }
 
 async function reifyTree(
@@ -130,6 +141,7 @@ async function reifyTree(
   startedIds: string[],
   dropped: PersistedTab[],
   discarded: PersistedTab[],
+  replacedIds: string[],
 ): Promise<PaneNode | null> {
   if (node.kind === "leaf") {
     const persistedTabs = node.tabs ?? [];
@@ -153,11 +165,12 @@ async function reifyTree(
         discarded.push(t);
         return;
       }
-      const { id, adopted } = result.value;
+      const { id, adopted, replacedPeer } = result.value;
       // Only ptys we launched go in `startedIds` — the caller stops those when
       // the restore fails outright, and an adopted terminal is someone's live
       // session (very possibly a running agent), not ours to kill.
       if (!adopted) startedIds.push(id);
+      if (replacedPeer) replacedIds.push(id);
       newIdx.push(tabs.length);
       tabs.push(
         makeTerminal(id, t.label ?? "Terminal", {
@@ -186,8 +199,8 @@ async function reifyTree(
   }
   if (!node.a || !node.b) return null;
   const [a, b] = await Promise.all([
-    reifyTree(node.a, projectName, startedIds, dropped, discarded),
-    reifyTree(node.b, projectName, startedIds, dropped, discarded),
+    reifyTree(node.a, projectName, startedIds, dropped, discarded, replacedIds),
+    reifyTree(node.b, projectName, startedIds, dropped, discarded, replacedIds),
   ]);
   if (!a || !b) return a ?? b;
   return {

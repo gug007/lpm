@@ -7,6 +7,8 @@ interface SendLaterReadbackProps {
   // When the limit resets, so typing "reset" works where that pick is offered.
   limitAt: number | null;
   onTyped: (at: number, delay: boolean, limit: boolean) => void;
+  // Editing ended: focus goes back to the picker, so its keys keep working.
+  onDone: () => void;
 }
 
 const LIMIT_WORDS = /^(reset|resets|limit|limit reset|when (the )?limit resets)$/i;
@@ -15,25 +17,32 @@ const TYPED_DELAY = /^(in\s+)?\d+(\.\d+)?\s*(d|h|m)/i;
 // The chosen moment in words, large. Clicking the time turns it into a field
 // that takes a typed time ("90m", "5pm", "tomorrow 9am"), for any moment the
 // line and its flags don't offer.
-export function SendLaterReadback({ at, now, limitAt, onTyped }: SendLaterReadbackProps) {
+export function SendLaterReadback({ at, now, limitAt, onTyped, onDone }: SendLaterReadbackProps) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState(false);
 
-  const commit = () => {
+  // Apply what was typed. False when it names no moment, and nothing changed.
+  const apply = (): boolean => {
     const typed = text.trim();
     if (limitAt !== null && LIMIT_WORDS.test(typed)) {
       onTyped(limitAt, false, true);
-      setEditing(false);
-      return;
+      return true;
     }
     const parsed = parseWhen(typed, Date.now());
-    if (parsed === null) {
-      setError(true);
-      return;
-    }
+    if (parsed === null) return false;
     onTyped(parsed, TYPED_DELAY.test(typed) && !/(am|pm|:)/i.test(typed), false);
+    return true;
+  };
+
+  const finish = () => {
     setEditing(false);
+    onDone();
+  };
+
+  const commit = () => {
+    if (apply()) finish();
+    else setError(true);
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -44,7 +53,7 @@ export function SendLaterReadback({ at, now, limitAt, onTyped }: SendLaterReadba
     } else if (e.key === "Escape") {
       e.preventDefault();
       e.stopPropagation();
-      setEditing(false);
+      finish();
     }
   };
 
@@ -60,7 +69,11 @@ export function SendLaterReadback({ at, now, limitAt, onTyped }: SendLaterReadba
             setError(false);
           }}
           onKeyDown={onKeyDown}
-          onBlur={() => setEditing(false)}
+          onBlur={() => {
+            // Leaving the field (clicking Schedule, say) keeps a valid typed time.
+            if (text.trim()) apply();
+            setEditing(false);
+          }}
           placeholder="2h, 90m, 5pm, tomorrow 9am…"
           spellCheck={false}
           className="h-8 w-60 rounded-lg border border-[var(--accent-blue)] bg-[var(--bg-secondary)] px-2.5 text-[14px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"

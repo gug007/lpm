@@ -11,6 +11,7 @@ import {
 import { promptPreview } from "../sendLater/preview";
 import { promptStatus } from "../sendLater/status";
 import { TONE_TEXT } from "../sendLater/toneStyles";
+import { useOverlay } from "../store/overlay";
 import { useSendLater, type ScheduledPrompt } from "../store/sendLater";
 
 interface SendLaterCardProps {
@@ -19,7 +20,8 @@ interface SendLaterCardProps {
   // The input the card was opened from, whose picker a new time opens in.
   fromHistoryKey: string;
   now: number;
-  onClose: () => void;
+  // Closed; `refocus` when focus should go back to the dot (Escape, an action).
+  onClose: (refocus: boolean) => void;
 }
 
 const WIDTH = 320;
@@ -31,17 +33,22 @@ const ACTION_CLASS =
 export function SendLaterCard({ items, anchor, fromHistoryKey, now, onClose }: SendLaterCardProps) {
   const holds = useSendLater((s) => s.holds);
   const ref = useRef<HTMLDivElement>(null);
+  useOverlay();
+
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>("button")?.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       const target = e.target as Element;
       if (ref.current?.contains(target) || target.closest?.("[data-send-later-dot]")) return;
-      onClose();
+      onClose(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
-      onClose();
+      onClose(true);
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey, true);
@@ -52,7 +59,7 @@ export function SendLaterCard({ items, anchor, fromHistoryKey, now, onClose }: S
   }, [onClose]);
 
   const act = (run: () => unknown) => () => {
-    onClose();
+    onClose(true);
     void run();
   };
 

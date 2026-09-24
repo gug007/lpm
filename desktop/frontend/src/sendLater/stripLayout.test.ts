@@ -12,6 +12,7 @@ const prompt = (id: string, dueAt: number, state: ScheduledPrompt["state"] = "sc
   projectName: "lpm",
   historyKey: "k",
   terminalLabel: "Claude",
+  agent: "claude",
   text: id,
   images: {},
   dueAt,
@@ -60,6 +61,7 @@ describe("layoutStrip", () => {
     );
     expect(groups.map((g) => g.items.map((i) => i.id))).toEqual([["soon"], ["a", "b"]]);
     expect(groups[1]).toMatchObject({ x: 1, pinned: true });
+    expect(groups[0].room).toBeCloseTo((1 - groups[0].x) * 640 - 110);
   });
 
   it("folds dots too close to tell apart", () => {

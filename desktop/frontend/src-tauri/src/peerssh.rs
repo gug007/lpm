@@ -12,7 +12,6 @@
 //! in remains SSH.
 
 use serde_json::Value;
-use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
@@ -139,14 +138,20 @@ fn fetch_command() -> String {
     )
 }
 
+/// Run `body` in a scratch directory that goes however the script ends — the
+/// unpacked release is ~100MB, and every update used to leave one behind. An
+/// EXIT trap leaves the exit status alone, so the installer's still reaches ssh.
+fn in_scratch_dir(body: &str) -> String {
+    format!("set -e; tmp=$(mktemp -d); trap 'rm -rf \"$tmp\"' EXIT; cd \"$tmp\"; {body}")
+}
+
 /// Fetch, unpack, install. The installer needs root.
 fn install_script() -> String {
-    format!(
-        "set -e; tmp=$(mktemp -d); cd \"$tmp\"; {}; \
-         tar xzf lpm-host.tar.gz; cd lpm-host; {}",
+    in_scratch_dir(&format!(
+        "{}; tar xzf lpm-host.tar.gz; cd lpm-host; {}",
         fetch_command(),
         as_root("./install.sh")
-    )
+    ))
 }
 
 /// A container is the host most likely to have no sudo on it: the login there is
@@ -204,8 +209,8 @@ fn missing_tools_error(missing: &[String]) -> String {
 
 /// Run a command on the host under a deadline, optionally feeding it a script on
 /// stdin. Shared by the install and the removal: both are long, both report the
-/// host's stderr verbatim, and both must not hang a UI thread's worker forever if
-/// the far end stops answering mid-run.
+/// host's own words on failure, and both must not hang a UI thread's worker
+/// forever if the far end stops answering mid-run.
 fn ssh_run(
     target: &SshTarget,
     command: String,
@@ -214,51 +219,9 @@ fn ssh_run(
     on_failure: &str,
     on_timeout: &str,
 ) -> Result<(), String> {
-    let mut args = ssh_base_args(target);
-    args.push(command);
-    let mut child = Command::new("ssh")
-        .args(&args)
-        .stdin(if stdin_script.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
-        })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("could not run ssh: {e}"))?;
-    if let Some(script) = stdin_script {
-        // Dropped immediately after, which closes the pipe — the remote `sh -s`
-        // reads to EOF, so a stdin left open would hang until the deadline.
-        let mut stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| "could not write to ssh".to_string())?;
-        stdin
-            .write_all(script.as_bytes())
-            .map_err(|e| format!("could not send the script to the host: {e}"))?;
-    }
-    let deadline = Instant::now() + timeout;
-    loop {
-        match child.try_wait().map_err(|e| e.to_string())? {
-            Some(status) if status.success() => return Ok(()),
-            Some(_) => {
-                let out = child.wait_with_output().map_err(|e| e.to_string())?;
-                let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-                return Err(if err.is_empty() {
-                    on_failure.to_string()
-                } else {
-                    err
-                });
-            }
-            None => {}
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            return Err(on_timeout.to_string());
-        }
-        std::thread::sleep(Duration::from_millis(250));
-    }
+    let mut ssh = Command::new("ssh");
+    ssh.args(ssh_base_args(target)).arg(command);
+    crate::peersshrun::run(ssh, stdin_script, timeout, on_failure, on_timeout)
 }
 
 /// Fetch the published tarball on the host and run its installer. Deliberately
@@ -784,6 +747,35 @@ mod tests {
         // And a machine with neither says so itself, rather than failing on a
         // tar of a file that was never written.
         assert!(script.contains("neither curl nor wget"), "{script}");
+    }
+
+    // Armed before anything lands in the directory, so a download or unpack that
+    // fails still cleans up after itself.
+    #[test]
+    fn the_install_cleans_up_its_download() {
+        let script = install_script();
+        let trap = script.find("trap 'rm -rf \"$tmp\"' EXIT").expect(&script);
+        assert!(trap > script.find("mktemp -d").unwrap(), "{script}");
+        assert!(trap < script.find("cd \"$tmp\"").unwrap(), "{script}");
+        assert!(trap < script.find("command -v curl").unwrap(), "{script}");
+    }
+
+    // The Mac reads success or failure off ssh's exit status, which is the
+    // script's — the trap must neither swallow a failure nor invent one.
+    #[test]
+    fn the_scratch_dir_goes_and_the_exit_status_stays() {
+        let out = tempfile::tempdir().unwrap();
+        let marker = out.path().join("dir");
+        for (body, want) in [("exit 7", 7), ("false; true", 1), ("true", 0)] {
+            let script = in_scratch_dir(&format!("pwd > '{}'; {body}", marker.display()));
+            let status = Command::new("sh").arg("-c").arg(&script).status().unwrap();
+            assert_eq!(status.code(), Some(want), "{script}");
+            let dir = std::fs::read_to_string(&marker).unwrap();
+            assert!(
+                !std::path::Path::new(dir.trim()).exists(),
+                "left behind: {dir}"
+            );
+        }
     }
 
     // The failure a container hands back when its login isn't root: the shell's

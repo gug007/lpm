@@ -2,6 +2,13 @@ import type { AgentLimitsMap, LimitWindow, ProviderLimits } from "../hooks/useAg
 
 export type LimitAgent = "claude" | "codex";
 
+// Whose usage limit a prompt can wait out. Only readings taken on this Mac
+// count, so a terminal on another Mac or over SSH gets no "limit resets" pick.
+export function limitAgentFor(agent: string, remote: boolean): LimitAgent | null {
+  if (remote) return null;
+  return agent === "claude" || agent === "codex" ? agent : null;
+}
+
 export interface LimitReset {
   // When a prompt set for the reset goes out: just after it, so the first
   // request lands in the fresh window.

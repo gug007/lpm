@@ -23,7 +23,7 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { registerFileDropHandler } from "../fileDrop";
-import { peerSlugOf, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
+import { isPeerName, peerSlugOf, PEER_UPLOAD_MAX_BYTES } from "../peer/markers";
 import { uploadPeerFile } from "../peer/uploadFiles";
 import { useAIPicker } from "../hooks/useAIPicker";
 import { getSettings } from "../store/settings";
@@ -116,7 +116,8 @@ import { useMentions } from "../hooks/useMentions";
 import { useMemorySessions } from "../hooks/useMemorySessions";
 import { MENTION_TRIGGER, rankMentions, type MentionItem } from "../mentions";
 import type { TerminalMemoryRef } from "../terminalMemory";
-import { useComposerSendLater, type ComposerPrompt } from "../hooks/useComposerSendLater";
+import { useComposerSendLater, type ComposerPrompt, type SendLaterPicker } from "../hooks/useComposerSendLater";
+import { limitAgentFor, type LimitAgent } from "../sendLater/limitReset";
 import { SendLaterPopover } from "./SendLaterPopover";
 import { SendLaterStrip } from "./SendLaterStrip";
 
@@ -301,13 +302,8 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // slash menu only appears when this resolves (a terminal actually running an
   // agent); plain shells get no menu. Commands load lazily on focus.
   const slashCli = detectAICLI(launchCmd);
-  // Whose usage limit a prompt can wait out. Only readings on this Mac count, so a
-  // terminal on another Mac or over SSH gets no "limit resets" pick.
+  const agentName = session?.provider ?? slashCli ?? "";
   const projectIsRemote = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
-  const limitAgent =
-    isRemotePeer || projectIsRemote
-      ? null
-      : (session?.provider ?? (slashCli === "claude" || slashCli === "codex" ? slashCli : null));
   const { filter: filterSlash, isCommand: isSlashCommand, argumentHintFor } = useSlashCommands(slashCli, cwd, focused);
   // Only Claude Code and Codex can be re-pointed at another model mid-session,
   // so only their terminals get the model switcher in the button row.
@@ -1197,7 +1193,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // is overwritten.
   const restorePrompt = (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    // While an action rewrites the input, the prompt arrives as its own
+    // prepared prompt instead, which never displaces the one being rewritten.
+    if (!editor || transforming.current) {
+      deliverPromptDraft(terminalId, historyKey, text, images);
+      return;
+    }
     if (!serializeEditor(editor).trim()) {
       loadFromHistory(text, images);
       return;
@@ -1215,6 +1216,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     projectName,
     historyKey,
     targetLabel,
+    agent: agentName,
     readPrompt,
     claim: (id) => {
       if (sending.current.has(id)) return false;
@@ -1228,6 +1230,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     },
     restore: restorePrompt,
   });
+
+  // A picker left open while this input goes off screen (another project, a
+  // service tab) would schedule for a terminal no longer in view.
+  useEffect(() => {
+    if (!shown) sendLater.close();
+  }, [shown, sendLater.close]);
 
   // Hand the current prompt to the duplicate flow. The current project is copy
   // #1: serialize the field and its live attachments (present tokens only), tag
@@ -2381,8 +2389,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         <SendLaterPopover
           anchorRef={containerRef}
           picker={sendLater.picker}
-          projectName={projectName}
-          agent={limitAgent}
+          {...pickerLimitSource(sendLater.picker, projectName, agentName, isRemotePeer || projectIsRemote)}
           onPick={(at, kind, choice) => void sendLater.pick(at, kind, choice)}
           onClose={(refocus) => {
             sendLater.close();
@@ -2428,6 +2435,22 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       />
     </div>
   );
+}
+
+// Whose limit the picker offers to wait out: the prompt's own when moving one
+// already scheduled (it may belong to another terminal), else this terminal's.
+function pickerLimitSource(
+  picker: SendLaterPicker,
+  projectName: string,
+  agentName: string,
+  remote: boolean,
+): { projectName: string; agent: LimitAgent | null } {
+  if (picker.mode !== "reschedule") return { projectName, agent: limitAgentFor(agentName, remote) };
+  const item = picker.item;
+  const itemRemote =
+    isPeerName(item.projectName) ||
+    (useAppStore.getState().projects.find((p) => p.name === item.projectName)?.isRemote ?? false);
+  return { projectName: item.projectName, agent: limitAgentFor(item.agent, itemRemote) };
 }
 
 // Raw byte length a base64 string decodes to, for the peer upload size gate —
