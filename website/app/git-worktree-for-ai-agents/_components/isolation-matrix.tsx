@@ -142,8 +142,8 @@ export default function IsolationMatrix() {
     <section id="matrix" className="scroll-mt-20 py-20 sm:py-24">
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
-          eyebrow="Five ways to isolate an agent"
-          title="Git worktree vs lpm Worktree vs lpm Duplicate"
+          eyebrow="Isolation models"
+          title="Five ways to isolate a coding agent, compared"
           description="Raw Git, the worktrees Claude Code and Codex create for you, and both lpm primitives, side by side, so you can see exactly where each boundary is drawn."
           className="mb-12"
         />

@@ -1,189 +1,116 @@
 import { SectionHeader } from "@/components/section-header";
+import ComparisonCell from "./comparison-cell";
+import { COMPARISON_COLUMNS, COMPARISON_ROWS } from "./comparison-data";
 
-type ComparisonRow = {
-  topic: string;
-  worktree: string;
-  duplicate: string;
-};
+const HIGHLIGHT_INDEX = COMPARISON_COLUMNS.length - 1;
 
-const ROWS: ComparisonRow[] = [
-  {
-    topic: "Git relationship",
-    worktree:
-      "A linked working tree that shares Git objects, refs, and repository config.",
-    duplicate:
-      "A standalone project folder with an independent .git directory.",
-  },
-  {
-    topic: "Starting point",
-    worktree:
-      "Tracked files from a chosen commit or branch.",
-    duplicate:
-      "The project’s current on-disk state, fast-forwarded to the newest commits on its branch by default, with options to drop uncommitted changes or skip the pull.",
-  },
-  {
-    topic: "Same branch in parallel",
-    worktree:
-      "Git refuses a branch already checked out elsewhere by default.",
-    duplicate:
-      "Each copy can stay on the same branch because its Git repository is independent.",
-  },
-  {
-    topic: "Ignored and local files",
-    worktree:
-      "Not included by a normal checkout; hooks or tool-specific include rules can copy selected files.",
-    duplicate:
-      "Useful local files are copied by default while regenerable build caches are skipped.",
-  },
-  {
-    topic: "Dependencies",
-    worktree:
-      "Each new checkout normally needs its environment initialized.",
-    duplicate:
-      "Existing dependencies come along by default, or lpm can install them fresh in each copy for Node projects.",
-  },
-  {
-    topic: "Agent launch",
-    worktree:
-      "Git creates the checkout; agent tools or your own scripts handle the session.",
-    duplicate:
-      "The same flow can queue an lpm action, command, and prompt on every copy.",
-  },
-  {
-    topic: "Dev stack",
-    worktree:
-      "Git does not manage services, logs, ports, or terminals.",
-    duplicate:
-      "Copies inherit the parent project’s lpm services, actions, profiles, and terminal setup.",
-  },
-  {
-    topic: "Fan-out",
-    worktree:
-      "Create and prepare each worktree directly or automate it with another tool.",
-    duplicate:
-      "Create up to 50 labeled copies from a single dialog.",
-  },
-  {
-    topic: "Ports and databases",
-    worktree:
-      "Shared: two checkouts running the same dev server still fight over its port and database.",
-    duplicate:
-      "Also shared. lpm checks declared ports when a copy starts and offers to free the port or stop.",
-  },
-  {
-    topic: "Removal",
-    worktree:
-      "git worktree remove, then delete the branch yourself if you no longer need it.",
-    duplicate:
-      "Delete the copy from the sidebar. Its folder is removed from disk for good, not moved to the Trash.",
-  },
-  {
-    topic: "Disk model",
-    worktree:
-      "Very compact because repository data is shared.",
-    duplicate:
-      "Fast APFS copy-on-write clone; storage grows as standalone copies diverge.",
-  },
-  {
-    topic: "Platform",
-    worktree:
-      "Built into Git and available across platforms.",
-    duplicate:
-      "An instant APFS clone on your Mac. Also works for projects on a connected Linux server, and can create a copy on another connected Mac that has the project.",
-  },
-];
+const COLUMN_WIDTHS = ["md:w-[25%]", "md:w-[25%]", "md:w-[31%]"];
 
+// Below md, display:block/grid drops native table semantics; the explicit roles restore them.
 export default function Comparison() {
   return (
-    <section id="comparison" className="scroll-mt-20 py-20 sm:py-24">
+    <section id="comparison" className="pt-20 pb-6 sm:pt-24">
       <div className="max-w-5xl mx-auto px-6">
         <SectionHeader
-          eyebrow="Git worktree vs lpm Duplicate"
-          title="What gets copied is the real difference"
-          description="A worktree isolates a checkout. lpm Duplicate copies the project around it (local files, dependencies and lpm setup), while ports, databases and Docker stay shared."
-          className="mb-12"
+          eyebrow="Side by side"
+          title="Git worktree vs git clone vs lpm Duplicate"
+          description="What gets copied, and what stays shared, row by row."
+          className="mb-10 sm:mb-12"
         />
 
-        <div className="hidden md:block overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
-          <table className="w-full table-fixed text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-800 dark:bg-white/[0.025]">
+        <div className="relative overflow-clip rounded-2xl border border-gray-200 dark:border-gray-800">
+          <table
+            role="table"
+            className="w-full text-left text-sm max-md:block md:table-fixed"
+          >
+            <caption className="sr-only">
+              Git worktree, git clone and lpm Duplicate compared on ten
+              properties
+            </caption>
+            <thead
+              role="rowgroup"
+              className="sticky top-14 z-10 bg-gray-50 shadow-[0_1px_0_0_var(--hairline)] max-md:block dark:bg-[#161616]"
+            >
+              <tr role="row" className="max-md:grid max-md:grid-cols-3">
                 <th
                   scope="col"
-                  className="w-[19%] px-5 py-4 text-left font-medium text-gray-500 dark:text-gray-400"
+                  role="columnheader"
+                  className="px-5 py-4 max-md:sr-only md:w-[19%]"
                 >
-                  Capability
+                  <span className="sr-only">Property</span>
                 </th>
-                <th
-                  scope="col"
-                  className="w-[38%] px-5 py-4 text-left font-semibold text-gray-700 dark:text-gray-300"
-                >
-                  Git worktree
-                </th>
-                <th
-                  scope="col"
-                  className="w-[43%] bg-emerald-50/60 px-5 py-4 text-left font-semibold text-emerald-800 dark:bg-emerald-400/[0.045] dark:text-emerald-300"
-                >
-                  lpm Duplicate
-                </th>
+                {COMPARISON_COLUMNS.map((column, index) => {
+                  const highlight = index === HIGHLIGHT_INDEX;
+                  const Icon = column.icon;
+                  return (
+                    <th
+                      key={column.name}
+                      scope="col"
+                      role="columnheader"
+                      className={`px-3 py-3 align-bottom md:px-5 md:py-4 ${COLUMN_WIDTHS[index]} ${
+                        highlight ? "bg-emerald-50 dark:bg-emerald-400/[0.07]" : ""
+                      }`}
+                    >
+                      <span className="flex flex-col gap-1 md:flex-row md:items-center md:gap-2">
+                        <Icon
+                          aria-hidden
+                          className={`h-4 w-4 shrink-0 ${column.iconTone}`}
+                        />
+                        <span
+                          className={`text-xs font-semibold sm:text-[13px] ${
+                            highlight
+                              ? "text-emerald-800 dark:text-emerald-300"
+                              : "text-gray-900 dark:text-gray-100"
+                          }`}
+                        >
+                          {column.name}
+                        </span>
+                      </span>
+                      <span className="mt-1 hidden text-[11px] font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400 md:block">
+                        {column.kind}
+                      </span>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
-            <tbody>
-              {ROWS.map((row, index) => (
+            <tbody role="rowgroup" className="max-md:block">
+              {COMPARISON_ROWS.map((row, rowIndex) => (
                 <tr
-                  key={row.topic}
-                  className={
-                    index < ROWS.length - 1
+                  key={row.label}
+                  role="row"
+                  className={`max-md:grid max-md:grid-cols-3 ${
+                    rowIndex < COMPARISON_ROWS.length - 1
                       ? "border-b border-gray-200 dark:border-gray-800"
                       : ""
-                  }
+                  }`}
                 >
                   <th
                     scope="row"
-                    className="px-5 py-4 text-left align-top font-medium text-gray-800 dark:text-gray-200"
+                    role="rowheader"
+                    className="px-5 py-4 align-top font-medium text-gray-900 dark:text-gray-100 max-md:col-span-3 max-md:bg-gray-50/70 max-md:px-3 max-md:py-2 max-md:text-[13px] max-md:font-semibold max-md:dark:bg-white/[0.025]"
                   >
-                    {row.topic}
+                    {row.label}
                   </th>
-                  <td className="px-5 py-4 align-top leading-relaxed text-gray-500 dark:text-gray-400">
-                    {row.worktree}
-                  </td>
-                  <td className="bg-emerald-50/35 px-5 py-4 align-top leading-relaxed text-gray-700 dark:bg-emerald-400/[0.025] dark:text-gray-300">
-                    {row.duplicate}
-                  </td>
+                  {row.cells.map((cell, index) => (
+                    <ComparisonCell
+                      key={COMPARISON_COLUMNS[index].name}
+                      cell={cell}
+                      highlight={index === HIGHLIGHT_INDEX}
+                    />
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <div className="space-y-4 md:hidden">
-          {ROWS.map((row) => (
-            <article
-              key={row.topic}
-              className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800"
-            >
-              <h3 className="border-b border-gray-200 bg-gray-50/80 px-5 py-3 text-sm font-semibold text-gray-900 dark:border-gray-800 dark:bg-white/[0.025] dark:text-gray-100">
-                {row.topic}
-              </h3>
-              <div className="p-5">
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                  Git worktree
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                  {row.worktree}
-                </p>
-              </div>
-              <div className="border-t border-emerald-100 bg-emerald-50/40 p-5 dark:border-emerald-900/60 dark:bg-emerald-400/[0.035]">
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
-                  lpm Duplicate
-                </p>
-                <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                  {row.duplicate}
-                </p>
-              </div>
-            </article>
-          ))}
-        </div>
+        <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          The lpm column assumes the project folder is the repository root. If
+          the project is a subfolder of a larger repository, the copy is a
+          plain folder next to it, inside that same repository, with no .git
+          of its own.
+        </p>
       </div>
     </section>
   );

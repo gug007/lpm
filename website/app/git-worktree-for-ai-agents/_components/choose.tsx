@@ -1,10 +1,13 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
 
 type Branch = {
   question: string;
   answer: string;
-  why: string;
+  why: ReactNode;
   highlight?: boolean;
 };
 
@@ -22,7 +25,18 @@ const BRANCHES: Branch[] = [
   {
     question: "The agent needs your .env, your dependencies, or your uncommitted work",
     answer: "lpm Duplicate",
-    why: "A checkout cannot reproduce state that was never committed. A copy of the working project can.",
+    why: (
+      <>
+        A checkout cannot reproduce state that was never committed. A{" "}
+        <Link
+          href={WORKTREE_ALTERNATIVE_PATH}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+        >
+          standalone copy of the working project
+        </Link>{" "}
+        can.
+      </>
+    ),
     highlight: true,
   },
   {

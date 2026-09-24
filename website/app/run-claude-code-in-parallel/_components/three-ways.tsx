@@ -16,7 +16,7 @@ export default function ThreeWays() {
         />
 
         <div className="grid gap-5 md:grid-cols-3">
-          {WAYS.map(({ step, name, icon: Icon, keys, entry, body, useWhen, watchOut }) => (
+          {WAYS.map(({ step, name, icon: Icon, keys, entry, body, link, useWhen, watchOut }) => (
             <article
               key={name}
               className="flex flex-col rounded-2xl border border-gray-200 bg-white/70 p-6 shadow-sm dark:border-gray-800 dark:bg-white/[0.02] dark:shadow-none"
@@ -48,6 +48,15 @@ export default function ThreeWays() {
               <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                 {body}
               </p>
+              {link && (
+                <Link
+                  href={link.href}
+                  className="mt-1 inline-flex min-h-11 items-center gap-1 self-start text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+                >
+                  {link.label}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              )}
               <p className="mt-5 text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                 Use it when
               </p>

@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
+import { DemoSection } from "@/components/home/demo";
 import { RelatedPages } from "@/components/related-pages";
 import {
-  CLAUDE_ACCOUNTS_PATH,
-  LINUX_HOST_PATH,
-  MOBILE_PATH,
   PARALLEL_PATH,
   REVIEW_CHANGES_PATH,
   WORKTREE_AGENTS_PATH,
@@ -13,53 +11,62 @@ import {
   breadcrumbJsonLd,
   faqJsonLd,
   jsonLdString,
-  screenRecordingJsonLd,
   webPageJsonLd,
+  youtubeLessonJsonLd,
 } from "@/lib/structured-data";
-import AgentWorkflow from "./_components/agent-workflow";
+import Alternatives from "./_components/alternatives";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
-import Faq, { FAQ_ITEMS } from "./_components/faq";
+import { WORKTREE_ALT_DEMO } from "./_components/demo-tour";
+import FactsChecked from "./_components/facts-checked";
+import Faq from "./_components/faq";
+import { FAQ_ITEMS } from "./_components/faq-data";
 import Hero from "./_components/hero";
-import HowDuplicateWorks from "./_components/how-duplicate-works";
-import QuickAnswer from "./_components/quick-answer";
+import HowItWorks from "./_components/how-it-works";
+import MidCta from "./_components/mid-cta";
+import WhatComesAlong from "./_components/what-comes-along";
 import WhenToUse from "./_components/when-to-use";
 
-const TITLE = "Git Worktree Alternative for Parallel AI Agents";
+const TITLE = "Git Worktree Alternatives: Clone, Copy or Duplicate";
 const DESCRIPTION =
-  "A Git worktree alternative for Mac: lpm Duplicate makes standalone project copies with your .env, dependencies and uncommitted work, ready for agents.";
+  "Git worktree alternatives compared: git clone, copy-on-write copies, containers and lpm Duplicate, which brings .env, node_modules and uncommitted work.";
+const SHARE_TITLE = "More than a Git worktree: copy the whole project";
 
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   keywords: [
     "git worktree alternative",
+    "git worktree alternatives",
+    "alternative to git worktree",
     "git worktree vs clone",
+    "git worktree vs git clone",
+    "git worktree vs copy",
     "git worktree limitations",
-    "claude code git worktree",
-    "codex git worktree",
-    "git worktree env file",
-    "git worktree node_modules",
-    "standalone git copy",
-    "multiple git working directories",
-    "macos developer workflow",
+    "git worktree disadvantages",
+    "copy git repo with node_modules",
+    "apfs clone git repository",
+    "copy-on-write project copy",
+    "claude code worktree alternative",
+    "two agents same branch",
+    "standalone project copies",
   ],
   alternates: {
     canonical: WORKTREE_ALTERNATIVE_PATH,
   },
   openGraph: {
-    title: TITLE,
+    title: SHARE_TITLE,
     description:
-      "Worktrees isolate a checkout. lpm Duplicate copies the whole project, local files and dependencies included, into standalone copies and queues an agent task in each.",
+      "Worktrees check out committed files. lpm Duplicate copies the project you have now, with .env, node_modules and uncommitted work, and can start an agent in it.",
     type: "website",
     url: WORKTREE_ALTERNATIVE_PATH,
     siteName: "lpm",
   },
   twitter: {
     card: "summary_large_image",
-    title: TITLE,
+    title: SHARE_TITLE,
     description:
-      "Git worktree vs lpm Duplicate: a linked checkout, or a standalone copy of the project with your .env, dependencies and uncommitted work.",
+      "Git worktree vs git clone vs a full project copy: what each one carries, and when a copy with your .env and dependencies is the better call.",
   },
 };
 
@@ -71,20 +78,20 @@ const structuredData = [
     about: [
       "Git worktree alternatives",
       "Git worktree limitations",
-      "parallel Claude Code sessions",
-      "parallel Codex sessions",
+      "git clone",
+      "APFS copy-on-write clones",
       "standalone project copies",
     ],
   }),
   breadcrumbJsonLd([
     { name: "Home", path: "/" },
     {
-      name: "Git Worktree Alternative",
+      name: "Git Worktree Alternatives",
       path: WORKTREE_ALTERNATIVE_PATH,
     },
   ]),
   faqJsonLd(FAQ_ITEMS),
-  screenRecordingJsonLd("duplicate-project"),
+  youtubeLessonJsonLd("parallel-agents"),
 ];
 
 export default function GitWorktreeAlternativePage() {
@@ -95,43 +102,28 @@ export default function GitWorktreeAlternativePage() {
         dangerouslySetInnerHTML={{ __html: jsonLdString(structuredData) }}
       />
       <Hero />
-      <QuickAnswer />
+      <WhatComesAlong />
+      <DemoSection {...WORKTREE_ALT_DEMO} />
+      <Alternatives />
       <Comparison />
-      <HowDuplicateWorks />
-      <AgentWorkflow />
+      <FactsChecked />
+      <HowItWorks />
+      <MidCta />
       <WhenToUse />
       <Faq />
       <RelatedPages
         links={[
           {
             href: WORKTREE_AGENTS_PATH,
-            title: "Git worktrees for Claude Code & Codex",
+            title: "Git worktrees for Claude Code and Codex",
             description:
-              "What a worktree does not carry, what the agents create natively, and all five isolation models compared.",
+              "What a worktree does not carry, what the agents create natively and all five isolation models compared.",
           },
           {
             href: PARALLEL_PATH,
             title: "Run Claude Code in parallel",
             description:
-              "Fan one prompt out to Duplicates, watch each agent's status, then keep the diff that works.",
-          },
-          {
-            href: LINUX_HOST_PATH,
-            title: "Fan out on a Linux server",
-            description:
-              "Duplicate a project on a server you own, so the copying and the agents run there instead of on your laptop.",
-          },
-          {
-            href: CLAUDE_ACCOUNTS_PATH,
-            title: "Multiple Claude Code accounts",
-            description:
-              "Copies keep the project's pinned Claude account, so five copies of a work repo all run as work.",
-          },
-          {
-            href: MOBILE_PATH,
-            title: "Duplicate from your iPhone",
-            description:
-              "Make copies, queue a command in each, and run one prompt across fresh copies from the lpm iPhone app.",
+              "Fan one prompt out to several copies, watch each agent's status, then keep the diff that works.",
           },
           {
             href: REVIEW_CHANGES_PATH,

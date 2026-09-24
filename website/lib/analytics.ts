@@ -27,6 +27,7 @@ export type DownloadSource =
   | "review-hero"
   | "review-cta"
   | "worktree-alt-hero"
+  | "worktree-alt-mid"
   | "worktree-alt-cta"
   | "worktree-agents-hero"
   | "worktree-agents-cta"

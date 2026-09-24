@@ -41,7 +41,7 @@ const LESSONS = {
     id: "6NsF8xBY9m4",
     name: "Run Agents in Parallel in lpm: Duplicate Your Project into Two, Three, or More Copies",
     description:
-      "Duplicating a project in lpm into independent copies, each with its own services, terminals, and AI agent working on the same prompt.",
+      "Duplicating a project in lpm into standalone copies, each with its own terminals and an AI agent working on the same prompt.",
     uploadDate: "2026-09-19T09:00:00+00:00",
   },
   "sixty-seconds": {

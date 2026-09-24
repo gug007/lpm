@@ -72,8 +72,8 @@ export interface ProjectTree {
 }
 
 // Rebuilds the file as HEAD has it, by putting each hunk's "-" side back. A
-// copy declares a clean working tree, so it must not show edits the source has
-// not committed yet.
+// worktree starts from the commit, so it must not show edits the source has not
+// committed yet.
 function atHead(content: string, diff: readonly DiffLine[]): string {
   const lines = content.split("\n");
   let hunkAdded: string[] = [];
@@ -107,24 +107,23 @@ function indexOfBlock(lines: readonly string[], block: readonly string[]): numbe
 
 /** The project's tree, and a reader for any path in it.
  *
- *  A duplicate or a worktree is a fresh copy of a clean tree — it declares no
- *  uncommitted work, so it must not show edits the source has not committed:
- *  files added this session are missing from it, and modified ones read as
- *  HEAD has them. The source project itself always shows its working tree;
- *  committing clears the git decorations, not the edits. */
+ *  A worktree starts from the commit: files added this session are missing
+ *  from it, and modified ones read as HEAD has them. The source and its
+ *  duplicates show the working tree, since a duplicate carries the source's
+ *  uncommitted work; committing clears the git decorations, not the edits. */
 export function projectTree(
   projectName: string,
   changed: readonly ChangedFile[],
 ): ProjectTree {
   const source = sourceOf(projectName);
-  const isCopy = source !== projectName;
+  const atCommit = /-wt(?:-\d+)?$/.test(projectName);
   const files = BY_PROJECT[source] ?? FALLBACK;
   const named = Object.keys(files.content);
   const diffs = new Map(changed.map((file) => [file.path, file]));
   const byPath = new Map(Object.entries(files.content));
 
   const all = [...named, ...files.paths, ...(DATED[source] ?? [])];
-  const paths = isCopy
+  const paths = atCommit
     ? all.filter((path) => diffs.get(path)?.status !== "added")
     : all;
 
@@ -132,7 +131,7 @@ export function projectTree(
     paths,
     read(path: string): string {
       const content = byPath.get(path) ?? generateContent(path);
-      const file = isCopy ? diffs.get(path) : undefined;
+      const file = atCommit ? diffs.get(path) : undefined;
       return file?.status === "modified" ? atHead(content, file.diff) : content;
     },
   };

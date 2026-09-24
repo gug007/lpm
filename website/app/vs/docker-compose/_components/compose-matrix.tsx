@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { FeatureMatrix, type MatrixRow } from "@/components/vs/feature-matrix";
-import { WORKTREE_AGENTS_PATH } from "@/lib/links";
+import { WORKTREE_AGENTS_PATH, WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
 
 const ROWS: MatrixRow[] = [
   {
@@ -102,13 +102,19 @@ export function ComposeMatrix() {
           the copy edits its own files, so two agents never save over each
           other. Nothing else is namespaced — one host, one set of ports, one
           Postgres — and lpm checks a declared port before the project starts,
-          then tells you which process is holding it. A linked worktree starts
-          from the tracked files only: an ignored{" "}
+          then tells you which process is holding it. A{" "}
+          <Link
+            href={WORKTREE_AGENTS_PATH}
+            className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
+          >
+            linked worktree
+          </Link>{" "}
+          starts from the tracked files only: an ignored{" "}
           <code className="font-mono text-xs">.env</code>{" "}
           is not in it, and Node packages are installed only if you turn on
           Install dependencies.{" "}
           <Link
-            href={WORKTREE_AGENTS_PATH}
+            href={WORKTREE_ALTERNATIVE_PATH}
             className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white"
           >
             How the copies work

@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { CodeBlock } from "@/components/config/code-block";
+import { WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
 
 export default function QuickAnswer() {
   return (
@@ -52,9 +54,15 @@ export default function QuickAnswer() {
             </p>
             <p>
               That gap is why a second primitive exists. lpm creates worktrees
-              too, and lpm Duplicate can instead copy the project exactly as it
-              sits on your disk into a standalone project with its own Git
-              repository — then start the agent in each one.
+              too, and lpm Duplicate can instead{" "}
+              <Link
+                href={WORKTREE_ALTERNATIVE_PATH}
+                className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+              >
+                copy the project as it sits on your disk
+              </Link>{" "}
+              into a standalone project with its own Git repository — then
+              start the agent in each one.
             </p>
           </div>
         </div>

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { SectionHeader } from "@/components/section-header";
+import { WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
 
 type Gap = {
   title: string;
@@ -124,6 +126,20 @@ export default function WhatBreaks() {
             </li>
           ))}
         </ol>
+
+        <p className="mt-8 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+          The first four go away when you{" "}
+          <Link
+            href={WORKTREE_ALTERNATIVE_PATH}
+            className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900 dark:text-gray-100 dark:decoration-gray-700 dark:hover:decoration-gray-100"
+          >
+            copy the whole project instead of a worktree
+          </Link>
+          : your .env, installed dependencies, and uncommitted work come along
+          by default, and the copy has its own repository, so it can stay on
+          a branch that is checked out elsewhere. The fifth holds for copies
+          too.
+        </p>
       </div>
     </section>
   );

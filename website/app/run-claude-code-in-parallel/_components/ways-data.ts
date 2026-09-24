@@ -1,4 +1,5 @@
 import { Copy, GitBranch, PanelsLeftRight, type LucideIcon } from "lucide-react";
+import { WORKTREE_ALTERNATIVE_PATH } from "@/lib/links";
 
 export type Way = {
   step: string;
@@ -7,6 +8,7 @@ export type Way = {
   keys?: string[];
   entry: string;
   body: string;
+  link?: { href: string; label: string };
   useWhen: string[];
   watchOut: string;
 };
@@ -32,6 +34,10 @@ export const WAYS: Way[] = [
     icon: Copy,
     entry: "Right-click a project → Duplicate",
     body: "Make 1 to 50 standalone copies at once, fast on APFS. Each copies the project folder — uncommitted work, .env files and node_modules included — and gets its own Git repository.",
+    link: {
+      href: WORKTREE_ALTERNATIVE_PATH,
+      label: "How a copy differs from a worktree",
+    },
     useWhen: [
       "You want several attempts at one task and keep the best",
       "The agent needs your local setup to run and test",

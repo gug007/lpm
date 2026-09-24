@@ -11,6 +11,7 @@ import {
   PARALLEL_PATH,
   REVIEW_CHANGES_PATH,
   WORKTREE_AGENTS_PATH,
+  WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
@@ -24,8 +25,8 @@ export const PARALLEL_AREA: FeatureArea = {
       icon: Copy,
       title: "Duplicate a project",
       body: "Make up to 50 independent copies at once. On APFS they're copy-on-write clones that bring your .env files and node_modules along and leave build output and caches behind.",
-      href: PARALLEL_PATH,
-      linkLabel: "Run Claude Code in parallel",
+      href: WORKTREE_ALTERNATIVE_PATH,
+      linkLabel: "Git worktree alternative",
     },
     {
       icon: GitBranch,

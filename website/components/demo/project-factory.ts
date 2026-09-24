@@ -28,8 +28,9 @@ export { SEEDED_AGENT_AGE_MS } from "./agent-terminal";
 // The copy's opening turn, named in the source project's own files. Built here
 // rather than through buildReply, whose replies all stop on a question — a
 // duplicate has to look like a second agent working, not one asking. It only
-// inspects: a copy is created with a clean tree, so a claimed edit would be a
-// change the visitor can open the Review tab and fail to find.
+// inspects: the Review tab lists only what the copy started with — its
+// parent's uncommitted work for a duplicate, nothing for a worktree — so an
+// edit it claimed would be missing there.
 //
 // The turn keeps going through keepAliveSteps, so it hands over rather than
 // finishing: it says what it is about to read before reading it, and ends on

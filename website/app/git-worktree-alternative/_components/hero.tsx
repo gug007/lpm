@@ -1,109 +1,59 @@
-import { ArrowDown, CopyPlus, GitBranch } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 import { HeroDownload } from "@/components/home/hero-download";
+import { ProofStrip } from "@/components/home/proof-strip";
+import { INLINE_CODE } from "./page-styles";
 
-const WORKTREE_POINTS = [
-  "A linked checkout from a commit or branch",
-  "Shared Git objects, refs, and repository config",
-  "Minimal disk overhead",
-];
-
-const DUPLICATE_POINTS = [
-  "A standalone folder with its own .git directory",
-  "Current local state and dependencies carried over",
-  "Agent task, services, and terminals managed together",
-];
+const JUMP_LINK =
+  "inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white";
 
 export default function Hero() {
   return (
     <section className="relative overflow-hidden pt-[clamp(4.5rem,9.5vh,6.5rem)] pb-[clamp(1.25rem,3vh,2rem)]">
-      <div className="absolute inset-x-0 top-0 -z-10 h-[44rem] bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.11),transparent_32%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.14),transparent_30%)]" />
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 -z-10 h-[44rem] bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.11),transparent_32%)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.14),transparent_30%)]"
+      />
       <div className="max-w-5xl mx-auto px-6 text-center">
-        <p className="text-xs font-medium uppercase tracking-[0.25em] text-emerald-700/70 dark:text-emerald-300/70 mb-5">
-          Git worktree alternative for macOS
+        <p className="text-xs font-medium uppercase tracking-[0.25em] text-emerald-700 dark:text-emerald-300/70 mb-5">
+          Free, open-source Mac app
         </p>
         <h1 className="text-[2.25rem] sm:text-5xl md:text-[clamp(2.75rem,6.2vh,3.75rem)] font-extrabold tracking-tight leading-[1.06] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-600 dark:from-white dark:via-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
           A Git worktree alternative that copies your whole project.
         </h1>
-        <p className="mt-5 text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
-          Git worktrees check out tracked files. lpm Duplicate makes fast,
-          standalone copies of the project you are actually working in, with
-          its code, local files, and installed dependencies, then runs Claude
-          Code, Codex, or any command in each copy.
+        <p className="mt-5 text-pretty text-base sm:text-[17px] text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
+          lpm Duplicate copies the project you&apos;re actually working in,
+          not just its committed files: uncommitted edits,{" "}
+          <code className={INLINE_CODE}>.env</code> files and{" "}
+          <code className={INLINE_CODE}>node_modules</code> come along into a
+          standalone repository. Then it can start Claude Code, Codex or any
+          command in each copy.
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">
           <HeroDownload source="worktree-alt-hero" />
         </div>
 
-        <a
-          href="#comparison"
-          className="mt-[clamp(1rem,2vh,1.5rem)] inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+        <ProofStrip />
+
+        <nav
+          aria-label="On this page"
+          className="mt-[clamp(0.75rem,2vh,1.25rem)] flex flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-5"
         >
-          Compare before downloading
-          <ArrowDown className="w-3.5 h-3.5" aria-hidden />
-        </a>
-
-        <div className="mt-[clamp(2rem,4.5vh,2.5rem)] grid gap-4 md:grid-cols-2 text-left">
-          <div className="rounded-2xl border border-gray-200 bg-white/80 p-6 shadow-sm dark:border-gray-800 dark:bg-white/[0.025]">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">
-                <GitBranch className="h-4.5 w-4.5" aria-hidden />
-              </span>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                  Git primitive
-                </p>
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Linked worktree
-                </h2>
-              </div>
-            </div>
-            <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
-              {WORKTREE_POINTS.map((point) => (
-                <li key={point} className="flex gap-2.5 leading-relaxed">
-                  <span
-                    aria-hidden
-                    className="mt-2 h-1 w-1 shrink-0 rounded-full bg-blue-500"
-                  />
-                  {point}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-5 border-t border-gray-100 pt-4 text-xs font-medium text-blue-700 dark:border-gray-800 dark:text-blue-300">
-              Best for lightweight branch checkouts
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/35 p-6 shadow-sm dark:border-emerald-900/60 dark:bg-emerald-400/[0.045]">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
-                <CopyPlus className="h-4.5 w-4.5" aria-hidden />
-              </span>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                  lpm primitive
-                </p>
-                <h2 className="font-semibold text-gray-900 dark:text-gray-100">
-                  Standalone Duplicate
-                </h2>
-              </div>
-            </div>
-            <ul className="mt-5 space-y-2.5 text-sm text-gray-600 dark:text-gray-400">
-              {DUPLICATE_POINTS.map((point) => (
-                <li key={point} className="flex gap-2.5 leading-relaxed">
-                  <span
-                    aria-hidden
-                    className="mt-2 h-1 w-1 shrink-0 rounded-full bg-emerald-500"
-                  />
-                  {point}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-5 border-t border-emerald-100 pt-4 text-xs font-medium text-emerald-700 dark:border-emerald-900/60 dark:text-emerald-300">
-              Best for complete, parallel agent runs
-            </p>
-          </div>
-        </div>
+          <a href="#what-comes-along" className={JUMP_LINK}>
+            See what a worktree leaves behind
+            <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+          </a>
+          <span
+            aria-hidden
+            className="hidden text-gray-300 sm:inline dark:text-gray-700"
+          >
+            ·
+          </span>
+          <a href="#alternatives" className={JUMP_LINK}>
+            Compare the alternatives
+            <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        </nav>
       </div>
     </section>
   );

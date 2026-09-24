@@ -76,8 +76,6 @@ const structuredData = [
       "Git worktrees for AI coding agents",
       "parallel Claude Code sessions",
       "parallel Codex agents",
-      "Git worktree limitations",
-      "standalone project copies",
     ],
   }),
   breadcrumbJsonLd([

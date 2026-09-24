@@ -579,8 +579,9 @@ export function DemoApp({
 
   // "Duplicate any project to run agents in parallel" is the page's headline
   // claim, so the menu item really makes one: a copy right under its parent,
-  // the other CLI already working in it, and its services up when the ports
-  // are free. A worktree copy is the same thing on a branch of its own.
+  // carrying its uncommitted work, the other CLI already working in it, and its
+  // services up when the ports are free. A worktree copy is the same thing,
+  // clean, on a branch of its own.
   const handleDuplicate = (name: string, mode: CopyMode) => {
     const source = projects.find((p) => p.name === name);
     if (!source) return;
@@ -598,10 +599,24 @@ export function DemoApp({
     const copyAgent =
       source.actions.find((a) => a.agent && a.agent !== sourceAgent) ??
       source.actions.find((a) => a.agent);
-    const branch =
-      mode === "worktree" && source.git
-        ? worktreeBranch(copyName)
-        : source.git?.branch;
+    // Taken from the live state, not the seed. "Pull latest changes" only
+    // fast-forwards, so a branch that has diverged stays behind its upstream.
+    const sourceGit = gitByProject[name] ?? source.git;
+    const git: DemoGit | undefined =
+      sourceGit &&
+      (mode === "worktree"
+        ? {
+            ...sourceGit,
+            branch: worktreeBranch(copyName),
+            upstream: undefined,
+            uncommitted: 0,
+            ahead: 0,
+            behind: 0,
+          }
+        : {
+            ...sourceGit,
+            behind: sourceGit.ahead > 0 ? sourceGit.behind : 0,
+          });
     const copy: DemoProject = {
       ...source,
       name: copyName,
@@ -622,9 +637,7 @@ export function DemoApp({
           : { ...a, autoPrompt: undefined, autoMode: undefined, autoSteps: undefined },
       ),
       autoStart: copyAgent?.name,
-      ...(source.git && branch
-        ? { git: { ...source.git, branch, uncommitted: 0, ahead: 0, behind: 0 } }
-        : {}),
+      git,
     };
     const pane = initialPaneState(copy);
     // The copy comes up as if someone had pressed Start on it: the same

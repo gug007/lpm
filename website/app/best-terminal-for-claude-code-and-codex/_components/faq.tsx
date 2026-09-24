@@ -8,6 +8,7 @@ import {
   PARALLEL_PATH,
   REPO_URL,
   WORKTREE_AGENTS_PATH,
+  WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
 
 type QA = {
@@ -45,7 +46,11 @@ const FAQS: QA[] = [
     answer: (
       <>
         Yes. Each agent works in its own copy of the repo, so they never edit
-        the same files. Duplicate clones the project folder (dependencies,{" "}
+        the same files.{" "}
+        <Link href={WORKTREE_ALTERNATIVE_PATH} className={LINK}>
+          Duplicate clones the project folder
+        </Link>{" "}
+        (dependencies,{" "}
         <code className="text-xs">.env</code>{" "}
         files, and uncommitted work included), and New Worktree checks out a real Git worktree on its own
         branch. Either way you can create up to 50 at once and queue the same
