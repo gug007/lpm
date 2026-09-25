@@ -42,7 +42,7 @@ The recorder, the voice and the mix are the `video-lesson` skill's (`../video-le
 - Commas become audible pauses (a one-comma line lost 0.9 s). Prefer two short sentences to one long one.
 - Mark 1–3 key words per line with `*…*`; the asterisks are never read aloud. Digits read well ("5-hour") and show as digits in the captions.
 - `headline` (on the first line, or top-level) is the cover text: 4–8 words, with at most one emoji. `cta` changes the end sticker (default `lpm.cx`; `false` for none).
-- `post.caption` goes into post.txt for TikTok: one or two search-friendly sentences (people search TikTok like Google), then 4–7 hashtags. Keep the brand lowercase `lpm`.
+- `post.caption` goes into post.txt for TikTok: one or two search-friendly sentences (people search TikTok like Google), then at most 5 hashtags (TikTok's cap: a 6th loses its `#`), `lpm` among them. Keep the brand lowercase `lpm`.
 - `settings` in lesson.json seeds the app's settings.json (for example `terminalFontSize`); `"limits": false` leaves the sidebar meters out.
 
 ## Beats
