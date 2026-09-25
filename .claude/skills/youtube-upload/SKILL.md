@@ -1,8 +1,8 @@
 ---
 name: youtube-upload
-version: 1.1.0
+version: 1.1.1
 argument-hint: "<lesson-slug>"
-description: "Publish a finished lesson MP4 from ~/Movies/lpm-lessons/<slug>/ to the lpm YouTube channel through Chrome (YouTube Studio): search-optimized title and description with chapters, tags, category, the title-card thumbnail, Public, then added to the lesson playlist. Use when the user asks to upload, publish or post a video to YouTube."
+description: "Publish a finished lesson MP4 from ~/Movies/lpm-lessons/<slug>/ to the lpm YouTube channel through Chrome (YouTube Studio): search-optimized title and description with chapters, tags, category, the title-card thumbnail, Public, then added to the lesson playlist. Use when the user asks to upload, publish or post a lesson video to YouTube. Vertical videos from ~/Movies/lpm-lessons/tiktok/ go to YouTube Shorts through short-upload instead."
 ---
 
 Upload a lesson video to YouTube and publish it.

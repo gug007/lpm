@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-// node prepare.js <slug> <out-dir>
+// node prepare.js <slug> <out-dir> [--full-lesson <youtu.be link>]
 // Copies a vertical lesson's MP4 and cover into <out-dir> (Chrome's
 // file_upload only reads the session scratchpad), shrinks the video when it is
-// over the upload cap, and prints the caption to type.
+// over the upload cap, and prints the text to type on YouTube and TikTok.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 
-const [slug, outArg] = process.argv.slice(2);
-if (!slug || !outArg) {
-  console.error("usage: node prepare.js <slug> <out-dir>");
+const args = process.argv.slice(2);
+const flag = args.indexOf("--full-lesson");
+const fullLesson = flag >= 0 ? args.splice(flag, 2)[1] : null;
+const [slug, outArg] = args;
+if (!slug || !outArg || (flag >= 0 && !fullLesson)) {
+  console.error("usage: node prepare.js <slug> <out-dir> [--full-lesson <youtu.be link>]");
   process.exit(1);
 }
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(os.homedir(), "Movies/lpm-lessons/tiktok");
@@ -19,8 +22,12 @@ const out = path.resolve(outArg);
 const UPLOAD_CAP = 10_000_000;
 const AUDIO_KBPS = 128;
 const CAPTION_MAX = 4000;
+const TITLE_MAX = 100;
+const SHORTS_MAX_SECONDS = 180;
 const MAX_HASHTAGS = 5;
-const LEDGER = path.join(ROOT, "POSTED.md");
+const LEDGERS = { TikTok: path.join(ROOT, "POSTED.md"), "YouTube Shorts": path.join(ROOT, "SHORTS_POSTED.md") };
+const LPM_LINE =
+  "lpm starts, stops, duplicates and switches between local dev projects on a Mac, with a built-in terminal for AI coding agents such as Claude Code and Codex.";
 
 const lesson = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8"));
 const mp4 = path.join(dir, `${slug}.mp4`);
@@ -37,16 +44,17 @@ const seconds = parseFloat(
 const [w, h] = probe(mp4, "stream=width,height").split(",").map(Number);
 
 fs.mkdirSync(out, { recursive: true });
-// The uploader pre-fills the caption with the file name.
-const video = path.join(out, `${slug}.mp4`);
+// YouTube Studio pre-fills the title with the file name.
+const fileTitle = lesson.title.replace(/[/:]/g, " ").replace(/\s+/g, " ").trim();
+const video = path.join(out, `${fileTitle}.mp4`);
 const shrunk = fs.statSync(mp4).size > UPLOAD_CAP;
 if (shrunk) shrinkForUpload(mp4, video);
 else fs.copyFileSync(mp4, video);
 const coverOut = path.join(out, `${slug}-cover.jpg`);
 fs.copyFileSync(cover, coverOut);
 
-// TikTok re-encodes every upload; a two-pass H.264 at the bitrate that fits
-// keeps the text sharp for a short vertical clip.
+// Both platforms re-encode every upload; a two-pass H.264 at the bitrate that
+// fits keeps the text sharp for a short vertical clip.
 function shrinkForUpload(src, dest) {
   const log = path.join(out, "x264");
   let kbps = Math.floor((UPLOAD_CAP * 0.94 * 8) / 1000 / seconds - AUDIO_KBPS);
@@ -70,23 +78,31 @@ const [text, tagLine] = fs.existsSync(postFile)
   : [post.caption || lesson.title, (post.hashtags || []).map((t) => `#${t.replace(/^#/, "")}`).join(" ")];
 const caption = text.trim();
 const hashtags = (tagLine || "").trim().split(/\s+/).filter(Boolean);
-const full = `${caption}\n\n${hashtags.join(" ")}`;
+const tiktokText = `${caption}\n\n${hashtags.join(" ")}`;
+const youtubeText = [caption, `${LPM_LINE}\nhttps://lpm.cx`, fullLesson && `Full lesson: ${fullLesson}`, hashtags.join(" ")]
+  .filter(Boolean)
+  .join("\n\n");
 
 const warnings = [];
 if (w !== 1080 || h !== 1920) warnings.push(`video is ${w}x${h}, not 1080x1920`);
 if (seconds > 60) warnings.push(`video runs ${seconds.toFixed(1)} s; the lessons aim for 45 s or less`);
-if (full.length > CAPTION_MAX) warnings.push(`caption is ${full.length} characters (max ${CAPTION_MAX})`);
-if (/@/.test(full)) warnings.push("caption contains @, which opens the mention picker");
+if (seconds > SHORTS_MAX_SECONDS) warnings.push(`over ${SHORTS_MAX_SECONDS} s: YouTube will not treat it as a Short`);
+if (lesson.title.length > TITLE_MAX) warnings.push(`title is ${lesson.title.length} characters (YouTube max ${TITLE_MAX})`);
+if (fileTitle !== lesson.title) warnings.push("the file name dropped a character of the title: retype the title in Studio");
+if (tiktokText.length > CAPTION_MAX) warnings.push(`caption is ${tiktokText.length} characters (max ${CAPTION_MAX})`);
+if (/@/.test(youtubeText)) warnings.push("text contains @, which opens the mention picker");
 if (hashtags.length > MAX_HASHTAGS) warnings.push(`${hashtags.length} hashtags; TikTok keeps ${MAX_HASHTAGS}, pick the ones to post`);
 if (hashtags.some((t) => !/^#[\p{L}\p{N}_]+$/u.test(t))) warnings.push(`odd hashtag in: ${hashtags.join(" ")}`);
-const posted = fs.existsSync(LEDGER) && fs.readFileSync(LEDGER, "utf8").split("\n").find((l) => l.includes(` ${slug} `));
-if (posted) warnings.push(`already posted: ${posted.trim()}`);
+for (const [platform, ledger] of Object.entries(LEDGERS)) {
+  const line = fs.existsSync(ledger) && fs.readFileSync(ledger, "utf8").split("\n").find((l) => l.includes(` ${slug} `));
+  if (line) warnings.push(`already on ${platform}: ${line.trim()}`);
+}
 
 const size = fs.statSync(video).size;
 console.log(`video     ${video} (${(size / 1e6).toFixed(1)} MB, ${seconds.toFixed(1)} s, ${w}x${h}${shrunk ? ", H.264 upload copy of a larger master" : ""})`);
 console.log(`cover     ${coverOut}`);
 console.log(`title     ${lesson.title}`);
-console.log(`caption   (${full.length} chars)`);
-console.log(caption);
 console.log(`hashtags  ${hashtags.join(" ")}`);
+console.log(`\n--- TikTok caption (${tiktokText.length} chars)\n${tiktokText}`);
+console.log(`\n--- YouTube description (${youtubeText.length} chars)\n${youtubeText}\n`);
 for (const note of warnings) console.log(`WARNING   ${note}`);
