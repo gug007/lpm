@@ -80,6 +80,7 @@ mod proctree;
 mod projects_crud;
 mod pty;
 mod pull_request;
+mod ptymodes;
 mod ptyring;
 mod remote;
 mod remote_machines;

@@ -12,6 +12,7 @@
 // Modelled on the mobile server's rings (remote.rs), which resume phones the
 // same way.
 
+use crate::ptymodes::Modes;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, MutexGuard};
 
@@ -29,6 +30,9 @@ pub struct Ring {
     /// which also moves when offsets are retired without anything held being
     /// lost — see `invalidate`.
     truncated: bool,
+    /// Followed over every byte ever pushed, not just those still held, so a
+    /// replay can restore what scrolled out of it.
+    modes: Modes,
 }
 
 impl Ring {
@@ -42,6 +46,7 @@ impl Ring {
     /// fall off once the ring is full; `base` tracks them so offsets stay
     /// absolute for the terminal's whole life.
     pub fn push(&mut self, text: &str) -> u64 {
+        self.modes.feed(text.as_bytes());
         self.buf.extend(text.as_bytes());
         let over = self.buf.len().saturating_sub(RING_CAP);
         if over > 0 {
@@ -56,17 +61,18 @@ impl Ring {
     /// it ends at. A partial leading line is dropped whenever the text starts
     /// mid-stream — either because the tail was trimmed to the seed cap or
     /// because older bytes fell out of the ring — so the replay begins on a row
-    /// boundary instead of part-way through a line or an escape sequence.
+    /// boundary instead of part-way through a line or an escape sequence. It is
+    /// led by the modes the program set before the tail, which it can't carry.
     pub fn seed(&self) -> (String, u64) {
         let skip = self.buf.len().saturating_sub(SEED_CAP);
         let bytes: Vec<u8> = self.buf.iter().skip(skip).copied().collect();
         let s = String::from_utf8_lossy(&bytes).into_owned();
         let partial = skip > 0 || self.truncated;
-        let text = match (partial, s.find('\n')) {
-            (true, Some(i)) => s[i + 1..].to_string(),
-            _ => s,
+        let tail = match (partial, s.find('\n')) {
+            (true, Some(i)) => &s[i + 1..],
+            _ => &s,
         };
-        (text, self.total())
+        (format!("{}{tail}", self.modes.prelude()), self.total())
     }
 
     /// The output missed since stream offset `from`, with the offset it ends at.
@@ -278,5 +284,24 @@ mod tests {
         ring.push("cut\nkept\n");
         assert!(ring.truncated, "the ring overflowed");
         assert_eq!(ring.seed().0, "kept\n");
+    }
+
+    // A full-screen program's startup scrolls out of the tail long before anyone
+    // reattaches; the replay must still land on the alternate screen with the
+    // mouse on, or clicks never reach the program.
+    #[test]
+    fn a_seed_restores_modes_set_before_its_tail() {
+        let mut ring = Ring::default();
+        ring.push("\x1b[?1049h\x1b[?1003h\x1b[?1006h");
+        ring.push(&"frame\n".repeat(RING_CAP));
+        ring.push("last frame");
+        let (data, off) = ring.seed();
+        assert!(
+            data.starts_with("\x1b[?1049h\x1b[?1003h\x1b[?1006hframe\n"),
+            "{:?}",
+            &data[..40]
+        );
+        assert!(data.ends_with("last frame"));
+        assert_eq!(off, ring.total());
     }
 }
