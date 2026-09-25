@@ -15,3 +15,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Git Worktree Alternative: Duplicate Your Project with .env, node_modules and Uncommitted Work
 - Claude Code + Codex Usage Monitor: Will You Run Out Before the Reset?
 - Codex Statusline: Show Usage Limits and Context Left in lpm
+- Claude Code Statusline: Show Usage Limits and Context Left in lpm
