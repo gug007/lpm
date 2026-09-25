@@ -70,10 +70,11 @@ class TikTokStage extends AppStage {
 
   // The step sticker at the top of the frame, from the cue word (or now) until
   // the next label; `null` clears it. A line's `label` in lesson.json does the
-  // same at the start of that line.
+  // same at the start of that line. `plain` leaves the step number off, and a
+  // plain label that follows another changes in place (a running clock).
   async label(text, opts = {}) {
     if (opts.cue) await this.holdUntil(this.cueMs(opts.cue));
-    this.labels.push({ startMs: this.now(), text });
+    this.labels.push({ startMs: this.now(), text, plain: !!opts.plain });
     this.log(text ? `label "${text}"` : "label cleared");
   }
 

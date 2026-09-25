@@ -5,8 +5,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const saveTextFile = vi.fn(
   (_name: string, _text: string): Promise<boolean> => Promise.resolve(true),
 );
+const setClipboardText = vi.fn((_text: string): Promise<void> => Promise.resolve());
 vi.mock("../../../bridge/commands", () => ({
   SaveTextFile: (name: string, text: string) => saveTextFile(name, text),
+  SetClipboardText: (text: string) => setClipboardText(text),
 }));
 
 import { copyConsole, saveConsole } from "./consoleActions";
@@ -28,12 +30,8 @@ let written: string | null;
 beforeEach(() => {
   written = null;
   saveTextFile.mockClear();
-  vi.stubGlobal("navigator", {
-    clipboard: {
-      writeText: vi.fn(async (t: string) => {
-        written = t;
-      }),
-    },
+  setClipboardText.mockImplementation(async (t: string) => {
+    written = t;
   });
 });
 

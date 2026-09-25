@@ -19,6 +19,7 @@ import {
   GitPush,
   GitStatus as ApiGitStatus,
   PullBranch,
+  SetClipboardText,
 } from "../../bridge/commands";
 import { main } from "../../bridge/models";
 import { getSettings } from "../store/settings";
@@ -128,7 +129,7 @@ function GitSubmenuItems({
   const copyBranch = async () => {
     onClose();
     try {
-      await navigator.clipboard.writeText(status.branch);
+      await SetClipboardText(status.branch);
       toast.success("Copied branch name");
     } catch {
       toast.error("Copy failed");

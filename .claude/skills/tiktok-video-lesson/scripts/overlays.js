@@ -58,7 +58,12 @@ function sceneAt(t, track) {
   let active = 0;
   if (pg) pg.words.forEach((w, i) => t >= w.ms && (active = i));
   return {
-    sticker: st && { kind: st.kind, text: st.text, n: st.n ?? null, p: coarse(unit((t - st.startMs) / POP_MS.sticker)) },
+    sticker: st && {
+      kind: st.kind,
+      text: st.text,
+      n: st.n ?? null,
+      p: st.pop === false ? 1 : coarse(unit((t - st.startMs) / POP_MS.sticker)),
+    },
     caption: pg && { words: pg.words.map((w) => [w.text, w.emph ? 1 : 0]), active, p: coarse(unit((t - pg.startMs) / POP_MS.page)) },
   };
 }
@@ -71,7 +76,8 @@ function sampleTimes(track, outMs) {
     for (let k = 0; k * FRAME_MS <= ms + FRAME_MS; k++) times.add(start + k * FRAME_MS);
   };
   for (const s of track.stickers) {
-    pop(s.startMs, POP_MS.sticker);
+    if (s.pop === false) times.add(s.startMs);
+    else pop(s.startMs, POP_MS.sticker);
     times.add(s.endMs);
   }
   for (const p of track.pages) {

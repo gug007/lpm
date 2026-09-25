@@ -1,6 +1,6 @@
 import type { Terminal } from "@xterm/xterm";
 import { toast } from "sonner";
-import { SaveTextFile } from "../../../bridge/commands";
+import { SaveTextFile, SetClipboardText } from "../../../bridge/commands";
 
 export function bufferToPlainText(term: Terminal): string {
   const buf = term.buffer.active;
@@ -30,7 +30,7 @@ export async function copyConsole(
   const text = consoleText(term, filter);
   if (!text) return;
   try {
-    await navigator.clipboard.writeText(text);
+    await SetClipboardText(text);
     toast.success("Console copied");
   } catch {
     toast.error("Failed to copy console");

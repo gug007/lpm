@@ -20,7 +20,7 @@ import { openClaudeAccountSettings, pinClaudeAccount } from "../store/claudeAcco
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
-import { CheckForUpdate, InstallUpdate } from "../../bridge/commands";
+import { CheckForUpdate, InstallUpdate, SetClipboardText } from "../../bridge/commands";
 import {
   isDuplicate,
   type DuplicateMode,
@@ -1521,7 +1521,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               // meaningless outside lpm (a no-op strip for local projects).
               if (!contextProject?.root) return;
               try {
-                await navigator.clipboard.writeText(stripMarker(contextProject.root));
+                await SetClipboardText(stripMarker(contextProject.root));
                 toast.success("Path copied");
               } catch {
                 toast.error("Copy failed");

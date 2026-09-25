@@ -92,7 +92,9 @@ function textTrack({ lines, labels = [], outMs, headline, cta }) {
   if (headline) stickers.push({ kind: "hook", text: headline, startMs: 0 });
   let n = 0;
   for (const m of marks) {
-    if (m.text) stickers.push({ kind: "label", text: m.text, n: ++n, startMs: m.startMs });
+    const prev = stickers.at(-1);
+    if (m.text && m.plain) stickers.push({ kind: "label", text: m.text, n: null, pop: !prev?.plain, plain: true, startMs: m.startMs });
+    else if (m.text) stickers.push({ kind: "label", text: m.text, n: ++n, startMs: m.startMs });
     else stickers.push({ kind: "none", startMs: m.startMs });
   }
   if (cta) stickers.push({ kind: "cta", text: cta, startMs: lines.at(-1).outMs });

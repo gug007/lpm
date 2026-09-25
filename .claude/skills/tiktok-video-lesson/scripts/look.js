@@ -40,11 +40,14 @@ function paintScene(scene) {
     const box = document.createElement("div");
     box.className = st.kind;
     if (st.kind === "label") {
-      const n = document.createElement("b");
-      n.textContent = String(st.n);
       const t = document.createElement("div");
       t.textContent = st.text;
-      box.append(n, t);
+      if (st.n != null) {
+        const n = document.createElement("b");
+        n.textContent = String(st.n);
+        box.append(n);
+      }
+      box.append(t);
     } else {
       const span = document.createElement("span");
       span.textContent = st.text;
