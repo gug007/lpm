@@ -44,6 +44,7 @@ export type DownloadSource =
   | "skills-hero"
   | "skills-cta"
   | "token-usage-hero"
+  | "token-usage-mid"
   | "token-usage-cta"
   | "features-hero"
   | "features-cta"
@@ -175,4 +176,24 @@ export function trackSidebarWalkthrough(
 ): void {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("event", "sidebar_walkthrough", { action });
+}
+
+export type TokenUsageDemoAction =
+  | "pace-preset"
+  | "pace-window"
+  | "pace-slider"
+  | "pace-reset-link"
+  | "reset-scenario"
+  | "reset-schedule"
+  | "reset-advance"
+  | "stats-period"
+  | "stats-provider"
+  | "stats-mode"
+  | "stats-sort"
+  | "stats-session"
+  | "stats-chart";
+
+export function trackTokenUsageDemo(action: TokenUsageDemoAction): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  window.gtag("event", "token_usage_demo", { action });
 }
