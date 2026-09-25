@@ -51,7 +51,7 @@ The recorder, the voice and the mix are the `video-lesson` skill's (`../video-le
 
 - `s.focus(sel, { scale, at, ms, cue })`: push the camera in on an element; it lands 36% down the frame, above the captions and the button column. Use 1.4–1.6 for a whole terminal line or a settings preview, and 1.8–2.2 for a button, a tab or a row. A pushed-in camera pans after the pointer when it leaves the shot. `s.zoom` is the same call.
 - `s.wide({ ms, cue })`: back to the whole window. Go wide when a new screen opens. `s.zoomOut` is the same call.
-- `s.label(text, { cue })`: a step sticker mid-line; `null` clears it.
+- `s.label(text, { cue })`: a step sticker mid-line; `null` clears it. `{ plain: true }` leaves the step number off, and a plain label that follows another changes in place without the pop, so calling it once a second makes a running clock.
 - `s.payoff({ cue })`: marks the shot the video opens on. Put it on the final result and hold that shot for at least the hook line's length; the last line usually does. Hide the drawn cursor first (`s.hideCursor()`) unless it points at something.
 - `await s.skip(() => work, { keepMs })`: starts `work` at once (typing a prompt, waiting for an agent) and cuts everything from the end of this line's narration until `work` is done.
 - No `s.card()`: a vertical lesson has stickers, not topic cards.

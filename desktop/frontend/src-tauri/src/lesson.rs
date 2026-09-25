@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewWindow};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, State, Webview, Window};
 
 pub const SOCKET_ENV: &str = "LPM_LESSON_SOCKET";
 
@@ -88,15 +88,22 @@ fn reply(writer: &Writer, id: u64, ok: bool, value: Value) {
     }
 }
 
-fn main_window(app: &AppHandle) -> Result<WebviewWindow, String> {
-    app.get_webview_window("main")
+// By window and webview label rather than `get_webview_window`, which stops
+// finding the window once a browser pane adds a second webview to it.
+fn main_window(app: &AppHandle) -> Result<Window, String> {
+    app.get_window("main")
         .ok_or_else(|| "no main window".to_string())
+}
+
+fn main_webview(app: &AppHandle) -> Result<Webview, String> {
+    app.get_webview("main")
+        .ok_or_else(|| "no main webview".to_string())
 }
 
 // The script runs as an async function body so a beat can `await`; whatever it
 // returns comes back through the `lesson_reply` command as JSON text.
 fn eval(app: &AppHandle, id: u64, js: &str) -> Result<(), String> {
-    let win = main_window(app)?;
+    let view = main_webview(app)?;
     let wrapped = format!(
         r#"(async () => {{
   const __reply = (ok, value) => window.__TAURI_INTERNALS__.invoke("lesson_reply", {{ id: {id}, ok, value }});
@@ -108,7 +115,7 @@ fn eval(app: &AppHandle, id: u64, js: &str) -> Result<(), String> {
   }}
 }})();"#
     );
-    win.eval(&wrapped).map_err(|e| e.to_string())
+    view.eval(&wrapped).map_err(|e| e.to_string())
 }
 
 fn handle(app: &AppHandle, op: &str, req: &Value) -> Result<Value, String> {
@@ -163,7 +170,7 @@ fn handle(app: &AppHandle, op: &str, req: &Value) -> Result<Value, String> {
 
 // Physical pixels, the units a screen recorder crops in, plus the scale so a
 // caller can convert the window's CSS coordinates.
-fn bounds(win: &WebviewWindow) -> Result<Value, String> {
+fn bounds(win: &Window) -> Result<Value, String> {
     let pos = win.inner_position().map_err(|e| e.to_string())?;
     let size = win.inner_size().map_err(|e| e.to_string())?;
     let scale = win.scale_factor().map_err(|e| e.to_string())?;
