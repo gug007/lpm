@@ -134,7 +134,7 @@ First client frame within 20s, or the host closes the socket.
   The single-use pairing code is consumed on success. `name` is the client
   machine's display name; `hostName` is the host's.
 - **Resume** (already paired): client → `{ "t": "auth", "deviceId", "token" }`
-  host → `{ "t": "ready", "hostName", "hostPlatform", "features": ["configSync", "configSync2"] }`
+  host → `{ "t": "ready", "hostName", "hostPlatform", "hostVersion", "phoneServerId", "features": ["configSync", "configSync2"] }`
 - On failure either returns `{ "t": "error", "error" }` and the host closes.
 
 `platform` / `hostPlatform` are `std::env::consts::OS` spelling (`macos`, `linux`)
@@ -143,6 +143,11 @@ Both are absent from a build that predates them, which reads as unknown and is
 treated as a Mac. `hostPlatform` rides every `ready`, not just pairing, so an entry
 stored before it existed fills itself in on the next connect rather than needing a
 re-pair.
+
+`phoneServerId` is the `serverId` the host's mobile server gives phones (see
+`mobile/PROTOCOL.md`). The client stores it on the peer entry so a phone connected
+to the client can tell whether it already has this host before asking it for a
+pairing code. Absent from a build that predates it.
 
 `features` advertises optional capabilities the client keys behavior on (unknown
 entries ignored). `configSync` = the config-sync frames below exist at all;
@@ -194,13 +199,17 @@ host's mobile server gets a dedicated frame rather than a hole in that denylist:
 
 - client → `{ "t": "remotePair", "reqId" }`
 - host → `{ "t": "result", "reqId", "ok", "value" }` — `value` is the QR payload
-  (`code`, `url`, `svg`, `host`, `hosts`, `port`) the phone scans.
+  (`code`, `url`, `svg`, `host`, `hosts`, `port`, `fingerprint`, `serverId`) the
+  phone scans. `fingerprint` and `serverId` are absent from an older host; the
+  fingerprint is still the URL's `f=`.
 
 The host arms the code and computes the payload itself: the addresses and the
 leaf certificate the phone must reach and pin are the host's, and neither is
 knowable from the client. It runs entirely in host Rust — no webview dispatch —
 so a headless host with no UI answers it like any other. The asking Mac displays
-the QR, which is how a phone pairs with a machine that has no screen of its own.
+the QR, which is how a phone pairs with a machine that has no screen of its own. A phone
+connected to the asking Mac can also request it through `machinePair` and redeem
+the code itself, without any QR.
 
 ## Terminal streaming
 

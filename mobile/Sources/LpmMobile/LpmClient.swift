@@ -130,6 +130,8 @@ final class LpmClient: NSObject {
     // payload (nil on failure); writes carry only the error to surface (nil = ok).
     var onListDirs: ((_ listing: DirListing?, _ error: String?) -> Void)?
     var onListSshHosts: ((_ hosts: [SshHostInfo], _ error: String?) -> Void)?
+    var onMachines: ((_ machines: [RemoteMachine]) -> Void)?
+    var onMachinePair: ((_ slug: String, _ offer: MachinePairOffer?, _ error: String?) -> Void)?
     var onCreateProject: ((_ name: String, _ error: String?) -> Void)?
     var onCreateSshProject: ((_ name: String, _ error: String?) -> Void)?
     var onCloneProject: ((_ name: String, _ error: String?) -> Void)?
@@ -839,6 +841,8 @@ final class LpmClient: NSObject {
     // take a while — the model arms a longer timeout around it).
     func requestDirs(path: String) { send(Wire.listDirs(path: path)) }
     func requestSshHosts() { send(Wire.listSshHosts()) }
+    func requestMachines() { send(Wire.machines()) }
+    func requestMachinePair(slug: String) { send(Wire.machinePair(slug: slug)) }
     func createProject(name: String, root: String) { send(Wire.createProject(name: name, root: root)) }
     func createSshProject(name: String, ssh: [String: Any]) {
         send(Wire.createSshProject(name: name, ssh: ssh))
@@ -1247,6 +1251,8 @@ final class LpmClient: NSObject {
             case .historyCreateFolder(let folder, let error): self.onHistoryCreateFolder?(folder, error)
             case .listDirs(let listing, let error): self.onListDirs?(listing, error)
             case .listSshHosts(let hosts, let error): self.onListSshHosts?(hosts, error)
+            case .machines(let machines): self.onMachines?(machines)
+            case .machinePair(let slug, let offer, let error): self.onMachinePair?(slug, offer, error)
             case .createProject(let name, let error): self.onCreateProject?(name, error)
             case .createSshProject(let name, let error): self.onCreateSshProject?(name, error)
             case .cloneProject(let name, let error): self.onCloneProject?(name, error)

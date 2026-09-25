@@ -306,6 +306,9 @@ final class AppModel {
     // The agent plan-usage meters (`model.usage`), same split.
     var usage = UsageStore()
 
+    // Adds the live Mac's own servers and Macs to this phone.
+    let machineImporter = MachineImporter()
+
     // Loaded file-viewer contents, keyed by "<project>\n<path>", so the FileViewer
     // sheet can render loading / content / error for the file it opened.
     var loadedFiles: [String: FileLoad] = [:]
@@ -367,6 +370,18 @@ final class AppModel {
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
                                 platform: platform)
+        }
+        machineImporter.requestMachines = { [weak self] in
+            guard let self, case .ready = self.connection else { return }
+            self.client?.requestMachines()
+        }
+        machineImporter.requestOffer = { [weak self] slug in
+            guard let self, case .ready = self.connection, let client = self.client else { return false }
+            client.requestMachinePair(slug: slug)
+            return true
+        }
+        machineImporter.onPaired = { [weak self] paired in
+            self?.adoptMachine(paired)
         }
     }
 
@@ -920,6 +935,32 @@ final class AppModel {
         addingMac = false
     }
 
+    /// Save a machine the importer paired with in the background. Unlike
+    /// `handlePaired` it never becomes active — the user is on the Mac that
+    /// listed it. The Mac's own name for it wins, so it reads here as it does
+    /// in that Mac's sidebar.
+    private func adoptMachine(_ p: MachineImporter.Paired) -> UUID {
+        let localId: UUID
+        if let sid = p.serverId, let idx = macs.firstIndex(where: { $0.serverId == sid }) {
+            localId = macs[idx].localId
+            macs[idx].hosts = Self.unionHosts(existing: macs[idx].hosts, fresh: p.hosts)
+            macs[idx].port = p.port
+        } else {
+            var record = MacRecord(localId: UUID(), serverId: p.serverId,
+                                   name: p.serverName?.trimmedNonEmpty ?? p.label,
+                                   hosts: p.hosts, port: p.port, platform: p.platform)
+            if let label = p.label.trimmedNonEmpty, label != record.name { record.customName = label }
+            macs.append(record)
+            localId = record.localId
+        }
+        Keychain.save(deviceId: p.deviceId, token: p.token, for: localId)
+        if let fp = p.fingerprint { Keychain.savePin(fp, for: localId) }
+        PushRegistrar.forget(localId)
+        persistMacs()
+        schedulePushSweep()
+        return localId
+    }
+
     /// A reconnect reached `ready` carrying identity: learn/refresh the active
     /// record's serverId, name, and platform.
     private func learnIdentity(serverId: String?, serverName: String?, platform: String?) {
@@ -980,6 +1021,7 @@ final class AppModel {
     private func resetSessionState() {
         client?.disconnect()
         client = nil
+        machineImporter.detach()
         currentHost = nil
         stopBrowsing()
         recoveryStatus = nil
@@ -2222,6 +2264,7 @@ final class AppModel {
         wireBackground(c)
         wireHistory(c)
         wireConfig(c)
+        wireMachines(c)
     }
 
     private func wireConnection(_ c: LpmClient) {
@@ -2257,6 +2300,7 @@ final class AppModel {
                 if !self.demoMode {
                     self.requestPushRegistration()
                     self.syncPushRegistration()
+                    c.requestMachines()
                 }
             }
         }
@@ -2730,6 +2774,18 @@ final class AppModel {
                 self.historyFolders.append(folder)
                 self.historyFolders.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
             }
+        }
+    }
+
+    private func wireMachines(_ c: LpmClient) {
+        c.onMachines = { [weak self, weak c] machines in
+            guard let self, let c, c === self.client, !self.demoMode,
+                  let source = self.activeRecord?.serverId else { return }
+            self.machineImporter.update(machines, source: source, macs: self.macs)
+        }
+        c.onMachinePair = { [weak self, weak c] slug, offer, error in
+            guard let self, let c, c === self.client else { return }
+            self.machineImporter.receiveOffer(slug: slug, offer: offer, error: error)
         }
     }
 

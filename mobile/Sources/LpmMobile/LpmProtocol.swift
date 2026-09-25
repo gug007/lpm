@@ -324,6 +324,10 @@ enum Wire {
         json(["t": "listDirs", "path": path])
     }
     static func listSshHosts() -> String { json(["t": "listSshHosts"]) }
+    /// The machines this Mac connects to (its Linux servers and other Macs).
+    static func machines() -> String { json(["t": "machines"]) }
+    /// Ask the Mac to have one of its machines arm a pairing code for this phone.
+    static func machinePair(slug: String) -> String { json(["t": "machinePair", "slug": slug]) }
     /// Create a new empty project (or adopt an existing folder) rooted at `root`.
     static func createProject(name: String, root: String) -> String {
         json(["t": "createProject", "name": name, "root": root])
@@ -550,6 +554,9 @@ enum Wire {
         // decoded payload (nil on failure); writes carry only the failure to surface.
         case listDirs(listing: DirListing?, error: String?)
         case listSshHosts(hosts: [SshHostInfo], error: String?)
+        // The Mac's own connections, and one of them's pairing offer for this phone.
+        case machines([RemoteMachine])
+        case machinePair(slug: String, offer: MachinePairOffer?, error: String?)
         case createProject(name: String, error: String?)
         case createSshProject(name: String, error: String?)
         case cloneProject(name: String, error: String?)
@@ -907,6 +914,13 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .listSshHosts(hosts: ok ? (obj["hosts"] as? [[String: Any]] ?? []).map(SshHostInfo.init) : [],
                                      error: ok ? nil : (obj["error"] as? String ?? "Couldn't list SSH hosts."))
+            case "machines":
+                return .machines((obj["machines"] as? [[String: Any]] ?? []).map(RemoteMachine.init))
+            case "machinePair":
+                let ok = obj["ok"] as? Bool ?? false
+                return .machinePair(slug: obj["slug"] as? String ?? "",
+                                    offer: ok ? MachinePairOffer(obj) : nil,
+                                    error: ok ? nil : (obj["error"] as? String ?? "Couldn't get a pairing code."))
             case "createProject":
                 let ok = obj["ok"] as? Bool ?? false
                 return .createProject(name: obj["name"] as? String ?? "",

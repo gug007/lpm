@@ -181,6 +181,8 @@ pub(crate) struct PeerEntry {
     pub ssh: crate::peertunnel::SshTarget, // set => reach this peer by forwarding `port` over SSH instead of dialling `host` directly
     #[serde(default)]
     pub version: String, // what the remote reports running; re-read on every connect. Empty = a build that predates this
+    #[serde(default)]
+    pub phone_server_id: String, // the `serverId` the remote gives phones, so a phone can tell whether it already has this machine. Empty until a build that reports it connects
 }
 
 #[derive(Serialize, Deserialize, Clone, Default)]
@@ -953,6 +955,7 @@ fn authenticate(ws: &mut ConnWs, hub: &PeerHub, app: &AppHandle) -> Option<Strin
                 let _ = ws.send(Message::text(
                     json!({ "t": "ready", "hostName": machine_name(),
                         "hostPlatform": platform_id(), "hostVersion": crate::commands_real::get_version(),
+                        "phoneServerId": crate::remote::phone_server_id(app),
                         "features": HOST_FEATURES })
                     .to_string(),
                 ));
@@ -2168,6 +2171,7 @@ mod tests {
                 auto_sync: true,
                 platform: "linux".into(),
                 version: "1.2.3".into(),
+                phone_server_id: "sid".into(),
                 ssh: crate::peertunnel::SshTarget {
                     host: "198.51.100.7".into(),
                     user: "root".into(),
@@ -2184,6 +2188,7 @@ mod tests {
         // turn a tunnelled host into one lpm tries to dial directly.
         assert_eq!(back.peers[0].ssh.destination(), "root@198.51.100.7");
         assert_eq!(back.peers[0].version, "1.2.3");
+        assert_eq!(back.peers[0].phone_server_id, "sid");
         assert_eq!(back.host.devices[0].slug_assigned, "abcd1234");
         assert_eq!(back.peers.len(), 1);
         assert_eq!(back.peers[0].slug, "beefcafe");

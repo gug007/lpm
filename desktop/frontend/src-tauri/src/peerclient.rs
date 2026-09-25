@@ -99,6 +99,12 @@ struct PeerConn {
     tunnel: Mutex<Option<crate::peertunnel::Tunnel>>,
 }
 
+pub(crate) struct PhoneMachine {
+    pub entry: PeerEntry,
+    pub connected: bool,
+    pub supports_remote_pair: bool,
+}
+
 /// Where a chunk sits relative to the stream already applied, given the chunk's
 /// END offset and its byte length. `Some` is the position to hold after applying
 /// it; `None` means bytes were lost and no position can be resumed from.
@@ -645,6 +651,7 @@ impl PeerClientHub {
                 auto_sync: false,
                 platform: s("hostPlatform"),
                 version: s("hostVersion"),
+                phone_server_id: String::new(),
                 ssh: Default::default(),
             });
             let snapshot = cfg.clone();
@@ -757,10 +764,32 @@ impl PeerClientHub {
         result.unwrap_or_else(|| Err(PEER_REQUEST_TIMED_OUT.to_string()))
     }
 
+    /// Every enabled peer with whether it is up and can arm a phone pairing, for
+    /// handing this Mac's machines to a phone (remote_machines.rs).
+    pub(crate) fn phone_machines(&self) -> Vec<PhoneMachine> {
+        let peers = self.inner.config.lock().unwrap().peers.clone();
+        let conns = self.inner.conns.lock().unwrap();
+        peers
+            .into_iter()
+            .filter(|p| p.enabled)
+            .map(|entry| {
+                let conn = conns.get(&entry.slug);
+                let flag = |f: fn(&PeerConn) -> &AtomicBool| {
+                    conn.is_some_and(|c| f(c).load(Ordering::Relaxed))
+                };
+                PhoneMachine {
+                    connected: flag(|c| &c.connected),
+                    supports_remote_pair: flag(|c| &c.supports_remote_pair),
+                    entry,
+                }
+            })
+            .collect()
+    }
+
     /// Ask a host to arm its own phone pairing and hand back the QR payload. The
     /// host computes it — its addresses and certificate are the ones the phone
     /// has to reach and pin, and neither is knowable from here.
-    fn remote_pair_blocking(&self, slug: &str) -> Result<Value, String> {
+    pub(crate) fn remote_pair_blocking(&self, slug: &str) -> Result<Value, String> {
         let conn = self
             .inner
             .conns
@@ -1673,18 +1702,23 @@ fn persist_tls_fp(hub: &PeerClientHub, slug: &str, fp: &str) {
 /// an upgrade they are both new, and saving twice would write the config and wake
 /// every listener twice for a single event. An empty value means "not reported",
 /// never "cleared".
-fn persist_host_report(hub: &PeerClientHub, slug: &str, platform: &str, version: &str) {
+fn persist_host_report(hub: &PeerClientHub, slug: &str, ready: &Value) {
+    let reported = |k: &str| ready.get(k).and_then(Value::as_str).unwrap_or("");
     let mut cfg = hub.inner.config.lock().unwrap();
     let changed = match cfg.peers.iter_mut().find(|p| p.slug == slug) {
-        Some(p) => [(&mut p.platform, platform), (&mut p.version, version)]
-            .into_iter()
-            .fold(false, |changed, (field, value)| {
-                if value.is_empty() || field.as_str() == value {
-                    return changed;
-                }
-                *field = value.to_string();
-                true
-            }),
+        Some(p) => [
+            (&mut p.platform, reported("hostPlatform")),
+            (&mut p.version, reported("hostVersion")),
+            (&mut p.phone_server_id, reported("phoneServerId")),
+        ]
+        .into_iter()
+        .fold(false, |changed, (field, value)| {
+            if value.is_empty() || field.as_str() == value {
+                return changed;
+            }
+            *field = value.to_string();
+            true
+        }),
         None => false,
     };
     if !changed {
@@ -1743,12 +1777,7 @@ fn connect_session(
     if let Some(fp) = pin_after_auth(entry.tls_fp.as_deref(), was_tls, captured_fp.as_deref()) {
         persist_tls_fp(hub, &conn.slug, &fp);
     }
-    persist_host_report(
-        hub,
-        &conn.slug,
-        rv.get("hostPlatform").and_then(Value::as_str).unwrap_or(""),
-        rv.get("hostVersion").and_then(Value::as_str).unwrap_or(""),
-    );
+    persist_host_report(hub, &conn.slug, &rv);
     let features = rv.get("features").and_then(Value::as_array);
     let has_feature = |name: &str| {
         features
@@ -2224,6 +2253,7 @@ pub(crate) fn add_peer_blocking(
             // an entry paired before hosts sent a platform at all.
             platform: String::new(),
             version: String::new(),
+            phone_server_id: String::new(),
             ssh: Default::default(),
         });
         let snapshot = cfg.clone();

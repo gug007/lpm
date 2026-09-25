@@ -453,6 +453,20 @@ and work with the Mac's main window closed. Folders are matched by **name** (exa
 then case-insensitive), consistent across create/rename/delete/move; moving a
 project to a folder name that doesn't exist creates it.
 
+### Machines this Mac connects to
+
+The Linux servers and other Macs this Mac is connected to (desktop Settings →
+Connections), so the phone can add them without a QR per machine. For each one
+the phone doesn't have, it asks for a pairing offer and redeems the code with a
+normal [`pair`](#handshake-first-frame-required-within-20s) directly against that
+machine. The machine is then an ordinary saved machine that the phone reaches on
+its own, with this Mac asleep.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "machines" }` | `{ "t": "machines", "machines": [{ "slug": "<id>", "name": "…", "platform": "linux"\|"macos"\|"", "serverId": "<uuid>"\|"", "state": "ready"\|"offline"\|"update" }…] }` — every enabled connection. `name` is what this Mac's sidebar calls it. `serverId` is the one the machine sends phones on `paired`/`ready`, so a phone can skip a machine it already has; empty until this Mac has talked to a build of it that reports one. `state`: `ready` = this Mac is connected and can get a code; `offline` = not connected; `update` = its lpm predates arming a pairing on request. A Mac that predates this request never replies |
+| `{ "t": "machinePair", "slug": "<id>" }` | `{ "t": "machinePair", "slug": "<id>", "ok": true, "code": "…", "hosts": ["…"], "port": N, "fingerprint": "<hex sha256>", "serverId": "<uuid>", "name": "…", "platform": "…" }` / `{ "t": "machinePair", "slug": "<id>", "ok": false, "error": "…" }` — has the machine arm a single-use pairing code (the same one its QR would carry, 10-minute expiry) and turns its phone server on. `hosts` leads with the address this Mac reaches it at (for a server reached over SSH, the SSH hostname), then the machine's own addresses; loopback is never included. `fingerprint` is the machine's certificate, to verify on the pairing connection like a QR's `f=`. Async: waits on the machine for up to 20s |
+
 ### Session memory
 
 Per-project work-session logs (`~/.lpm/memory/<owner>/<session>.md`), co-written

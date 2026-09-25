@@ -443,7 +443,7 @@ impl RemoteHub {
 
     /// This Mac's stable id, minting and persisting one if it is somehow still
     /// unset (start() normally does this at load time).
-    fn server_id(&self) -> String {
+    pub(crate) fn server_id(&self) -> String {
         let known = self.inner.config.lock().unwrap().flavor_server_id();
         if !known.is_empty() {
             return known;
@@ -4034,6 +4034,7 @@ fn handle_msg(
         "memory" | "memorySession" | "memorySave" | "memoryDelete" => {
             crate::remote_memory::handle(out, t, &v)
         }
+        "machines" | "machinePair" => crate::remote_machines::handle(app, out, t, &v),
         "notesChats" | "notesCreateChat" | "notesRenameChat" | "notesDeleteChat"
         | "notesMessages" | "notesAddMessage" | "notesEditMessage" | "notesDeleteMessage"
         | "notesSearch" | "notesAttachment" => crate::remote_notes::handle(app, out, t, &v),
@@ -5638,7 +5639,17 @@ pub(crate) fn arm_pairing_payload(hub: &RemoteHub) -> Result<Value, String> {
         "host": hosts[0],
         "hosts": hosts,
         "port": port,
+        "fingerprint": fingerprint,
+        "serverId": hub.server_id(),
     }))
+}
+
+/// The `serverId` this machine gives phones, or empty when the phone server's
+/// state isn't registered (never the case in the running app).
+pub(crate) fn phone_server_id(app: &AppHandle) -> String {
+    app.try_state::<RemoteHub>()
+        .map(|hub| hub.server_id())
+        .unwrap_or_default()
 }
 
 /// Start (or refresh) a single-use pairing code, auto-enabling the server, and
