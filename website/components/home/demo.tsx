@@ -129,6 +129,10 @@ const LESSON_CAPTION: Record<
     heading: "One project, several copies, an agent in each",
     blurb: "A short video: duplicate a project so each agent has its own copy.",
   },
+  "multiple-accounts": {
+    heading: "A Claude account for each project, all signed in at once",
+    blurb: "A short video: add a second account and switch a project to it when one runs low.",
+  },
 };
 
 function DesktopOnlyPrompt({

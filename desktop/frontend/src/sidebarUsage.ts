@@ -102,18 +102,23 @@ function byAccount(entries: ProviderLimits[]): Map<string, ProviderLimits> {
  *  they burn down separately, and a single row would just show whichever
  *  reported last. */
 function claudeIdentities(map: AgentLimitsMap, accounts: UsageAccount[]): Identity[] {
-  const reported = byAccount(entriesFor(map, "claude"));
+  const registered = new Map(accounts.map((account) => [account.id, account]));
+  // An account that is no longer registered can never report again (its pinned
+  // projects fall back to the main login), so its last reading would linger as
+  // a row named by a raw id until the window resets.
+  const reported = new Map(
+    [...byAccount(entriesFor(map, "claude"))].filter(
+      ([id]) => id === DEFAULT_ACCOUNT || registered.has(id),
+    ),
+  );
   // With nothing reported there are no windows to split between accounts, so the
   // tool keeps the single row that falls back to the day's spend.
   if (reported.size === 0) return [{ id: "claude", name: providerMeta("claude").short }];
 
-  const registered = new Map(accounts.map((account) => [account.id, account]));
-  // Registered accounts in the order the user added them, then anything that
-  // reported without being registered (the default login, a deleted account)
-  // sorted so rows never swap places between renders.
+  // Registered accounts in the order the user added them, then the main login.
   const ids = [
     ...accounts.map((account) => account.id),
-    ...[...reported.keys()].filter((id) => !registered.has(id)).sort(),
+    ...(reported.has(DEFAULT_ACCOUNT) ? [DEFAULT_ACCOUNT] : []),
   ];
 
   return ids.map((id) => {

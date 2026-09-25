@@ -44,6 +44,13 @@ const LESSONS = {
       "Duplicating a project in lpm into standalone copies, each with its own terminals and an AI agent working on the same prompt.",
     uploadDate: "2026-09-19T09:00:00+00:00",
   },
+  "multiple-accounts": {
+    id: "zLt_56dvOsg",
+    name: "Use Multiple Claude Code Accounts on One Mac",
+    description:
+      "Adding a second Claude Code account in lpm, picking which account each project uses from its menu, and switching a project to the account with room left when one hits its 5-hour or weekly limit.",
+    uploadDate: "2026-09-25T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

@@ -20,7 +20,7 @@ const FEATURES: Feature[] = [
   {
     icon: Users,
     title: "Pin an account to a project",
-    body: "Add your accounts once in Settings, then pick one in the project's config. From then on every terminal you open in the project launches Claude Code on that account. Projects without a pin keep your main login, so nothing changes until you ask it to.",
+    body: "Add your accounts once in Settings, then pick one from the project's menu in the sidebar, where each account shows its 5-hour and weekly usage. From then on every terminal you open in the project launches Claude Code on that account. Projects without a pin keep your main login, so nothing changes until you ask it to.",
   },
   {
     icon: Layers,

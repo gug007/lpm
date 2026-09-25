@@ -11,7 +11,7 @@ const OVERLAY_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
 html, body { margin: 0; width: ${OUT.width}px; height: ${OUT.height}px; background: transparent; overflow: hidden; }
 body { font-family: ${FONT}; -webkit-font-smoothing: antialiased; }
 #sticker { position: absolute; left: 70px; right: 70px; top: 190px; display: flex; justify-content: center; transform-origin: 50% 0; }
-.hook { max-width: 900px; text-align: center; font-weight: 800; font-size: 66px; line-height: 1.42; letter-spacing: -0.01em; }
+.hook { max-width: 900px; text-align: center; text-wrap: balance; font-weight: 800; font-size: 66px; line-height: 1.42; letter-spacing: -0.01em; }
 .hook span { background: #fff; color: #101014; padding: 5px 22px; border-radius: 18px; -webkit-box-decoration-break: clone; box-decoration-break: clone; box-shadow: 0 10px 34px rgba(0,0,0,.28); }
 .label { display: inline-flex; align-items: center; gap: 20px; max-width: 880px; padding: 14px 34px 14px 14px; border-radius: 999px; background: rgba(12,12,18,.86); border: 2px solid rgba(255,255,255,.16); box-shadow: 0 14px 40px rgba(0,0,0,.42); color: #fff; font-weight: 760; font-size: 46px; line-height: 1.15; }
 .label b { flex: none; display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: ${ACCENT}; color: #0b0b10; font-weight: 900; font-size: 38px; }

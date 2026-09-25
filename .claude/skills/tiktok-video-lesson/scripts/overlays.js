@@ -1,8 +1,8 @@
 // Renders the look (look.js) to files the mux can use: the canvas and the
 // window's rounded mask once per window size, and the text track as
 // transparent PNG frames with an ffconcat list that holds each one for exactly
-// as long as it is on screen. Frames are named by their content, so a re-mux
-// only paints what changed.
+// as long as it is on screen. Frames are named by their content and the look, so
+// a re-mux only paints what changed.
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -11,6 +11,8 @@ const { chromium, CHROME } = shared("browser");
 const { OUT, OVERLAY_HTML, paintScene, backdropHtml, maskHtml, GUIDES_HTML } = require("./look");
 
 const FRAME_MS = 1000 / 30;
+// Part of every frame's name, so a change to the look repaints it.
+const LOOK = OVERLAY_HTML + paintScene.toString();
 const POP_MS = { sticker: 240, page: 170 };
 
 async function withPage(size, fn) {
@@ -92,7 +94,7 @@ async function renderTrack(dir, track, outMs) {
   }
   const files = new Map();
   for (const r of runs) {
-    const name = `t-${crypto.createHash("sha1").update(r.key).digest("hex").slice(0, 16)}.png`;
+    const name = `t-${crypto.createHash("sha1").update(LOOK).update(r.key).digest("hex").slice(0, 16)}.png`;
     files.set(r.key, { name, scene: r.scene });
   }
   const todo = [...files.values()].filter((f) => !fs.existsSync(path.join(dir, f.name)));

@@ -42,6 +42,18 @@ const WORKFLOWS: Workflow[] = [
     ),
   },
   {
+    title: "Move a project to the account with room when one runs low",
+    body: (
+      <>
+        Your main login is at 96% of its weekly limit and resets in two days.
+        Open the project&rsquo;s menu in the sidebar: under Claude account,
+        every account shows its 5-hour and weekly usage and when it resets.
+        Pick the one with room and the next Claude session in that project
+        runs on it, while the sessions already open finish on the old one.
+      </>
+    ),
+  },
+  {
     title: "Keep client work billable to the client's seat",
     body: (
       <>
@@ -61,7 +73,7 @@ export default function Workflows() {
       <div className="max-w-3xl mx-auto px-6">
         <SectionHeader
           eyebrow="In practice"
-          title="Three ways per-project Claude accounts pay off"
+          title="Four ways per-project Claude accounts pay off"
           description="Concrete setups where pinning beats switching."
         />
 

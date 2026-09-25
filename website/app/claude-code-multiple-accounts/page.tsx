@@ -9,13 +9,19 @@ import {
   TOKEN_USAGE_PATH,
   WORKTREE_ALTERNATIVE_PATH,
 } from "@/lib/links";
-import { breadcrumbJsonLd, jsonLdString, webPageJsonLd } from "@/lib/structured-data";
+import {
+  breadcrumbJsonLd,
+  jsonLdString,
+  webPageJsonLd,
+  youtubeLessonJsonLd,
+} from "@/lib/structured-data";
 import { AccountsVisual } from "./_components/accounts-visual";
 import Comparison from "./_components/comparison";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
 import Features from "./_components/features";
 import Hero from "./_components/hero";
+import Lesson from "./_components/lesson";
 import Problem from "./_components/problem";
 import Setup from "./_components/setup";
 import Workflows from "./_components/workflows";
@@ -34,6 +40,7 @@ export const metadata: Metadata = {
     "run two claude code accounts",
     "claude code work and personal account",
     "claude code account switcher alternative",
+    "claude code usage limit switch account",
     "CLAUDE_CONFIG_DIR per project",
   ],
   alternates: {
@@ -72,6 +79,7 @@ const structuredData = [
       path: CLAUDE_ACCOUNTS_PATH,
     },
   ]),
+  youtubeLessonJsonLd("multiple-accounts"),
 ];
 
 export default function ClaudeCodeMultipleAccountsPage() {
@@ -84,6 +92,7 @@ export default function ClaudeCodeMultipleAccountsPage() {
       <Hero />
       <AccountsVisual />
       <Problem />
+      <Lesson />
       <Features />
       <Comparison />
       <Setup />

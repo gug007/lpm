@@ -22,8 +22,8 @@ const STEPS: Step[] = [
   },
   {
     title: "Pin a project",
-    body: "Pick the account in the project's config form and save. Settings lists which projects use each account.",
-    path: ["Project", "Config", "Claude account"],
+    body: "Open the project's menu in the sidebar and pick the account under Claude account, which shows each account's 5-hour and weekly usage. Settings lists which projects use each account.",
+    path: ["Project menu", "Claude account"],
   },
   {
     title: "Just work",

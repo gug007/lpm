@@ -17,7 +17,12 @@ const FAQS: QA[] = [
     question:
       "I keep separate accounts because of usage limits — does each project get its own limit?",
     answer:
-      "Each Claude subscription has its own usage allowance, and pinning means every terminal session in a project draws from that project's account. A heavy afternoon on a side project can't eat the work seat's quota. Turn on Claude usage in lpm and the Usage page shows each account's 5-hour and weekly limits on its own card, so you can see which one is close before it runs out.",
+      "Each Claude subscription has its own usage allowance, and pinning means every terminal session in a project draws from that project's account. A heavy afternoon on a side project can't eat the work seat's quota. Turn on Claude usage in lpm and each account gets its own meter in the sidebar, its own card on the Usage page, and its 5-hour and weekly usage in the Claude account menu, so you can see which one is close before it runs out.",
+  },
+  {
+    question: "What do I do when one account hits its limit?",
+    answer:
+      "Open the project's menu in the sidebar and pick another account under Claude account. The menu shows each account's 5-hour and weekly usage and when it resets, so you can pick the one with room. New Claude sessions in that project run on the new account right away; sessions already open keep the account they started with. When the first account resets, switch back the same way.",
   },
   {
     question: "Do I have to log out and back in when I change projects?",
@@ -42,7 +47,7 @@ const FAQS: QA[] = [
   {
     question: "Do duplicates and worktrees keep the pinned account?",
     answer:
-      "Yes. Copies and worktrees inherit the parent project's account, so a fan-out of a work repo stays on the work seat. A copy's own config can still override it or choose your main login.",
+      "Yes. Copies and worktrees inherit the parent project's account, so a fan-out of a work repo stays on the work seat. A copy can still pick its own account from its menu in the sidebar, and Same as parent puts it back.",
   },
   {
     question: "I use an API key in some projects — does pinning interfere?",

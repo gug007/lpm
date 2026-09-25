@@ -267,7 +267,25 @@ describe("usageRows with several Claude accounts", () => {
     expect(home.subtitle).toBeUndefined();
   });
 
-  it("names the unpinned login after the tool and sorts unregistered ids last", () => {
+  it("drops readings from accounts that are no longer registered", () => {
+    const withRemoved: AgentLimitsMap = {
+      ...twoAccounts,
+      "claude:acc-removed": {
+        provider: "claude",
+        accountId: "acc-removed",
+        weekly: { usedPercent: 2, resetsAt: IN_TWO_HOURS },
+        updatedAt: NOW,
+      },
+    };
+    expect(usageRows(withRemoved, null, NOW, { accounts }).map((r) => r.id)).toEqual([
+      "claude:acc-work",
+      "claude:acc-home",
+    ]);
+    const onlyRemoved = { "claude:acc-removed": withRemoved["claude:acc-removed"] };
+    expect(usageRows(onlyRemoved, null, NOW).map((r) => r.id)).toEqual([]);
+  });
+
+  it("names the unpinned login after the tool and lists it after registered accounts", () => {
     const withDefault: AgentLimitsMap = {
       ...twoAccounts,
       "claude:default": {
