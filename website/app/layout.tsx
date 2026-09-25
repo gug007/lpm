@@ -10,6 +10,7 @@ import {
   SITE_URL,
   TELEGRAM_URL,
   THEME_STORAGE_KEY,
+  YOUTUBE_CHANNEL_URL,
 } from "@/lib/links";
 import { APP_ID, WEBSITE_ID, jsonLdString } from "@/lib/structured-data";
 import { fetchLatestVersion } from "@/lib/github-stats";
@@ -108,7 +109,7 @@ const buildStructuredData = (softwareVersion: string | null) => ({
       name: "lpm",
       url: SITE_URL,
       logo: `${SITE_URL}/icon.png`,
-      sameAs: [REPO_URL, TELEGRAM_URL],
+      sameAs: [REPO_URL, TELEGRAM_URL, YOUTUBE_CHANNEL_URL],
       contactPoint: {
         "@type": "ContactPoint",
         contactType: "customer support",
