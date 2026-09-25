@@ -28,6 +28,7 @@ import {
   WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
+import { FooterYouTubeCard } from "./footer-youtube-card";
 import { GitHubStarButton } from "./github-star-button";
 
 const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
@@ -43,6 +44,7 @@ const COMPARE_LABELS: Record<(typeof VS_SLUGS)[number], string> = {
 type Group = {
   heading: string;
   links: { href: string; label: string }[];
+  withLessons?: boolean;
 };
 
 const GROUPS: Group[] = [
@@ -80,6 +82,7 @@ const GROUPS: Group[] = [
       { href: WORKTREE_ALTERNATIVE_PATH, label: "Git worktree alternative" },
       { href: WORKTREE_AGENTS_PATH, label: "Worktrees for AI agents" },
     ],
+    withLessons: true,
   },
   {
     heading: "lpm",
@@ -105,18 +108,28 @@ export function Footer() {
       <div data-nosnippet className="max-w-5xl mx-auto px-6">
         <div className="grid grid-cols-1 gap-x-8 gap-y-10 min-[480px]:grid-cols-2 lg:grid-cols-4">
           {GROUPS.map((group) => (
-            <nav key={group.heading} aria-label={group.heading}>
-              <h2 className={headingClass}>{group.heading}</h2>
-              <ul className="mt-4 space-y-1.5">
-                {group.links.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className={linkClass}>
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+            <div key={group.heading}>
+              <nav aria-label={group.heading}>
+                <h2 className={headingClass}>{group.heading}</h2>
+                <ul className="mt-4 space-y-1.5">
+                  {group.links.map((link) => (
+                    <li key={link.href}>
+                      <Link href={link.href} className={linkClass}>
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+              {group.withLessons && (
+                <div className="mt-10">
+                  <h2 className={headingClass}>Watch</h2>
+                  <div className="mt-4">
+                    <FooterYouTubeCard />
+                  </div>
+                </div>
+              )}
+            </div>
           ))}
         </div>
 

@@ -42,6 +42,7 @@ export const VS_SLUGS = [
 export type VsSlug = (typeof VS_SLUGS)[number];
 export const vsPath = (slug: VsSlug): string => `${VS_BASE_PATH}/${slug}`;
 export const TELEGRAM_URL = "https://t.me/lpm_desktop";
+export const YOUTUBE_CHANNEL_URL = "https://www.youtube.com/@lpmcx";
 
 export function releaseAsset(filename: string): string {
   return `${RELEASES_URL}/download/${filename}`;
