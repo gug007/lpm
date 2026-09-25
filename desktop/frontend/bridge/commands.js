@@ -790,6 +790,9 @@ export function SetProjectLabel(name, label) {
 export function SetWorkStatus(name, status) {
   return invoke("set_work_status", { name, status });
 }
+export function SetClaudeAccount(name, account) {
+  return invoke("set_claude_account", { name, account });
+}
 export function MoveProjectRoot(name, newRoot) {
   return invoke("move_project_root", { name, newRoot });
 }

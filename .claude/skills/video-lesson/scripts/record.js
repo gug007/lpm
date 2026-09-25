@@ -26,7 +26,7 @@ const WINDOW_AT = process.env.LESSON_WIN_X
   : { center: true };
 const DEFAULT_WORKSPACE = "/Users/Shared/lpm-lessons";
 
-async function runBeats(stage, lines, beats, t0) {
+async function runBeats(stage, lines, beats, t0, { gapMs = GAP_MS, tailMs = TAIL_MS } = {}) {
   const timeline = [];
   for (const [i, line] of lines.entries()) {
     const beat = beats[line.id];
@@ -38,25 +38,26 @@ async function runBeats(stage, lines, beats, t0) {
     if (process.env.DEBUG_CARD) console.log(`  card after ${line.id}:`, JSON.stringify(await stage.cardState()));
     if (i === 0 && (await stage.isCovered())) await stage.reveal();
     await stage.frame(line.id);
-    const rest = startMs + line.ms + GAP_MS - (Date.now() - t0);
+    const rest = startMs + line.ms + gapMs - (Date.now() - t0);
     if (rest > 0) await stage.hold(rest);
     timeline.push({ id: line.id, startMs, ms: line.ms });
   }
-  await stage.hold(TAIL_MS);
+  await stage.hold(tailMs);
   await stage.frame("end");
   return timeline;
 }
 
-// Runs in the app's page.
+// Runs in the app's page. The overlay installs a #lesson-tick of its own (a
+// faint 1px dot in the corner the window's rounded mask hides), so the dot is
+// placed on every blink, not only when this creates it.
 function blinkTick(on) {
   let tick = document.getElementById("lesson-tick");
   if (!tick) {
     tick = document.createElement("div");
     tick.id = "lesson-tick";
-    tick.style.cssText = "position:fixed;top:12px;left:50%;width:2px;height:2px;z-index:2147483647;pointer-events:none";
     document.body.append(tick);
   }
-  tick.style.background = on ? "#fff" : "#000";
+  tick.style.cssText = `position:fixed;top:12px;left:50%;width:2px;height:2px;opacity:1;animation:none;z-index:2147483647;pointer-events:none;background:${on ? "#fff" : "#000"}`;
 }
 
 async function waitForFrames(rec, nudge) {
@@ -154,15 +155,20 @@ function prepareState({ lpmDir, lesson, beats, keepState, log = () => {} }) {
   return { workspace, settings };
 }
 
-async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, keepState, mouse }) {
+// `win` sizes the app window (points); `Stage` may extend AppStage with beat
+// calls of its own, and whatever its `timelineExtras()` returns is saved with
+// the timeline; `pace` tightens or loosens the gaps around the narration.
+async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, keepState, mouse, win, Stage = AppStage, pace = {} }) {
+  const { gapMs = GAP_MS, leadMs = LEAD_MS, tailMs = TAIL_MS } = pace;
+  const size = win || { w: FRAME.width, h: FRAME.height };
   let t0 = Date.now();
   const log = (m) => console.log(`  ${((Date.now() - t0) / 1000).toFixed(2)}s ${m}`);
   const { workspace, settings } = prepareState({ lpmDir, lesson, beats, keepState, log });
   if (beats.setup) await beats.setup({ lpmDir, workspace, lesson, settings });
-  const app = await launchApp({ lpmDir, log });
+  const app = await launchApp({ lpmDir, env: lesson.env, log });
   // Sizing is asynchronous on macOS; centring in the same call would use the
   // old size, so the window is sized first and placed once that has settled.
-  await app.control.call("window", { w: FRAME.width, h: FRAME.height });
+  await app.control.call("window", { w: size.w, h: size.h });
   await sleep(400);
   await app.control.call("window", { ...WINDOW_AT, top: true, focus: true });
   await sleep(500);
@@ -172,7 +178,7 @@ async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, ke
   const capture = new Capture({ rect: { x: b.x, y: b.y, w: b.w, h: b.h }, onFrame: (f) => rec.frame(f) });
   let stage;
   try {
-    stage = await AppStage.open(app, capture, { framesDir, log, mouse, origin, out: OUT, box: frameBox(OUT, FRAME, ZOOM) });
+    stage = await Stage.open(app, capture, { framesDir, log, mouse, origin, out: OUT, box: frameBox(OUT, FRAME, ZOOM) });
     await stage.frame("stage");
     await stage.cover();
     // A still window captures as identical frames and the recorder never
@@ -184,14 +190,15 @@ async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, ke
     await app.control.evaluate(() => document.getElementById("lesson-tick")?.remove()).catch(() => {});
     t0 = rec.startWall;
     stage.t0 = t0;
-    await stage.hold(LEAD_MS);
-    const timeline = await runBeats(stage, lines, beats, t0);
+    await stage.hold(leadMs);
+    const timeline = await runBeats(stage, lines, beats, t0, { gapMs, tailMs });
     const totalMs = Date.now() - t0;
     await capture.stop();
     await rec.stop(totalMs);
     stage.finish();
     await app.close();
-    return { totalMs, lines: timeline, cards: stage.cards, zooms: stage.zooms, box: { w: b.w, h: b.h, scale: b.scale } };
+    const extras = stage.timelineExtras ? stage.timelineExtras() : {};
+    return { totalMs, lines: timeline, cards: stage.cards, zooms: stage.zooms, box: { w: b.w, h: b.h, scale: b.scale }, ...extras };
   } catch (e) {
     // The screen at the moment of failure, next to the dry-run frames.
     if (framesDir && capture.latest) fs.writeFileSync(path.join(framesDir, "99-error.jpg"), capture.latest);

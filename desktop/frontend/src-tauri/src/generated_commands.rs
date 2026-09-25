@@ -307,6 +307,7 @@ macro_rules! all_command_handlers {
             search_branches,
             set_project_label,
             set_work_status,
+            set_claude_account,
             start_log_streaming,
             start_claude_login,
             start_project,

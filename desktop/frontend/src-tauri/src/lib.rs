@@ -14,6 +14,7 @@ mod aigen;
 mod autosync;
 mod bounds;
 mod browser;
+mod claude_account_pin;
 mod cli_install;
 mod claude_session_state;
 mod clipboard;
@@ -148,6 +149,7 @@ use agent_caps::{
 };
 use aigen::*;
 use browser::*;
+use claude_account_pin::*;
 use claude_session_state::*;
 use cli_install::*;
 use clipboard::*;

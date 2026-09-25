@@ -168,6 +168,9 @@ export interface ProjectInfo {
   worktree?: boolean;
   isRemote: boolean;
   workStatus?: WorkStatus;
+  // The project's own Claude account pin: absent when unset, "" for the main
+  // login, otherwise a ClaudeAccount id.
+  claudeAccount?: string;
 }
 
 export interface TokenUsage {

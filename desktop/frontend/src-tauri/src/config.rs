@@ -539,7 +539,7 @@ fn claude_account_ids(v: &Value) -> Vec<String> {
 
 /// Ids become directory names under ~/.lpm/claude-accounts, so only allow
 /// filename-safe characters.
-fn valid_claude_account_id(id: &str) -> bool {
+pub fn valid_claude_account_id(id: &str) -> bool {
     !id.is_empty()
         && id
             .chars()
@@ -2285,6 +2285,9 @@ fn to_project_info(
     });
     if let Some(ws) = work_status_json(yaml.work_status.take()) {
         info["workStatus"] = ws;
+    }
+    if let Some(account) = yaml.claude_account.take() {
+        info["claudeAccount"] = json!(account);
     }
     info
 }

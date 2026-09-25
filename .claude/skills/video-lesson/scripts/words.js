@@ -8,6 +8,10 @@ const norm = (t) =>
     .split(/\s+/)
     .filter(Boolean);
 
+// How the transcript tends to spell names the voice says right.
+const HEARD_AS = { cloud: "claude", clod: "claude", clawed: "claude", codecs: "codex" };
+const same = (heard, word) => heard === word || HEARD_AS[heard] === word;
+
 // Start time (ms) of each word of `text` in the clip, or null where the
 // transcript has no match for it.
 function alignWords(text, words) {
@@ -18,7 +22,7 @@ function alignWords(text, words) {
   let j = 0;
   for (let i = 0; i < all.length; i++) {
     for (let k = j; k < Math.min(spoken.length, j + 4); k++) {
-      if (spoken[k].n === all[i]) {
+      if (same(spoken[k].n, all[i])) {
         times[i] = spoken[k].ms;
         j = k + 1;
         break;

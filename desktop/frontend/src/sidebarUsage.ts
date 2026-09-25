@@ -141,6 +141,13 @@ function live(win: LimitWindow | undefined, now: number): LimitWindow | undefine
   return win.resetsAt > 0 && win.resetsAt * 1000 <= now ? undefined : win;
 }
 
+/** Where the bar draws its pace tick (0–1), or null while it is too early, or
+ *  impossible, to judge the window. */
+function paceTick(win: LimitWindow | undefined, windowMs: number, now: number): number | null {
+  const pace = computePace(win, windowMs, now);
+  return pace && pace.verdict !== "early" && pace.verdict !== "unknown" ? pace.elapsedPercent / 100 : null;
+}
+
 function pickWindow(
   data: ProviderLimits | undefined,
   choice: UsageWindowChoice,
@@ -216,8 +223,6 @@ export function usageRows(
   return candidates.map((row) => {
     const meta = providerMeta(row.provider);
     const win = row.win;
-    const pace = computePace(win, row.windowMs, now);
-    const judged = pace && pace.verdict !== "early" && pace.verdict !== "unknown" ? pace : null;
     return {
       id: row.id,
       provider: row.provider,
@@ -230,7 +235,7 @@ export function usageRows(
         : peak > 0
           ? row.tokens / peak
           : 0,
-      pace: judged ? judged.elapsedPercent / 100 : null,
+      pace: paceTick(win, row.windowMs, now),
       // Just the duration — "resets in" costs half the row and the hover card
       // spells it out anyway. The day's spend keeps its unit, which is the word
       // that makes it a token count rather than a countdown.
@@ -251,6 +256,42 @@ export function usageRows(
       stale: !!row.data && now - row.data.updatedAt > STALE_MS,
     };
   });
+}
+
+/** One window of one Claude account, drawn like a sidebar row's bar. */
+export interface UsageMeter {
+  label: string;
+  fraction: number;
+  fill: string;
+  pace: number | null;
+  percent: number;
+  percentText: string;
+  detail: string;
+}
+
+/** The live 5-hour and weekly windows of one Claude account (`default` is the
+ *  main login), in that order; empty until the account has reported. */
+export function accountMeters(limits: AgentLimitsMap, accountId: string, now: number): UsageMeter[] {
+  const data = byAccount(entriesFor(limits, "claude")).get(accountId);
+  const windows: [string, LimitWindow | undefined, number][] = [
+    ["5h", live(data?.fiveHour, now), FIVE_HOUR_MS],
+    ["7d", live(data?.weekly, now), WEEKLY_MS],
+  ];
+  return windows.flatMap(([label, win, windowMs]) =>
+    win
+      ? [
+          {
+            label,
+            fraction: Math.max(0, Math.min(100, win.usedPercent)) / 100,
+            fill: barColor(win.usedPercent),
+            pace: paceTick(win, windowMs, now),
+            percent: win.usedPercent,
+            percentText: fmtPct(win.usedPercent),
+            detail: resetDurationShort(win.resetsAt, now),
+          },
+        ]
+      : [],
+  );
 }
 
 export function tokensToday(stats: AgentUsageStats | null | undefined): number {

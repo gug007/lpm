@@ -11,7 +11,7 @@ interface ClaudeAccountsSetupGuideProps {
 const STEPS = [
   { title: "Add an account", hint: "A name is enough — Work, Personal, Client." },
   { title: "Sign in", hint: "Opens a terminal running claude /login." },
-  { title: "Assign it to a project", hint: "Project → Config → Claude account." },
+  { title: "Assign it to a project", hint: "Project menu → Claude account." },
 ] as const;
 
 export function ClaudeAccountsSetupGuide({

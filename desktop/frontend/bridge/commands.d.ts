@@ -257,6 +257,7 @@ export function SearchBranches(...args: any[]): Promise<any>;
 export function SetClipboardText(...args: any[]): Promise<any>;
 export function SetProjectLabel(...args: any[]): Promise<any>;
 export function SetWorkStatus(...args: any[]): Promise<any>;
+export function SetClaudeAccount(...args: any[]): Promise<any>;
 export function StartLogStreaming(...args: any[]): Promise<any>;
 export function StartProject(...args: any[]): Promise<any>;
 export function StartProjectWithServices(...args: any[]): Promise<any>;

@@ -3,6 +3,7 @@ import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
+import { ClaudeAccountSubmenu } from "./ClaudeAccountSubmenu";
 import { MoveToFolderSubmenu } from "./MoveToFolderSubmenu";
 import { OpenInBrowserSubmenu } from "./OpenInBrowserSubmenu";
 import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
@@ -57,6 +58,11 @@ interface ProjectContextMenuProps {
   onEditWorkStatus: (entry: CustomWorkStatus) => void;
   onRemoveWorkStatus: (entry: CustomWorkStatus) => void;
   onReorderWorkStatuses: (order: string[]) => void;
+  // The project's own Claude account pin, and the ways to change it.
+  claudeAccount?: string;
+  parentClaudeAccount?: string;
+  onPickClaudeAccount: (account: string | null) => void;
+  onManageClaudeAccounts: () => void;
   onRename: () => void;
   onEditConfig: () => void;
   onOpenNotes: () => void;
@@ -108,6 +114,10 @@ export function ProjectContextMenu({
   onEditWorkStatus,
   onRemoveWorkStatus,
   onReorderWorkStatuses,
+  claudeAccount,
+  parentClaudeAccount,
+  onPickClaudeAccount,
+  onManageClaudeAccounts,
   onRename,
   onEditConfig,
   onOpenNotes,
@@ -204,6 +214,16 @@ export function ProjectContextMenu({
             <ContextMenuItem label="Memory" icon={<BrainIcon />} shortcut="⌘⇧M" onClick={close(onOpenMemory)} />
           )}
         </ContextMenuSubmenu>
+      )}
+      {!remote && !sshRemote && (
+        <ClaudeAccountSubmenu
+          pinned={claudeAccount}
+          isCopy={isDuplicate}
+          parentPinned={parentClaudeAccount}
+          onPick={onPickClaudeAccount}
+          onManage={onManageClaudeAccounts}
+          onClose={onClose}
+        />
       )}
       <ContextMenuSeparator />
       <ContextMenuItem

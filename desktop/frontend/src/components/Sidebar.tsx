@@ -16,6 +16,7 @@ import { SortableContext, verticalListSortingStrategy, type SortingStrategy } fr
 import { StatusDot, dotKind } from "./StatusDot";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
+import { openClaudeAccountSettings, pinClaudeAccount } from "../store/claudeAccountPin";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { useTerminalTitles } from "../store/terminalTitles";
 import { EventsOn } from "../../bridge/runtime";
@@ -1501,6 +1502,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onEditWorkStatus={workStatusDialogs.openEdit}
             onRemoveWorkStatus={workStatusDialogs.confirmRemove}
             onReorderWorkStatuses={workStatusDialogs.reorder}
+            claudeAccount={contextProject?.claudeAccount}
+            parentClaudeAccount={
+              projects.find((p) => p.name === contextProject?.parentName)?.claudeAccount
+            }
+            onPickClaudeAccount={(account) => void pinClaudeAccount(contextMenu.name, account)}
+            onManageClaudeAccounts={openClaudeAccountSettings}
             onEditConfig={() => onOpenProjectView(contextMenu.name, "config")}
             onOpenNotes={() => onOpenProjectView(contextMenu.name, "notes")}
             onOpenAI={() => onOpenProjectView(contextMenu.name, "ai")}
