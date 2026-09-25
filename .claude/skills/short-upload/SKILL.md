@@ -1,8 +1,8 @@
 ---
 name: short-upload
-version: 2.0.0
+version: 2.1.0
 argument-hint: "<slug> [youtube|tiktok]"
-description: "Post a finished vertical lesson from ~/Movies/lpm-lessons/tiktok/<slug>/ to YouTube Shorts (LPM channel, through Chrome) and TikTok (@lpm06557, from the user's iPhone through iPhone Mirroring) in parallel: the MP4, the caption and hashtags from post.txt, the headline cover, each platform's settings, then both links logged. Use when the user asks to upload, publish or post a short, vertical, TikTok or YouTube Shorts video, to one platform or both."
+description: "Post a finished vertical lesson from ~/Movies/lpm-lessons/tiktok/<slug>/ to YouTube Shorts (LPM channel, through Chrome) and TikTok (@lpm06557, from the user's iPhone through iPhone Mirroring) in parallel: the MP4, the caption and hashtags from post.txt, the headline cover, each platform's settings, then both links logged and the title listed in SHORTS.md. Use when the user asks to upload, publish or post a short, vertical, TikTok or YouTube Shorts video, to one platform or both."
 ---
 
 Post a vertical lesson to YouTube Shorts and TikTok at the same time.
@@ -55,4 +55,5 @@ TikTok from Chrome (only when the user asks for it; post form not yet verified):
 
 - YouTube: append `- <YYYY-MM-DD> <slug> https://youtube.com/shorts/<id>` to `~/Movies/lpm-lessons/tiktok/SHORTS_POSTED.md` (create it with a `# YouTube Shorts posts` heading).
 - TikTok: the link comes from Chrome, `https://www.tiktok.com/tiktokstudio/content` → `find` the row's link (`/@lpm06557/video/<id>`); the public profile page sat on "Please wait…" in the MCP tab. Avoid the app's "Copy link": it goes through the shared clipboard. Append `- <YYYY-MM-DD> <slug> <link>` to `~/Movies/lpm-lessons/tiktok/POSTED.md` (create it with a `# TikTok posts` heading). A new post shows "Content under review" (result within 12 hours) and Privacy "Only me" until the review finishes; it was posted as Everyone.
+- titles: `SHORTS.md` at the repo root lists every posted short by title only, oldest first. Append `- <lesson title>` after the first platform posts (no links; those live in the two ledgers).
 - report both links, the title, the caption as posted, each platform's labels, and TikTok's review status. The video stays in the iPhone's Photos; say so, and leave removing it to the user.
