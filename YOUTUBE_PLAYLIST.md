@@ -14,3 +14,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - lpm Prompt Box Tour: @-Files, Voice, AI Rewrites, Drafts, History, Fork Sessions, Model Picker
 - Git Worktree Alternative: Duplicate Your Project with .env, node_modules and Uncommitted Work
 - Claude Code + Codex Usage Monitor: Will You Run Out Before the Reset?
+- Codex Statusline: Show Usage Limits and Context Left in lpm

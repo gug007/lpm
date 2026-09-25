@@ -47,6 +47,18 @@ async function runBeats(stage, lines, beats, t0) {
   return timeline;
 }
 
+// Runs in the app's page.
+function blinkTick(on) {
+  let tick = document.getElementById("lesson-tick");
+  if (!tick) {
+    tick = document.createElement("div");
+    tick.id = "lesson-tick";
+    tick.style.cssText = "position:fixed;top:12px;left:50%;width:2px;height:2px;z-index:2147483647;pointer-events:none";
+    document.body.append(tick);
+  }
+  tick.style.background = on ? "#fff" : "#000";
+}
+
 async function waitForFrames(rec, nudge) {
   const startedAt = Date.now();
   for (let n = 0; !rec.started && Date.now() - startedAt < 30000; n++) {
@@ -163,7 +175,13 @@ async function recordApp({ lines, beats, raw, framesDir, lesson, dir, lpmDir, ke
     stage = await AppStage.open(app, capture, { framesDir, log, mouse, origin, out: OUT, box: frameBox(OUT, FRAME, ZOOM) });
     await stage.frame("stage");
     await stage.cover();
-    await waitForFrames(rec, async () => {});
+    // A still window captures as identical frames and the recorder never
+    // starts; a blinking dot (under the opening card) gives it a first change.
+    let nudgeError = "";
+    await waitForFrames(rec, (n) => app.control.evaluate(blinkTick, n % 2 === 0).catch((e) => (nudgeError = String(e)))).catch((e) => {
+      throw new Error(`${e.message} (captured ${capture.frames} frames; nudge: ${nudgeError || "ok"}; ${capture.err.slice(-200)})`);
+    });
+    await app.control.evaluate(() => document.getElementById("lesson-tick")?.remove()).catch(() => {});
     t0 = rec.startWall;
     stage.t0 = t0;
     await stage.hold(LEAD_MS);
