@@ -15,3 +15,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-up
 - Copy Claude Code's last answer in one click
 - Codex CLI: stop the approval prompts
 - Claude Code: turn on Auto Mode
+- Your copies fell behind main
