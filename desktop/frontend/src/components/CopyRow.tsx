@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { CopyRunConfig } from "./CopyRunConfig";
 import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
@@ -33,6 +34,8 @@ interface CopyRowProps {
   history?: ComposerHistory;
   aiCwd?: string;
   autoFocus?: boolean;
+  // Sits beside the label: the model this copy's agent starts with.
+  modelSelect?: ReactNode;
 }
 
 export function CopyRow({
@@ -52,6 +55,7 @@ export function CopyRow({
   history,
   aiCwd,
   autoFocus,
+  modelSelect,
 }: CopyRowProps) {
   const showTargets = targets !== undefined && targets.length > 1 && onTargetChange !== undefined;
   return (
@@ -70,6 +74,7 @@ export function CopyRow({
           placeholder="Auto-named"
           className={`${FIELD_CLASS} h-9 min-w-0 flex-1 px-3`}
         />
+        {modelSelect}
         {showTargets && (
           <CopyMacSelect
             options={targets}

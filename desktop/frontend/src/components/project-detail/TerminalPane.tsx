@@ -13,6 +13,8 @@ interface TerminalPaneProps {
   // can pause work when off-screen for either reason.
   active: boolean;
   visible: boolean;
+  // The project the user is working in; only it answers shortcuts.
+  keysActive: boolean;
   // showEmptyState keeps TerminalView mounted (so terminalRef stays
   // alive for ⌘T) while swapping the empty-state placeholder in front
   // of it — the footer stays put below either one.
@@ -41,6 +43,7 @@ interface TerminalPaneProps {
 export function TerminalPane({
   active,
   visible,
+  keysActive,
   showEmptyState,
   themeStyle,
   terminalRef,
@@ -80,6 +83,7 @@ export function TerminalPane({
           onZoomOut={onZoomOut}
           paneStatus={paneStatus}
           visible={visible && active && !showEmptyState}
+          keysActive={keysActive}
           onResumeSession={onResumeSession}
         />
       </div>

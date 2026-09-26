@@ -93,6 +93,9 @@ import { workStatusNote, type WorkStatusInput } from "../workStatus";
 import { RenameModal } from "./RenameModal";
 import { ProjectRenameModal } from "./ProjectRenameModal";
 import { SelectionContextMenu } from "./SelectionContextMenu";
+import { useSideBySideMenu } from "../hooks/useSideBySideMenu";
+import { useSideBySide, useSideBySideColumns } from "../store/sideBySide";
+import { MAX_SIDE_BY_SIDE } from "../sideBySide";
 import { RemovalSummary } from "./RemovalSummary";
 import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
@@ -311,6 +314,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   const contextProject = contextMenu
     ? projects.find((p) => p.name === contextMenu.name)
     : null;
+  const sideBySideColumns = useSideBySideColumns(selected);
+  const sideBySideItems = useSideBySideMenu(
+    contextMenu?.name ?? null,
+    selected,
+    sideBySideColumns,
+    projects,
+  );
+  const openSideBySide = useSideBySide((s) => s.open);
 
   // The follow the right-clicked row belongs to — the remote project's row and its
   // local copy both resolve to it, since either one is a way to reach the same sync.
@@ -965,7 +976,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         } ${
           isSelected || deckHoldsSelected
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
-            : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+            : sideBySideColumns.includes(project.name)
+              ? "bg-[var(--bg-active)]/50 text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+              : "text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         }`;
 
     return (
@@ -1470,6 +1483,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             busy={removingNames.size > 0}
             groups={groups}
             anyInGroup={[...selectedForDelete].some((n) => memberOf.has(n))}
+            onOpenSideBySide={
+              selectedForDelete.size >= 2 && selectedForDelete.size <= MAX_SIDE_BY_SIDE
+                ? () => {
+                    openSideBySide([...selectedForDelete]);
+                    exitSelectMode();
+                  }
+                : undefined
+            }
             onDelete={() => {
               if (selectedForDelete.size > 0) setConfirmBatch(true);
             }}
@@ -1542,6 +1563,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             }}
             onDetach={() => onDetachProject(contextMenu.name)}
             onAttach={() => onAttachProject(contextMenu.name)}
+            sideBySideItems={sideBySideItems}
             onSelect={() => enterSelectMode(contextMenu.name)}
             onGitCommit={() => openGitModal("commit")}
             onGitCreatePR={() => openGitModal("pr")}

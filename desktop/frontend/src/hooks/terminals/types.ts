@@ -1,6 +1,7 @@
 import { type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
 import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
+import type { ModelPick } from "../../agentModelSwitch";
 
 export interface TerminalStartOpts {
   configName?: string;
@@ -22,6 +23,9 @@ export interface TerminalStartOpts {
   // The lpm-memory session the new tab inherits (a forked conversation keeps
   // writing to the session it was already working under).
   memory?: TerminalMemoryRef;
+  // Starts the agent `cmd` launches on this model and level (Run in duplicates
+  // racing models), as session-only flags.
+  launchModel?: ModelPick;
 }
 
 export interface UseTerminalsResult {

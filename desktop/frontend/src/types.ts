@@ -1,6 +1,7 @@
 import type { ComposerValue } from "./components/composerEditor";
 import type { ComposerAction } from "./store/composerActions";
 import type { TerminalMemoryRef } from "./terminalMemory";
+import type { ModelPick } from "./agentModelSwitch";
 
 export interface ServiceInfo {
   name: string;
@@ -82,8 +83,8 @@ export interface ActionInfo {
 // so an attached image lands as its own bracketed paste, exactly like a manual
 // composer send.
 export type SpawnTask =
-  | { kind: "action"; actionName: string; prompt?: string | string[] }
-  | { kind: "command"; command: string; prompt?: string | string[] }
+  | { kind: "action"; actionName: string; prompt?: string | string[]; launchModel?: ModelPick }
+  | { kind: "command"; command: string; prompt?: string | string[]; launchModel?: ModelPick }
   // Continue a forked agent conversation in the copy: `command` launches the
   // fork; startCmd/resumeCmd become the new tab's persisted restore identity.
   // `claudeSession` asks the copy to pull the source transcript into its own

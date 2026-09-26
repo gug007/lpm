@@ -45,6 +45,7 @@ import { buildGeneratorRunCommand } from "../generatorRun";
 import { type PersistedHistoryEntry } from "../terminals";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 import { useAppStore } from "../store/app";
+import { duplicateBeside } from "../store/sideBySide";
 import { useComposerStore } from "../store/composer";
 import { useFilesFocus, type FilesView } from "../store/filesFocus";
 import { useFilesView } from "../store/filesView";
@@ -76,6 +77,9 @@ interface TerminalViewProps {
   onZoomOut: () => void;
   paneStatus?: PaneStatus;
   visible?: boolean;
+  // False for a side-by-side column the user isn't working in: still drawn, but
+  // its shortcuts belong to the focused one.
+  keysActive?: boolean;
   onResumeSession?: () => void;
   ref?: React.Ref<TerminalViewHandle>;
 }
@@ -104,7 +108,7 @@ export interface TerminalViewHandle {
   openMemory(): void;
 }
 
-export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onResumeSession, ref }: TerminalViewProps) {
+export function TerminalView({ projectName, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, keysActive = true, onResumeSession, ref }: TerminalViewProps) {
   const duplicateProject = useAppStore(
     (s) => s.projects.find((p) => p.name === projectName) ?? null,
   );
@@ -799,7 +803,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
         setFullscreenPaneId(null);
       }
     },
-    visible,
+    visible && keysActive,
   );
 
   // Cycles the focused pane's header entries — configurable in Settings ▸
@@ -835,7 +839,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       const serviceNames = stableServices.map((s) => s.name);
       focusAdjacentPaneItem(pane.id, dir, serviceNames);
     },
-    visible && paneNavShortcuts.length > 0,
+    visible && keysActive && paneNavShortcuts.length > 0,
     true,
   );
 
@@ -927,7 +931,6 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
   // its agent command) opens the seeded Duplicate dialog, where the user picks
   // how many copies to spin up. On confirm the current project runs the prompt
   // as copy #1 (`runHere`) alongside those copies, all in parallel.
-  const bulkDuplicate = useAppStore((s) => s.bulkDuplicate);
   const groups = useAppStore((s) => s.groups);
   const folderNames = useMemo(() => groups.map((g) => g.name), [groups]);
   const [duplicateSeed, setDuplicateSeed] = useState<DuplicatePromptSeed | null>(null);
@@ -1055,7 +1058,9 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
             node={tree}
             projectName={projectName}
             visible={visible}
-            focusedPaneId={focusedPaneId}
+            // A side-by-side column the user isn't in has no focused pane, so
+            // its pane-level keys, badges and inputs stay with the focused one.
+            focusedPaneId={keysActive ? focusedPaneId : null}
             fullscreenPaneId={fullscreenPaneId}
             searchPaneId={searchPaneId}
             filterMode={filterMode}
@@ -1172,7 +1177,7 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
               requestRunInDuplicates({ project: projectName, count, opts: opts as unknown as Record<string, unknown> });
               void FocusMainWindow(projectName);
             } else {
-              void bulkDuplicate(projectName, count, opts);
+              void duplicateBeside(projectName, count, opts);
             }
           }}
         />

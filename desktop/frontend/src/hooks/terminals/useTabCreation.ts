@@ -42,6 +42,7 @@ import {
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt } from "./util";
 import { type TerminalStartOpts } from "./types";
+import { pinLaunchCommand } from "../../agentLaunchModel";
 
 interface UseTabCreationProps {
   projectName: string;
@@ -141,6 +142,7 @@ export function useTabCreation({
       if (IS_MIRROR_WINDOW)
         return forward("createTerminalWithCmd", label, cmd, opts);
       await restoreSettled.current;
+      cmd = pinLaunchCommand(cmd, opts?.launchModel);
       // When reuse is requested, find an existing live terminal tagged with
       // the same actionName. A dead session (process exited) falls through
       // so the user gets a fresh PTY instead of typing into a dead tab.
@@ -181,10 +183,13 @@ export function useTabCreation({
       // non-empty resumeCmd is the signal that this terminal opted into
       // restore (see configLaunchCmds for what the tab keeps).
       if (opts?.configName) {
-        const launch = await StartTerminalForConfig(
-          projectName,
-          opts.configName,
-        );
+        // The backend writes this command itself, so it is pinned here too.
+        const started = await StartTerminalForConfig(projectName, opts.configName);
+        const launch = {
+          ...started,
+          startCmd: pinLaunchCommand(started.startCmd, opts.launchModel),
+          resumeCmd: pinLaunchCommand(started.resumeCmd, opts.launchModel),
+        };
         const term = makeTerminal(launch.id, label, {
           ...configLaunchCmds(launch),
           actionName: opts.actionName,

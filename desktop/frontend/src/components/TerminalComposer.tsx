@@ -1268,7 +1268,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return deliverPrompt(text, map);
     };
     onRunInDuplicates(
-      { prompt: { text, images, pending: false }, count: count - 1, command: launchCmd, actionName },
+      {
+        prompt: { text, images, pending: false },
+        count: count - 1,
+        command: launchCmd,
+        actionName,
+        currentPick: modelPick,
+      },
       runHere,
     );
   };

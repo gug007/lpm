@@ -334,6 +334,10 @@ interface AppState {
       // fall back to `name`. Never copies files between machines.
       targetsPerCopy?: string[];
       groupName?: string;
+      // Called with each copy once it's in the list.
+      onCreated?: (name: string) => void;
+      // Stay on the current project instead of switching to the first copy.
+      keepSelection?: boolean;
     },
   ) => Promise<void>;
   consumeSpawnTasks: (name: string) => void;
@@ -1578,7 +1582,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         await get().refreshProjects();
         settlePending(new Set([pending[i].id]));
         get().markVisited(copyName);
-        if (created.length === 1) set({ selected: copyName, view: "projects" });
+        opts.onCreated?.(copyName);
+        if (created.length === 1 && !opts.keepSelection) set({ selected: copyName, view: "projects" });
       }
       // Grouping mutates the LOCAL sidebar layout/groups; peer projects live in
       // their own flat section (groups are local-only), so only the copies
