@@ -1,5 +1,5 @@
 ---
-name: tiktok-model-compare
+name: short-model-compare
 version: 1.0.0
 argument-hint: "\"<model A>\" vs \"<model B>\" [prompt: …]"
 description: "Make a short vertical (9:16) video that races two AI models on the same prompt in lpm, side by side: each model in its own pane and folder, the same prompt sent to both, the real finish times on the pane headers, then both results live in lpm's browser. Default prompt: a giraffe flying a one-seat plane as animated HTML. Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short that compares models, such as \"opus 5.5 max vs gpt 6 astra ultra\" or \"opus 5 vs opus 5.5\"."
