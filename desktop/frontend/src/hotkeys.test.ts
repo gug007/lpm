@@ -11,6 +11,8 @@ describe("normalizeHotkeys", () => {
       toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+alt+arrowright",
       tabSwitchPrev: "cmd+alt+arrowleft",
+      renameProject: "cmd+r",
+      deleteProject: "cmd+shift+backspace",
     });
   });
 
@@ -19,6 +21,8 @@ describe("normalizeHotkeys", () => {
       toggleAgentOverview: "cmd+shift+a",
       tabSwitchNext: "cmd+shift+]",
       tabSwitchPrev: "cmd+alt+arrowleft",
+      renameProject: "cmd+r",
+      deleteProject: "cmd+shift+backspace",
     });
   });
 });
@@ -38,16 +42,16 @@ describe("resolveHotkey", () => {
 describe("configuredHotkeyCombos", () => {
   it("collects the canonical combos of all configurable hotkeys", () => {
     expect(configuredHotkeyCombos(undefined)).toEqual(
-      new Set(["cmd+shift+a", "cmd+alt+arrowright", "cmd+alt+arrowleft"]),
+      new Set(["cmd+shift+a", "cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
     );
   });
 
   it("excludes the row being edited", () => {
     expect(configuredHotkeyCombos(undefined, "toggleAgentOverview")).toEqual(
-      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft"]),
+      new Set(["cmd+alt+arrowright", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
     );
     expect(configuredHotkeyCombos(undefined, "tabSwitchNext")).toEqual(
-      new Set(["cmd+shift+a", "cmd+alt+arrowleft"]),
+      new Set(["cmd+shift+a", "cmd+alt+arrowleft", "cmd+r", "cmd+shift+backspace"]),
     );
   });
 });

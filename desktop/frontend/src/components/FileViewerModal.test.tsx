@@ -125,3 +125,35 @@ describe("FileViewerModal Markdown", () => {
     expect(sourceShows("const a = 1;")).toBe(true);
   });
 });
+
+describe("FileViewerModal header", () => {
+  const pathLine = () => document.querySelector("header")?.querySelector(".text-\\[12px\\]")?.textContent;
+
+  it("shows a nested file's path within the project", async () => {
+    await open(DOC);
+    expect(pathLine()).toBe("docs/a.md");
+  });
+
+  it("shows the full path of a file at the project root", async () => {
+    mocks.files["/proj/README.md"] = "# Readme\n";
+    await open("/proj/README.md");
+    expect(pathLine()).toBe("/proj/README.md");
+  });
+
+  it("shows a remote host's root file by its path on the host", async () => {
+    mocks.files["/@peer-a1b2c3d4/home/ubuntu/app/AGENTS.md"] = "# Agents\n";
+    await act(async () => {
+      root.render(
+        <FileViewerModal
+          open
+          absPath="/@peer-a1b2c3d4/home/ubuntu/app/AGENTS.md"
+          line={0}
+          col={0}
+          projectRoot="/@peer-a1b2c3d4/home/ubuntu/app"
+          onClose={() => {}}
+        />,
+      );
+    });
+    expect(pathLine()).toBe("/home/ubuntu/app/AGENTS.md");
+  });
+});

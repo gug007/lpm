@@ -82,6 +82,7 @@ export function SidebarPeerRow({
     <>
       <div className="group/row relative">
         <button
+          data-project-row={project.name}
           onClick={onSelect}
           onContextMenu={(e) => {
             e.preventDefault();

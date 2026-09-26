@@ -73,6 +73,7 @@ import { GroupContextMenu } from "./GroupContextMenu";
 import { FolderDropZone } from "./FolderDropZone";
 import { useSidebarResize } from "../hooks/useSidebarResize";
 import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
+import { useSidebarProjectKeys } from "../hooks/useSidebarProjectKeys";
 import { ProjectContextMenu, type FollowingMenuState } from "./ProjectContextMenu";
 import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
@@ -598,6 +599,28 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // own Escape handler closes it first).
   useKeyboardShortcut({ key: "Escape" }, exitSelectMode, selectMode && !contextMenu && !groupMenu);
 
+  const { renameShortcut, deleteShortcut } = useSidebarProjectKeys({
+    selected,
+    menuTarget: contextMenu?.name ?? null,
+    onRename: (name) => {
+      if (selectMode || !allByName.has(name)) return;
+      setContextMenu(null);
+      setRenamingName(name);
+    },
+    onDelete: (name) => {
+      setContextMenu(null);
+      if (selectMode) {
+        if (selectedForDelete.size > 0 && removingNames.size === 0) setConfirmBatch(true);
+      } else if (
+        allByName.has(name) &&
+        !removingNames.has(name) &&
+        !duplicatingNames.includes(name)
+      ) {
+        setConfirmRemove(name);
+      }
+    },
+  });
+
   // Selection moves without a click too (Ctrl+Tab, ⌘-number, Activity); keep
   // the selected row visible. A row the sidebar doesn't render — a peer's, or
   // one inside a collapsed folder — has no element and is left alone.
@@ -986,6 +1009,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         <div className="group relative">
           <button
             id={projectRowDomId(project.name)}
+            data-project-row={project.name}
             onClick={(e) => handleRowClick(project.name, e)}
             onDoubleClick={
               selectMode
@@ -1494,6 +1518,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             onDelete={() => {
               if (selectedForDelete.size > 0) setConfirmBatch(true);
             }}
+            deleteShortcut={deleteShortcut}
             onMoveToGroup={(groupId) => {
               const names = [...selectedForDelete];
               if (names.length > 0) onMoveProjectsToGroup(names, groupId);
@@ -1528,6 +1553,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             groups={groups}
             currentGroupId={memberOf.get(contextMenu.name) ?? null}
             onRename={() => setRenamingName(contextMenu.name)}
+            renameShortcut={renameShortcut}
+            deleteShortcut={deleteShortcut}
             workStatus={contextProject?.workStatus}
             customWorkStatuses={customWorkStatuses}
             workStatusOrder={workStatusOrder}

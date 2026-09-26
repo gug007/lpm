@@ -66,6 +66,8 @@ interface ProjectContextMenuProps {
   onPickClaudeAccount: (account: string | null) => void;
   onManageClaudeAccounts: () => void;
   onRename: () => void;
+  renameShortcut?: string;
+  deleteShortcut?: string;
   onEditConfig: () => void;
   onOpenNotes: () => void;
   onOpenAI: () => void;
@@ -122,6 +124,8 @@ export function ProjectContextMenu({
   onPickClaudeAccount,
   onManageClaudeAccounts,
   onRename,
+  renameShortcut,
+  deleteShortcut,
   onEditConfig,
   onOpenNotes,
   onOpenAI,
@@ -285,7 +289,12 @@ export function ProjectContextMenu({
         </>
       )}
       <ContextMenuSeparator />
-      <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
+      <ContextMenuItem
+        label="Rename"
+        icon={<PencilIcon />}
+        shortcut={renameShortcut}
+        onClick={close(onRename)}
+      />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
       {sideBySideItems.map((item) => (
         <ContextMenuItem
@@ -337,6 +346,7 @@ export function ProjectContextMenu({
               : "Remove from lpm"
         }
         icon={<TrashIcon />}
+        shortcut={deleteShortcut}
         onClick={close(onRemove)}
         disabled={removeDisabled}
       />

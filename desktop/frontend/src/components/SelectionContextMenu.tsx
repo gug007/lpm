@@ -15,6 +15,7 @@ interface SelectionContextMenuProps {
   anyInGroup: boolean;
   onOpenSideBySide?: () => void;
   onDelete: () => void;
+  deleteShortcut?: string;
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
   onCancel: () => void;
@@ -30,6 +31,7 @@ export function SelectionContextMenu({
   anyInGroup,
   onOpenSideBySide,
   onDelete,
+  deleteShortcut,
   onMoveToGroup,
   onCreateGroupWith,
   onCancel,
@@ -65,6 +67,7 @@ export function SelectionContextMenu({
         destructive
         label={`Delete ${count} selected`}
         icon={<TrashIcon />}
+        shortcut={deleteShortcut}
         onClick={close(onDelete)}
         disabled={count === 0 || busy}
       />

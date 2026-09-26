@@ -3,7 +3,9 @@ import { canonicalShortcut, parseShortcut } from "./shortcutParse";
 export type HotkeyId =
   | "toggleAgentOverview"
   | "tabSwitchNext"
-  | "tabSwitchPrev";
+  | "tabSwitchPrev"
+  | "renameProject"
+  | "deleteProject";
 
 export interface HotkeyDef {
   id: HotkeyId;
@@ -30,6 +32,18 @@ export const HOTKEYS: HotkeyDef[] = [
     label: "Previous tab",
     description: "Move to the previous terminal or service in the pane",
     default: "cmd+alt+arrowleft",
+  },
+  {
+    id: "renameProject",
+    label: "Rename project",
+    description: "Rename the project or duplicate selected in the sidebar",
+    default: "cmd+r",
+  },
+  {
+    id: "deleteProject",
+    label: "Delete project",
+    description: "Remove the project or duplicate selected in the sidebar, after a confirmation",
+    default: "cmd+shift+backspace",
   },
 ];
 
