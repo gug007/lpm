@@ -78,6 +78,9 @@ export interface Settings {
   gitPull?: GitPullConfig;
   gitPush?: GitPushConfig;
   gitFetch?: GitFetchConfig;
+  // Fetch in the background and mark projects whose branch on origin moved on.
+  // Unset means on.
+  checkOrigin?: boolean;
   experimentalTTS?: boolean;
   ttsEnabled?: boolean;
   ttsEngine?: string;
@@ -178,6 +181,7 @@ function normalize(s: main.Settings): Settings {
     gitPull: normalizeGitPull(s.gitPull, s.gitPullStrategy),
     gitPush: normalizeGitPush(s.gitPush),
     gitFetch: normalizeGitFetch(s.gitFetch),
+    checkOrigin: s.checkOrigin,
     experimentalTTS: s.experimentalTTS,
     ttsEnabled: s.ttsEnabled,
     ttsEngine: s.ttsEngine || undefined,

@@ -71,6 +71,11 @@
   --git-untracked: #007100;
   --git-deleted: #ad0707;
   --git-ignored: #8e8e90;
+  /* The sidebar's "origin has new commits" count and its Pull button. */
+  --origin-label: var(--accent-sky-text);
+  --origin-fill: color-mix(in srgb, var(--text-primary) 5%, var(--bg-hover));
+  --origin-fill-hover: color-mix(in srgb, var(--text-primary) 9%, var(--bg-hover));
+  --origin-ring: color-mix(in srgb, var(--text-primary) 12%, var(--bg-hover));
 }
 
 [data-theme="dark"] {
@@ -143,6 +148,10 @@
   --git-untracked: #73c991;
   --git-deleted: #c74e39;
   --git-ignored: #8c8c8c;
+  --origin-label: var(--accent-sky-text);
+  --origin-fill: color-mix(in srgb, var(--text-primary) 7%, var(--bg-hover));
+  --origin-fill-hover: color-mix(in srgb, var(--text-primary) 12%, var(--bg-hover));
+  --origin-ring: color-mix(in srgb, var(--text-primary) 14%, var(--bg-hover));
 }
 
 /* Semantic tokens for app-chrome that sits on the terminal surface — the terminal

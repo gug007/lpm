@@ -310,6 +310,9 @@ export function GitMerge(cwd, branch) {
 export function GitMergeConflicts(cwd) {
   return invoke("git_merge_conflicts", { cwd });
 }
+export function GitOriginStatus(cwd, fetch) {
+  return invoke("git_origin_status", { cwd, fetch });
+}
 export function GitPruneRemotes(cwd) {
   return invoke("git_prune_remotes", { cwd });
 }

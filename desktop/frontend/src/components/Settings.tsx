@@ -164,6 +164,7 @@ export function Settings({
 }: SettingsProps) {
   const theme = useSettingsStore((s) => s.theme);
   const dblClick = useSettingsStore((s) => s.doubleClickToToggle);
+  const checkOrigin = useSettingsStore((s) => s.checkOrigin ?? true);
   const defaultProjectDirectory = useSettingsStore((s) => s.defaultProjectDirectory);
   const soundEnabled = useSettingsStore((s) => s.soundNotifications ?? true);
   const systemNotificationsEnabled = useSettingsStore((s) => s.systemNotifications ?? true);
@@ -616,6 +617,9 @@ export function Settings({
               </SettingsRow>
               <SettingsRow {...rowProps("general.doubleClick")}>
                 <Toggle enabled={dblClick} onChange={(v) => updateSettings({ doubleClickToToggle: v })} />
+              </SettingsRow>
+              <SettingsRow {...rowProps("general.checkOrigin")}>
+                <Toggle enabled={checkOrigin} onChange={(v) => updateSettings({ checkOrigin: v })} />
               </SettingsRow>
               <SettingsRow {...rowProps("general.defaultDir")}>
                 <div className="flex items-center gap-2">

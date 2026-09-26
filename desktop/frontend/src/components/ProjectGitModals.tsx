@@ -3,11 +3,12 @@ import { toast } from "sonner";
 import { GitDiscardAll } from "../../bridge/commands";
 import { useGitStatus } from "../hooks/useGitStatus";
 import { CommitModal } from "./CommitModal";
+import { MergeBranchDialog } from "./MergeBranchDialog";
 import { PRModal } from "./PRModal";
 import { SwitchBranchModal } from "./SwitchBranchModal";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 
-export type GitModalKind = "commit" | "pr" | "switch" | "discard";
+export type GitModalKind = "commit" | "pr" | "switch" | "discard" | "merge";
 
 export interface GitModalTarget {
   name: string;
@@ -58,6 +59,15 @@ export function ProjectGitModals({ target, onClose }: ProjectGitModalsProps) {
         currentBranch={currentBranch}
         onClose={onClose}
         onCreated={gitState.refresh}
+      />
+      <MergeBranchDialog
+        open={target?.kind === "merge"}
+        projectName={name}
+        projectPath={path}
+        currentBranch={currentBranch}
+        branches={gitState.branches}
+        onClose={onClose}
+        onMerged={gitState.refresh}
       />
       <SwitchBranchModal
         open={target?.kind === "switch"}

@@ -142,7 +142,7 @@ fn status_label(code: u8) -> &'static str {
     }
 }
 
-fn parse_ahead_behind(tail: &str) -> (i64, i64) {
+pub(crate) fn parse_ahead_behind(tail: &str) -> (i64, i64) {
     let (mut ahead, mut behind) = (0i64, 0i64);
     if let (Some(s), Some(e)) = (tail.find('['), tail.find(']')) {
         for part in tail[s + 1..e].split(',') {

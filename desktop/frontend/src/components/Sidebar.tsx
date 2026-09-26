@@ -97,6 +97,9 @@ import { RemovalSummary } from "./RemovalSummary";
 import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { SpinnerIcon } from "./project-detail/icons";
+import { SidebarOriginMark } from "./SidebarOriginMark";
+import { SidebarOriginAction } from "./SidebarOriginAction";
+import { recheckOrigin } from "../originActions";
 import { logDiagnostic } from "../diagnostics";
 import { SidebarPeerSection } from "./SidebarPeerSection";
 import {
@@ -873,6 +876,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const follow = follows.get(project.name);
     const agents = agentsByProject.get(project.name) ?? [];
     const alert = sidebarProjectAlert(agents);
+    const showOrigin = !selectMode && !isBusy && !project.isRemote && !project.configError;
     // Bulk select is a list of names to tick off — the agents belong to the
     // working list, not to that one.
     const canExpand = !selectMode && agents.length > 0;
@@ -946,6 +950,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <FollowIndicator follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
         )}
         {alert && <SidebarAgentSummary agent={alert} />}
+        {showOrigin && <SidebarOriginMark root={project.root} />}
       </>
     );
 
@@ -1057,6 +1062,14 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                 onToggle={() => toggleExpanded(project.name)}
               />
             </span>
+          )}
+          {showOrigin && (
+            <SidebarOriginAction
+              root={project.root}
+              projectName={project.name}
+              className={`${controlTop} ${canExpand ? "right-14" : "right-9"}`}
+              onResolve={() => setGitModal({ name: project.name, path: project.root, kind: "merge" })}
+            />
           )}
           {!selectMode && (
             <button
@@ -1741,7 +1754,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           );
         }}
       />
-      <ProjectGitModals target={gitModal} onClose={() => setGitModal(null)} />
+      <ProjectGitModals
+        target={gitModal}
+        onClose={() => {
+          if (gitModal) void recheckOrigin(gitModal.path);
+          setGitModal(null);
+        }}
+      />
 
       {updateInfo && (
         <button

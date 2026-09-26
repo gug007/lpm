@@ -129,6 +129,14 @@ export const ROWS = {
     description: "Double-click a project in sidebar to toggle it",
     keywords: ["toggle", "run"],
   },
+  "general.checkOrigin": {
+    kind: "row",
+    tab: "general",
+    id: "general.checkOrigin",
+    label: "Check for new commits",
+    description: "Show in the sidebar when a project’s branch on origin is ahead",
+    keywords: ["git", "fetch", "pull", "behind", "origin", "remote", "sync"],
+  },
   "general.defaultDir": {
     kind: "row",
     tab: "general",

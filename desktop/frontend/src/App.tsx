@@ -36,7 +36,8 @@ import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useSshEnvMismatchToasts } from "./hooks/useSshEnvMismatchToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
-import { getSettings, saveSettings } from "./store/settings";
+import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
+import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
 import { useAppStore } from "./store/app";
 import { useResolvedTheme } from "./theme";
 import { onRunInDuplicates } from "./mirror";
@@ -64,6 +65,7 @@ export default function App() {
   const removingNames = useAppStore((s) => s.removingNames);
   const selectedTemplate = useAppStore((s) => s.selectedTemplate);
   const theme = useResolvedTheme();
+  const checkOrigin = useSettingsStore((s) => s.checkOrigin ?? true);
 
   const setView = useAppStore((s) => s.setView);
   const toggleAgentOverview = useAppStore((s) => s.toggleAgentOverview);
@@ -217,6 +219,7 @@ export default function App() {
   }, [selected]);
 
   useProjectWatcher(view === "projects" ? selectedProject?.root : null);
+  useOriginStatusPoller(projects, checkOrigin);
 
   useEffect(() => {
     if (selected) markVisited(selected);

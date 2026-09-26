@@ -128,6 +128,7 @@ macro_rules! all_command_handlers {
             git_log_branch,
             git_merge,
             git_merge_conflicts,
+            git_origin_status,
             git_prune_remotes,
             git_push,
             git_push_rebasing,

@@ -97,6 +97,7 @@ export function GitFetchAll(...args: any[]): Promise<any>;
 export function GitLogBranch(...args: any[]): Promise<any>;
 export function GitMerge(...args: any[]): Promise<any>;
 export function GitMergeConflicts(...args: any[]): Promise<any>;
+export function GitOriginStatus(...args: any[]): Promise<any>;
 export function GitPruneRemotes(...args: any[]): Promise<any>;
 export function GitPush(...args: any[]): Promise<any>;
 export function GitPushRebasing(...args: any[]): Promise<any>;
