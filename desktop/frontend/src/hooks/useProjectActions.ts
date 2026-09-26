@@ -19,6 +19,7 @@ import {
   type BackgroundRunStatus,
 } from "../components/BackgroundRunToast";
 import { trackBackgroundRun } from "../store/backgroundRuns";
+import type { ModelPick } from "../agentModelSwitch";
 
 export interface UseProjectActionsOptions {
   projectName: string;
@@ -48,6 +49,8 @@ export interface RunActionOpts {
   // relayed the collected values, so run directly without re-prompting here.
   inputValues?: Record<string, string>;
   skipPrompts?: boolean;
+  // Starts the agent the action launches on this model and level.
+  launchModel?: ModelPick;
 }
 
 export interface UseProjectActionsResult {
@@ -116,6 +119,7 @@ export function useProjectActions({
             emoji: action.emoji,
             color: action.color,
             prompt: actionPrompt(action, inputValues, opts),
+            launchModel: opts.launchModel,
           });
           return;
         }
@@ -136,6 +140,7 @@ export function useProjectActions({
           emoji: action.emoji,
           color: action.color,
           prompt: actionPrompt(action, inputValues, opts),
+          launchModel: opts.launchModel,
         });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);

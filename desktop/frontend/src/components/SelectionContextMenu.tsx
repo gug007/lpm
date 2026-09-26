@@ -1,3 +1,4 @@
+import { Columns2 } from "lucide-react";
 import { TrashIcon, XIcon } from "./icons";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
@@ -12,6 +13,7 @@ interface SelectionContextMenuProps {
   busy: boolean;
   groups: ProjectGroup[];
   anyInGroup: boolean;
+  onOpenSideBySide?: () => void;
   onDelete: () => void;
   onMoveToGroup: (groupId: string | null) => void;
   onCreateGroupWith: () => void;
@@ -26,6 +28,7 @@ export function SelectionContextMenu({
   busy,
   groups,
   anyInGroup,
+  onOpenSideBySide,
   onDelete,
   onMoveToGroup,
   onCreateGroupWith,
@@ -42,6 +45,13 @@ export function SelectionContextMenu({
       <div className="px-3 py-1.5 text-[11px] text-[var(--text-muted)]">
         {count} selected
       </div>
+      {onOpenSideBySide && (
+        <ContextMenuItem
+          label={`Open ${count} side by side`}
+          icon={<Columns2 size={14} />}
+          onClick={close(onOpenSideBySide)}
+        />
+      )}
       <MoveToFolderSubmenu
         groups={groups}
         showRemove={anyInGroup}

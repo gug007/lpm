@@ -9,6 +9,9 @@ interface HeaderProps {
   actionsWrapped: boolean;
   actions: ReactNode;
   controls: ReactNode;
+  trailing?: ReactNode;
+  // A side-by-side column the user isn't working in.
+  dimmed?: boolean;
 }
 
 export function Header({
@@ -20,6 +23,8 @@ export function Header({
   actionsWrapped,
   actions,
   controls,
+  trailing,
+  dimmed = false,
 }: HeaderProps) {
   const indent = sidebarCollapsed ? "pl-[100px]" : "";
   return (
@@ -29,11 +34,19 @@ export function Header({
         className={`app-drag flex items-center gap-4 -mx-3 py-1 transition-[padding] duration-200 ${indent}`}
       >
         {showProjectName && (
-          <h1 className="shrink-0 text-xl font-semibold tracking-tight pr-2">{projectName}</h1>
+          <h1
+            className={`shrink-0 text-xl font-semibold tracking-tight pr-2 transition-colors ${
+              dimmed ? "text-[var(--text-muted)]" : ""
+            }`}
+          >
+            {projectName}
+          </h1>
         )}
-        <div ref={innerRef} className="flex min-w-0 flex-1 items-center justify-end gap-2">
+        {/* Children keep their width so useOverflowWrap can see the overflow and wrap. */}
+        <div ref={innerRef} className="flex min-w-0 flex-1 items-center justify-end gap-2 [&>*]:shrink-0">
           {!actionsWrapped && actions}
           {controls}
+          {trailing}
         </div>
       </div>
       {actionsWrapped && (

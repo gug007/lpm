@@ -98,6 +98,7 @@ export interface Settings {
   duplicateCommand?: string;
   duplicateRunSectionOpen?: boolean;
   duplicateOptionsSectionOpen?: boolean;
+  runInDuplicatesSideBySide?: boolean;
   composerOpen?: boolean;
   autoCloseComposerOnSend?: boolean;
   appTipsDismissed?: boolean;
@@ -201,6 +202,7 @@ function normalize(s: main.Settings): Settings {
     duplicateCommand: s.duplicateCommand || undefined,
     duplicateRunSectionOpen: s.duplicateRunSectionOpen,
     duplicateOptionsSectionOpen: s.duplicateOptionsSectionOpen,
+    runInDuplicatesSideBySide: s.runInDuplicatesSideBySide,
     composerOpen: s.composerOpen,
     autoCloseComposerOnSend:
       s.autoCloseComposerOnSend ?? defaults.autoCloseComposerOnSend,

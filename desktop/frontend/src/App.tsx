@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "./components/Sidebar";
-import { ProjectDetail } from "./components/ProjectDetail";
+import { ProjectColumns } from "./components/ProjectColumns";
 import { GlobalTerminalsView } from "./components/GlobalTerminalsView";
 import { FleetView } from "./components/FleetView";
 import { StatsView } from "./components/StatsView";
@@ -41,6 +41,8 @@ import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
 import { useAppStore } from "./store/app";
 import { useResolvedTheme } from "./theme";
 import { onRunInDuplicates } from "./mirror";
+import { duplicateBeside } from "./store/sideBySide";
+import type { BulkDuplicateOptions } from "./components/BulkDuplicateDialog";
 import { usePeerDispatcher } from "./peer/usePeerDispatcher";
 import { usePeerAutoSyncToasts } from "./peer/usePeerAutoSyncToasts";
 import { usePeerState } from "./peer/usePeerState";
@@ -163,13 +165,9 @@ export default function App() {
   useEffect(
     () =>
       onRunInDuplicates((p) =>
-        bulkDuplicate(
-          p.project,
-          p.count,
-          p.opts as Parameters<typeof bulkDuplicate>[2],
-        ),
+        duplicateBeside(p.project, p.count, p.opts as unknown as BulkDuplicateOptions),
       ),
-    [bulkDuplicate],
+    [],
   );
 
   useKeyboardShortcut({ key: "b", meta: true }, () => {
@@ -356,27 +354,16 @@ export default function App() {
               onBack={() => setView("settings")}
             />
           )}
-          {visitedProjects.map((project) => {
-            const isSelected = view === "projects" && selected === project.name;
-            return (
-              <div
-                key={project.name}
-                className={
-                  isSelected ? "flex min-h-0 flex-1 flex-col" : "hidden"
-                }
-              >
-                <ProjectDetail
-                  project={project}
-                  visible={isSelected}
-                  sidebarCollapsed={sidebarCollapsed}
-                  onStart={startProject}
-                  onToggleService={toggleService}
-                  onStop={stopProject}
-                  onRefresh={refreshAfterRename}
-                />
-              </div>
-            );
-          })}
+          <ProjectColumns
+            mounted={visitedProjects}
+            showing={view === "projects"}
+            selected={selected}
+            sidebarCollapsed={sidebarCollapsed}
+            onStart={startProject}
+            onToggleService={toggleService}
+            onStop={stopProject}
+            onRefresh={refreshAfterRename}
+          />
           {view === "projects" && selectedPeerGone && (
             <PeerDisconnectedBanner alias={selectedPeerAlias} />
           )}

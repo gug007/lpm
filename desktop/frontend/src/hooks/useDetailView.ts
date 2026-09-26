@@ -7,6 +7,8 @@ export type DetailView = "terminal" | "config" | "notes" | "ai";
 export interface UseDetailViewOptions {
   projectName: string;
   visible: boolean;
+  // Visible and the project the user is working in.
+  keysActive: boolean;
 }
 
 export interface UseDetailViewResult {
@@ -16,7 +18,11 @@ export interface UseDetailViewResult {
 
 // ⌘T lives at the call site because it composes with the terminal-view
 // ref, which doesn't belong here.
-export function useDetailView({ projectName, visible }: UseDetailViewOptions): UseDetailViewResult {
+export function useDetailView({
+  projectName,
+  visible,
+  keysActive,
+}: UseDetailViewOptions): UseDetailViewResult {
   const [detailView, setDetailView] = useState<DetailView>("terminal");
 
   useEffect(() => {
@@ -35,13 +41,13 @@ export function useDetailView({ projectName, visible }: UseDetailViewOptions): U
   useKeyboardShortcut(
     { key: "e", meta: true, shift: false },
     () => switchDetailView(detailView === "config" ? "terminal" : "config"),
-    visible,
+    keysActive,
   );
 
   useKeyboardShortcut(
     { key: "n", meta: true, shift: true },
     () => switchDetailView(detailView === "notes" ? "terminal" : "notes"),
-    visible,
+    keysActive,
   );
 
   return { detailView, switchDetailView };

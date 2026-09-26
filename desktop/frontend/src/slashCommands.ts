@@ -47,12 +47,17 @@ const AI_CLIS = AI_CLI_OPTIONS.map((o) => o.value);
 // CLI name. Returns null for plain shells / unrecognized commands, which keeps
 // the slash menu closed for terminals that aren't running an agent.
 export function detectAICLI(cmd: string | undefined | null): AICLI | null {
+  return findAICLI(cmd)?.cli ?? null;
+}
+
+// The same match, plus where the CLI's name ends in `cmd` — the point a
+// launch flag can be spliced in at.
+export function findAICLI(cmd: string | undefined | null): { cli: AICLI; end: number } | null {
   if (!cmd) return null;
-  for (const token of cmd.split(/[\s;&|]+/)) {
-    if (!token) continue;
-    const base = token.split("/").pop() ?? token;
+  for (const m of cmd.matchAll(/[^\s;&|]+/g)) {
+    const base = m[0].split("/").pop() ?? m[0];
     const hit = AI_CLIS.find((c) => c === base);
-    if (hit) return hit;
+    if (hit) return { cli: hit, end: m.index + m[0].length };
   }
   return null;
 }

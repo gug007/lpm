@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
+import { Columns2, Folder, GitBranch, Package, RefreshCw, X } from "lucide-react";
 import { useEventListener } from "../hooks/useEventListener";
 import { Modal } from "./ui/Modal";
 import { ActionPicker } from "./ActionPicker";
@@ -29,6 +29,9 @@ import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
 import { detectAICLI } from "../slashCommands";
 import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
+import { RunModelSelect } from "./RunModelSelect";
+import { EMPTY_PICK, pickSummary, switchableCLI, type ModelPick } from "../agentModelSwitch";
+import { MAX_SIDE_BY_SIDE } from "../sideBySide";
 import type {
   CopyOverride,
   CopyRunMode,
@@ -65,6 +68,9 @@ interface CopyDraft {
   folderId: string;
   override: CopyOverride | null;
   target: string;
+  // The model its agent starts with when it runs the shared default; an empty
+  // pick launches exactly what run #1 did.
+  model: ModelPick;
 }
 
 export interface BulkDuplicateOptions {
@@ -85,6 +91,8 @@ export interface BulkDuplicateOptions {
   // Mac already has the project. No files ever move between machines.
   targetsPerCopy: string[];
   groupName: string;
+  // Show run #1 and the copies next to each other as the copies land.
+  sideBySide: boolean;
 }
 
 // Everything the "run in duplicates" flow (a composer's split button) hands the
@@ -97,6 +105,8 @@ export interface DuplicatePromptSeed {
   count: number;
   command?: string;
   actionName?: string;
+  // What lpm last saw run #1's agent running, shown on its row.
+  currentPick?: ModelPick;
 }
 
 interface BulkDuplicateDialogProps {
@@ -132,7 +142,7 @@ export function BulkDuplicateDialog({
 }: BulkDuplicateDialogProps) {
   const seeded = seed !== undefined;
   const [copies, setCopies] = useState<CopyDraft[]>([
-    { label: "", folderId: "", override: null, target: "" },
+    { label: "", folderId: "", override: null, target: "", model: EMPTY_PICK },
   ]);
   const count = copies.length;
   // The shared default applied to every copy that doesn't override it.
@@ -145,6 +155,7 @@ export function BulkDuplicateDialog({
   const [excludeUncommitted, setExcludeUncommitted] = useState(false);
   const [reinstallDeps, setReinstallDeps] = useState(false);
   const [pullLatest, setPullLatest] = useState(true);
+  const [sideBySide, setSideBySide] = useState(true);
   const [groupName, setGroupName] = useState("");
   // Whether the folder-name autocomplete suggestions are showing.
   const [folderOpen, setFolderOpen] = useState(false);
@@ -179,6 +190,7 @@ export function BulkDuplicateDialog({
       folderId,
       override: null,
       target: project?.name ?? "",
+      model: EMPTY_PICK,
     };
   };
   // Shown as run #1 in the seeded (composer) flow — the current project runs the
@@ -271,6 +283,7 @@ export function BulkDuplicateDialog({
     setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
     setPullLatest(s.duplicatePullLatest ?? true);
+    setSideBySide(s.runInDuplicatesSideBySide ?? true);
     setGroupName("");
     setFolderOpen(false);
     // A composer-seeded run stays collapsed — its target/prompt are already set
@@ -316,6 +329,11 @@ export function BulkDuplicateDialog({
   const setLabelAt = (i: number, value: string) =>
     setCopies((prev) =>
       prev.map((c, idx) => (idx === i ? { ...c, label: value } : c)),
+    );
+
+  const setModelAt = (i: number, model: ModelPick) =>
+    setCopies((prev) =>
+      prev.map((c, idx) => (idx === i ? { ...c, model } : c)),
     );
 
   const setTargetAt = (i: number, target: string) =>
@@ -421,7 +439,12 @@ export function BulkDuplicateDialog({
       : mode === "command"
         ? command
         : undefined;
-  const showPrompt = detectAICLI(promptTargetCmd) !== null;
+  const promptCli = detectAICLI(promptTargetCmd);
+  const showPrompt = promptCli !== null;
+  // Racing models: each run can start its agent on its own model when the
+  // shared run launches Claude Code or Codex.
+  const launchCli = seeded ? switchableCLI(promptCli) : null;
+  const currentModel = launchCli && seed?.currentPick ? pickSummary(launchCli, seed.currentPick) : "";
 
   // Recaps shown in each collapsed section's header.
   const selectedAction = findActionByPath(actionTree, actionName);
@@ -498,16 +521,16 @@ export function BulkDuplicateDialog({
       command,
       showPrompt ? composerSeed(composer) : undefined,
     );
-    return copies.map((c) =>
-      c.override
-        ? taskFrom(
-            c.override.mode,
-            c.override.actionName,
-            c.override.command,
-            composerSeed(c.override.prompt),
-          )
-        : defaultTask,
-    );
+    return copies.map((c) => {
+      if (c.override)
+        return taskFrom(
+          c.override.mode,
+          c.override.actionName,
+          c.override.command,
+          composerSeed(c.override.prompt),
+        );
+      return launchCli ? defaultTask.map((t) => ({ ...t, launchModel: c.model })) : defaultTask;
+    });
   };
 
   const overrideSummary = (override: CopyOverride | null): string => {
@@ -532,6 +555,8 @@ export function BulkDuplicateDialog({
         duplicateActionName: actionName || undefined,
         duplicateCommand: command || undefined,
       });
+    } else {
+      saveSettings({ runInDuplicatesSideBySide: sideBySide });
     }
     const valid = new Set(targets.map((t) => t.name));
     const fallback = valid.has(sourceName) || targets.length === 0 ? sourceName : targets[0].name;
@@ -548,6 +573,7 @@ export function BulkDuplicateDialog({
         return valid.size === 0 || valid.has(t) ? t : fallback;
       }),
       groupName: single || !anyLocalCopy ? "" : trimmedGroup,
+      sideBySide: seeded && sideBySide,
     });
   };
 
@@ -785,10 +811,15 @@ export function BulkDuplicateDialog({
                       <span className="text-right text-[12px] tabular-nums text-[var(--text-muted)]">
                         1
                       </span>
-                      <div className="flex h-9 items-center rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3">
-                        <span className="truncate text-[13px] text-[var(--text-secondary)]">
+                      <div className="flex h-9 min-w-0 items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--bg-secondary)]/40 px-3">
+                        <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--text-secondary)]">
                           {currentName}
                         </span>
+                        {currentModel && (
+                          <span className="shrink-0 text-[12px] text-[var(--text-muted)]">
+                            {currentModel}
+                          </span>
+                        )}
                       </div>
                       <span className="text-right text-[12px] font-medium text-[var(--text-muted)]">
                         Current
@@ -816,6 +847,15 @@ export function BulkDuplicateDialog({
                       history={composerHistory}
                       aiCwd={aiCwd}
                       autoFocus={i === 0}
+                      modelSelect={
+                        launchCli && !copy.override ? (
+                          <RunModelSelect
+                            cli={launchCli}
+                            value={copy.model}
+                            onChange={(pick) => setModelAt(i, pick)}
+                          />
+                        ) : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -836,6 +876,17 @@ export function BulkDuplicateDialog({
                   Use the menu beside a copy to run a different action or command
                   on it.
                 </p>
+                {seeded && (
+                  <div className="-mx-4 -mb-3 mt-3 border-t border-[var(--border)]">
+                    <SwitchRow
+                      checked={sideBySide}
+                      onChange={setSideBySide}
+                      icon={<Columns2 size={18} />}
+                      title="Open side by side"
+                      description={`Show the runs next to each other as the copies are created (up to ${MAX_SIDE_BY_SIDE}).`}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

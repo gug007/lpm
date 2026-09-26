@@ -1,4 +1,5 @@
 import { BrainIcon, CheckSquareIcon, ClipboardIcon, CopyIcon, DetachIcon, DownloadIcon, FileIcon, HardDriveIcon, MessageIcon, PencilIcon, SettingsIcon, SparkleIcon, TrashIcon, WorktreeIcon } from "./icons";
+import { Columns2 } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -10,6 +11,7 @@ import { ProjectGitSubmenu } from "./ProjectGitSubmenu";
 import { launchOpenInTarget, primaryOpenInTarget, useOpenInTargets } from "../hooks/useOpenInTargets";
 import type { CustomWorkStatus, ProjectGroup, WorkStatus } from "../types";
 import type { WorkStatusChoice } from "../workStatus";
+import type { SideBySideMenuItem } from "../hooks/useSideBySideMenu";
 import { WorkStatusSubmenu } from "./WorkStatusSubmenu";
 
 // The sync controls a row only has while a copy of it is synced here. The remote
@@ -77,6 +79,7 @@ interface ProjectContextMenuProps {
   onCopyPath: () => void;
   onDetach: () => void;
   onAttach: () => void;
+  sideBySideItems: SideBySideMenuItem[];
   onSelect: () => void;
   onGitCommit: () => void;
   onGitCreatePR: () => void;
@@ -130,6 +133,7 @@ export function ProjectContextMenu({
   onCopyPath,
   onDetach,
   onAttach,
+  sideBySideItems,
   onSelect,
   onGitCommit,
   onGitCreatePR,
@@ -283,6 +287,14 @@ export function ProjectContextMenu({
       <ContextMenuSeparator />
       <ContextMenuItem label="Rename" icon={<PencilIcon />} onClick={close(onRename)} />
       <ContextMenuItem label="Copy path" icon={<ClipboardIcon />} onClick={close(onCopyPath)} />
+      {sideBySideItems.map((item) => (
+        <ContextMenuItem
+          key={item.label}
+          label={item.label}
+          icon={<Columns2 size={14} />}
+          onClick={close(item.onClick)}
+        />
+      ))}
       {!remote &&
         (isDetached ? (
           <ContextMenuItem

@@ -64,13 +64,19 @@ import {
 } from "../types";
 import { projectStartProfile } from "../projectStartProfile";
 import { SyncedBar } from "./SyncedBar";
+import { CloseColumnButton } from "./project-detail/CloseColumnButton";
 import { useFollowState } from "../hooks/useFollowState";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 
 interface ProjectDetailProps {
   project: ProjectInfo;
   visible?: boolean;
+  // Owns the keyboard. Side by side keeps several projects visible, but only
+  // the one the user is working in answers shortcuts.
+  focused?: boolean;
   sidebarCollapsed?: boolean;
+  // Set while this project is a side-by-side column; takes it out of the set.
+  onCloseColumn?: () => void;
   onStart: (name: string, profile: string) => Promise<void>;
   onToggleService: (name: string, serviceName: string) => Promise<void>;
   onStop: (name: string) => Promise<void>;
@@ -87,7 +93,9 @@ function spawnCommandLabel(command: string): string {
 export function ProjectDetail({
   project,
   visible = true,
+  focused = true,
   sidebarCollapsed = false,
+  onCloseColumn,
   onStart,
   onToggleService,
   onStop,
@@ -165,16 +173,18 @@ export function ProjectDetail({
   const { headerActions, footerActions, headerIds, footerIds, layout: actionsLayout } =
     useActionsByDisplay(project.actions);
 
+  const keysActive = visible && focused;
   const { detailView, switchDetailView } = useDetailView({
     projectName: project.name,
     visible,
+    keysActive,
   });
 
   const handleNewTerminal = useCallback(() => {
     switchDetailView("terminal");
     terminalRef.current?.createTerminal();
   }, [switchDetailView]);
-  useKeyboardShortcut({ key: "t", meta: true }, handleNewTerminal, visible);
+  useKeyboardShortcut({ key: "t", meta: true }, handleNewTerminal, keysActive);
 
   const projectActions = useProjectActions({
     projectName: project.name,
@@ -187,7 +197,7 @@ export function ProjectDetail({
   useActionShortcuts(
     project.actions,
     handleRunAction,
-    visible && !actionWizardOpen,
+    keysActive && !actionWizardOpen,
   );
 
   // Queued tasks (actions or ad-hoc commands) to run in this project: "Bulk
@@ -213,7 +223,7 @@ export function ProjectDetail({
         terminalRef.current?.createTerminalWithCmd(
           spawnCommandLabel(task.command),
           task.command,
-          { prompt: task.prompt },
+          { prompt: task.prompt, launchModel: task.launchModel },
         );
       } else if (task.kind === "fork") {
         switchDetailView("terminal");
@@ -243,7 +253,7 @@ export function ProjectDetail({
           );
       } else {
         const action = resolveRunnableAction(actions, task.actionName);
-        if (action) handleRunAction(action, { prompt: task.prompt });
+        if (action) handleRunAction(action, { prompt: task.prompt, launchModel: task.launchModel });
         else
           toast.error(
             `Couldn't run "${task.actionName}" in ${project.name} — no matching action.`,
@@ -569,7 +579,8 @@ export function ProjectDetail({
     [project.running, project.services],
   );
 
-  const showProjectName = getSettings().showProjectName !== false;
+  // Side-by-side columns are told apart by their names, so they always show.
+  const showProjectName = getSettings().showProjectName !== false || onCloseColumn !== undefined;
   const existingActionKeys = useMemo(
     () => (project.actions ?? []).map((action) => action.name),
     [project.actions],
@@ -729,6 +740,8 @@ export function ProjectDetail({
           actionsWrapped={actionsWrapped}
           actions={headerActionsNode}
           controls={controlsNode}
+          trailing={onCloseColumn && <CloseColumnButton onClose={onCloseColumn} />}
+          dimmed={onCloseColumn !== undefined && !focused}
         />
 
         {follow && (
@@ -738,6 +751,7 @@ export function ProjectDetail({
         <TerminalPane
           active={detailView === "terminal"}
           visible={visible}
+          keysActive={keysActive}
           showEmptyState={showEmptyState}
           onNewTerminal={handleNewTerminal}
           onEditConfig={() => switchDetailView("config")}

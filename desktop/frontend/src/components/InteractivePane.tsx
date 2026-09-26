@@ -21,6 +21,7 @@ import {
   UploadClipboardImageForTerminal,
 } from "../../bridge/commands";
 import { sendTerminalInput, shellQuote } from "../terminal-io";
+import { inPassiveColumn } from "../sideBySide";
 import { quoteImagePathForPaste, unquotePastedPath } from "../composerValue";
 import { canFitHost, getTerminalTheme, isAtBottom, openTerminalLink, TERMINAL_FONT_FAMILY } from "./terminal-utils";
 import { handleCopyShortcut, handleNativeCopy, handleSelectAllShortcut, handleClearShortcut, isCopyShortcut } from "./terminal/copySelection";
@@ -1343,10 +1344,12 @@ function reconcileGeometry(session: InteractiveSession, terminalId: string): voi
 
 // The owner focuses its terminal on mount/visible unless the composer already
 // holds focus; a mirror never auto-focuses (it can't see the owner window's
-// focus, so grabbing it would steal OS focus from the main window mid-action).
-function shouldAutoFocus(): boolean {
+// focus, so grabbing it would steal OS focus from the main window mid-action),
+// and neither does a side-by-side column the user isn't working in.
+function shouldAutoFocus(host: Element): boolean {
   return (
     !IS_MIRROR_WINDOW &&
+    !inPassiveColumn(host) &&
     !document.activeElement?.closest("[data-terminal-composer]")
   );
 }
@@ -1625,7 +1628,7 @@ export function InteractivePane({
     // A new terminal's composer claims focus in its mount layout-effect, which
     // runs before this passive effect; don't yank focus back to the terminal
     // when the open terminal-input already holds it.
-    if (shouldAutoFocus()) {
+    if (shouldAutoFocus(session.host)) {
       session.term.focus();
     }
 
@@ -1692,7 +1695,7 @@ export function InteractivePane({
       } catch {}
       // Don't yank focus out of an open terminal-input composer that just
       // claimed it on a tab switch (it focuses synchronously, before this rAF).
-      if (shouldAutoFocus()) {
+      if (shouldAutoFocus(session.host)) {
         term.focus();
       }
     });
