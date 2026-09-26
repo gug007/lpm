@@ -17,6 +17,7 @@
 <script src="xterm/addon-fit.js"></script>
 <script src="xterm/addon-webgl.js"></script>
 <script src="xterm/addon-unicode11.js"></script>
+<script src="pathtap.js"></script>
 <script>
   const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
 
@@ -179,13 +180,25 @@
       }
       e.preventDefault();
     }, { passive: false });
-    const end = () => {
-      // A touch that never became a scroll is a tap → focus the terminal so iOS
-      // opens the keyboard (xterm focuses its hidden input on focus()).
-      if (lastY !== null && !scrolling) term.focus();
+    const end = e => {
+      // A touch that never became a scroll is a tap: on a file path it opens the
+      // preview (preventDefault keeps iOS from also focusing and raising the
+      // keyboard); anywhere else it focuses the terminal so iOS opens the
+      // keyboard (xterm focuses its hidden input on focus()).
+      if (lastY !== null && !scrolling) {
+        const t = e.changedTouches[0];
+        const hits = t ? LpmPathTap.pathsAtPoint(term, t.clientX, t.clientY) : [];
+        if (hits.length) {
+          e.preventDefault();
+          LpmPathTap.flash(term, hits[0]);
+          post('openPath', { paths: hits.map(h => h.path), line: hits[0].line });
+        } else {
+          term.focus();
+        }
+      }
       lastY = null;
     };
-    el.addEventListener('touchend', end, { passive: true });
+    el.addEventListener('touchend', end, { passive: false });
     el.addEventListener('touchcancel', () => { lastY = null; }, { passive: true });
   })();
 

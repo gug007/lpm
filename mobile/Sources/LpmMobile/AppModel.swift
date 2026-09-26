@@ -309,9 +309,8 @@ final class AppModel {
     // Adds the live Mac's own servers and Macs to this phone.
     let machineImporter = MachineImporter()
 
-    // Loaded file-viewer contents, keyed by "<project>\n<path>", so the FileViewer
-    // sheet can render loading / content / error for the file it opened.
-    var loadedFiles: [String: FileLoad] = [:]
+    // Routes byte ranges to the file preview that asked for them.
+    @ObservationIgnored let fileFetches = FileFetchRouter()
 
     @ObservationIgnored private(set) var client: LpmClient?
     // The hex APNs device token (once registration succeeds). The token and a live
@@ -1131,7 +1130,7 @@ final class AppModel {
         // carrying the old map over would show one Mac's numbers under another.
         usage = UsageStore()
         usage.model = self
-        loadedFiles = [:]
+        fileFetches.cancelAll()
         pendingAgentPrompt = [:]
     }
 
@@ -1411,19 +1410,6 @@ final class AppModel {
         client?.sidebarMoveProject(project: project.name, folder: folder)
     }
 
-    /// Open a project file in the viewer sheet: mark it loading and request its
-    /// contents (the reply lands in onFile). A timeout gives up so a lost reply
-    /// can't spin forever.
-    func requestFile(project: String, path: String) {
-        let key = project + "\n" + path
-        loadedFiles[key] = FileLoad(content: nil, truncated: false, error: nil, loading: true)
-        client?.readFile(project: project, path: path)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
-            guard let self, self.loadedFiles[key]?.loading == true else { return }
-            self.loadedFiles[key] = FileLoad(content: nil, truncated: false,
-                                             error: "Reading the file timed out.", loading: false)
-        }
-    }
     /// Start/stop one service. Mirrors markRunPending: the row spins until the
     /// projects push confirms the desired state (or a timeout gives up).
     func toggleService(_ project: String, service: String) {
@@ -2025,6 +2011,7 @@ final class AppModel {
         memory.handleConnectionReset()
         notes.handleConnectionReset()
         usage.handleConnectionReset()
+        fileFetches.handleConnectionReset()
         historyPending = []
         historyLoadingMore = false
         if historyActive {
@@ -2386,11 +2373,7 @@ final class AppModel {
             self.actionError = error
             self.client?.requestProjects()
         }
-        c.onFile = { [weak self] project, path, content, truncated, error in
-            guard let self else { return }
-            self.loadedFiles[project + "\n" + path] =
-                FileLoad(content: content, truncated: truncated, error: error, loading: false)
-        }
+        c.onFileChunk = { [weak self] chunk in self?.fileFetches.deliver(chunk) }
     }
 
     private func wireStats(_ c: LpmClient) {

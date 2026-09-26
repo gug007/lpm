@@ -203,10 +203,11 @@ enum Wire {
         if let folder, !folder.isEmpty { obj["folder"] = folder }
         return json(obj)
     }
-    /// Read a project file's text for the file viewer (server confines it to the
-    /// project root, caps at ~1MB, and refuses binary content).
-    static func readFile(project: String, path: String) -> String {
-        json(["t": "readFile", "project": project, "path": path])
+    /// One byte range of any file for the preview sheet. A relative `path`
+    /// resolves against `project`'s root; `reqId` routes the reply to its fetch.
+    static func fileChunk(reqId: String, project: String, path: String, offset: Int64, length: Int64) -> String {
+        json(["t": "fileChunk", "reqId": reqId, "project": project, "path": path,
+              "offset": offset, "length": length])
     }
     static func start(name: String, profile: String = "") -> String {
         json(["t": "start", "name": name, "profile": profile])
@@ -493,9 +494,8 @@ enum Wire {
         // carries the updated sidebar so the phone re-renders in place; `error` is
         // the failure to surface.
         case sidebarMutation(order: [String], groups: [ProjectFolder], error: String?)
-        // A readFile reply: the file's text (nil on failure) plus whether it was
-        // capped at the size limit.
-        case file(project: String, path: String, content: String?, truncated: Bool, error: String?)
+        // One byte range of a previewed file (or why it couldn't be read).
+        case fileChunk(FileChunk)
         // A runAction/newTerminal request the Mac couldn't execute (e.g. the
         // app isn't open there). Success acks carry nothing and stay .unknown.
         case actionFailed(project: String, error: String)
@@ -764,13 +764,8 @@ enum Wire {
                     order: obj["order"] as? [String] ?? [],
                     groups: (obj["groups"] as? [[String: Any]] ?? []).map(ProjectFolder.init),
                     error: ok ? nil : (obj["error"] as? String ?? "Couldn't update folders."))
-            case "file":
-                let ok = obj["ok"] as? Bool ?? false
-                return .file(project: obj["project"] as? String ?? "",
-                             path: obj["path"] as? String ?? "",
-                             content: ok ? (obj["content"] as? String ?? "") : nil,
-                             truncated: obj["truncated"] as? Bool ?? false,
-                             error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the file."))
+            case "fileChunk":
+                return .fileChunk(FileChunk(obj))
             case "runAction", "newTerminal":
                 if obj["ok"] as? Bool ?? true { return .unknown }
                 return .actionFailed(project: obj["project"] as? String ?? "",

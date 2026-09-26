@@ -124,8 +124,7 @@ final class LpmClient: NSObject {
     // error to surface. The reply carries the fresh order/groups so no follow-up
     // `sidebar` is needed.
     var onSidebarMutation: ((_ order: [String], _ groups: [ProjectFolder], _ error: String?) -> Void)?
-    // A readFile reply: `content` nil on failure, `truncated` when capped.
-    var onFile: ((_ project: String, _ path: String, _ content: String?, _ truncated: Bool, _ error: String?) -> Void)?
+    var onFileChunk: ((_ chunk: FileChunk) -> Void)?
     // Project creation / discovery + config editing replies. Reads carry a decoded
     // payload (nil on failure); writes carry only the error to surface (nil = ok).
     var onListDirs: ((_ listing: DirListing?, _ error: String?) -> Void)?
@@ -819,7 +818,9 @@ final class LpmClient: NSObject {
     func sidebarMoveProject(project: String, folder: String?) {
         send(Wire.sidebarMoveProject(project: project, folder: folder))
     }
-    func readFile(project: String, path: String) { send(Wire.readFile(project: project, path: path)) }
+    func fileChunk(reqId: String, project: String, path: String, offset: Int64, length: Int64) {
+        send(Wire.fileChunk(reqId: reqId, project: project, path: path, offset: offset, length: length))
+    }
     func sendApnsToken(token: String, env: String, key: String,
                        notifyWaiting: Bool, notifyDone: Bool, notifyError: Bool,
                        notifyAutomationStarted: Bool, notifyAutomationDone: Bool,
@@ -1199,8 +1200,7 @@ final class LpmClient: NSObject {
             case .setWorkStatus(let proj, let error): self.onSetWorkStatus?(proj, error)
             case .sidebarMutation(let order, let groups, let error):
                 self.onSidebarMutation?(order, groups, error)
-            case .file(let proj, let path, let content, let truncated, let error):
-                self.onFile?(proj, path, content, truncated, error)
+            case .fileChunk(let chunk): self.onFileChunk?(chunk)
             case .actionFailed(let project, let error):
                 self.onActionFailed?(project, error)
             case .projectsChanged: self.onProjectsChanged?()

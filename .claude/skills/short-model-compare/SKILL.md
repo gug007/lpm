@@ -10,7 +10,7 @@ Races two models on one prompt and cuts it into a TikTok. It writes a lesson for
 ## What the video shows (about 25 s)
 
 1. Cold open on the payoff: both animations running side by side, a colour bar over each column with the model and its finish time, and the headline ("Opus 5.5 max vs GPT-6 Astra ultra 🦒").
-2. The prompt typed once into model A's composer, then **Run in duplicates** with 2 runs, the copy's model set to model B in the dialog.
+2. Model A picked in run #1's composer (its Model menu), the prompt typed into that composer, then **Run in duplicates** with 2 runs, the copy set to model B in the dialog.
 3. The copy is created and opens as a second column beside run #1; each column pushed in on its CLI's start banner (the model name is on screen).
 4. The build is jump-cut. The column clocks run while the line is spoken and stop on each agent's real finish.
 5. Both `index.html` files open in lpm's own browser, one per column. Every video ends on them by asking viewers which two models they want compared next, in the comments ("Which giraffe wins? Comment two models to race next."), and the caption asks too. Keep that ending when rewording `lesson.json`. It asks for suggestions; it never promises or teases a particular next video.
@@ -19,10 +19,11 @@ Races two models on one prompt and cuts it into a TikTok. It writes a lesson for
 
 The race uses lpm's own **Run in duplicates** with **Open side by side**, not a hand-built split:
 
-- One project with a single header button that launches model A with its session-only flags (the launch commands below). Its terminal is run #1.
-- The prompt goes into run #1's composer, then the send button's caret → **Run in duplicates** → 2 runs. In the dialog, the copy's model picker (Model / Level, next to its name) is set to model B, and **Open side by side** stays on.
-- lpm clones the project into a copy (its own folder, so each agent writes its own `index.html`), starts the copy's agent pinned to model B, sends it the same prompt, and shows run #1 and the copy as two columns. Run #1 keeps the keyboard.
-- The model picker only covers the CLI that run #1 launches, and it offers each Claude family by its bare name, which Claude Code resolves to that family's newest model. So `new.js` refuses Claude vs Codex (that would need the copy's own run override, not scripted yet) and a Claude model B that isn't its family's newest (`opus 5` while Opus 5.5 exists): put that one on the left instead, as run #1.
+- One project with a header button that launches model A's CLI. Its terminal is run #1, and its composer's Model menu picks model A on camera: hover the model, click its level in the flyout. When that menu can't pick model A (Codex, whose picker isn't scripted, or a Claude model that isn't its family's newest), the button launches model A pinned with its session-only flags instead (the launch commands below).
+- The prompt goes into run #1's composer, then the send button's caret → **Run in duplicates** → 2 runs. **Open side by side** stays on. In the dialog, the copy gets model B one of two ways:
+  - Same CLI: the copy's model picker (Model / Level, next to its name) is set to model B. It offers each Claude family by its bare name, which Claude Code resolves to that family's newest model, so `new.js` refuses a Claude model B that isn't its family's newest (`opus 5` while Opus 5.5 exists): put that one on the left instead, as run #1.
+  - Claude vs Codex: the project gets a second header button that launches model B pinned. The copy's run menu ("Run on this copy", right of its name) is set to Action → that button, and the prompt is typed again into the copy's own box, since an override starts empty. That second typing is jump-cut.
+- lpm clones the project into a copy (its own folder, so each agent writes its own `index.html`), starts the copy's agent on model B, sends it the prompt, and shows run #1 and the copy as two columns. Run #1 keeps the keyboard.
 
 ## Models
 
@@ -70,11 +71,12 @@ Finish the reply with each model's time from `result.json`, then the rendered MP
 
 - The voice is made before the take, so the narration never names a winner. The times on the column bars are the result.
 - Time each side from its own prompt, not from the Run click. The copy starts later (the clone, then its agent's boot), so a clock started at Run would hand run #1 a head start.
-- Set model A with the project button's launch flags, never with the composer's model picker: that runs `/model`, which rewrites the user's default model.
+- The composer's Model menu runs Claude's `/model` and `/effort`, and Claude saves both as the user's default for new sessions (`model` and `modelSettings` in `~/.claude/settings.json`). When model A is picked there, `take.sh` sets the file aside first and puts those two keys back on exit (`scripts/claude-default.js`). A take killed hard leaves `_claude-settings.backup.json` in the lesson folder; the next `take.sh` run keeps that backup and restores from it.
 - A model name the transcript mishears fails the voice's dropped-words check. Reword that line in `lesson.json`, or add the heard spelling to `HEARD_AS` in `video-lesson/scripts/words.js`, then run again with `--respeak`.
 - Two sides may not be identical: `new.js` refuses when model and effort both match.
 - A new Codex model can open with a one-time intro screen, and that screen takes the first Enter. If the dry run shows one, dismiss it in the `hook` beat before the prompt is typed.
-- The project gets its own `global.yml` with no actions, which keeps lpm's default Claude and Codex buttons out of the header, so only the model A button shows.
+- The project gets its own `global.yml` with no actions, which keeps lpm's default Claude and Codex buttons out of the header, so only the race's buttons show.
 - lpm refuses a project with no service, so the project has a `preview` service that is never started.
-- The copy inherits the project's header button, so the button is named after the CLI ("Claude"), not model A; otherwise the model B column would show a model A button. The banners and colour bars name the models.
+- The copy inherits the project's header buttons, so each is named after its CLI ("Claude", "Codex"), not a model; otherwise the model B column would show a model A button. The banners and colour bars name the models.
 - The copy is a clone of run #1's folder, made a second or two after run #1 gets the prompt. A model fast enough to write `index.html` in that window would hand the copy its page; the `go` beat logs a warning if the copy starts with one.
+- Codex 0.157 changed its rollout: the prompt is an `item_completed` event whose item is a `UserMessage`, not a `user_message` event. The race looks for either. A side whose clock never starts (no `sentAt`) never finishes and ends as `✗ no page` even with `index.html` written, so check the rollout format first when a Codex update lands.

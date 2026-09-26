@@ -47,6 +47,8 @@ struct WebTerminalView: UIViewRepresentable {
     /// updateUIView when these change, which pushes them into the page.
     var fontSize: Int = TerminalPrefs.defaultFontSize
     var theme: TerminalTheme = TerminalPrefs.defaultTheme
+    /// A file path was tapped: its readings (most likely first) and `:line`.
+    var onOpenPath: ((_ paths: [String], _ line: Int) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
 
@@ -55,6 +57,7 @@ struct WebTerminalView: UIViewRepresentable {
         controller.add(context.coordinator, name: "input")
         controller.add(context.coordinator, name: "resize")
         controller.add(context.coordinator, name: "ready")
+        controller.add(context.coordinator, name: "openPath")
 
         let config = WKWebViewConfiguration()
         config.userContentController = controller
@@ -83,6 +86,7 @@ struct WebTerminalView: UIViewRepresentable {
         context.coordinator.fontSize = fontSize
         context.coordinator.theme = theme
         context.coordinator.onFirstContent = onFirstContent
+        context.coordinator.onOpenPath = onOpenPath
         // Capture only the coordinator, not `context` — these closures outlive this
         // call (held by the subscription until unsubscribe), and closing over the
         // context would keep the whole SwiftUI environment alive with them.
@@ -101,6 +105,7 @@ struct WebTerminalView: UIViewRepresentable {
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
+        context.coordinator.onOpenPath = onOpenPath
         context.coordinator.applyFontSize(fontSize)
         context.coordinator.applyTheme(theme)
         context.coordinator.applyTopInset(topInset)
@@ -112,7 +117,7 @@ struct WebTerminalView: UIViewRepresentable {
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         let c = web.configuration.userContentController
-        ["input", "resize", "ready"].forEach { c.removeScriptMessageHandler(forName: $0) }
+        ["input", "resize", "ready", "openPath"].forEach { c.removeScriptMessageHandler(forName: $0) }
         coordinator.model?.terminalSubmit[coordinator.termId] = nil
         coordinator.model?.terminalCapture[coordinator.termId] = nil
         coordinator.model?.unsubscribe(coordinator.termId)
@@ -126,6 +131,7 @@ struct WebTerminalView: UIViewRepresentable {
         var fontSize = TerminalPrefs.defaultFontSize
         var theme: TerminalTheme = TerminalPrefs.defaultTheme
         var onFirstContent: (() -> Void)?
+        var onOpenPath: ((_ paths: [String], _ line: Int) -> Void)?
         private var ready = false
         private var announcedContent = false
         // Live output is coalesced: instead of one evaluateJavaScript per server
@@ -327,6 +333,10 @@ struct WebTerminalView: UIViewRepresentable {
                     lastCols = cols
                     lastRows = rows
                     model?.resize(termId, cols: cols, rows: rows)
+                }
+            case "openPath":
+                if let d = msg.body as? [String: Any], let paths = d["paths"] as? [String], !paths.isEmpty {
+                    onOpenPath?(paths, d["line"] as? Int ?? 0)
                 }
             case "ready":
                 ready = true

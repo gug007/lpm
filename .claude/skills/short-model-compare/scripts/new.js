@@ -14,6 +14,7 @@ const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR
 const DEFAULT_PROMPT =
   "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a tall, narrow panel and the window can be any size. Lay the scene out on a 420x740 stage: the plane spans about 80% of the stage's width with its body about 60% of the way down, and the giraffe's head reaches about 20% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. No questions, just write it.";
 const WINDOW = { w: 900, h: 1000 };
+const CLI_NAME = { claude: "Claude Code", codex: "Codex" };
 
 const args = process.argv.slice(2);
 const VALUE_FLAGS = ["--prompt", "--subject", "--slug"];
@@ -38,17 +39,21 @@ if (a.dir === b.dir) {
   console.error(`both sides are ${a.label}: pick two different models or efforts`);
   process.exit(1);
 }
-// Model B runs in the copy that Run in duplicates makes, pinned by the dialog's
-// per-run picker. That picker offers the CLI run #1 launches, and each Claude
-// family only by its bare name (its newest model).
-if (a.cli !== b.cli) {
-  console.error(`${a.label} and ${b.label} use different CLIs; the copy's model picker only covers ${a.cli}`);
-  process.exit(1);
-}
-if (!b.pickerModel) {
+// Model B runs in the copy that Run in duplicates makes. On the same CLI the
+// dialog's per-run picker pins it, and that picker offers each Claude family
+// only by its bare name (its newest model). On the other CLI the copy's own run
+// override starts the project's second button, which launches model B pinned.
+const crossCli = a.cli !== b.cli;
+if (!crossCli && !b.pickerModel) {
   console.error(`the copy's model picker can't pick ${b.name} (it offers each family's newest); swap the sides or pick the newest`);
   process.exit(1);
 }
+
+// Model A is picked on camera in run #1's composer when its Model menu offers
+// it: Claude only (the Codex picker isn't scripted), and a family's newest
+// only, as for model B. Otherwise the header button launches it pinned.
+const pickA = a.cli === "claude" && Boolean(a.pickerModel);
+if (pickA) a.cmd = "claude --permission-mode acceptEdits";
 
 const prompt = opt("--prompt") || DEFAULT_PROMPT;
 const giraffe = prompt === DEFAULT_PROMPT;
@@ -78,7 +83,11 @@ const narration = [
     text: sameModel ? `${upper(effortWord(a))} or *${effortWord(b)}* effort?` : `${hookNames[0]} or *${hookNames[1]}*?`,
     headline: `${a.headline} vs ${b.headline}${emoji}`,
   },
-  { id: "left", text: `*${a.name}*${a.effort ? ` at ${a.spokenEffort} effort` : ""} on the left.`, label: a.label },
+  {
+    id: "left",
+    text: `${pickA ? "Pick " : ""}*${a.name}*${a.effort ? ` at ${a.spokenEffort} effort` : ""} on the left.`,
+    label: a.label,
+  },
   {
     id: "prompt",
     text: giraffe
@@ -89,7 +98,7 @@ const narration = [
     label: "One prompt",
   },
   { id: "dupes", text: "Run it in *duplicates*.", label: "Run in duplicates" },
-  { id: "pick", text: `The copy gets *${b.name}*${bEffort}.`, label: b.label },
+  { id: "pick", text: `The copy gets *${b.name}*${bEffort}${crossCli ? ` in ${CLI_NAME[b.cli]}` : ""}.`, label: b.label },
   { id: "go", text: "Side by side. *Go*." },
   { id: "wait", text: "Both are building it *now*." },
   { id: "reveal", text: "Here's what they *built*." },
@@ -121,7 +130,16 @@ const compare = {
   b,
   prompt,
   project: "arena",
-  cues: { left: a.name, prompt: "One", dupes: "duplicates", pick: b.name, go: "Go", reveal: "built" },
+  pickA,
+  cues: {
+    left: a.name,
+    ...(pickA && a.effort && { leftLevel: a.spokenEffort }),
+    prompt: "One",
+    dupes: "duplicates",
+    pick: b.name,
+    go: "Go",
+    reveal: "built",
+  },
 };
 
 fs.mkdirSync(dir, { recursive: true });
@@ -133,24 +151,34 @@ fs.writeFileSync(
     `module.exports = require(${JSON.stringify(path.join(SKILL, "scripts", "beats.js"))})({\n` +
     `  kit: require("../_kit"),\n  config: require("./compare.json"),\n  dir: __dirname,\n});\n`,
 );
+const restoreDefault = pickA
+  ? {
+      note: `
+# Picking model A in the composer runs Claude Code's /model and /effort, which
+# save it as the user's default, so the take puts that default back afterwards.`,
+      vars: `\nCLAUDE_DEFAULT="$DIR/_claude-settings.backup.json"\nDEFAULTS=${path.join(SKILL, "scripts", "claude-default.js")}`,
+      save: `node "$DEFAULTS" save "$CLAUDE_DEFAULT" || exit 1\n`,
+      restore: `\n  node "$DEFAULTS" restore "$CLAUDE_DEFAULT"`,
+    }
+  : { note: "", vars: "", save: "", restore: "" };
 fs.writeFileSync(
   path.join(dir, "take.sh"),
   `#!/bin/sh
 # A clipboard handed over from another device makes macOS show a "Pasting from
 # <owner>'s iPhone" panel over the window whenever something reads it, so the
-# take runs on an empty local clipboard and the text comes back afterwards.
+# take runs on an empty local clipboard and the text comes back afterwards.${restoreDefault.note}
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
-CLIP="$DIR/_clipboard.backup.txt"
+CLIP="$DIR/_clipboard.backup.txt"${restoreDefault.vars}
 SKILL=${MAKER}
 
 [ -f "$CLIP" ] || pbpaste > "$CLIP"
 printf '' | pbcopy
-restore_clipboard() {
+${restoreDefault.save}restore() {
   [ -z "$(pbpaste)" ] && pbcopy < "$CLIP"
-  rm -f "$CLIP"
+  rm -f "$CLIP"${restoreDefault.restore}
 }
-trap restore_clipboard EXIT
+trap restore EXIT
 trap 'exit 130' INT TERM
 
 cd "$SKILL" && node scripts/make.js "$(basename "$DIR")" "$@"
@@ -159,8 +187,8 @@ cd "$SKILL" && node scripts/make.js "$(basename "$DIR")" "$@"
 );
 
 console.log(`${slug}
-  left:   ${a.label}  →  ${a.cmd}
-  right:  ${b.label}  →  ${b.cmd}
+  left:   ${a.label}  →  ${a.cmd}${pickA ? `, then ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")} in its composer` : ""}
+  right:  ${b.label}  →  ${crossCli ? `the copy's run override: ` : ""}${b.cmd}
   prompt: ${prompt}
   ${dir}/take.sh --no-audio --frames   (dry run)
   ${dir}/take.sh --frames              (the video)`);

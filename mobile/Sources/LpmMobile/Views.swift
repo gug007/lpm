@@ -1224,6 +1224,8 @@ struct TerminalScreen: View {
     @State private var hasContent = false
     // A terminal spawned by running an action from this screen — pushed on top.
     @State private var switched: TerminalInfo?
+    // A file path tapped in the terminal, open in the preview sheet.
+    @State private var preview: FilePreviewTarget?
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
@@ -1245,7 +1247,10 @@ struct TerminalScreen: View {
             ZStack {
                 WebTerminalView(term: term, onFirstContent: {
                     withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
-                }, fontSize: fontSize, theme: theme)
+                }, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
+                    Haptics.tap()
+                    preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
+                })
                     .environment(model)
                 if controlled && !hasContent {
                     TerminalLoadingView(background: theme.backgroundColor)
@@ -1290,6 +1295,7 @@ struct TerminalScreen: View {
                 switched = t
             })
             .navigationDestination(item: $switched) { TerminalScreen(term: $0, project: liveProject) }
+            .sheet(item: $preview) { FilePreviewSheet(target: $0).environment(model) }
             // Fallback: never leave the spinner up if no snapshot ever arrives
             // (e.g. the link drops mid-open).
             .task {

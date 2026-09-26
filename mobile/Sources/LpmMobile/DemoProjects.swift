@@ -148,12 +148,16 @@ extension DemoServer {
             self.push(["t": "serviceLogs", "project": project, "paneIndex": pane, "ok": true,
                        "text": self.serviceLogText(svc: running[pane], ticks: ticks)])
         }
-        register("readFile") { [weak self] o in
+        register("fileChunk") { [weak self] o in
             guard let self, let project = o["project"] as? String,
                   let path = o["path"] as? String else { return }
-            self.push(["t": "file", "project": project, "path": path, "ok": true,
-                       "content": self.demoFileContent(project: project, path: path),
-                       "truncated": false])
+            let bytes = Data(self.demoFileContent(project: project, path: path).utf8)
+            let offset = min((o["offset"] as? NSNumber)?.intValue ?? 0, bytes.count)
+            let length = (o["length"] as? NSNumber)?.intValue ?? bytes.count
+            self.push(["t": "fileChunk", "reqId": o["reqId"] ?? "", "ok": true, "path": path,
+                       "size": bytes.count, "mtime": 1, "offset": offset,
+                       "data": bytes.subdata(in: offset..<min(bytes.count, offset + length))
+                           .base64EncodedString()])
         }
     }
 

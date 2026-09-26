@@ -1,13 +1,17 @@
 // Two models build the same animated page side by side, through lpm's own
-// Run in duplicates: model A launches from the project's one header button
-// (run #1), the prompt goes into its composer, Run in duplicates makes a copy
-// whose model the dialog's per-run picker sets to model B, and "Open side by
-// side" shows run #1 and the copy as two columns. A race to index.html, then
-// both pages in lpm's own browser. Each column's pane header carries a colour
-// badge with the model and its time. `cue` = the spoken word an action lands on.
+// Run in duplicates: the project's header button launches run #1, whose
+// composer's Model menu picks model A (or the button launches it pinned, when
+// the menu can't pick it), the prompt goes into that composer, Run in
+// duplicates makes a copy whose model the dialog's per-run picker sets to model
+// B (or, when model B runs in the other CLI, the copy's run override starts the
+// project's second button, pinned to model B, with the prompt typed again), and
+// "Open side by side" shows run #1 and the copy as two columns. A race to
+// index.html, then both pages in lpm's own browser. Each column's pane header
+// carries a colour badge with the model and its time. `cue` = the spoken word
+// an action lands on.
 //
 // The hook line's beat is never seen (the video opens on the payoff), so it
-// does the setup: open the project, launch model A.
+// does the setup: open the project, launch run #1.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -27,9 +31,14 @@ const TERM = (i) => `[data-lesson="term-${i}"]`;
 const COMPOSER = (i) => `[data-lesson="composer-${i}"]`;
 const INPUT = (i) => `${COMPOSER(i)} >> [role="textbox"]`;
 const SEND_MENU = `${COMPOSER(0)} >> button[aria-label="More send options"]`;
+const MODEL_BUTTON = `${COMPOSER(0)} >> button[aria-haspopup="menu"][aria-label^="Model"]`;
+const MODEL_MENU = '[data-lesson="model-menu"]';
+const MENU_PICK = (i) => `[data-lesson="menu-pick-${i}"]`;
 const RUN_IN_DUPLICATES = 'button:has-text("Run in duplicates")';
 const MODEL_SELECT = 'button[title="Model and level this run starts with"]';
 const PICK = (i) => `[data-lesson="pick-${i}"]`;
+const COPY_RUN = 'button[title^="Run on this copy"]';
+const COPY = (part) => `[data-lesson="copy-${part}"]`;
 const HEAD = (i) => `[data-lesson="head-${i}"]`;
 const ADDR = (i) => `[data-lesson="addr-${i}"]`;
 const COLUMN = '[data-project-column]';
@@ -74,10 +83,16 @@ function codexRollouts(root, since) {
   return out;
 }
 
+// A prompt in a Codex rollout: a user_message event up to 0.15x, a completed
+// UserMessage item from 0.157.
+const CODEX_PROMPT = ['"type":"user_message"', '"type":"UserMessage"'];
+const lastPrompt = (text) => Math.max(...CODEX_PROMPT.map((n) => text.lastIndexOf(n)));
+
 function codexDone(root, since) {
-  return codexRollouts(root, since).some((text) =>
-    text.slice(text.lastIndexOf('"type":"user_message"') + 1).includes('"type":"task_complete"'),
-  );
+  return codexRollouts(root, since).some((text) => {
+    const at = lastPrompt(text);
+    return at >= 0 && text.slice(at).includes('"type":"task_complete"');
+  });
 }
 
 const claudeDir = (root) => path.join(os.homedir(), ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"));
@@ -94,9 +109,9 @@ function promptAt(cli, root, since) {
           .filter((f) => fs.statSync(f).mtimeMs >= since - 1000)
           .flatMap((f) => fs.readFileSync(f, "utf8").split("\n"))
       : codexRollouts(root, since).flatMap((t) => t.split("\n"));
-  const needle = cli === "claude" ? '"type":"user"' : '"type":"user_message"';
+  const needles = cli === "claude" ? ['"type":"user"'] : CODEX_PROMPT;
   for (const line of lines) {
-    if (!line.includes(needle)) continue;
+    if (!needles.some((n) => line.includes(n))) continue;
     const at = Date.parse(/"timestamp":"([^"]+)"/.exec(line)?.[1] ?? "");
     if (at >= since - 1000) return at;
   }
@@ -146,6 +161,54 @@ const tagPicks = (s, labels) =>
     });
     return n;
   }, labels);
+
+// The copy's open run override, tagged by part: its Action segment as
+// copy-action, the action picker as copy-picker, the open picker's row for
+// `label` as copy-option and the prompt box as copy-input. Returns the parts
+// found.
+const tagCopyRun = (s, label) =>
+  s.control.evaluate((want) => {
+    const visible = (el) => el && el.getBoundingClientRect().width > 0;
+    const text = (el) => el.textContent.replace(/[✻◆]/g, "").trim();
+    const group = [...document.querySelectorAll('[role="group"]')].find(
+      (g) => visible(g) && [...g.querySelectorAll("button")].some((b) => text(b) === "Default"),
+    );
+    if (!group) return [];
+    const found = [];
+    const tag = (el, part) => {
+      if (!visible(el)) return;
+      el.dataset.lesson = `copy-${part}`;
+      found.push(part);
+    };
+    const root = group.parentElement;
+    tag([...group.querySelectorAll("button")].find((b) => text(b) === "Action"), "action");
+    tag(root.querySelector(":scope > div.relative > button"), "picker");
+    tag(root.querySelector('[role="textbox"]'), "input");
+    tag(
+      [...document.querySelectorAll('[role="listbox"] [role="option"]')].find((o) => text(o) === want),
+      "option",
+    );
+    return found;
+  }, label);
+
+// The composer's open Model menu as model-menu, its row for `model` as
+// menu-pick-0 and the level flyout's row for `effort` as menu-pick-1.
+const tagModelMenu = (s, model, effort) =>
+  s.control.evaluate(
+    (m, e) => {
+      const row = (id) =>
+        [...document.querySelectorAll(`[role="menuitemradio"][id$="-${id}"]`)].find((b) => b.getBoundingClientRect().width > 0);
+      const modelRow = row(`model-${m}`);
+      if (!modelRow) return false;
+      modelRow.closest('[role="menu"]').dataset.lesson = "model-menu";
+      modelRow.dataset.lesson = "menu-pick-0";
+      const levelRow = e && row(`effort-${e}`);
+      if (levelRow) levelRow.dataset.lesson = "menu-pick-1";
+      return !e || Boolean(levelRow);
+    },
+    model,
+    effort || "",
+  );
 
 // Pane headers left to right as head-0…, and each pane's browser address bar,
 // once it has one, as addr-0….
@@ -274,6 +337,66 @@ module.exports = function compareBeats({ kit, config, dir }) {
     s.log(`race: ${result.map((r) => `${r.model} ${r.ms == null ? "timeout" : (r.ms / 1000).toFixed(1) + "s"}`).join(", ")}`);
   }
 
+  // Model A, picked in run #1's composer. The menu sends Claude /model and
+  // /effort, and take.sh restores the default Claude saves them as.
+  async function pickModelA(s) {
+    const a = sides[0];
+    await s.focus(MODEL_BUTTON, { scale: 1.8, at: [0.5, 0.5], ms: 400 });
+    await kit.focusWindow(s);
+    await kit.clickUntil(s, MODEL_BUTTON, () => tagModelMenu(s, a.pickerModel.toLowerCase(), a.effort), { ms: 300 });
+    await s.focus(MODEL_MENU, { scale: 1.5, at: [0, 0.5], ms: 350 });
+    if (a.effort) {
+      await s.moveTo(MENU_PICK(0), { at: [0.4, 0.5], ms: 350, cue: config.cues.left });
+      await s.click(MENU_PICK(1), { at: [0.5, 0.5], ms: 350, cue: config.cues.leftLevel });
+    } else {
+      await s.click(MENU_PICK(0), { at: [0.4, 0.5], ms: 350, cue: config.cues.left });
+    }
+    const want = `Model: ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")}`;
+    const shown = () => s.control.evaluate(() => {
+      const b = document.querySelector('[data-lesson="composer-0"] button[aria-haspopup="menu"][aria-label^="Model"]');
+      return b && !b.disabled ? b.getAttribute("aria-label") : "";
+    });
+    let now = "";
+    await s.skip(
+      async () => {
+        const end = Date.now() + 30000;
+        while ((now = await shown()) !== want && Date.now() < end) await s.hold(300);
+      },
+      { keepMs: 300 },
+    );
+    s.log(`run #1 model: ${now}`);
+    if (now !== want) throw new Error(`run #1 reads "${now}", not "${want}"`);
+  }
+
+  // Model B in the other CLI: the copy's run override starts the project's
+  // model B button. An override starts with an empty prompt, so the prompt is
+  // typed again.
+  async function overrideCopy(s) {
+    const button = BUTTON[sides[1].cli];
+    const has = async (part) => (await tagCopyRun(s, button)).includes(part);
+    await s.focus(COPY_RUN, { scale: 1.7, at: [0.5, 0.5], ms: 400 });
+    await kit.clickUntil(s, COPY_RUN, () => has("action"), { ms: 300 });
+    await s.focus(COPY("action"), { scale: 1.5, at: [0.5, 0.5], ms: 350 });
+    await kit.clickUntil(s, COPY("action"), () => has("picker"), { ms: 300 });
+    await kit.clickUntil(s, COPY("picker"), () => has("option"), { ms: 300 });
+    await s.click(COPY("option"), { at: [0.3, 0.5], ms: 300, cue: config.cues.pick });
+    await s.skip(
+      async () => {
+        await tagCopyRun(s, button);
+        await s.click(COPY("input"), { at: [0.2, 0.4], ms: 300 });
+        await s.type(config.prompt);
+      },
+      { keepMs: 300 },
+    );
+    const shown = await s.control.evaluate(
+      (picker, input) => [document.querySelector(picker)?.textContent.trim(), document.querySelector(input)?.textContent.length ?? 0],
+      COPY("picker"),
+      COPY("input"),
+    );
+    s.log(`copy runs: ${shown[0]}, prompt ${shown[1]} chars`);
+    if (!shown[0]?.includes(button)) throw new Error(`the copy runs "${shown[0]}", not ${button}`);
+  }
+
   async function openPage(s, i) {
     const file = roots[i] && path.join(roots[i], "index.html");
     await kit.focusWindow(s);
@@ -313,15 +436,23 @@ module.exports = function compareBeats({ kit, config, dir }) {
       git(root, "init", "-q", "-b", "main");
       git(root, "add", "-A");
       git(root, "commit", "-q", "-m", "Initial commit");
-      const a = sides[0];
       const projects = path.join(lpmDir, "projects");
       fs.mkdirSync(projects, { recursive: true });
+      // Model B gets its own button only in the other CLI, where the copy's run
+      // override starts it.
+      const buttons = sides
+        .map((m, i) => ({ m, id: i ? "model-b" : "model-a", position: i + 1 }))
+        .filter(({ m }, i) => i === 0 || m.cli !== sides[0].cli)
+        .map(
+          ({ m, id, position }) =>
+            `  ${id}:\n    label: ${yamlString(BUTTON[m.cli])}\n    emoji: ${yamlString(m.emoji)}\n    cmd: ${yamlString(m.cmd)}\n    type: terminal\n    position: ${position}\n`,
+        );
       fs.writeFileSync(
         path.join(projects, `${project}.yml`),
-        `name: ${project}\nroot: ${root}\n\nservices:\n  preview:\n    cmd: python3 -m http.server 4173\n    port: 4173\n\nactions:\n  model-a:\n    label: ${yamlString(BUTTON[a.cli])}\n    emoji: ${yamlString(a.emoji)}\n    cmd: ${yamlString(a.cmd)}\n    type: terminal\n    position: 1\n`,
+        `name: ${project}\nroot: ${root}\n\nservices:\n  preview:\n    cmd: python3 -m http.server 4173\n    port: 4173\n\nactions:\n${buttons.join("")}`,
       );
       // A global.yml already there keeps the default Claude and Codex buttons
-      // out of the header, so it holds only model A's button.
+      // out of the header, so it holds only the buttons above.
       fs.writeFileSync(path.join(lpmDir, "global.yml"), "actions: {}\n");
       // The copy has no remote to pull from.
       settings({
@@ -358,7 +489,8 @@ module.exports = function compareBeats({ kit, config, dir }) {
     },
     left: async (s) => {
       await tagAll(s);
-      await kit.focusLeft(s, TERM(0), { scale: 1.6, at: [0.3, 0.1], ms: 450, cue: config.cues.left });
+      if (config.pickA) await pickModelA(s);
+      else await kit.focusLeft(s, TERM(0), { scale: 1.6, at: [0.3, 0.1], ms: 450, cue: config.cues.left });
     },
     prompt: async (s) => {
       await kit.focusLeft(s, INPUT(0), { scale: 1.8, at: [0.4, 0.5], ms: 450, cue: config.cues.prompt });
@@ -375,6 +507,7 @@ module.exports = function compareBeats({ kit, config, dir }) {
     },
     pick: async (s) => {
       const b = sides[1];
+      if (b.cli !== sides[0].cli) return overrideCopy(s);
       await s.focus(MODEL_SELECT, { scale: 1.7, at: [0.5, 0.5], ms: 400 });
       await kit.clickUntil(s, MODEL_SELECT, async () => (await tagPicks(s, [b.pickerModel])) === 1, { ms: 300 });
       await s.click(PICK(0), { at: [0.3, 0.5], ms: 300, cue: config.cues.pick });

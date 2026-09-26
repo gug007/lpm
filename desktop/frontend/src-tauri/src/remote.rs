@@ -1990,6 +1990,24 @@ fn handle_msg(
                 )?,
             }
         }
+        // One byte range of any file for the phone's preview (a path tapped in a
+        // terminal). The phone keeps a few ranges in flight and reassembles them;
+        // each reply carries size + mtime so it can tell the file changed under it.
+        "fileChunk" => {
+            let project = str_field("project").unwrap_or_default();
+            let path = str_field("path").unwrap_or_default();
+            let offset = v.get("offset").and_then(Value::as_u64).unwrap_or(0);
+            let length = v
+                .get("length")
+                .and_then(Value::as_u64)
+                .unwrap_or(crate::phonefile::MAX_CHUNK);
+            let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
+            let out = out.clone();
+            std::thread::spawn(move || {
+                let reply = crate::phonefile::chunk_reply(&project, &path, offset, length, req_id);
+                let _ = out.try_send(reply.to_string());
+            });
+        }
         "stats" => {
             // Local agent token-usage stats (the desktop Stats page). Scanning the
             // Claude/Codex history files is slow, so run it off the read loop and

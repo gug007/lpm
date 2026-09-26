@@ -73,6 +73,7 @@ mod peertls;
 mod peertunnel;
 mod peeruploadhost;
 mod peeruploadrun;
+mod phonefile;
 mod portforward;
 mod ports;
 mod portsprobe;

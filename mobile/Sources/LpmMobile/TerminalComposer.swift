@@ -821,7 +821,7 @@ private struct ComposerMentionMenu: View {
     let pickServiceLog: (ServiceInfo) -> Void
     // The file to preview (tapped via the eye button, distinct from the row's
     // primary insert-mention tap).
-    @State private var previewTarget: FileViewerTarget?
+    @State private var previewTarget: FilePreviewTarget?
 
     var body: some View {
         ScrollView {
@@ -853,7 +853,7 @@ private struct ComposerMentionMenu: View {
         }
         .frame(maxHeight: 260)
         .sheet(item: $previewTarget) { target in
-            FileViewerSheet(target: target).environment(model)
+            FilePreviewSheet(target: target).environment(model)
         }
     }
 
@@ -889,7 +889,7 @@ private struct ComposerMentionMenu: View {
             // A separate preview tap (files only) that opens the viewer instead of
             // inserting the @-mention.
             if !e.dir {
-                Button { previewTarget = FileViewerTarget(project: project, path: e.path) } label: {
+                Button { previewTarget = FilePreviewTarget(project: project, path: e.path) } label: {
                     Image(systemName: "eye")
                         .font(.system(size: 13)).foregroundStyle(.secondary)
                         .frame(width: 44).padding(.vertical, 9).contentShape(Rectangle())
