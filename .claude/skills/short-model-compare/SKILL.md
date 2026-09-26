@@ -53,7 +53,7 @@ Launch commands (session-only flags, so nothing in the user's config changes):
 
 3. Dry run: `<slug>/take.sh --no-audio --frames`, then check `frames/`. Both header buttons should be there, both banners should show the right model, and both prompts should be sent. There should be no intro or update screen in either pane.
 
-4. The video: `<slug>/take.sh --frames`. The take lasts as long as the slower model (15-minute limit per side; a side that runs out shows `✗ no page`). The real times go to `<slug>/result.json`.
+4. The video: `<slug>/take.sh --frames`. The take lasts as long as the slower model (15-minute limit per side, or `timeoutMin` in compare.json; a side that runs out shows `✗ no page`. xhigh and max can think for over 15 minutes before writing). The real times go to `<slug>/result.json`.
 
 5. Review as `tiktok-video-lesson` says (sheet, cover, popups, hook length). Then open the MP4 and check that both pages are moving and are the models' real output. `take.sh --mux-only` re-cuts without a retake.
 

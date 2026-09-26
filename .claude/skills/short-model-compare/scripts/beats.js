@@ -211,7 +211,7 @@ module.exports = function compareBeats({ kit, config, dir }) {
   }
 
   async function race(s) {
-    const end = Date.now() + BUILD_TIMEOUT_MS;
+    const end = Date.now() + (config.timeoutMin ? config.timeoutMin * 60 * 1000 : BUILD_TIMEOUT_MS);
     let shown = "";
     while (Date.now() < end && finish.some((f) => f == null)) {
       for (let i = 0; i < 2; i++) if (finish[i] == null && built(i)) finish[i] = Date.now() - sentAt[i];
