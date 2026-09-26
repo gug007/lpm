@@ -45,9 +45,10 @@ const CODEX_LEVELS: Level[] = [
 ];
 
 // Only the top Codex models carry Max and Ultra; only Haiku lacks Ultracode.
-const CODEX_TOP = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra"];
+const CODEX_TOP = ["gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra"];
+const CODEX_MAX_ONLY = ["gpt-6-luna", "gpt-5.6-luna"];
 const withoutTop = (slug: string) =>
-  CODEX_TOP.includes(slug) ? undefined : slug === "gpt-5.6-luna" ? ["ultra"] : ["max", "ultra"];
+  CODEX_TOP.includes(slug) ? undefined : CODEX_MAX_ONLY.includes(slug) ? ["ultra"] : ["max", "ultra"];
 
 const codex = (slug: string, label: string): Model => ({
   value: slug,
@@ -69,6 +70,8 @@ const CATALOGUE: Record<AgentKind, { models: Model[]; levels: Level[] }> = {
   codex: {
     models: [
       codex("gpt-6-astra", "GPT-6 Astra"),
+      codex("gpt-6-sol", "GPT-6 Sol"),
+      codex("gpt-6-luna", "GPT-6 Luna"),
       codex("gpt-5.6-sol", "GPT-5.6 Sol"),
       codex("gpt-5.6-terra", "GPT-5.6 Terra"),
       codex("gpt-5.6-luna", "GPT-5.6 Luna"),

@@ -17,8 +17,10 @@ enum AutomationEditorContext: Identifiable {
     var isEditing: Bool { if case .edit = self { return true } else { return false } }
 }
 
-private let CODEX_MAX_MODELS: Set<String> = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
-private let CODEX_ULTRA_MODELS: Set<String> = ["gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra"]
+private let CODEX_MAX_MODELS: Set<String> = [
+    "gpt-6-astra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+]
+private let CODEX_ULTRA_MODELS: Set<String> = ["gpt-6-astra", "gpt-6-sol", "gpt-5.6-sol", "gpt-5.6-terra"]
 
 private let WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 /// The scheduler's floor, and the least room a single run needs in a window
