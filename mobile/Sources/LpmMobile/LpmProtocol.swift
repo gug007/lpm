@@ -260,6 +260,14 @@ enum Wire {
         json(["t": "gitCreateBranch", "project": project, "name": name])
     }
     static func gitDiscardAll(project: String) -> String { json(["t": "gitDiscardAll", "project": project]) }
+    static func gitAuto(project: String, kind: String, nonce: String) -> String {
+        json(["t": "gitAuto", "project": project, "kind": kind, "nonce": nonce])
+    }
+    static func gitAutoState(project: String) -> String { json(["t": "gitAutoState", "project": project]) }
+    static func gitAutoCancel(project: String) -> String { json(["t": "gitAutoCancel", "project": project]) }
+    static func gitAutoSwitchBase(project: String, base: String) -> String {
+        json(["t": "gitAutoSwitchBase", "project": project, "base": base])
+    }
     static func gitWatch(project: String) -> String { json(["t": "gitWatch", "project": project]) }
     static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }
 
@@ -520,6 +528,10 @@ enum Wire {
         case gitDiscardAll(project: String, error: String?)
         // Server push: watched files changed for this project (already debounced).
         case gitChanged(project: String)
+        // An Auto Commit / Auto Create PR run's whole state, pushed on every
+        // change. `run` is nil when the Mac holds none for the project.
+        case gitAuto(project: String, run: GitAutoRun?, error: String?)
+        case gitAutoSwitchBase(project: String, base: String, error: String?, pullError: String?)
         // Ack for an apnsToken registration.
         case apnsToken(ok: Bool)
         // Composer parity replies.
@@ -842,6 +854,17 @@ enum Wire {
                 return .gitDiscardAll(project: obj["project"] as? String ?? "",
                                       error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
+            case "gitAuto":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitAuto(project: obj["project"] as? String ?? "",
+                                run: ok ? (obj["run"] as? [String: Any]).flatMap(GitAutoRun.init) : nil,
+                                error: ok ? nil : (obj["error"] as? String ?? "Couldn't start."))
+            case "gitAutoSwitchBase":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitAutoSwitchBase(project: obj["project"] as? String ?? "",
+                                          base: obj["base"] as? String ?? "",
+                                          error: ok ? nil : (obj["error"] as? String ?? "Couldn't switch branch."),
+                                          pullError: obj["pullError"] as? String)
             case "apnsToken": return .apnsToken(ok: obj["ok"] as? Bool ?? false)
             case "composerActions":
                 return .composerActions((obj["actions"] as? [[String: Any]] ?? []).map(ComposerAction.init))

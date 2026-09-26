@@ -85,6 +85,7 @@ mod pull_request;
 mod ptymodes;
 mod ptyring;
 mod remote;
+mod remote_git_auto;
 mod remote_machines;
 mod remote_memory;
 mod remote_notes;

@@ -295,6 +295,8 @@ final class AppModel {
     // into its own store so its ~40 properties observe and reset independently of the
     // rest of the app.
     var git = GitReviewStore()
+    // Auto Commit / Auto Create PR runs (`model.gitAuto`), same split.
+    var gitAuto = GitAutoStore()
 
     // MARK: session memory + notes
 
@@ -363,6 +365,7 @@ final class AppModel {
 
     init() {
         git.model = self
+        gitAuto.model = self
         memory.model = self
         notes.model = self
         usage.model = self
@@ -1120,6 +1123,8 @@ final class AppModel {
         // through their weak references.
         git = GitReviewStore()
         git.model = self
+        gitAuto = GitAutoStore()
+        gitAuto.model = self
         // Same for session memory and notes — a fresh store, re-pointed at this
         // model (a store left without a model can never reach the client again).
         memory = MemoryStore()
@@ -2008,6 +2013,7 @@ final class AppModel {
         else { statsLoading = false }
         // Session memory and notes replay whatever screen is open (or just drop
         // their spinners); their requests queue on the client until it reconnects.
+        gitAuto.handleConnectionReset()
         memory.handleConnectionReset()
         notes.handleConnectionReset()
         usage.handleConnectionReset()
@@ -2609,6 +2615,10 @@ final class AppModel {
         }
         c.onGitCheckout = { [weak self] project, error in self?.git.finishCheckout(project, error: error) }
         c.onGitCreateBranch = { [weak self] project, error in self?.git.finishCreateBranch(project, error: error) }
+        c.onGitAuto = { [weak self] project, run, error in self?.gitAuto.apply(project, run: run, error: error) }
+        c.onGitAutoSwitchBase = { [weak self] project, base, error, pullError in
+            self?.gitAuto.finishSwitch(project, base: base, error: error, pullError: pullError)
+        }
     }
 
     private func wireMemory(_ c: LpmClient) {

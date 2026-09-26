@@ -46,7 +46,8 @@ struct FilePreviewSheet: View {
                 case .failed(let message):
                     errorState(message)
                 case .ready(let url, let kind, let truncated):
-                    FilePreviewContent(url: url, kind: kind, truncated: truncated, line: target.line)
+                    FilePreviewContent(url: url, project: target.project, path: fetch.path,
+                                       kind: kind, truncated: truncated, line: target.line)
                 }
             }
             .navigationTitle(filename)

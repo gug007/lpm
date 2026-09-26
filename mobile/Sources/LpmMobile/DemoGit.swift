@@ -223,7 +223,7 @@ extension DemoServer {
 
     // MARK: helpers
 
-    private func pushGitChanged(_ project: String) {
+    func pushGitChanged(_ project: String) {
         pushAfter(0.1) { [weak self] in
             guard let self, self.world.git[project]?.watched == true else { return nil }
             return ["t": "git-changed", "project": project]
@@ -240,11 +240,11 @@ extension DemoServer {
         return genericModifiedDiff(path)
     }
 
-    private func isoNow() -> String {
+    func isoNow() -> String {
         ISO8601DateFormatter().string(from: Date())
     }
 
-    private func demoCommitMessage(_ files: [String]) -> String {
+    func demoCommitMessage(_ files: [String]) -> String {
         let names = files.map { ($0 as NSString).lastPathComponent }
         if names.contains("payments.ts") || names.contains("CheckoutForm.tsx") {
             return "feat(checkout): redesign the checkout form and add a payments module"
@@ -261,7 +261,7 @@ extension DemoServer {
         return "chore: update \(names.count) files"
     }
 
-    private func demoPrDraft(_ repo: DemoWorld.GitRepo) -> (title: String, body: String) {
+    func demoPrDraft(_ repo: DemoWorld.GitRepo) -> (title: String, body: String) {
         let title = repo.branch.contains("checkout-redesign")
             ? "Redesign the checkout flow"
             : prettyBranchTitle(repo.branch)

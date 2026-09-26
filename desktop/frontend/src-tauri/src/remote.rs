@@ -660,6 +660,14 @@ fn broadcast(hub: &RemoteHub, val: Value) {
     }
 }
 
+/// `broadcast` for state that outlives the connection that asked for it, so a
+/// phone that reconnected mid-run still hears the rest (see remote_git_auto).
+pub(crate) fn broadcast_frame(app: &AppHandle, val: Value) {
+    if let Some(hub) = app.try_state::<RemoteHub>() {
+        broadcast(hub.inner(), val);
+    }
+}
+
 /// Record a composer draft for a terminal and return the revision to broadcast.
 /// Non-empty text is stored; empty text clears the entry (and returns `None` when
 /// there was nothing to clear, so callers skip a pointless broadcast). Every real
@@ -1634,7 +1642,7 @@ fn cap_git_diff(diff: &str) -> (String, bool) {
 
 /// AI generation options (CLI, model, effort, fast) from persisted settings,
 /// mirroring the desktop's git panel: `aiCli` defaults to "claude", the rest empty.
-fn git_ai_opts() -> (String, String, String, bool) {
+pub(crate) fn git_ai_opts() -> (String, String, String, bool) {
     let s = config::load_settings();
     let cli = s
         .get("aiCli")
@@ -1669,7 +1677,7 @@ fn git_settings(key: &str) -> Value {
 /// Pull strategy + flags from `gitPull`, mirroring normalizeGitPull/pullFlags:
 /// strategy defaults to "ff" (valid: ff | ff-only | rebase), `--autostash` and
 /// `--no-verify` per their bools.
-fn git_pull_opts() -> (String, Vec<String>) {
+pub(crate) fn git_pull_opts() -> (String, Vec<String>) {
     let o = git_settings("gitPull");
     let strategy = match o.get("strategy").and_then(Value::as_str) {
         Some(s @ ("ff" | "ff-only" | "rebase")) => s.to_string(),
@@ -1708,7 +1716,7 @@ fn git_fetch_flags() -> Vec<String> {
 
 /// Push flags from `gitPush`, mirroring pushFlags: `--force-with-lease` when
 /// mode is "force-with-lease" (default "default"), `--no-verify`/`--tags` off.
-fn git_push_flags() -> Vec<String> {
+pub(crate) fn git_push_flags() -> Vec<String> {
     let o = git_settings("gitPush");
     let mut flags = Vec::new();
     if o.get("mode").and_then(Value::as_str) == Some("force-with-lease") {
@@ -4053,6 +4061,9 @@ fn handle_msg(
             crate::remote_memory::handle(out, t, &v)
         }
         "machines" | "machinePair" => crate::remote_machines::handle(app, out, t, &v),
+        "gitAuto" | "gitAutoState" | "gitAutoCancel" | "gitAutoSwitchBase" => {
+            crate::remote_git_auto::handle(app, out, t, &v)
+        }
         "notesChats" | "notesCreateChat" | "notesRenameChat" | "notesDeleteChat"
         | "notesMessages" | "notesAddMessage" | "notesEditMessage" | "notesDeleteMessage"
         | "notesSearch" | "notesAttachment" => crate::remote_notes::handle(app, out, t, &v),

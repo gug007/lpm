@@ -3,13 +3,18 @@ import SwiftUI
 
 /// The body of a loaded preview, picked by the file's kind.
 struct FilePreviewContent: View {
+    @Environment(AppModel.self) private var model
     let url: URL
+    let project: String
+    /// The file's path on the Mac, which links in a Markdown file resolve against.
+    let path: String
     let kind: FilePreviewKind
     let truncated: Bool
     let line: Int
     // One choice for every Markdown file, remembered, like the desktop's.
     @AppStorage("filePreviewMarkdownSource") private var markdownSource = false
     @State private var text: String?
+    @State private var linkedFile: FilePreviewTarget?
 
     var body: some View {
         switch kind {
@@ -27,6 +32,7 @@ struct FilePreviewContent: View {
                     .padding(.vertical, 8)
                     .background(.bar)
                 }
+                .sheet(item: $linkedFile) { FilePreviewSheet(target: $0).environment(model) }
         case .media:
             MediaPlayerView(url: url)
                 .ignoresSafeArea(edges: .bottom)
@@ -53,9 +59,8 @@ struct FilePreviewContent: View {
             if let text, text.isEmpty {
                 ContentUnavailableView("Empty file", systemImage: "doc")
             } else if let text, markdown && !markdownSource {
-                ScrollView {
-                    MarkdownText(text)
-                        .padding(16)
+                MarkdownWebView(text: text, project: project, path: path) { paths in
+                    linkedFile = FilePreviewTarget(project: project, paths: paths)
                 }
             } else if let text {
                 ReadOnlyCodeView(text: text, ext: url.pathExtension, line: line)

@@ -241,6 +241,7 @@
               "description": "How the action appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
             },
+            "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "type": {
               "type": "string",
               "description": "How the action runs. Omit for a modal one-shot; \"terminal\" opens the command in a terminal tab; \"command\" submits the command into the currently focused terminal; \"background\" runs it hidden with a completion toast."
@@ -345,6 +346,7 @@
               "description": "How the terminal appears in the UI. Defaults to \"header\" when omitted. \"menu\" is still accepted but no longer suggested.",
               "errorMessage": "Invalid \"display\" value. Use \"header\" or \"footer\" (\"button\" → use \"header\")."
             },
+            "primary": { "type": "string", "examples": ["last-used"], "description": "For an action with sub-actions: which sub-action the button's main part shows and runs. \"last-used\" follows your most recent pick; a sub-action key always shows that one. The arrow still opens the full list." },
             "position": {
               "type": "number",
               "description": "Optional sort key. Lower values render first; entries without a position fall back to alphabetical order."

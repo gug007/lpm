@@ -161,6 +161,8 @@ struct DemoWorld {
     }
 
     var git: [String: GitRepo] = [:] // project -> repo
+    var gitAutoRuns: [String: GitAutoRun] = [:] // project -> last Auto Commit / PR run
+    var gitAutoNextId = 1
 
     // MARK: Jobs (automations)
 

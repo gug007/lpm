@@ -49,6 +49,8 @@ final class FileFetch {
     private(set) var total: Int64?
 
     @ObservationIgnored weak var model: AppModel?
+    /// Called once the fetch is ready or has failed, for callers that aren't views.
+    @ObservationIgnored var onDone: ((Phase) -> Void)?
     @ObservationIgnored private(set) var token = UUID().uuidString
     // Readings of a tapped path, most likely first; the first that exists wins.
     @ObservationIgnored private let candidates: [String]
@@ -191,11 +193,13 @@ final class FileFetch {
         handle = nil
         guard let fileURL else { fail("Couldn't read the file."); return }
         phase = .ready(fileURL, kind: kind, truncated: size > (total ?? size))
+        onDone?(phase)
     }
 
     private func fail(_ message: String) {
         close()
         phase = .failed(message)
+        onDone?(phase)
     }
 
     private func request(offset: Int64, length: Int64) {

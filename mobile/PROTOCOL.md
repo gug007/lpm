@@ -325,6 +325,34 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitGenPr", "project": "<name>" }` | `{ "t": "gitGenPr", "project": "<name>", "ok": true, "title": "…", "body": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a PR title and description for the current branch vs the default branch. Async (AI); same AI settings as above |
 | `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…" }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Async (network) |
 
+#### Auto Commit, Auto Commit and Push, Auto Create PR
+
+The desktop's AI shortcuts, run **by the desktop end to end**: a run chains
+several AI generations and outlives a locked phone's socket, so the desktop keeps
+the latest state per project and **broadcasts** every change as a `gitAuto`
+frame to every paired phone (not just the one that asked). A phone that
+reconnects sends `gitAutoState` for any run it still shows as running. One run
+per project: starting while one is running answers with that run instead.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "gitAuto", "project": "<name>", "kind": "commit"\|"commitPush"\|"pr", "nonce": "<phone-chosen id>" }` | `gitAuto` frames (below), the first right away with every step `pending`. `commit` = AI message, then commit every changed file; `commitPush` = the same, then push (rebasing onto new remote commits when origin moved on, as desktop's auto commit & push does); `pr` = AI branch name + branch (only when on the default branch or detached), commit, push, AI title + description, `gh pr create` against the default branch. Refused up front when there's nothing to submit, or when the branch already has an open PR (`url` set to it). Bad project / unknown kind → `{ "t": "gitAuto", "project": "<name>", "ok": false, "error": "…" }`. AI settings as `gitGenMessage` |
+| `{ "t": "gitAutoState", "project": "<name>" }` | One `gitAuto` frame with the project's latest run, or `"run": null` when the desktop holds none (it restarted). Async |
+| `{ "t": "gitAutoCancel", "project": "<name>" }` | No direct reply: the run's next `gitAuto` frame has `canceling: true`, then `phase: "canceled"`. Kills an AI generation in flight; a git step already running (commit, push, `gh`) finishes first, and the run stops before the next step |
+| `{ "t": "gitAutoSwitchBase", "project": "<name>", "base": "<branch>" }` | `{ "t": "gitAutoSwitchBase", "project": "<name>", "ok": true, "base": "<branch>", "pullError"?: "…" }` / `{ "ok": false, "error": "…" }` — after a PR lands: check out `base`, then pull it with the persisted `gitPull` options. A failed pull still counts as switched and says why in `pullError`. Async |
+
+`gitAuto` frame: `{ "t": "gitAuto", "project": "<name>", "ok": true, "run": GitAutoRun|null }`, where
+`GitAutoRun` is `{ runId, nonce?, kind, phase: "running"|"done"|"failed"|"canceled", canceling, steps: [{ id, status, detail? }…], error?, message?, rebased, url?, title?, branch?, base? }`.
+Always the whole state, never a delta; drop a frame whose `runId` is lower than the
+one shown. `nonce` echoes the start that created the run: a phone waiting on its own
+start treats a *finished* run with another nonce as the project's previous run
+(its start never arrived), while a *running* one is the run it re-attached to. Step `id`s in order: `commit` (+ `push`) for the commit kinds, `branch`,
+`commit`, `push`, `pr` for `pr`. `status` ∈ `pending`|`running`|`done`|`failed`|`skipped`;
+`detail` is what a running step is doing, what a done step produced (branch name,
+the commit's first line, `origin/<branch>`, the PR title), or why it was skipped.
+Result fields fill in as their step lands: `message` (commit first line) and
+`rebased` for the commit kinds; `url`, `title`, `branch`, `base` for `pr`.
+
 ### Composer parity (AI actions, transform, service logs, history)
 
 Bring the mobile composer to parity with the desktop composer: the user's AI

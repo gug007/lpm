@@ -120,6 +120,8 @@ final class LpmClient: NSObject {
     // A work-status write settled (error nil on success).
     var onSetWorkStatus: ((_ project: String, _ error: String?) -> Void)?
     var onGitCreateBranch: ((_ project: String, _ error: String?) -> Void)?
+    var onGitAuto: ((_ project: String, _ run: GitAutoRun?, _ error: String?) -> Void)?
+    var onGitAutoSwitchBase: ((_ project: String, _ base: String, _ error: String?, _ pullError: String?) -> Void)?
     // A sidebar folder mutation settled: the updated layout (on success) plus any
     // error to surface. The reply carries the fresh order/groups so no follow-up
     // `sidebar` is needed.
@@ -940,6 +942,14 @@ final class LpmClient: NSObject {
         send(Wire.gitCreateBranch(project: project, name: name))
     }
     func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
+    func gitAuto(project: String, kind: String, nonce: String) {
+        send(Wire.gitAuto(project: project, kind: kind, nonce: nonce))
+    }
+    func gitAutoState(project: String) { send(Wire.gitAutoState(project: project)) }
+    func gitAutoCancel(project: String) { send(Wire.gitAutoCancel(project: project)) }
+    func gitAutoSwitchBase(project: String, base: String) {
+        send(Wire.gitAutoSwitchBase(project: project, base: base))
+    }
     func watchGit(project: String) {
         watchedProjects.insert(project)
         sendLive(Wire.gitWatch(project: project))
@@ -1225,6 +1235,9 @@ final class LpmClient: NSObject {
             case .gitCreateBranch(let proj, let error): self.onGitCreateBranch?(proj, error)
             case .gitDiscardAll(let proj, let error): self.onGitDiscardAll?(proj, error)
             case .gitChanged(let proj): self.onGitChanged?(proj)
+            case .gitAuto(let proj, let run, let error): self.onGitAuto?(proj, run, error)
+            case .gitAutoSwitchBase(let proj, let base, let error, let pullError):
+                self.onGitAutoSwitchBase?(proj, base, error, pullError)
             case .apnsToken(let ok): self.onApnsToken?(ok)
             case .composerActions(let actions): self.onComposerActions?(actions)
             case .transformVariant(let reqId, let idx, let text, let error):
