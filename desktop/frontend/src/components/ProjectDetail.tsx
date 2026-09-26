@@ -751,7 +751,7 @@ export function ProjectDetail({
         <TerminalPane
           active={detailView === "terminal"}
           visible={visible}
-          keysActive={keysActive}
+          keysActive={focused}
           showEmptyState={showEmptyState}
           onNewTerminal={handleNewTerminal}
           onEditConfig={() => switchDetailView("config")}
