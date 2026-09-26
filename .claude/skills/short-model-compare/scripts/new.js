@@ -94,7 +94,7 @@ const narration = [
   { id: "wait", text: "Both are building it *now*." },
   { id: "reveal", text: "Here's what they *built*." },
   // Viewers name the next pair in the comments.
-  { id: "wrap", text: `Which ${giraffe ? "giraffe" : "one"} *wins*? Comment two models to *race*.` },
+  { id: "wrap", text: `Which ${giraffe ? "giraffe" : "one"} *wins*? Comment two models to race *next*.` },
 ];
 
 const clis = new Set([a.cli, b.cli]);
@@ -112,7 +112,7 @@ const lesson = {
   window: WINDOW,
   narration,
   post: {
-    caption: `${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment two models you want to see race.`,
+    caption: `${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
     hashtags: hashtags.slice(0, 5),
   },
 };

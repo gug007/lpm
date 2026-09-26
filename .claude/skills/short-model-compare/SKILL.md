@@ -13,7 +13,7 @@ Races two models on one prompt and cuts it into a TikTok. It writes a lesson for
 2. The prompt typed once into model A's composer, then **Run in duplicates** with 2 runs, the copy's model set to model B in the dialog.
 3. The copy is created and opens as a second column beside run #1; each column pushed in on its CLI's start banner (the model name is on screen).
 4. The build is jump-cut. The column clocks run while the line is spoken and stop on each agent's real finish.
-5. Both `index.html` files open in lpm's own browser, one per column, and the video ends on them with a question that asks viewers to comment two models to race (the caption asks too). That is engagement, not a teaser: no "next video" line.
+5. Both `index.html` files open in lpm's own browser, one per column. Every video ends on them by asking viewers which two models they want compared next, in the comments ("Which giraffe wins? Comment two models to race next."), and the caption asks too. Keep that ending when rewording `lesson.json`. It asks for suggestions; it never promises or teases a particular next video.
 
 ## Setup: duplicates side by side
 
