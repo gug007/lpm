@@ -13,3 +13,5 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-up
 - Claude Code took a wrong turn? Fork the session
 - Closed Claude Code by accident? Undo it
 - Copy Claude Code's last answer in one click
+- Codex CLI: stop the approval prompts
+- Claude Code: turn on Auto Mode

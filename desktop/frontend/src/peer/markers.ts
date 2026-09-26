@@ -5,6 +5,7 @@
 //
 //   name / terminal id : peer-{slug}-{raw}
 //   project root        : /@peer-{slug}{hostAbsolutePath}   (host path starts with /)
+//   home-relative path  : /@peer-{slug}~/{rest}             (the host expands ~)
 //
 // A root stays a valid absolute-looking path (starts with /) so string ops and
 // display don't break. Both forms are Tauri-event-name safe.
@@ -21,7 +22,7 @@ export const PEER_UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
 
 const SLUG = "[0-9a-f]{8}";
 const NAME_RE = new RegExp(`^peer-(${SLUG})-([\\s\\S]*)$`);
-const ROOT_RE = new RegExp(`^/@peer-(${SLUG})(/[\\s\\S]*)$`);
+const ROOT_RE = new RegExp(`^/@peer-(${SLUG})((?:/|~/)[\\s\\S]*)$`);
 
 export interface PeerMarker {
   slug: string;

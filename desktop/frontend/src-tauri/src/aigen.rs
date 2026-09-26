@@ -63,14 +63,14 @@ fn detect(cli: &str) -> Result<(), String> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCommand {
-    pub name: String, // no leading "/", e.g. "review" or "prompts:draftpr"
+    pub name: String, // no leading "/", e.g. "review" or "plugin:command"
     pub description: String,
     pub argument_hint: String, // frontmatter argument-hint, "" when absent
     pub source: String,        // "builtin" | "project" | "user"
 }
 
-// Conservative, high-confidence built-in sets. Both CLIs ship more (and filter
-// by plan/platform at runtime), so we seed only the stable core and lean on the
+// Conservative, high-confidence Claude set. Claude ships more (and filters by
+// plan/platform at runtime), so we seed only the stable core and lean on the
 // disk scan for the long tail.
 const CLAUDE_BUILTINS: &[(&str, &str, &str)] = &[
     (
@@ -150,24 +150,104 @@ const CLAUDE_BUILTINS: &[(&str, &str, &str)] = &[
     ("verify", "Run the app to confirm a change works", ""),
 ];
 
+// Mirrors the popup of Codex 0.157 (codex-rs/tui/src/slash_command.rs), minus
+// the aliases it hides (quit, btw) and the debug-only entries. `fast` is a
+// service-tier command Codex adds for models that offer a Fast tier.
 const CODEX_BUILTINS: &[(&str, &str, &str)] = &[
-    ("init", "Generate an AGENTS.md scaffold", ""),
+    ("agents", "Open the agent command center", ""),
+    ("app", "Continue this session in the Desktop app", ""),
+    (
+        "approve",
+        "Approve one retry of a recent auto-review denial",
+        "",
+    ),
+    ("archive", "Archive this session", ""),
+    ("cd", "Change the working directory", "[path]"),
+    ("clear", "Clear the terminal and start a new chat", "[name]"),
     ("compact", "Summarize the conversation to free context", ""),
-    ("clear", "Clear the screen and start fresh", ""),
-    ("new", "Start a new conversation", ""),
-    ("diff", "Show the git diff", ""),
-    ("mention", "Attach files to the conversation", ""),
-    ("status", "Show session config and token counts", ""),
-    ("model", "Choose the active model", ""),
-    ("review", "Review the working tree", ""),
-    ("resume", "Resume a saved conversation", ""),
-    ("fork", "Fork the conversation", ""),
-    ("plan", "Switch to plan mode", ""),
-    ("mcp", "List configured MCP tools", ""),
+    ("copy", "Copy the last response or part of it", ""),
+    ("daemon", "Manage the local background server", ""),
+    ("delete", "Permanently delete this session", ""),
+    ("diff", "Show the git diff, including untracked files", ""),
+    ("exit", "Exit Codex", ""),
+    ("experimental", "Toggle experimental features", ""),
+    ("export", "Export the conversation as markdown", "[path]"),
+    ("fast", "Toggle Fast mode: quicker replies, more usage", ""),
+    ("feedback", "Send logs to the Codex maintainers", ""),
+    ("fork", "Fork the current chat", "[prompt]"),
+    (
+        "goal",
+        "Set or view the goal for a long-running task",
+        "[objective|clear|edit|pause|resume]",
+    ),
+    ("hooks", "View and manage lifecycle hooks", ""),
+    (
+        "ide",
+        "Include the selection, open files, and other IDE context",
+        "[on|off|status]",
+    ),
+    (
+        "import",
+        "Import setup, this project, and recent chats from Claude Code",
+        "",
+    ),
+    (
+        "init",
+        "Create an AGENTS.md file with instructions for Codex",
+        "",
+    ),
+    ("keymap", "Remap TUI shortcuts", "[debug]"),
+    ("logout", "Log out of Codex", ""),
+    ("mcp", "List configured MCP tools", "[verbose]"),
+    ("memories", "Configure memory use and generation", ""),
+    ("mention", "Mention a file", ""),
+    ("model", "Choose the model and reasoning effort", ""),
+    ("new", "Start a new chat", "[prompt]"),
+    ("permissions", "Choose what Codex is allowed to do", ""),
+    ("pets", "Choose or hide the terminal pet", "[name|off]"),
+    ("plan", "Switch to Plan mode", "[prompt]"),
+    ("plugins", "Browse plugins", ""),
+    ("ps", "List background terminals", ""),
+    ("pwd", "Show the working directory", ""),
+    (
+        "raw",
+        "Toggle raw scrollback for copy-friendly selection",
+        "[on|off]",
+    ),
+    ("recap", "Summarize the conversation now", ""),
+    ("rename", "Rename the current thread", "[name]"),
+    ("resume", "Resume a saved chat", "[session]"),
+    (
+        "review",
+        "Review the current changes and find issues",
+        "[instructions]",
+    ),
+    (
+        "side",
+        "Start a side conversation in a throwaway fork",
+        "[prompt]",
+    ),
     ("skills", "Browse and use skills", ""),
-    ("ide", "Include open editor context", ""),
-    ("usage", "View token usage", ""),
-    ("quit", "Exit the CLI", ""),
+    ("status", "Show session config and token usage", ""),
+    ("statusline", "Choose what the status line shows", ""),
+    ("stop", "Stop all background terminals", ""),
+    ("subagents", "Switch between this session's subagents", ""),
+    ("theme", "Choose a syntax highlighting theme", ""),
+    ("title", "Choose what the terminal title shows", ""),
+    ("tui", "Choose the TUI mode for the next launch", ""),
+    (
+        "usage",
+        "View account usage or use a usage limit reset",
+        "[daily|weekly|cumulative]",
+    ),
+    ("vim", "Toggle Vim mode for the composer", ""),
+    ("voice", "Start or stop voice", "[settings|mute|stop]"),
+    ("warnings", "View retained warnings and diagnostics", ""),
+    (
+        "worktree",
+        "Start or continue a chat in a new worktree",
+        "",
+    ),
 ];
 
 fn builtins(cli: &str) -> Vec<AgentCommand> {
@@ -291,18 +371,6 @@ fn claude_skill_entry(name: &str, contents: &str, source: &str) -> Option<AgentC
     })
 }
 
-// Codex prompt: surfaced as `prompts:<name>` (the canonical invocation form),
-// always user scope.
-fn codex_prompt_entry(name: &str, contents: &str) -> AgentCommand {
-    let (description, argument_hint, _) = parse_frontmatter(contents);
-    AgentCommand {
-        name: format!("prompts:{name}"),
-        description,
-        argument_hint,
-        source: "user".to_string(),
-    }
-}
-
 // Claude `.claude/commands/**/*.md` — command name is the filename stem.
 fn scan_claude_commands(dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
     for path in glob_md(dir, true) {
@@ -333,16 +401,6 @@ fn scan_claude_skills(skills_dir: &std::path::Path, source: &str, out: &mut Vec<
     }
 }
 
-// Codex `${CODEX_HOME:-~/.codex}/prompts/*.md` (top-level only).
-fn scan_codex_prompts(prompts_dir: &std::path::Path, out: &mut Vec<AgentCommand>) {
-    for path in glob_md(prompts_dir, false) {
-        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        out.push(codex_prompt_entry(stem, &read_to_string(&path)));
-    }
-}
-
 // Custom commands discovered on disk, user scope before project scope so a
 // later first-wins dedup keeps the user copy when names clash.
 fn scan_custom(cli: &str, cwd: &str) -> Vec<AgentCommand> {
@@ -358,14 +416,6 @@ fn scan_custom(cli: &str, cwd: &str) -> Vec<AgentCommand> {
                 scan_claude_commands(&root.join(".claude/commands"), "project", &mut project);
                 scan_claude_skills(&root.join(".claude/skills"), "project", &mut project);
             }
-        }
-        "codex" => {
-            let base = std::env::var("CODEX_HOME")
-                .ok()
-                .filter(|s| !s.is_empty())
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|| home.join(".codex"));
-            scan_codex_prompts(&base.join("prompts"), &mut user);
         }
         _ => {}
     }
@@ -441,13 +491,6 @@ if [ -n \"$CWD\" ]; then scan_cmds \"$CWD\" project; scan_skills \"$CWD\" projec
 ",
             cwd = config::quote_remote_path(dir)
         ),
-        "codex" => format!(
-            "{REMOTE_SCAN_PREAMBLE}CH=\"${{CODEX_HOME:-$HOME/.codex}}\"
-if [ -d \"$CH/prompts\" ]; then
-  while IFS= read -r f; do b=\"${{f##*/}}\"; emit codex user \"${{b%.md}}\" \"$f\"; done < <(find \"$CH/prompts\" -maxdepth 1 -type f -name '*.md' 2>/dev/null)
-fi
-"
-        ),
         _ => String::new(),
     }
 }
@@ -511,7 +554,6 @@ fn parse_remote_scan(bytes: &[u8]) -> Vec<AgentCommand> {
                     bucket.push(cmd);
                 }
             }
-            "codex" => user.push(codex_prompt_entry(&name, &contents)),
             _ => {}
         }
     }
@@ -1592,18 +1634,6 @@ mod remote_scan_tests {
     }
 
     #[test]
-    fn codex_prompts_get_prefix_and_user_source() {
-        let cmds = parse_remote_scan(&record(
-            "codex",
-            "user",
-            "draftpr",
-            "---\ndescription: Draft a PR\n---\n",
-        ));
-        assert_eq!(cmds[0].name, "prompts:draftpr");
-        assert_eq!(cmds[0].source, "user");
-    }
-
-    #[test]
     fn truncated_or_malformed_stream_stops_cleanly() {
         // Header promises 999 bytes but the stream is short: no panic, no entry.
         let bad = b"command\x1fuser\x1fx\x1f999\nshort".to_vec();
@@ -1618,8 +1648,8 @@ mod remote_scan_tests {
         assert!(script.contains("CWD=\"$HOME\"'/code/app'"), "{script}");
         assert!(script.contains(".claude/commands"));
         assert!(script.contains("SKILL.md"));
-        // codex/other CLIs produce their own / no script.
-        assert!(remote_scan_script("codex", "/x").contains("CODEX_HOME"));
+        // Only Claude keeps commands on disk; other CLIs need no remote scan.
+        assert!(remote_scan_script("codex", "/x").is_empty());
         assert!(remote_scan_script("gemini", "/x").is_empty());
     }
 }

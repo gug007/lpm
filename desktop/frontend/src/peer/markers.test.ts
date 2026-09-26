@@ -34,6 +34,15 @@ describe("peer markers", () => {
     expect(stripMarker(marked)).toBe("/Users/dev/code/app");
   });
 
+  it("round-trips a home-relative host path, leaving ~ for the host to expand", () => {
+    const marked = prefixRoot(SLUG, "~/.lpm/memory/app/plan.md");
+    expect(marked).toBe("/@peer-a1b2c3d4~/.lpm/memory/app/plan.md");
+    expect(isPeerRoot(marked)).toBe(true);
+    expect(stripMarker(marked)).toBe("~/.lpm/memory/app/plan.md");
+    expect(parsePeerMarker("/@peer-a1b2c3d4~")).toBeNull();
+    expect(parsePeerMarker("/@peer-a1b2c3d4~user/x")).toBeNull();
+  });
+
   it("preserves raw names containing hyphens and dots", () => {
     const raw = "web-app.v2-copy-3";
     expect(stripMarker(prefixName(SLUG, raw))).toBe(raw);

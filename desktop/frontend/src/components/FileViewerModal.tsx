@@ -5,6 +5,7 @@ import { XIcon } from "./icons";
 import { GitDiff, ReadFile, WriteFile } from "../../bridge/commands";
 import { getLang } from "../highlight";
 import { basename, relTo } from "../path";
+import { stripMarker } from "../peer/markers";
 import { useEventListener } from "../hooks/useEventListener";
 import { useContentZoom } from "../hooks/useContentZoom";
 import { ZoomControl } from "./ui/ZoomControl";
@@ -185,7 +186,7 @@ export function FileViewerModal({
   }, [open, absPath, projectRoot, reloadKey, isMedia]);
 
   const hasDiff = diffRows !== null;
-  const headerLabel = projectRoot ? relTo(absPath, projectRoot) : absPath;
+  const headerLabel = stripMarker(projectRoot ? relTo(absPath, projectRoot) : absPath);
   const canEdit = !isMedia && !loading && !error;
   const dirty = editing && editValue !== rawContent;
 
