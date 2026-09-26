@@ -13,7 +13,7 @@ interface TerminalPaneProps {
   // can pause work when off-screen for either reason.
   active: boolean;
   visible: boolean;
-  // The project the user is working in; only it answers shortcuts.
+  // False for a side-by-side column the user isn't working in.
   keysActive: boolean;
   // showEmptyState keeps TerminalView mounted (so terminalRef stays
   // alive for ⌘T) while swapping the empty-state placeholder in front

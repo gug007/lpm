@@ -65,9 +65,9 @@ export function ProjectColumns({
     >
       {mounted.map((project) => {
         const index = columns.indexOf(project.name);
-        const shown = showing && (split ? index >= 0 : selected === project.name);
-        const focused = shown && selected === project.name;
         const inGrid = split && index >= 0;
+        const shown = showing && (split ? index >= 0 : selected === project.name);
+        const focused = !inGrid || selected === project.name;
         return (
           <div
             key={project.name}
