@@ -40,7 +40,7 @@ import {
   pickTerminalLabel,
 } from "../../terminalLabels";
 import { IS_MIRROR_WINDOW } from "../../mirror";
-import { nextId, appendTerminal, foldAgentPrompt } from "./util";
+import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt } from "./util";
 import { type TerminalStartOpts } from "./types";
 
 interface UseTabCreationProps {
@@ -179,17 +179,14 @@ export function useTabCreation({
       // Named configs go through the restore-aware RPC: the Go side owns
       // the session-id rewrite so launch.startCmd is authoritative, and a
       // non-empty resumeCmd is the signal that this terminal opted into
-      // restore and both cmds should be persisted.
+      // restore (see configLaunchCmds for what the tab keeps).
       if (opts?.configName) {
         const launch = await StartTerminalForConfig(
           projectName,
           opts.configName,
         );
         const term = makeTerminal(launch.id, label, {
-          ...(launch.resumeCmd && {
-            startCmd: launch.startCmd,
-            resumeCmd: launch.resumeCmd,
-          }),
+          ...configLaunchCmds(launch),
           actionName: opts.actionName,
           emoji: opts.emoji,
           color: opts.color,

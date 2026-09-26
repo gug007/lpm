@@ -17,7 +17,7 @@ import {
   placeCaretAtSerializedOffset,
 } from "./composerEditor";
 import { MENTION_TRIGGER } from "../mentions";
-import { HINT_TRIGGER, SLASH_TRIGGER } from "../slashCommands";
+import { HINT_TRIGGER, hintCommandAt, SLASH_TRIGGER, slashFragmentAt } from "../slashCommands";
 
 const ZWSP = "​";
 
@@ -232,6 +232,24 @@ describe("HINT_TRIGGER", () => {
     expect(name("/rev  ")).toBeNull();
     expect(name("/rev arg")).toBeNull();
     expect(name("fix / ")).toBeNull();
+  });
+});
+
+describe("slashFragmentAt / hintCommandAt", () => {
+  it("keeps Claude's commands completable anywhere in the prompt", () => {
+    expect(slashFragmentAt("claude", "check this\n  /rev")).toBe("rev");
+    expect(hintCommandAt("claude", "fix the build /rev ")).toBe("rev");
+  });
+
+  it("offers Codex commands only where Codex runs them: the prompt's first character", () => {
+    expect(slashFragmentAt("codex", "/")).toBe("");
+    expect(slashFragmentAt("codex", "/sta")).toBe("sta");
+    expect(hintCommandAt("codex", "/goal ")).toBe("goal");
+    expect(slashFragmentAt("codex", "check this /rev")).toBeNull();
+    expect(slashFragmentAt("codex", "first line\n/rev")).toBeNull();
+    expect(slashFragmentAt("codex", " /rev")).toBeNull();
+    expect(slashFragmentAt("codex", "￼/rev")).toBeNull();
+    expect(hintCommandAt("codex", "fix the build /rev ")).toBeNull();
   });
 });
 

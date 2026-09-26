@@ -101,6 +101,7 @@ import {
   setChipThumbnail,
   setEditorContent,
   splitByImageTokens,
+  textBeforeCaret,
   type ComposerImage,
 } from "./composerEditor";
 import {
@@ -109,7 +110,13 @@ import {
 } from "./composerClipboard";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { useSlashCommands } from "../hooks/useSlashCommands";
-import { detectAICLI, HINT_TRIGGER, SLASH_TRIGGER, type SlashCommand } from "../slashCommands";
+import {
+  detectAICLI,
+  hintCommandAt,
+  SLASH_TRIGGER,
+  slashFragmentAt,
+  type SlashCommand,
+} from "../slashCommands";
 import { MentionMenu } from "./MentionMenu";
 import { captureInteractivePaneLog } from "./InteractivePane";
 import { useMentions } from "../hooks/useMentions";
@@ -1524,21 +1531,21 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   // Re-evaluate the slash menu after every edit. It opens whenever the target
   // terminal runs a known CLI and the caret sits in a "/<frag>" run — at the
-  // start of the prompt or anywhere later in it — and closes the moment that run
-  // ends (an argument, a space) or matches no command.
+  // start of the prompt or, except for Codex, anywhere later in it — and closes
+  // the moment that run ends (an argument, a space) or matches no command.
   const updateSlashMenu = () => {
     const editor = editorRef.current;
     if (!editor || transforming.current || !slashCli) {
       setSlashOpen(false);
       return;
     }
-    const line = lineBeforeCaret(editor);
-    const match = line !== null ? SLASH_TRIGGER.exec(line) : null;
-    if (!match) {
+    const before = textBeforeCaret(editor);
+    const frag = before !== null ? slashFragmentAt(slashCli, before) : null;
+    if (frag === null) {
       setSlashOpen(false);
       return;
     }
-    const items = filterSlash(match[1]);
+    const items = filterSlash(frag);
     if (items.length === 0) {
       setSlashOpen(false);
       return;
@@ -1611,11 +1618,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       setHint(null);
       return;
     }
-    const line = lineBeforeCaret(editor);
-    const match = line !== null ? HINT_TRIGGER.exec(line) : null;
-    const text = match ? argumentHintFor(match[1]) : "";
+    const before = textBeforeCaret(editor);
+    const name = before !== null ? hintCommandAt(slashCli, before) : null;
+    const text = name ? argumentHintFor(name) : "";
     const sel = window.getSelection();
-    if (!match || !text || !caretEdges(editor).atEnd || !sel || sel.rangeCount === 0) {
+    if (!text || !caretEdges(editor).atEnd || !sel || sel.rangeCount === 0) {
       setHint(null);
       return;
     }

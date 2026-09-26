@@ -35,6 +35,21 @@ export function foldAgentPrompt(
   return { cmd, prompt };
 }
 
+// The launch identity a config terminal's tab keeps. A resumable launch (Claude)
+// keeps both commands for restore. An agent CLI without a resume command yet
+// (Codex learns its session id later) still keeps its startCmd: it is how the
+// composer and remote clients know which agent runs in the tab, and what the
+// resume command keeps its env prefix from. Other commands keep nothing, so a
+// restart does not re-run them.
+export function configLaunchCmds(launch: {
+  startCmd: string;
+  resumeCmd: string;
+}): { startCmd?: string; resumeCmd?: string } {
+  if (launch.resumeCmd) return { startCmd: launch.startCmd, resumeCmd: launch.resumeCmd };
+  if (detectAICLI(launch.startCmd)) return { startCmd: launch.startCmd };
+  return {};
+}
+
 export function resolveActiveAfterClose(prevActive: number, removed: number, remaining: number): number {
   if (remaining === 0) return 0;
   if (prevActive === removed) return Math.min(removed, remaining - 1);

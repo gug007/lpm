@@ -858,6 +858,20 @@ body {
   background-color: rgba(127, 127, 127, 0.35);
 }
 
+/* WebKit repaints a custom scrollbar only when its scroller's own style
+   changes, and a rule that matches just the thumb pseudo-element is not such a
+   change — without this the thumb never appears. Non-inheriting, so starting
+   to scroll doesn't restyle everything inside the scroller. */
+@property --lpm-scrolling {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+
+[data-scrolling] {
+  --lpm-scrolling: 1;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background-color: rgba(127, 127, 127, 0.5);
 }

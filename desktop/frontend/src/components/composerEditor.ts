@@ -832,8 +832,14 @@ function serializedPrefixToCaret(
 // caret inside the field. Each chip counts as one LINE_CHIP_PLACEHOLDER; the line
 // is what follows the last "\n".
 export function lineBeforeCaret(root: HTMLElement): string | null {
-  const out = serializedPrefixToCaret(root, () => LINE_CHIP_PLACEHOLDER);
+  const out = textBeforeCaret(root);
   return out === null ? null : out.slice(out.lastIndexOf("\n") + 1);
+}
+
+// Everything from the field start up to a collapsed caret, chips as in
+// lineBeforeCaret — for triggers that need to know where the prompt begins.
+export function textBeforeCaret(root: HTMLElement): string | null {
+  return serializedPrefixToCaret(root, () => LINE_CHIP_PLACEHOLDER);
 }
 
 // The caret's position as an offset into the value serializeEditor would produce

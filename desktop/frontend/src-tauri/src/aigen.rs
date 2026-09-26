@@ -243,11 +243,7 @@ const CODEX_BUILTINS: &[(&str, &str, &str)] = &[
     ("vim", "Toggle Vim mode for the composer", ""),
     ("voice", "Start or stop voice", "[settings|mute|stop]"),
     ("warnings", "View retained warnings and diagnostics", ""),
-    (
-        "worktree",
-        "Start or continue a chat in a new worktree",
-        "",
-    ),
+    ("worktree", "Start or continue a chat in a new worktree", ""),
 ];
 
 fn builtins(cli: &str) -> Vec<AgentCommand> {
@@ -328,8 +324,8 @@ fn parse_frontmatter(content: &str) -> (String, String, bool) {
     (description, argument_hint, user_invocable)
 }
 
-fn glob_md(dir: &std::path::Path, recursive: bool) -> Vec<std::path::PathBuf> {
-    let pattern = dir.join(if recursive { "**/*.md" } else { "*.md" });
+fn glob_md(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let pattern = dir.join("**/*.md");
     match glob::glob(&pattern.to_string_lossy()) {
         Ok(paths) => paths.filter_map(|p| p.ok()).collect(),
         Err(_) => Vec::new(),
@@ -373,7 +369,7 @@ fn claude_skill_entry(name: &str, contents: &str, source: &str) -> Option<AgentC
 
 // Claude `.claude/commands/**/*.md` — command name is the filename stem.
 fn scan_claude_commands(dir: &std::path::Path, source: &str, out: &mut Vec<AgentCommand>) {
-    for path in glob_md(dir, true) {
+    for path in glob_md(dir) {
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
@@ -407,17 +403,14 @@ fn scan_custom(cli: &str, cwd: &str) -> Vec<AgentCommand> {
     let home = dirs::home_dir().unwrap_or_default();
     let mut user: Vec<AgentCommand> = Vec::new();
     let mut project: Vec<AgentCommand> = Vec::new();
-    match cli {
-        "claude" => {
-            scan_claude_commands(&home.join(".claude/commands"), "user", &mut user);
-            scan_claude_skills(&home.join(".claude/skills"), "user", &mut user);
-            if !cwd.trim().is_empty() {
-                let root = std::path::Path::new(cwd);
-                scan_claude_commands(&root.join(".claude/commands"), "project", &mut project);
-                scan_claude_skills(&root.join(".claude/skills"), "project", &mut project);
-            }
+    if cli == "claude" {
+        scan_claude_commands(&home.join(".claude/commands"), "user", &mut user);
+        scan_claude_skills(&home.join(".claude/skills"), "user", &mut user);
+        if !cwd.trim().is_empty() {
+            let root = std::path::Path::new(cwd);
+            scan_claude_commands(&root.join(".claude/commands"), "project", &mut project);
+            scan_claude_skills(&root.join(".claude/skills"), "project", &mut project);
         }
-        _ => {}
     }
     user.extend(project);
     user
