@@ -122,6 +122,9 @@ mod tests {
     use crate::gitworkstate::LPM_IDENTITY;
     use std::path::Path;
 
+    const LPM_IDENTITY_CONFIG: [(&str, &str); 2] =
+        [("user.name", "lpm"), ("user.email", "lpm@localhost")];
+
     fn commit(cwd: &str, file: &str, body: &str) {
         std::fs::write(Path::new(cwd).join(file), body).unwrap();
         git_out(cwd, &["add", "-A"]).unwrap();
@@ -173,6 +176,24 @@ mod tests {
         commit(&mine, "mine.txt", "local\n");
         let st = git_origin_status(mine, true);
         assert_eq!((st.ahead, st.behind), (1, 1));
+    }
+
+    // The sidebar's Sync on a branch that is both ahead and behind, with the
+    // default "Pull (ff if possible)" strategy and no pull.rebase in any config.
+    #[test]
+    fn the_default_pull_merges_a_branch_that_is_also_ahead() {
+        let (_d, mine, theirs) = setup();
+        for (key, value) in LPM_IDENTITY_CONFIG {
+            git_out(&mine, &["config", key, value]).unwrap();
+        }
+        git_out(&mine, &["config", "--unset-all", "pull.rebase"]).ok();
+        push_news(&theirs, &["b.txt"]);
+        commit(&mine, "mine.txt", "local\n");
+        git_origin_status(mine.clone(), true);
+
+        crate::git::pull_branch(mine.clone(), "ff".into(), vec![]).unwrap();
+        let st = git_origin_status(mine, false);
+        assert_eq!((st.ahead, st.behind), (2, 0));
     }
 
     #[test]

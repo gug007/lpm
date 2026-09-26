@@ -160,7 +160,9 @@ pub(crate) fn parse_ahead_behind(tail: &str) -> (i64, i64) {
 fn pull_args(strategy: &str) -> Vec<&'static str> {
     match strategy {
         "rebase" => vec!["pull", "--rebase"],
-        "ff" => vec!["pull"],
+        // Spelled out: a bare `git pull` on a branch that is also ahead refuses to
+        // run unless the user configured pull.rebase.
+        "ff" => vec!["pull", "--no-rebase"],
         _ => vec!["pull", "--ff-only"],
     }
 }
