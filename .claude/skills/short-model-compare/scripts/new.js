@@ -12,7 +12,7 @@ const SKILL = path.resolve(__dirname, "..");
 const MAKER = path.resolve(SKILL, "..", "tiktok-video-lesson");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 const DEFAULT_PROMPT =
-  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top in index.html at the project root. One file, no libraries or images. Fill the window, no scrolling. Animate forever. Don't open it. No questions, just write it.";
+  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a tall, narrow panel (about 420x740) and the window can be any size: scale the scene so the whole giraffe and plane always fit inside it, centered, never cropped; the sky can fill the rest. No scrolling. Animate forever. Don't open it. No questions, just write it.";
 const WINDOW = { w: 900, h: 1000 };
 
 const args = process.argv.slice(2);
@@ -38,6 +38,17 @@ if (a.dir === b.dir) {
   console.error(`both sides are ${a.label}: pick two different models or efforts`);
   process.exit(1);
 }
+// Model B runs in the copy that Run in duplicates makes, pinned by the dialog's
+// per-run picker. That picker offers the CLI run #1 launches, and each Claude
+// family only by its bare name (its newest model).
+if (a.cli !== b.cli) {
+  console.error(`${a.label} and ${b.label} use different CLIs; the copy's model picker only covers ${a.cli}`);
+  process.exit(1);
+}
+if (!b.pickerModel) {
+  console.error(`the copy's model picker can't pick ${b.name} (it offers each family's newest); swap the sides or pick the newest`);
+  process.exit(1);
+}
 
 const prompt = opt("--prompt") || DEFAULT_PROMPT;
 const giraffe = prompt === DEFAULT_PROMPT;
@@ -54,30 +65,36 @@ if (fs.existsSync(dir) && !args.includes("--force")) {
 const sameModel = a.name === b.name;
 const effortWord = (m) => m.spokenEffort || "default";
 const upper = (t) => t.charAt(0).toUpperCase() + t.slice(1);
-const side = (m, where) => `*${m.name}*${m.effort ? ` at ${m.spokenEffort} effort` : ""} on the ${where}.`;
 const emoji = giraffe ? " 🦒" : "";
+// A hook over 2.5 s loses the scroll: name families when they differ ("Opus or
+// Fable?"), full names only when they don't.
+const family = (m) => m.name.split(" ")[0];
+const hookNames = family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
+const bEffort = b.effort && b.effort !== a.effort ? ` at ${b.spokenEffort}` : "";
 
 const narration = [
   {
     id: "hook",
-    text: sameModel ? `${upper(effortWord(a))} or *${effortWord(b)}* effort?` : `${a.name} or *${b.name}*?`,
+    text: sameModel ? `${upper(effortWord(a))} or *${effortWord(b)}* effort?` : `${hookNames[0]} or *${hookNames[1]}*?`,
     headline: `${a.headline} vs ${b.headline}${emoji}`,
   },
-  { id: "left", text: side(a, "left"), label: a.label },
-  { id: "right", text: side(b, "right"), label: b.label },
+  { id: "left", text: `*${a.name}*${a.effort ? ` at ${a.spokenEffort} effort` : ""} on the left.`, label: a.label },
   {
     id: "prompt",
     text: giraffe
-      ? "Same prompt for both. A *giraffe* flying a plane."
+      ? "One prompt. A *giraffe* flying a plane."
       : subject
-        ? `Same prompt for both. *${upper(subject)}*.`
-        : "Same prompt for *both*.",
-    label: "Same prompt",
+        ? `One prompt. *${upper(subject)}*.`
+        : "One *prompt* for both.",
+    label: "One prompt",
   },
-  { id: "go", text: "Send both. *Go*." },
+  { id: "dupes", text: "Run it in *duplicates*.", label: "Run in duplicates" },
+  { id: "pick", text: `The copy gets *${b.name}*${bEffort}.`, label: b.label },
+  { id: "go", text: "Side by side. *Go*." },
   { id: "wait", text: "Both are building it *now*." },
   { id: "reveal", text: "Here's what they *built*." },
-  { id: "wrap", text: giraffe ? "Which giraffe flies *better*?" : "Which one *wins*?" },
+  // Viewers name the next pair in the comments.
+  { id: "wrap", text: `Which ${giraffe ? "giraffe" : "one"} *wins*? Comment two models to *race*.` },
 ];
 
 const clis = new Set([a.cli, b.cli]);
@@ -95,7 +112,7 @@ const lesson = {
   window: WINDOW,
   narration,
   post: {
-    caption: `${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe flies better?" : "Which one wins?"}`,
+    caption: `${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment two models you want to see race.`,
     hashtags: hashtags.slice(0, 5),
   },
 };
@@ -104,7 +121,7 @@ const compare = {
   b,
   prompt,
   project: "arena",
-  cues: { left: a.name, right: b.name, prompt: "Same", reveal: "built" },
+  cues: { left: a.name, prompt: "One", dupes: "duplicates", pick: b.name, go: "Go", reveal: "built" },
 };
 
 fs.mkdirSync(dir, { recursive: true });

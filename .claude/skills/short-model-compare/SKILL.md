@@ -13,7 +13,7 @@ Races two models on one prompt and cuts it into a TikTok. It writes a lesson for
 2. The prompt typed once into model A's composer, then **Run in duplicates** with 2 runs, the copy's model set to model B in the dialog.
 3. The copy is created and opens as a second column beside run #1; each column pushed in on its CLI's start banner (the model name is on screen).
 4. The build is jump-cut. The column clocks run while the line is spoken and stop on each agent's real finish.
-5. Both `index.html` files open in lpm's own browser, one per column, and the video ends on them.
+5. Both `index.html` files open in lpm's own browser, one per column, and the video ends on them with a question that asks viewers to comment two models to race (the caption asks too). That is engagement, not a teaser: no "next video" line.
 
 ## Setup: duplicates side by side
 
@@ -22,9 +22,7 @@ The race uses lpm's own **Run in duplicates** with **Open side by side**, not a 
 - One project with a single header button that launches model A with its session-only flags (the launch commands below). Its terminal is run #1.
 - The prompt goes into run #1's composer, then the send button's caret → **Run in duplicates** → 2 runs. In the dialog, the copy's model picker (Model / Level, next to its name) is set to model B, and **Open side by side** stays on.
 - lpm clones the project into a copy (its own folder, so each agent writes its own `index.html`), starts the copy's agent pinned to model B, sends it the same prompt, and shows run #1 and the copy as two columns. Run #1 keeps the keyboard.
-- The model picker only covers the CLI that run #1 launches. For Claude vs Codex, use the copy's own run override (the menu beside the copy) with the other CLI's launch command instead.
-
-`scripts/beats.js` and `scripts/new.js` still build the older `arena` project (one header button per model, split pane). Port them to this flow before the next take; the traps below marked *(arena)* go away with it.
+- The model picker only covers the CLI that run #1 launches, and it offers each Claude family by its bare name, which Claude Code resolves to that family's newest model. So `new.js` refuses Claude vs Codex (that would need the copy's own run override, not scripted yet) and a Claude model B that isn't its family's newest (`opus 5` while Opus 5.5 exists): put that one on the left instead, as run #1.
 
 ## Models
 
@@ -76,7 +74,7 @@ Finish the reply with each model's time from `result.json`, then the rendered MP
 - A model name the transcript mishears fails the voice's dropped-words check. Reword that line in `lesson.json`, or add the heard spelling to `HEARD_AS` in `video-lesson/scripts/words.js`, then run again with `--respeak`.
 - Two sides may not be identical: `new.js` refuses when model and effort both match.
 - A new Codex model can open with a one-time intro screen, and that screen takes the first Enter. If the dry run shows one, dismiss it in the `hook` beat before the prompt is typed.
-- *(arena)* Splitting a pane empties its browser. Both panes are split in `hook`, and the browsers only open after the race.
 - The project gets its own `global.yml` with no actions, which keeps lpm's default Claude and Codex buttons out of the header, so only the model A button shows.
 - lpm refuses a project with no service, so the project has a `preview` service that is never started.
-- *(arena)* The header buttons are found by label. An exact label match wins, which keeps `Opus 5` off the `Opus 5.5` button.
+- The copy inherits the project's header button, so the button is named after the CLI ("Claude"), not model A; otherwise the model B column would show a model A button. The banners and colour bars name the models.
+- The copy is a clone of run #1's folder, made a second or two after run #1 gets the prompt. A model fast enough to write `index.html` in that window would hand the copy its page; the `go` beat logs a warning if the copy starts with one.

@@ -1,11 +1,13 @@
-// Two models build the same animated page side by side: one lpm project with
-// a header button per model, each launching its CLI in its own folder, a
-// split pane, the same prompt in both composers, a race to index.html, then
-// both pages in lpm's own browser. Each pane header carries a colour badge
-// with the model and its time. `cue` = the spoken word an action lands on.
+// Two models build the same animated page side by side, through lpm's own
+// Run in duplicates: model A launches from the project's one header button
+// (run #1), the prompt goes into its composer, Run in duplicates makes a copy
+// whose model the dialog's per-run picker sets to model B, and "Open side by
+// side" shows run #1 and the copy as two columns. A race to index.html, then
+// both pages in lpm's own browser. Each column's pane header carries a colour
+// badge with the model and its time. `cue` = the spoken word an action lands on.
 //
 // The hook line's beat is never seen (the video opens on the payoff), so it
-// does the setup: open the project, launch both agents, split.
+// does the setup: open the project, launch model A.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -19,16 +21,21 @@ const BADGE = [
 ];
 
 const COLLAPSE = 'button[title^="Collapse sidebar"]';
-const SPLIT_RIGHT = 'button[aria-label="Split right"]';
-const SPLIT_DOWN = 'button[aria-label="Split down"]';
 const OPEN_BROWSER = 'button:has-text("Open browser")';
-const ACT = (i) => `[data-lesson="act-${i}"]`;
+const ACT = '[data-lesson="act-0"]';
 const TERM = (i) => `[data-lesson="term-${i}"]`;
 const COMPOSER = (i) => `[data-lesson="composer-${i}"]`;
 const INPUT = (i) => `${COMPOSER(i)} >> [role="textbox"]`;
-const SEND = (i) => `${COMPOSER(i)} >> button[aria-label="Send"]`;
+const SEND_MENU = `${COMPOSER(0)} >> button[aria-label="More send options"]`;
+const RUN_IN_DUPLICATES = 'button:has-text("Run in duplicates")';
+const MODEL_SELECT = 'button[title="Model and level this run starts with"]';
+const PICK = (i) => `[data-lesson="pick-${i}"]`;
 const HEAD = (i) => `[data-lesson="head-${i}"]`;
 const ADDR = (i) => `[data-lesson="addr-${i}"]`;
+const COLUMN = '[data-project-column]';
+// The copy inherits the project's header button, so it names the CLI rather
+// than model A; the banners and colour bars name the models.
+const BUTTON = { claude: "Claude", codex: "Codex" };
 
 const clock = (ms) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -41,9 +48,10 @@ function git(root, ...args) {
 
 const yamlString = (v) => JSON.stringify(v);
 
-// Codex's rollout names its session folder in the first line; an exact match
-// keeps "…/opus-5" from also matching "…/opus-5.5".
-function codexDone(root, since) {
+// Codex's rollouts for this exact folder (its first line names the cwd; an
+// exact match keeps "…/arena" from also matching "…/arena-ab12cd"), newest
+// first.
+function codexRollouts(root, since) {
   const base = path.join(os.homedir(), ".codex", "sessions");
   const needle = `"cwd":${JSON.stringify(root)}`;
   const days = new Set();
@@ -52,6 +60,7 @@ function codexDone(root, since) {
     days.add(path.join(base, String(d.getFullYear()), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")));
     days.add(path.join(base, String(d.getUTCFullYear()), String(d.getUTCMonth() + 1).padStart(2, "0"), String(d.getUTCDate()).padStart(2, "0")));
   }
+  const out = [];
   for (const dir of days) {
     if (!fs.existsSync(dir)) continue;
     for (const name of fs.readdirSync(dir)) {
@@ -59,12 +68,39 @@ function codexDone(root, since) {
       const file = path.join(dir, name);
       if (fs.statSync(file).mtimeMs < since - 1000) continue;
       const text = fs.readFileSync(file, "utf8");
-      if (!text.slice(0, text.indexOf("\n")).includes(needle)) continue;
-      const tail = text.slice(text.lastIndexOf('"type":"user_message"') + 1);
-      if (tail.includes('"type":"task_complete"')) return true;
+      if (text.slice(0, text.indexOf("\n")).includes(needle)) out.push(text);
     }
   }
-  return false;
+  return out;
+}
+
+function codexDone(root, since) {
+  return codexRollouts(root, since).some((text) =>
+    text.slice(text.lastIndexOf('"type":"user_message"') + 1).includes('"type":"task_complete"'),
+  );
+}
+
+const claudeDir = (root) => path.join(os.homedir(), ".claude", "projects", root.replace(/[^a-zA-Z0-9]/g, "-"));
+
+// When the agent in `root` took the prompt, read from its own transcript, so
+// each side is timed from its own start: the copy starts later than run #1
+// (the clone, then its agent's boot).
+function promptAt(cli, root, since) {
+  const lines =
+    cli === "claude"
+      ? (fs.existsSync(claudeDir(root)) ? fs.readdirSync(claudeDir(root)) : [])
+          .filter((n) => n.endsWith(".jsonl"))
+          .map((n) => path.join(claudeDir(root), n))
+          .filter((f) => fs.statSync(f).mtimeMs >= since - 1000)
+          .flatMap((f) => fs.readFileSync(f, "utf8").split("\n"))
+      : codexRollouts(root, since).flatMap((t) => t.split("\n"));
+  const needle = cli === "claude" ? '"type":"user"' : '"type":"user_message"';
+  for (const line of lines) {
+    if (!line.includes(needle)) continue;
+    const at = Date.parse(/"timestamp":"([^"]+)"/.exec(line)?.[1] ?? "");
+    if (at >= since - 1000) return at;
+  }
+  return null;
 }
 
 // Tags the visible matches of `css` left to right (then top to bottom) as
@@ -83,22 +119,33 @@ const tagLeftToRight = (s, css, name) =>
     name,
   );
 
-// The header action labelled `label`, tagged act-<i>. An exact match wins, so
-// "Opus 5" never lands on "Opus 5.5".
-const tagAction = (s, label, i) =>
-  s.control.evaluate(
-    (text, n) => {
-      const clean = (el) => el.textContent.replace(/[✻◆]/g, "").replace(/\s+/g, " ").trim();
-      const shown = [...document.querySelectorAll('[data-actions-zone="header"] button')].filter((b) => b.getBoundingClientRect().width > 0);
-      const btn =
-        shown.find((b) => clean(b) === text) ||
-        shown.filter((b) => clean(b).includes(text)).sort((a, b) => clean(a).length - clean(b).length)[0];
-      if (btn) btn.dataset.lesson = `act-${n}`;
-      return !!btn;
-    },
-    label,
-    i,
-  );
+// The header button labelled `label`, tagged act-0.
+const tagAction = (s, label) =>
+  s.control.evaluate((text) => {
+    const clean = (el) => el.textContent.replace(/[✻◆]/g, "").replace(/\s+/g, " ").trim();
+    const btn = [...document.querySelectorAll('[data-actions-zone="header"] button')].find(
+      (b) => b.getBoundingClientRect().width > 0 && clean(b) === text,
+    );
+    if (btn) btn.dataset.lesson = "act-0";
+    return !!btn;
+  }, label);
+
+// The rows of the open model/level panel whose text is `labels[i]`, tagged
+// pick-0, pick-1…
+const tagPicks = (s, labels) =>
+  s.control.evaluate((want) => {
+    const panel = [...document.querySelectorAll("div.z-\\[70\\]")].filter((p) => p.getBoundingClientRect().width > 0).pop();
+    if (!panel) return 0;
+    let n = 0;
+    want.forEach((text, i) => {
+      const row = [...panel.querySelectorAll("button")].find((b) => b.textContent.trim() === text);
+      if (row) {
+        row.dataset.lesson = `pick-${i}`;
+        n++;
+      }
+    });
+    return n;
+  }, labels);
 
 // Pane headers left to right as head-0…, and each pane's browser address bar,
 // once it has one, as addr-0….
@@ -160,10 +207,12 @@ const badges = (s, items) =>
 module.exports = function compareBeats({ kit, config, dir }) {
   const sides = [config.a, config.b];
   const project = config.project || "arena";
+  const timeoutMs = config.timeoutMin ? config.timeoutMin * 60 * 1000 : BUILD_TIMEOUT_MS;
   const sentAt = [0, 0];
   const finish = [null, null];
-  let projectRoot;
+  let projectsDir;
   let roots = [];
+  let clickedRun = 0;
 
   const badgeItems = () =>
     sides.map((m, i) => ({
@@ -179,30 +228,24 @@ module.exports = function compareBeats({ kit, config, dir }) {
               : "",
     }));
 
-  const built = (i) =>
-    fs.existsSync(path.join(roots[i], "index.html")) &&
-    (sides[i].cli === "claude" ? kit.claudeDone(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i]));
+  const done = (i) =>
+    sides[i].cli === "claude" ? kit.claudeDone(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i]);
+  const built = (i) => Boolean(roots[i]) && sentAt[i] > 0 && fs.existsSync(path.join(roots[i], "index.html")) && done(i);
 
-  async function launch(s, i) {
-    const before = await kit.count(s, kit.TABS);
-    const found = Date.now() + 8000;
-    while (!(await tagAction(s, sides[i].label, i))) {
-      if (Date.now() > found) throw new Error(`no header button "${sides[i].label}"`);
-      await s.hold(200);
+  // The copy's folder: Run in duplicates clones the project next to it as
+  // `<project>-<id>`.
+  const copyRoot = () =>
+    fs
+      .readdirSync(projectsDir)
+      .filter((n) => n.startsWith(`${project}-`))
+      .map((n) => path.join(projectsDir, n))[0] ?? null;
+
+  const noteStarts = () => {
+    roots[1] = roots[1] || copyRoot();
+    for (let i = 0; i < 2; i++) {
+      if (!sentAt[i] && roots[i]) sentAt[i] = promptAt(sides[i].cli, roots[i], clickedRun) ?? 0;
     }
-    for (let attempt = 0; attempt < 3; attempt++) {
-      await tagAction(s, sides[i].label, i);
-      await kit.focusWindow(s);
-      await s.click(ACT(i), { ms: 300 });
-      const end = Date.now() + 3000;
-      while (Date.now() < end) {
-        if ((await kit.count(s, kit.TABS)) > before) return Date.now();
-        await s.hold(150);
-      }
-      s.log(`${sides[i].label}: click lost, pressing again`);
-    }
-    throw new Error(`${sides[i].label} never opened a tab`);
-  }
+  };
 
   async function tagAll(s) {
     await tagLeftToRight(s, "[data-composer-box]", "composer");
@@ -211,9 +254,10 @@ module.exports = function compareBeats({ kit, config, dir }) {
   }
 
   async function race(s) {
-    const end = Date.now() + (config.timeoutMin ? config.timeoutMin * 60 * 1000 : BUILD_TIMEOUT_MS);
+    const end = Date.now() + timeoutMs;
     let shown = "";
     while (Date.now() < end && finish.some((f) => f == null)) {
+      noteStarts();
       for (let i = 0; i < 2; i++) if (finish[i] == null && built(i)) finish[i] = Date.now() - sentAt[i];
       const items = badgeItems();
       const key = items.map((b) => b.time).join("|");
@@ -231,16 +275,29 @@ module.exports = function compareBeats({ kit, config, dir }) {
   }
 
   async function openPage(s, i) {
-    const file = path.join(roots[i], "index.html");
-    await tagPanes(s);
+    const file = roots[i] && path.join(roots[i], "index.html");
     await kit.focusWindow(s);
-    await kit.clickUntil(s, `${HEAD(i)} >> button[aria-label="More options"]`, () => kit.isVisible(s, OPEN_BROWSER), { ms: 250 });
-    await s.click(OPEN_BROWSER, { at: [0.3, 0.5], ms: 250 });
-    await s.hold(600);
-    await tagPanes(s);
-    await s.waitFor(ADDR(i), 5000);
+    // Work in the column first: the click that moves focus to it re-renders
+    // it, and a menu click landing mid re-render is lost.
+    await tagLeftToRight(s, COLUMN, "col");
+    const col = `[data-lesson="col-${i}"]`;
+    const passive = await s.control.evaluate((q) => document.querySelector(q)?.dataset.projectColumn === "passive", col);
+    if (passive) {
+      await s.click(col, { at: [0.5, 0.6], ms: 250 });
+      await s.hold(500);
+    }
+    const menu = `${HEAD(i)} >> button[aria-label="More options"]`;
+    const end = Date.now() + 20000;
+    while (!(await kit.isVisible(s, ADDR(i)))) {
+      if (Date.now() > end) throw new Error(`no browser opened in column ${i}`);
+      await tagPanes(s);
+      if (await kit.isVisible(s, OPEN_BROWSER)) await s.click(OPEN_BROWSER, { at: [0.3, 0.5], ms: 250 });
+      else await s.click(menu, { ms: 250 });
+      await s.hold(900);
+      await tagPanes(s);
+    }
     await s.click(ADDR(i), { at: [0.5, 0.5], ms: 250 });
-    await s.type(fs.existsSync(file) ? `file://${file}` : `file://${roots[i]}`);
+    await s.type(file && fs.existsSync(file) ? `file://${file}` : `file://${roots[i] || projectsDir}`);
     await s.keys("return");
     await s.hold(600);
   }
@@ -248,36 +305,31 @@ module.exports = function compareBeats({ kit, config, dir }) {
   return {
     setup: async ({ lpmDir, workspace, settings }) => {
       kit.neutralShell(lpmDir, workspace);
-      projectRoot = path.join(workspace, "Projects", project);
-      roots = sides.map((m) => path.join(projectRoot, m.dir));
-      for (const root of roots) {
-        fs.mkdirSync(root, { recursive: true });
-        git(root, "init", "-q", "-b", "main");
-        git(root, "commit", "-q", "--allow-empty", "-m", "Initial commit");
-      }
-      const actions = sides
-        .map((m, i) =>
-          [
-            `  model-${i === 0 ? "a" : "b"}:`,
-            `    label: ${yamlString(m.label)}`,
-            `    emoji: ${yamlString(m.emoji)}`,
-            `    cmd: ${yamlString(m.cmd)}`,
-            `    cwd: ${yamlString(m.dir)}`,
-            `    type: terminal`,
-            `    position: ${i + 1}`,
-          ].join("\n"),
-        )
-        .join("\n");
+      projectsDir = path.join(workspace, "Projects");
+      const root = path.join(projectsDir, project);
+      roots = [root, null];
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, "README.md"), `# ${project}\n`);
+      git(root, "init", "-q", "-b", "main");
+      git(root, "add", "-A");
+      git(root, "commit", "-q", "-m", "Initial commit");
+      const a = sides[0];
       const projects = path.join(lpmDir, "projects");
       fs.mkdirSync(projects, { recursive: true });
       fs.writeFileSync(
         path.join(projects, `${project}.yml`),
-        `name: ${project}\nroot: ${projectRoot}\n\nservices:\n  preview:\n    cmd: python3 -m http.server 4173\n    port: 4173\n\nactions:\n${actions}\n`,
+        `name: ${project}\nroot: ${root}\n\nservices:\n  preview:\n    cmd: python3 -m http.server 4173\n    port: 4173\n\nactions:\n  model-a:\n    label: ${yamlString(BUTTON[a.cli])}\n    emoji: ${yamlString(a.emoji)}\n    cmd: ${yamlString(a.cmd)}\n    type: terminal\n    position: 1\n`,
       );
       // A global.yml already there keeps the default Claude and Codex buttons
-      // out of the header, so it holds only the two model buttons.
+      // out of the header, so it holds only model A's button.
       fs.writeFileSync(path.join(lpmDir, "global.yml"), "actions: {}\n");
-      settings({ defaultProjectDirectory: workspace, projectOrder: [project] });
+      // The copy has no remote to pull from.
+      settings({
+        defaultProjectDirectory: workspace,
+        projectOrder: [project],
+        runInDuplicatesSideBySide: true,
+        duplicatePullLatest: false,
+      });
     },
 
     hook: async (s) => {
@@ -286,51 +338,79 @@ module.exports = function compareBeats({ kit, config, dir }) {
       await s.hold(800);
       await kit.clickUntil(s, COLLAPSE, async () => !(await kit.isVisible(s, COLLAPSE)), { ms: 250 });
       await s.hold(400);
-      await launch(s, 0);
-      await s.hold(1500);
-      await kit.focusWindow(s);
-      await kit.clickUntil(s, SPLIT_RIGHT, async () => (await kit.count(s, SPLIT_DOWN)) >= 2, { ms: 300 });
-      await s.hold(500);
-      const opened = await launch(s, 1);
-      const rest = opened + AGENT_STARTUP_MS - Date.now();
-      if (rest > 0) await s.hold(rest);
-      s.log(`panes: ${await tagAll(s)}`);
-      await badges(s, badgeItems());
+      const found = Date.now() + 8000;
+      const button = BUTTON[sides[0].cli];
+      while (!(await tagAction(s, button))) {
+        if (Date.now() > found) throw new Error(`no header button "${button}"`);
+        await s.hold(200);
+      }
+      const before = await kit.count(s, kit.TABS);
+      for (let attempt = 0; attempt < 3 && (await kit.count(s, kit.TABS)) === before; attempt++) {
+        await tagAction(s, button);
+        await kit.focusWindow(s);
+        await s.click(ACT, { ms: 300 });
+        await s.hold(3000);
+      }
+      if ((await kit.count(s, kit.TABS)) === before) throw new Error(`${button} never opened a tab`);
+      await s.hold(AGENT_STARTUP_MS);
+      await tagAll(s);
       kit.park(s);
     },
     left: async (s) => {
       await tagAll(s);
-      await badges(s, badgeItems());
       await kit.focusLeft(s, TERM(0), { scale: 1.6, at: [0.3, 0.1], ms: 450, cue: config.cues.left });
     },
-    right: async (s) => {
-      await s.focus(TERM(1), { scale: 1.6, at: [0.3, 0.1], ms: 450, cue: config.cues.right });
-    },
     prompt: async (s) => {
-      await tagAll(s);
       await kit.focusLeft(s, INPUT(0), { scale: 1.8, at: [0.4, 0.5], ms: 450, cue: config.cues.prompt });
       await kit.focusWindow(s);
       await s.click(INPUT(0), { at: [0.2, 0.4], ms: 350 });
-      await s.skip(
-        async () => {
-          await s.type(config.prompt);
-          await kit.focusWindow(s);
-          await s.click(INPUT(1), { at: [0.2, 0.4], ms: 300 });
-          await s.type(config.prompt);
-        },
-        { keepMs: 200 },
-      );
+      await s.skip(() => s.type(config.prompt), { keepMs: 200 });
+    },
+    dupes: async (s) => {
+      await s.focus(SEND_MENU, { scale: 1.8, at: [0.5, 0.5], ms: 400 });
+      await kit.clickUntil(s, SEND_MENU, () => kit.isVisible(s, RUN_IN_DUPLICATES), { ms: 300 });
+      await s.click(RUN_IN_DUPLICATES, { at: [0.3, 0.5], ms: 300, cue: config.cues.dupes });
+      await s.waitFor(MODEL_SELECT, 5000);
+      await s.wide({ ms: 400 });
+    },
+    pick: async (s) => {
+      const b = sides[1];
+      await s.focus(MODEL_SELECT, { scale: 1.7, at: [0.5, 0.5], ms: 400 });
+      await kit.clickUntil(s, MODEL_SELECT, async () => (await tagPicks(s, [b.pickerModel])) === 1, { ms: 300 });
+      await s.click(PICK(0), { at: [0.3, 0.5], ms: 300, cue: config.cues.pick });
+      if (b.pickerEffort) {
+        await tagPicks(s, [b.pickerModel, b.pickerEffort]);
+        await s.click(PICK(1), { at: [0.3, 0.5], ms: 300 });
+      }
+      await s.click(MODEL_SELECT, { at: [0.8, 0.5], ms: 250 });
+      const shown = await s.control.evaluate((q) => document.querySelector(q)?.textContent.trim(), MODEL_SELECT);
+      s.log(`copy model: ${shown}`);
     },
     go: async (s) => {
-      await s.wide({ ms: 400 });
-      await s.click(SEND(0), { ms: 350, cue: "Send", pause: 60, settle: 60 });
-      sentAt[0] = Date.now();
-      await s.click(SEND(1), { ms: 250, cue: "Go", pause: 60, settle: 60 });
-      sentAt[1] = Date.now();
+      await s.focus('button:has-text("Run 2 in parallel")', { scale: 1.8, at: [0.5, 0.5], ms: 400 });
+      clickedRun = Date.now();
+      await s.click('button:has-text("Run 2 in parallel")', { ms: 300, cue: config.cues.go });
       kit.park(s);
-      await badges(s, badgeItems());
+      // The button closes with the dialog; don't hold a shot of where it was.
+      await s.wide({ ms: 400 });
+      await s.skip(
+        async () => {
+          const end = Date.now() + 90000;
+          while (Date.now() < end && (await kit.count(s, COLUMN)) < 2) await s.hold(300);
+          if ((await kit.count(s, COLUMN)) < 2) throw new Error("the copy never opened beside run #1");
+          while (Date.now() < end && (await kit.count(s, ".xterm")) < 2) await s.hold(300);
+          await s.hold(AGENT_STARTUP_MS);
+          noteStarts();
+          s.log(`copy: ${roots[1]}`);
+          if (roots[1] && fs.existsSync(path.join(roots[1], "index.html"))) s.log("warning: the copy cloned run #1's index.html");
+          s.log(`panes: ${await tagAll(s)}`);
+          await badges(s, badgeItems());
+        },
+        { keepMs: 300 },
+      );
     },
     wait: async (s) => {
+      await s.focus(TERM(1), { scale: 1.6, at: [0.3, 0.1], ms: 450 });
       await s.skip(
         async () => {
           await race(s);

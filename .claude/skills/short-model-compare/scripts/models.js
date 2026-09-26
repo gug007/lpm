@@ -83,9 +83,8 @@ function resolveClaude(words, effort, spec) {
   const version = words.slice(1).join(".").replace(/-/g, ".").replace(/\.+/g, ".");
   const inFamily = models.filter((m) => m.family === family);
   if (inFamily.length === 0) throw new Error(`"${spec}": Claude Code knows no "${family}" models`);
-  const pick = version
-    ? inFamily.find((m) => m.name.toLowerCase() === `${family} ${version}`)
-    : inFamily.slice().sort((a, b) => versionOf(b.name) - versionOf(a.name))[0];
+  const newest = inFamily.slice().sort((a, b) => versionOf(b.name) - versionOf(a.name))[0];
+  const pick = version ? inFamily.find((m) => m.name.toLowerCase() === `${family} ${version}`) : newest;
   if (!pick) {
     const names = inFamily.map((m) => m.name).join(", ");
     throw new Error(`"${spec}": no ${title(family)} ${version} in Claude Code ${names ? `(it has ${names})` : ""}`);
@@ -93,7 +92,9 @@ function resolveClaude(words, effort, spec) {
   if (effort && !efforts.includes(effort)) {
     throw new Error(`"${spec}": Claude Code effort is one of ${efforts.join(", ")}, not ${effort}`);
   }
-  return { cli: "claude", model: pick.id, name: pick.name, effort };
+  // lpm's per-run model picker offers each family by its bare name, which
+  // Claude Code resolves to the family's newest model.
+  return { cli: "claude", model: pick.id, name: pick.name, effort, pickerModel: pick === newest ? title(family) : null };
 }
 
 function resolveCodex(words, effort, spec) {
@@ -110,7 +111,7 @@ function resolveCodex(words, effort, spec) {
   if (effort && !m.efforts.includes(effort)) {
     throw new Error(`"${spec}": ${m.slug} supports ${m.efforts.join(", ")}, not ${effort} (an unsupported level fails mid-run)`);
   }
-  return { cli: "codex", model: m.slug, name: codexName(m.slug), effort };
+  return { cli: "codex", model: m.slug, name: codexName(m.slug), effort, pickerModel: codexName(m.slug) };
 }
 
 function resolve(spec) {
@@ -135,6 +136,7 @@ function resolve(spec) {
     label,
     headline: r.effort ? `${r.name} ${r.effort}` : r.name,
     spokenEffort: r.effort ? SPOKEN_EFFORT[r.effort] || r.effort : null,
+    pickerEffort: r.effort ? (r.effort === "xhigh" ? "Extra High" : title(r.effort)) : null,
     dir: `${r.name}${r.effort ? " " + r.effort : ""}`.toLowerCase().replace(/[^a-z0-9.]+/g, "-"),
     emoji: r.cli === "claude" ? "✻" : "◆",
     cmd: cmd.filter(Boolean).join(" "),
