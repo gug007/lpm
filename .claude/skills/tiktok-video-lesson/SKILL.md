@@ -82,3 +82,5 @@ Open `sheet.jpg` and `cover.jpg` and check:
 - The hook is 2.5 s or less (the `audio hook:` log line) and the whole video is 45 s or less (the `muxed` log line).
 
 Then watch the MP4 once with the sound off: the captions alone should carry the lesson.
+
+When the video is done, end the reply with the rendered MP4's full absolute path (`~/Movies/lpm-lessons/tiktok/<slug>/<slug>.mp4`), not just the slug or a relative path.
