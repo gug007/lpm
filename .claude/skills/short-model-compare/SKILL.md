@@ -54,7 +54,7 @@ Launch commands (session-only flags, so nothing in the user's config changes):
 
    It creates `~/Movies/lpm-lessons/tiktok/<slug>/` with `lesson.json` (narration, headline, post), `compare.json` (both models, the prompt), `beats.js` (a stub that loads `scripts/beats.js`) and `take.sh`. `--subject` is the short noun phrase the narration and the caption use for a custom prompt. `--slug` names the folder. `--force` rewrites an existing one.
 
-   A custom prompt must still ask for `index.html` at the project root: the race waits for that file, and the reveal opens it.
+   A custom prompt must still ask for `index.html` at the project root: the race waits for that file, and the reveal opens it. It should also say the page is shown in a tall, narrow panel of any size, lay the scene out on a fixed 420x740 stage with the subject's size given as shares of that stage (the default: plane about 80% of the width, body about 60% down, giraffe's head about 20% from the top), and ask for the whole stage to be scaled to fit the panel, never cropped. Pixel sizes break at other panel sizes, and percentages of the panel itself pull against each other when its shape changes. "Fill the window" made one model crop its scene, and without sizes the two results come out at different scales, which makes the side-by-side comparison harder.
 
 2. Tell the user that a take is starting and that they should leave the keyboard and mouse alone. A take drives the real pointer, and a stray key lands in the prompt.
 
