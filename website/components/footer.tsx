@@ -28,6 +28,7 @@ import {
   WORKTREE_ALTERNATIVE_PATH,
   vsPath,
 } from "@/lib/links";
+import { FooterFollow } from "./footer-follow";
 import { FooterYouTubeCard } from "./footer-youtube-card";
 import { GitHubStarButton } from "./github-star-button";
 
@@ -146,7 +147,9 @@ export function Footer() {
           </ul>
         </nav>
 
-        <div className="mt-12 flex flex-col items-start gap-5 border-t border-gray-200 dark:border-gray-800 pt-8 sm:flex-row sm:items-center sm:justify-between">
+        <FooterFollow />
+
+        <div className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
             <GitHubStarButton />
             <a
