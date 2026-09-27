@@ -21,17 +21,19 @@ export function AgentStatusChip({
   status,
   className = "",
   mutedClassName = "text-[var(--composer-fg-muted)]",
+  showElapsed = true,
 }: {
   status: PaneAgentStatus;
   className?: string;
   mutedClassName?: string;
+  showElapsed?: boolean;
 }) {
   const frozen = status.until !== undefined;
-  const now = useSecondsClock(frozen);
+  const now = useSecondsClock(frozen || !showElapsed);
   const dot = DOT[status.state];
   const label = AGENT_STATE_LABEL[status.state];
   const elapsed =
-    status.since === null
+    status.since === null || !showElapsed
       ? null
       : formatDuration(Math.max(0, (status.until ?? now) - status.since) / 1000);
 

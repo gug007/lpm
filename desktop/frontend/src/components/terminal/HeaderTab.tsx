@@ -2,10 +2,10 @@ import { type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
-import { AgentStatusChip } from "../AgentStatusChip";
+import { TabTooltipCard, tabCardHasDetails } from "./TabTooltipCard";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
 import type { PaneAgentStatus } from "../../hooks/usePaneStatus";
-import { actionAccentColor, actionButtonStyle, actionTextColor } from "../../actionColors";
+import { actionAccentColor, actionTextColor } from "../../actionColors";
 
 export function HeaderTab({
   label,
@@ -93,34 +93,17 @@ export function HeaderTab({
   );
 
   // A tab with an agent in it, or one renamed away from the action that
-  // launched it, gets a card: the full title, then what the agent is doing and
-  // how long it has been at it, then the action it came from as a chip carrying
-  // that action's own tint. Everything else keeps the plain one-line tooltip,
-  // shown only when the strip clips the label.
-  const card = !!origin || !!agentStatus;
+  // launched it, gets a card lined up under the tab. Everything else keeps the
+  // plain one-line tooltip, shown only when the strip clips the label.
+  const card = tabCardHasDetails(agentStatus, origin);
   const tooltip = card ? (
-    <span className="flex flex-col gap-2">
-      <span className="line-clamp-5 font-medium">{label}</span>
-      <span className="flex flex-col gap-1.5 border-t border-[var(--border)] pt-2">
-        {agentStatus && (
-          <AgentStatusChip
-            status={agentStatus}
-            mutedClassName="text-[var(--text-muted)]"
-          />
-        )}
-        {origin && (
-          <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-            from
-            <span
-              style={actionButtonStyle(color)}
-              className="min-w-0 truncate rounded-md border border-[var(--border)] bg-[var(--action-tint,var(--bg-primary))] px-1.5 py-0.5 font-medium text-[var(--action-text,var(--text-secondary))]"
-            >
-              {origin}
-            </span>
-          </span>
-        )}
-      </span>
-    </span>
+    <TabTooltipCard
+      label={label}
+      icon={icon}
+      origin={origin}
+      color={color}
+      agentStatus={agentStatus}
+    />
   ) : (
     label
   );
@@ -176,6 +159,7 @@ export function HeaderTab({
         <Tooltip
           content={tooltip}
           side="bottom"
+          align={card ? "start" : "center"}
           wide={card}
           maxLines={3}
           triggerClassName="flex min-w-0"
