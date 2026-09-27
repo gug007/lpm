@@ -256,6 +256,9 @@ export function GetVersion() {
 export function GitAbortMerge(cwd) {
   return invoke("git_abort_merge", { cwd });
 }
+export function GitShowPrefix(cwd) {
+  return invoke("git_show_prefix", { cwd });
+}
 export function GitChangedFiles(cwd) {
   return invoke("git_changed_files", { cwd });
 }

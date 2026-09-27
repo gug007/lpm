@@ -150,8 +150,9 @@ export function useFileBuffer(root: string, active: boolean) {
 
   // Compare-and-swap write: lands only while the disk still matches
   // `expected`, otherwise raises the conflict for the user to resolve.
+  // Resolves to whether the text reached the disk.
   const casWrite = useCallback(
-    async (path: string, expected: string, content: string) => {
+    async (path: string, expected: string, content: string): Promise<boolean> => {
       savingRef.current = true;
       setSaving(true);
       try {
@@ -164,11 +165,13 @@ export function useFileBuffer(root: string, active: boolean) {
           markClean(path, content);
           setConflict((c) => (c?.path === path ? null : c));
           toast.success("Saved");
-        } else {
-          setConflict({ path, theirs: res?.currentContent ?? "" });
+          return true;
         }
+        setConflict({ path, theirs: res?.currentContent ?? "" });
+        return false;
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Could not save file");
+        return false;
       } finally {
         savingRef.current = false;
         setSaving(false);
@@ -177,12 +180,12 @@ export function useFileBuffer(root: string, active: boolean) {
     [root, markClean],
   );
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
     const f = fileRef.current;
-    if (!f || !f.writable || savingRef.current) return;
+    if (!f || !f.writable || savingRef.current) return false;
     const held = buffersRef.current.get(f.path);
-    if (!held) return;
-    await casWrite(f.path, held.baseline, held.draft);
+    if (!held) return false;
+    return casWrite(f.path, held.baseline, held.draft);
   }, [casWrite]);
 
   const resolveConflict = useCallback(

@@ -5,6 +5,12 @@ type Monaco = typeof monacoNs;
 export const MONACO_FONT_FAMILY =
   "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 export const DEFAULT_MONACO_FONT_SIZE = 13;
+const MIN_MONACO_FONT_SIZE = 8;
+const MAX_MONACO_FONT_SIZE = 24;
+
+export function clampMonacoFontSize(size: number): number {
+  return Math.max(MIN_MONACO_FONT_SIZE, Math.min(MAX_MONACO_FONT_SIZE, size));
+}
 
 export function currentMonacoTheme(): "lpm-dark" | "lpm-light" {
   return document.documentElement.getAttribute("data-theme") === "dark"

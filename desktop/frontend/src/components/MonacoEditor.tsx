@@ -3,16 +3,14 @@ import type * as monacoNs from "monaco-editor";
 import { parseDocument } from "yaml";
 import { setupMonaco } from "../monaco-setup";
 import {
+  DEFAULT_MONACO_FONT_SIZE,
   MONACO_FONT_FAMILY,
+  clampMonacoFontSize,
   currentMonacoTheme,
   defineMonacoThemes,
   observeMonacoTheme,
 } from "../monaco-theme";
-import { getSettings, saveSettings } from "../store/settings";
-
-const DEFAULT_EDITOR_FONT_SIZE = 13;
-const MIN_EDITOR_FONT_SIZE = 8;
-const MAX_EDITOR_FONT_SIZE = 24;
+import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
 
 type Monaco = typeof monacoNs;
 
@@ -29,6 +27,9 @@ interface MonacoEditorProps {
   onSave?: () => void;
   onToggleView?: () => void;
   readOnly?: boolean;
+  // Opens scrolled to this line, cursor on it and the line marked, and takes
+  // focus; read once, when the editor mounts.
+  reveal?: { line: number; col: number };
 }
 
 export function MonacoEditor({
@@ -40,6 +41,7 @@ export function MonacoEditor({
   onSave,
   onToggleView,
   readOnly = false,
+  reveal,
 }: MonacoEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monacoNs.editor.IStandaloneCodeEditor | null>(null);
@@ -47,6 +49,7 @@ export function MonacoEditor({
   const onChangeRef = useRef(onChange);
   const onSaveRef = useRef(onSave);
   const onToggleViewRef = useRef(onToggleView);
+  const revealRef = useRef(reveal);
   // The text the model holds as far as this component knows — typed by the
   // user or set from `value` — so the value effect can skip its own echo.
   const lastEmittedRef = useRef(value);
@@ -54,8 +57,9 @@ export function MonacoEditor({
   const [ready, setReady] = useState(false);
   const instanceId = useId().replace(/\W/g, "");
   const fontSizeRef = useRef(
-    getSettings().editorFontSize || DEFAULT_EDITOR_FONT_SIZE,
+    getSettings().editorFontSize || DEFAULT_MONACO_FONT_SIZE,
   );
+  const settingsFontSize = useSettingsStore((s) => s.editorFontSize);
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
@@ -110,6 +114,22 @@ export function MonacoEditor({
     });
     editorRef.current = editor;
 
+    const at = revealRef.current;
+    if (at) {
+      if (at.line > 0) {
+        const lineNumber = Math.min(at.line, model.getLineCount());
+        editor.setPosition({ lineNumber, column: Math.max(1, at.col) });
+        editor.revealLineInCenter(lineNumber);
+        editor.createDecorationsCollection([
+          {
+            range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+            options: { isWholeLine: true, className: "lpm-reveal-line" },
+          },
+        ]);
+      }
+      editor.focus();
+    }
+
     const sub = model.onDidChangeContent(() => {
       if (suppressChangeRef.current) return;
       const text = model.getValue();
@@ -130,10 +150,7 @@ export function MonacoEditor({
     }
 
     const applyFontSize = (size: number) => {
-      const clamped = Math.max(
-        MIN_EDITOR_FONT_SIZE,
-        Math.min(MAX_EDITOR_FONT_SIZE, size),
-      );
+      const clamped = clampMonacoFontSize(size);
       if (clamped === fontSizeRef.current) return;
       fontSizeRef.current = clamped;
       editor.updateOptions({ fontSize: clamped });
@@ -142,7 +159,7 @@ export function MonacoEditor({
 
     const zoomIn = () => applyFontSize(fontSizeRef.current + 1);
     const zoomOut = () => applyFontSize(fontSizeRef.current - 1);
-    const zoomReset = () => applyFontSize(DEFAULT_EDITOR_FONT_SIZE);
+    const zoomReset = () => applyFontSize(DEFAULT_MONACO_FONT_SIZE);
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Equal, zoomIn);
     editor.addCommand(
@@ -247,6 +264,15 @@ export function MonacoEditor({
     if (!ready) return;
     editorRef.current?.updateOptions({ readOnly, domReadOnly: readOnly });
   }, [readOnly, ready]);
+
+  // Another editor, or a zoom control, changed the shared font size.
+  useEffect(() => {
+    if (!ready) return;
+    const size = clampMonacoFontSize(settingsFontSize || DEFAULT_MONACO_FONT_SIZE);
+    if (size === fontSizeRef.current) return;
+    fontSizeRef.current = size;
+    editorRef.current?.updateOptions({ fontSize: size });
+  }, [settingsFontSize, ready]);
 
   const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
   const showFormatHint = language === "yaml";

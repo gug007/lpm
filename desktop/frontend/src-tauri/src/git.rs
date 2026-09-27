@@ -296,6 +296,14 @@ fn fill_has_remote(st: &mut GitStatus, cwd: &str) {
                 .unwrap_or(false));
 }
 
+/// Where `cwd` sits inside its repository (`apps/web/`, empty at the top
+/// level). Porcelain paths and `HEAD:` blobs are repo-root-relative, so a
+/// cwd-relative path needs this prefix to be looked up in either.
+#[tauri::command(async)]
+pub fn git_show_prefix(cwd: String) -> Result<String, String> {
+    git_out(&cwd, &["rev-parse", "--show-prefix"])
+}
+
 #[tauri::command(async)]
 pub fn git_changed_files(cwd: String) -> Vec<ChangedFile> {
     // --untracked-files=all lists each untracked file individually; without it
@@ -1702,8 +1710,8 @@ pub fn stop_watching_project(state: State<'_, WatchState>) -> Result<(), String>
 #[cfg(test)]
 mod tests {
     use super::{
-        cat_file_size, cat_file_spec_ok, coalesce, fill_has_remote, parse_status_and_files,
-        split_diff_by_file, Change, GitStatus, CHANGE_CAP, MAX_COALESCE,
+        cat_file_size, cat_file_spec_ok, coalesce, fill_has_remote, git_show_prefix,
+        parse_status_and_files, split_diff_by_file, Change, GitStatus, CHANGE_CAP, MAX_COALESCE,
     };
     use std::time::Instant;
 
@@ -1790,6 +1798,28 @@ mod tests {
         let parts = split_diff_by_file(diff);
         assert_eq!(parts.len(), 1);
         assert_eq!(parts[0].0, "");
+    }
+
+    #[test]
+    fn show_prefix_places_a_folder_inside_its_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let top = dir.path().to_str().unwrap().to_string();
+        assert!(std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&top)
+            .status()
+            .unwrap()
+            .success());
+        let sub = dir.path().join("apps/web");
+        std::fs::create_dir_all(&sub).unwrap();
+
+        assert_eq!(git_show_prefix(top).unwrap(), "");
+        assert_eq!(
+            git_show_prefix(sub.to_str().unwrap().into()).unwrap(),
+            "apps/web/"
+        );
+        let outside = tempfile::tempdir().unwrap();
+        assert!(git_show_prefix(outside.path().to_str().unwrap().into()).is_err());
     }
 
     #[test]

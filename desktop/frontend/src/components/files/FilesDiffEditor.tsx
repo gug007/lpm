@@ -2,15 +2,14 @@ import { useEffect, useId, useRef, useState } from "react";
 import type * as monacoNs from "monaco-editor";
 import { setupMonaco } from "../../monaco-setup";
 import {
+  DEFAULT_MONACO_FONT_SIZE,
   MONACO_FONT_FAMILY,
   currentMonacoTheme,
   defineMonacoThemes,
   observeMonacoTheme,
 } from "../../monaco-theme";
-import { getSettings } from "../../store/settings";
+import { useSettingsStore } from "../../store/settings";
 import { makeDiffModels, type DiffModels } from "../review/reviewSource";
-
-const DEFAULT_FONT_SIZE = 13;
 
 interface FilesDiffEditorProps {
   path: string;
@@ -41,6 +40,9 @@ export function FilesDiffEditor({
   const suppressRef = useRef(false);
   const [ready, setReady] = useState(false);
   const authority = `files-${useId().replace(/\W/g, "")}`;
+  const fontSize = useSettingsStore((s) => s.editorFontSize) || DEFAULT_MONACO_FONT_SIZE;
+  const fontSizeRef = useRef(fontSize);
+  fontSizeRef.current = fontSize;
 
   onChangeRef.current = onChange;
   onSaveRef.current = onSave;
@@ -65,7 +67,7 @@ export function FilesDiffEditor({
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
       stickyScroll: { enabled: false },
-      fontSize: getSettings().editorFontSize || DEFAULT_FONT_SIZE,
+      fontSize: fontSizeRef.current,
       fontFamily: MONACO_FONT_FAMILY,
       lineNumbers: "on",
       renderOverviewRuler: false,
@@ -141,6 +143,10 @@ export function FilesDiffEditor({
     if (!ready) return;
     editorRef.current?.updateOptions({ readOnly });
   }, [readOnly, ready]);
+
+  useEffect(() => {
+    if (ready) editorRef.current?.updateOptions({ fontSize });
+  }, [fontSize, ready]);
 
   return <div ref={hostRef} data-text-scope="" className="h-full w-full" />;
 }

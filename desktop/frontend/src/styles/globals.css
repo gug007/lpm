@@ -746,6 +746,11 @@ body {
   background-position: 0 0, 0 8px, 8px -8px, -8px 0;
 }
 
+/* The line a terminal link points at, marked in the file viewer. */
+.monaco-editor .lpm-reveal-line {
+  background: rgb(234 179 8 / 0.15);
+}
+
 /* Modern "N hidden lines" band for the review diff editors — retones Monaco's
    default collapsed hideUnchangedRegions widget (heavy inset band + busy "unfold"
    snowflake glyph) into a clean, clickable divider bar on the app's theme tokens.

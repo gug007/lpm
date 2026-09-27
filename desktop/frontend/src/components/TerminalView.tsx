@@ -58,6 +58,7 @@ import { joinAbs } from "../path";
 import { isPeerName } from "../peer/markers";
 import { retainPeerSession } from "../peer/retainedSessions";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
 
 // Everything a terminal leaves behind in this window once it's really gone.
@@ -754,6 +755,8 @@ export function TerminalView({ projectName, projectRoot, services, terminalTheme
       { key: "Escape", preventDefault: false },
     ],
     (event, matched) => {
+      // ⌘W behind the file viewer must not close the agent's tab.
+      if (blockingDialogOpen()) return;
       if (matched.key === "=" || matched.key === "+") return onZoomIn();
       if (matched.key === "-") return onZoomOut();
       if (matched.key === "r") return toggleFilesView("changes");

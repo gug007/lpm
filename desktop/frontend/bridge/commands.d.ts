@@ -79,6 +79,7 @@ export function GetServiceLogs(...args: any[]): Promise<any>;
 export function GetSuggestedPorts(...args: any[]): Promise<any>;
 export function GetVersion(...args: any[]): Promise<any>;
 export function GitAbortMerge(...args: any[]): Promise<any>;
+export function GitShowPrefix(...args: any[]): Promise<any>;
 export function GitChangedFiles(...args: any[]): Promise<any>;
 export function GitChangedFilesRef(...args: any[]): Promise<any>;
 export function GitChangedFilesStaged(...args: any[]): Promise<any>;

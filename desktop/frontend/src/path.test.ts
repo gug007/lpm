@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { joinAbs } from "./path";
+import { joinAbs, normalizePath } from "./path";
 import { findAgreedSlug, stripArgs } from "./peer/router";
 
 const HOST_ROOT = "/@peer-a1b2c3d4/home/ubuntu/app";
@@ -35,5 +35,22 @@ describe("joinAbs", () => {
       slug: "a1b2c3d4",
       hostPath: "~/.lpm/memory/app/plan.md",
     });
+  });
+});
+
+describe("normalizePath", () => {
+  it.each([
+    ["/proj/api/../shared/util.ts", "/proj/shared/util.ts"],
+    ["/proj/./src/../a.ts", "/proj/a.ts"],
+    ["/a/../../b.ts", "/b.ts"],
+    ["~/a/../b.md", "~/b.md"],
+    ["~/../x.md", "~/../x.md"],
+    ["../x.ts", "../x.ts"],
+    ["/@peer-a1b2c3d4/home/app/../x.md", "/@peer-a1b2c3d4/home/x.md"],
+    ["/@peer-a1b2c3d4~/notes/../a.md", "/@peer-a1b2c3d4~/a.md"],
+    ["/@peer-a1b2c3d4/../x.md", "/@peer-a1b2c3d4/../x.md"],
+    ["/proj//src/a.ts", "/proj/src/a.ts"],
+  ])("%s → %s", (input, want) => {
+    expect(normalizePath(input)).toBe(want);
   });
 });

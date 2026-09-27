@@ -7,6 +7,9 @@ export interface FileViewerRequest {
   // Project root for resolving the path inside `git diff` and other context-aware
   // operations. Empty when the file isn't tied to a project.
   projectRoot: string;
+  // Files a terminal reference could mean when it names more than one; the
+  // viewer asks which before opening.
+  choices?: string[];
 }
 
 interface FileViewerState {

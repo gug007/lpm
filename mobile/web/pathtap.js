@@ -1,16 +1,22 @@
 // Tapping a file path in the terminal opens it in the preview sheet, like a
 // click in the desktop terminal. PATH_RE and the cell mapping mirror the
-// desktop's pathLinkProvider.ts: at least one separator and an extension,
-// optionally followed by :line or :line:col.
+// desktop's pathLinkProvider.ts (its tests run this copy too): at least one
+// separator and a whole extension, optionally followed by :line[:col],
+// (line[,col]) or #Lline[Ccol].
 //
 // One addition: agent TUIs like Claude Code wrap text themselves, so a long path
 // breaks across rows xterm never marks as wrapped. A second reading rejoins rows
 // that run into the right edge (dropping the next row's indent). Both readings
 // go to the Mac, which opens the first one that exists.
 (function () {
-  const PATH_RE =
-    /(?<![\w./-])((?:~\/|\.{1,2}\/|\/|[\w.-]+\/)[\w./-]*\.[a-zA-Z][\w]{0,4})(?::(\d+)(?::(\d+))?)?/g;
-  const PATH_CHAR = /[\w./~-]/;
+  const SEG = String.raw`(?:[\w.@+-]|\[{1,2}[\w.-]+\]{1,2}|\([\w.-]+\))`;
+  const PATH_RE = new RegExp(
+    String.raw`(?<![\w./~-])(?<!:(?=[\d/]))(?:file:\/\/(?=\/))?` +
+      String.raw`((?:~\/|\.{1,2}\/|\/|(?![@+])${SEG}+\/)(?:${SEG}|\/)*\.[a-zA-Z]\w{0,9})(?![\w/])` +
+      String.raw`(?::(\d+)(?::(\d+))?|\((\d+)(?:,\s?(\d+))?\)|#L(\d+)(?:C(\d+))?(?:-L?\d+)?)?`,
+    'g',
+  );
+  const PATH_CHAR = /[\w./~@+()[\]-]/;
   const MAX_ROWS = 64;
   const MAX_CHARS = 2048;
   // How close to the right edge a row must end to read as cut off there.
@@ -100,7 +106,7 @@
       if (hit < start || hit > last) continue;
       return {
         path: m[1],
-        line: m[2] ? parseInt(m[2], 10) : 0,
+        line: parseInt(m[2] || m[4] || m[6] || '0', 10),
         start: { x: win.x[start], y: win.y[start] },
         end: { x: win.x[last] + win.w[last] - 1, y: win.y[last] },
       };

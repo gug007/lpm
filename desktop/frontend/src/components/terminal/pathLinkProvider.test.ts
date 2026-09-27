@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { IBuffer } from "@xterm/xterm";
+import phoneTapSource from "../../../../../mobile/web/pathtap.js?raw";
 
 import { findPathMatches, readLineWindow } from "./pathLinkProvider";
+
+const phoneModule = { exports: {} };
+new Function("module", phoneTapSource)(phoneModule);
+const phoneTap = phoneModule.exports as {
+  pathsAt: (buf: IBuffer, cols: number, index: number, col: number) => { path: string; line: number }[];
+};
 
 interface FakeCell {
   chars: string;
@@ -97,6 +104,84 @@ describe("findPathMatches", () => {
 
   it("returns nothing for a blank row", () => {
     expect(findPathMatches(fakeBuffer([row("   ")]), 1)).toEqual([]);
+  });
+});
+
+const CASES: [string, { raw: string; text?: string; line?: number; col?: number } | null][] = [
+  ["edited src/App.svelte", { raw: "src/App.svelte" }],
+  ["android/app/build.gradle:3", { raw: "android/app/build.gradle", line: 3 }],
+  ["config/.gitignore", { raw: "config/.gitignore" }],
+  ["app/[id]/page.tsx", { raw: "app/[id]/page.tsx" }],
+  ["app/(marketing)/[...slug]/page.tsx", { raw: "app/(marketing)/[...slug]/page.tsx" }],
+  ["node_modules/@types/node/index.d.ts", { raw: "node_modules/@types/node/index.d.ts" }],
+  ["⏺ Update(src/App.tsx)", { raw: "src/App.tsx", text: "src/App.tsx" }],
+  ["> look at @src/components/App.tsx", { raw: "src/components/App.tsx" }],
+  ["see [the guide](docs/guide.md).", { raw: "docs/guide.md" }],
+  ["done: src/a.ts.", { raw: "src/a.ts", text: "src/a.ts" }],
+  ["src/a.ts(10,5): error TS2322", { raw: "src/a.ts", text: "src/a.ts(10,5)", line: 10, col: 5 }],
+  ["src/a.ts(7): warning", { raw: "src/a.ts", line: 7 }],
+  ["src/a.ts#L42C5", { raw: "src/a.ts", line: 42, col: 5 }],
+  ["src/a.ts#L10-L20", { raw: "src/a.ts", line: 10 }],
+  ["at file:///Users/me/a.ts:3:9", { raw: "/Users/me/a.ts", text: "file:///Users/me/a.ts:3:9", line: 3, col: 9 }],
+  ["42:~/.lpm/global.yml", { raw: "~/.lpm/global.yml" }],
+  ["12:src/b.ts is the entry", { raw: "src/b.ts" }],
+  ["3:./scripts/build.sh", { raw: "./scripts/build.sh" }],
+  ["git show HEAD:src/a.ts", { raw: "src/a.ts" }],
+  ["+dist/bundle.js", { raw: "dist/bundle.js" }],
+  ["+./scripts/build.sh --prod", { raw: "./scripts/build.sh" }],
+  ["lib/c++/vector.hpp", { raw: "lib/c++/vector.hpp" }],
+  ["see https://example.com/a/b.js now", null],
+  ["open http://localhost:3000/api/items.json", null],
+  ["loaded webpack:///src/a.ts", null],
+  ["mirror http://cdn.example.com/lib/x.min.js", null],
+  ["the conf.d/ folder and foo/bar.d/baz", null],
+];
+
+describe("path formats", () => {
+  it.each(CASES)("%s", (text, want) => {
+    const [m] = findPathMatches(fakeBuffer([row(text)], 80), 1);
+    if (!want) {
+      expect(m).toBeUndefined();
+      return;
+    }
+    expect(m?.raw).toBe(want.raw);
+    if (want.text) expect(m.text).toBe(want.text);
+    expect(m.line).toBe(want.line ?? 0);
+    expect(m.col).toBe(want.col ?? 0);
+  });
+
+  // The phone's tap handler carries its own copy of the pattern; both must read
+  // a line the same way.
+  it.each(CASES)("phone reads %s the same way", (text, want) => {
+    const col = want ? text.indexOf(want.raw) + 1 : text.indexOf("/") + 1;
+    const tap = phoneTap.pathsAt(fakeBuffer([row(text)], 80), 80, 0, col);
+    if (!want) {
+      expect(tap).toEqual([]);
+      return;
+    }
+    expect(tap[0]?.path).toBe(want.raw);
+    expect(tap[0]?.line).toBe(want.line ?? 0);
+  });
+});
+
+describe("several paths on a line", () => {
+  it("links each path in grep output", () => {
+    const ms = findPathMatches(fakeBuffer([row("docs/a.md:3:src/b.ts")], 80), 1);
+    expect(ms.map((m) => [m.raw, m.line])).toEqual([
+      ["docs/a.md", 3],
+      ["src/b.ts", 0],
+    ]);
+  });
+});
+
+describe("phone rejoin", () => {
+  // Claude Code wraps a long path itself, so the rows aren't marked wrapped.
+  it.each([
+    [["  app/marketing/abc/", "  [id]/page.tsx"], "app/marketing/abc/[id]/page.tsx"],
+    [["  node_modules/aaa/", "  @types/node/a.d.ts"], "node_modules/aaa/@types/node/a.d.ts"],
+  ])("rejoins %j", (rows, want) => {
+    const buf = fakeBuffer(rows.map((r) => row(r)), 20);
+    expect(phoneTap.pathsAt(buf, 20, 0, 4).map((m) => m.path)).toContain(want);
   });
 });
 

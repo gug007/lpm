@@ -122,6 +122,7 @@ macro_rules! all_command_handlers {
             git_file_diffs,
             git_file_diff_ref,
             git_file_diff_staged,
+            git_show_prefix,
             git_discard_all,
             git_discard_files,
             git_fetch_all,

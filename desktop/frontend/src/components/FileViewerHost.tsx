@@ -12,6 +12,7 @@ export function FileViewerHost() {
       line={current?.line ?? 0}
       col={current?.col ?? 0}
       projectRoot={current?.projectRoot ?? ""}
+      choices={current?.choices}
       onClose={close}
     />
   );

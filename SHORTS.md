@@ -17,3 +17,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-up
 - Claude Code: turn on Auto Mode
 - Your copies fell behind main
 - Opus 5.5 high vs Fable 5.1 high: the giraffe test
+- Fable 5.1 high vs GPT-6 Astra high: the giraffe test

@@ -31,6 +31,28 @@ export function relTo(absPath: string, root: string): string {
   return absPath.startsWith(prefix) ? absPath.slice(prefix.length) : absPath;
 }
 
+// Folds `.` and `..` segments out of a path the way the filesystem would read
+// it. Never climbs above `/`, `~` or a paired host's marker, and leaves a
+// leading `..` of a relative path in place.
+export function normalizePath(p: string): string {
+  const absolute = p.startsWith("/");
+  const out: string[] = [];
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg !== "..") {
+      out.push(seg);
+      continue;
+    }
+    const top = out[out.length - 1];
+    if (top !== undefined && top !== ".." && top !== "~" && !(absolute && out.length === 1 && top.startsWith("@peer-"))) {
+      out.pop();
+    } else if (!absolute || out.length > 0) {
+      out.push(seg);
+    }
+  }
+  return (absolute ? "/" : "") + out.join("/");
+}
+
 export function basename(p: string): string {
   return p.split("/").pop() ?? p;
 }
