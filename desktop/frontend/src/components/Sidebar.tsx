@@ -36,7 +36,8 @@ import { ChevronRightIcon } from "./icons";
 import { SidebarDeckRun } from "./SidebarDeckRun";
 import { SidebarDeckPullRow } from "./SidebarDeckPullRow";
 import { SidebarDuplicateSkeletonRow } from "./SidebarDuplicateSkeletonRow";
-import { ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS } from "./sidebarRowClass";
+import { ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
+import { peerSectionRows, type PeerRowItem } from "./peerSectionRows";
 import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
 import { SidebarAgentRows } from "./SidebarAgentRows";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
@@ -210,7 +211,15 @@ type TreeItem =
       folderId?: string;
     }
   | { kind: "empty"; group: ProjectGroup }
-  | { kind: "peer"; section: PeerSection };
+  | { kind: "peer"; section: PeerSection; rows: PeerRowItem[] };
+
+// A row in a paired Mac's section. It stays out of any selection, and a synced
+// copy there can go by the name the project has on that Mac and wear the mark
+// of the copy it keeps here.
+interface PeerRowOptions {
+  label?: string;
+  mark?: React.ReactNode;
+}
 
 export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, onCollapsedChange, onSelect, onOpenProjectView, onToggle, onTerminals, onFleet, onStats, onUsage, onScheduled, onMobile, onFeedback, onSettings, onAddProject, onBulkDuplicate, onRemoveProject, onRemoveProjectCascade, onRemoveProjectFromDisk, onRemoveProjectsBatch, onRenameProject, onSetWorkStatus, onMoveProjectRoot, onApplySidebarLayout, onReorderDuplicate, onCreateGroup, onRenameGroup, onDeleteGroup, onToggleGroupCollapsed, onMoveProjectToGroup, onMoveProjectsToGroup, onDetachProject, onAttachProject, detached, detachedSelf, showTerminals, showFleet, showStats, showUsage, showMobile, showScheduled, showSettings, duplicatingNames, pendingDuplicates, removingNames }: SidebarProps) {
   const [updateInfo, setUpdateInfo] = useState<{ latestVersion: string } | null>(null);
@@ -453,6 +462,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       }
     };
     const seenPeers = new Set<string>();
+    const peerDecks = new Map<string, ProjectInfo[]>();
     for (const token of order) {
       const id = groupIdOf(token);
       if (id !== null) {
@@ -467,11 +477,12 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         const section = sectionBySlug.get(slug);
         if (!section || seenPeers.has(slug)) continue;
         seenPeers.add(slug);
-        out.push({ kind: "peer", section });
-        ids.push(token);
         // The section's own rows sort among themselves; the synced copies it
         // also renders (section.strays) stay put.
-        for (const remote of section.projects) ids.push(peerRowToken(remote.name));
+        const peer = peerSectionRows(section.projects, pendingDuplicates, collapsedDecks);
+        out.push({ kind: "peer", section, rows: peer.rows });
+        ids.push(token, ...peer.ids);
+        for (const [parent, children] of peer.decks) peerDecks.set(parent, children);
         continue;
       }
       const p = byName.get(token);
@@ -499,16 +510,25 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       childrenOf.set(parent, children.map((c) => c.name));
       for (const child of children) childOf.set(child.name, parent);
     }
+    // A paired Mac's copies sort by their row ids, which are what its section
+    // registers for dragging.
+    for (const [parent, children] of peerDecks) {
+      const tokens = children.map((c) => peerRowToken(c.name));
+      childrenOf.set(peerRowToken(parent), tokens);
+      for (const token of tokens) childOf.set(token, peerRowToken(parent));
+    }
     return {
       items: out,
       sortableIds: ids,
       projectByName: byName,
       memberOf: membership,
       childrenOf,
-      childProjectsOf: childrenByParent,
+      childProjectsOf: new Map([...childrenByParent, ...peerDecks]),
       childOf,
     };
   }, [localProjects, groups, order, peerSections, pendingDuplicates, collapsedDecks, selectMode]);
+  const childOfRef = useRef(childOf);
+  childOfRef.current = childOf;
 
   // Project names in rendered top-to-bottom order — the axis a shift-click
   // range is measured along. Collapsed-folder members aren't rendered, so they
@@ -623,8 +643,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   });
 
   // Selection moves without a click too (Ctrl+Tab, ⌘-number, Activity); keep
-  // the selected row visible. A row the sidebar doesn't render — a peer's, or
-  // one inside a collapsed folder — has no element and is left alone.
+  // the selected row visible. A row the sidebar doesn't render — one inside a
+  // collapsed folder, deck or Mac's section — has no element and is left alone.
   useEffect(() => {
     if (selected)
       document.getElementById(projectRowDomId(selected))?.scrollIntoView({ block: "nearest" });
@@ -782,16 +802,21 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // folder it doesn't already belong to; folders and peer sections only reorder.
   // A host's row is sealed inside its section — it can only target its own
   // siblings, and nothing outside can target it — so the list never previews a
-  // move that the drop would refuse.
+  // move that the drop would refuse. A copy there sorts only among its deck, as
+  // a local one does.
   const collisionDetection = useMemo<CollisionDetection>(
     () => (args) => {
       const active = String(args.active.id);
       const activeRow = peerRowNameOf(active);
       if (activeRow !== null) {
         const slug = peerSlugOf(activeRow);
+        const deck = childOfRef.current.get(active);
         const siblings = args.droppableContainers.filter((c) => {
-          const name = peerRowNameOf(String(c.id));
-          return name !== null && name !== activeRow && peerSlugOf(name) === slug;
+          const id = String(c.id);
+          const name = peerRowNameOf(id);
+          if (name === null || name === activeRow) return false;
+          const parent = childOfRef.current.get(id);
+          return deck !== undefined ? parent === deck : parent === undefined && peerSlugOf(name) === slug;
         });
         return closestCenter({ ...args, droppableContainers: siblings });
       }
@@ -896,7 +921,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // so the elbow a folder draws into it has to know as well as the row does.
   const hasNoteLine = (project: ProjectInfo) => workStatusNote(project.workStatus) !== null;
 
-  const renderProjectRow = (project: ProjectInfo, indented: boolean) => {
+  const renderProjectRow = (project: ProjectInfo, indented: boolean, peerRow?: PeerRowOptions) => {
+    const selecting = selectMode && !peerRow;
     const status = computeProjectStatus(project.statusEntries);
     const isDetached = detached.has(project.name);
     const isSelf = project.name === detachedSelf;
@@ -905,32 +931,27 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const isSelected = selected === project.name;
     const isContextTarget = contextMenu?.name === project.name;
     const isBusy = duplicatingNames.includes(project.name) || removingNames.has(project.name);
-    const parent = project.parentName ? projectByName.get(project.parentName) : undefined;
-    const name = <ProjectNameDisplay project={project} parent={parent} />;
+    const parent = project.parentName ? allByName.get(project.parentName) : undefined;
+    const name = peerRow?.label ?? <ProjectNameDisplay project={project} parent={parent} />;
+    const displayName = peerRow?.label ?? projectDisplayName(project, parent);
+    const rawName = peerRawName(project.name);
     const isChecked = selectedForDelete.has(project.name);
     const follow = follows.get(project.name);
     const agents = agentsByProject.get(project.name) ?? [];
     const alert = sidebarProjectAlert(agents);
-    const showOrigin = showsOrigin(project);
+    const showOrigin = showsOrigin(project, Boolean(peerRow));
     // Bulk select is a list of names to tick off — the agents belong to the
     // working list, not to that one.
-    const canExpand = !selectMode && agents.length > 0;
+    const canExpand = !selecting && agents.length > 0;
     const isExpanded = canExpand && !collapsedAgents.has(project.name);
-
-    // Room at the row's end for the controls parked there: the ⋮ once the row is
-    // hovered or holding the menu, and the chevron whenever there are agents.
-    const trailingPad = canExpand
-      ? isContextTarget
-        ? "pr-14"
-        : "pr-8 group-hover:pr-14"
-      : isContextTarget
-        ? "pr-9"
-        : "group-hover:pr-9";
+    const mark = peerRow?.mark;
+    const trailing = rowTrailing(canExpand, Boolean(mark));
+    const trailingPad = isContextTarget ? trailing.menu : trailing.rest;
 
     const indentClass = indented ? ROW_INDENT_CLASS : "";
 
     const deckChildren = childProjectsOf.get(project.name) ?? [];
-    const hasDeck = !selectMode && deckChildren.length > 0;
+    const hasDeck = !selecting && deckChildren.length > 0;
     const deckCollapsed = hasDeck && collapsedDecks.has(project.name);
     const deckSegments = deckCollapsed ? rollupSegments(deckChildren) : [];
     const work = project.workStatus;
@@ -966,8 +987,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           title={
             project.configError ||
             (project.parentName
-              ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${project.parentName}`
-              : projectDisplayName(project, parent))
+              ? `${project.worktree ? "Git worktree" : "Duplicate"} of ${peerRawName(project.parentName)}`
+              : displayName)
           }
         >
           {status.className ? <span className={status.className}>{name}</span> : name}
@@ -989,7 +1010,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       </>
     );
 
-    const buttonClass = selectMode
+    const buttonClass = selecting
       ? `${ROW_BASE_CLASS} ${indentClass} ${
           isChecked
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
@@ -1011,9 +1032,9 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           <button
             id={projectRowDomId(project.name)}
             data-project-row={project.name}
-            onClick={(e) => handleRowClick(project.name, e)}
+            onClick={(e) => (peerRow ? onSelect(project.name) : handleRowClick(project.name, e))}
             onDoubleClick={
-              selectMode
+              selecting
                 ? undefined
                 : () => {
                     if (getSettings().doubleClickToToggle) onToggle(project.name);
@@ -1025,7 +1046,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             }}
             className={buttonClass}
           >
-            {selectMode ? (
+            {selecting ? (
               <span className="shrink-0">
                 <CheckboxBox
                   state={isChecked ? "all" : "none"}
@@ -1088,28 +1109,31 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               </span>
             </button>
           )}
-          {canExpand && (
+          {(canExpand || mark) && (
             <span
               className={`absolute ${controlTop} -translate-y-1/2 transition-[right] ${
-                isContextTarget ? "right-9" : "right-2 group-hover:right-9"
-              }`}
+                mark ? "flex items-center gap-1" : ""
+              } ${isContextTarget ? "right-9" : "right-2 group-hover:right-9"}`}
             >
-              <SidebarAgentChevron
-                expanded={isExpanded}
-                label={project.name}
-                onToggle={() => toggleExpanded(project.name)}
-              />
+              {mark}
+              {canExpand && (
+                <SidebarAgentChevron
+                  expanded={isExpanded}
+                  label={rawName}
+                  onToggle={() => toggleExpanded(project.name)}
+                />
+              )}
             </span>
           )}
           {showOrigin && (
             <SidebarOriginAction
               root={project.root}
-              projectName={project.name}
-              className={`${controlTop} ${canExpand ? "right-14" : "right-9"}`}
+              projectName={rawName}
+              className={`${controlTop} ${trailing.action}`}
               onResolve={() => setGitModal({ name: project.name, path: project.root, kind: "merge" })}
             />
           )}
-          {!selectMode && (
+          {!selecting && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -1125,7 +1149,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
                   : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
               }`}
               title="More options"
-              aria-label={`More options for ${project.name}`}
+              aria-label={`More options for ${rawName}`}
             >
               <MoreVerticalIcon />
             </button>
@@ -1134,6 +1158,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         {isExpanded && (
           <SidebarAgentRows
             projectName={project.name}
+            label={peerRow ? displayName : undefined}
             agents={agents}
             indented={indented}
             // Only the project being looked at has a tab on screen; the rest
@@ -1146,8 +1171,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     );
   };
 
-  const showsOrigin = (project: ProjectInfo) =>
-    !selectMode &&
+  const showsOrigin = (project: ProjectInfo, inPeerSection = false) =>
+    !(selectMode && !inPeerSection) &&
     !project.isRemote &&
     !project.configError &&
     !duplicatingNames.includes(project.name) &&
@@ -1159,14 +1184,16 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     item: Extract<TreeItem, { kind: "deck" }>,
     connector?: (isLast: boolean, twoLine?: boolean) => React.ReactNode,
     endsBlock = false,
+    peerRowFor?: (project: ProjectInfo) => PeerRowOptions,
   ) => {
     const { parent, children, pending, collapsed } = item;
     const indented = item.folderId !== undefined;
     const runId = deckRunDomId(parent.name);
     const lastIndex = children.length + pending.length - 1;
+    const inPeerSection = peerRowFor !== undefined;
 
     const rows = children.map((child, i) => {
-      const row = renderProjectRow(child, indented);
+      const row = renderProjectRow(child, indented, peerRowFor?.(child));
       const body = connector ? (
         <div className="relative">
           {connector(endsBlock && i === lastIndex, hasNoteLine(child))}
@@ -1177,7 +1204,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       );
       if (selectMode) return <div key={child.name}>{body}</div>;
       return (
-        <SortableItem key={child.name} id={child.name}>
+        <SortableItem key={child.name} id={inPeerSection ? peerRowToken(child.name) : child.name}>
           {body}
         </SortableItem>
       );
@@ -1205,7 +1232,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       return <div key={`pending-${copy.id}`}>{body}</div>;
     });
 
-    const pullTargets = [parent, ...children].filter(showsOrigin).map((p) => ({
+    const pullTargets = [parent, ...children].filter((p) => showsOrigin(p, inPeerSection)).map((p) => ({
       root: p.root,
       name: p === parent ? parentLabel : projectDisplayName(p, parent),
       worktree: p.worktree,
@@ -1213,7 +1240,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     }));
     // Inside a folder the trunk runs on through this row, unless the deck ends
     // the folder and its last copy has already closed it.
-    const pullRow = !selectMode && (
+    const pullRow = !(selectMode && !inPeerSection) && (
       <div key="pull-deck" className="relative">
         {connector && !endsBlock && (
           <span aria-hidden className={`pointer-events-none absolute ${TREE_X} inset-y-0 z-10 w-px ${TRUNK_BG}`} />
@@ -1277,6 +1304,18 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
 
     if (item.kind === "peer") {
       const { section } = item;
+      // A row whose project has a synced copy here carries its mark, and the
+      // mark opens the copy.
+      const peerRowFor = (project: ProjectInfo): PeerRowOptions => {
+        const mirror = section.mirrors.get(stripMarker(project.root));
+        const follow = mirror ? follows.get(mirror.name) : undefined;
+        return {
+          mark:
+            mirror && follow ? (
+              <FollowIndicator follow={follow} macName={section.alias} onOpen={() => onSelect(mirror.name)} />
+            ) : undefined,
+        };
+      };
       return (
         <SidebarPeerSection
           key={peerToken(section.slug)}
@@ -1288,14 +1327,28 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           linuxHost={section.linuxHost}
           status={section.status}
           projects={section.projects}
-          mirrors={section.mirrors}
           strays={section.strays}
-          follows={follows}
           selected={selected}
-          contextTargetName={contextMenu?.name ?? null}
-          onSelect={onSelect}
-          onContextMenu={(name, x, y) => setContextMenu({ name, x, y })}
-        />
+        >
+          {item.rows.map((row) => {
+            if (row.kind === "deck") return renderDeck(row, undefined, false, peerRowFor);
+            const body = renderProjectRow(row.project, false, peerRowFor(row.project));
+            // Rows drag only where the header does — select mode has no drag
+            // context to register them with.
+            return selectMode ? (
+              <div key={row.project.name}>{body}</div>
+            ) : (
+              <SortableItem key={row.project.name} id={peerRowToken(row.project.name)}>
+                {body}
+              </SortableItem>
+            );
+          })}
+          {section.strays.map((stray) => (
+            <div key={stray.project.name}>
+              {renderProjectRow(stray.project, false, { label: stray.label })}
+            </div>
+          ))}
+        </SidebarPeerSection>
       );
     }
 

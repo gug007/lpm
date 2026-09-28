@@ -200,19 +200,17 @@ export function ProjectContextMenu({
         onDiscardAll={onGitDiscardAll}
         onClose={onClose}
       />
-      {!remote && (
-        <WorkStatusSubmenu
-          current={workStatus}
-          custom={customWorkStatuses}
-          order={workStatusOrder}
-          onPick={onPickWorkStatus}
-          onAdd={onAddWorkStatus}
-          onEdit={onEditWorkStatus}
-          onRemove={onRemoveWorkStatus}
-          onReorder={onReorderWorkStatuses}
-          onClose={onClose}
-        />
-      )}
+      <WorkStatusSubmenu
+        current={workStatus}
+        custom={customWorkStatuses}
+        order={workStatusOrder}
+        onPick={onPickWorkStatus}
+        onAdd={onAddWorkStatus}
+        onEdit={onEditWorkStatus}
+        onRemove={onRemoveWorkStatus}
+        onReorder={onReorderWorkStatuses}
+        onClose={onClose}
+      />
       {!remote && (
         <ContextMenuSubmenu label="Project files" icon={<FileIcon size={14} />}>
           <ContextMenuItem label="Edit Config" icon={<SettingsIcon />} shortcut="⌘E" onClick={close(onEditConfig)} />

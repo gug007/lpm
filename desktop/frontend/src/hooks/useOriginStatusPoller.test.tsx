@@ -51,6 +51,16 @@ describe("originRoots", () => {
   it("keeps local projects that load, once per folder", () => {
     expect(originRoots(PROJECTS)).toEqual(["/p/lpm", "/p/reader"]);
   });
+
+  it("checks a connected Mac's projects too, after this Mac's own", () => {
+    const remote = project("peer-aabbccdd-api", "/@peer-aabbccdd/Users/g/api");
+    const remoteSsh = project("peer-aabbccdd-box", "/@peer-aabbccdd/srv/box", { isRemote: true });
+    expect(originRoots([remote, remoteSsh, ...PROJECTS])).toEqual([
+      "/p/lpm",
+      "/p/reader",
+      "/@peer-aabbccdd/Users/g/api",
+    ]);
+  });
 });
 
 describe("useOriginStatusPoller", () => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { EventsOn } from "../../bridge/runtime";
 import { recheckOrigin } from "../originActions";
-import { isPeerName, isPeerRoot } from "../peer/markers";
+import { isPeerRoot } from "../peer/markers";
 import { useOriginStatus } from "../store/originStatus";
 import { GIT_CHANGED_EVENT, type ProjectInfo } from "../types";
 import { useEventListener } from "./useEventListener";
@@ -18,17 +18,18 @@ const FIRST_SWEEP_DELAY_MS = 5_000;
 // A commit or pull from the terminal lands in .git in several writes.
 const GIT_CHANGE_DELAY_MS = 1_500;
 
+// A connected Mac's projects are checked on that Mac, so they go after this
+// Mac's own: a slow or sleeping machine never holds up the local rows.
 export function originRoots(projects: ProjectInfo[]): string[] {
-  const roots = projects
-    .filter((p) => p.root && !p.isRemote && !p.configError && !isPeerName(p.name) && !isPeerRoot(p.root))
-    .map((p) => p.root);
-  return [...new Set(roots)].sort();
+  const roots = projects.filter((p) => p.root && !p.isRemote && !p.configError).map((p) => p.root);
+  const unique = [...new Set(roots)].sort();
+  return [...unique.filter((root) => !isPeerRoot(root)), ...unique.filter(isPeerRoot)];
 }
 
-// Keeps the origin store current for every local project: a quiet fetch per
-// project every FETCH_EVERY_MS, a recount on window focus, and a recount when
-// the watched project's .git changes. One project at a time, so a slow remote
-// never stacks up git processes.
+// Keeps the origin store current for every project here and on connected Macs:
+// a quiet fetch per project every FETCH_EVERY_MS, a recount on window focus, and
+// a recount when the watched project's .git changes. One project at a time, so a
+// slow remote never stacks up git processes.
 export function useOriginStatusPoller(projects: ProjectInfo[], enabled: boolean): void {
   const roots = useMemo(() => originRoots(projects), [projects]);
   const rootsKey = roots.join("\n");

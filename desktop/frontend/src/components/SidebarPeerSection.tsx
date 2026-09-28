@@ -1,22 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ServerIcon } from "./icons";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { RenameModal } from "./RenameModal";
 import { PairingModal, type Pairing } from "./PairingModal";
-import { peerRawName, peerSlugOf, stripMarker } from "../peer/markers";
-import { SidebarPeerRow } from "./SidebarPeerRow";
+import { peerSlugOf } from "../peer/markers";
 import { SidebarHeaderShell } from "./SidebarHeaderShell";
 import { SidebarRollupLine } from "./SidebarRollupLine";
 import { PeerContextMenu } from "./PeerContextMenu";
 import { peerPlateClass } from "./peerPlate";
 import { ROLLUP_SEPARATOR_CLASS, rollupSegments } from "./sidebarRollup";
 import { SortableItem } from "./ui/SortableList";
-import { peerRowToken } from "./peerRowOrder";
-import { FollowIndicator } from "./FollowIndicator";
 import type { MirrorRow } from "./peerSections";
 import type { PeerStatus } from "../peer/peerStatus";
-import type { FollowState } from "../followApi";
 import { isPeerSectionCollapsed, setPeerSectionCollapsed } from "../peer/peerSectionCollapse";
 import { PeerReconnect, PeerRemotePair, PeerRemove, PeerSetAlias } from "../../bridge/commands";
 import { useAppStore } from "../store/app";
@@ -43,13 +39,13 @@ function splitAlias(alias: string): { head: string; tail: string; address: boole
   return { head: alias.slice(0, cut), tail: alias.slice(cut), address: false };
 }
 
-// A paired Mac's projects, rendered as a flat section headed by the Mac's name.
-// The header collapses the section, holds its whole menu behind one ⋮, and — as
-// the section's drag handle — carries it to wherever the user wants it among the
-// local projects and folders. The Mac's own rows drag among themselves the way
-// local projects do (see peerRowOrder); the synced copies below them are pinned,
-// since they are here only for as long as that Mac is away. Selecting a row opens
-// the exact same ProjectDetail a local project uses.
+// A paired Mac's projects, in a section headed by the Mac's name. The header
+// collapses the section, holds its whole menu behind one ⋮, and — as the
+// section's drag handle — carries it to wherever the user wants it among the
+// local projects and folders. The rows under it are the Sidebar's own project
+// rows and decks, so a remote project shows everything a local one does; they
+// drag among themselves (see peerRowOrder), while the synced copies below them
+// are pinned, since they are here only for as long as that Mac is away.
 //
 // A Mac that is away keeps its section only for the copies synced here, so those
 // stay runnable while it sleeps.
@@ -62,13 +58,9 @@ export function SidebarPeerSection({
   linuxHost,
   status,
   projects,
-  mirrors,
   strays,
-  follows,
   selected,
-  contextTargetName,
-  onSelect,
-  onContextMenu,
+  children,
 }: {
   /// The section's slot in the sidebar order, making its header draggable.
   /// Omitted where there is no drag context (select mode).
@@ -83,16 +75,11 @@ export function SidebarPeerSection({
   /// How it is doing, for the header's plate and its second line.
   status: PeerStatus;
   projects: ProjectInfo[];
-  /// The local synced folder for each of this Mac's project folders, keyed by that
-  /// folder's path over there.
-  mirrors: Map<string, ProjectInfo>;
   /// Copies with no row of this Mac's own to mark.
   strays: MirrorRow[];
-  follows: Map<string, FollowState>;
   selected: string | null;
-  contextTargetName?: string | null;
-  onSelect: (name: string) => void;
-  onContextMenu: (name: string, x: number, y: number) => void;
+  /// The section's rows, shown while it is open.
+  children: ReactNode;
 }) {
   const clearSelection = useAppStore((s) => s.clearSelection);
   const addProjectForPeer = useAppStore((s) => s.addProjectForPeer);
@@ -239,52 +226,7 @@ export function SidebarPeerSection({
   return (
     <div className="my-3 first:mt-0">
       {sortableId ? <SortableItem id={sortableId}>{header}</SortableItem> : header}
-      {!collapsed &&
-        projects.map((project) => {
-          const mirror = mirrors.get(stripMarker(project.root));
-          const mirrorFollow = mirror && follows.get(mirror.name);
-          const row = (
-            <SidebarPeerRow
-              project={project}
-              label={project.label || peerRawName(project.name)}
-              selected={selected === project.name}
-              isContextTarget={contextTargetName === project.name}
-              mark={
-                mirror && mirrorFollow ? (
-                  <FollowIndicator
-                    follow={mirrorFollow}
-                    macName={alias}
-                    onOpen={() => onSelect(mirror.name)}
-                  />
-                ) : undefined
-              }
-              onSelect={() => onSelect(project.name)}
-              onContextMenu={(x, y) => onContextMenu(project.name, x, y)}
-            />
-          );
-          // Rows drag only where the header does — select mode has no drag
-          // context to register them with.
-          return sortableId ? (
-            <SortableItem key={project.name} id={peerRowToken(project.name)}>
-              {row}
-            </SortableItem>
-          ) : (
-            <div key={project.name}>{row}</div>
-          );
-        })}
-      {!collapsed &&
-        strays.map((stray) => (
-          <SidebarPeerRow
-            key={stray.project.name}
-            project={stray.project}
-            label={stray.label}
-            selected={selected === stray.project.name}
-            isContextTarget={contextTargetName === stray.project.name}
-            mark={<FollowIndicator follow={stray.follow} macName={alias} />}
-            onSelect={() => onSelect(stray.project.name)}
-            onContextMenu={(x, y) => onContextMenu(stray.project.name, x, y)}
-          />
-        ))}
+      {!collapsed && children}
 
       {menu && (
         <PeerContextMenu

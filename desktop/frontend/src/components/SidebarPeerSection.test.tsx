@@ -71,14 +71,12 @@ function render(props: Record<string, unknown> = {}) {
         linuxHost={false}
         status={LIVE}
         projects={[project("glimpse2", true)]}
-        mirrors={new Map()}
         strays={[]}
-        follows={new Map()}
         selected={null}
-        onSelect={vi.fn()}
-        onContextMenu={vi.fn()}
         {...(props as object)}
-      />,
+      >
+        <div data-testid="rows">glimpse2 row</div>
+      </SidebarPeerSection>,
     );
   });
   return container.querySelector("button") as HTMLButtonElement;
@@ -94,6 +92,19 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+});
+
+describe("SidebarPeerSection rows", () => {
+  it("shows the rows it is handed only while open", () => {
+    const header = render();
+    expect(container.querySelector("[data-testid=rows]")).toBeTruthy();
+
+    act(() => {
+      header.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("[data-testid=rows]")).toBeNull();
+    expect(header.textContent).toContain("1");
+  });
 });
 
 describe("SidebarPeerSection header", () => {
