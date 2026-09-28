@@ -6,6 +6,7 @@ import {
   Code2,
   Eye,
   LockKeyhole,
+  PlayCircle,
   Save,
   SlidersHorizontal,
 } from "lucide-react";
@@ -25,9 +26,11 @@ import {
   breadcrumbJsonLd,
   jsonLdString,
   webPageJsonLd,
+  youtubeLessonJsonLd,
 } from "@/lib/structured-data";
 import Cta from "./_components/cta";
 import Faq from "./_components/faq";
+import Lessons from "./_components/lessons";
 import LpmStatuslineDemo from "./_components/lpm-statusline-demo";
 import {
   BENEFITS,
@@ -35,7 +38,6 @@ import {
   CLAUDE_STATUSLINE_DOCS,
   CODEX_ITEMS,
   CODEX_STATUSLINE_DOCS,
-  STEPS,
 } from "./_components/statusline-copy";
 
 // Every query this page ranks for on page one leads with "codex", so the title
@@ -96,7 +98,12 @@ const structuredData = [
       path: STATUSLINE_PATH,
     },
   ]),
+  youtubeLessonJsonLd("claude-statusline"),
+  youtubeLessonJsonLd("codex-statusline"),
 ];
+
+const HERO_LINK_CLASS =
+  "inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-gray-600 transition hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white";
 
 export default function ClaudeCodeCodexStatuslinePage() {
   return (
@@ -117,9 +124,10 @@ export default function ClaudeCodeCodexStatuslinePage() {
             files.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-400 sm:text-[17px]">
-            lpm gives Claude Code and Codex a visual statusline editor. Pick a
-            layout, arrange useful signals, tune the appearance, and watch every
-            change in a live preview as lpm saves it.
+            See your 5-hour and weekly limits and the context left right under
+            the Claude Code or Codex prompt. Pick a layout in lpm’s visual
+            editor, arrange and restyle each item, and every change saves as you
+            go.
           </p>
           <div className="mt-[clamp(1rem,2vh,1.5rem)] flex flex-wrap items-center justify-center gap-x-5 gap-y-3 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-2">
@@ -137,20 +145,25 @@ export default function ClaudeCodeCodexStatuslinePage() {
           </div>
           <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex flex-col items-center gap-3">
             <HeroDownload source="statusline-hero" />
-            <a
-              href="#preview"
-              className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-gray-600 transition hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-white"
-            >
-              Try the interactive preview
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </a>
+            <div className="flex flex-wrap items-center justify-center gap-x-2">
+              <a href="#preview" className={HERO_LINK_CLASS}>
+                Try the interactive preview
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </a>
+              <a href="#watch" className={HERO_LINK_CLASS}>
+                <PlayCircle className="h-4 w-4" aria-hidden />
+                Watch the setup
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
       <LpmStatuslineDemo />
 
-      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
+      <Lessons />
+
+      <section className="py-20 sm:py-24">
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
             eyebrow="One lpm setting, two agent formats"
@@ -253,7 +266,7 @@ export default function ClaudeCodeCodexStatuslinePage() {
         </div>
       </section>
 
-      <section className="py-20 sm:py-24">
+      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
             eyebrow="Made for daily agent work"
@@ -265,36 +278,6 @@ export default function ClaudeCodeCodexStatuslinePage() {
                 key={title}
                 className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151515]"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300">
-                  <Icon className="h-5 w-5" aria-hidden />
-                </span>
-                <h3 className="mt-5 text-lg font-bold text-gray-950 dark:text-white">
-                  {title}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-                  {copy}
-                </p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="border-y border-gray-100 bg-gray-50/70 py-20 dark:border-gray-800/70 dark:bg-white/[0.015] sm:py-24">
-        <div className="mx-auto max-w-5xl px-6">
-          <SectionHeader
-            eyebrow="Three steps in lpm"
-            title="From default to useful in a minute"
-          />
-          <div className="grid gap-5 md:grid-cols-3">
-            {STEPS.map(({ step, icon: Icon, title, copy }) => (
-              <article
-                key={step}
-                className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-[#151515]"
-              >
-                <span className="absolute top-4 right-5 font-mono text-4xl font-bold text-gray-100 dark:text-white/[0.035]">
-                  {step}
-                </span>
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-white/[0.06] dark:text-gray-300">
                   <Icon className="h-5 w-5" aria-hidden />
                 </span>

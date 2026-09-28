@@ -133,6 +133,14 @@ const LESSON_CAPTION: Record<
     heading: "A Claude account for each project, all signed in at once",
     blurb: "A short video: add a second account and switch a project to it when one runs low.",
   },
+  "codex-statusline": {
+    heading: "Usage limits and context left, under the Codex prompt",
+    blurb: "A short video: pick a Codex status line layout and open Codex again.",
+  },
+  "claude-statusline": {
+    heading: "Usage limits and context left, under the Claude Code prompt",
+    blurb: "A short video: pick a Claude Code status line and watch it fill in.",
+  },
 };
 
 function DesktopOnlyPrompt({

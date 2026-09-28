@@ -24,6 +24,11 @@ const FAQS = [
       "No. lpm provides visual controls and saves the matching local configuration for Claude Code or Codex. You can customize either statusline without hand-editing scripts, JSON, or TOML.",
   },
   {
+    question: "Do I need to restart Claude Code or Codex to see the change?",
+    answer:
+      "Not for Claude Code: a session that is already running picks up the new statusline within a few seconds. Codex draws its status line when a session starts, so open Codex again and the new session shows it.",
+  },
+  {
     question: "Can lpm hide the statusline?",
     answer:
       "Yes. For Codex, choose Off or remove every item. For Claude Code, Off is offered when you have no statusline of your own; if you do, that option reads My status line and brings yours back. You can return to a preset or add fields again at any time.",

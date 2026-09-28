@@ -1,12 +1,5 @@
-import {
-  Eye,
-  FileSliders,
-  Monitor,
-  Save,
-  Settings2,
-  SlidersHorizontal,
-  type LucideIcon,
-} from "lucide-react";
+import { Eye, Save, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 
 export const CLAUDE_STATUSLINE_DOCS = "https://code.claude.com/docs/en/statusline";
 export const CODEX_STATUSLINE_DOCS =
@@ -44,28 +37,42 @@ export const BENEFITS: { icon: LucideIcon; title: string; copy: string }[] = [
   },
 ];
 
-export const STEPS: {
-  step: string;
-  icon: LucideIcon;
+export const STATUSLINE_LESSONS: {
+  agent: "claude" | "codex";
+  lesson: YouTubeLessonId;
   title: string;
-  copy: string;
+  length: string;
+  steps: string[];
+  tone: { border: string; chip: string };
 }[] = [
   {
-    step: "01",
-    icon: Settings2,
-    title: "Open AI & Integrations",
-    copy: "In lpm, open Settings (⌘, or the More menu at the bottom of the sidebar) and select AI & Integrations.",
+    agent: "claude",
+    lesson: "claude-statusline",
+    title: "Claude Code",
+    length: "1:43",
+    steps: [
+      "Open Settings, choose AI & Integrations, and click Customize beside Claude Code status line.",
+      "Pick Clean: folder, model, context left, 5-hour and weekly limits, and cost. Remove whatever you don't need.",
+      "Go back to the project. The Claude session already running shows the new line, no restart needed.",
+    ],
+    tone: {
+      border: "border-[#D97757]/25",
+      chip: "bg-[#D97757]/12 text-[#B75F40] dark:text-[#F09978]",
+    },
   },
   {
-    step: "02",
-    icon: FileSliders,
-    title: "Choose the statusline",
-    copy: "Click Customize beside Claude Code status line or Codex CLI status line, then pick a starting layout.",
-  },
-  {
-    step: "03",
-    icon: Monitor,
-    title: "Tune it live",
-    copy: "Arrange fields, adjust appearance, and watch the saved statusline update as you work.",
+    agent: "codex",
+    lesson: "codex-statusline",
+    title: "Codex",
+    length: "1:28",
+    steps: [
+      "Open Settings, choose AI & Integrations, and click Customize beside Codex CLI status line.",
+      "Pick Usage: model, context left, and 5-hour and weekly limits. Remove Fast mode if you don't use it.",
+      "Open Codex again. The new session shows the line right under the prompt.",
+    ],
+    tone: {
+      border: "border-[#10A37F]/25",
+      chip: "bg-[#10A37F]/12 text-[#087A5E] dark:text-[#4FD1AB]",
+    },
   },
 ];

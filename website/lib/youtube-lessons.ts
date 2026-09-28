@@ -51,6 +51,20 @@ const LESSONS = {
       "Adding a second Claude Code account in lpm, picking which account each project uses from its menu, and switching a project to the account with room left when one hits its 5-hour or weekly limit.",
     uploadDate: "2026-09-25T09:00:00+00:00",
   },
+  "codex-statusline": {
+    id: "TO3yguc3qAM",
+    name: "Codex Statusline: Show Usage Limits and Context Left in lpm",
+    description:
+      "Setting up the Codex CLI status line in lpm: pick the Usage layout, remove what you don't need, and new Codex sessions show the context left and 5-hour and weekly limits under the prompt.",
+    uploadDate: "2026-09-24T09:00:00+00:00",
+  },
+  "claude-statusline": {
+    id: "y_qaWmCl1IE",
+    name: "Claude Code Statusline: Show Usage Limits and Context Left in lpm",
+    description:
+      "Adding a Claude Code status line in lpm: pick the Clean layout, remove the cost, and the running Claude session shows the context left and 5-hour and weekly limits under the prompt with no restart.",
+    uploadDate: "2026-09-25T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",
