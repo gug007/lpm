@@ -9,7 +9,7 @@ const { spawnSync } = require("child_process");
 const shared = require("./shared");
 const { recordApp } = shared("record");
 const { makeVoice } = shared("voice");
-const { soundtrack } = shared("mix");
+const { DEFAULT_BED, soundtrack } = shared("mix");
 const { TikTokStage } = require("./tiktokstage");
 const { OUT, FPS, geometry, cameraKeys, cameraFilter } = require("./camera");
 const { editList } = require("./edit");
@@ -52,7 +52,7 @@ const framesDir = path.join(DIR, "frames");
 const mp4 = path.join(DIR, `${slug}.mp4`);
 const music = flag("--no-music")
   ? null
-  : opt("--music", lesson.music === false ? null : lesson.music || process.env.LPM_LESSON_MUSIC || path.join(LESSONS, "_music", "bed.mp3"));
+  : opt("--music", lesson.music === false ? null : lesson.music || process.env.LPM_LESSON_MUSIC || DEFAULT_BED);
 const voice = makeVoice({ audioDir: path.join(DIR, "audio"), voice: VOICE, style: STYLE, respeak: flag("--respeak"), tempo: lesson.tempo ?? TEMPO });
 
 async function record(lines) {
@@ -128,7 +128,7 @@ async function compose(lines) {
   parts.push(`[6:v]format=rgba[text];[cut][text]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[vout]`);
 
   const bed = music && fs.existsSync(music) ? music : null;
-  if (music && !bed) console.log(`no music: ${music} is missing`);
+  if (music && !bed) console.log(`no music: ${music} is missing${music === DEFAULT_BED ? " (preflight.js downloads it)" : ""}`);
   const clips = timed.filter((l) => !l.line.silent).map((l) => ({ wav: l.line.wav, startMs: Math.round(l.outMs) }));
   // The bed starts at full level under the hook and is gone with the last frame.
   const sound = soundtrack({ clips, base: 7, bed, totalMs: edit.outMs, underLu: MUSIC_UNDER_VOICE_LU, fadeInS: 0.15, fadeOutS: 0.8 });

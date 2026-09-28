@@ -1,6 +1,6 @@
 ---
 name: short-model-compare
-version: 1.0.0
+version: 1.1.0
 argument-hint: "\"<model A>\" vs \"<model B>\" [prompt: …]"
 description: "Make a short vertical (9:16) video that races two AI models on the same prompt in lpm, side by side: Run in duplicates puts each model in its own copy of the project, shown as side-by-side columns, the same prompt sent to both, the real finish times on the pane headers, then both results live in lpm's browser. Default prompt: a giraffe flying a one-seat plane as animated HTML. Models in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, Reel or Short that compares models, such as \"opus 5.5 max vs gpt 6 astra ultra\" or \"opus 5 vs opus 5.5\"."
 ---
@@ -53,13 +53,13 @@ Launch commands (session-only flags, so nothing in the user's config changes):
    node scripts/new.js "opus 5.5 low" "opus 5.5 max" --prompt "<prompt>" --subject "a lava lamp"
    ```
 
-   It creates `~/Movies/lpm-lessons/tiktok/<slug>/` with `lesson.json` (narration, headline, post), `compare.json` (both models, the prompt), `beats.js` (a stub that loads `scripts/beats.js`) and `take.sh`. `--subject` is the short noun phrase the narration and the caption use for a custom prompt. `--slug` names the folder. `--force` rewrites an existing one.
+   It creates `~/Movies/lpm-lessons/tiktok/<slug>/` with `lesson.json` (narration, headline, post), `compare.json` (both models, the prompt), `beats.js` (a stub that loads `scripts/beats.js`, which brings in the tiktok kit) and `take.sh` (`tiktok-video-lesson/scripts/take.sh`, inside the Claude-default backup when model A is picked on camera). Both point into this repo by absolute path, so the folder needs nothing from outside git. `--subject` is the short noun phrase the narration and the caption use for a custom prompt. `--slug` names the folder. `--force` rewrites an existing one.
 
    A custom prompt must still ask for `index.html` at the project root: the race waits for that file, and the reveal opens it. It should also say the page is shown in a tall, narrow panel of any size, lay the scene out on a fixed 420x740 stage with the subject's size given as shares of that stage (the default: plane about 80% of the width, body about 60% down, giraffe's head about 20% from the top), and ask for the whole stage to be scaled to fit the panel, never cropped. Pixel sizes break at other panel sizes, and percentages of the panel itself pull against each other when its shape changes. "Fill the window" made one model crop its scene, and without sizes the two results come out at different scales, which makes the side-by-side comparison harder.
 
 2. Tell the user that a take is starting and that they should leave the keyboard and mouse alone. A take drives the real pointer, and a stray key lands in the prompt.
 
-3. Dry run: `<slug>/take.sh --no-audio --frames`, then check `frames/`. Both columns should be there, both banners should show the right model, and both prompts should be sent. There should be no intro or update screen in either column.
+3. Dry run: `<slug>/take.sh --no-audio --frames`, then check `frames/`. The preflight runs first, and a take stops before touching anything when it lists something missing. Both columns should be there, both banners should show the right model, and both prompts should be sent. There should be no intro or update screen in either column.
 
 4. The video: `<slug>/take.sh --frames`. The take lasts as long as the slower model (15-minute limit per side, or `timeoutMin` in compare.json; a side that runs out shows `✗ no page`. xhigh and max can think for over 15 minutes before writing). The real times go to `<slug>/result.json`.
 

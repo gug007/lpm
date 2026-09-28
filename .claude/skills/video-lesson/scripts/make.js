@@ -10,7 +10,7 @@ const { OUT, FRAME, ZOOM } = require("./stage");
 const { recordDemo, recordApp, renderTimelineCards } = require("./record");
 const { videoGraph, frameAssets, frameBox } = require("./compose");
 const { makeVoice } = require("./voice");
-const { soundtrack } = require("./mix");
+const { DEFAULT_BED, soundtrack } = require("./mix");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -48,7 +48,7 @@ const timelineFile = path.join(outDir, variant ? `${variant}.timeline.json` : "t
 const mp4 = path.join(outDir, `${stem}.mp4`);
 const music = flag("--no-music")
   ? null
-  : opt("--music", lesson.music === false ? null : lesson.music || process.env.LPM_LESSON_MUSIC || path.join(ROOT, "_music", "bed.mp3"));
+  : opt("--music", lesson.music === false ? null : lesson.music || process.env.LPM_LESSON_MUSIC || DEFAULT_BED);
 fs.mkdirSync(outDir, { recursive: true });
 const voice = makeVoice({ audioDir, voice: VOICE, style: TTS_STYLE, respeak: flag("--respeak") });
 
@@ -104,7 +104,7 @@ async function mux(lines) {
   inputs.push(...video.inputs);
   const base = 1 + (video.count || 0);
   const bed = music && fs.existsSync(music) ? music : null;
-  if (music && !bed) console.log(`no music: ${music} is missing`);
+  if (music && !bed) console.log(`no music: ${music} is missing${music === DEFAULT_BED ? " (preflight.js downloads it)" : ""}`);
   // The bed fades in over the opening card and out over the closing one.
   const sound = soundtrack({
     clips: spokenLines.map((t) => ({ wav: t.line.wav, startMs: t.startMs })),

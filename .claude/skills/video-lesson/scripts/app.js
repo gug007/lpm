@@ -214,4 +214,4 @@ async function launchApp({ lpmDir, env = {}, log = () => {} }) {
   };
 }
 
-module.exports = { launchApp, quitStale, APP_BIN };
+module.exports = { launchApp, quitStale, APP_BIN, FRONTEND };

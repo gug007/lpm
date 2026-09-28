@@ -1,13 +1,13 @@
 ---
 name: tiktok-video-lesson
-version: 1.0.0
+version: 1.1.0
 argument-hint: "\"<topic>\" [-- <notes>]"
 description: "Make a short vertical (9:16) lpm lesson that feels native to TikTok, Reels and Shorts: a payoff-first hook, fast push-ins that follow the action, word-by-word burned-in captions, numbered step stickers, jump cuts over waiting, recorded from the real desktop app. Topic in, 1080x1920 MP4 + cover + post caption out. Use when the user asks for a TikTok, a Reel, a Short, or any vertical or short-form video about lpm."
 ---
 
 Make a vertical lesson video from a topic and optional notes. It is not a trimmed YouTube lesson: the script, the pacing and the picture are built for a phone held upright with the sound possibly off.
 
-The recorder, the voice and the mix are the `video-lesson` skill's (`../video-lesson/scripts`). Everything that skill's SKILL.md says about driving the app still holds and is not repeated here: the pristine `~/.lpm-lessons` data dir, `/Users/Shared/lpm-lessons` workspace, the lesson control socket, real pointer and keys (`s.keys("return")`, never cliclick `kp:`), agent trust, `waitFor`/`click`/`type` selectors, foreground takes, the OpenAI key in the Keychain.
+The recorder, the voice and the mix are the `video-lesson` skill's (`../video-lesson/scripts`). Everything that skill's SKILL.md says about driving the app still holds and is not repeated here: the pristine `~/.lpm-lessons` data dir, `/Users/Shared/lpm-lessons` workspace, the lesson control socket, real pointer and keys (`s.keys("return")`, never cliclick `kp:`), agent trust, `waitFor`/`click`/`type` selectors, foreground takes, the OpenAI key in the Keychain, the preflight that checks the Mac before every take.
 
 ## What makes it TikTok-native
 
@@ -50,7 +50,7 @@ The recorder, the voice and the mix are the `video-lesson` skill's (`../video-le
 
 ## Beats
 
-`beats.js` exports `setup` and one beat per line id, exactly like `video-lesson`, plus these calls:
+`beats.js` exports `setup` and one beat per line id, exactly like `video-lesson`. The shared helpers are in `scripts/kit.js`: `writeProject` (a seeded folder, git, its lpm config), `neutralShell` (a plain prompt, plus a `claude`/`codex` wrapper that records the folder trust), `openAgent`, `claudeDone`/`codexDone`, `until`, `clickUntil`, `tagByPosition`, `focusLeft`, `park`. A lesson requires the kit by this skill's absolute path: `const kit = require("<repo>/.claude/skills/tiktok-video-lesson/scripts/kit")`. Beats add these calls:
 
 - `s.focus(sel, { scale, at, ms, cue })`: push the camera in on an element; it lands 36% down the frame, above the captions and the button column. Use 1.4–1.6 for a whole terminal line or a settings preview, and 1.8–2.2 for a button, a tab or a row. A pushed-in camera pans after the pointer when it leaves the shot. `s.zoom` is the same call.
 - `s.wide({ ms, cue })`: back to the whole window. Go wide when a new screen opens. `s.zoomOut` is the same call.
@@ -63,19 +63,26 @@ A cue is the spoken word an action lands on, as in `video-lesson`. Aim for a cam
 
 ## Pipeline
 
-```
-node scripts/make.js <slug> --no-audio --frames   # dry run: raw window frames in frames/
-node scripts/make.js <slug> --frames              # voice → take → cut → MP4 + cover + sheet + post
-node scripts/make.js <slug> --mux-only            # re-cut the last take (camera, stickers, captions, music)
+Every lesson folder has a `take.sh`, which runs this skill's `scripts/take.sh`: the preflight first, then `make.js` on an empty local clipboard under `caffeinate`, with the clipboard put back afterwards. The plain one is:
+
+```sh
+#!/bin/sh
+exec "<repo>/.claude/skills/tiktok-video-lesson/scripts/take.sh" "$(dirname "$0")" "$@"
 ```
 
-Flags: `--respeak`, `--keep-state`, `--lpm-dir <dir>`, `--dom-mouse`, `--voice <name>`, `--style "…"`, `--music <file>` / `--no-music` (the default bed is `~/Movies/lpm-lessons/_music/bed.mp3`, 11 LU under the voice, full level from frame 0).
+```
+<slug>/take.sh --no-audio --frames   # dry run: raw window frames in frames/
+<slug>/take.sh --frames              # voice → take → cut → MP4 + cover + sheet + post
+<slug>/take.sh --mux-only            # re-cut the last take (camera, stickers, captions, music)
+```
+
+Flags: `--respeak`, `--keep-state`, `--lpm-dir <dir>`, `--dom-mouse`, `--voice <name>`, `--style "…"`, `--music <file>` / `--no-music` (the default bed is `video-lesson/music/bed.mp3`, which the preflight downloads; 11 LU under the voice, full level from frame 0). `node scripts/make.js <slug> …` runs the same pipeline without the preflight and the clipboard swap.
 
 Output in the lesson folder: `<slug>.mp4` (H.264 High, 30 fps, AAC 48 kHz), `cover.jpg` (the opening frame), `post.txt` (caption and hashtags), `sheet.jpg` (a frame every 1.5 s with TikTok's UI zones in red), `cut.json` (the edit, the camera keys, the text track), `timeline.json`, `record.mkv`, `overlay/` (rendered text frames, reused by `--mux-only`), `audio/`.
 
 Before a take, close `tauri dev` and keep the lid open. The recording app is the debug build and loads its UI from Vite on :9245. When nothing serves that port, the launcher starts its own server that doesn't watch files (`video-lesson/scripts/vite.lesson.config.mjs`) and warms it. A running `tauri dev` server does watch them, so an edit under `desktop/frontend/src` (another agent in the same worktree) reloads the app mid-take and closes any open dialog, and a Rust edit restarts `tauri dev`'s own app, which takes keyboard focus while the take is typing. The launcher logs which server it used. Closing the lid sleeps the Mac and ends the take; `caffeinate` only keeps the display awake through long waits.
 
-A take that edits the user's real agent config (for example `~/.claude/settings.json` from the Customize page) runs through a `take.sh` that backs the file up and restores it on exit. Copy the one in `tiktok/claude-code-statusline/`; it also swaps in an empty local clipboard for the take and restores the text afterwards.
+A take that edits the user's real agent config (for example `~/.claude/settings.json` from the Customize page) backs the file up in its `take.sh`, sets `trap restore EXIT`, and then calls `"<repo>/.claude/skills/tiktok-video-lesson/scripts/take.sh" "$DIR" "$@"` without `exec`, so the restore runs after the take. `short-model-compare`'s `new.js` writes one like this around `claude-default.js`.
 
 ## Review before posting
 
@@ -84,7 +91,9 @@ Open `sheet.jpg` and `cover.jpg` and check:
 - **System popups.** The capture records the screen area, so a macOS popup lands in the video with the user's name on it ("<name>'s AirPods Connected", "Pasting from <name>'s iPhone…"). Retake if one appears.
 - **Terminal lines cut off.** A TUI truncates a line wider than the pane with "…", and a push-in that is too tight crops it. Widen `"window"` or lower the push-in scale.
 - **Real numbers.** Usage meters, plan names and costs are the user's real ones.
-- The hook is 2.5 s or less (the `audio hook:` log line) and the whole video is 45 s or less (the `muxed` log line).
+- The hook is 2.5 s or less (the `audio hook:` log line) and the whole video is 45 s or less (the `muxed` log line). `scripts/rehook.sh <slug>` re-speaks an edited hook line and re-cuts without a retake.
+
+`scripts/scan.sh <slug> [out-dir]` makes a one-frame-per-second contact sheet of the MP4 for spotting popups.
 
 Then watch the MP4 once with the sound off: the captions alone should carry the lesson.
 

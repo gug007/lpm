@@ -18,6 +18,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const kit = require("../../tiktok-video-lesson/scripts/kit");
 
 const AGENT_STARTUP_MS = 7000;
 const BUILD_TIMEOUT_MS = 15 * 60 * 1000;
@@ -269,7 +270,7 @@ const badges = (s, items) =>
     }
   }, items);
 
-module.exports = function compareBeats({ kit, config, dir }) {
+module.exports = function compareBeats({ config, dir }) {
   const sides = [config.a, config.b];
   const project = config.project || "arena";
   const timeoutMs = config.timeoutMin ? config.timeoutMin * 60 * 1000 : BUILD_TIMEOUT_MS;

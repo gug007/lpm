@@ -4,6 +4,10 @@
 const path = require("path");
 const { spawnSync } = require("child_process");
 
+// Downloaded by preflight.js from music/tracks.json; the licence allows it in
+// videos but not in the repo.
+const DEFAULT_BED = path.join(__dirname, "..", "music", "bed.mp3");
+
 // Integrated loudness (LUFS) of a filter graph's [out] label over `inputs`.
 function lufs(inputs, filter) {
   const r = spawnSync(
@@ -45,4 +49,4 @@ function soundtrack({ clips, base, bed, totalMs, underLu, fadeInS, fadeOutS, log
   return { inputs, filter };
 }
 
-module.exports = { lufs, voiceGraph, soundtrack };
+module.exports = { DEFAULT_BED, lufs, voiceGraph, soundtrack };
