@@ -10,8 +10,10 @@
 // carries a colour badge with the model and its time. `cue` = the spoken word
 // an action lands on.
 //
-// The hook line's beat is never seen (the video opens on the payoff), so it
-// does the setup: open the project, launch run #1.
+// The opening lines' beats are never seen (the video opens on the payoff), so
+// the last of them does the setup: open the project, launch run #1. A lesson
+// with a "tease" line opens on two lines and sets up there; an older one sets
+// up in the hook.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -401,13 +403,20 @@ module.exports = function compareBeats({ kit, config, dir }) {
     const file = roots[i] && path.join(roots[i], "index.html");
     await kit.focusWindow(s);
     // Work in the column first: the click that moves focus to it re-renders
-    // it, and a menu click landing mid re-render is lost.
+    // it, and a menu click landing mid re-render is lost. Click its pane
+    // header, not the terminal: a file path the agent printed there opens a
+    // file preview over everything.
     await tagLeftToRight(s, COLUMN, "col");
+    await tagPanes(s);
     const col = `[data-lesson="col-${i}"]`;
     const passive = await s.control.evaluate((q) => document.querySelector(q)?.dataset.projectColumn === "passive", col);
     if (passive) {
-      await s.click(col, { at: [0.5, 0.6], ms: 250 });
+      await s.click(HEAD(i), { at: [0.55, 0.5], ms: 250 });
       await s.hold(500);
+    }
+    if (await kit.isVisible(s, '[role="dialog"]')) {
+      await s.keys("escape");
+      await s.hold(400);
     }
     const menu = `${HEAD(i)} >> button[aria-label="More options"]`;
     const end = Date.now() + 20000;
@@ -423,6 +432,34 @@ module.exports = function compareBeats({ kit, config, dir }) {
     await s.type(file && fs.existsSync(file) ? `file://${file}` : `file://${roots[i] || projectsDir}`);
     await s.keys("return");
     await s.hold(600);
+  }
+
+  const teased = JSON.parse(fs.readFileSync(path.join(dir, "lesson.json"), "utf8")).narration.some((l) => l.id === "tease");
+
+  async function setupRun(s) {
+    await kit.focusWindow(s);
+    await kit.clickUntil(s, kit.PROJECT(project), () => kit.isVisible(s, `[data-actions-zone="header"]`), { at: [0.3, 0.5], ms: 300 });
+    await s.waitFor(`[data-actions-zone="header"]`, 8000);
+    await s.hold(800);
+    await kit.clickUntil(s, COLLAPSE, async () => !(await kit.isVisible(s, COLLAPSE)), { ms: 250 });
+    await s.hold(400);
+    const found = Date.now() + 8000;
+    const button = BUTTON[sides[0].cli];
+    while (!(await tagAction(s, button))) {
+      if (Date.now() > found) throw new Error(`no header button "${button}"`);
+      await s.hold(200);
+    }
+    const before = await kit.count(s, kit.TABS);
+    for (let attempt = 0; attempt < 3 && (await kit.count(s, kit.TABS)) === before; attempt++) {
+      await tagAction(s, button);
+      await kit.focusWindow(s);
+      await s.click(ACT, { ms: 300 });
+      await s.hold(3000);
+    }
+    if ((await kit.count(s, kit.TABS)) === before) throw new Error(`${button} never opened a tab`);
+    await s.hold(AGENT_STARTUP_MS);
+    await tagAll(s);
+    kit.park(s);
   }
 
   return {
@@ -464,29 +501,9 @@ module.exports = function compareBeats({ kit, config, dir }) {
     },
 
     hook: async (s) => {
-      await s.click(kit.PROJECT(project), { at: [0.3, 0.5], ms: 300 });
-      await s.waitFor(`[data-actions-zone="header"]`, 8000);
-      await s.hold(800);
-      await kit.clickUntil(s, COLLAPSE, async () => !(await kit.isVisible(s, COLLAPSE)), { ms: 250 });
-      await s.hold(400);
-      const found = Date.now() + 8000;
-      const button = BUTTON[sides[0].cli];
-      while (!(await tagAction(s, button))) {
-        if (Date.now() > found) throw new Error(`no header button "${button}"`);
-        await s.hold(200);
-      }
-      const before = await kit.count(s, kit.TABS);
-      for (let attempt = 0; attempt < 3 && (await kit.count(s, kit.TABS)) === before; attempt++) {
-        await tagAction(s, button);
-        await kit.focusWindow(s);
-        await s.click(ACT, { ms: 300 });
-        await s.hold(3000);
-      }
-      if ((await kit.count(s, kit.TABS)) === before) throw new Error(`${button} never opened a tab`);
-      await s.hold(AGENT_STARTUP_MS);
-      await tagAll(s);
-      kit.park(s);
+      if (!teased) await setupRun(s);
     },
+    tease: async (s) => setupRun(s),
     left: async (s) => {
       await tagAll(s);
       if (config.pickA) await pickModelA(s);
@@ -556,15 +573,18 @@ module.exports = function compareBeats({ kit, config, dir }) {
         { keepMs: 300 },
       );
     },
+    // The payoff shot runs from the reveal to the end, long enough to open on
+    // two lines.
     reveal: async (s) => {
       await s.hideCursor();
       await badges(s, badgeItems());
-      await s.wide({ ms: 400, cue: config.cues.reveal });
+      await s.wide({ ms: 400 });
+      await s.hold(450);
+      await s.payoff();
     },
     wrap: async (s) => {
-      await s.payoff();
       await s.frame("payoff");
-      await s.hold(3400);
+      await s.hold(5500);
     },
   };
 };

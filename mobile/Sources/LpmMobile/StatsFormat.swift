@@ -115,45 +115,95 @@ func distinctModelCount(_ sessions: [UsageSession]) -> Int {
 struct Rate {
     let input: Double
     let cacheWrite: Double
+    let cacheWrite1h: Double
     let cacheRead: Double
     let output: Double
+    let fast: Double
 }
 
-private let opusRate = Rate(input: 5, cacheWrite: 6.25, cacheRead: 0.5, output: 25)
+private func anthropic(_ input: Double, _ output: Double, cacheRead: Double? = nil, fast: Double = 2) -> Rate {
+    Rate(input: input, cacheWrite: input * 1.25, cacheWrite1h: input * 2,
+         cacheRead: cacheRead ?? input * 0.1, output: output, fast: fast)
+}
 
+/// OpenAI bills a cache write as plain input unless the model lists a write rate, and
+/// has no 1-hour tier.
+private func openai(_ input: Double, _ cacheRead: Double, _ output: Double,
+                    cacheWrite: Double? = nil, fast: Double = 2) -> Rate {
+    let write = cacheWrite ?? input
+    return Rate(input: input, cacheWrite: write, cacheWrite1h: write,
+                cacheRead: cacheRead, output: output, fast: fast)
+}
+
+private let opusRate = anthropic(5, 25)
+private let codexRate = openai(4, 0.4, 20, cacheWrite: 5)
+
+/// Substring tests matched in order, so a variant precedes its family — `claude-opus-5-5`
+/// would otherwise be priced as Opus 5 (matches `RATE_TABLE` in statsCost.ts).
 private let rateTable: [(tokens: [String], rate: Rate)] = [
-    (["fable", "mythos"], Rate(input: 10, cacheWrite: 12.5, cacheRead: 1.0, output: 50)),
+    (["fable-5-1", "mythos-5-1"], anthropic(10, 50, cacheRead: 0.25)),
+    (["mythos-preview"], anthropic(25, 125)),
+    (["fable", "mythos"], anthropic(10, 50)),
+    (["opus-5-5"], anthropic(4, 20, cacheRead: 0.2)),
+    (["opus-4-6", "opus-4-7"], anthropic(5, 25, fast: 6)),
+    (["opus-4-1", "opus-4-2025", "opus-4@"], anthropic(15, 75)),
     (["opus"], opusRate),
-    (["sonnet"], Rate(input: 3, cacheWrite: 3.75, cacheRead: 0.3, output: 15)),
-    (["haiku"], Rate(input: 1, cacheWrite: 1.25, cacheRead: 0.1, output: 5)),
-    (["gpt", "codex", "o3", "o4", "o1"], Rate(input: 1.25, cacheWrite: 1.25, cacheRead: 0.125, output: 10)),
+    (["sonnet-5"], anthropic(2, 10)),
+    (["sonnet"], anthropic(3, 15)),
+    (["3-5-haiku"], anthropic(0.8, 4)),
+    (["haiku"], anthropic(1, 5)),
+    (["gpt-6-astra"], openai(10, 1, 50, cacheWrite: 12.5)),
+    (["gpt-6-sol"], openai(2, 0.2, 10, cacheWrite: 2.5)),
+    (["gpt-6-luna"], openai(0.1, 0.01, 0.5, cacheWrite: 0.125)),
+    (["gpt-5.6-terra"], openai(2, 0.2, 12, cacheWrite: 2.5)),
+    (["gpt-5.6-luna"], openai(0.2, 0.02, 1.2, cacheWrite: 0.25)),
+    (["gpt-5.6-cyber"], openai(12.5, 1.25, 75, cacheWrite: 15.625)),
+    (["gpt-5.6"], codexRate),
+    (["gpt-5.5-pro"], openai(30, 30, 180)),
+    (["gpt-5.5"], openai(5, 0.5, 30, fast: 2.5)),
+    (["gpt-5.4-mini"], openai(0.75, 0.075, 4.5)),
+    (["gpt-5.4-nano"], openai(0.2, 0.02, 1.25)),
+    (["gpt-5.4", "codex-auto-review"], openai(2.5, 0.25, 15)),
+    (["gpt-5.3", "gpt-5.2"], openai(1.75, 0.175, 14)),
+    (["gpt-5-mini"], openai(0.25, 0.025, 2, fast: 1.8)),
+    (["gpt-5-nano"], openai(0.05, 0.005, 0.4)),
+    (["gpt-5.1-codex-mini", "gpt-5-codex-mini"], openai(0.25, 0.025, 2)),
+    (["gpt-5"], openai(1.25, 0.125, 10)),
+    (["codex-mini"], openai(1.5, 0.375, 6)),
+    (["o4-mini"], openai(1.1, 0.275, 4.4)),
+    (["o3-mini"], openai(1.1, 0.55, 4.4)),
+    (["o3"], openai(2, 0.5, 8, fast: 1.75)),
 ]
 
-/// The first rate whose token appears (case-insensitive) in the model id, or the
-/// Opus rate as the default (matches `pickRate` in statsCost.ts).
-func pickRate(_ modelId: String) -> Rate {
+/// The first rate whose token appears (case-insensitive) in the model id, else the
+/// provider's default (matches `pickRate` in statsCost.ts).
+func pickRate(_ modelId: String, provider: String? = nil) -> Rate {
     let id = modelId.lowercased()
     for entry in rateTable where entry.tokens.contains(where: { id.contains($0) }) {
         return entry.rate
     }
-    return opusRate
+    return provider == "codex" ? codexRate : opusRate
 }
 
 /// Estimated USD cost for one model's token usage. Fresh input is the input that
-/// was neither a cache write nor a cache read; each bucket is priced separately.
-func estimateModelCost(_ tokens: UsageTokens, _ modelId: String) -> Double {
-    let rate = pickRate(modelId)
+/// was neither a cache write nor a cache read; each bucket is priced separately, and
+/// fast-mode usage is scaled by the model's fast multiplier.
+func estimateModelCost(_ tokens: UsageTokens, _ modelId: String, provider: String? = nil,
+                       fast: Bool = false) -> Double {
+    let rate = pickRate(modelId, provider: provider)
     let freshInput = Double(max(0, tokens.inputTokens - tokens.cacheCreationInputTokens - tokens.cacheReadInputTokens))
+    let cacheWrite1h = min(tokens.cacheCreation1hInputTokens, tokens.cacheCreationInputTokens)
     let cost = freshInput * rate.input
-        + Double(tokens.cacheCreationInputTokens) * rate.cacheWrite
+        + Double(tokens.cacheCreationInputTokens - cacheWrite1h) * rate.cacheWrite
+        + Double(cacheWrite1h) * rate.cacheWrite1h
         + Double(tokens.cacheReadInputTokens) * rate.cacheRead
         + Double(tokens.outputTokens) * rate.output
-    return cost / 1_000_000
+    return cost * (fast ? rate.fast : 1) / 1_000_000
 }
 
 /// Summed estimated cost across every per-model breakdown.
 func estimateTotalCost(_ models: [UsageBreakdown]) -> Double {
-    models.reduce(0) { $0 + estimateModelCost($1.tokens, $1.key) }
+    models.reduce(0) { $0 + estimateModelCost($1.tokens, $1.key, provider: $1.provider, fast: $1.fast) }
 }
 
 /// USD for display: `$0` at or below zero, two decimals under $10, else a rounded

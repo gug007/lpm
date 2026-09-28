@@ -15,6 +15,8 @@ const DEFAULT_PROMPT =
   "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a tall, narrow panel and the window can be any size. Lay the scene out on a 420x740 stage: the plane spans about 80% of the stage's width with its body about 60% of the way down, and the giraffe's head reaches about 20% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. No questions, just write it.";
 const WINDOW = { w: 900, h: 1000 };
 const CLI_NAME = { claude: "Claude Code", codex: "Codex" };
+// What viewers type into TikTok search: "claude vs chatgpt", not the CLI names.
+const BRAND = { claude: "Claude", codex: "ChatGPT" };
 
 const args = process.argv.slice(2);
 const VALUE_FLAGS = ["--prompt", "--subject", "--slug"];
@@ -71,18 +73,22 @@ const sameModel = a.name === b.name;
 const effortWord = (m) => m.spokenEffort || "default";
 const upper = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const emoji = giraffe ? " 🦒" : "";
-// A hook over 2.5 s loses the scroll: name families when they differ ("Opus or
-// Fable?"), full names only when they don't.
+// A hook over 2.5 s loses the scroll: name the brands across CLIs ("Claude or
+// ChatGPT?"), families when they differ ("Opus or Fable?"), full names only
+// when they don't.
 const family = (m) => m.name.split(" ")[0];
-const hookNames = family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
+const hookNames = crossCli ? [BRAND[a.cli], BRAND[b.cli]] : family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
 const bEffort = b.effort && b.effort !== a.effort ? ` at ${b.spokenEffort}` : "";
 
 const narration = [
   {
     id: "hook",
     text: sameModel ? `${upper(effortWord(a))} or *${effortWord(b)}* effort?` : `${hookNames[0]} or *${hookNames[1]}*?`,
-    headline: `${a.headline} vs ${b.headline}${emoji}`,
+    headline: crossCli ? `${BRAND[a.cli]} vs ${BRAND[b.cli]}: ${a.name} vs ${b.name}${emoji}` : `${a.headline} vs ${b.headline}${emoji}`,
   },
+  // The first two lines play over the finished pages (lesson.open): viewers
+  // left at 0:02 when a one-line opening cut to the setup.
+  { id: "tease", text: `Same prompt. Two very different *${giraffe ? "giraffes" : "results"}*.` },
   {
     id: "left",
     text: `${pickA ? "Pick " : ""}*${a.name}*${a.effort ? ` at ${a.spokenEffort} effort` : ""} on the left.`,
@@ -108,20 +114,21 @@ const narration = [
 
 const clis = new Set([a.cli, b.cli]);
 const hashtags = [
-  clis.has("claude") && "claudecode",
-  clis.has("codex") && "codex",
-  clis.size === 1 && (clis.has("claude") ? "claude" : "openai"),
-  "aicoding",
-  "aimodels",
+  clis.has("claude") && "claude",
+  clis.has("codex") && "chatgpt",
+  clis.has("claude") ? "claudecode" : "codex",
+  "vibecoding",
+  clis.size === 1 && "aicoding",
   "lpm",
 ].filter(Boolean);
 const what = giraffe ? "a giraffe flying a one-seat plane, built as an animated web page" : subject ? `${subject}, built as a web page` : "one prompt";
 const lesson = {
   title: `${a.headline} vs ${b.headline}${giraffe ? ": the giraffe test" : ", same prompt"}`,
   window: WINDOW,
+  open: 2,
   narration,
   post: {
-    caption: `${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
+    caption: `${crossCli ? `${BRAND[a.cli]} vs ${BRAND[b.cli]} for coding: ` : `${BRAND[a.cli]} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
     hashtags: hashtags.slice(0, 5),
   },
 };
@@ -181,7 +188,8 @@ ${restoreDefault.save}restore() {
 trap restore EXIT
 trap 'exit 130' INT TERM
 
-cd "$SKILL" && node scripts/make.js "$(basename "$DIR")" "$@"
+# A race can leave the pointer still for longer than the display-sleep timer.
+cd "$SKILL" && caffeinate -dims node scripts/make.js "$(basename "$DIR")" "$@"
 `,
   { mode: 0o755 },
 );

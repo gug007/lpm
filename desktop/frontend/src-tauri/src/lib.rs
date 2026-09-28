@@ -8,6 +8,8 @@ mod agent_sessions;
 mod agent_sessions_claude;
 mod agent_sessions_codex;
 mod agent_usage;
+mod agent_usage_claude;
+mod agent_usage_codex;
 mod agent_caps;
 mod agentnest;
 mod aigen;

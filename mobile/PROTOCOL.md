@@ -767,15 +767,15 @@ sessions: N                 // total agent sessions in the period
 totals: TokenUsage          // grand totals
 providers: [UsageBreakdown] // key = "claude" | "codex"
 projects:  [UsageBreakdown] // key/label = project name
-models:    [UsageBreakdown] // key = model id (drives the cost estimate)
+models:    [UsageBreakdown] // key = model id (drives the cost estimate); fast-mode usage is a separate row
 daily:     [ { date: "YYYY-MM-DD", claudeTokens: N, codexTokens: N, totalTokens: N,
-               models: [ { provider, model, tokens: TokenUsage } ] } ]   // per-day cost estimate
+               models: [ { provider, model, tokens: TokenUsage, fast: true? } ] } ]   // per-day cost estimate
 recentSessions: [ { provider, project, model, startedAt: unix millis, lastAt: unix millis, tokens: TokenUsage } ]
 sources:   [ { provider, files: N } ]   // history files scanned per provider
 ```
-**TokenUsage**: `{ inputTokens, cachedInputTokens, cacheCreationInputTokens, cacheReadInputTokens, outputTokens, reasoningTokens, totalTokens }`. Invariants: `inputTokens` **already includes** the cached input (`cacheCreation + cacheRead`); `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. So cache share = `cachedInputTokens / max(1, inputTokens)`.
-**UsageBreakdown**: `{ key, label, sessions, tokens: TokenUsage }`.
-Cost is **estimated on the phone** from `models` — and per day from `daily[].models` — using per-model list prices with cache reads/writes priced separately, matching the desktop. No cost field is sent.
+**TokenUsage**: `{ inputTokens, cachedInputTokens, cacheCreationInputTokens, cacheCreation1hInputTokens, cacheReadInputTokens, outputTokens, reasoningTokens, totalTokens }`. Invariants: `inputTokens` **already includes** the cached input (`cacheCreation + cacheRead`); `cacheCreation1hInputTokens ⊆ cacheCreationInputTokens` (the 1-hour cache writes, priced at 2× input instead of 1.25×; absent from older Macs, read as 0); `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. So cache share = `cachedInputTokens / max(1, inputTokens)`.
+**UsageBreakdown**: `{ key, label, sessions, tokens: TokenUsage, provider?, fast? }`. `provider` is set on `models` rows only; `fast: true` marks a model row that ran in fast mode (priced at the model's fast multiplier) and is omitted otherwise, so one model can appear twice.
+Cost is **estimated on the phone** from `models` using per-model list prices with cache reads, 5-minute and 1-hour cache writes priced separately, matching the desktop (which also prices each day from `daily[].models`; the phone doesn't read that field). No cost field is sent.
 
 **AgentLimits** (the `limits` reply) — a map keyed `"codex"` or `"claude:<accountId>"`:
 ```

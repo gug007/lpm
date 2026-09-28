@@ -93,7 +93,8 @@ async function compose(lines) {
   const t = JSON.parse(fs.readFileSync(timelineFile, "utf8"));
   const log = (m) => console.log(m);
   const g = geometry({ w: t.box.w, h: t.box.h });
-  const edit = editList({ lines: t.lines, totalMs: t.totalMs, cuts: t.cuts, payoffMs: t.payoffMs, log });
+  const open = lesson.open ?? 1;
+  const edit = editList({ lines: t.lines, totalMs: t.totalMs, cuts: t.cuts, payoffMs: t.payoffMs, open, log });
   const keys = cameraKeys({ zooms: t.zooms, pointer: t.pointer, g, scale: t.box.scale });
   const timed = t.lines.map((tl) => ({ ...tl, line: lines.find((l) => l.id === tl.id), outMs: edit.toOutMs(tl.startMs) }));
   const labels = (t.labels || []).map((l) => ({ ...l, startMs: edit.toOutMs(l.startMs) }));
@@ -103,6 +104,7 @@ async function compose(lines) {
     outMs: edit.outMs,
     headline: lesson.headline ?? timed[0].line.headline,
     cta: lesson.cta === false ? null : lesson.cta || "lpm.cx",
+    open,
   });
   const look = await renderBackdrop(path.join(ROOT, "_look"), g, WINDOW_RADIUS_PT * t.box.scale);
   const overlay = await renderTrack(path.join(DIR, "overlay"), track, edit.outMs);
@@ -110,6 +112,7 @@ async function compose(lines) {
 
   const totalS = t.totalMs / 1000;
   const hookS = edit.hook / FPS;
+  console.log(`opening on the payoff: ${hookS.toFixed(2)}s`);
   const inputs = [
     "-i", raw,
     "-ss", (edit.payoff[0] / FPS).toFixed(3), "-t", hookS.toFixed(3), "-i", raw,

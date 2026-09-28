@@ -78,10 +78,10 @@ function pages(line, outStartMs) {
 // `lines` are the timeline's lines with their clip (`line`) and `outMs`, the
 // line's start in the finished video; `labels` come from the stage, already
 // on the finished clock.
-function textTrack({ lines, labels = [], outMs, headline, cta }) {
+function textTrack({ lines, labels = [], outMs, headline, cta, open = 1 }) {
   const spokenLines = lines.filter((l) => !l.line.silent);
   const captionPages = spokenLines.flatMap((l) => pages(l.line, l.outMs));
-  const hookEnd = lines.length > 1 ? lines[1].outMs : outMs;
+  const hookEnd = lines.length > open ? lines[open].outMs : outMs;
   const marks = [
     ...lines.filter((l) => l.line.label !== undefined).map((l) => ({ startMs: l.outMs, text: l.line.label })),
     ...labels,

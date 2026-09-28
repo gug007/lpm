@@ -23,14 +23,47 @@ async function devServerUp() {
   }
 }
 
-// The debug binary loads its UI from Vite; start it when nothing answers.
+// A cold server builds ~2000 modules on the app's first load, slowly enough
+// for the first control calls to time out; request them all up front.
+async function warmDevServer() {
+  const seen = new Set();
+  const queue = ["/src/main.tsx"];
+  const spec = /(?:import|export)[^'"]*?from\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|import\s*["']([^"']+)["']/g;
+  while (queue.length) {
+    const p = queue.shift();
+    if (seen.has(p)) continue;
+    seen.add(p);
+    let text;
+    try {
+      text = await (await fetch(new URL(p, DEV_URL), { signal: AbortSignal.timeout(30000) })).text();
+    } catch {
+      continue;
+    }
+    for (const m of text.matchAll(spec)) {
+      const next = m[1] || m[2] || m[3];
+      if (next?.startsWith("/")) queue.push(next);
+    }
+  }
+  return seen.size;
+}
+
+// The debug binary loads its UI from Vite; start it when nothing answers. The
+// one started here doesn't watch files, so edits during a take can't reload the
+// app; a `tauri dev` already serving the port still does (close it first).
 async function ensureDevServer(log) {
-  if (await devServerUp()) return null;
-  log("starting the frontend dev server");
-  const vite = spawn("npm", ["run", "dev"], { cwd: FRONTEND, stdio: "ignore", detached: true });
+  if (await devServerUp()) {
+    log("using the running frontend dev server: an edit under desktop/frontend/src reloads the app mid-take");
+    return null;
+  }
+  log("starting the frontend dev server (no file watching)");
+  const config = path.join(__dirname, "vite.lesson.config.mjs");
+  const vite = spawn("npx", ["vite", "--config", config], { cwd: FRONTEND, stdio: "ignore", detached: true });
   for (let i = 0; i < 60; i++) {
     await sleep(500);
-    if (await devServerUp()) return vite;
+    if (await devServerUp()) {
+      log(`warmed ${await warmDevServer()} frontend modules`);
+      return vite;
+    }
   }
   throw new Error(`the frontend dev server never answered at ${DEV_URL}`);
 }

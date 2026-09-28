@@ -9,11 +9,11 @@ Races two models on one prompt and cuts it into a TikTok. It writes a lesson for
 
 ## What the video shows (about 25 s)
 
-1. Cold open on the payoff: both animations running side by side, a colour bar over each column with the model and its finish time, and the headline ("Opus 5.5 max vs GPT-6 Astra ultra 🦒").
+1. Cold open on the payoff for two lines (`"open": 2`, about 4–5 s): both animations running side by side, a colour bar over each column with the model and its finish time, and the headline. A Claude-vs-Codex race is named the way people search for it: "Claude or ChatGPT?" spoken, "Claude vs ChatGPT: Fable 5.1 vs GPT-6 Sol 🦒" as the headline, "Claude vs ChatGPT for coding:" leading the caption. The second line ("Same prompt. Two very different giraffes.") keeps the result on screen: a one-line opening lost most viewers at 0:02, when it cut to the setup.
 2. Model A picked in run #1's composer (its Model menu), the prompt typed into that composer, then **Run in duplicates** with 2 runs, the copy set to model B in the dialog.
 3. The copy is created and opens as a second column beside run #1; each column pushed in on its CLI's start banner (the model name is on screen).
 4. The build is jump-cut. The column clocks run while the line is spoken and stop on each agent's real finish.
-5. Both `index.html` files open in lpm's own browser, one per column. Every video ends on them by asking viewers which two models they want compared next, in the comments ("Which giraffe wins? Comment two models to race next."), and the caption asks too. Keep that ending when rewording `lesson.json`. It asks for suggestions; it never promises or teases a particular next video.
+5. Both `index.html` files open in lpm's own browser, one per column. The payoff shot starts as soon as the camera goes wide on them, so it outlasts the two-line opening. Every video ends on them by asking viewers which two models they want compared next, in the comments ("Which giraffe wins? Comment two models to race next."), and the caption asks too. Keep that ending when rewording `lesson.json`. It asks for suggestions; it never promises or teases a particular next video.
 
 ## Setup: duplicates side by side
 
@@ -79,4 +79,6 @@ Finish the reply with each model's time from `result.json`, then the rendered MP
 - lpm refuses a project with no service, so the project has a `preview` service that is never started.
 - The copy inherits the project's header buttons, so each is named after its CLI ("Claude", "Codex"), not a model; otherwise the model B column would show a model A button. The banners and colour bars name the models.
 - The copy is a clone of run #1's folder, made a second or two after run #1 gets the prompt. A model fast enough to write `index.html` in that window would hand the copy its page; the `go` beat logs a warning if the copy starts with one.
+- Codex prints the path of the `index.html` it wrote, and lpm opens a file preview over everything when that path is clicked. The reveal makes a passive column active by clicking its pane header, never its terminal, and presses Escape if a dialog is open.
+- `take.sh` runs under `caffeinate`: a slow model can leave the pointer still for longer than the display-sleep timer.
 - Codex 0.157 changed its rollout: the prompt is an `item_completed` event whose item is a `UserMessage`, not a `user_message` event. The race looks for either. A side whose clock never starts (no `sentAt`) never finishes and ends as `✗ no page` even with `index.html` written, so check the rollout format first when a Codex update lands.

@@ -178,6 +178,7 @@ export interface TokenUsage {
   inputTokens: number;
   cachedInputTokens: number;
   cacheCreationInputTokens: number;
+  cacheCreation1hInputTokens?: number;
   cacheReadInputTokens: number;
   outputTokens: number;
   reasoningTokens: number;
@@ -190,12 +191,14 @@ export interface UsageBreakdown {
   sessions: number;
   tokens: TokenUsage;
   provider?: string;
+  fast?: boolean;
 }
 
 export interface DailyModelUsage {
   provider: string;
   model: string;
   tokens: TokenUsage;
+  fast?: boolean;
 }
 
 export interface DailyUsage {

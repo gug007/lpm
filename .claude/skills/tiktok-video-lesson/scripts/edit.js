@@ -1,20 +1,28 @@
 // The cut of the finished video, in frames of the take. It opens cold on the
-// payoff (a later stretch of the take) for as long as the hook line is spoken,
-// then plays the take from the second line on, minus the jump cuts. The hook
-// line's own beat is never seen, so it can do the setup (pick the project,
-// start an agent) however long that takes. Everything laid on the take's clock
-// (lines, labels) goes through `toOutMs`.
+// payoff (a later stretch of the take) for as long as the first `open` lines are
+// spoken, then plays the take from the next line on, minus the jump cuts. The
+// opening lines' beats are never seen, so the last of them can do the setup
+// (pick the project, start an agent) however long that takes; the ones before
+// it must be quick, or their wait shows as silence over the payoff. Everything
+// laid on the take's clock (lines, labels) goes through `toOutMs`.
 const { FPS } = require("./camera");
 
 const HOOK_TAIL_MS = 150;
+const OPENING_GAP_MS = 600;
 
 const frame = (ms) => Math.round((ms / 1000) * FPS);
 const msOf = (f) => (f * 1000) / FPS;
 
-function editList({ lines, totalMs, cuts = [], payoffMs = null, log = () => {} }) {
+function editList({ lines, totalMs, cuts = [], payoffMs = null, open = 1, log = () => {} }) {
   const total = frame(totalMs);
-  const second = lines.length > 1 ? frame(lines[1].startMs) : total;
-  const hook = Math.min(second, frame(lines[0].startMs + lines[0].ms + HOOK_TAIL_MS));
+  const n = Math.max(1, Math.min(open, lines.length));
+  const second = lines.length > n ? frame(lines[n].startMs) : total;
+  const last = lines[n - 1];
+  const hook = Math.min(second, frame(last.startMs + last.ms + HOOK_TAIL_MS));
+  for (let i = 1; i < n; i++) {
+    const gap = lines[i].startMs - (lines[i - 1].startMs + lines[i - 1].ms);
+    if (gap > OPENING_GAP_MS) log(`${(gap / 1000).toFixed(1)}s of silence before "${lines[i].id}" in the opening: move the slow setup into the last opening line's beat`);
+  }
   let payoff = payoffMs == null ? total - hook : frame(payoffMs);
   if (payoffMs == null) log("no s.payoff() in the beats: opening on the last moments of the take");
   if (payoff + hook > total) {

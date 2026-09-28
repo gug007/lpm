@@ -1834,12 +1834,14 @@ private func statInt(_ o: [String: Any], _ key: String) -> Int {
 }
 
 /// One bucket of token counts. `inputTokens` ALREADY includes the cached input
-/// (cacheCreation + cacheRead); `reasoningTokens ⊆ outputTokens`; `totalTokens =
-/// inputTokens + outputTokens`. These invariants drive the cache/reasoning shares.
+/// (cacheCreation + cacheRead); `cacheCreation1hInputTokens ⊆ cacheCreationInputTokens`;
+/// `reasoningTokens ⊆ outputTokens`; `totalTokens = inputTokens + outputTokens`. These
+/// invariants drive the cache/reasoning shares.
 struct UsageTokens {
     let inputTokens: Int
     let cachedInputTokens: Int
     let cacheCreationInputTokens: Int
+    let cacheCreation1hInputTokens: Int
     let cacheReadInputTokens: Int
     let outputTokens: Int
     let reasoningTokens: Int
@@ -1849,6 +1851,7 @@ struct UsageTokens {
         inputTokens = statInt(o, "inputTokens")
         cachedInputTokens = statInt(o, "cachedInputTokens")
         cacheCreationInputTokens = statInt(o, "cacheCreationInputTokens")
+        cacheCreation1hInputTokens = statInt(o, "cacheCreation1hInputTokens")
         cacheReadInputTokens = statInt(o, "cacheReadInputTokens")
         outputTokens = statInt(o, "outputTokens")
         reasoningTokens = statInt(o, "reasoningTokens")
@@ -1856,20 +1859,25 @@ struct UsageTokens {
     }
 }
 
-/// Tokens aggregated under one key — a provider, a project, or a model.
+/// Tokens aggregated under one key — a provider, a project, or a model. Model rows
+/// carry their provider, and fast-mode usage arrives as its own row with `fast` set.
 struct UsageBreakdown: Identifiable {
     let key: String
     let label: String
     let sessions: Int
     let tokens: UsageTokens
+    let provider: String?
+    let fast: Bool
 
-    var id: String { key }
+    var id: String { fast ? "\(key)#fast" : key }
 
     init(_ o: [String: Any]) {
         key = o["key"] as? String ?? ""
         label = o["label"] as? String ?? ""
         sessions = statInt(o, "sessions")
         tokens = UsageTokens(o["tokens"] as? [String: Any] ?? [:])
+        provider = o["provider"] as? String
+        fast = o["fast"] as? Bool ?? false
     }
 }
 
