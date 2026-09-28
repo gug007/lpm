@@ -34,6 +34,7 @@ import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
 import { ChevronRightIcon } from "./icons";
 import { SidebarDeckRun } from "./SidebarDeckRun";
+import { SidebarDeckPullRow } from "./SidebarDeckPullRow";
 import { SidebarDuplicateSkeletonRow } from "./SidebarDuplicateSkeletonRow";
 import { ROW_BASE_CLASS, ROW_INDENT_CLASS, ROW_TWO_LINE_CLASS } from "./sidebarRowClass";
 import { deckKindLabel, deckLabel, deckRunDomId } from "./sidebarDeck";
@@ -910,7 +911,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const follow = follows.get(project.name);
     const agents = agentsByProject.get(project.name) ?? [];
     const alert = sidebarProjectAlert(agents);
-    const showOrigin = !selectMode && !isBusy && !project.isRemote && !project.configError;
+    const showOrigin = showsOrigin(project);
     // Bulk select is a list of names to tick off — the agents belong to the
     // working list, not to that one.
     const canExpand = !selectMode && agents.length > 0;
@@ -1145,6 +1146,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     );
   };
 
+  const showsOrigin = (project: ProjectInfo) =>
+    !selectMode &&
+    !project.isRemote &&
+    !project.configError &&
+    !duplicatingNames.includes(project.name) &&
+    !removingNames.has(project.name);
+
   // `connector` is supplied only inside a folder, where each row takes an elbow
   // off the folder's trunk like any member.
   const renderDeck = (
@@ -1197,10 +1205,28 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       return <div key={`pending-${copy.id}`}>{body}</div>;
     });
 
+    const pullTargets = [parent, ...children].filter(showsOrigin).map((p) => ({
+      root: p.root,
+      name: p === parent ? parentLabel : projectDisplayName(p, parent),
+      worktree: p.worktree,
+      isParent: p === parent,
+    }));
+    // Inside a folder the trunk runs on through this row, unless the deck ends
+    // the folder and its last copy has already closed it.
+    const pullRow = !selectMode && (
+      <div key="pull-deck" className="relative">
+        {connector && !endsBlock && (
+          <span aria-hidden className={`pointer-events-none absolute ${TREE_X} inset-y-0 z-10 w-px ${TRUNK_BG}`} />
+        )}
+        <SidebarDeckPullRow deck={parent.name} parentLabel={parentLabel} targets={pullTargets} indented={indented} />
+      </div>
+    );
+
     return (
       <SidebarDeckRun key={`deck-${parent.name}`} runId={runId} collapsed={collapsed}>
         {rows}
         {skeletons}
+        {pullRow}
       </SidebarDeckRun>
     );
   };

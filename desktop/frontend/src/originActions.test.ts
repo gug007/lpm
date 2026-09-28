@@ -23,7 +23,8 @@ vi.mock("./store/settings", () => ({
   }),
 }));
 
-import { recheckOrigin, runOriginAction } from "./originActions";
+import { pullDeck, recheckOrigin, runOriginAction } from "./originActions";
+import { useDeckPull } from "./store/deckPull";
 import { useOriginStatus } from "./store/originStatus";
 
 const ROOT = "/Users/me/Projects/reader";
@@ -43,6 +44,7 @@ const entry = () => useOriginStatus.getState().entries[ROOT];
 beforeEach(() => {
   vi.useFakeTimers();
   useOriginStatus.getState().reset();
+  useDeckPull.getState().reset();
   useOriginStatus.getState().setStatus(ROOT, status({ behind: 3 }));
   mocks.status.mockResolvedValue(status());
   mocks.pull.mockResolvedValue(undefined);
@@ -112,5 +114,72 @@ describe("recheckOrigin", () => {
     });
     await recheckOrigin(ROOT, true);
     expect(entry().status.behind).toBe(3);
+  });
+});
+
+describe("pullDeck", () => {
+  const COPY = "/Users/me/Projects/reader-copy";
+  const AHEAD = "/Users/me/Projects/reader-ahead";
+  const deck = [
+    { root: ROOT, name: "reader" },
+    { root: COPY, name: "reader-copy" },
+    { root: AHEAD, name: "reader-ahead" },
+  ];
+  const pulls = () => useDeckPull.getState().decks.reader;
+
+  beforeEach(() => {
+    useOriginStatus.getState().setStatus(COPY, status({ behind: 1 }));
+    useOriginStatus.getState().setStatus(AHEAD, status({ ahead: 2, behind: 1 }));
+  });
+
+  it("pulls the rows that only need a pull, one at a time, then steps away", async () => {
+    let inFlight = 0;
+    let most = 0;
+    mocks.pull.mockImplementation(async () => {
+      most = Math.max(most, ++inFlight);
+      await Promise.resolve();
+      inFlight--;
+    });
+    const run = pullDeck("reader", deck);
+    expect(pulls()).toMatchObject({ total: 2, done: 0, running: true });
+    await run;
+
+    expect(mocks.pull.mock.calls.map((call) => call[0])).toEqual([ROOT, COPY]);
+    expect(most).toBe(1);
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(pulls()).toMatchObject({ total: 2, done: 2, running: false, failed: [] });
+
+    vi.advanceTimersByTime(2500);
+    expect(pulls()).toBeUndefined();
+  });
+
+  it("keeps going past a failure, names it, and keeps it for Retry", async () => {
+    mocks.pull.mockImplementation((root: string) => {
+      if (root !== ROOT) return Promise.resolve();
+      const failed = Promise.reject("Your local changes would be overwritten by merge");
+      failed.catch(() => {});
+      return failed;
+    });
+    await pullDeck("reader", deck);
+
+    expect(mocks.pull).toHaveBeenCalledTimes(2);
+    expect(mocks.toastError).toHaveBeenCalledWith(
+      "Pull failed in reader: Your local changes would be overwritten by merge",
+    );
+    vi.advanceTimersByTime(2500);
+    expect(pulls()).toMatchObject({ running: false, failed: [ROOT] });
+  });
+
+  it("leaves a row alone once its own button is already pulling it", async () => {
+    useOriginStatus.getState().setRunning(COPY, true);
+    await pullDeck("reader", deck);
+    expect(mocks.pull.mock.calls.map((call) => call[0])).toEqual([ROOT]);
+  });
+
+  it("does nothing while the deck is already being pulled", async () => {
+    const first = pullDeck("reader", deck);
+    await pullDeck("reader", deck);
+    await first;
+    expect(mocks.pull).toHaveBeenCalledTimes(2);
   });
 });

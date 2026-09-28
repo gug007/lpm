@@ -15,7 +15,7 @@ export function deckRunDomId(parentName: string): string {
 }
 
 /** Names only the kind the parent actually owns; the count sits next to it. */
-export function deckKindLabel(children: ProjectInfo[]): string {
+export function deckKindLabel(children: Pick<ProjectInfo, "worktree">[]): string {
   let worktrees = 0;
   for (const child of children) if (child.worktree) worktrees++;
   const duplicates = children.length - worktrees;

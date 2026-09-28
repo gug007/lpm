@@ -36,6 +36,12 @@ export function originMark(status: OriginStatus | undefined): OriginMark | null 
   };
 }
 
+// A mark whose button only pulls. A whole deck is caught up on these alone: Sync
+// would push, Update would merge, and a conflict needs a person.
+export function isPlainPull(mark: OriginMark | null): boolean {
+  return mark?.kind === "behind" || (mark?.kind === "base" && mark.onBase);
+}
+
 const commits = (n: number) => `${n} new commit${n === 1 ? "" : "s"}`;
 
 export function originMarkTitle(mark: OriginMark, branch: string): string {
