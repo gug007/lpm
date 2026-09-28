@@ -29,7 +29,7 @@ export function StatuslinePresets({
           Every layout stays customizable.
         </p>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2">
         {presets.map((preset) => {
           const isActive = sameItems(preset.items, selectedIds);
           return (
@@ -38,7 +38,7 @@ export function StatuslinePresets({
               type="button"
               onClick={() => onSelect(preset.items)}
               aria-pressed={isActive}
-              className={`rounded-xl border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
+              className={`flex flex-col rounded-xl border p-3 text-left transition-all last:odd:col-span-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 dark:focus-visible:ring-white ${
                 isActive
                   ? isClaude
                     ? "border-[#D97757]/60 bg-[#D97757]/8"

@@ -61,10 +61,9 @@ export default function LpmStatuslineDemo() {
     "seven",
     "cost",
   ]);
-  const [codexSelected, setCodexSelected] = useState([
-    "model-with-reasoning",
-    "current-dir",
-  ]);
+  const [codexSelected, setCodexSelected] = useState(
+    () => codexPresets.find((preset) => preset.id === "usage")?.items ?? [],
+  );
   const [editingClaudeItem, setEditingClaudeItem] = useState("model");
   const [claudeItemColors, setClaudeItemColors] =
     useState(initialClaudeColors);
@@ -129,6 +128,7 @@ export default function LpmStatuslineDemo() {
 
   const segments: StatuslineSegment[] = selectedItems.map((item, index) => ({
     id: item.id,
+    active: isClaude && item.id === editingClaudeItem,
     text: `${isClaude && showIcons && item.icon ? `${item.icon} ` : ""}${previewText(item)}`,
     className: isClaude
       ? claudeColors[claudeItemColors[item.id] ?? "default"].preview
@@ -141,9 +141,9 @@ export default function LpmStatuslineDemo() {
     <section
       id="preview"
       aria-labelledby="preview-title"
-      className="mx-auto max-w-6xl px-4 pb-20 sm:px-6 sm:pb-28"
+      className="mx-auto max-w-6xl scroll-mt-20 px-4 pb-16 sm:px-6 sm:pb-20"
     >
-      <div className="overflow-hidden rounded-[1.75rem] border border-gray-200 bg-white shadow-[0_28px_90px_-40px_rgba(0,0,0,0.32)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-none">
+      <div className="overflow-clip rounded-[1.75rem] border border-gray-200 bg-white shadow-[0_28px_90px_-40px_rgba(0,0,0,0.32)] dark:border-gray-800 dark:bg-[#141414] dark:shadow-none">
         <div className="flex min-h-12 items-center justify-between border-b border-gray-200 bg-gray-50/80 px-4 dark:border-gray-800 dark:bg-[#101010] sm:px-5">
           <div className="flex items-center gap-1.5" aria-hidden>
             <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
@@ -213,8 +213,16 @@ export default function LpmStatuslineDemo() {
           </div>
         </div>
 
-        <div className="grid xl:grid-cols-[1.03fr_0.97fr]">
-          <div className="border-b border-gray-200 p-4 dark:border-gray-800 sm:p-6 xl:border-r xl:border-b-0">
+        <div className="sticky top-14 z-10 border-b border-gray-200 bg-gray-50/90 px-4 py-3 backdrop-blur-lg dark:border-gray-800 dark:bg-[#101010]/90 sm:px-6 sm:py-4">
+          <StatuslineTerminalPreview
+            isClaude={isClaude}
+            segments={segments}
+            separator={isClaude ? separators[separator].value : "·"}
+          />
+        </div>
+
+        <div className="grid lg:grid-cols-[1.03fr_0.97fr]">
+          <div className="border-b border-gray-200 p-4 dark:border-gray-800 sm:p-6 lg:border-r lg:border-b-0">
             <StatuslinePresets
               presets={presets}
               selectedIds={selectedIds}
@@ -237,13 +245,7 @@ export default function LpmStatuslineDemo() {
           </div>
 
           <div className="flex min-w-0 flex-col bg-gray-50/60 p-4 dark:bg-black/10 sm:p-6">
-            <StatuslineTerminalPreview
-              isClaude={isClaude}
-              segments={segments}
-              separator={isClaude ? separators[separator].value : "·"}
-            />
-
-            <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#171717]">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-[#171717]">
               <div className="flex items-center gap-2">
                 <Palette className="h-4 w-4 text-gray-400" aria-hidden />
                 <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
