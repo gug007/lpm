@@ -6,9 +6,9 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { chromium, CHROME } = require("./browser");
 const { CARD_FADE_MS, OPEN_LIFT } = require("./appstage");
 const { POOLS, POOLS_AT_REST } = require("./overlay");
+const { track, toFrames } = require("./keyframes");
 
 const FPS = 30;
 
@@ -41,6 +41,7 @@ async function frameAssets(dir, { out, frame, box }) {
   const file = (kind) => path.join(dir, `${kind}-${box.w}x${box.h}-${look}.png`);
   const assets = { canvas: file("canvas"), shadow: file("shadow"), mask: file("mask") };
   if (Object.values(assets).every((f) => fs.existsSync(f))) return assets;
+  const { chromium, CHROME } = require("./browser");
   const browser = await chromium.launch({ executablePath: CHROME, headless: true });
   const page = await browser.newPage({ viewport: out, deviceScaleFactor: 1 });
   const shadow = `0 0 0 ${frame.zoom}px rgba(0,0,0,.10), 0 ${24 * frame.zoom}px ${70 * frame.zoom}px ${-18 * frame.zoom}px rgba(0,0,0,.45), 0 ${6 * frame.zoom}px ${18 * frame.zoom}px ${-8 * frame.zoom}px rgba(0,0,0,.25)`;
@@ -78,34 +79,56 @@ function riseOffset(opener, box) {
   return `if(lt(t,${at}),${dist},if(lt(t,${at}+${d}),${dist}*pow(1-(t-${at})/${d},3),0))`;
 }
 
-// A value over the input frame count: held between keyframes, eased (cosine)
-// over each keyframe's transition from the previous value.
-function keyed(keys, initial, pick) {
-  let expr = String(initial);
-  let prev = initial;
-  for (const k of keys) {
-    const v = pick(k);
-    const p = `((in-${k.f})/${k.d})`;
-    const eased = `(${prev}+(${v}-${prev})*(1-cos(PI*${p}))/2)`;
-    expr = `if(lt(in,${k.f}),${expr},if(lt(in,${k.f + k.d}),${eased},${v}))`;
-    prev = v;
-  }
-  return expr;
-}
-
-// zoompan crops iw/zoom × ih/zoom around the eased centre and scales it back up.
+// zoompan crops iw/zoom × ih/zoom around the eased centre and scales it back
+// up; a zoom that starts before the last one has finished eases on from
+// wherever the picture had got to.
 function zoomStage(zooms, out) {
-  const keys = zooms
-    .slice()
-    .sort((a, b) => a.startMs - b.startMs)
-    .map((z) => ({ f: Math.round((z.startMs / 1000) * FPS), d: Math.max(1, Math.round((z.ms / 1000) * FPS)), ...z }));
-  const z = keyed(keys, 1, (k) => k.scale);
-  const cx = keyed(keys, out.width / 2, (k) => k.cx);
-  const cy = keyed(keys, out.height / 2, (k) => k.cy);
+  const keys = toFrames(zooms, FPS);
+  const z = track(keys, 1, (k) => k.scale);
+  const cx = track(keys, out.width / 2, (k) => k.cx);
+  const cy = track(keys, out.height / 2, (k) => k.cy);
   const x = `clip(${cx}-iw/zoom/2,0,iw-iw/zoom)`;
   const y = `clip(${cy}-ih/zoom/2,0,ih-ih/zoom)`;
   return `zoompan=z='${z}':x='${x}':y='${y}':d=1:s=${out.width}x${out.height}:fps=${FPS}`;
 }
+
+// lesson.json "zooms" edits a take's zooms by id (`<line>#<n>`, see the mux
+// log): `scale`, `at` (re-aimed inside the recorded target), `ms` (same end,
+// longer or shorter ease) or `drop`.
+function editZooms(zooms, edits = {}, log = () => {}) {
+  const known = new Set(zooms.map((z) => z.id));
+  for (const id of Object.keys(edits)) if (!known.has(id)) throw new Error(`lesson.json zooms: no zoom "${id}" in this take (it has ${[...known].join(", ") || "none"})`);
+  return zooms.flatMap((z) => {
+    const e = edits[z.id];
+    if (!e) return [z];
+    if (e.drop) {
+      log(`zoom ${z.id}: dropped`);
+      return [];
+    }
+    const next = { ...z };
+    if (e.scale != null) next.scale = Math.min(3, Math.max(1, e.scale));
+    if (e.at) {
+      if (!z.rect) throw new Error(`lesson.json zooms: ${z.id} was recorded without its target, so "at" cannot move it; record it again`);
+      next.cx = Math.round(z.rect.x + z.rect.w * e.at[0]);
+      next.cy = Math.round(z.rect.y + z.rect.h * e.at[1]);
+    }
+    if (e.ms != null) {
+      next.startMs = z.startMs + z.ms - e.ms;
+      next.ms = e.ms;
+    }
+    log(`zoom ${z.id}: ${JSON.stringify(e)}`);
+    return [next];
+  });
+}
+
+// The capture is BT.709 video; the cards and canvas are sRGB drawings. The
+// picture is composed in RGB and written as limited-range BT.709, tagged so.
+const CAPTURE_IN = "in_color_matrix=bt709:in_range=pc";
+const MASTER_OUT = "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv";
+const MASTER_TAGS = ["-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv"];
+// A still grabbed from a master (cover, thumbnail, contact sheet) is a JPEG,
+// which every viewer decodes as full-range BT.601.
+const STILL_OUT = "out_color_matrix=bt601:out_range=pc";
 
 // ffmpeg inputs and the video half of the filter graph. Input 0 is the take;
 // the caller appends the audio inputs after these. `composite` is false for a
@@ -121,7 +144,7 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     inputs.push(...still(canvas), ...still(shadow), ...still(mask));
     const dy = riseOffset(opener, box);
     parts.push(
-      `[0:v]scale=${box.w}:${box.h},format=rgba[w0]`,
+      `[0:v]scale=${box.w}:${box.h}:${CAPTURE_IN},format=rgba[w0]`,
       `[3:v]format=gray[m]`,
       `[w0][m]alphamerge[w]`,
       `[2:v]format=rgba[s]`,
@@ -155,9 +178,13 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     last = `v${i + 1}`;
   });
   const count = inputs.filter((a) => a === "-i").length;
-  if (!parts.length) return { inputs, filter: null, label: "0:v", count };
-  parts.push(`[${last}]format=yuv420p[vout]`);
-  return { inputs, filter: parts.join(";"), label: "[vout]", count };
+  if (!parts.length) return { inputs, filter: null, label: "0:v", count, tags: [] };
+  if (!composite) {
+    parts.push(`[${last}]format=yuv420p[vout]`);
+    return { inputs, filter: parts.join(";"), label: "[vout]", count, tags: [] };
+  }
+  parts.push(`[${last}]${MASTER_OUT}[vout]`);
+  return { inputs, filter: parts.join(";"), label: "[vout]", count, tags: MASTER_TAGS };
 }
 
-module.exports = { FPS, frameBox, frameAssets, videoGraph, zoomStage };
+module.exports = { FPS, frameBox, frameAssets, videoGraph, zoomStage, editZooms, CAPTURE_IN, MASTER_OUT, MASTER_TAGS, STILL_OUT };

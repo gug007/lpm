@@ -69,17 +69,22 @@ function makeVoice({ audioDir, voice, style, respeak = false, tempo = 1 }) {
     return had === want && hadText.join("\n") === wantText.join("\n");
   }
 
-  async function tts(line, fresh = false) {
+  // `cachedOnly` (a re-cut) never calls the API: a line whose clip no longer
+  // matches its text stops the run, since the new clip changes the timing.
+  async function tts(line, { fresh = false, cachedOnly = false } = {}) {
     const wav = path.join(audioDir, `${line.id}.wav`);
     const stamp = path.join(audioDir, `${line.id}.txt`);
     const key = `${head}\n${style}\n${spoken(line.text)}`;
     if (!fresh && fs.existsSync(wav) && fs.existsSync(stamp)) {
       const had = fs.readFileSync(stamp, "utf8");
-      if (had === key) return wav;
+      if (had === key) return { wav, cached: true };
       if (keepsSpokenClip(had, key)) {
         console.log(`audio ${line.id}: keeping the clip spoken with the previous style (--respeak to re-speak)`);
-        return wav;
+        return { wav, cached: true };
       }
+    }
+    if (cachedOnly) {
+      throw new Error(`audio ${line.id}: the line has no clip for its current text; a re-cut never speaks (add --speak to speak it and check it still fits the take, or put the old text back)`);
     }
     fs.rmSync(path.join(audioDir, `${line.id}.words.json`), { force: true });
     const res = await post("https://api.openai.com/v1/audio/speech", {
@@ -104,7 +109,7 @@ function makeVoice({ audioDir, voice, style, respeak = false, tempo = 1 }) {
       fs.rmSync(rawWav, { force: true });
     }
     fs.writeFileSync(stamp, key);
-    return wav;
+    return { wav, cached: false };
   }
 
   async function words(line, wav) {
@@ -126,20 +131,29 @@ function makeVoice({ audioDir, voice, style, respeak = false, tempo = 1 }) {
     return out;
   }
 
-  async function speak(line) {
+  // A clip that already carries the take's timing is never replaced because
+  // the word check disagrees with it; only a fresh clip is spoken again.
+  async function speak(line, cachedOnly) {
+    const heard = [];
     for (let attempt = 1; attempt <= 3; attempt++) {
-      const wav = await tts(line, attempt > 1);
+      const { wav, cached } = await tts(line, { fresh: attempt > 1, cachedOnly });
       const w = await words(line, wav);
       const missed = missingWords(line, w);
       if (!missed.length) return { wav, words: w };
+      if (cached) {
+        console.log(`audio ${line.id}: the transcript misses "${missed.join(" ")}"; keeping the clip the take was recorded with`);
+        return { wav, words: w };
+      }
+      heard.push(w.map((x) => x.word).join(" "));
       console.log(`audio ${line.id}: clip missed "${missed.join(" ")}", speaking again (${attempt}/3)`);
     }
-    throw new Error(`audio ${line.id}: the voice keeps dropping words; rephrase the line`);
+    throw new Error(`audio ${line.id}: the voice keeps dropping words; rephrase the line.\n  text:  ${spoken(line.text)}\n${heard.map((h, i) => `  try ${i + 1}: ${h}`).join("\n")}`);
   }
 
   // Every narration line as it will play: a spoken clip with its length and
-  // word onsets, or a silent pause. `dry` estimates lengths without the API.
-  async function prepare(narration, { dry = false } = {}) {
+  // word onsets, or a silent pause. `dry` estimates lengths without the API;
+  // `cachedOnly` uses the clips on disk and fails where one is missing.
+  async function prepare(narration, { dry = false, cachedOnly = false } = {}) {
     const lines = [];
     for (const line of narration) {
       if (!line.text) {
@@ -151,7 +165,7 @@ function makeVoice({ audioDir, voice, style, respeak = false, tempo = 1 }) {
         lines.push({ ...line, ms: Math.round((count * 370) / tempo) + 500 });
         continue;
       }
-      const { wav, words: w } = await speak(line);
+      const { wav, words: w } = await speak(line, cachedOnly);
       lines.push({ ...line, wav, ms: durationMs(wav), words: w });
       console.log(`audio ${line.id}: ${(lines.at(-1).ms / 1000).toFixed(2)}s`);
     }

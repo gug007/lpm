@@ -3,7 +3,7 @@
 // sticker) and word-by-word captions — each line's words as written, grouped
 // into short pages, timed by the clip's transcript so the spoken word lights up.
 const shared = require("./shared");
-const { norm, alignWords } = shared("words");
+const { norm, onsets } = shared("words");
 const { SLAM } = require("./look");
 
 const PAGE_WORDS = 3;
@@ -11,22 +11,6 @@ const PAGE_CHARS = 16;
 const PAGE_BREAK_MS = 650;
 const TAIL_MS = 200;
 const MIN_HOOK_MS = 600;
-
-// Transcript onsets for every word; a word the transcript missed is placed
-// between its timed neighbours.
-function onsets(text, words, lineMs) {
-  const { all, times } = alignWords(text, words);
-  return times.map((t, i) => {
-    if (t != null) return t;
-    let lo = i - 1;
-    while (lo >= 0 && times[lo] == null) lo--;
-    let hi = i + 1;
-    while (hi < all.length && times[hi] == null) hi++;
-    const loMs = lo >= 0 ? times[lo] : 0;
-    const hiMs = hi < all.length ? times[hi] : lineMs;
-    return loMs + ((i - lo) / (hi - lo)) * (hiMs - loMs);
-  });
-}
 
 // Words as shown: `*word*` is highlighted, a trailing full stop or comma is
 // dropped (captions read cleaner without them), ? and ! stay.

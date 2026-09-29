@@ -11,7 +11,7 @@ import {
 } from "../../serviceConfig";
 import { computeDesiredKey } from "../../forms/keys";
 import { portInputSchema, slugifiedNameSchema } from "../../forms/schemas";
-import { modalErrorInputClass } from "../../forms/styles";
+import { modalErrorInputClass, modalInputDefaults } from "../../forms/styles";
 import { useDiscardGuard } from "../../hooks/useDiscardGuard";
 import type { ProfileInfo, ServiceInfo } from "../../types";
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, TrashIcon, XIcon } from "../icons";
@@ -396,6 +396,7 @@ export function ServiceForm({
                     <input
                       placeholder="api"
                       className={inputClass}
+                      {...modalInputDefaults}
                       {...register("name")}
                     />
                   </Field>
@@ -405,6 +406,7 @@ export function ServiceForm({
                       placeholder="npm run dev"
                       rows={2}
                       className={textareaClass}
+                      {...modalInputDefaults}
                       {...register("cmd")}
                     />
                   </Field>
@@ -420,6 +422,7 @@ export function ServiceForm({
                       <input
                         placeholder="apps/api"
                         className={inputClass}
+                        {...modalInputDefaults}
                         {...register("cwd")}
                       />
                     </Field>
@@ -480,11 +483,13 @@ export function ServiceForm({
                               <input
                                 placeholder="KEY"
                                 className={`${envInputClass} w-[40%]`}
+                                {...modalInputDefaults}
                                 {...register(`env.${idx}.key` as const)}
                               />
                               <input
                                 placeholder="value"
                                 className={`${envInputClass} flex-1`}
+                                {...modalInputDefaults}
                                 {...register(`env.${idx}.value` as const)}
                               />
                               <button

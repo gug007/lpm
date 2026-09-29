@@ -50,7 +50,7 @@ async function warmDevServer() {
 // The debug binary loads its UI from Vite; start it when nothing answers. The
 // one started here doesn't watch files, so edits during a take can't reload the
 // app; a `tauri dev` already serving the port still does (close it first).
-async function ensureDevServer(log) {
+async function ensureDevServer(log, pidFile) {
   if (await devServerUp()) {
     log("using the running frontend dev server: an edit under desktop/frontend/src reloads the app mid-take");
     return null;
@@ -58,6 +58,8 @@ async function ensureDevServer(log) {
   log("starting the frontend dev server (no file watching)");
   const config = path.join(__dirname, "vite.lesson.config.mjs");
   const vite = spawn("npx", ["vite", "--config", config], { cwd: FRONTEND, stdio: "ignore", detached: true });
+  // take.sh stops it from this file if node itself is killed.
+  if (pidFile) fs.writeFileSync(pidFile, String(vite.pid));
   for (let i = 0; i < 60; i++) {
     await sleep(500);
     if (await devServerUp()) {
@@ -65,6 +67,12 @@ async function ensureDevServer(log) {
       return vite;
     }
   }
+  try {
+    process.kill(-vite.pid, "SIGTERM");
+  } catch {
+    // already gone
+  }
+  if (pidFile) fs.rmSync(pidFile, { force: true });
   throw new Error(`the frontend dev server never answered at ${DEV_URL}`);
 }
 
@@ -131,11 +139,13 @@ function connect(sockPath) {
 // session with transcript saving off.
 // A take started from a terminal inside lpm also carries that pane's LPM_*
 // identity; a terminal the lesson app opens without its own (the Claude sign-in
-// one) would report usage and status to the user's real lpm through it.
-function hostEnv() {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => !/^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_PID|CLAUDE_EFFORT|LPM_)/.test(k)),
-  );
+// one) would report usage and status to the user's real lpm through it. A pane
+// pinned to a Claude account exports its config dir, which would record the
+// lesson on that account; API keys would switch the agents to API billing.
+const HOST_ONLY = /^(CLAUDECODE|CLAUDE_CODE_|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_CONFIG_DIR$|CLAUDE_SECURESTORAGE_CONFIG_DIR$|LPM_|ANTHROPIC_(API_KEY|AUTH_TOKEN|BASE_URL|MODEL)$|OPENAI_API_KEY$|CURSOR_API_KEY$)/;
+
+function hostEnv(env = process.env) {
+  return Object.fromEntries(Object.entries(env).filter(([k]) => !HOST_ONLY.test(k)));
 }
 
 // An app left behind by an interrupted take (or a manual launch on the lesson
@@ -160,7 +170,8 @@ async function launchApp({ lpmDir, env = {}, log = () => {} }) {
   if (!fs.existsSync(APP_BIN)) {
     throw new Error(`no debug app at ${APP_BIN}; build it with \`npm run tauri dev\` in desktop/frontend (or set LPM_APP)`);
   }
-  const vite = await ensureDevServer(log);
+  const vitePid = path.join(lpmDir, "vite.pid");
+  const vite = await ensureDevServer(log, vitePid);
   const sockPath = path.join(lpmDir, "lesson.sock");
   await quitStale(sockPath, log);
   fs.rmSync(sockPath, { force: true });
@@ -169,10 +180,25 @@ async function launchApp({ lpmDir, env = {}, log = () => {} }) {
     env: { ...hostEnv(), ...env, LPM_DIR: lpmDir, LPM_LESSON_SOCKET: sockPath, HOME: os.homedir() },
     stdio: ["ignore", logFile, logFile],
   });
+  const stopVite = () => {
+    if (!vite) return;
+    try {
+      process.kill(-vite.pid, "SIGTERM");
+    } catch {
+      // already gone
+    }
+    fs.rmSync(vitePid, { force: true });
+  };
+  // A launch that never gets to a working app leaves nothing running.
+  const giveUp = (message) => {
+    if (proc.exitCode == null) proc.kill("SIGKILL");
+    stopVite();
+    return new Error(message);
+  };
   let control = null;
   for (let i = 0; i < 100 && !control; i++) {
     await sleep(200);
-    if (proc.exitCode != null) throw new Error(`the app exited early (code ${proc.exitCode}); see ${lpmDir}/app.log`);
+    if (proc.exitCode != null) throw giveUp(`the app exited early (code ${proc.exitCode}); see ${lpmDir}/app.log`);
     if (!fs.existsSync(sockPath)) continue;
     try {
       control = await connect(sockPath);
@@ -181,7 +207,7 @@ async function launchApp({ lpmDir, env = {}, log = () => {} }) {
       control = null;
     }
   }
-  if (!control) throw new Error("the app never opened its lesson control socket (is this a debug build?)");
+  if (!control) throw giveUp("the app never opened its lesson control socket (is this a debug build?)");
   // The webview answers `eval` only once the page has loaded, and the UI is
   // usable once the sidebar has rendered its Add project button.
   for (let i = 0; i < 150; i++) {
@@ -192,26 +218,29 @@ async function launchApp({ lpmDir, env = {}, log = () => {} }) {
     }
     await sleep(200);
   }
+  let closing = null;
   return {
     control,
     proc,
-    async close() {
-      try {
-        await control.call("quit", {}, 3000);
-      } catch {
-        // already gone
-      }
-      await sleep(300);
-      if (proc.exitCode == null) proc.kill("SIGKILL");
-      if (vite) {
-        try {
-          process.kill(-vite.pid, "SIGTERM");
-        } catch {
-          // already gone
-        }
-      }
+    ui: vite ? "lesson dev server" : "running tauri dev server",
+    // The app gets up to 5 s to run its own exit (it tears down a dozen
+    // subsystems) before it is killed. Safe to call again.
+    close() {
+      closing =
+        closing ||
+        (async () => {
+          try {
+            await control.call("quit", {}, 3000);
+          } catch {
+            // already gone
+          }
+          const exited = proc.exitCode != null || (await Promise.race([new Promise((r) => proc.once("exit", () => r(true))), sleep(5000).then(() => false)]));
+          if (!exited && proc.exitCode == null) proc.kill("SIGKILL");
+          stopVite();
+        })();
+      return closing;
     },
   };
 }
 
-module.exports = { launchApp, quitStale, APP_BIN, FRONTEND };
+module.exports = { launchApp, quitStale, hostEnv, APP_BIN, FRONTEND, REPO };

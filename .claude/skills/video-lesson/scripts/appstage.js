@@ -5,11 +5,11 @@
 // page. Topic cards are not painted here — they are recorded on the timeline
 // and composited over the video afterwards (compose.js).
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { sleep, Timing } = require("./words");
 const { OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
+const { claudeTurn } = require("./agents");
 
 const CARD_FADE_MS = 300;
 // The opening card hands over to the app in one move: its words lift away over
@@ -46,6 +46,14 @@ class AppStage extends Timing {
     this.box = opts.box;
     this.out = opts.out;
     this.zooms = [];
+    this.warnings = [];
+  }
+
+  // Something the take got through but a reviewer should know about; saved
+  // with the timeline and listed after the mux.
+  warn(kind, message) {
+    this.warnings.push({ kind, line: this.line?.id || null, atMs: this.t0 ? Date.now() - this.t0 : 0, message });
+    this.log(`warning: ${message}`);
   }
 
   // Page coordinates → the finished video's pixels (the window sits in `box`).
@@ -56,8 +64,14 @@ class AppStage extends Timing {
   // Push the picture in on `sel` (compose.js does the actual zoom); 1.6–2 reads
   // well for a button or a sidebar row. Stays until zoomOut.
   async zoom(sel, opts = {}) {
-    const o = this.outPoint(await this.point(sel, opts.at));
-    await this.recordZoom(opts.scale ?? 1.8, o.x, o.y, opts);
+    await this.waitFor(sel);
+    const r = await this.control.evaluate((s) => window.__lc.rect(s), sel);
+    const at = opts.at || [0.5, 0.5];
+    const o = this.outPoint({ x: r.x + r.w * at[0], y: r.y + r.h * at[1] });
+    const tl = this.outPoint(r);
+    const br = this.outPoint({ x: r.x + r.w, y: r.y + r.h });
+    const rect = { x: tl.x, y: tl.y, w: br.x - tl.x, h: br.y - tl.y };
+    await this.recordZoom(opts.scale ?? 1.8, o.x, o.y, opts, { sel, at, rect });
   }
 
   async zoomOut(opts = {}) {
@@ -146,10 +160,65 @@ class AppStage extends Timing {
     return p;
   }
 
+  // `verify` (a selector that must show up, or an async check) makes the
+  // click check itself: while the target is still there it is pressed again,
+  // twice at most, then the take stops; a target that has gone means the
+  // click worked and the page is only slow, so it waits on `verify` instead.
   async click(sel, opts = {}) {
     const pause = opts.pause ?? 160;
-    const p = await this.moveTo(sel, { ...opts, pause });
+    let p = await this.moveTo(sel, { ...opts, pause });
     await sleep(pause);
+    p = await this.settledPoint(sel, opts.at, p);
+    await this.pressAt(p);
+    this.log(`click ${sel}`);
+    await sleep(opts.settle ?? 350);
+    if (!opts.verify) return p;
+    const done = typeof opts.verify === "function" ? opts.verify : () => this.control.evaluate((q) => window.__lc.find(q), opts.verify);
+    const what = typeof opts.verify === "string" ? opts.verify : "its check";
+    for (let presses = 1; ; presses++) {
+      const end = Date.now() + (opts.verifyMs ?? 1500);
+      while (Date.now() < end) {
+        if (await done()) return p;
+        await sleep(100);
+      }
+      const still = await this.control.evaluate((q) => window.__lc.find(q), sel);
+      if (!still) {
+        const late = Date.now() + 6000;
+        while (Date.now() < late) {
+          if (await done()) return p;
+          await sleep(150);
+        }
+        throw new Error(`click on ${sel}: the target went away but ${what} never showed up`);
+      }
+      if (presses === 3) throw new Error(`click on ${sel} did not take effect after 3 presses (${what} never passed)`);
+      this.warn("click", `click on ${sel} did not take, pressing again`);
+      await this.control.call("window", { focus: true }).catch(() => {});
+      p = await this.settledPoint(sel, opts.at, p);
+      await this.pressAt(p);
+    }
+  }
+
+  // The target can shift while the pointer glides to it (a badge loads and
+  // widens a tab); the press goes where it is now, after a short re-glide.
+  async settledPoint(sel, at = [0.5, 0.5], p) {
+    const r = await this.control.evaluate((q) => (window.__lc.find(q) ? window.__lc.rect(q) : null), sel).catch(() => null);
+    if (!r) return p;
+    const now = { x: r.x + r.w * at[0], y: r.y + r.h * at[1] };
+    if (Math.hypot(now.x - p.x, now.y - p.y) <= 3) return p;
+    this.log(`${sel} moved ${Math.round(now.x - p.x)},${Math.round(now.y - p.y)} px while the pointer travelled; following it`);
+    await this.glideTo(now.x, now.y, 150);
+    await sleep(170);
+    return now;
+  }
+
+  // A pointer move with no target of its own (the vertical stage records it
+  // for its camera).
+  async glideTo(x, y, ms) {
+    await this.control.evaluate((x2, y2, ms2) => window.__lc.moveTo(x2, y2, ms2), x, y, ms);
+    if (this.mouse === "real") this.realMove(x, y);
+  }
+
+  async pressAt(p) {
     await this.control.evaluate(() => window.__lc.tap());
     if (this.mouse === "real") {
       await this.refreshOrigin();
@@ -160,13 +229,36 @@ class AppStage extends Timing {
     } else {
       await this.control.evaluate((x, y) => window.__lc.dispatchClick(x, y), p.x, p.y);
     }
-    this.log(`click ${sel}`);
-    await sleep(opts.settle ?? 350);
-    return p;
   }
+
+  // Keystrokes go to whichever app is in front; after a focus loss that is
+  // usually the terminal the take was started from, where "return" submits.
+  // The lesson app is brought back once, else the take stops before typing.
+  // Matched by pid: the user's own lpm is also called lpm-desktop.
+  async ensureFrontmost() {
+    if (this.mouse !== "real") return;
+    const front = () => {
+      try {
+        const out = execFileSync("osascript", ["-e", 'tell application "System Events" to tell (first application process whose frontmost is true) to return (unix id as text) & tab & name'], { encoding: "utf8" });
+        const [pid, ...name] = out.trim().split("\t");
+        return { pid: Number(pid), name: name.join("\t") };
+      } catch (e) {
+        throw new Error(`cannot tell which app has keyboard focus, so the take stops before typing (System Events: ${String(e.stderr || e.message).trim().slice(0, 200)})`);
+      }
+    };
+    const first = front();
+    if (first.pid === this.app.proc.pid) return;
+    await this.control.call("window", { focus: true }).catch(() => {});
+    await sleep(300);
+    const again = front();
+    if (again.pid !== this.app.proc.pid) throw new Error(`the lesson window lost keyboard focus to ${again.name}; stopped before typing into it`);
+    this.warn("focus", `keyboard focus had moved to ${first.name}; brought the lesson window back`);
+  }
+
 
   // `words: true` types a word per keystroke burst, for long text a jump cut hides.
   async type(text, opts = {}) {
+    await this.ensureFrontmost();
     const parts = opts.words ? text.match(/\S+\s*|\s+/g) || [] : text;
     for (const part of parts) {
       if (this.mouse === "real") execFileSync("cliclick", [`t:${part}`]);
@@ -188,40 +280,32 @@ class AppStage extends Timing {
     }
   }
 
-  // Resolves once Claude has answered in `projectRoot`: its transcript
-  // (`~/.claude/projects/<slug>/<session>.jsonl`, slug = the path with every
-  // non-alphanumeric character as '-') carries an assistant message with text
-  // written after `since`. False on timeout, so the take goes on regardless.
-  async waitForAgentReply(projectRoot, { since = Date.now(), timeout = 25000 } = {}) {
-    const dir = path.join(os.homedir(), ".claude", "projects", projectRoot.replace(/[^a-zA-Z0-9]/g, "-"));
-    const until = Date.now() + timeout;
-    while (Date.now() < until) {
-      const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.endsWith(".jsonl")) : [];
-      for (const name of files) {
-        const file = path.join(dir, name);
-        if (fs.statSync(file).mtimeMs < since - 1000) continue;
-        for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-          if (!line.includes('"type":"assistant"')) continue;
-          try {
-            const content = JSON.parse(line).message?.content;
-            if (Array.isArray(content) && content.some((c) => c.type === "text" && c.text)) {
-              this.log("agent replied");
-              return true;
-            }
-          } catch {
-            // a line still being written
-          }
-        }
+  // Resolves once Claude has answered in `projectRoot`, read from its own
+  // transcript: text after `since` (`endOfTurn: true` waits for the end of the
+  // turn). `prompt` anchors the answer on that message, so an earlier answer
+  // in the same or a forked session never counts; `configDir` is a lesson's
+  // own Claude account. On timeout the take goes on, the miss is listed after
+  // the mux, and `required: true` stops the take instead.
+  async waitForAgentReply(projectRoot, { since = Date.now(), timeout = 25000, prompt, configDir, endOfTurn = false, required = false } = {}) {
+    const end = Date.now() + timeout;
+    while (Date.now() < end) {
+      const turn = claudeTurn(projectRoot, { since, prompt, configDir });
+      if (endOfTurn ? turn.done : turn.replied) {
+        this.log(endOfTurn ? "agent finished its turn" : "agent replied");
+        return true;
       }
       await sleep(250);
     }
-    this.log("no agent reply in the transcript");
+    const what = `no agent ${endOfTurn ? "end of turn" : "reply"} in ${projectRoot} within ${(timeout / 1000).toFixed(timeout < 10000 ? 1 : 0)} s`;
+    if (required) throw new Error(what);
+    this.warn("agent", what);
     return false;
   }
 
   // A native shortcut such as "cmd+shift+g", through System Events, for the
   // parts of the app that are not web content (the folder picker sheet).
   async keys(combo) {
+    await this.ensureFrontmost();
     const parts = combo.toLowerCase().split("+");
     const key = parts.pop();
     const mods = parts.map((m) => ({ cmd: "command down", shift: "shift down", alt: "option down", ctrl: "control down" })[m]).filter(Boolean);

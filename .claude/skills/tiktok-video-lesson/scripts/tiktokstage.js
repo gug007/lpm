@@ -27,6 +27,12 @@ class TikTokStage extends AppStage {
 
   // AppStage.moveTo, with every move on the timeline so the camera can follow
   // the pointer out of a push-in.
+  // A re-glide the stage makes on its own (a click whose target shifted).
+  async glideTo(x, y, ms) {
+    this.pointer.push({ startMs: this.now(), ms: Math.max(ms, 150), x, y });
+    await super.glideTo(x, y, ms);
+  }
+
   async moveTo(sel, opts = {}) {
     const p = await this.point(sel, opts.at);
     const ms = opts.ms ?? 600;

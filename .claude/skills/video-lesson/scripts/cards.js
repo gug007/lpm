@@ -66,4 +66,27 @@ async function renderCards(cards, dir, size) {
   return files;
 }
 
-module.exports = { renderCards, CARD_LOOK };
+// The YouTube thumbnail: the opening card itself, drawn still once its words
+// have settled, instead of a frame grabbed from the video (the words now lift
+// away before the card ends, and a short opener leaves few clean frames).
+async function renderThumbnail(title, file, size) {
+  const { execFileSync } = require("child_process");
+  const browser = await chromium.launch({ executablePath: CHROME, headless: true });
+  try {
+    const page = await browser.newPage({ viewport: size, deviceScaleFactor: 1 });
+    await page.setContent(CARD_HTML);
+    await page.evaluate(installStage, { cursorSvg: CURSOR_SVG, hotspot: HOTSPOT, hiddenText: [] });
+    await page.evaluate(() => window.__lc.cover());
+    page.evaluate(({ t }) => window.__lc.card(t, 60000, true), { t: title }).catch(() => {});
+    const words = title.split(/\s+/).length;
+    await sleep(140 + (words - 1) * 110 + 640 + 600);
+    const png = `${file}.png`;
+    await page.screenshot({ path: png });
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", png, "-vf", "scale=1280:720", "-q:v", "2", file]);
+    require("fs").rmSync(png, { force: true });
+  } finally {
+    await browser.close();
+  }
+}
+
+module.exports = { renderCards, renderThumbnail, CARD_LOOK };

@@ -12,18 +12,24 @@ const { spawnSync } = require("child_process");
 const { DEFAULT_BED } = require("./mix");
 const { APP_BIN, FRONTEND } = require("./app");
 const { listScreenDevice } = require("./capture");
+const { parseCli } = require("./cli");
+const { lintDir } = require("./lint");
+const { helper } = require("./helpers");
 
 const WORKSPACE = process.env.LPM_LESSON_WORKSPACE || "/Users/Shared/lpm-lessons";
 const KEYCHAIN = ["-s", "lpm-video", "-a", "openai"];
 const MUSIC = path.dirname(DEFAULT_BED);
 
-const args = process.argv.slice(2);
-const flag = (name) => args.includes(name);
-const opt = (name) => {
-  const i = args.indexOf(name);
-  return i >= 0 ? args[i + 1] : undefined;
-};
-const dir = args[0] && !args[0].startsWith("--") ? path.resolve(args[0]) : null;
+let cli;
+try {
+  cli = parseCli(process.argv.slice(2), { script: "preflight.js", positional: "optional" });
+} catch (e) {
+  console.error(`preflight: ${e.message}`);
+  process.exit(2);
+}
+const flag = (name) => !!cli.o[name.replace(/^--/, "")];
+const opt = (name) => cli.o[name.replace(/^--/, "")];
+const dir = cli.lesson ? path.resolve(cli.lesson) : null;
 const lessonFile = dir && path.join(dir, "lesson.json");
 const lesson = lessonFile && fs.existsSync(lessonFile) ? JSON.parse(fs.readFileSync(lessonFile, "utf8")) : {};
 const muxOnly = flag("--mux-only");
@@ -128,6 +134,9 @@ function app() {
   if (absent.length) missing.push(`the frontend's packages (${absent.slice(0, 3).join(", ")}${absent.length > 3 ? "…" : ""} missing): npm install in ${FRONTEND}`);
   if (!fs.existsSync(APP_BIN)) {
     missing.push(`the debug app ${APP_BIN}: run \`npm run tauri dev\` in ${FRONTEND} once, then quit it (or set LPM_APP)`);
+  } else if (!process.env.LPM_APP) {
+    const newer = newestRustSource(fs.statSync(APP_BIN).mtimeMs);
+    if (newer) notes.push(`the debug app is older than ${newer}: the take records the build from before that edit unless \`tauri dev\` rebuilds it first (a compile error keeps the old one)`);
   }
   if (run("xcode-select", ["-p"]).status !== 0) missing.push("Xcode Command Line Tools (git, python3, swift): xcode-select --install");
   if (!onPath("cliclick")) missing.push("cliclick, for the real pointer and typing: brew install cliclick");
@@ -148,12 +157,15 @@ let screen = CGPreflightScreenCaptureAccess()
 let ax = AXIsProcessTrusted()
 if !screen { _ = CGRequestScreenCaptureAccess() }
 if !ax { _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) }
-print(screen, ax)`;
+let session = CGSessionCopyCurrentDictionary() as? [String: Any]
+let locked = (session?["CGSSessionScreenIsLocked"] as? Bool) ?? false
+print(screen, ax, locked)`;
 
 function permissions() {
   const settings = (pane) => `open "x-apple.systempreferences:com.apple.preference.security?${pane}"`;
   const r = onPath("swift") ? run("swift", ["-e", PERMISSIONS], { timeout: 60000 }) : null;
-  const [screen, ax] = (r?.stdout || "").trim().split(" ");
+  const [screen, ax, locked] = (r?.stdout || "").trim().split(" ");
+  if (locked === "true") missing.push("the screen is locked: a locked screen records as black; unlock it and keep it awake");
   if (screen === "false") missing.push(`Screen Recording for ${host}: turn it on in ${settings("Privacy_ScreenCapture")}, then restart ${host}`);
   if (ax === "false") missing.push(`Accessibility for ${host}: turn it on in ${settings("Privacy_Accessibility")}`);
   if (!screen) notes.push(`could not read Screen Recording for ${host}; if the capture comes out black, turn it on in ${settings("Privacy_ScreenCapture")}`);
@@ -163,16 +175,48 @@ function permissions() {
   }
 }
 
+// A re-cut needs no beats; a take needs a script that lints clean.
 function beats() {
   if (!dir) return;
   if (!fs.existsSync(lessonFile)) {
     missing.push(`${lessonFile}`);
     return;
   }
-  try {
-    require(path.join(dir, "beats.js"));
-  } catch (e) {
-    missing.push(`${path.join(dir, "beats.js")} does not load: ${e.message.split("\n")[0]}`);
+  if (muxOnly) return;
+  const kind = path.basename(path.dirname(dir)) === "tiktok" || process.env.LESSON_MAKER?.includes("tiktok") ? "vertical" : "landscape";
+  const { errors, warnings } = lintDir(dir, { kind });
+  for (const e of errors) missing.push(`${path.basename(dir)}: ${e}`);
+  for (const w of warnings) notes.push(`${path.basename(dir)}: ${w}`);
+}
+
+// Newest .rs or Cargo.toml under src-tauri newer than `than`, relative path.
+function newestRustSource(than) {
+  const root = path.join(FRONTEND, "src-tauri");
+  let best = null;
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.name === "target" || e.name.startsWith(".")) continue;
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.rs$|^Cargo\.toml$/.test(e.name)) {
+        const m = fs.statSync(p).mtimeMs;
+        if (m > than && (!best || m > best.m)) best = { p, m };
+      }
+    }
+  };
+  walk(root);
+  return best && path.relative(path.dirname(FRONTEND), best.p);
+}
+
+// The screen reader for the checks after a take, and the clipboard keeper.
+function helpers() {
+  if (run("xcode-select", ["-p"]).status !== 0) return;
+  for (const name of ["ocr", "clipboard"]) {
+    try {
+      helper(name);
+    } catch (e) {
+      missing.push(e.message);
+    }
   }
 }
 
@@ -182,6 +226,7 @@ async function main() {
   await music();
   voice();
   beats();
+  helpers();
   if (onApp) {
     agents();
     trust();

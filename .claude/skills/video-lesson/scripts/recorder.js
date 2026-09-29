@@ -20,7 +20,16 @@ class Recorder {
       { stdio: ["pipe", "ignore", "pipe"] },
     );
     this.err = "";
+    this.failed = null;
+    this.stopped = null;
     this.ffmpeg.stderr.on("data", (d) => (this.err += d));
+    // An encoder that dies would otherwise take node down with an EPIPE; the
+    // take notices through `failed` and stops cleanly.
+    this.ffmpeg.stdin.on("error", (e) => (this.failed = this.failed || `${e.code || e.message} ${this.err.slice(-300)}`));
+    this.exited = new Promise((r) => this.ffmpeg.on("close", (code, signal) => r(code ?? signal)));
+    this.exited.then((how) => {
+      if (how !== 0 && !this.stopped) this.failed = this.failed || `the encoder exited (${how}): ${this.err.slice(-300)}`;
+    });
   }
 
   get started() {
@@ -45,15 +54,21 @@ class Recorder {
   }
 
   emit(times) {
+    if (this.failed || this.stopped || !this.ffmpeg.stdin.writable) return;
     for (let i = 0; i < times; i++) this.ffmpeg.stdin.write(this.last);
   }
 
-  async stop(totalMs) {
+  // Safe to call again (a take's cleanup does): the first call decides.
+  stop(totalMs) {
+    if (this.stopped) return this.stopped;
     const endN = Math.floor((totalMs / 1000) * FPS);
     if (this.last) this.emit(Math.max(1, endN - this.lastN));
-    this.ffmpeg.stdin.end();
-    const code = await new Promise((r) => this.ffmpeg.on("close", r));
-    if (code !== 0) throw new Error(`recorder ffmpeg failed: ${this.err.slice(-500)}`);
+    this.stopped = (async () => {
+      if (this.ffmpeg.stdin.writable) this.ffmpeg.stdin.end();
+      const how = await this.exited;
+      if (how !== 0) throw new Error(`recorder ffmpeg failed (${how}): ${this.failed || this.err.slice(-500)}`);
+    })();
+    return this.stopped;
   }
 }
 

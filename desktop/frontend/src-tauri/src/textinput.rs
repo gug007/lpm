@@ -1,7 +1,7 @@
 // Disable macOS automatic text substitutions (period-on-double-space, smart
-// quotes/dashes, text replacements) app-wide. They corrupt the commands, paths
-// and prompts typed into the terminal composer — e.g. a double space becomes
-// ". ". WKWebView text input honors these standardUserDefaults keys, so clearing
+// quotes/dashes, text replacements, capitalising the first word) app-wide.
+// They corrupt the commands, paths and prompts typed into the terminal
+// composer — e.g. a double space becomes ". ", a service named "api" "Api". WKWebView text input honors these standardUserDefaults keys, so clearing
 // them before any webview is created turns the substitutions off everywhere.
 /// Nothing to disable off macOS: automatic substitution is an AppKit text-input
 /// behaviour, and the objc2 crates aren't even linked on other platforms.
@@ -14,7 +14,8 @@ pub fn disable_smart_substitutions() {
     use objc2::{class, msg_send};
     use objc2_foundation::NSString;
 
-    const KEYS: [&str; 4] = [
+    const KEYS: [&str; 5] = [
+        "NSAutomaticCapitalizationEnabled",
         "NSAutomaticPeriodSubstitutionEnabled",
         "NSAutomaticQuoteSubstitutionEnabled",
         "NSAutomaticDashSubstitutionEnabled",

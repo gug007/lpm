@@ -4,6 +4,8 @@
 // target a little above the middle, clear of the caption band, and the camera
 // pans after the pointer when it leaves a pushed-in shot. The canvas is wide
 // enough that any edge of the window can be centred without running out.
+const { track } = require("./shared")("keyframes");
+
 const OUT = { width: 1080, height: 1920 };
 const FPS = 30;
 const MARGIN = 0.05;
@@ -68,38 +70,6 @@ function cameraKeys({ zooms = [], pointer = [], g, scale }) {
     busyUntil = startMs + ms;
   }
   return keys;
-}
-
-const ease = (p) => (1 - Math.cos(Math.PI * p)) / 2;
-
-// Where each keyframe's transition starts: wherever the previous one had got
-// to at that frame, so a move that interrupts another never jumps.
-function starts(keys, initial, pick) {
-  const out = [];
-  keys.forEach((k, i) => {
-    if (i === 0) return out.push(initial);
-    const prev = keys[i - 1];
-    const from = out[i - 1];
-    const to = pick(prev);
-    out.push(k.f >= prev.f + prev.d ? to : from + (to - from) * ease((k.f - prev.f) / prev.d));
-  });
-  return out;
-}
-
-// An ffmpeg expression over frame variable `n` for one channel: held between
-// keyframes, eased (cosine) over each keyframe's transition, each transition
-// starting from wherever the previous one had got to.
-function track(keys, initial, pick, n) {
-  const from0 = starts(keys, initial, pick);
-  let expr = String(initial);
-  keys.forEach((k, i) => {
-    const from = from0[i];
-    const to = pick(k);
-    const p = `((${n}-${k.f})/${k.d})`;
-    const eased = `(${from.toFixed(4)}+(${(to - from).toFixed(4)})*(1-cos(PI*${p}))/2)`;
-    expr = `if(lt(${n},${k.f}),${expr},if(lt(${n},${k.f + k.d}),${eased},${to.toFixed(4)}))`;
-  });
-  return expr;
 }
 
 // The zoompan stage for a stream whose first frame is take frame `offset`.
