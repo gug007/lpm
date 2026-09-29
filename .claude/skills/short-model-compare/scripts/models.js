@@ -145,6 +145,9 @@ function resolveCursor(words, effort, spec) {
     const efforts = levels.map((m) => base(m.slug).slice(joined.length + 1));
     if (efforts.length && effort) throw new Error(`"${spec}": Cursor has ${joined} at ${efforts.join(", ")}, not ${effort}`);
     if (efforts.length) throw new Error(`"${spec}": Cursor has no bare ${joined}; add a level (${efforts.join(", ")})`);
+    if (effort && models.some((m) => base(m.slug) === joined)) {
+      throw new Error(`"${spec}": Cursor has ${joined} at one level only; leave ${effort} off`);
+    }
     const list = [
       ...new Set(models.map((m) => base(m.slug).replace(/-fast$/, "").replace(new RegExp(`-(${CURSOR_EFFORTS.join("|")})$`), ""))),
     ];

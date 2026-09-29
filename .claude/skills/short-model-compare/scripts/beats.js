@@ -12,9 +12,9 @@
 // an action lands on.
 //
 // The opening lines' beats are never seen (the video opens on the payoff), so
-// the last of them does the setup: open the project, launch run #1. A lesson
-// with a "tease" line opens on two lines and sets up there; an older one sets
-// up in the hook.
+// the last of them does all of the setup above, up to both agents running. A
+// lesson with a "tease" line opens on two lines and sets up there; an older one
+// sets up in the hook. The video picks up with the race already on.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -37,7 +37,6 @@ const COMPOSER = (i) => `[data-lesson="composer-${i}"]`;
 const INPUT = (i) => `${COMPOSER(i)} >> [role="textbox"]`;
 const SEND_MENU = `${COMPOSER(0)} >> button[aria-label="More send options"]`;
 const MODEL_BUTTON = `${COMPOSER(0)} >> button[aria-haspopup="menu"][aria-label^="Model"]`;
-const MODEL_MENU = '[data-lesson="model-menu"]';
 const MENU_PICK = (i) => `[data-lesson="menu-pick-${i}"]`;
 const RUN_IN_DUPLICATES = 'button:has-text("Run in duplicates")';
 const MODEL_SELECT = 'button[title="Model and level this run starts with"]';
@@ -367,15 +366,13 @@ module.exports = function compareBeats({ config, dir }) {
   // /effort, and take.sh restores the default Claude saves them as.
   async function pickModelA(s) {
     const a = sides[0];
-    await s.focus(MODEL_BUTTON, { scale: 1.8, at: [0.5, 0.5], ms: 400 });
     await kit.focusWindow(s);
     await kit.clickUntil(s, MODEL_BUTTON, () => tagModelMenu(s, a.pickerModel.toLowerCase(), a.effort), { ms: 300 });
-    await s.focus(MODEL_MENU, { scale: 1.5, at: [0, 0.5], ms: 350 });
     if (a.effort) {
-      await s.moveTo(MENU_PICK(0), { at: [0.4, 0.5], ms: 350, cue: config.cues.left });
-      await s.click(MENU_PICK(1), { at: [0.5, 0.5], ms: 350, cue: config.cues.leftLevel });
+      await s.moveTo(MENU_PICK(0), { at: [0.4, 0.5], ms: 300 });
+      await s.click(MENU_PICK(1), { at: [0.5, 0.5], ms: 300 });
     } else {
-      await s.click(MENU_PICK(0), { at: [0.4, 0.5], ms: 350, cue: config.cues.left });
+      await s.click(MENU_PICK(0), { at: [0.4, 0.5], ms: 300 });
     }
     const want = `Model: ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")}`;
     const shown = () => s.control.evaluate(() => {
@@ -383,15 +380,36 @@ module.exports = function compareBeats({ config, dir }) {
       return b && !b.disabled ? b.getAttribute("aria-label") : "";
     });
     let now = "";
-    await s.skip(
-      async () => {
-        const end = Date.now() + 30000;
-        while ((now = await shown()) !== want && Date.now() < end) await s.hold(300);
-      },
-      { keepMs: 300 },
-    );
+    const end = Date.now() + 30000;
+    while ((now = await shown()) !== want && Date.now() < end) await s.hold(300);
     s.log(`run #1 model: ${now}`);
     if (now !== want) throw new Error(`run #1 reads "${now}", not "${want}"`);
+  }
+
+  async function typePrompt(s) {
+    await kit.focusWindow(s);
+    await s.click(INPUT(0), { at: [0.2, 0.4], ms: 300 });
+    await s.type(config.prompt, { words: true });
+  }
+
+  async function openDuplicates(s) {
+    await kit.clickUntil(s, SEND_MENU, () => kit.isVisible(s, RUN_IN_DUPLICATES), { ms: 300 });
+    await s.click(RUN_IN_DUPLICATES, { at: [0.3, 0.5], ms: 300 });
+    await s.waitFor(MODEL_SELECT, 5000);
+  }
+
+  // Model B on the same CLI: the copy's model picker in the dialog.
+  async function pickCopyModel(s) {
+    const b = sides[1];
+    await kit.clickUntil(s, MODEL_SELECT, async () => (await tagPicks(s, [b.pickerModel])) === 1, { ms: 300 });
+    await s.click(PICK(0), { at: [0.3, 0.5], ms: 300 });
+    if (b.pickerEffort) {
+      await tagPicks(s, [b.pickerModel, b.pickerEffort]);
+      await s.click(PICK(1), { at: [0.3, 0.5], ms: 300 });
+    }
+    await s.click(MODEL_SELECT, { at: [0.8, 0.5], ms: 250 });
+    const shown = await s.control.evaluate((q) => document.querySelector(q)?.textContent.trim(), MODEL_SELECT);
+    s.log(`copy model: ${shown}`);
   }
 
   // Model B in the other CLI: the copy's run override starts the project's
@@ -401,21 +419,14 @@ module.exports = function compareBeats({ config, dir }) {
     const typed = sides[1].cli !== "cursor";
     const button = BUTTON[sides[1].cli];
     const has = async (part) => (await tagCopyRun(s, button)).includes(part);
-    await s.focus(COPY_RUN, { scale: 1.7, at: [0.5, 0.5], ms: 400 });
     await kit.clickUntil(s, COPY_RUN, () => has("action"), { ms: 300 });
-    await s.focus(COPY("action"), { scale: 1.5, at: [0.5, 0.5], ms: 350 });
     await kit.clickUntil(s, COPY("action"), () => has("picker"), { ms: 300 });
     await kit.clickUntil(s, COPY("picker"), () => has("option"), { ms: 300 });
-    await s.click(COPY("option"), { at: [0.3, 0.5], ms: 300, cue: config.cues.pick });
+    await s.click(COPY("option"), { at: [0.3, 0.5], ms: 300 });
     if (typed) {
-      await s.skip(
-        async () => {
-          await tagCopyRun(s, button);
-          await s.click(COPY("input"), { at: [0.2, 0.4], ms: 300 });
-          await s.type(config.prompt, { words: true });
-        },
-        { keepMs: 300 },
-      );
+      await tagCopyRun(s, button);
+      await s.click(COPY("input"), { at: [0.2, 0.4], ms: 300 });
+      await s.type(config.prompt, { words: true });
     }
     const shown = await s.control.evaluate(
       (picker, input) => [document.querySelector(picker)?.textContent.trim(), document.querySelector(input)?.textContent.length ?? 0],
@@ -489,6 +500,42 @@ module.exports = function compareBeats({ config, dir }) {
     kit.park(s);
   }
 
+  // Runs the prompt in 2 copies, then waits for the copy's column and both
+  // agents to start.
+  async function startRace(s) {
+    const run = 'button:has-text("Run 2 in parallel")';
+    clickedRun = Date.now();
+    await kit.clickUntil(s, run, async () => !(await kit.isVisible(s, run)), { ms: 300 });
+    kit.park(s);
+    // Poll the starts all along: Cursor's is read off its store as it happens.
+    const poll = async (ms) => {
+      noteStarts();
+      await s.hold(ms);
+    };
+    const end = Date.now() + 90000;
+    while (Date.now() < end && (await kit.count(s, COLUMN)) < 2) await poll(300);
+    if ((await kit.count(s, COLUMN)) < 2) throw new Error("the copy never opened beside run #1");
+    while (Date.now() < end && (await kit.count(s, ".xterm")) < 2) await poll(300);
+    for (const settle = Date.now() + AGENT_STARTUP_MS; Date.now() < settle; ) await poll(250);
+    noteStarts();
+    s.log(`copy: ${roots[1]}`);
+    if (roots[1] && fs.existsSync(path.join(roots[1], "index.html"))) s.log("warning: the copy cloned run #1's index.html");
+    s.log(`panes: ${await tagAll(s)}`);
+    await badges(s, badgeItems());
+  }
+
+  async function setupRace(s) {
+    await setupRun(s);
+    if (config.pickA) await pickModelA(s);
+    await typePrompt(s);
+    await openDuplicates(s);
+    if (sides[1].cli !== sides[0].cli) await overrideCopy(s);
+    else await pickCopyModel(s);
+    await startRace(s);
+  }
+
+  let racing = null;
+
   return {
     setup: async ({ lpmDir, workspace, settings }) => {
       kit.neutralShell(lpmDir, workspace);
@@ -533,76 +580,25 @@ module.exports = function compareBeats({ config, dir }) {
     },
 
     hook: async (s) => {
-      if (!teased) await setupRun(s);
+      if (!teased) await setupRace(s);
     },
-    tease: async (s) => setupRun(s),
-    left: async (s) => {
+    tease: async (s) => setupRace(s),
+    // The first shot: both agents already at work, each column's banner naming
+    // its model as the line does. The clocks tick from here on.
+    run: async (s) => {
       await tagAll(s);
-      if (config.pickA) await pickModelA(s);
-      else await kit.focusLeft(s, TERM(0), { scale: 1.6, at: [0.3, 0.1], ms: 450, cue: config.cues.left });
-    },
-    prompt: async (s) => {
-      await kit.focusLeft(s, INPUT(0), { scale: 1.8, at: [0.4, 0.5], ms: 450, cue: config.cues.prompt });
-      await kit.focusWindow(s);
-      await s.click(INPUT(0), { at: [0.2, 0.4], ms: 350 });
-      await s.skip(() => s.type(config.prompt, { words: true }), { keepMs: 200 });
-    },
-    dupes: async (s) => {
-      await s.focus(SEND_MENU, { scale: 1.8, at: [0.5, 0.5], ms: 400 });
-      await kit.clickUntil(s, SEND_MENU, () => kit.isVisible(s, RUN_IN_DUPLICATES), { ms: 300 });
-      await s.click(RUN_IN_DUPLICATES, { at: [0.3, 0.5], ms: 300, cue: config.cues.dupes });
-      await s.waitFor(MODEL_SELECT, 5000);
-      await s.wide({ ms: 400 });
-    },
-    pick: async (s) => {
-      const b = sides[1];
-      if (b.cli !== sides[0].cli) return overrideCopy(s);
-      await s.focus(MODEL_SELECT, { scale: 1.7, at: [0.5, 0.5], ms: 400 });
-      await kit.clickUntil(s, MODEL_SELECT, async () => (await tagPicks(s, [b.pickerModel])) === 1, { ms: 300 });
-      await s.click(PICK(0), { at: [0.3, 0.5], ms: 300, cue: config.cues.pick });
-      if (b.pickerEffort) {
-        await tagPicks(s, [b.pickerModel, b.pickerEffort]);
-        await s.click(PICK(1), { at: [0.3, 0.5], ms: 300 });
-      }
-      await s.click(MODEL_SELECT, { at: [0.8, 0.5], ms: 250 });
-      const shown = await s.control.evaluate((q) => document.querySelector(q)?.textContent.trim(), MODEL_SELECT);
-      s.log(`copy model: ${shown}`);
-    },
-    go: async (s) => {
-      await s.focus('button:has-text("Run 2 in parallel")', { scale: 1.8, at: [0.5, 0.5], ms: 400 });
-      clickedRun = Date.now();
-      const run = 'button:has-text("Run 2 in parallel")';
-      await kit.clickUntil(s, run, async () => !(await kit.isVisible(s, run)), { ms: 300, cue: config.cues.go });
-      kit.park(s);
-      // The button closes with the dialog; don't hold a shot of where it was.
-      await s.wide({ ms: 400 });
-      await s.skip(
-        async () => {
-          // Poll the starts all along: Cursor's is read off its store as it
-          // happens.
-          const poll = async (ms) => {
-            noteStarts();
-            await s.hold(ms);
-          };
-          const end = Date.now() + 90000;
-          while (Date.now() < end && (await kit.count(s, COLUMN)) < 2) await poll(300);
-          if ((await kit.count(s, COLUMN)) < 2) throw new Error("the copy never opened beside run #1");
-          while (Date.now() < end && (await kit.count(s, ".xterm")) < 2) await poll(300);
-          for (const settle = Date.now() + AGENT_STARTUP_MS; Date.now() < settle; ) await poll(250);
-          noteStarts();
-          s.log(`copy: ${roots[1]}`);
-          if (roots[1] && fs.existsSync(path.join(roots[1], "index.html"))) s.log("warning: the copy cloned run #1's index.html");
-          s.log(`panes: ${await tagAll(s)}`);
-          await badges(s, badgeItems());
-        },
-        { keepMs: 300 },
-      );
+      racing = race(s);
+      // Cursor names its model on its status line, which it draws inline just
+      // under the prompt, about halfway down its screen early in a chat.
+      const banner = (i) => (sides[i].cli === "cursor" ? [0.3, 0.45] : [0.3, 0.1]);
+      await kit.focusLeft(s, TERM(0), { scale: 1.6, at: banner(0), ms: 450, cue: config.cues.a });
+      await s.focus(TERM(1), { scale: 1.6, at: banner(1), ms: 450, cue: config.cues.b });
+      await s.wide({ ms: 450, cue: config.cues.lpm });
     },
     wait: async (s) => {
-      await s.focus(TERM(1), { scale: 1.6, at: [0.3, 0.1], ms: 450 });
       await s.skip(
         async () => {
-          await race(s);
+          await (racing ?? race(s));
           for (let i = 0; i < 2; i++) await openPage(s, i);
           await tagPanes(s);
           await badges(s, badgeItems());

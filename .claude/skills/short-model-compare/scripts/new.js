@@ -87,7 +87,6 @@ const emoji = giraffe ? " 🦒" : "";
 const family = (m) => m.name.split(" ")[0];
 const branded = a.brand !== b.brand;
 const hookNames = branded ? [a.brand, b.brand] : family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
-const bEffort = b.effort && b.effort !== a.effort ? ` at ${b.spokenEffort}` : "";
 
 const narration = [
   {
@@ -96,25 +95,15 @@ const narration = [
     headline: branded ? `${a.brand} vs ${b.brand}: ${a.name} vs ${b.name}${emoji}` : `${a.headline} vs ${b.headline}${emoji}`,
   },
   // The first two lines play over the finished pages (lesson.open): viewers
-  // left at 0:02 when a one-line opening cut to the setup.
+  // left at 0:02 when a one-line opening cut to the setup. The setup happens
+  // under them, unseen, so the video goes straight to both models at work.
   { id: "tease", text: `Same prompt. Two very different *${giraffe ? "giraffes" : "results"}*.` },
   {
-    id: "left",
-    text: `${pickA ? "Pick " : ""}*${a.name}*${a.effort ? ` at ${a.spokenEffort} effort` : ""} on the left.`,
-    label: a.label,
+    id: "run",
+    text: sameModel
+      ? `${a.name} at *${effortWord(a)}* and *${effortWord(b)}* effort, both running in lpm's *terminal*.`
+      : `*${a.name}* and *${b.name}*, both running in lpm's *terminal*.`,
   },
-  {
-    id: "prompt",
-    text: giraffe
-      ? "One prompt. A *giraffe* flying a plane."
-      : subject
-        ? `One prompt. *${upper(subject)}*.`
-        : "One *prompt* for both.",
-    label: "One prompt",
-  },
-  { id: "dupes", text: "Run it in *duplicates*.", label: "Run in duplicates" },
-  { id: "pick", text: `The copy gets *${b.name}*${bEffort}${crossCli && b.cli !== "cursor" ? ` in ${CLI_NAME[b.cli]}` : ""}.`, label: b.label },
-  { id: "go", text: "Side by side. *Go*." },
   { id: "wait", text: "Both are building it *now*." },
   { id: "reveal", text: "Here's what they *built*." },
   // Viewers name the next pair in the comments.
@@ -137,7 +126,7 @@ const lesson = {
   slam: sameModel ? { a: a.label, b: b.label } : { a: a.name, b: b.name },
   narration,
   post: {
-    caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
+    caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm's terminal. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
     hashtags: hashtags.slice(0, 5),
   },
 };
@@ -148,12 +137,9 @@ const compare = {
   project: "arena",
   pickA,
   cues: {
-    left: a.name,
-    ...(pickA && a.effort && { leftLevel: a.spokenEffort }),
-    prompt: "One",
-    dupes: "duplicates",
-    pick: b.name,
-    go: "Go",
+    a: sameModel ? effortWord(a) : a.name,
+    b: sameModel ? effortWord(b) : b.name,
+    lpm: "terminal",
     reveal: "built",
   },
 };
