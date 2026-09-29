@@ -159,11 +159,13 @@ class AppStage extends Timing {
     return p;
   }
 
+  // `words: true` types a word per keystroke burst, for long text a jump cut hides.
   async type(text, opts = {}) {
-    for (const ch of text) {
-      if (this.mouse === "real") execFileSync("cliclick", [`t:${ch}`]);
-      else await this.control.evaluate((c) => window.__lc.typeText(c), ch);
-      await sleep(ch === " " ? 40 : 55 + Math.random() * 45);
+    const parts = opts.words ? text.match(/\S+\s*|\s+/g) || [] : text;
+    for (const part of parts) {
+      if (this.mouse === "real") execFileSync("cliclick", [`t:${part}`]);
+      else await this.control.evaluate((c) => window.__lc.typeText(c), part);
+      await sleep(part === " " ? 40 : 55 + Math.random() * 45);
     }
     if (opts.after) await sleep(opts.after);
   }

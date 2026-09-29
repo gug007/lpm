@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// node models.js "opus 5.5 max" "gpt 6 astra ultra"
+// node models.js "opus 5.5 max" "gpt 6 astra ultra" "grok 4.7 xhigh"
 // Turns loose model specs into exact launch commands, checked against what
 // the installed CLIs accept: Claude Code's own model table (read from its
-// binary) and Codex's models cache (with each model's reasoning levels).
+// binary), Codex's models cache (with each model's reasoning levels) and
+// Cursor CLI's model list (`agent --list-models`, one slug per level).
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -47,18 +48,33 @@ function claudeTable() {
   return claudeCache;
 }
 
+const CODEX_CACHE = path.join(os.homedir(), ".codex", "models_cache.json");
+
 let codexCache;
 function codexTable() {
   if (codexCache) return codexCache;
-  const file = path.join(os.homedir(), ".codex", "models_cache.json");
-  if (!fs.existsSync(file)) throw new Error(`no Codex models cache at ${file}: run codex once`);
-  const data = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (!fs.existsSync(CODEX_CACHE)) throw new Error(`no Codex models cache at ${CODEX_CACHE}: run codex once`);
+  const data = JSON.parse(fs.readFileSync(CODEX_CACHE, "utf8"));
   codexCache = (data.models || data).map((m) => ({
     slug: m.slug,
     hidden: m.visibility === "hide",
     efforts: (m.supported_reasoning_levels || []).map((l) => (typeof l === "string" ? l : l.effort)),
   }));
   return codexCache;
+}
+
+const CURSOR_EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max"];
+
+let cursorCache;
+function cursorTable() {
+  if (cursorCache) return cursorCache;
+  if (!which("agent")) throw new Error("Cursor CLI (agent) is not on PATH: curl https://cursor.com/install -fsS | bash");
+  const out = execFileSync("agent", ["--list-models"], { encoding: "utf8" });
+  cursorCache = [...out.matchAll(/^(\S+) - (.+)$/gm)].map((m) => ({
+    slug: m[1],
+    display: m[2].replace(/[​-‍﻿]/g, "").replace(/\s*\(.*\)$/, "").trim(),
+  }));
+  return cursorCache;
 }
 
 const versionOf = (name) => Number((/(\d+(?:\.\d+)?)\s*$/.exec(name) || [])[1] || 0);
@@ -114,31 +130,84 @@ function resolveCodex(words, effort, spec) {
   return { cli: "codex", model: m.slug, name: codexName(m.slug), effort, pickerModel: codexName(m.slug) };
 }
 
+// Cursor names each level as its own slug (`grok-4.7-xhigh`, some with a
+// `cursor-` prefix); the `-fast` variants are left out, and so are the Claude
+// and GPT models it lists, which run in their own CLIs.
+function resolveCursor(words, effort, spec) {
+  const models = cursorTable().filter((m) => !/^(claude|gpt)-/.test(m.slug));
+  const joined = words.join("-");
+  const base = (slug) => slug.replace(/^cursor-/, "");
+  const levels = models.filter((m) => new RegExp(`^${joined.replace(/\./g, "\\.")}-(${CURSOR_EFFORTS.join("|")})$`).test(base(m.slug)));
+  const pick = effort
+    ? levels.find((m) => base(m.slug) === `${joined}-${effort}`)
+    : models.find((m) => base(m.slug) === joined);
+  if (!pick) {
+    const efforts = levels.map((m) => base(m.slug).slice(joined.length + 1));
+    if (efforts.length && effort) throw new Error(`"${spec}": Cursor has ${joined} at ${efforts.join(", ")}, not ${effort}`);
+    if (efforts.length) throw new Error(`"${spec}": Cursor has no bare ${joined}; add a level (${efforts.join(", ")})`);
+    const list = [
+      ...new Set(models.map((m) => base(m.slug).replace(/-fast$/, "").replace(new RegExp(`-(${CURSOR_EFFORTS.join("|")})$`), ""))),
+    ];
+    throw new Error(`"${spec}": unknown Cursor model; pick one of ${list.join(", ")}`);
+  }
+  const name = pick.display
+    .replace(/\b(Extra High|Minimal|Low|Medium|High|Max|Fast)\b/g, "")
+    .replace(/\b\d+[KM]\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return { cli: "cursor", model: pick.slug, name, effort, pickerModel: null };
+}
+
+// The word viewers search for ("claude vs grok"), not the CLI running it: a
+// Cursor model goes by its own name, except Cursor's own Composer.
+function brandOf(r) {
+  if (r.cli === "claude") return "Claude";
+  if (r.cli === "codex") return "ChatGPT";
+  const first = r.name.split(" ")[0];
+  return first.toLowerCase() === "composer" ? "Cursor" : first;
+}
+
+// A GPT model, or a word naming one of Codex's models ("astra").
+const isCodexModel = (word) =>
+  word.startsWith("gpt") || (fs.existsSync(CODEX_CACHE) && codexTable().some((m) => !m.hidden && m.slug.split("-").includes(word)));
+
 function resolve(spec) {
   const raw = spec
     .toLowerCase()
-    .replace(/\b(claude code|claude|codex|openai|anthropic)\b/g, " ")
+    .replace(/\b(claude code|claude|codex|openai|anthropic|cursor|in)\b/g, " ")
     .replace(/[·,]/g, " ")
     .trim()
     .split(/\s+/)
     .filter(Boolean);
   if (raw.length === 0) throw new Error(`"${spec}": no model named`);
   const { words, effort } = splitEffort(raw);
+  // Claude models run in Claude Code and GPT models in Codex, even though
+  // Cursor lists both; every other model runs in Cursor CLI.
   const claude = new Set(claudeTable().models.map((m) => m.family));
-  const r = claude.has(words[0]) ? resolveClaude(words, effort, spec) : resolveCodex(words, effort, spec);
+  const r = claude.has(words[0])
+    ? resolveClaude(words, effort, spec)
+    : isCodexModel(words[0])
+      ? resolveCodex(words, effort, spec)
+      : resolveCursor(words, effort, spec);
   const label = r.effort ? `${r.name} · ${r.effort}` : r.name;
-  const cmd =
-    r.cli === "claude"
-      ? ["claude", "--model", r.model, r.effort && `--effort ${r.effort}`, "--permission-mode acceptEdits"]
-      : ["codex", "-m", r.model, r.effort && `-c model_reasoning_effort=${r.effort}`, "-c check_for_update_on_startup=false"];
+  // Cursor gets the prompt as its launch argument (beats.js), which it
+  // submits once it is up; --trust skips the new folder's trust prompt, and
+  // --force lets its shell calls run, as Codex's sandbox does, rather than
+  // stop the race on an approval.
+  const cmd = {
+    claude: ["claude", "--model", r.model, r.effort && `--effort ${r.effort}`, "--permission-mode acceptEdits"],
+    codex: ["codex", "-m", r.model, r.effort && `-c model_reasoning_effort=${r.effort}`, "-c check_for_update_on_startup=false"],
+    cursor: ["agent", "--model", r.model, "--trust", "--force"],
+  }[r.cli];
   return {
     ...r,
     label,
+    brand: brandOf(r),
     headline: r.effort ? `${r.name} ${r.effort}` : r.name,
     spokenEffort: r.effort ? SPOKEN_EFFORT[r.effort] || r.effort : null,
     pickerEffort: r.effort ? (r.effort === "xhigh" ? "Extra High" : title(r.effort)) : null,
     dir: `${r.name}${r.effort ? " " + r.effort : ""}`.toLowerCase().replace(/[^a-z0-9.]+/g, "-"),
-    emoji: r.cli === "claude" ? "✻" : "◆",
+    emoji: { claude: "✻", codex: "◆", cursor: "⬢" }[r.cli],
     cmd: cmd.filter(Boolean).join(" "),
   };
 }

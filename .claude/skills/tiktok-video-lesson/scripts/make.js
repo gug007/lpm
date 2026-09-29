@@ -110,28 +110,32 @@ async function compose(lines) {
   const overlay = await renderTrack(path.join(DIR, "overlay"), track, edit.outMs);
   console.log(`text track: ${overlay.frames} changes, ${overlay.painted} painted`);
 
-  const totalS = t.totalMs / 1000;
-  const hookS = edit.hook / FPS;
-  console.log(`opening on the payoff: ${hookS.toFixed(2)}s`);
-  const inputs = [
-    "-i", raw,
-    "-ss", (edit.payoff[0] / FPS).toFixed(3), "-t", hookS.toFixed(3), "-i", raw,
-    ...looped(look.bg, totalS), ...looped(look.mask, totalS),
-    ...looped(look.bg, hookS), ...looped(look.mask, hookS),
-    "-f", "concat", "-safe", "0", "-i", overlay.listFile,
-  ];
-  const parts = [framed(0, 2, 3, g, keys, 0, "main"), framed(1, 4, 5, g, keys, edit.payoff[0], "hook")];
-  const segs = edit.main.map((_, i) => `[m${i}]`).join("");
-  parts.push(`[main]split=${edit.main.length}${segs}`);
-  edit.main.forEach(([a, b], i) => parts.push(`[m${i}]trim=start_frame=${a}:end_frame=${b},setpts=PTS-STARTPTS[s${i}]`));
-  parts.push(`[hook]${edit.main.map((_, i) => `[s${i}]`).join("")}concat=n=${edit.main.length + 1}:v=1:a=0[cut]`);
-  parts.push(`[6:v]format=rgba[text];[cut][text]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[vout]`);
+  console.log(`opening on the payoff: ${(edit.hook / FPS).toFixed(2)}s`);
+  // Each shot is read on its own from its first frame, so the camera runs over
+  // the frames the video keeps rather than the whole take (a 58-minute race
+  // took as long again to render).
+  const inputs = [];
+  let count = 0;
+  const input = (...args) => {
+    inputs.push(...args);
+    return count++;
+  };
+  const shot = ([a, b], label) => {
+    const seconds = (b - a) / FPS;
+    const capture = input("-ss", (a / FPS).toFixed(3), "-t", seconds.toFixed(3), "-i", raw);
+    return framed(capture, input(...looped(look.bg, seconds)), input(...looped(look.mask, seconds)), g, keys, a, label);
+  };
+  const shots = [[edit.payoff[0], edit.payoff[0] + edit.hook], ...edit.main];
+  const parts = shots.map((range, i) => shot(range, `s${i}`));
+  parts.push(`${shots.map((_, i) => `[s${i}]`).join("")}concat=n=${shots.length}:v=1:a=0[cut]`);
+  const text = input("-f", "concat", "-safe", "0", "-i", overlay.listFile);
+  parts.push(`[${text}:v]format=rgba[text];[cut][text]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[vout]`);
 
   const bed = music && fs.existsSync(music) ? music : null;
   if (music && !bed) console.log(`no music: ${music} is missing${music === DEFAULT_BED ? " (preflight.js downloads it)" : ""}`);
   const clips = timed.filter((l) => !l.line.silent).map((l) => ({ wav: l.line.wav, startMs: Math.round(l.outMs) }));
   // The bed starts at full level under the hook and is gone with the last frame.
-  const sound = soundtrack({ clips, base: 7, bed, totalMs: edit.outMs, underLu: MUSIC_UNDER_VOICE_LU, fadeInS: 0.15, fadeOutS: 0.8 });
+  const sound = soundtrack({ clips, base: count, bed, totalMs: edit.outMs, underLu: MUSIC_UNDER_VOICE_LU, fadeInS: 0.15, fadeOutS: 0.8 });
   inputs.push(...sound.inputs);
   parts.push(sound.filter);
 

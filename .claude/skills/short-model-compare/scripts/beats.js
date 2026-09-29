@@ -4,7 +4,8 @@
 // the menu can't pick it), the prompt goes into that composer, Run in
 // duplicates makes a copy whose model the dialog's per-run picker sets to model
 // B (or, when model B runs in the other CLI, the copy's run override starts the
-// project's second button, pinned to model B, with the prompt typed again), and
+// project's second button, pinned to model B, with the prompt typed again, or,
+// for Cursor, passed as its launch argument), and
 // "Open side by side" shows run #1 and the copy as two columns. A race to
 // index.html, then both pages in lpm's own browser. Each column's pane header
 // carries a colour badge with the model and its time. `cue` = the spoken word
@@ -18,6 +19,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const { cursorChat } = require("./cursor");
 const kit = require("../../tiktok-video-lesson/scripts/kit");
 
 const AGENT_STARTUP_MS = 7000;
@@ -47,7 +49,12 @@ const ADDR = (i) => `[data-lesson="addr-${i}"]`;
 const COLUMN = '[data-project-column]';
 // The copy inherits the project's header button, so it names the CLI rather
 // than model A; the banners and colour bars name the models.
-const BUTTON = { claude: "Claude", codex: "Codex" };
+const BUTTON = { claude: "Claude", codex: "Codex", cursor: "Cursor" };
+// The buttons' emoji, as a pattern the page builds (arguments reach it as JSON).
+const EMOJI = "[✻◆⬢]";
+// Cursor's turn ends on its last write; one that follows this soon means it
+// wasn't over.
+const CURSOR_SETTLE_MS = 1000;
 
 const clock = (ms) => {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -104,6 +111,12 @@ const claudeDir = (root) => path.join(os.homedir(), ".claude", "projects", root.
 // each side is timed from its own start: the copy starts later than run #1
 // (the clone, then its agent's boot).
 function promptAt(cli, root, since) {
+  if (cli === "cursor") {
+    // Its store keeps no message times, and the prompt can reach it only with
+    // the model's first step (28 minutes in at xhigh), so the clock starts
+    // when the agent created the chat with its launch prompt.
+    return cursorChat(root, since)?.createdAt ?? null;
+  }
   const lines =
     cli === "claude"
       ? (fs.existsSync(claudeDir(root)) ? fs.readdirSync(claudeDir(root)) : [])
@@ -139,14 +152,14 @@ const tagLeftToRight = (s, css, name) =>
 
 // The header button labelled `label`, tagged act-0.
 const tagAction = (s, label) =>
-  s.control.evaluate((text) => {
-    const clean = (el) => el.textContent.replace(/[✻◆]/g, "").replace(/\s+/g, " ").trim();
+  s.control.evaluate((text, emoji) => {
+    const clean = (el) => el.textContent.replace(new RegExp(emoji, "g"), "").replace(/\s+/g, " ").trim();
     const btn = [...document.querySelectorAll('[data-actions-zone="header"] button')].find(
       (b) => b.getBoundingClientRect().width > 0 && clean(b) === text,
     );
     if (btn) btn.dataset.lesson = "act-0";
     return !!btn;
-  }, label);
+  }, label, EMOJI);
 
 // The rows of the open model/level panel whose text is `labels[i]`, tagged
 // pick-0, pick-1…
@@ -170,9 +183,9 @@ const tagPicks = (s, labels) =>
 // `label` as copy-option and the prompt box as copy-input. Returns the parts
 // found.
 const tagCopyRun = (s, label) =>
-  s.control.evaluate((want) => {
+  s.control.evaluate((want, emoji) => {
     const visible = (el) => el && el.getBoundingClientRect().width > 0;
-    const text = (el) => el.textContent.replace(/[✻◆]/g, "").trim();
+    const text = (el) => el.textContent.replace(new RegExp(emoji, "g"), "").trim();
     const group = [...document.querySelectorAll('[role="group"]')].find(
       (g) => visible(g) && [...g.querySelectorAll("button")].some((b) => text(b) === "Default"),
     );
@@ -192,7 +205,7 @@ const tagCopyRun = (s, label) =>
       "option",
     );
     return found;
-  }, label);
+  }, label, EMOJI);
 
 // The composer's open Model menu as model-menu, its row for `model` as
 // menu-pick-0 and the level flyout's row for `effort` as menu-pick-1.
@@ -294,9 +307,16 @@ module.exports = function compareBeats({ config, dir }) {
               : "",
     }));
 
-  const done = (i) =>
-    sides[i].cli === "claude" ? kit.claudeDone(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i]);
-  const built = (i) => Boolean(roots[i]) && sentAt[i] > 0 && fs.existsSync(path.join(roots[i], "index.html")) && done(i);
+  // When side i finished, once it has written index.html and ended its turn.
+  const finishedAt = (i) => {
+    if (!roots[i] || !sentAt[i] || !fs.existsSync(path.join(roots[i], "index.html"))) return null;
+    const cli = sides[i].cli;
+    if (cli === "cursor") {
+      const chat = cursorChat(roots[i], sentAt[i]);
+      return chat?.ended && Date.now() - chat.updatedAt > CURSOR_SETTLE_MS ? chat.updatedAt : null;
+    }
+    return (cli === "claude" ? kit.claudeDone(roots[i], sentAt[i]) : codexDone(roots[i], sentAt[i])) ? Date.now() : null;
+  };
 
   // The copy's folder: Run in duplicates clones the project next to it as
   // `<project>-<id>`.
@@ -324,7 +344,10 @@ module.exports = function compareBeats({ config, dir }) {
     let shown = "";
     while (Date.now() < end && finish.some((f) => f == null)) {
       noteStarts();
-      for (let i = 0; i < 2; i++) if (finish[i] == null && built(i)) finish[i] = Date.now() - sentAt[i];
+      for (let i = 0; i < 2; i++) {
+        const at = finish[i] == null ? finishedAt(i) : null;
+        if (at != null) finish[i] = at - sentAt[i];
+      }
       const items = badgeItems();
       const key = items.map((b) => b.time).join("|");
       if (key !== shown) {
@@ -373,8 +396,9 @@ module.exports = function compareBeats({ config, dir }) {
 
   // Model B in the other CLI: the copy's run override starts the project's
   // model B button. An override starts with an empty prompt, so the prompt is
-  // typed again.
+  // typed again, except for Cursor, whose button carries it.
   async function overrideCopy(s) {
+    const typed = sides[1].cli !== "cursor";
     const button = BUTTON[sides[1].cli];
     const has = async (part) => (await tagCopyRun(s, button)).includes(part);
     await s.focus(COPY_RUN, { scale: 1.7, at: [0.5, 0.5], ms: 400 });
@@ -383,14 +407,16 @@ module.exports = function compareBeats({ config, dir }) {
     await kit.clickUntil(s, COPY("action"), () => has("picker"), { ms: 300 });
     await kit.clickUntil(s, COPY("picker"), () => has("option"), { ms: 300 });
     await s.click(COPY("option"), { at: [0.3, 0.5], ms: 300, cue: config.cues.pick });
-    await s.skip(
-      async () => {
-        await tagCopyRun(s, button);
-        await s.click(COPY("input"), { at: [0.2, 0.4], ms: 300 });
-        await s.type(config.prompt);
-      },
-      { keepMs: 300 },
-    );
+    if (typed) {
+      await s.skip(
+        async () => {
+          await tagCopyRun(s, button);
+          await s.click(COPY("input"), { at: [0.2, 0.4], ms: 300 });
+          await s.type(config.prompt, { words: true });
+        },
+        { keepMs: 300 },
+      );
+    }
     const shown = await s.control.evaluate(
       (picker, input) => [document.querySelector(picker)?.textContent.trim(), document.querySelector(input)?.textContent.length ?? 0],
       COPY("picker"),
@@ -476,6 +502,11 @@ module.exports = function compareBeats({ config, dir }) {
       git(root, "commit", "-q", "-m", "Initial commit");
       const projects = path.join(lpmDir, "projects");
       fs.mkdirSync(projects, { recursive: true });
+      // Cursor takes the prompt as its launch argument, read from a file outside
+      // both projects so the terminal echoes a short command.
+      const promptFile = path.join(workspace, "prompt.txt");
+      fs.writeFileSync(promptFile, config.prompt);
+      const launch = (m) => (m.cli === "cursor" ? `${m.cmd} "$(cat '${promptFile}')"` : m.cmd);
       // Model B gets its own button only in the other CLI, where the copy's run
       // override starts it.
       const buttons = sides
@@ -483,7 +514,7 @@ module.exports = function compareBeats({ config, dir }) {
         .filter(({ m }, i) => i === 0 || m.cli !== sides[0].cli)
         .map(
           ({ m, id, position }) =>
-            `  ${id}:\n    label: ${yamlString(BUTTON[m.cli])}\n    emoji: ${yamlString(m.emoji)}\n    cmd: ${yamlString(m.cmd)}\n    type: terminal\n    position: ${position}\n`,
+            `  ${id}:\n    label: ${yamlString(BUTTON[m.cli])}\n    emoji: ${yamlString(m.emoji)}\n    cmd: ${yamlString(launch(m))}\n    type: terminal\n    position: ${position}\n`,
         );
       fs.writeFileSync(
         path.join(projects, `${project}.yml`),
@@ -514,7 +545,7 @@ module.exports = function compareBeats({ config, dir }) {
       await kit.focusLeft(s, INPUT(0), { scale: 1.8, at: [0.4, 0.5], ms: 450, cue: config.cues.prompt });
       await kit.focusWindow(s);
       await s.click(INPUT(0), { at: [0.2, 0.4], ms: 350 });
-      await s.skip(() => s.type(config.prompt), { keepMs: 200 });
+      await s.skip(() => s.type(config.prompt, { words: true }), { keepMs: 200 });
     },
     dupes: async (s) => {
       await s.focus(SEND_MENU, { scale: 1.8, at: [0.5, 0.5], ms: 400 });
@@ -540,17 +571,24 @@ module.exports = function compareBeats({ config, dir }) {
     go: async (s) => {
       await s.focus('button:has-text("Run 2 in parallel")', { scale: 1.8, at: [0.5, 0.5], ms: 400 });
       clickedRun = Date.now();
-      await s.click('button:has-text("Run 2 in parallel")', { ms: 300, cue: config.cues.go });
+      const run = 'button:has-text("Run 2 in parallel")';
+      await kit.clickUntil(s, run, async () => !(await kit.isVisible(s, run)), { ms: 300, cue: config.cues.go });
       kit.park(s);
       // The button closes with the dialog; don't hold a shot of where it was.
       await s.wide({ ms: 400 });
       await s.skip(
         async () => {
+          // Poll the starts all along: Cursor's is read off its store as it
+          // happens.
+          const poll = async (ms) => {
+            noteStarts();
+            await s.hold(ms);
+          };
           const end = Date.now() + 90000;
-          while (Date.now() < end && (await kit.count(s, COLUMN)) < 2) await s.hold(300);
+          while (Date.now() < end && (await kit.count(s, COLUMN)) < 2) await poll(300);
           if ((await kit.count(s, COLUMN)) < 2) throw new Error("the copy never opened beside run #1");
-          while (Date.now() < end && (await kit.count(s, ".xterm")) < 2) await s.hold(300);
-          await s.hold(AGENT_STARTUP_MS);
+          while (Date.now() < end && (await kit.count(s, ".xterm")) < 2) await poll(300);
+          for (const settle = Date.now() + AGENT_STARTUP_MS; Date.now() < settle; ) await poll(250);
           noteStarts();
           s.log(`copy: ${roots[1]}`);
           if (roots[1] && fs.existsSync(path.join(roots[1], "index.html"))) s.log("warning: the copy cloned run #1's index.html");

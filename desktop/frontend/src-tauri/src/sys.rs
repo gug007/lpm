@@ -122,27 +122,31 @@ fn ensure_path_hardcoded() {
     }
 }
 
-/// Prepend login-shell PATH dirs the process lacks. Best-effort; no-op on failure.
+/// Put the login-shell PATH first, in the shell's own order, so the app resolves
+/// `codex`/`node`/… to the same binaries the user's terminal does; the hardcoded
+/// dirs only fill in behind it. Otherwise /opt/homebrew/bin outranks ~/.local/bin
+/// and nvm, and a stale Homebrew copy of a CLI wins. Best-effort; no-op on failure.
 fn merge_login_shell_path() {
     let Some(captured) = capture_login_path() else {
         return;
     };
     let _ = LOGIN_PATH.set(captured.clone());
     let current = std::env::var("PATH").unwrap_or_default();
-    let mut existing: std::collections::HashSet<&str> = current.split(':').collect();
-    let mut prefix: Vec<&str> = Vec::new();
-    for dir in captured.split(':') {
-        if !dir.is_empty()
-            && Path::new(dir).is_absolute()
-            && existing.insert(dir)
-            && Path::new(dir).is_dir()
-        {
-            prefix.push(dir);
-        }
-    }
-    if !prefix.is_empty() {
-        std::env::set_var("PATH", format!("{}:{current}", prefix.join(":")));
-    }
+    let merged = login_path_first(&captured, &current, |dir| Path::new(dir).is_dir());
+    std::env::set_var("PATH", merged);
+}
+
+fn login_path_first(login: &str, current: &str, is_dir: impl Fn(&str) -> bool) -> String {
+    let mut seen = std::collections::HashSet::new();
+    let login_dirs = login
+        .split(':')
+        .filter(|dir| Path::new(dir).is_absolute() && is_dir(dir));
+    let current_dirs = current.split(':').filter(|dir| !dir.is_empty());
+    login_dirs
+        .chain(current_dirs)
+        .filter(|dir| seen.insert(*dir))
+        .collect::<Vec<_>>()
+        .join(":")
 }
 
 /// `-i` is required: volta/nvm/fnm edit ~/.zshrc, sourced only when interactive.
@@ -323,6 +327,17 @@ mod tests {
         assert_eq!(
             nvm_node_bins(home),
             vec![with_bin.to_string_lossy().into_owned()]
+        );
+    }
+
+    #[test]
+    fn login_shell_order_outranks_hardcoded_dirs() {
+        let login = "/home/u/.local/bin:/home/u/.nvm/bin:relative:/gone:/opt/homebrew/bin:/usr/bin";
+        let current = "/opt/homebrew/bin:/usr/local/bin:/home/u/.local/bin:/usr/bin:/bin";
+        let merged = login_path_first(login, current, |dir| dir != "/gone");
+        assert_eq!(
+            merged,
+            "/home/u/.local/bin:/home/u/.nvm/bin:/opt/homebrew/bin:/usr/bin:/usr/local/bin:/bin"
         );
     }
 

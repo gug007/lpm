@@ -101,6 +101,7 @@ function agents() {
     ? ["beats.js", "compare.json", "lesson.json"].map((f) => path.join(dir, f)).filter(fs.existsSync).map((f) => fs.readFileSync(f, "utf8")).join("\n")
     : "";
   if (/codex/i.test(text) && !onPath("codex")) missing.push("Codex: npm install -g @openai/codex, then run `codex` once and sign in");
+  if (/"cli": "cursor"/.test(text) && !onPath("agent")) missing.push("Cursor CLI: curl https://cursor.com/install -fsS | bash, then run `agent login`");
 }
 
 // Claude asks once per folder before it runs there, and looks for that trust
@@ -120,7 +121,11 @@ function trust() {
 }
 
 function app() {
-  if (!fs.existsSync(path.join(FRONTEND, "node_modules", ".bin", "vite"))) missing.push(`the frontend's packages: npm install in ${FRONTEND}`);
+  const pkg = JSON.parse(fs.readFileSync(path.join(FRONTEND, "package.json"), "utf8"));
+  const absent = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(
+    (name) => !fs.existsSync(path.join(FRONTEND, "node_modules", name, "package.json")),
+  );
+  if (absent.length) missing.push(`the frontend's packages (${absent.slice(0, 3).join(", ")}${absent.length > 3 ? "…" : ""} missing): npm install in ${FRONTEND}`);
   if (!fs.existsSync(APP_BIN)) {
     missing.push(`the debug app ${APP_BIN}: run \`npm run tauri dev\` in ${FRONTEND} once, then quit it (or set LPM_APP)`);
   }

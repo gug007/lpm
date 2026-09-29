@@ -12,11 +12,9 @@ const SKILL = path.resolve(__dirname, "..");
 const MAKER = path.resolve(SKILL, "..", "tiktok-video-lesson");
 const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 const DEFAULT_PROMPT =
-  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a tall, narrow panel and the window can be any size. Lay the scene out on a 420x740 stage: the plane spans about 80% of the stage's width with its body about 60% of the way down, and the giraffe's head reaches about 20% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. No questions, just write it.";
+  "Build a giraffe flying a one-seat propeller plane, its neck sticking out the top, in index.html at the project root. One file, no libraries or images. It's shown in a tall, narrow panel and the window can be any size. Lay the scene out on a 420x740 stage: the plane spans about 80% of the stage's width with its body about 60% of the way down, and the giraffe's head reaches about 20% from the top. Scale the whole stage to fit the panel, centered, never cropped; the sky fills the rest. No scrolling. Animate forever. Don't open it. Don't run or test it. No questions, just write it.";
 const WINDOW = { w: 900, h: 1000 };
-const CLI_NAME = { claude: "Claude Code", codex: "Codex" };
-// What viewers type into TikTok search: "claude vs chatgpt", not the CLI names.
-const BRAND = { claude: "Claude", codex: "ChatGPT" };
+const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
 
 const args = process.argv.slice(2);
 const VALUE_FLAGS = ["--prompt", "--subject", "--slug"];
@@ -46,6 +44,16 @@ if (a.dir === b.dir) {
 // only by its bare name (its newest model). On the other CLI the copy's own run
 // override starts the project's second button, which launches model B pinned.
 const crossCli = a.cli !== b.cli;
+// Run #1 takes the prompt through its composer, which types into Claude Code
+// and Codex; Cursor gets it as a launch argument, so it runs in the copy.
+if (a.cli === "cursor") {
+  console.error(
+    b.cli === "cursor"
+      ? `${a.name} and ${b.name} both run in Cursor CLI, and run #1 needs a Claude or GPT model: race one of them against one`
+      : `put ${a.name} on the right: a Cursor model runs in the copy`,
+  );
+  process.exit(1);
+}
 if (!crossCli && !b.pickerModel) {
   console.error(`the copy's model picker can't pick ${b.name} (it offers each family's newest); swap the sides or pick the newest`);
   process.exit(1);
@@ -73,18 +81,19 @@ const sameModel = a.name === b.name;
 const effortWord = (m) => m.spokenEffort || "default";
 const upper = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const emoji = giraffe ? " 🦒" : "";
-// A hook over 2.5 s loses the scroll: name the brands across CLIs ("Claude or
-// ChatGPT?"), families when they differ ("Opus or Fable?"), full names only
-// when they don't.
+// A hook over 2.5 s loses the scroll: name the brands viewers search for when
+// they differ ("Claude or ChatGPT?", "Claude or Grok?"), families when those
+// differ ("Opus or Fable?"), full names only when they don't.
 const family = (m) => m.name.split(" ")[0];
-const hookNames = crossCli ? [BRAND[a.cli], BRAND[b.cli]] : family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
+const branded = a.brand !== b.brand;
+const hookNames = branded ? [a.brand, b.brand] : family(a) !== family(b) ? [family(a), family(b)] : [a.name, b.name];
 const bEffort = b.effort && b.effort !== a.effort ? ` at ${b.spokenEffort}` : "";
 
 const narration = [
   {
     id: "hook",
     text: sameModel ? `${upper(effortWord(a))} or *${effortWord(b)}* effort?` : `${hookNames[0]} or *${hookNames[1]}*?`,
-    headline: crossCli ? `${BRAND[a.cli]} vs ${BRAND[b.cli]}: ${a.name} vs ${b.name}${emoji}` : `${a.headline} vs ${b.headline}${emoji}`,
+    headline: branded ? `${a.brand} vs ${b.brand}: ${a.name} vs ${b.name}${emoji}` : `${a.headline} vs ${b.headline}${emoji}`,
   },
   // The first two lines play over the finished pages (lesson.open): viewers
   // left at 0:02 when a one-line opening cut to the setup.
@@ -114,11 +123,10 @@ const narration = [
 
 const clis = new Set([a.cli, b.cli]);
 const hashtags = [
-  clis.has("claude") && "claude",
-  clis.has("codex") && "chatgpt",
-  clis.has("claude") ? "claudecode" : "codex",
+  ...new Set([a.brand, b.brand].map((w) => w.toLowerCase())),
+  clis.has("claude") ? "claudecode" : clis.has("codex") ? "codex" : "cursor",
   "vibecoding",
-  clis.size === 1 && "aicoding",
+  !branded && "aicoding",
   "lpm",
 ].filter(Boolean);
 const what = giraffe ? "a giraffe flying a one-seat plane, built as an animated web page" : subject ? `${subject}, built as a web page` : "one prompt";
@@ -128,7 +136,7 @@ const lesson = {
   open: 2,
   narration,
   post: {
-    caption: `${crossCli ? `${BRAND[a.cli]} vs ${BRAND[b.cli]} for coding: ` : `${BRAND[a.cli]} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
+    caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
     hashtags: hashtags.slice(0, 5),
   },
 };
@@ -158,20 +166,22 @@ fs.writeFileSync(
     `module.exports = require(${JSON.stringify(path.join(SKILL, "scripts", "beats.js"))})({\n` +
     `  config: require("./compare.json"),\n  dir: __dirname,\n});\n`,
 );
+// A take changes the user's default model for new sessions: picking model A in
+// the composer runs Claude Code's /model and /effort, and Cursor CLI saves the
+// model it was launched with. take.sh puts each default back afterwards.
+const saved = [pickA && "claude", clis.has("cursor") && "cursor"].filter(Boolean);
 const RUN_TAKE = path.join(MAKER, "scripts", "take.sh");
-const CLAUDE_DEFAULT = path.join(SKILL, "scripts", "claude-default.js");
+const backup = (c) => `"$DIR/_${c}-settings.backup.json" ${c}`;
 fs.writeFileSync(
   path.join(dir, "take.sh"),
-  pickA
+  saved.length
     ? `#!/bin/sh
-# Picking model A in the composer runs Claude Code's /model and /effort, which
-# save it as the user's default, so the take puts that default back afterwards.
+# The take changes the default model of ${saved.map((c) => CLI_NAME[c]).join(" and ")}, and puts it back afterwards.
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BAK="$DIR/_claude-settings.backup.json"
+DEFAULTS="${path.join(SKILL, "scripts", "cli-default.js")}"
 
-node "${CLAUDE_DEFAULT}" save "$BAK" || exit 1
-trap 'node "${CLAUDE_DEFAULT}" restore "$BAK"' EXIT
+${saved.map((c) => `node "$DEFAULTS" save ${backup(c)} || exit 1\n`).join("")}trap '${saved.map((c) => `node "$DEFAULTS" restore ${backup(c)}`).join("; ")}' EXIT
 trap 'exit 130' INT TERM
 "${RUN_TAKE}" "$DIR" "$@"
 `
@@ -183,7 +193,7 @@ exec "${RUN_TAKE}" "$(dirname "$0")" "$@"
 
 console.log(`${slug}
   left:   ${a.label}  →  ${a.cmd}${pickA ? `, then ${[a.pickerModel, a.pickerEffort].filter(Boolean).join(" · ")} in its composer` : ""}
-  right:  ${b.label}  →  ${crossCli ? `the copy's run override: ` : ""}${b.cmd}
+  right:  ${b.label}  →  ${crossCli ? `the copy's run override: ` : ""}${b.cmd}${b.cli === "cursor" ? " <prompt>" : ""}
   prompt: ${prompt}
   ${dir}/take.sh --no-audio --frames   (dry run)
   ${dir}/take.sh --frames              (the video)`);
