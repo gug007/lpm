@@ -19,3 +19,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-up
 - Opus 5.5 high vs Fable 5.1 high: the giraffe test
 - Fable 5.1 high vs GPT-6 Astra high: the giraffe test
 - Claude vs ChatGPT: Opus 5.5 vs GPT-6 Astra build a website
+- Opus 5.5 xhigh vs Grok 4.7 xhigh: the giraffe test

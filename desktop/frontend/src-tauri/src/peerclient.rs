@@ -93,6 +93,7 @@ struct PeerConn {
     supports_git_watch: AtomicBool, // ...and push changes instead of waiting to be asked
     supports_remote_pair: AtomicBool, // host can arm its own phone pairing and hand back the QR
     supports_file_upload: AtomicBool, // host can take an attached file in chunks, not one frame
+    supports_media_range: AtomicBool, // host serves a video's byte ranges for preview
     generation: AtomicU64,     // bump to retire the current connection thread
     // Present only for a peer reached over SSH. Owned here so the forward is torn
     // down with the connection rather than outliving it as a stray ssh process.
@@ -145,6 +146,7 @@ impl PeerConn {
             supports_git_watch: AtomicBool::new(false),
             supports_remote_pair: AtomicBool::new(false),
             supports_file_upload: AtomicBool::new(false),
+            supports_media_range: AtomicBool::new(false),
             generation: AtomicU64::new(0),
         }
     }
@@ -376,6 +378,9 @@ impl PeerClientHub {
                 let supports_file_upload = conn
                     .map(|c| c.supports_file_upload.load(Ordering::Relaxed))
                     .unwrap_or(false);
+                let supports_media_range = conn
+                    .map(|c| c.supports_media_range.load(Ordering::Relaxed))
+                    .unwrap_or(false);
                 let last_error = conn
                     .map(|c| c.last_error.lock().unwrap().clone())
                     .unwrap_or_default();
@@ -403,6 +408,7 @@ impl PeerClientHub {
                     "supportsGitBring": supports_git_bring,
                     "supportsGitFollow": supports_git_follow,
                     "supportsFileUpload": supports_file_upload,
+                    "supportsMediaRange": supports_media_range,
                     // Whether the peer's identity is pinned (verified-encrypted). An
                     // auto run refuses an unpinned channel, so the UI hints on it.
                     "pinned": p.tls_fp.is_some(),
@@ -820,6 +826,16 @@ impl PeerClientHub {
             .unwrap()
             .get(slug)
             .is_some_and(|c| c.supports_file_upload.load(Ordering::Relaxed))
+    }
+
+    /// Whether this peer's host serves a video's byte ranges for preview.
+    pub(crate) fn supports_media_range(&self, slug: &str) -> bool {
+        self.inner
+            .conns
+            .lock()
+            .unwrap()
+            .get(slug)
+            .is_some_and(|c| c.supports_media_range.load(Ordering::Relaxed))
     }
 
     /// Guard: the peer must be connected and its host must speak "bring changes".
@@ -1810,6 +1826,10 @@ fn connect_session(
     );
     conn.supports_file_upload.store(
         has_feature(crate::peeruploadhost::FILE_UPLOAD_FEATURE),
+        Ordering::Relaxed,
+    );
+    conn.supports_media_range.store(
+        has_feature(crate::mediapeer::MEDIA_RANGE_FEATURE),
         Ordering::Relaxed,
     );
 

@@ -58,6 +58,7 @@ mod lesson;
 mod log_streaming;
 mod mainwindow;
 mod mdns;
+mod mediapeer;
 mod mediaproto;
 mod menu;
 mod message_history;

@@ -10,6 +10,7 @@ import type {
 } from "@xterm/xterm";
 import { toast } from "sonner";
 import { joinAbs } from "../../path";
+import { isPeerMarked } from "../../peer/markers";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
 import { OpenPathInDefaultApp } from "../../../bridge/commands";
@@ -177,7 +178,9 @@ async function projectFiles(cwd: string, raw: string): Promise<string[]> {
 async function openMatch(m: PathMatch, cwd: string): Promise<void> {
   const files = (await projectFiles(cwd, m.raw)).map((rel) => joinAbs(cwd, rel));
   const abs = files[0] ?? joinAbs(cwd, m.raw);
-  if (files.length <= 1 && getSettings().terminalOpenInDefaultApp) {
+  // A connected Mac's file would open in an app over there, not here, so it
+  // always gets the viewer, which reads it from that Mac.
+  if (files.length <= 1 && getSettings().terminalOpenInDefaultApp && !isPeerMarked(abs)) {
     OpenPathInDefaultApp(abs).catch((err) => toast.error(`Open in Default app: ${err}`));
     return;
   }

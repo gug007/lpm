@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IBuffer, ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 
-const mocks = vi.hoisted(() => ({ index: [] as string[] }));
+const mocks = vi.hoisted(() => ({ index: [] as string[], openInDefaultApp: false }));
 
 vi.mock("../../../bridge/commands", () => ({
   ListDirFiles: vi.fn(() => Promise.resolve(mocks.index.map((path) => ({ path, isDir: false })))),
-  OpenPathInDefaultApp: vi.fn(),
+  OpenPathInDefaultApp: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("../../../bridge/runtime", () => ({ EventsOn: vi.fn(() => () => {}) }));
 vi.mock("../../store/fileViewer", () => ({ openFileViewer: vi.fn() }));
-vi.mock("../../store/settings", () => ({ getSettings: () => ({ terminalOpenInDefaultApp: false }) }));
+vi.mock("../../store/settings", () => ({
+  getSettings: () => ({ terminalOpenInDefaultApp: mocks.openInDefaultApp }),
+}));
 
+import { OpenPathInDefaultApp } from "../../../bridge/commands";
 import { openFileViewer } from "../../store/fileViewer";
 import { registerPathLinkProvider } from "./pathLinkProvider";
 import { forgetFileIndexes } from "./fileIndex";
@@ -47,8 +50,8 @@ async function linksOn(text: string, cwd = "/repo"): Promise<ILink[]> {
   return new Promise((resolve) => provider!.provideLinks(1, (links) => resolve(links ?? [])));
 }
 
-async function click(text: string, linkText: string) {
-  const link = (await linksOn(text)).find((l) => l.text === linkText);
+async function click(text: string, linkText: string, cwd = "/repo") {
+  const link = (await linksOn(text, cwd)).find((l) => l.text === linkText);
   if (!link) throw new Error(`no link "${linkText}" in "${text}"`);
   link.activate({} as MouseEvent, link.text);
   await vi.waitFor(() => expect(openFileViewer).toHaveBeenCalled());
@@ -58,6 +61,7 @@ async function click(text: string, linkText: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   forgetFileIndexes();
+  mocks.openInDefaultApp = false;
   mocks.index = [
     "desktop/frontend/src/components/FileViewer.tsx",
     "desktop/frontend/src/components/ui/blockingDialog.ts",
@@ -112,5 +116,29 @@ describe("bare file names", () => {
     const req = await click("read README.md", "README.md");
     expect(req.absPath).toBe("/repo/README.md");
     expect(req.choices).toBeUndefined();
+  });
+});
+
+describe("a connected Mac's terminal", () => {
+  const cwd = "/@peer-abcd1234/Users/dev/repo";
+
+  it("opens an absolute path from that Mac, not this one", async () => {
+    const req = await click("wrote /Users/dev/Movies/clip.mp4", "/Users/dev/Movies/clip.mp4", cwd);
+    expect(req.absPath).toBe("/@peer-abcd1234/Users/dev/Movies/clip.mp4");
+  });
+
+  it("uses the viewer even when files open in the default app", async () => {
+    mocks.openInDefaultApp = true;
+    const req = await click("wrote /Users/dev/notes.md", "/Users/dev/notes.md", cwd);
+    expect(req.absPath).toBe("/@peer-abcd1234/Users/dev/notes.md");
+    expect(OpenPathInDefaultApp).not.toHaveBeenCalled();
+  });
+
+  it("still hands a local file to the default app", async () => {
+    mocks.openInDefaultApp = true;
+    const link = (await linksOn("wrote /Users/dev/notes.md")).find((l) => l.text === "/Users/dev/notes.md");
+    link!.activate({} as MouseEvent, link!.text);
+    await vi.waitFor(() => expect(OpenPathInDefaultApp).toHaveBeenCalledWith("/Users/dev/notes.md"));
+    expect(openFileViewer).not.toHaveBeenCalled();
   });
 });

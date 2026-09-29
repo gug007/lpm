@@ -59,6 +59,7 @@ const HOST_FEATURES: &[&str] = &[
     crate::gitbringhost::GIT_FOLLOW_FEATURE,
     crate::gitwatchhost::GIT_WATCH_FEATURE,
     crate::peeruploadhost::FILE_UPLOAD_FEATURE,
+    crate::mediapeer::MEDIA_RANGE_FEATURE,
     REMOTE_PAIR_FEATURE,
 ];
 
@@ -1503,6 +1504,19 @@ fn dispatch_invoke(
             };
             let frame = match res {
                 Ok(path) => result_frame(&req_id, true, Value::String(path)),
+                Err(e) => result_frame(&req_id, false, Value::String(e)),
+            };
+            let _ = out.try_send(frame);
+        });
+        return;
+    }
+    // A video on this Mac, previewed on the client: each range is a disk read,
+    // answered from Rust off the socket thread like an upload.
+    if cmd == crate::mediapeer::MEDIA_RANGE_CMD {
+        let out = out.clone();
+        std::thread::spawn(move || {
+            let frame = match crate::mediapeer::serve_host(&args) {
+                Ok(value) => result_frame(&req_id, true, value),
                 Err(e) => result_frame(&req_id, false, Value::String(e)),
             };
             let _ = out.try_send(frame);

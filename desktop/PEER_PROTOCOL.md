@@ -152,7 +152,8 @@ pairing code. Absent from a build that predates it.
 `features` advertises optional capabilities the client keys behavior on (unknown
 entries ignored). `configSync` = the config-sync frames below exist at all;
 `configSync2` = the revision-aware variant (see **Config sync**); `remotePair` =
-the host will hand back its own phone-pairing QR (see **Commands**). A host
+the host will hand back its own phone-pairing QR (see **Commands**); `mediaRange` =
+the host serves a video's byte ranges for preview (see **Commands**). A host
 missing a feature simply never receives frames that depend on it. The full list
 is `HOST_FEATURES` in `peer.rs`.
 
@@ -178,7 +179,8 @@ Host dispatch has two tiers:
 
 1. **Rust fast path** for terminal I/O — `write_terminal`, `resize_terminal`,
    `ack_terminal_data`, `stop_terminal` — executed directly against the PTY, no
-   webview round-trip.
+   webview round-trip. Uploads and `media_read_range` also run in Rust, on a
+   worker thread.
 2. **Webview dispatch** for everything else (this is what makes the proxy
    generic): the host Rust re-emits the command into its own main-window webview
    as a Tauri event `peer-invoke` `{ reqId, cmd, args }`; the host frontend runs
@@ -193,6 +195,16 @@ settings + config import/export, updater/installers, account/login, host-local
 audio/voice, the host browser overlay, and vault key material. Project-scoped
 operations are allowed. The client router carries the same guard (defense in
 depth). See `is_denied` in `peer.rs`.
+
+**Video preview** (`mediaRange` feature). The client's `lpm-media://` handler
+forwards each byte range a `<video>` asks for about a peer-marked path as
+`{ "cmd": "media_read_range", "args": { "path", "range" } }`. `path` is the host
+path (may start with `~/`), and `range` is the request's `Range` header or null.
+The host reads it with the same rules as a local file: video extensions only, and
+at most 1 MB per reply. It answers `{ len, start, end, partial, mime, data }`, with
+`data` in base64, or `{ len, unsatisfiable: true }`. A failure is the HTTP status
+as a string (`"404"`). A client doesn't send it to a host without the feature, and
+the viewer asks for an update instead.
 
 **Phone pairing** (`remotePair` feature). The one thing a client needs from the
 host's mobile server gets a dedicated frame rather than a hole in that denylist:

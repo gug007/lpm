@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
-import { isPeerMarked } from "../peer/markers";
+import { isPeerMarked, peerSlugOf } from "../peer/markers";
+import { peerAlias, usePeerState, type PeerClient } from "../peer/usePeerState";
 import { canPlayVideo, mediaSrc } from "./fileMedia";
 
 export interface VideoPreview {
@@ -20,6 +21,18 @@ function formatDuration(seconds: number): string {
   const s = total % 60;
   const mm = h > 0 ? String(m).padStart(2, "0") : String(m);
   return `${h > 0 ? `${h}:` : ""}${mm}:${String(s).padStart(2, "0")}`;
+}
+
+// A video on a paired Mac streams from there when its lpm serves byte ranges.
+// Otherwise this says why, since the element would only report a failed load.
+export function peerVideoBlock(path: string, peers: PeerClient[]): string | null {
+  const slug = peerSlugOf(path);
+  if (!slug) return null;
+  const peer = peers.find((p) => p.slug === slug);
+  const name = peerAlias(peers, slug);
+  if (!peer?.connected) return `Can't reach ${name} to play this video.`;
+  if (!peer.supportsMediaRange) return `Update lpm on ${name} to preview its videos here.`;
+  return null;
 }
 
 // The bytes never reach JS: the element streams them from the media scheme a
@@ -57,15 +70,15 @@ export function useVideoPreview(path: string, active: boolean): VideoPreview {
     );
   }, []);
 
-  // The media scheme reads local disk, so a file that lives on a paired Mac has
-  // no bytes to serve here.
+  const { state: peerState, loaded: peersLoaded } = usePeerState();
+  const onPeer = isPeerMarked(path);
   const blocked = useMemo(() => {
     if (!active || !path) return null;
-    if (isPeerMarked(path)) {
-      return "Video preview isn't available for a file on another Mac.";
-    }
-    return canPlayVideo(path) ? null : UNSUPPORTED;
-  }, [path, active]);
+    const unreachable = onPeer && peersLoaded ? peerVideoBlock(path, peerState.peers) : null;
+    return unreachable ?? (canPlayVideo(path) ? null : UNSUPPORTED);
+  }, [path, active, onPeer, peersLoaded, peerState.peers]);
+  // Until the peer list arrives there is no telling whether that Mac streams.
+  const waiting = onPeer && !peersLoaded;
 
   const error = blocked ?? (active ? playbackError : null);
   const parts = [
@@ -74,7 +87,7 @@ export function useVideoPreview(path: string, active: boolean): VideoPreview {
   ].filter(Boolean);
 
   return {
-    src: active && path && !error ? mediaSrc(path) : null,
+    src: active && path && !error && !waiting ? mediaSrc(path) : null,
     error,
     meta: parts.length > 0 ? parts.join(" · ") : null,
     onLoadedMetadata,

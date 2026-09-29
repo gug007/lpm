@@ -49,6 +49,8 @@ export interface PeerClient {
   // The peer's build can take an attached file in chunks rather than one frame,
   // which is what lifts the 8 MB cap on sending it a file.
   supportsFileUpload?: boolean;
+  // The peer's build serves a video's byte ranges, so its videos preview here.
+  supportsMediaRange?: boolean;
   pinned?: boolean;
   lastSyncAt?: number;
   lastError?: string;

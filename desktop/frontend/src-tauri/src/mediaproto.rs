@@ -4,14 +4,15 @@
 //! travel as a command result the way an image preview's base64 does — a
 //! 48 MB clip would be held in memory several times over and still wouldn't
 //! seek. This serves one bounded chunk per request instead, so peak memory is
-//! a chunk regardless of file size.
+//! a chunk regardless of file size. A file on a paired Mac is read there a
+//! chunk at a time (`mediapeer`).
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
-use tauri::http::{header, Request, Response, StatusCode};
-use tauri::{UriSchemeContext, UriSchemeResponder};
+use tauri::http::{header, Method, Request, Response, StatusCode};
+use tauri::{AppHandle, Runtime, UriSchemeContext, UriSchemeResponder};
 
 pub const SCHEME: &str = "lpm-media";
 
@@ -33,15 +34,32 @@ fn is_app_webview(label: &str) -> bool {
     label == "main" || label.starts_with("detached-")
 }
 
-pub fn handle<R: tauri::Runtime>(
+pub fn handle<R: Runtime>(
     ctx: UriSchemeContext<'_, R>,
     request: Request<Vec<u8>>,
     responder: UriSchemeResponder,
 ) {
     let label = ctx.webview_label().to_string();
+    let app = ctx.app_handle().clone();
     // WKWebView calls the scheme handler on the main thread; seeking and
     // reading there would block the UI for the length of every chunk.
-    std::thread::spawn(move || responder.respond(serve(&label, &request)));
+    std::thread::spawn(move || responder.respond(serve(&app, &label, &request)));
+}
+
+/// The bytes one request gets and where they sit in the file.
+pub(crate) struct Chunk {
+    pub len: u64,
+    pub start: u64,
+    pub end: u64,
+    pub partial: bool,
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
+pub(crate) enum Media {
+    Bytes(Chunk),
+    /// The range starts past the end of a file this long.
+    Unsatisfiable(u64),
 }
 
 fn empty(status: StatusCode) -> Response<Vec<u8>> {
@@ -51,7 +69,11 @@ fn empty(status: StatusCode) -> Response<Vec<u8>> {
         .expect("static response builds")
 }
 
-fn serve(label: &str, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+fn serve<R: Runtime>(
+    app: &AppHandle<R>,
+    label: &str,
+    request: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
     if !is_app_webview(label) {
         return empty(StatusCode::FORBIDDEN);
     }
@@ -60,7 +82,29 @@ fn serve(label: &str, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     let Ok(decoded) = urlencoding::decode(request.uri().path().trim_start_matches('/')) else {
         return empty(StatusCode::BAD_REQUEST);
     };
-    let path = crate::config::expand_home(&decoded);
+
+    // WebKit's media loader ranges from the first byte and never sends HEAD, so
+    // HEAD only answers a hand-written probe, which needs the length alone.
+    let head = request.method() == Method::HEAD;
+    let range = if head {
+        Some("bytes=0-0")
+    } else {
+        request
+            .headers()
+            .get(header::RANGE)
+            .and_then(|v| v.to_str().ok())
+    };
+    let media = match crate::mediapeer::split_peer_path(&decoded) {
+        Some((slug, host_path)) => crate::mediapeer::fetch(app, slug, host_path, range),
+        None => read(&decoded, range),
+    };
+    respond(media, head)
+}
+
+/// What one media request asks for, from this machine's disk: the whole file
+/// when it is small and no range was asked for, otherwise one chunk.
+pub(crate) fn read(path: &str, range: Option<&str>) -> Result<Media, StatusCode> {
+    let path = crate::config::expand_home(path);
     let path = Path::new(&path);
 
     let ext_ok = path
@@ -68,85 +112,88 @@ fn serve(label: &str, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
         .and_then(|e| e.to_str())
         .is_some_and(|e| ALLOWED_EXT.contains(&e.to_ascii_lowercase().as_str()));
     if !ext_ok {
-        return empty(StatusCode::FORBIDDEN);
+        return Err(StatusCode::FORBIDDEN);
     }
 
-    let Ok(mut file) = File::open(path) else {
-        return empty(StatusCode::NOT_FOUND);
-    };
-    let Ok(meta) = file.metadata() else {
-        return empty(StatusCode::NOT_FOUND);
-    };
+    let mut file = File::open(path).map_err(|_| StatusCode::NOT_FOUND)?;
+    let meta = file.metadata().map_err(|_| StatusCode::NOT_FOUND)?;
     if !meta.is_file() {
-        return empty(StatusCode::FORBIDDEN);
+        return Err(StatusCode::FORBIDDEN);
     }
     let len = meta.len();
+
+    let requested = range.map(|v| parse_range(v, len));
+    let (start, end) = match requested {
+        Some(Some(range)) => range,
+        Some(None) => return Ok(Media::Unsatisfiable(len)),
+        None if len <= MAX_FULL_READ => (0, len.saturating_sub(1)),
+        None => (0, MAX_CHUNK.min(len).saturating_sub(1)),
+    };
+
+    let nbytes = end + 1 - start;
+    let mut data = Vec::with_capacity(nbytes as usize);
+    if file.seek(SeekFrom::Start(start)).is_err()
+        || file.take(nbytes).read_to_end(&mut data).is_err()
+    {
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     let mime = mime_guess::from_path(path)
         .first_or_octet_stream()
         .essence_str()
         .to_string();
+    // A rangeless request for a file too big to send whole is still answered
+    // partially — the media loader reads Content-Range and asks for the rest.
+    let partial = requested.is_some() || nbytes < len;
+    Ok(Media::Bytes(Chunk {
+        len,
+        start,
+        end,
+        partial,
+        mime,
+        data,
+    }))
+}
 
-    // wry sends no Content-Type of its own; without one the media engine has
-    // nothing to dispatch on.
-    let base = || {
-        Response::builder()
-            .header(header::CONTENT_TYPE, &mime)
-            .header(header::ACCEPT_RANGES, "bytes")
-            .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-            .header(header::ACCESS_CONTROL_EXPOSE_HEADERS, "content-range")
-    };
-
-    // WebKit's media loader ranges from the first byte and never sends HEAD, so
-    // this only answers a hand-written probe.
-    if request.method() == tauri::http::Method::HEAD {
-        return base()
-            .header(header::CONTENT_LENGTH, len)
-            .body(Vec::new())
-            .unwrap_or_else(|_| empty(StatusCode::INTERNAL_SERVER_ERROR));
-    }
-
-    let requested = request
-        .headers()
-        .get(header::RANGE)
-        .and_then(|v| v.to_str().ok())
-        .map(|v| parse_range(v, len));
-
-    let (start, end) = match requested {
-        Some(Some(range)) => range,
-        Some(None) => {
+fn respond(media: Result<Media, StatusCode>, head: bool) -> Response<Vec<u8>> {
+    let chunk = match media {
+        Err(status) => return empty(status),
+        Ok(Media::Unsatisfiable(len)) => {
             return Response::builder()
                 .status(StatusCode::RANGE_NOT_SATISFIABLE)
                 .header(header::CONTENT_RANGE, format!("bytes */{len}"))
                 .body(Vec::new())
                 .unwrap_or_else(|_| empty(StatusCode::INTERNAL_SERVER_ERROR));
         }
-        None if len <= MAX_FULL_READ => (0, len.saturating_sub(1)),
-        None => (0, MAX_CHUNK.min(len).saturating_sub(1)),
+        Ok(Media::Bytes(chunk)) => chunk,
     };
 
-    let nbytes = end + 1 - start;
-    let mut buf = Vec::with_capacity(nbytes as usize);
-    if file.seek(SeekFrom::Start(start)).is_err()
-        || file.take(nbytes).read_to_end(&mut buf).is_err()
-    {
-        return empty(StatusCode::INTERNAL_SERVER_ERROR);
+    // wry sends no Content-Type of its own; without one the media engine has
+    // nothing to dispatch on.
+    let resp = Response::builder()
+        .header(header::CONTENT_TYPE, &chunk.mime)
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header(header::ACCESS_CONTROL_EXPOSE_HEADERS, "content-range");
+    if head {
+        return resp
+            .header(header::CONTENT_LENGTH, chunk.len)
+            .body(Vec::new())
+            .unwrap_or_else(|_| empty(StatusCode::INTERNAL_SERVER_ERROR));
     }
 
-    // A rangeless request for a file too big to send whole is still answered
-    // partially — the media loader reads Content-Range and asks for the rest.
     // Content-Length is left to wry, which fills it from the body it is handed:
     // a value that disagrees with what is sent leaves WebKit waiting on bytes
     // that never arrive.
-    let partial = requested.is_some() || nbytes < len;
-    let resp = base();
-    let resp = if partial {
-        resp.status(StatusCode::PARTIAL_CONTENT)
-            .header(header::CONTENT_RANGE, format!("bytes {start}-{end}/{len}"))
+    let resp = if chunk.partial {
+        resp.status(StatusCode::PARTIAL_CONTENT).header(
+            header::CONTENT_RANGE,
+            format!("bytes {}-{}/{}", chunk.start, chunk.end, chunk.len),
+        )
     } else {
         resp.status(StatusCode::OK)
     };
-    resp.body(buf)
+    resp.body(chunk.data)
         .unwrap_or_else(|_| empty(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
