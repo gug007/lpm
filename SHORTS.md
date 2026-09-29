@@ -21,3 +21,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-up
 - Claude vs ChatGPT: Opus 5.5 vs GPT-6 Astra build a website
 - Opus 5.5 xhigh vs Grok 4.7 xhigh: the giraffe test
 - Opus 5.5 xhigh vs Gemini 3.1 Pro: the giraffe test
+- Opus 5.5 xhigh vs Muse Spark 1.3 xhigh: the giraffe test
