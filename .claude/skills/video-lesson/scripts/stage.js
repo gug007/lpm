@@ -1,20 +1,20 @@
 const path = require("path");
 const { chromium, CHROME } = require("./browser");
 const { sleep, alignWords, Timing } = require("./words");
-const { OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
+const { CANVAS, OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
 
 const ZOOM = 2;
 const W = 1280;
 const H = 720;
 const OUT = { width: W * ZOOM, height: H * ZOOM };
 
-// The app window floats on a warm off-white canvas with rounded corners and a
+// The app window floats on the cards' warm canvas with rounded corners and a
 // soft shadow, the way product screencasts are framed.
 const FRAME = {
   width: Number(process.env.FRAME_W) || 1100,
   height: Number(process.env.FRAME_H) || 620,
   radius: 14,
-  canvas: "#f5f4f0",
+  canvas: CANVAS,
 };
 
 const CSS = `

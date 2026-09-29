@@ -1,16 +1,26 @@
 // Renders each topic card of an app recording as its own clip (the same DOM
 // card the demo stage paints, in headless Chromium), for compose.js to lay over
 // the screen capture with alpha fades.
+const crypto = require("crypto");
 const path = require("path");
 const { sleep } = require("./words");
-const { OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
+const { CANVAS, OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
+const { OPEN_LIFT } = require("./appstage");
 const { Recorder } = require("./recorder");
 const { chromium, CHROME } = require("./browser");
 
 const CARD_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
-html, body { margin: 0; background: #ebe5d9; overflow: hidden; }
+html, body { margin: 0; background: ${CANVAS}; overflow: hidden; }
 ${OVERLAY_CSS}
 </style></head><body></body></html>`;
+
+// Changes whenever the card's look or its hand-over does, so a re-cut renders
+// clips from an earlier look again instead of reusing them.
+const CARD_LOOK = crypto
+  .createHash("sha1")
+  .update(CARD_HTML + installStage.toString() + JSON.stringify(OPEN_LIFT))
+  .digest("hex")
+  .slice(0, 12);
 
 async function renderCards(cards, dir, size) {
   if (!cards.length) return [];
@@ -35,11 +45,17 @@ async function renderCards(cards, dir, size) {
     const t0 = rec.startWall;
     // An opener holds blank canvas until its beat ran, then the words animate
     // in over the opaque card; the fades are added at mux time. Held cards never
-    // resolve, so that promise is dropped with the browser.
+    // resolve, so that promise is dropped with the browser. The opener runs on
+    // past its end while the mux fades it out, and its words lift away.
     const lead = card.first ? card.startMs : 0;
-    const length = lead + card.ms;
+    const lifts = card.first && !card.hold;
+    const length = lead + card.ms + (lifts ? OPEN_LIFT.fadeMs - OPEN_LIFT.leadMs : 0);
     if (lead > 0) await sleep(Math.max(0, t0 + lead - Date.now()));
     page.evaluate(({ t, ms }) => window.__lc.card(t, ms, true), { t: card.title, ms: card.ms + 2000 }).catch(() => {});
+    if (lifts) {
+      await sleep(Math.max(0, t0 + lead + card.ms - OPEN_LIFT.titleLeadMs - Date.now()));
+      await page.evaluate((ms) => window.__lc.lift(ms), OPEN_LIFT.titleMs);
+    }
     const rest = t0 + length - Date.now();
     if (rest > 0) await sleep(rest);
     await page.screencast.stop();
@@ -50,4 +66,4 @@ async function renderCards(cards, dir, size) {
   return files;
 }
 
-module.exports = { renderCards };
+module.exports = { renderCards, CARD_LOOK };

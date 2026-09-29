@@ -8,6 +8,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { OUT, FRAME, ZOOM } = require("./stage");
 const { recordDemo, recordApp, renderTimelineCards } = require("./record");
+const { CARD_LOOK } = require("./cards");
 const { videoGraph, frameAssets, frameBox } = require("./compose");
 const { makeVoice } = require("./voice");
 const { DEFAULT_BED, soundtrack } = require("./mix");
@@ -74,13 +75,18 @@ async function record(lines) {
 }
 
 // An app take's topic cards as clips, rendered once per take (or again when
-// their files are gone).
+// their files are gone or the card's look has changed since).
 async function ensureCards() {
   if (source === "demo") return;
   const timeline = JSON.parse(fs.readFileSync(timelineFile, "utf8"));
-  const have = timeline.cardFiles && timeline.cardFiles.length === (timeline.cards || []).length && timeline.cardFiles.every((f) => fs.existsSync(f));
+  const have =
+    timeline.cardLook === CARD_LOOK &&
+    timeline.cardFiles &&
+    timeline.cardFiles.length === (timeline.cards || []).length &&
+    timeline.cardFiles.every((f) => fs.existsSync(f));
   if (have) return;
   timeline.cardFiles = await renderTimelineCards(timeline, DIR);
+  timeline.cardLook = CARD_LOOK;
   fs.writeFileSync(timelineFile, JSON.stringify(timeline, null, 2));
   console.log(`cards: ${timeline.cardFiles.length} clip(s)`);
 }
