@@ -125,13 +125,20 @@ function screenChecks(raw, clock) {
   return checks;
 }
 
+// A pause a card fills, or one the edit plays faster (edit.js), is not dead air.
 function deadAir(timeline) {
   const checks = [];
+  const busy = [
+    ...(timeline.cards || []).map((c) => [c.startMs, c.startMs + c.ms]),
+    ...(timeline.edit || []).filter((c) => c.kind === "wait").map((c) => [c.outStartMs, c.outStartMs + c.outMs]),
+  ];
   timeline.lines.forEach((t, i) => {
     const next = timeline.lines[i + 1];
     if (!next) return;
-    const gap = next.startMs - (t.startMs + t.ms);
-    if (gap > DEAD_AIR_MS) checks.push({ level: "WARN", check: "dead air", message: `${(gap / 1000).toFixed(1)} s with nothing said after "${t.id}" at ${mmss(t.startMs + t.ms)}` });
+    const from = t.startMs + t.ms;
+    const gap = next.startMs - from;
+    if (gap <= DEAD_AIR_MS || busy.some(([a, b]) => a < next.startMs && from < b)) return;
+    checks.push({ level: "WARN", check: "dead air", message: `${(gap / 1000).toFixed(1)} s with nothing said after "${t.id}" at ${mmss(from)}` });
   });
   return checks;
 }
@@ -164,14 +171,15 @@ function sheet(mp4, timeline, lesson, file) {
   return spoken.map((t, i) => ({ tile: i + 1, at: mmss(t.startMs), line: t.id }));
 }
 
-// `raw` is the take's capture; on a vertical lesson its clock is the take's,
-// not the cut's, and it has no dead-air check (the edit cuts the waits).
+// `raw` is the take's capture; on a vertical lesson or an edited cut its clock
+// is the take's, not the cut's. A vertical lesson has no dead-air check (the
+// edit cuts the waits).
 function runQa({ dir, mp4, raw, timeline, lesson, vertical = false, log = console.log }) {
   const qaDir = path.join(path.dirname(mp4), "qa");
   fs.mkdirSync(qaDir, { recursive: true });
   const checks = [];
   try {
-    checks.push(...screenChecks(raw, vertical ? " (take time)" : ""));
+    checks.push(...screenChecks(raw, vertical || timeline.edit ? " (take time)" : ""));
   } catch (e) {
     checks.push({ level: "FAIL", check: "screen", message: `the screen could not be read, so nothing was checked for names or errors: ${e.message}` });
   }

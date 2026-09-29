@@ -1,6 +1,6 @@
 # How a lesson is made
 
-`take.sh` → `preflight.js` → `make.js`: voice → lint → record → cards → mux → captions, chapters, thumbnail → checks.
+`take.sh` → `preflight.js` → `make.js`: voice → lint → record → cards → mux → edit → captions, chapters, thumbnail → checks.
 
 ## Before the take
 
@@ -28,11 +28,15 @@
 - One OpenAI speech clip per line (`gpt-4o-mini-tts`, voice `marin`, `DEFAULT_STYLE` in `scripts/make.js`), cached by model, voice and text; a clip keeps its place when only the style changes, because a re-spoken line has a different length. Whisper word onsets land clicks on words; a fresh clip that loses words (a short closing sentence) is spoken again, up to three times, and a clip the take was recorded with is never replaced over it. The transcript's spellings (digits, "cloud" for Claude, "codec" for Codex) are matched to the script.
 - The mix (`scripts/mix.js`): clips on their slots at 48 kHz, levelled toward the lesson's median where TTS came back 1.5 LU or more off, the voice's treble shelved onto lesson 02's brightness (−16.5 dB above 4 kHz) so every lesson sounds like the same narrator, the music bed 14 LU under the voice and ducked while lines play, fading in over the title card and out over the end card; then the whole mix mastered to −14 LUFS (YouTube's reference; it never turns a quieter upload up) with a true-peak limiter at −1.5 dBTP, stereo. `--no-music`, `--music <file>` or `"music": false` change the bed.
 
+## The edit
+
+`scripts/edit.js`, after the mux, for viewers who leave in the first seconds or during a wait. With a `coldOpen` the video opens on its shots under the spoken hook, then the opening card and its hand-over (the card's own frames), then the lesson from its second line; the first line's narration is dropped. A stretch of more than 2.5 s with nothing said between two lines, not covered by a card, plays at 4× (up to 16× for long ones) under a canvas-coloured `N×` pill (drawn once into `_frame/`); `"speedUpWaits": false` keeps it real time. The straight render is written nearly lossless (CRF 12, picture only), cut into segments on frame boundaries, each encoded once (BT.709, CRF 18), and joined; the soundtrack is mixed again (same bed, ducking and master) with every clip at its new time. `edit.json` lists the cuts (take time → cut time) and moves with its take; captions, chapters and the checks follow the edited timeline, and the checks report on-screen findings in take time.
+
 ## After the mux
 
 - `<slug>.srt`: captions from the script itself, timed by the word onsets (uploaded with the video; YouTube's own recognition writes "LPM", "cloud", "codecs").
 - `chapters.txt`: every topic card and every `chapter` line starts one, the first at 0:00; problems (fewer than 3, one under 10 s) are printed.
-- `thumbnail.jpg`: the opening card drawn still (`thumbnail.json` records its look).
+- `thumbnail.jpg`: with a `cover`, its words beside (or above) a crop of the take at that moment, on the cards' canvas and serif (`scripts/cover.js`); otherwise the opening card drawn still. `thumbnail.json` records what it was drawn from, so a changed cover or a new take draws it again.
 - `qa/report.json` and `qa/sheet.jpg` (`scripts/qa.js`, also runnable on its own): the take read once a second for the account name, full name, computer name, email, home path, any email address and error text ("Hook failed", "Transcript saving is off"…), agent misses, dead air over 2.5 s, loudness and true peak, and one frame per line on a sheet. `youtube-upload` refuses a lesson whose report failed or is older than the MP4.
 
 ## Re-rendering a published lesson

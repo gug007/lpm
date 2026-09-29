@@ -92,7 +92,40 @@ function checkLesson(lesson, beats, { kind = "landscape" } = {}) {
     if (!/^[^#]+#\d+$/.test(id)) errors.push(`lesson.json zooms: "${id}" is not a zoom id (<line>#<n>, see the mux log)`);
     if (bad.length) errors.push(`lesson.json zooms["${id}"]: unknown ${bad.join(", ")} (scale, at, ms or drop)`);
   }
+  if (kind === "landscape") checkEdit(lesson, seen, errors, warnings);
   return { errors, warnings };
+}
+
+// lesson.json "coldOpen", "cover" and "speedUpWaits" (edit.js, cover.js).
+function checkEdit(lesson, ids, errors, warnings) {
+  const open = lesson.coldOpen;
+  if (open) {
+    if (!open.text) errors.push('lesson.json coldOpen has no "text" (the hook spoken over its shots)');
+    else {
+      if (/\bTODO\b/.test(open.text)) errors.push("lesson.json coldOpen still has a TODO placeholder");
+      if (TEASER.test(open.text)) errors.push(`the cold open points at another video ("${open.text.match(TEASER)[0]}"); each lesson stands alone`);
+      const parts = sentences(open.text);
+      if (parts.length > 1 && norm(parts.at(-1)).length <= 2) warnings.push(`the cold open ends on a very short sentence ("${parts.at(-1)}"); the voice tends to drop those`);
+    }
+    if (ids.has("coldOpen")) errors.push('a narration line is called "coldOpen", the id the cold open\'s hook uses; rename it');
+    const shots = Array.isArray(open.shots) ? open.shots : [];
+    if (!shots.length) errors.push('lesson.json coldOpen has no "shots" ([{ "line": "<id>", "from": s, "to": s }], seconds into that line)');
+    for (const shot of shots) {
+      if (!ids.has(shot.line)) errors.push(`coldOpen shot on "${shot.line}", which is not a narration line`);
+      if (!(typeof shot.from === "number" && typeof shot.to === "number" && shot.from >= 0 && shot.to > shot.from)) errors.push(`coldOpen shot on "${shot.line}": "from" and "to" are seconds into the line, with to > from >= 0`);
+    }
+  }
+  if (lesson.speedUpWaits != null && typeof lesson.speedUpWaits !== "boolean") errors.push('lesson.json "speedUpWaits" is true or false');
+  const cover = lesson.cover;
+  if (cover) {
+    if (!cover.words) errors.push('lesson.json cover has no "words" (two to four, bigger than the title card\'s)');
+    else if (cover.words.split(/\s+/).length > 5) warnings.push(`the cover's words ("${cover.words}") are many for a thumbnail; two to four read at feed size`);
+    if (!ids.has(cover.line)) errors.push(`lesson.json cover: "line" names "${cover.line}", which is not a narration line`);
+    if (cover.style && !["window", "closeup"].includes(cover.style)) errors.push(`lesson.json cover: style "${cover.style}" is "window" or "closeup"`);
+    if (cover.crop && !(Array.isArray(cover.crop) && cover.crop.length === 4 && cover.crop.every((v) => typeof v === "number" && v >= 0))) {
+      errors.push('lesson.json cover: "crop" is [x, y, width, height] in the app window\'s points');
+    }
+  }
 }
 
 // Loads the lesson folder's lesson.json and beats.js and checks them.
