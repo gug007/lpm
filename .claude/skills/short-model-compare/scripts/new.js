@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// node new.js "<model A>" "<model B>" [--prompt "…"] [--subject "…"] [--slug s] [--force]
+// node new.js "<model A>" "<model B>" [--effort e] [--prompt "…"] [--subject "…"] [--slug s] [--force]
 // Writes a ready-to-record vertical lesson for tiktok-video-lesson's make.js:
 // lesson.json (narration, headline, post), compare.json (models and prompt),
 // beats.js (this skill's shared beats) and take.sh.
@@ -17,20 +17,22 @@ const WINDOW = { w: 900, h: 1000 };
 const CLI_NAME = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
 
 const args = process.argv.slice(2);
-const VALUE_FLAGS = ["--prompt", "--subject", "--slug"];
+const VALUE_FLAGS = ["--effort", "--prompt", "--subject", "--slug"];
 const opt = (name) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
 const specs = args.filter((a, i) => !a.startsWith("--") && !VALUE_FLAGS.includes(args[i - 1]));
 if (specs.length !== 2) {
-  console.error('usage: node new.js "opus 5.5 max" "gpt 6 astra ultra" [--prompt "…"] [--subject "…"] [--slug s] [--force]');
+  console.error('usage: node new.js "opus 5.5 max" "gpt 6 astra ultra" [--effort e] [--prompt "…"] [--subject "…"] [--slug s] [--force]');
   process.exit(1);
 }
 
 let a, b;
 try {
-  [a, b] = specs.map(resolve);
+  // --effort is the race's own, for a side that names none; a side that can't
+  // run at it stops here rather than run at another level.
+  [a, b] = specs.map((spec) => resolve(spec, opt("--effort")));
 } catch (e) {
   console.error(e.message);
   process.exit(1);

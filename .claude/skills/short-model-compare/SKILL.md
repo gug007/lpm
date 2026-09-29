@@ -32,13 +32,15 @@ Each side is a loose spec: model, then an optional effort. The model picks the C
 
 - Claude Code: `opus`, `opus 5`, `opus 5.5`, `sonnet`, `haiku`, `fable 5.1`… A bare family means its newest version. Effort: `low`, `medium`, `high`, `xhigh`, `max`.
 - Codex: `gpt 6 astra`, `gpt-5.6 sol`, `astra`, `gpt 5.5`… Effort: whatever that model supports (`ultra` only on some).
-- Cursor CLI (`agent`): `grok 4.7`, `gemini 3.7 flash`, `kimi k3`, `glm 5.2`, `composer 2.5`… Cursor lists one model per level (`grok-4.7-xhigh`), so most need an effort; a few, such as `gemini-3.1-pro`, come at one level only and take none (Cursor refuses an `[effort=…]` override for them). The brand in the headline is the model's own name ("Claude vs Kimi"), "Cursor" only for Composer. The narration, captions and post never say a model runs "in Cursor": "The copy gets Grok 4.7", not "Grok 4.7 in Cursor".
+- Cursor CLI (`agent`): `grok 4.7`, `gemini 3.7 flash`, `kimi k3`, `glm 5.2`, `composer 2.5`… Cursor lists most levels as their own model (`grok-4.7-xhigh`), so most need an effort. A few, such as `gemini-3.1-pro`, `gemini-3.5-flash` and `composer-2.5`, run at one fixed level and take none: Cursor's own `/model` picker has no Effort for them, and it refuses `gemini-3.1-pro[effort=xhigh]`. The brand in the headline is the model's own name ("Claude vs Kimi"), "Cursor" only for Composer. The narration, captions and post never say a model runs "in Cursor": "The copy gets Grok 4.7", not "Grok 4.7 in Cursor".
 - No effort means the CLI's default, and the labels leave it out.
+- An effort the user gives the whole race ("use extra high effort") goes to both sides: `--effort xhigh` on `new.js` or `models.js`, for each side that names none. When a side can't run at it (a Cursor model with one fixed level, or a level that model lacks), `new.js` stops, and so does the video: tell the user which levels that side has and ask how to match the race before writing the lesson. A side is never run at another level than the one asked for, and the race is never quietly left unmatched.
 
-`scripts/models.js` checks both against what is installed right now: Claude Code's own model table (read from its binary), Codex's `~/.codex/models_cache.json` and `agent --list-models`. It rejects an effort the model does not support, because Codex fails such a run with a 400 in the middle of the take. Typos such as `utra` resolve.
+`scripts/models.js` checks both against what is installed right now: Claude Code's own model table (read from its binary), Codex's `~/.codex/models_cache.json` and `agent --list-models`. It rejects an effort the model does not support, because Codex fails such a run with a 400 in the middle of the take. Typos such as `utra` resolve, and so does "extra high". For a Cursor level with no slug of its own it asks Cursor itself: `agent -p --model '<model>[effort=<level>]'` with no prompt checks the model and exits without sending anything ("No prompt provided" when Cursor takes it, "Cannot use this model" when it doesn't), and the model it saves as the user's default is put back. A level found that way launches as `--model '<model>[effort=<level>]'`.
 
 ```
 node scripts/models.js "opus 5.5 max" "gpt 6 astra ultra"
+node scripts/models.js "opus 5.5" "grok 4.7" --effort xhigh
 ```
 
 Launch commands (session-only flags, so nothing in the user's config changes):
@@ -52,11 +54,12 @@ Launch commands (session-only flags, so nothing in the user's config changes):
 
    ```
    node scripts/new.js "opus 5.5 max" "gpt 6 astra ultra"
+   node scripts/new.js "opus 5.5" "grok 4.7" --effort xhigh
    node scripts/new.js "opus 5" "opus 5.5"
    node scripts/new.js "opus 5.5 low" "opus 5.5 max" --prompt "<prompt>" --subject "a lava lamp"
    ```
 
-   It creates `~/Movies/lpm-lessons/tiktok/<slug>/` with `lesson.json` (narration, headline, post), `compare.json` (both models, the prompt), `beats.js` (a stub that loads `scripts/beats.js`, which brings in the tiktok kit) and `take.sh` (`tiktok-video-lesson/scripts/take.sh`, inside the Claude-default backup when model A is picked in the composer). Both point into this repo by absolute path, so the folder needs nothing from outside git. `--subject` is the short noun phrase the caption uses for a custom prompt. `--slug` names the folder. `--force` rewrites an existing one. A lesson written before the setup moved off screen still has lines for it (`left`, `prompt`, `dupes`, `pick`, `go`) that the beats no longer run: rewrite it with `--force` before another take.
+   It creates `~/Movies/lpm-lessons/tiktok/<slug>/` with `lesson.json` (narration, headline, post), `compare.json` (both models, the prompt), `beats.js` (a stub that loads `scripts/beats.js`, which brings in the tiktok kit) and `take.sh` (`tiktok-video-lesson/scripts/take.sh`, inside the Claude-default backup when model A is picked in the composer). Both point into this repo by absolute path, so the folder needs nothing from outside git. `--effort` is the race's effort, for each side that names none. `--subject` is the short noun phrase the caption uses for a custom prompt. `--slug` names the folder. `--force` rewrites an existing one. A lesson written before the setup moved off screen still has lines for it (`left`, `prompt`, `dupes`, `pick`, `go`) that the beats no longer run: rewrite it with `--force` before another take.
 
    A custom prompt must still ask for `index.html` at the project root: the race waits for that file, and the reveal opens it. It must also keep "Don't run or test it.": Claude runs with `acceptEdits`, so a model that checks its page with a shell command waits on an approval nobody gives, and its turn never ends (Opus 5.5 xhigh did, with `node check.js`). It should also say the page is shown in a tall, narrow panel of any size, lay the scene out on a fixed 420x740 stage with the subject's size given as shares of that stage (the default: plane about 80% of the width, body about 60% down, giraffe's head about 20% from the top), and ask for the whole stage to be scaled to fit the panel, never cropped. Pixel sizes break at other panel sizes, and percentages of the panel itself pull against each other when its shape changes. "Fill the window" made one model crop its scene, and without sizes the two results come out at different scales, which makes the side-by-side comparison harder.
 

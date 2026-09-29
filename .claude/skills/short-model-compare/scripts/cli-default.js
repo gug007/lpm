@@ -18,13 +18,6 @@ const CLIS = {
   },
 };
 
-const [cmd, backup, cli = "claude"] = process.argv.slice(2);
-if (!["save", "restore"].includes(cmd) || !backup || !CLIS[cli]) {
-  console.error("usage: node cli-default.js save|restore <backup> <claude|cursor>");
-  process.exit(1);
-}
-const { file: FILE, keys: KEYS } = CLIS[cli];
-
 const read = (file) => (fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null);
 const canonical = (v) =>
   v && typeof v === "object" && !Array.isArray(v)
@@ -34,22 +27,35 @@ const canonical = (v) =>
         .join(",")}}`
     : JSON.stringify(v);
 
-if (cmd === "save") {
-  if (!fs.existsSync(backup)) fs.writeFileSync(backup, JSON.stringify({ text: read(FILE) }));
-  process.exit(0);
+function save(backup, cli) {
+  if (!fs.existsSync(backup)) fs.writeFileSync(backup, JSON.stringify({ text: read(CLIS[cli].file) }));
 }
 
-if (!fs.existsSync(backup)) process.exit(0);
-const { text } = JSON.parse(fs.readFileSync(backup, "utf8"));
-const now = read(FILE);
-if (now !== text) {
-  const before = text ? JSON.parse(text) : {};
-  const after = now ? JSON.parse(now) : {};
-  for (const k of KEYS) {
-    if (k in before) after[k] = before[k];
-    else delete after[k];
+function restore(backup, cli) {
+  if (!fs.existsSync(backup)) return;
+  const { file, keys } = CLIS[cli];
+  const { text } = JSON.parse(fs.readFileSync(backup, "utf8"));
+  const now = read(file);
+  if (now !== text) {
+    const before = text ? JSON.parse(text) : {};
+    const after = now ? JSON.parse(now) : {};
+    for (const k of keys) {
+      if (k in before) after[k] = before[k];
+      else delete after[k];
+    }
+    if (canonical(after) === canonical(before) && text != null) fs.writeFileSync(file, text);
+    else fs.writeFileSync(file, JSON.stringify(after, null, 2) + "\n");
   }
-  if (canonical(after) === canonical(before) && text != null) fs.writeFileSync(FILE, text);
-  else fs.writeFileSync(FILE, JSON.stringify(after, null, 2) + "\n");
+  fs.unlinkSync(backup);
 }
-fs.unlinkSync(backup);
+
+module.exports = { save, restore };
+
+if (require.main === module) {
+  const [cmd, backup, cli = "claude"] = process.argv.slice(2);
+  if (!["save", "restore"].includes(cmd) || !backup || !CLIS[cli]) {
+    console.error("usage: node cli-default.js save|restore <backup> <claude|cursor>");
+    process.exit(1);
+  }
+  (cmd === "save" ? save : restore)(backup, cli);
+}
