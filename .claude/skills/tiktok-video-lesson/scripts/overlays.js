@@ -55,9 +55,11 @@ const coarse = (v) => Math.round(v * 20) / 20;
 function sceneAt(t, track) {
   const st = track.stickers.find((s) => t >= s.startMs && t < s.endMs);
   const pg = track.pages.find((p) => t >= p.startMs && t < p.endMs);
+  const sl = track.slam && t >= track.slam.startMs && t < track.slam.endMs ? track.slam : null;
   let active = 0;
   if (pg) pg.words.forEach((w, i) => t >= w.ms && (active = i));
   return {
+    ...(sl && { slam: { a: sl.a, b: sl.b, colors: sl.colors, t: Math.round(Math.round((t - sl.startMs) / FRAME_MS) * FRAME_MS) } }),
     sticker: st && {
       kind: st.kind,
       text: st.text,
@@ -69,12 +71,13 @@ function sceneAt(t, track) {
 }
 
 // Every moment the picture changes: sticker and page edges, each spoken
-// word, and the frames of every pop-in.
+// word, and the frames of every pop-in and of the opening slam.
 function sampleTimes(track, outMs) {
   const times = new Set([0]);
   const pop = (start, ms) => {
     for (let k = 0; k * FRAME_MS <= ms + FRAME_MS; k++) times.add(start + k * FRAME_MS);
   };
+  if (track.slam) pop(track.slam.startMs, track.slam.endMs - track.slam.startMs);
   for (const s of track.stickers) {
     if (s.pop === false) times.add(s.startMs);
     else pop(s.startMs, POP_MS.sticker);

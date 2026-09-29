@@ -15,6 +15,7 @@ const { OUT, FPS, geometry, cameraKeys, cameraFilter } = require("./camera");
 const { editList } = require("./edit");
 const { textTrack } = require("./texttrack");
 const { renderBackdrop, renderGuides, renderTrack } = require("./overlays");
+const { SLAM } = require("./look");
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -105,6 +106,7 @@ async function compose(lines) {
     headline: lesson.headline ?? timed[0].line.headline,
     cta: lesson.cta === false ? null : lesson.cta || "lpm.cx",
     open,
+    slam: lesson.slam,
   });
   const look = await renderBackdrop(path.join(ROOT, "_look"), g, WINDOW_RADIUS_PT * t.box.scale);
   const overlay = await renderTrack(path.join(DIR, "overlay"), track, edit.outMs);
@@ -162,10 +164,12 @@ function ffmpeg(argv) {
   if (r.status !== 0) throw new Error(`ffmpeg failed: ${r.stderr.slice(-800)}`);
 }
 
-// The opening frame (hook headline over the payoff) as the cover, a contact
-// sheet with TikTok's interface zones drawn in for review, and the post text.
+// The opening frame (hook headline, or the slammed names, over the payoff) as
+// the cover, a contact sheet with TikTok's interface zones drawn in for
+// review, and the post text.
 async function extras(edit) {
-  ffmpeg(["-ss", "0.6", "-i", mp4, "-frames:v", "1", "-q:v", "2", path.join(DIR, "cover.jpg")]);
+  const coverS = lesson.slam ? SLAM.coverMs / 1000 : 0.6;
+  ffmpeg(["-ss", String(coverS), "-i", mp4, "-frames:v", "1", "-q:v", "2", path.join(DIR, "cover.jpg")]);
   const guides = await renderGuides(path.join(ROOT, "_look"));
   const every = 1.5;
   const count = Math.ceil(edit.outMs / 1000 / every);

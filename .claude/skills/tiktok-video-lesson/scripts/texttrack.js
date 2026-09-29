@@ -4,11 +4,13 @@
 // into short pages, timed by the clip's transcript so the spoken word lights up.
 const shared = require("./shared");
 const { norm, alignWords } = shared("words");
+const { SLAM } = require("./look");
 
 const PAGE_WORDS = 3;
 const PAGE_CHARS = 16;
 const PAGE_BREAK_MS = 650;
 const TAIL_MS = 200;
+const MIN_HOOK_MS = 600;
 
 // Transcript onsets for every word; a word the transcript missed is placed
 // between its timed neighbours.
@@ -77,8 +79,9 @@ function pages(line, outStartMs) {
 
 // `lines` are the timeline's lines with their clip (`line`) and `outMs`, the
 // line's start in the finished video; `labels` come from the stage, already
-// on the finished clock.
-function textTrack({ lines, labels = [], outMs, headline, cta, open = 1 }) {
+// on the finished clock. `slam` ({ a, b }) opens with the two names slammed in
+// big, and the headline pops in as they shrink away.
+function textTrack({ lines, labels = [], outMs, headline, cta, open = 1, slam }) {
   const spokenLines = lines.filter((l) => !l.line.silent);
   const captionPages = spokenLines.flatMap((l) => pages(l.line, l.outMs));
   const hookEnd = lines.length > open ? lines[open].outMs : outMs;
@@ -89,7 +92,9 @@ function textTrack({ lines, labels = [], outMs, headline, cta, open = 1 }) {
     .filter((m) => m.startMs >= hookEnd)
     .sort((a, b) => a.startMs - b.startMs);
   const stickers = [];
-  if (headline) stickers.push({ kind: "hook", text: headline, startMs: 0 });
+  const hookStart = slam ? SLAM.handoffMs : 0;
+  // After a slam, a headline with under MIN_HOOK_MS left would only flash.
+  if (headline && (!slam || hookEnd - hookStart >= MIN_HOOK_MS)) stickers.push({ kind: "hook", text: headline, startMs: hookStart });
   let n = 0;
   for (const m of marks) {
     const prev = stickers.at(-1);
@@ -102,7 +107,11 @@ function textTrack({ lines, labels = [], outMs, headline, cta, open = 1 }) {
     s.endMs = i + 1 < stickers.length ? stickers[i + 1].startMs : outMs;
     if (s.kind === "hook") s.endMs = Math.min(s.endMs, hookEnd);
   });
-  return { stickers: stickers.filter((s) => s.kind !== "none" && s.endMs > s.startMs), pages: captionPages };
+  return {
+    stickers: stickers.filter((s) => s.kind !== "none" && s.endMs > s.startMs),
+    pages: captionPages,
+    ...(slam && { slam: { a: slam.a, b: slam.b, colors: slam.colors || SLAM.colors, startMs: 0, endMs: Math.min(SLAM.ms, hookEnd) } }),
+  };
 }
 
 module.exports = { textTrack, pages, tokens };

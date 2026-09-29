@@ -134,6 +134,7 @@ const lesson = {
   title: `${a.headline} vs ${b.headline}${giraffe ? ": the giraffe test" : ", same prompt"}`,
   window: WINDOW,
   open: 2,
+  slam: sameModel ? { a: a.label, b: b.label } : { a: a.name, b: b.name },
   narration,
   post: {
     caption: `${branded ? `${a.brand} vs ${b.brand} for coding: ` : `${a.brand} `}${a.headline} vs ${b.headline} on the same prompt: ${what}, side by side in lpm. ${giraffe ? "Which giraffe wins?" : "Which one wins?"} Comment the two models you want me to race next.`,
