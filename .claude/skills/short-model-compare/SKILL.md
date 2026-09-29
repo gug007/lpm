@@ -32,7 +32,7 @@ Each side is a loose spec: model, then an optional effort. The model picks the C
 
 - Claude Code: `opus`, `opus 5`, `opus 5.5`, `sonnet`, `haiku`, `fable 5.1`… A bare family means its newest version. Effort: `low`, `medium`, `high`, `xhigh`, `max`.
 - Codex: `gpt 6 astra`, `gpt-5.6 sol`, `astra`, `gpt 5.5`… Effort: whatever that model supports (`ultra` only on some).
-- Cursor CLI (`agent`): `grok 4.7`, `gemini 3.7 flash`, `kimi k3`, `glm 5.2`, `composer 2.5`… Cursor lists one model per level (`grok-4.7-xhigh`), so most need an effort. The brand in the headline is the model's own name ("Claude vs Kimi"), "Cursor" only for Composer.
+- Cursor CLI (`agent`): `grok 4.7`, `gemini 3.7 flash`, `kimi k3`, `glm 5.2`, `composer 2.5`… Cursor lists one model per level (`grok-4.7-xhigh`), so most need an effort. The brand in the headline is the model's own name ("Claude vs Kimi"), "Cursor" only for Composer. The narration, captions and post never say a model runs "in Cursor": "The copy gets Grok 4.7", not "Grok 4.7 in Cursor".
 - No effort means the CLI's default, and the labels leave it out.
 
 `scripts/models.js` checks both against what is installed right now: Claude Code's own model table (read from its binary), Codex's `~/.codex/models_cache.json` and `agent --list-models`. It rejects an effort the model does not support, because Codex fails such a run with a 400 in the middle of the take. Typos such as `utra` resolve.

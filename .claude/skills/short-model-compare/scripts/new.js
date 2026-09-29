@@ -113,7 +113,7 @@ const narration = [
     label: "One prompt",
   },
   { id: "dupes", text: "Run it in *duplicates*.", label: "Run in duplicates" },
-  { id: "pick", text: `The copy gets *${b.name}*${bEffort}${crossCli ? ` in ${CLI_NAME[b.cli]}` : ""}.`, label: b.label },
+  { id: "pick", text: `The copy gets *${b.name}*${bEffort}${crossCli && b.cli !== "cursor" ? ` in ${CLI_NAME[b.cli]}` : ""}.`, label: b.label },
   { id: "go", text: "Side by side. *Go*." },
   { id: "wait", text: "Both are building it *now*." },
   { id: "reveal", text: "Here's what they *built*." },
