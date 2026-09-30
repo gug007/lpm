@@ -23,3 +23,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-up
 - Opus 5.5 xhigh vs Gemini 3.1 Pro: the giraffe test
 - Opus 5.5 xhigh vs Muse Spark 1.3 xhigh: the giraffe test
 - Opus 5.5 high vs Gemini 3.8 Flash high: the giraffe test
+- Opus 5.5 xhigh vs GPT-6.1 Sol xhigh: the giraffe test
