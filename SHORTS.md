@@ -25,3 +25,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Opus 5.5 high vs Gemini 3.8 Flash high: the giraffe test
 - Opus 5.5 xhigh vs GPT-6.1 Sol xhigh: the giraffe test
 - GPT-6.1 Sol xhigh vs GPT-6 Astra xhigh: the giraffe test
+- GPT-5.6 Sol xhigh vs GPT-6 Astra xhigh: the giraffe test
