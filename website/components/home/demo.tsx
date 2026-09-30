@@ -141,6 +141,10 @@ const LESSON_CAPTION: Record<
     heading: "Usage limits and context left, under the Claude Code prompt",
     blurb: "A short video: pick a Claude Code status line and watch it fill in.",
   },
+  "review-code-changes": {
+    heading: "Read every change an agent made before you commit",
+    blurb: "A short video: review Claude's edits, undo one file, commit the rest.",
+  },
 };
 
 function DesktopOnlyPrompt({

@@ -65,6 +65,13 @@ const LESSONS = {
       "Adding a Claude Code status line in lpm: pick the Clean layout, remove the cost, and the running Claude session shows the context left and 5-hour and weekly limits under the prompt with no restart.",
     uploadDate: "2026-09-25T09:00:00+00:00",
   },
+  "review-code-changes": {
+    id: "_eFQc4O6-Js",
+    name: "Review Code Changes in the lpm Terminal",
+    description:
+      "Claude Code edits your files; lpm shows you every change before it's committed, in a diff view right next to the terminal.",
+    uploadDate: "2026-09-30T09:00:00+00:00",
+  },
   "sixty-seconds": {
     id: "H46vW5DPbZk",
     name: "lpm in 60 Seconds: Start, Stop, Switch Projects and Run AI Agents",

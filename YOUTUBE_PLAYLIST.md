@@ -17,3 +17,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Codex Statusline: Show Usage Limits and Context Left in lpm
 - Claude Code Statusline: Show Usage Limits and Context Left in lpm
 - Use Multiple Claude Code Accounts on One Mac
+- Review Code Changes in the lpm Terminal — https://youtu.be/_eFQc4O6-Js
