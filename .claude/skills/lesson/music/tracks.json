@@ -1,0 +1,8 @@
+{
+  "license": "Mixkit Stock Music Free License (https://mixkit.co/license/#musicFree): free for commercial use in videos, including YouTube, no attribution required. The files themselves may not be redistributed (Mixkit User Terms 9.4), so they are not in git: scripts/preflight.js downloads the bed into this folder.",
+  "tracks": {
+    "bed.mp3": { "title": "Vastness", "artist": "Andrew Ev", "url": "https://assets.mixkit.co/music/184/184.mp3" },
+    "alt-finding-myself.mp3": { "title": "Finding Myself", "artist": "Michael Ramir C.", "url": "https://assets.mixkit.co/music/993/993.mp3" },
+    "alt-smooth-meditation.mp3": { "title": "Smooth Meditation", "artist": "Arulo", "url": "https://assets.mixkit.co/music/324/324.mp3" }
+  }
+}

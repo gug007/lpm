@@ -1,0 +1,97 @@
+// Renders each topic card of an app recording as its own clip (the same DOM
+// card the demo stage paints, in headless Chromium), for compose.js to lay over
+// the screen capture with alpha fades.
+const crypto = require("crypto");
+const path = require("path");
+const { sleep } = require("./words");
+const { CANVAS, OVERLAY_CSS, CURSOR_SVG, HOTSPOT, installStage } = require("./overlay");
+const { OPEN_LIFT } = require("./appstage");
+const { Recorder } = require("./recorder");
+const { chromium, CHROME } = require("./browser");
+
+const CARD_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>
+html, body { margin: 0; background: ${CANVAS}; overflow: hidden; }
+${OVERLAY_CSS}
+</style></head><body></body></html>`;
+
+// Changes whenever the card's look or its hand-over does, so a re-cut renders
+// clips from an earlier look again instead of reusing them.
+// An app take's cards set their title in the left column, beside the window
+// the mux stands at their right (compose.js COVER); a demo take's stay centred.
+const APP_LAYOUT = "cover";
+
+const CARD_LOOK = crypto
+  .createHash("sha1")
+  .update(CARD_HTML + installStage.toString() + JSON.stringify(OPEN_LIFT) + APP_LAYOUT)
+  .digest("hex")
+  .slice(0, 12);
+
+async function renderCards(cards, dir, size, { layout } = {}) {
+  if (!cards.length) return [];
+  const browser = await chromium.launch({ executablePath: CHROME, headless: true });
+  const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  await page.setContent(CARD_HTML);
+  await page.evaluate(installStage, { cursorSvg: CURSOR_SVG, hotspot: HOTSPOT, hiddenText: [] });
+  if (layout) await page.evaluate((cls) => document.getElementById("lesson-card").classList.add(cls), layout);
+  const files = [];
+  for (const [i, card] of cards.entries()) {
+    const file = path.join(dir, `card-${String(i).padStart(2, "0")}.mkv`);
+    await page.evaluate(() => window.__lc.cover());
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const rec = new Recorder(file);
+    await page.screencast.start({ size, quality: 92, onFrame: (f) => rec.frame(f) });
+    const startedAt = Date.now();
+    for (let n = 0; !rec.started && Date.now() - startedAt < 5000; n++) {
+      await page.evaluate((n) => (document.getElementById("lesson-tick").style.background = n % 2 ? "#000" : "#fff"), n);
+      await sleep(20);
+    }
+    if (!rec.started) throw new Error("card screencast never started");
+    const t0 = rec.startWall;
+    // An opener holds blank canvas until its beat ran, then the words animate
+    // in over the opaque card; the fades are added at mux time. Held cards never
+    // resolve, so that promise is dropped with the browser. The opener runs on
+    // past its end while the mux fades it out, and its words lift away.
+    const lead = card.first ? card.startMs : 0;
+    const lifts = card.first && !card.hold;
+    const length = lead + card.ms + (lifts ? OPEN_LIFT.fadeMs - OPEN_LIFT.leadMs : 0);
+    if (lead > 0) await sleep(Math.max(0, t0 + lead - Date.now()));
+    page.evaluate(({ t, ms }) => window.__lc.card(t, ms, true), { t: card.title, ms: card.ms + 2000 }).catch(() => {});
+    if (lifts) {
+      await sleep(Math.max(0, t0 + lead + card.ms - OPEN_LIFT.titleLeadMs - Date.now()));
+      await page.evaluate((ms) => window.__lc.lift(ms), OPEN_LIFT.titleMs);
+    }
+    const rest = t0 + length - Date.now();
+    if (rest > 0) await sleep(rest);
+    await page.screencast.stop();
+    await rec.stop(length);
+    files.push(file);
+  }
+  await browser.close();
+  return files;
+}
+
+// The YouTube thumbnail: the opening card itself, drawn still once its words
+// have settled, instead of a frame grabbed from the video (the words now lift
+// away before the card ends, and a short opener leaves few clean frames).
+async function renderThumbnail(title, file, size) {
+  const { execFileSync } = require("child_process");
+  const browser = await chromium.launch({ executablePath: CHROME, headless: true });
+  try {
+    const page = await browser.newPage({ viewport: size, deviceScaleFactor: 1 });
+    await page.setContent(CARD_HTML);
+    await page.evaluate(installStage, { cursorSvg: CURSOR_SVG, hotspot: HOTSPOT, hiddenText: [] });
+    await page.evaluate(() => window.__lc.cover());
+    page.evaluate(({ t }) => window.__lc.card(t, 60000, true), { t: title }).catch(() => {});
+    const words = title.split(/\s+/).length;
+    await sleep(140 + (words - 1) * 110 + 640 + 600);
+    const png = `${file}.png`;
+    await page.screenshot({ path: png });
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", png, "-vf", "scale=1280:720", "-q:v", "2", file]);
+    require("fs").rmSync(png, { force: true });
+  } finally {
+    await browser.close();
+  }
+}
+
+module.exports = { renderCards, renderThumbnail, CARD_LOOK, APP_LAYOUT };
