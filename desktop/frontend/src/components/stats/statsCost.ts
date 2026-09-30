@@ -42,6 +42,7 @@ const RATE_TABLE: { tokens: string[]; rate: Rate }[] = [
   { tokens: ["sonnet"], rate: anthropic(3, 15) },
   { tokens: ["3-5-haiku"], rate: anthropic(0.8, 4) },
   { tokens: ["haiku"], rate: anthropic(1, 5) },
+  { tokens: ["gpt-6.1-sol"], rate: openai(2, 0.1, 10, 2.5) },
   { tokens: ["gpt-6-astra"], rate: openai(10, 1, 50, 12.5) },
   { tokens: ["gpt-6-sol"], rate: openai(2, 0.2, 10, 2.5) },
   { tokens: ["gpt-6-luna"], rate: openai(0.1, 0.01, 0.5, 0.125) },

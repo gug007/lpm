@@ -168,6 +168,7 @@ describe("estimateModelCost", () => {
       cacheReadInputTokens: 1_000_000,
       outputTokens: 1_000_000,
     });
+    expect(estimateModelCost(usage, "gpt-6.1-sol")).toBeCloseTo(2 + 0.1 + 10, 6);
     expect(estimateModelCost(usage, "gpt-6-astra")).toBeCloseTo(10 + 1 + 50, 6);
     expect(estimateModelCost(usage, "gpt-6-sol")).toBeCloseTo(2 + 0.2 + 10, 6);
     expect(estimateModelCost(usage, "gpt-6-luna")).toBeCloseTo(0.1 + 0.01 + 0.5, 6);

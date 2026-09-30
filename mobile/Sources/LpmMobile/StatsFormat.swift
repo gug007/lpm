@@ -152,6 +152,7 @@ private let rateTable: [(tokens: [String], rate: Rate)] = [
     (["sonnet"], anthropic(3, 15)),
     (["3-5-haiku"], anthropic(0.8, 4)),
     (["haiku"], anthropic(1, 5)),
+    (["gpt-6.1-sol"], openai(2, 0.1, 10, cacheWrite: 2.5)),
     (["gpt-6-astra"], openai(10, 1, 50, cacheWrite: 12.5)),
     (["gpt-6-sol"], openai(2, 0.2, 10, cacheWrite: 2.5)),
     (["gpt-6-luna"], openai(0.1, 0.01, 0.5, cacheWrite: 0.125)),

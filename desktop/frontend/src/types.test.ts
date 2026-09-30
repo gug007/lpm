@@ -14,6 +14,7 @@ describe("aiEfforts", () => {
   });
 
   it("matches Codex's catalog for the GPT-6 models", () => {
+    expect(values("codex", "gpt-6.1-sol")).toEqual(expect.arrayContaining(["max", "ultra"]));
     expect(values("codex", "gpt-6-astra")).toEqual(expect.arrayContaining(["max", "ultra"]));
     expect(values("codex", "gpt-6-sol")).toEqual(expect.arrayContaining(["max", "ultra"]));
     expect(values("codex", "gpt-6-luna")).toContain("max");
@@ -37,6 +38,7 @@ describe("aiEfforts", () => {
 
 describe("aiSupportsFast", () => {
   it("offers Fast Mode on the flagship Codex models", () => {
+    expect(aiSupportsFast("codex", "gpt-6.1-sol")).toBe(true);
     expect(aiSupportsFast("codex", "gpt-6-astra")).toBe(true);
     expect(aiSupportsFast("codex", "gpt-6-sol")).toBe(true);
     expect(aiSupportsFast("codex", "gpt-6-luna")).toBe(true);
