@@ -69,9 +69,15 @@ if (pickA) a.cmd = "claude --permission-mode acceptEdits";
 
 const prompt = opt("--prompt") || DEFAULT_PROMPT;
 const giraffe = prompt === DEFAULT_PROMPT;
-const subject = giraffe ? "a giraffe flying a plane" : opt("--subject");
+const subject = giraffe ? "a giraffe flying a plane" : opt("--subject")?.trim().replace(/[.!]+$/, "");
+// The video says what both models were asked to build, so a custom prompt
+// needs its short name.
+if (!subject) {
+  console.error('a custom --prompt needs --subject "<what it builds>", such as "a lava lamp": the video says it aloud');
+  process.exit(1);
+}
 const slugify = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const topic = giraffe ? "giraffe" : subject ? slugify(subject).split("-").slice(0, 3).join("-") : "";
+const topic = giraffe ? "giraffe" : slugify(subject).split("-").slice(0, 3).join("-");
 const slug = opt("--slug") || slugify([`${a.dir}-vs-${b.dir}`, topic].filter(Boolean).join("-"));
 const dir = path.join(ROOT, slug);
 if (fs.existsSync(dir) && !args.includes("--force")) {
@@ -99,7 +105,9 @@ const narration = [
   // The first two lines play over the finished pages (lesson.open): viewers
   // left at 0:02 when a one-line opening cut to the setup. The setup happens
   // under them, unseen, so the video goes straight to both models at work.
-  { id: "tease", text: `Same prompt. Two very different *${giraffe ? "giraffes" : "results"}*.` },
+  // The second names the prompt, so viewers know what the pages were asked to
+  // be without reading it in the terminals.
+  { id: "tease", text: `Same prompt: ${giraffe ? "a *giraffe* flying a *plane*" : subject.replace(/(\S+)$/, "*$1*")}.` },
   {
     id: "run",
     text: sameModel
@@ -120,7 +128,7 @@ const hashtags = [
   !branded && "aicoding",
   "lpm",
 ].filter(Boolean);
-const what = giraffe ? "a giraffe flying a one-seat plane, built as an animated web page" : subject ? `${subject}, built as a web page` : "one prompt";
+const what = giraffe ? "a giraffe flying a one-seat plane, built as an animated web page" : `${subject}, built as a web page`;
 const lesson = {
   title: `${a.headline} vs ${b.headline}${giraffe ? ": the giraffe test" : ", same prompt"}`,
   window: WINDOW,
