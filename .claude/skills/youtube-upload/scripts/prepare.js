@@ -108,7 +108,21 @@ const captions = path.join(out, `${slug}.srt`);
 if (fs.existsSync(srt)) fs.copyFileSync(srt, captions);
 else warnings.push(`no ${slug}.srt: re-cut with make.js --mux-only to write the captions`);
 
-const ch = chapters(timeline, lesson);
+// make.js writes the MP4's own chapters beside it; after an edit (a cold open,
+// faster waits) the take's timeline no longer matches the video, so that file
+// wins whenever it is as new as the MP4.
+function mp4Chapters() {
+  const file = path.join(dir, "chapters.txt");
+  if (!fs.existsSync(file) || fs.statSync(file).mtimeMs < fs.statSync(mp4).mtimeMs) return null;
+  const list = fs
+    .readFileSync(file, "utf8")
+    .split("\n")
+    .map((l) => /^(\d+):(\d\d)\s+(.+)$/.exec(l.trim()))
+    .filter(Boolean)
+    .map((m) => ({ ms: (Number(m[1]) * 60 + Number(m[2])) * 1000, name: m[3] }));
+  return list.length ? { list, problems: [] } : null;
+}
+const ch = mp4Chapters() || chapters(timeline, lesson);
 for (const p of ch.problems) warnings.push(`chapters: ${p}`);
 
 // The description in the order the skill asks for; lesson.json "youtube"
