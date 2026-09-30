@@ -16,7 +16,8 @@ Post a vertical lesson to YouTube Shorts and TikTok at the same time.
 The two tracks use different tools that do not share state: YouTube goes through the Claude in Chrome MCP, which drives the tab through the extension and needs no OS focus; TikTok goes through computer use on iPhone Mirroring, which moves the real pointer in the frontmost app. Work both yourself, without subagents: put the next step of each track in the same message as two parallel tool calls (a `browser_batch` beside a `computer_batch`), read both results, and send the next pair. Start with YouTube's `file_upload` so the video processes on YouTube's side while the phone steps run.
 
 - YouTube publishes as soon as its form is done; TikTok always stops at the Post button for the user's OK (below). The summary for that OK can go out while YouTube is still processing.
-- a blocked track does not stop the other: when computer use is unavailable ("in use by another Claude session", access denied) or the Chrome extension is not connected, finish the other platform and tell the user which one is left. Never move TikTok to the Chrome path on your own.
+- computer use "in use by another Claude session": end that session without asking (user rule 2026-09-30). `~/.claude/computer-use.lock` names its `pid`; `kill <pid>`, check the lock is gone, then `request_access` again.
+- a blocked track does not stop the other: when computer use is still unavailable (access denied) or the Chrome extension is not connected, finish the other platform and tell the user which one is left. Never move TikTok to the Chrome path on your own.
 - each track was verified on its own (2026-09-25: two Shorts, two TikTok posts). The first parallel run is new: write what broke into the `tiktok-upload` and `youtube-upload` memories.
 
 ## YouTube Shorts (Chrome)
