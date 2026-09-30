@@ -1,6 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const { planEdit, layout, mapTime, editTimeline } = require("../edit");
+const { OPEN_LIFT } = require("../appstage");
+
+// The opening card's cut runs on past the card for the window's glide home.
+const HANDOVER = OPEN_LIFT.riseMs - OPEN_LIFT.leadMs + 50;
 const { checkLesson } = require("../lint");
 
 const FRAME = 1000 / 30;
@@ -66,7 +70,7 @@ test("a cold open plays its shots, the opening card, then the lesson from its se
   near(a.fromMs, 31500);
   near(a.toMs, 33500);
   near(card.fromMs, 1628);
-  near(card.toMs, 1628 + 1250 + 450);
+  near(card.toMs, 1628 + 1250 + HANDOVER);
   near(main.fromMs, 9000 - 300);
   assert.deepStrictEqual(plan.dropped, ["title"]);
 });
@@ -85,7 +89,7 @@ test("the edited timeline starts on the hook and keeps what survived at its new 
   assert.deepStrictEqual(edited.lines.map((l) => l.id), ["coldOpen", "open", "works", "review", "outro"]);
   assert.strictEqual(edited.lines[0].startMs, 300);
   const open = edited.lines.find((l) => l.id === "open");
-  near(open.startMs, 4000 + (1250 + 450) + 300);
+  near(open.startMs, 4000 + (1250 + HANDOVER) + 300);
   assert.strictEqual(edited.cards[0].title, "A lesson", "the opening card survives the frame snap");
   near(edited.cards[0].startMs, 4000);
   near(edited.totalMs, placed.reduce((s, c) => s + c.outMs, 0));

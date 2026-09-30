@@ -15,9 +15,9 @@ const CARD_FADE_MS = 300;
 // The opening card hands over to the app in one move: its words lift away over
 // `titleMs` from `titleLeadMs` before the card's end, so they are gone before
 // the window shows through; from `leadMs` before the end the card fades over
-// `fadeMs` (its clip runs on past the end to cover it) while the window rises
-// `rise` of its height over `riseMs`.
-const OPEN_LIFT = { titleLeadMs: 500, titleMs: 450, leadMs: 300, fadeMs: 700, riseMs: 900, rise: 0.45 };
+// `fadeMs` (its clip runs on past the end to cover it) while the window glides
+// from beside the title into its place over `riseMs` (compose.js COVER).
+const OPEN_LIFT = { titleLeadMs: 500, titleMs: 450, leadMs: 300, fadeMs: 700, riseMs: 900 };
 
 function realMouseWorks() {
   try {

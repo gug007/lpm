@@ -46,7 +46,7 @@ The runner waits for each line's clip plus a 450 ms gap before the next beat; a 
 | `s.press("Enter" \| "Escape" \| "Tab" \| …)`, `s.keys("cmd+shift+g")` | System Events key codes (a cliclick key press never reaches the page); same focus check |
 | `s.waitFor(sel, timeout)` | until visible |
 | `s.hold(ms)`, `s.holdUntil(msIntoLine)`, `s.cueMs("phrase")` | the narration clock; `cueMs` is when the phrase is spoken in the current line |
-| `s.card(title, { hold, until, ms })` | a topic card over the app; `until: "<cue>"` ends it on that word so the rest of the line plays over the app |
+| `s.card(title, { hold, until, ms })` | a card: the title on the left, the app shown live at its right (the cover layout); `until: "<cue>"` ends it on that word so the rest of the line plays over the app. Whatever a beat does behind a card shows in that window, so seed or click before the card, or keep it still |
 | `s.zoom(sel, { scale, at, ms, cue })`, `s.zoomOut({ ms, cue })` | push the picture in on a small control (1.6–2, 700–900 ms, finishing on the cue) and back out once the next thing is bigger; a few per lesson |
 | `s.hideCursor()`, `s.showCursor()` | the drawn cursor |
 | `s.waitForAgentReply(root, { since, prompt, configDir, endOfTurn, timeout, required })` | reads Claude's transcript: a reply after `since`, anchored on `prompt` when given (so an earlier answer or a fork never counts); `configDir` for a lesson's own account; `endOfTurn` waits for the end of the turn. A miss is a warning and a QA FAIL; `required: true` stops the take |

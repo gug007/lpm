@@ -12,6 +12,8 @@ const POOLS_AT_REST = "translate(-4%, -3%) rotate(0) scale(1)";
 const OVERLAY_CSS = `
 #lesson-card { position: fixed; inset: 0; z-index: 2147483640; isolation: isolate; display: flex; align-items: center; justify-content: center; padding: 0 240px; background: ${CANVAS}; color: #141414; font: 600 150px/1.12 "Iowan Old Style", "Palatino", Georgia, serif; letter-spacing: -0.02em; text-align: center; text-wrap: balance; opacity: 0; pointer-events: none; }
 #lesson-card > div { position: relative; z-index: 1; }
+#lesson-card.cover { justify-content: flex-start; padding: 0 0 0 128px; text-align: left; font-size: 190px; line-height: 1.02; letter-spacing: -0.025em; }
+#lesson-card.cover > div { max-width: 880px; }
 #lesson-card::before { content: ""; position: absolute; inset: -20%; z-index: 0; filter: blur(60px); background: ${POOLS}; animation: lesson-drift 26s ease-in-out infinite alternate; }
 @keyframes lesson-drift { from { transform: ${POOLS_AT_REST}; } to { transform: translate(4%, 3%) rotate(6deg) scale(1.08); } }
 #lesson-tick { position: fixed; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; z-index: 2147483647; opacity: 0.02; animation: lesson-tick 1s linear infinite; }

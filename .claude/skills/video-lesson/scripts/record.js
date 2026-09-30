@@ -11,7 +11,7 @@ const { Recorder } = require("./recorder");
 const { launchApp, REPO, APP_BIN } = require("./app");
 const { Capture } = require("./capture");
 const { AppStage } = require("./appstage");
-const { renderCards } = require("./cards");
+const { renderCards, APP_LAYOUT } = require("./cards");
 const { sleep } = require("./words");
 const { prepareState, killStaleServices } = require("./state");
 const { onTeardown } = require("./teardown");
@@ -208,7 +208,7 @@ async function renderTimelineCards(timeline, dir) {
   const cardsDir = path.join(dir, "cards");
   fs.rmSync(cardsDir, { recursive: true, force: true });
   fs.mkdirSync(cardsDir, { recursive: true });
-  return renderCards(timeline.cards || [], cardsDir, OUT);
+  return renderCards(timeline.cards || [], cardsDir, OUT, { layout: APP_LAYOUT });
 }
 
 module.exports = { recordDemo, recordApp, renderTimelineCards, runBeats, GAP_MS };

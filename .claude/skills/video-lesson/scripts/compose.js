@@ -1,8 +1,8 @@
 // The finished picture, built at mux time: for an app take the raw window
 // capture gets rounded corners and sits on the cards' warm canvas with a soft
-// shadow, rising into place as the opening card lifts away; zoom keyframes ease
-// the picture in on small targets and back out; the topic cards fade in over
-// everything where the timeline says.
+// shadow; zoom keyframes ease the picture in on small targets and back out; the
+// cards fade in over everything where the timeline says, and while one is up
+// the window stands at its right, the way the cover shows it (COVER).
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
@@ -68,15 +68,57 @@ html, body { margin: 0; background: #000; width: ${box.w}px; height: ${box.h}px;
   return assets;
 }
 
-// How far below its place the window (and its shadow) sits at time t, in
-// output pixels: all the way down under the opening card, easing out (cubic)
-// into place from the moment the card starts to lift away.
-function riseOffset(opener, box) {
-  if (!opener) return "0";
-  const at = ((opener.startMs + opener.ms - OPEN_LIFT.leadMs) / 1000).toFixed(3);
-  const d = (OPEN_LIFT.riseMs / 1000).toFixed(3);
-  const dist = Math.round(box.h * OPEN_LIFT.rise);
-  return `if(lt(t,${at}),${dist},if(lt(t,${at}+${d}),${dist}*pow(1-(t-${at})/${d},3),0))`;
+// While a card is up the window stands to its right, smaller and running off
+// the edge, beside the card's left-hand title, as on the "window" cover: scaled
+// about its centre and moved by a share of its own size. It glides there as a
+// card comes in and back as the card goes; the opening card's hand-over is that
+// glide home (over OPEN_LIFT.riseMs, from when the card starts to lift away),
+// and on the opening card the window fades in as the words rise.
+const COVER = { scale: 0.78, x: 0.52, y: 0.04, moveMs: 700, fadeInMs: 700, fadeInLeadMs: 150 };
+
+const ease = (p) => `if(lt(${p},0.5),4*pow(${p},3),1-pow(-2*${p}+2,3)/2)`;
+const unit = (from, ms) => `clip((t-${from.toFixed(3)})/${(ms / 1000).toFixed(3)},0,1)`;
+
+// Pure: for every card, when the window is off its place, in seconds [a, b),
+// and how far it is towards the cover position at time t (0 = its place, 1 =
+// the cover position), as an ffmpeg expression.
+function coverSpans(cards, totalMs) {
+  return cards.map((card, i) => {
+    const start = card.first ? 0 : card.startMs / 1000;
+    if (card.first && !card.hold) {
+      const h = (card.startMs + card.ms - OPEN_LIFT.leadMs) / 1000;
+      return { card: i, a: 0, b: h + OPEN_LIFT.riseMs / 1000, at: `if(lt(t,${h.toFixed(3)}),1,1-${ease(unit(h, OPEN_LIFT.riseMs))})`, fadeIn: (card.startMs + COVER.fadeInLeadMs) / 1000 };
+    }
+    if (card.hold) return { card: i, a: start, b: totalMs / 1000 + 1, at: card.first ? "1" : ease(unit(start, COVER.moveMs)) };
+    const b = start + card.ms / 1000;
+    const move = Math.min(COVER.moveMs, card.ms / 2);
+    const out = b - move / 1000;
+    return { card: i, a: start, b, at: `if(lt(t,${out.toFixed(3)}),${ease(unit(start, move))},1-${ease(unit(out, move))})` };
+  });
+}
+
+// The window and its shadow for one span, as a full-frame layer: trimmed to
+// the span, scaled about the window's centre and moved towards the cover
+// position. The size is set per frame and the position follows from it, so
+// one expression drives both.
+function coverLayer(span, { out, box }, shadowIn, windowIn, label) {
+  const k = +(1 - COVER.scale).toFixed(4);
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const tx = COVER.x * box.w;
+  const ty = COVER.y * box.h;
+  const s = `(1-${k}*(${span.at}))`;
+  const trim = `trim=start=${span.a.toFixed(3)}:end=${span.b.toFixed(3)}`;
+  const fade = span.fadeIn != null ? `,fade=t=in:st=${span.fadeIn.toFixed(3)}:d=${(COVER.fadeInMs / 1000).toFixed(3)}:alpha=1` : "";
+  const padH = out.height + 2 * Math.ceil(ty) + 2;
+  return [
+    `[${shadowIn}]${trim}[${label}s]`,
+    `[${windowIn}]${trim}[${label}w]`,
+    `[${label}s][${label}w]overlay=x=${box.x}:y=${box.y}:shortest=1${fade}[${label}l]`,
+    `[${label}l]scale=w='${out.width}*${s}':h='${out.height}*${s}':eval=frame,` +
+      `pad=w=${out.width * 2}:h=${padH}:x='(1-iw/${out.width})*${(cx + tx / k).toFixed(2)}':y='(1-ih/${out.height})*${(cy + ty / k).toFixed(2)}':color=black@0:eval=frame,` +
+      `crop=${out.width}:${out.height}:0:0[${label}]`,
+  ];
 }
 
 // zoompan crops iw/zoom × ih/zoom around the eased centre and scales it back
@@ -139,18 +181,23 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
   let last = "0:v";
   let next = 1;
   const opener = cards.find((c) => c.first && !c.hold);
+  const spans = composite ? coverSpans(cards, totalMs) : [];
   if (composite) {
     const still = (file) => ["-framerate", String(FPS), "-loop", "1", "-i", file];
     inputs.push(...still(canvas), ...still(shadow), ...still(mask));
-    const dy = riseOffset(opener, box);
+    // The window in its place, except while a card has it at the cover
+    // position (drawn above that card, below).
+    const home = spans.length ? `:enable='not(${spans.map((p) => `gte(t,${p.a.toFixed(3)})*lt(t,${p.b.toFixed(3)})`).join("+")})'` : "";
+    const copies = spans.length + 1;
     parts.push(
       `[0:v]scale=${box.w}:${box.h}:${CAPTURE_IN},format=rgba[w0]`,
       `[3:v]format=gray[m]`,
-      `[w0][m]alphamerge[w]`,
-      `[2:v]format=rgba[s]`,
-      `[1:v][s]overlay=x=0:y='${dy}'[bg]`,
-      `[bg][w]overlay=x=${box.x}:y='${box.y}+${dy}':eof_action=repeat[v0]`,
+      `[w0][m]alphamerge${copies > 1 ? `,split=${copies}${spans.map((_, i) => `[w${i + 1}c]`).join("")}` : ""}[w]`,
+      `[2:v]format=rgba${copies > 1 ? `,split=${copies}${spans.map((_, i) => `[s${i + 1}c]`).join("")}` : ""}[s]`,
+      `[1:v][s]overlay=x=0:y=0${home}[bg]`,
+      `[bg][w]overlay=x=${box.x}:y=${box.y}:eof_action=repeat${home}[v0]`,
     );
+    spans.forEach((span, i) => parts.push(...coverLayer(span, { out, box }, `s${i + 1}c`, `w${i + 1}c`, `cv${i}`)));
     last = "v0";
     next = 4;
   }
@@ -176,6 +223,10 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
     parts.push(`[${next + i}:v]${chain}[c${i}]`);
     parts.push(`[${last}][c${i}]overlay=eof_action=${card.hold ? "repeat" : "pass"}:enable='between(t,${start.toFixed(3)},${end.toFixed(3)})'[v${i + 1}]`);
     last = `v${i + 1}`;
+    if (spans.some((p) => p.card === i)) {
+      parts.push(`[${last}][cv${spans.findIndex((p) => p.card === i)}]overlay=x=0:y=0:eof_action=pass[v${i + 1}c]`);
+      last = `v${i + 1}c`;
+    }
   });
   const count = inputs.filter((a) => a === "-i").length;
   if (!parts.length) return { inputs, filter: null, label: "0:v", count, tags: [] };
@@ -187,4 +238,4 @@ function videoGraph({ out, canvas, shadow, mask, box, cards = [], cardFiles = []
   return { inputs, filter: parts.join(";"), label: "[vout]", count, tags: MASTER_TAGS };
 }
 
-module.exports = { FPS, frameBox, frameAssets, videoGraph, zoomStage, editZooms, CAPTURE_IN, MASTER_OUT, MASTER_TAGS, STILL_OUT };
+module.exports = { FPS, COVER, frameBox, frameAssets, videoGraph, coverSpans, zoomStage, editZooms, CAPTURE_IN, MASTER_OUT, MASTER_TAGS, STILL_OUT };

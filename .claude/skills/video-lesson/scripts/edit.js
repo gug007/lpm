@@ -12,6 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
 const { MASTER_OUT, MASTER_TAGS } = require("./compose");
+const { OPEN_LIFT } = require("./appstage");
 
 const FPS = 30;
 const FRAME_MS = 1000 / FPS;
@@ -21,8 +22,9 @@ const WAIT_TAIL_MS = 300;
 const WAIT_SHORTEST_MS = 1500;
 const HOOK_LEAD_MS = 300;
 const HOOK_TAIL_MS = 450;
-// The opening card hands over to the app window this long after it ends.
-const CARD_LIFT_MS = 450;
+// The opening card's hand-over (the window gliding into place) ends this long
+// after the card does.
+const CARD_LIFT_MS = OPEN_LIFT.riseMs - OPEN_LIFT.leadMs + 50;
 const RESUME_LEAD_MS = 300;
 // The id the hook's clip, caption and timeline entry go by.
 const HOOK_ID = "coldOpen";

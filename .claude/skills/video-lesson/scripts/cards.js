@@ -16,19 +16,24 @@ ${OVERLAY_CSS}
 
 // Changes whenever the card's look or its hand-over does, so a re-cut renders
 // clips from an earlier look again instead of reusing them.
+// An app take's cards set their title in the left column, beside the window
+// the mux stands at their right (compose.js COVER); a demo take's stay centred.
+const APP_LAYOUT = "cover";
+
 const CARD_LOOK = crypto
   .createHash("sha1")
-  .update(CARD_HTML + installStage.toString() + JSON.stringify(OPEN_LIFT))
+  .update(CARD_HTML + installStage.toString() + JSON.stringify(OPEN_LIFT) + APP_LAYOUT)
   .digest("hex")
   .slice(0, 12);
 
-async function renderCards(cards, dir, size) {
+async function renderCards(cards, dir, size, { layout } = {}) {
   if (!cards.length) return [];
   const browser = await chromium.launch({ executablePath: CHROME, headless: true });
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1 });
   const page = await context.newPage();
   await page.setContent(CARD_HTML);
   await page.evaluate(installStage, { cursorSvg: CURSOR_SVG, hotspot: HOTSPOT, hiddenText: [] });
+  if (layout) await page.evaluate((cls) => document.getElementById("lesson-card").classList.add(cls), layout);
   const files = [];
   for (const [i, card] of cards.entries()) {
     const file = path.join(dir, `card-${String(i).padStart(2, "0")}.mkv`);
@@ -89,4 +94,4 @@ async function renderThumbnail(title, file, size) {
   }
 }
 
-module.exports = { renderCards, renderThumbnail, CARD_LOOK };
+module.exports = { renderCards, renderThumbnail, CARD_LOOK, APP_LAYOUT };
