@@ -2,9 +2,11 @@ import { formatBytes } from "../../syncApi";
 import { FolderIcon } from "../icons";
 import { ImageFileView } from "../ImageFileView";
 import { MonacoEditor } from "../MonacoEditor";
+import { PdfFileView } from "../PdfFileView";
 import { VideoFileView } from "../VideoFileView";
 import { isSourceImage, mediaKind } from "../fileMedia";
 import { useImagePreview } from "../imagePreview";
+import { usePdfPreview } from "../pdfPreview";
 import { BinaryFilePlaceholder } from "../review/BinaryFilePlaceholder";
 import { EmptyState } from "../ui/EmptyState";
 import { useVideoPreview } from "../videoPreview";
@@ -49,6 +51,7 @@ export function FilesEditor({
   // A preview stays decoded while its tab is hidden; a tab comes back often.
   const preview = useImagePreview(absPath, media === "image");
   const video = useVideoPreview(absPath, media === "video");
+  const pdf = usePdfPreview(absPath, media === "pdf");
 
   if (!file) {
     return (
@@ -87,6 +90,7 @@ export function FilesEditor({
   if (file.error) return <BinaryFilePlaceholder path={file.path} message={file.error} />;
   if (media === "video") return <VideoFileView video={video} />;
   if (media === "image") return <ImageFileView preview={preview} />;
+  if (media === "pdf") return <PdfFileView pdf={pdf} />;
   if (file.binary) return <BinaryFilePlaceholder path={file.path} />;
   if (file.tooLarge) {
     return (

@@ -7,6 +7,8 @@ describe("mediaKind", () => {
     expect(mediaKind("/a/b/icon.SVG")).toBe("image");
     expect(mediaKind("/a/b/clip.mp4")).toBe("video");
     expect(mediaKind("/a/b/clip.MOV")).toBe("video");
+    expect(mediaKind("/a/b/receipt.pdf")).toBe("pdf");
+    expect(mediaKind("/a/b/RECEIPT.PDF")).toBe("pdf");
   });
 
   it("leaves everything else to the text reader", () => {
@@ -14,6 +16,7 @@ describe("mediaKind", () => {
     expect(mediaKind("/a/b/README")).toBeNull();
     // Extension-shaped only at the end: a dotted directory must not count.
     expect(mediaKind("/a/clip.mp4/notes.txt")).toBeNull();
+    expect(mediaKind("/a/docs.pdf/notes.txt")).toBeNull();
   });
 });
 

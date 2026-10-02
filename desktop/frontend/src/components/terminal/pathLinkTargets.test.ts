@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { IBuffer, ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 
-const mocks = vi.hoisted(() => ({ index: [] as string[], openInDefaultApp: false }));
+const mocks = vi.hoisted(() => ({
+  index: [] as string[],
+  files: [] as string[],
+  openInDefaultApp: false,
+}));
 
 vi.mock("../../../bridge/commands", () => ({
+  FileExists: vi.fn((path: string) => Promise.resolve(mocks.files.includes(path))),
   ListDirFiles: vi.fn(() => Promise.resolve(mocks.index.map((path) => ({ path, isDir: false })))),
   OpenPathInDefaultApp: vi.fn(() => Promise.resolve()),
 }));
@@ -62,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   forgetFileIndexes();
   mocks.openInDefaultApp = false;
+  mocks.files = [];
   mocks.index = [
     "desktop/frontend/src/components/FileViewer.tsx",
     "desktop/frontend/src/components/ui/blockingDialog.ts",
@@ -140,5 +146,32 @@ describe("a connected Mac's terminal", () => {
     link!.activate({} as MouseEvent, link!.text);
     await vi.waitFor(() => expect(OpenPathInDefaultApp).toHaveBeenCalledWith("/Users/dev/notes.md"));
     expect(openFileViewer).not.toHaveBeenCalled();
+  });
+});
+
+describe("paths with spaces", () => {
+  it("links the reading that is a file", async () => {
+    const path = "/Users/me/Downloads/Q3 Report (final, v2).pdf";
+    mocks.files = [path];
+    const req = await click(`saved ${path}`, path);
+    expect(req.absPath).toBe(path);
+  });
+
+  it("leaves prose alone when nothing it could name exists", async () => {
+    expect(await linksOn("move /Users/me/old notes into the archive.md")).toEqual([]);
+  });
+
+  it("outranks the piece of it that reads as a path alone", async () => {
+    const path = "/Users/me/My Docs/src/a.ts";
+    mocks.files = [path];
+    const links = await linksOn(`edit ${path}`);
+    expect(links.map((l) => l.text)).toEqual([path]);
+  });
+
+  it("asks a connected Mac whether the file is there", async () => {
+    const cwd = "/@peer-abcd1234/Users/dev/repo";
+    mocks.files = ["/@peer-abcd1234/Users/dev/My Files/clip.mp4"];
+    const req = await click("wrote /Users/dev/My Files/clip.mp4", "/Users/dev/My Files/clip.mp4", cwd);
+    expect(req.absPath).toBe("/@peer-abcd1234/Users/dev/My Files/clip.mp4");
   });
 });

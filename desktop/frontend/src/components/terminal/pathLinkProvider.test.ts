@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { IBuffer } from "@xterm/xterm";
 import phoneTapSource from "../../../../../mobile/web/pathtap.js?raw";
 
-import { findPathMatches, readLineWindow } from "./pathLinkProvider";
+import { findPathMatches, readLineWindow, scanLine } from "./pathLinkProvider";
 
 const phoneModule = { exports: {} };
 new Function("module", phoneTapSource)(phoneModule);
@@ -182,6 +182,60 @@ describe("phone rejoin", () => {
   ])("rejoins %j", (rows, want) => {
     const buf = fakeBuffer(rows.map((r) => row(r)), 20);
     expect(phoneTap.pathsAt(buf, 20, 0, 4).map((m) => m.path)).toContain(want);
+  });
+});
+
+describe("paths with spaces", () => {
+  const spaced = (rows: FakeRow[], cols: number, line = 1) =>
+    scanLine(fakeBuffer(rows, cols), line, cols).spaced;
+  const raws = (rows: FakeRow[], cols = 120, line = 1) =>
+    spaced(rows, cols, line).map((group) => group.map((m) => m.raw));
+
+  it("offers every end a run could have, longest first", () => {
+    const path = "/Users/me/Downloads/Expert Secrets (Russell Brunson) (z-library.sk, 1lib.sk, z-lib.sk).pdf";
+    const [group] = spaced([row(path)], 120);
+    expect(group.map((m) => m.raw)).toEqual([
+      path,
+      path.slice(0, -5),
+      path.slice(0, path.indexOf(", z-lib")),
+      path.slice(0, path.indexOf(", 1lib")),
+    ]);
+    expect(group[0].range).toEqual({ start: { x: 1, y: 1 }, end: { x: path.length, y: 1 } });
+  });
+
+  it("carries a position and a file:// prefix", () => {
+    const [[m]] = spaced([row("at file:///Users/me/My App/main.ts:3:9 failed")], 80);
+    expect(m).toMatchObject({ raw: "/Users/me/My App/main.ts", text: "file:///Users/me/My App/main.ts:3:9", line: 3, col: 9 });
+    expect(raws([row("open ~/My Docs/plan v2.md:12 now")])).toEqual([["~/My Docs/plan v2.md"]]);
+  });
+
+  it("unescapes a shell-escaped path", () => {
+    expect(raws([row("cp ~/My\\ Docs/a\\ \\(1\\).pdf .")])).toEqual([["~/My Docs/a (1).pdf"]]);
+  });
+
+  it("ends a run where another path starts", () => {
+    expect(raws([row("/a/x y.pdf and /b/z w.pdf")])).toEqual([["/a/x y.pdf"], ["/b/z w.pdf"]]);
+  });
+
+  it("leaves paths without spaces and URLs to the plain pattern", () => {
+    expect(raws([row("see /Users/me/a.ts here")])).toEqual([]);
+    expect(raws([row("see https://example.com/My File.pdf")])).toEqual([]);
+    expect(raws([row("at localhost:3000/My File.pdf")])).toEqual([]);
+  });
+
+  it("follows a path an agent wrapped at a blank, from either row", () => {
+    const rows = [row("⏺ /Users/me/Downloads/How to Talk"), row("  to Anyone.pdf")];
+    const want = "/Users/me/Downloads/How to Talk to Anyone.pdf";
+    expect(raws(rows, 36, 1)).toEqual([[want]]);
+    const [[m]] = spaced(rows, 36, 2);
+    expect(m.raw).toBe(want);
+    expect(m.range).toEqual({ start: { x: 3, y: 1 }, end: { x: 15, y: 2 } });
+  });
+
+  it("doesn't join a row that ended well short of the edge", () => {
+    const rows = [row("⏺ /Users/me/How to"), row("  Anyone.pdf")];
+    expect(raws(rows, 80, 1)).toEqual([]);
+    expect(raws(rows, 80, 2)).toEqual([]);
   });
 });
 

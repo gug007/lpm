@@ -1,3 +1,4 @@
+import { PreviewStatus } from "./PreviewStatus";
 import type { VideoPreview } from "./videoPreview";
 
 // max-h/max-w are explicit: the base stylesheet's `max-width: 100%` covers
@@ -12,15 +13,8 @@ interface VideoFileViewProps {
 export function VideoFileView({ video }: VideoFileViewProps) {
   return (
     <div className="flex h-full w-full overflow-hidden p-6">
-      {video.error ? (
-        <div className="m-auto max-w-md px-4 text-center">
-          <div className="text-[13px] text-[var(--accent-red)]">{video.error}</div>
-          <div className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Try opening it in another app.
-          </div>
-        </div>
-      ) : !video.src ? (
-        <div className="m-auto text-[13px] text-[var(--text-muted)]">Loading…</div>
+      {video.error || !video.src ? (
+        <PreviewStatus error={video.error} />
       ) : (
         // No autoplay: the viewer opens from a click in terminal output, and
         // wry allows unattended playback, so it would fire audio unprompted.

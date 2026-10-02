@@ -6,6 +6,7 @@ import { FileViewerHeader } from "./FileViewerHeader";
 import { isSourceImage } from "./fileMedia";
 import { isMarkdownPath } from "./files/useFileView";
 import { useImagePreview } from "./imagePreview";
+import { usePdfPreview } from "./pdfPreview";
 import { DiffConflictBanner } from "./review/DiffConflictBanner";
 import { useFileViewerFile } from "./useFileViewerFile";
 import { useFileViewerView } from "./useFileViewerView";
@@ -50,13 +51,17 @@ export function FileViewer({
 
   const showImage = file.kind === "image" && (!svg || (!editing && textView.view === "preview"));
   const showVideo = file.kind === "video";
+  const showPdf = file.kind === "pdf";
   const image = useImagePreview(absPath, showImage);
   const video = useVideoPreview(absPath, showVideo);
-  const previewing = !editing && !showImage && !showVideo && textView.view === "preview";
+  const pdf = usePdfPreview(absPath, showPdf);
+  // The previews whose zoom the header drives.
+  const zoomed = showImage ? image : showPdf ? pdf : null;
+  const media = !!zoomed || showVideo;
+  const previewing = !editing && !media && textView.view === "preview";
   const inEditor =
     !file.loading &&
-    !showImage &&
-    !showVideo &&
+    !media &&
     !previewing &&
     (textView.view === "diff" ? file.original !== null : file.text);
   const textZoom = useContentZoom(previewing);
@@ -113,14 +118,14 @@ export function FileViewer({
         label={file.label}
         line={line}
         col={col}
-        meta={showImage ? image.meta : showVideo ? video.meta : null}
+        meta={zoomed?.meta ?? (showVideo ? video.meta : null)}
         statusLabel={file.statusLabel}
         views={
           textView.options
             ? { value: textView.view, options: textView.options, onChange: textView.select }
             : null
         }
-        zoom={showImage ? image.zoom : previewing ? textZoom : inEditor ? editorZoom : null}
+        zoom={zoomed?.zoom ?? (previewing ? textZoom : inEditor ? editorZoom : null)}
         edit={{
           editing,
           canEdit,
@@ -141,7 +146,7 @@ export function FileViewer({
         />
       )}
       <div
-        ref={showImage ? image.zoom.surfaceRef : undefined}
+        ref={zoomed?.zoom.surfaceRef}
         className="min-h-0 flex-1 overflow-hidden bg-[var(--bg-primary)]"
       >
         <FileViewerContent
@@ -159,6 +164,7 @@ export function FileViewer({
           editing={editing}
           image={showImage ? image : null}
           video={showVideo ? video : null}
+          pdf={showPdf ? pdf : null}
           textZoom={textZoom}
           onChange={buffer.setDraft}
           onSave={() => void save()}

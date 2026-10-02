@@ -1,6 +1,6 @@
 import { isImagePath } from "../composerValue";
 
-export type MediaKind = "image" | "video";
+export type MediaKind = "image" | "video" | "pdf";
 
 // Deliberately NOT folded into composerValue's IMAGE_EXT_RE: that regex also
 // decides which dropped file becomes an image chip the agent receives as an
@@ -21,6 +21,8 @@ export function isVideoPath(path: string): boolean {
   return VIDEO_EXT_RE.test(path);
 }
 
+const PDF_EXT_RE = /\.pdf$/i;
+
 // SVG is an image the app can render and source it can edit; a viewer that
 // offers editing treats it as text, one that only previews rasterises it.
 const SOURCE_IMAGE_RE = /\.svg$/i;
@@ -32,6 +34,7 @@ export function isSourceImage(path: string): boolean {
 export function mediaKind(path: string): MediaKind | null {
   if (isImagePath(path)) return "image";
   if (isVideoPath(path)) return "video";
+  if (PDF_EXT_RE.test(path)) return "pdf";
   return null;
 }
 

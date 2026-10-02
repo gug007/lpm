@@ -1,9 +1,12 @@
-import { ListDirFiles } from "../../../bridge/commands";
+import { FileExists, ListDirFiles } from "../../../bridge/commands";
 import { basename, normalizePath } from "../../path";
 
 // How long a project's file list answers link hovers and clicks before the
 // next one walks the project again.
 const FRESH_MS = 30_000;
+// Hovering asks again for every row the pointer crosses, so a file's verdict
+// is kept for a moment instead of asking the disk, or a paired Mac, each time.
+const EXISTS_FRESH_MS = 3_000;
 
 export interface FileIndex {
   paths: ReadonlySet<string>;
@@ -11,6 +14,7 @@ export interface FileIndex {
 }
 
 const cache = new Map<string, { at: number; index: Promise<FileIndex | null> }>();
+const exists = new Map<string, { at: number; found: Promise<boolean> }>();
 
 function build(raw: unknown): FileIndex {
   const paths = new Set<string>();
@@ -36,8 +40,20 @@ export function loadFileIndex(root: string, maxAgeMs = FRESH_MS): Promise<FileIn
   return index;
 }
 
+// Whether an absolute path is a file, on whichever Mac its marker routes to.
+export function fileExists(abs: string): Promise<boolean> {
+  const now = Date.now();
+  const hit = exists.get(abs);
+  if (hit && now - hit.at < EXISTS_FRESH_MS) return hit.found;
+  for (const [path, entry] of exists) if (now - entry.at >= EXISTS_FRESH_MS) exists.delete(path);
+  const found = (FileExists(abs) as Promise<unknown>).then((v) => v === true, () => false);
+  exists.set(abs, { at: now, found });
+  return found;
+}
+
 export function forgetFileIndexes(): void {
   cache.clear();
+  exists.clear();
 }
 
 const shallowFirst = (a: string, b: string) =>

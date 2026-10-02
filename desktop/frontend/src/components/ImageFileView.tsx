@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fitScale, scaledSize, type Size } from "./imageFit";
 import type { ImagePreview } from "./imagePreview";
+import { PreviewStatus } from "./PreviewStatus";
 
 const PAD_PX = 24;
 
@@ -48,15 +49,8 @@ export function ImageFileView({ preview }: ImageFileViewProps) {
 
   return (
     <div ref={boxRef} className="flex h-full w-full overflow-auto p-6">
-      {preview.error ? (
-        <div className="m-auto max-w-md px-4 text-center">
-          <div className="text-[13px] text-[var(--accent-red)]">{preview.error}</div>
-          <div className="mt-1 text-[12px] text-[var(--text-muted)]">
-            Try opening it in another app.
-          </div>
-        </div>
-      ) : !preview.dataUrl ? (
-        <div className="m-auto text-[13px] text-[var(--text-muted)]">Loading…</div>
+      {preview.error || !preview.dataUrl ? (
+        <PreviewStatus error={preview.error} />
       ) : (
         <img
           src={preview.dataUrl}
